@@ -1,0 +1,294 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+import 'package:logging/logging.dart';
+import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
+import 'package:memex/domain/models/character_model.dart';
+import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/utils/user_storage.dart';
+
+import 'package:memex/utils/logger.dart';
+
+class CharacterService {
+  static final CharacterService _instance = CharacterService._();
+  static CharacterService get instance => _instance;
+
+  final Logger _logger = getLogger('CharacterService');
+  final FileSystemService _fileSystem = FileSystemService.instance;
+
+  CharacterService._();
+
+  /// Get the Characters directory path for a user
+  String getCharactersPath(String userId) {
+    return p.join(_fileSystem.getWorkspacePath(userId), 'Characters');
+  }
+
+  /// Ensure Characters directory exists and create default characters if empty
+  Future<String> _ensureCharactersDirectory(String userId) async {
+    final charsPath = getCharactersPath(userId);
+    final dir = Directory(charsPath);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+
+    // Check if empty (ignore hidden files)
+    final entities = await dir.list().toList();
+    final visibleFiles = entities.where((e) {
+      final name = p.basename(e.path);
+      return !name.startsWith('.') && name.endsWith('.yaml');
+    }).toList();
+
+    if (visibleFiles.isEmpty) {
+      await _createDefaultCharacters(userId, charsPath);
+    }
+
+    return charsPath;
+  }
+
+  /// Create default characters
+  Future<void> _createDefaultCharacters(String userId, String charsPath) async {
+    final defaultCharacters = UserStorage.l10n.defaultCharacters;
+
+    for (var charData in defaultCharacters) {
+      final charId = charData['id'] as String;
+      final charFile = p.join(charsPath, '$charId.yaml');
+
+      // Construct merged persona
+      var persona = charData['persona'] as String;
+      if (charData.containsKey('style_guide')) {
+        persona += "\n\n## Style Guide\n${charData['style_guide']}";
+      }
+      if (charData.containsKey('pkm_interest_filter')) {
+        persona +=
+            "\n\n## PKM Interest Filter\n${charData['pkm_interest_filter']}";
+      }
+      if (charData.containsKey('example_dialogue')) {
+        persona +=
+            "\n\n## Example Dialogue\n${charData['example_dialogue']}";
+      }
+
+      final charDict = {
+        "name": charData['name'],
+        "tags": charData['tags'],
+        "persona": persona,
+        "avatar": null,
+        "enabled": true,
+      };
+
+      try {
+        await _fileSystem.writeYamlFile(charFile, charDict);
+        _logger.info("Created default character $charId for user $userId");
+      } catch (e) {
+        _logger
+            .severe("Failed to create character $charId for user $userId: $e");
+      }
+    }
+  }
+
+  /// Get all characters for a user
+  Future<List<CharacterModel>> getAllCharacters(String userId) async {
+    final charsPath = await _ensureCharactersDirectory(userId);
+    final dir = Directory(charsPath);
+    final characters = <CharacterModel>[];
+
+    await for (final entity in dir.list()) {
+      if (entity is File &&
+          !p.basename(entity.path).startsWith('.') &&
+          entity.path.endsWith('.yaml')) {
+        try {
+          final content = await entity.readAsString();
+          final doc = loadYaml(content);
+          final data = jsonDecode(jsonEncode(doc)); // Convert YamlMap to Map
+          final charId = p.basenameWithoutExtension(entity.path);
+
+          // Use CharacterModel.fromJson but handle id separately as it's not in the file sometimes or is filename
+          // CharacterModel expects 'id' in json.
+          data['id'] = charId;
+
+          final character = CharacterModel.fromJson(data);
+          characters.add(character);
+        } catch (e) {
+          _logger.warning("Failed to load character from ${entity.path}: $e");
+        }
+      }
+    }
+
+    // Sort by ID to be consistent
+    characters.sort((a, b) => a.id.compareTo(b.id));
+    return characters;
+  }
+
+  /// Get specific character
+  Future<CharacterModel?> getCharacter(String userId, String characterId,
+      {bool returnPlaceholder = true}) async {
+    if (characterId == "0") {
+      return CharacterModel(
+          id: "0", name: "memex", tags: [], persona: "", enabled: true);
+    }
+
+    final charsPath = await _ensureCharactersDirectory(userId);
+    var charFile = File(p.join(charsPath, '$characterId.yaml'));
+    if (!await charFile.exists()) {
+      _logger.warning("Character $characterId not found for user $userId");
+      if (returnPlaceholder) {
+        return CharacterModel(
+          id: characterId,
+          name: "[Deleted character]",
+          tags: [],
+          persona: "This character has been deleted",
+          enabled: false,
+          avatar: null,
+        );
+      }
+      return null;
+    }
+
+    try {
+      final content = await charFile.readAsString();
+      final doc = loadYaml(content);
+      final data = jsonDecode(jsonEncode(doc));
+      data['id'] = characterId;
+
+      final character = CharacterModel.fromJson(
+          data); // CharacterModel.fromJson defines its own defaults
+
+      return character;
+    } catch (e) {
+      _logger.severe("Failed to load character $characterId: $e");
+      return null;
+    }
+  }
+
+  /// Create new character
+  Future<CharacterModel> createCharacter({
+    required String userId,
+    required Map<String, dynamic> characterData,
+  }) async {
+    final charsPath = await _ensureCharactersDirectory(userId);
+    final dir = Directory(charsPath);
+
+    // Generate new ID (max + 1)
+    final existingIds = <int>{};
+    await for (final entity in dir.list()) {
+      if (entity is File && !p.basename(entity.path).startsWith('.')) {
+        final name = p.basenameWithoutExtension(entity.path);
+        try {
+          existingIds.add(int.parse(name));
+        } catch (_) {}
+      }
+    }
+
+    var newId = "1";
+    if (existingIds.isNotEmpty) {
+      newId = (existingIds.reduce(max) + 1).toString();
+    }
+
+    final charFile = p.join(charsPath, '$newId.yaml');
+    final charDict = {
+      "name": characterData['name'] ?? "",
+      "tags": characterData['tags'] ?? [],
+      "persona": characterData['persona'] ?? "",
+      "avatar": characterData['avatar'],
+      "enabled": characterData['enabled'] ?? true,
+      "memory": characterData['memory'] ?? [],
+    };
+
+    try {
+      await _fileSystem.writeYamlFile(charFile, charDict);
+      _logger.info("Created character $newId for user $userId");
+
+      charDict['id'] = newId;
+      return CharacterModel.fromJson(charDict);
+    } catch (e) {
+      _logger.severe("Failed to create character for user $userId: $e");
+      rethrow;
+    }
+  }
+
+  /// Update existing character
+  Future<CharacterModel?> updateCharacter({
+    required String userId,
+    required String characterId,
+    required Map<String, dynamic> updates,
+  }) async {
+    final charsPath = await _ensureCharactersDirectory(userId);
+    var charFile = File(p.join(charsPath, '$characterId.yaml'));
+    if (!await charFile.exists()) {
+      _logger.warning("Character $characterId not found for user $userId");
+      return null;
+    }
+
+    try {
+      final content = await charFile.readAsString();
+      final doc = loadYaml(content);
+      final charData = jsonDecode(jsonEncode(doc)) as Map<String, dynamic>;
+
+      // Update fields
+      if (updates.containsKey('name')) {
+        charData['name'] = updates['name'];
+      }
+      if (updates.containsKey('tags')) {
+        charData['tags'] = updates['tags'];
+      }
+      if (updates.containsKey('persona')) {
+        charData['persona'] = updates['persona'];
+      }
+      if (updates.containsKey('avatar')) {
+        charData['avatar'] = updates['avatar'];
+      }
+      if (updates.containsKey('enabled')) {
+        charData['enabled'] = updates['enabled'];
+      }
+      if (updates.containsKey('memory')) {
+        charData['memory'] = updates['memory'];
+      }
+
+      // Remove legacy fields if they exist (merged into persona already by backend logic usually, but cleanup is good)
+      charData.remove('style_guide');
+      charData.remove('example_dialogue');
+      charData.remove('pkm_interest_filter');
+
+      await _fileSystem.writeYamlFile(charFile.path, charData);
+
+      _logger.info("Updated character $characterId for user $userId");
+      charData['id'] = characterId;
+      return CharacterModel.fromJson(charData);
+    } catch (e) {
+      _logger.severe(
+          "Failed to update character $characterId for user $userId: $e");
+      rethrow;
+    }
+  }
+
+  /// Physically delete character
+  Future<bool> deleteCharacter(String userId, String characterId) async {
+    final charsPath = await _ensureCharactersDirectory(userId);
+    var charFile = File(p.join(charsPath, '$characterId.yaml'));
+    if (!await charFile.exists()) {
+      _logger.warning("Character $characterId not found for deletion");
+      return false;
+    }
+
+    try {
+      await charFile.delete();
+      _logger
+          .info("Physically deleted character $characterId for user $userId");
+      return true;
+    } catch (e) {
+      _logger.severe("Failed to delete character $characterId: $e");
+      return false;
+    }
+  }
+
+  /// Set character enabled status
+  Future<bool> setCharacterEnabled(
+      String userId, String characterId, bool enabled) async {
+    final result = await updateCharacter(
+      userId: userId,
+      characterId: characterId,
+      updates: {"enabled": enabled},
+    );
+    return result != null;
+  }
+}

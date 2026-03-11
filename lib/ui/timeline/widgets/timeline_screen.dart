@@ -1,0 +1,870 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+import 'package:memex/domain/models/timeline_card_model.dart';
+import 'package:memex/db/app_database.dart';
+import 'package:memex/ui/agent_activity/widgets/system_action_card.dart';
+import 'package:memex/data/services/system_action_service.dart';
+import 'package:memex/ui/core/widgets/html_webview_card.dart';
+import 'package:memex/ui/main_screen/widgets/action_center_sheet.dart';
+
+import 'package:memex/ui/core/cards/native_card_factory.dart';
+import 'package:memex/ui/core/cards/card_action_notification.dart';
+import 'package:memex/data/repositories/memex_router.dart';
+import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
+import 'package:memex/ui/timeline/widgets/timeline_card_detail_screen.dart';
+import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
+import 'package:memex/ui/insight/view_models/insight_viewmodel.dart';
+import 'package:memex/ui/insight/widgets/insight_screen.dart';
+import 'package:memex/ui/insight/widgets/insight_detail_page.dart';
+import 'package:memex/ui/chat/widgets/agent_chat_dialog.dart';
+import 'package:memex/utils/toast_helper.dart';
+import 'package:memex/utils/user_storage.dart';
+
+/// Timeline screen - main memory view. Receives [viewModel] and [insightViewModel] from parent (Compass-style).
+class TimelineScreen extends StatefulWidget {
+  final TimelineViewModel viewModel;
+  final InsightViewModel insightViewModel;
+  final VoidCallback onInputTap;
+  final VoidCallback? onRefreshAction;
+
+  const TimelineScreen({
+    super.key,
+    required this.viewModel,
+    required this.insightViewModel,
+    required this.onInputTap,
+    this.onRefreshAction,
+  });
+
+  @override
+  State<TimelineScreen> createState() => TimelineScreenState();
+}
+
+class TimelineScreenState extends State<TimelineScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  /// Show loading indicator for submission (called from main screen).
+  void showLoading() {
+    if (!mounted) return;
+    widget.viewModel.setSubmitting(true);
+  }
+
+  /// Hide loading indicator (called from main screen).
+  void hideLoading() {
+    if (!mounted) return;
+    widget.viewModel.setSubmitting(false);
+  }
+
+  /// Add a new card to the top (called from main screen after submit).
+  void addCard(TimelineCardModel card) {
+    if (!mounted) return;
+    widget.viewModel.addCard(card);
+  }
+
+  /// Scroll to top and refresh timeline (called from main screen).
+  void scrollToTopAndRefresh() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+    if (mounted) {
+      widget.viewModel.refresh();
+    }
+  }
+
+  void _showChatDialog(TimelineViewModel vm) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 500),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        if (vm.viewMode == TimelineViewMode.insight) {
+          return AgentChatDialog(
+            agentName: 'knowledge_insight_agent',
+            title: UserStorage.l10n.insightAssistant,
+            inputHint: UserStorage.l10n.insightInputHint,
+            scene: 'insight_card_chat',
+            sceneId: 'general_insight_chat',
+            initialRefs: const [],
+          );
+        }
+        return AgentChatDialog(
+          agentName: 'memex_agent',
+          title: UserStorage.l10n.aiAssistant,
+          inputHint: UserStorage.l10n.aiInputHint,
+          scene: 'assistant_home',
+        );
+      },
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final vm = widget.viewModel;
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent * 0.8) {
+      if (!vm.isLoading && vm.hasMore) {
+        vm.loadMore();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([widget.viewModel, widget.viewModel.load]),
+      builder: (context, _) {
+        final vm = widget.viewModel;
+        return Column(
+          children: [
+            // Header block: Title + icons on line 1, view controls on line 2
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Line 1: Memex title + action icons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Memex',
+                        style: TextStyle(
+                          fontFamily: 'Orbitron',
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () => _showChatDialog(vm),
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              margin: const EdgeInsets.only(right: 8),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.chat_bubble_outline,
+                                size: 18,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                          if (AppDatabase.isInitialized)
+                            StreamBuilder<List<SystemAction>>(
+                              stream: (AppDatabase.instance.select(
+                                      AppDatabase.instance.systemActions)
+                                    ..where((t) => t.status.equals('pending')))
+                                  .watch(),
+                              builder: (context, snapshot) {
+                                final pendingCount = snapshot.data?.length ?? 0;
+                                return GestureDetector(
+                                  onTap: () {
+                                    if (pendingCount > 0) {
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (context) =>
+                                            const ActionCenterSheet(),
+                                      );
+                                    } else {
+                                      ToastHelper.showSuccess(
+                                          context,
+                                          UserStorage
+                                              .l10n.noPendingActionsToast);
+                                    }
+                                  },
+                                  child: Container(
+                                    width: 36,
+                                    height: 36,
+                                    margin: const EdgeInsets.only(right: 8),
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.05),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Badge(
+                                      isLabelVisible: pendingCount > 0,
+                                      label: Text(pendingCount.toString()),
+                                      offset: const Offset(6, -6),
+                                      child: const Icon(
+                                        Icons.assignment_turned_in_outlined,
+                                        size: 18,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          GestureDetector(
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (context) =>
+                                    const PersonalCenterScreen(),
+                              );
+                            },
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE2E8F0),
+                                borderRadius: BorderRadius.circular(18),
+                                border:
+                                    Border.all(color: Colors.white, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: SvgPicture.network(
+                                  'https://api.dicebear.com/7.x/notionists/svg?seed=Felix',
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Tag Chips (All + Insight + user tags)
+            if (vm.tags.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 0, 12),
+                child: SizedBox(
+                  height: 32,
+                  child: _buildInlineTagChips(vm),
+                ),
+              ),
+
+            // Content
+            Expanded(
+              child: NotificationListener<CardActionNotification>(
+                onNotification: (notification) {
+                  final action = notification.action;
+                  if (action['action'] == 'filter_tag' &&
+                      action['tag'] != null) {
+                    vm.setActiveFilter(action['tag'] as String);
+                    vm.setViewMode(action['tag'] == 'insight'
+                        ? TimelineViewMode.insight
+                        : TimelineViewMode.timeline);
+                    vm.loadCards(refresh: true).catchError((e) {
+                      if (mounted) ToastHelper.showError(context, e);
+                    });
+                    return true;
+                  } else if (action['action'] == 'navigate_to_card' &&
+                      action['card_id'] != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            InsightDetailPage(id: action['card_id'] as String),
+                      ),
+                    );
+                    return true;
+                  } else if (action['action'] == 'refresh_timeline') {
+                    vm.refresh();
+                    return true;
+                  } else if (action['action'] == 'delete_card' &&
+                      action['card_id'] != null) {
+                    vm.removeCardById(action['card_id'] as String);
+                    return true;
+                  }
+                  return false;
+                },
+                child: IndexedStack(
+                  index: vm.viewMode == TimelineViewMode.timeline ? 0 : 1,
+                  children: [
+                    _buildTimelineBody(vm),
+                    InsightScreen(
+                        isEmbedded: true, viewModel: widget.insightViewModel),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildInlineTagChips(TimelineViewModel vm) {
+    if (vm.tags.isEmpty) return const SizedBox.shrink();
+
+    final userTags = vm.tags;
+    // Items: All(0) + Insight(1) + user tags(2..)
+    final totalCount = 2 + userTags.length;
+
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(right: 24),
+      itemCount: totalCount,
+      separatorBuilder: (_, __) => const SizedBox(width: 8),
+      itemBuilder: (context, index) {
+        // Index 0: "All"
+        if (index == 0) {
+          final isSelected = vm.activeFilter == 'all' &&
+              vm.viewMode == TimelineViewMode.timeline;
+          return _buildTagChip(
+            label: UserStorage.l10n.timelineFilterAll,
+            isSelected: isSelected,
+            onTap: () {
+              vm.setViewMode(TimelineViewMode.timeline);
+              vm.setActiveFilter('all');
+              if (vm.cards.isEmpty ||
+                  vm.viewMode != TimelineViewMode.timeline) {
+                vm.loadCards(refresh: true);
+              }
+            },
+          );
+        }
+
+        // Index 1: "Insight"
+        if (index == 1) {
+          final isSelected = vm.viewMode == TimelineViewMode.insight;
+          return _buildTagChip(
+            label: UserStorage.l10n.insights,
+            icon: '✨',
+            isSelected: isSelected,
+            onTap: () {
+              if (vm.viewMode != TimelineViewMode.insight) {
+                vm.setViewMode(TimelineViewMode.insight);
+                vm.setActiveFilter('insight');
+              }
+            },
+          );
+        }
+
+        // Index 2+: user tags
+        final tag = userTags[index - 2];
+        final isSelected = vm.activeFilter == tag.name &&
+            vm.viewMode == TimelineViewMode.timeline;
+        return _buildTagChip(
+          label: tag.name,
+          icon: tag.icon,
+          isSelected: isSelected,
+          onTap: () {
+            vm.setViewMode(TimelineViewMode.timeline);
+            vm.setActiveFilter(tag.name);
+            vm.loadCards(refresh: true);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTagChip({
+    required String label,
+    String? icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isSelected ? 0.1 : 0.05),
+              blurRadius: isSelected ? 8 : 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Text(icon, style: const TextStyle(fontSize: 13)),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimelineBody(TimelineViewModel vm) {
+    if ((vm.isLoading || vm.load.running) && vm.cards.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (vm.isSubmitting) {
+      if (vm.cards.isEmpty) {
+        return const Center(child: CircularProgressIndicator());
+      } else {
+        return Stack(
+          children: [
+            _buildTimelineContent(vm),
+            Container(
+              color: Colors.white.withOpacity(0.7),
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+          ],
+        );
+      }
+    }
+
+    return _buildTimelineContent(vm);
+  }
+
+  Widget _buildTimelineContent(TimelineViewModel vm) {
+    if (vm.errorMessage != null) {
+      return RefreshIndicator(
+        onRefresh: () async {
+          await vm.refresh();
+          widget.onRefreshAction?.call();
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.7,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.wifi_off,
+                      size: 48, color: Color(0xFF94A3B8)),
+                  const SizedBox(height: 12),
+                  Text(
+                    vm.errorMessage!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => vm.loadCards(refresh: true),
+                    child: Text(UserStorage.l10n.reload),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (vm.cards.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: () async {
+          await vm.refresh();
+          widget.onRefreshAction?.call();
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.7,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    '🤔',
+                    style: TextStyle(fontSize: 48),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    UserStorage.l10n.nothingHere,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        await vm.refresh();
+        widget.onRefreshAction?.call();
+      },
+      child: ListView.builder(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+        cacheExtent: 400,
+        itemCount: vm.cards.length + (vm.hasMore ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index >= vm.cards.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final card = vm.cards[index];
+          return _TimelineEntryItem(
+            card: card,
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TimelineCardDetailScreen(cardId: card.id),
+                ),
+              );
+              if (!mounted) return;
+              if (result == true) {
+                vm.loadCards(refresh: true);
+              } else if (result is Map &&
+                  result['action'] == 'filter_tag' &&
+                  result['tag'] != null) {
+                vm.setActiveFilter(result['tag'] as String);
+                vm.loadCards(refresh: true);
+              }
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TimelineEntryItem extends StatefulWidget {
+  final TimelineCardModel card;
+  final VoidCallback onTap;
+
+  const _TimelineEntryItem({
+    required this.card,
+    required this.onTap,
+  });
+
+  @override
+  State<_TimelineEntryItem> createState() => _TimelineEntryItemState();
+}
+
+class _TimelineEntryItemState extends State<_TimelineEntryItem> {
+  bool _isClassicMode = false;
+
+  void _toggleClassicMode() {
+    setState(() {
+      _isClassicMode = !_isClassicMode;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final card = widget.card;
+    final onTap = widget.onTap;
+
+    // Determine the template config list to display
+    List<UiConfig> displayConfigs = [];
+
+    if (_isClassicMode) {
+      // Use classic_card template
+      final audioAssets = card.assets?.where((a) => a.isAudio).toList() ?? [];
+      displayConfigs.add(UiConfig(
+        templateId: 'classic_card',
+        data: <String, dynamic>{
+          'content': card.rawText ?? '',
+          'images':
+              card.assets?.where((a) => a.isImage).map((a) => a.url).toList() ??
+                  [],
+          'audioUrl': audioAssets.isNotEmpty ? audioAssets.first.url : null,
+          'tags': card.tags,
+        },
+      ));
+    } else {
+      // Use the original template config list
+      displayConfigs = card.uiConfigs;
+    }
+
+    final isAlreadyClassic = card.uiConfigs.length == 1 &&
+        card.uiConfigs.first.templateId == 'classic_card';
+
+    // Check for single compact card
+    bool isSingleCompactCard = false;
+    if (displayConfigs.length == 1 && !_isClassicMode) {
+      final config = displayConfigs.first;
+      if (config.templateId == 'compact_card' ||
+          config.templateId == 'compact') {
+        isSingleCompactCard = true;
+      }
+    }
+
+    if (isSingleCompactCard) {
+      final config = displayConfigs.first;
+      final content = Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: NativeCardFactory.build(
+              status: card.status,
+              templateId: config.templateId,
+              data: config.data,
+              title: card.title ?? '',
+              tags: card.tags,
+              onTap: onTap,
+              cardId: card.id,
+              configIndex: 0,
+              onUpdate: (cardId, configIndex, data) {
+                MemexRouter().updateCardUiConfig(cardId, configIndex, data);
+              },
+            ),
+          ),
+        ),
+      );
+
+      if (!AppDatabase.isInitialized) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTimestampHeader(),
+            content,
+          ],
+        );
+      }
+
+      return StreamBuilder<List<SystemAction>>(
+        stream: (AppDatabase.instance.select(AppDatabase.instance.systemActions)
+              ..where((t) => t.factId.equals(card.id)))
+            .watch(),
+        builder: (context, snapshot) {
+          // Filter to only show actionable or completed UI (hide rejected)
+          final actions = (snapshot.data ?? [])
+              .where((a) => a.status != 'rejected')
+              .toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTimestampHeader(),
+              content,
+              if (actions.isNotEmpty)
+                ...actions.map((action) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: SystemActionCard(
+                        action: action,
+                        service: SystemActionService.instance,
+                      ),
+                    )),
+            ],
+          );
+        },
+      );
+    }
+
+    final normalContent = Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPress: isAlreadyClassic ? null : _toggleClassicMode,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Card Content Loop
+            if (card.html != null && !_isClassicMode)
+              HtmlWebViewCard(
+                html: card.html!,
+                config: const HtmlWebViewConfig.timeline(),
+                onContentTap: onTap,
+              )
+            else if (displayConfigs.isNotEmpty)
+              ...displayConfigs.asMap().entries.map((entry) {
+                final index = entry.key;
+                final config = entry.value;
+                final isLast = index == displayConfigs.length - 1;
+
+                if (config.templateId == 'legacy_html') {
+                  final html = config.data['html'] as String?;
+                  if (html != null && html.isNotEmpty) {
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: isLast ? 0 : 8.0),
+                      child: HtmlWebViewCard(
+                        html: html,
+                        config: const HtmlWebViewConfig.timeline(),
+                        onContentTap: onTap,
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }
+
+                return Padding(
+                  padding: EdgeInsets.only(bottom: isLast ? 0 : 8.0),
+                  child: NativeCardFactory.build(
+                    status: card.status,
+                    templateId: config.templateId,
+                    data: config.data,
+                    title: card.title ?? '',
+                    tags: card.tags,
+                    onTap: onTap,
+                    cardId: card.id,
+                    configIndex: index,
+                    onUpdate: (cardId, configIndex, data) {
+                      MemexRouter()
+                          .updateCardUiConfig(cardId, configIndex, data);
+                    },
+                  ),
+                );
+              })
+            else
+              const SizedBox.shrink(),
+          ],
+        ),
+      ),
+    );
+
+    if (!AppDatabase.isInitialized) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTimestampHeader(),
+          normalContent,
+        ],
+      );
+    }
+
+    return StreamBuilder<List<SystemAction>>(
+      stream: (AppDatabase.instance.select(AppDatabase.instance.systemActions)
+            ..where((t) => t.factId.equals(card.id)))
+          .watch(),
+      builder: (context, snapshot) {
+        // Filter to only show actionable or completed UI (hide rejected)
+        final actions =
+            (snapshot.data ?? []).where((a) => a.status != 'rejected').toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTimestampHeader(),
+            normalContent,
+            if (actions.isNotEmpty)
+              ...actions.map((action) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SystemActionCard(
+                      action: action,
+                      service: SystemActionService.instance,
+                    ),
+                  )),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTimestampHeader() {
+    final card = widget.card;
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, bottom: 12),
+      child: Row(
+        children: [
+          Text(
+            card.displayTime,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFCBD5E1),
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (card.address != null && card.address!.isNotEmpty) ...[
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 14,
+                    color: Color(0xFF94A3B8),
+                  ),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      card.address!.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF94A3B8), // Using the requested color
+                        letterSpacing: 0.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

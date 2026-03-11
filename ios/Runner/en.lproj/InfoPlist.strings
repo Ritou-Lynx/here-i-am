@@ -1,0 +1,16 @@
+/* Permission usage descriptions - English */
+"NSCameraUsageDescription" = "Need camera access to take photos";
+"NSPhotoLibraryUsageDescription" = "Need photo library access to select photos";
+"NSMicrophoneUsageDescription" = "Need microphone access to record audio";
+"NSFaceIDUsageDescription" = "Need Face ID to unlock the app";
+"NSLocationWhenInUseUsageDescription" = "Need location to record where you are";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Need location to record where you are";
+"NSCalendarsUsageDescription" = "Need calendar access to read and add your schedule";
+"NSCalendarsFullAccessUsageDescription" = "Need calendar access to record and edit your schedule";
+"NSCalendarsWriteOnlyUsageDescription" = "Need calendar access to add events to your schedule";
+"NSRemindersUsageDescription" = "Need reminders access to read and add your todos";
+"NSRemindersFullAccessUsageDescription" = "Need reminders access to read, add and edit your todos";
+"NSHealthShareUsageDescription" = "Need health data access to read your activity, vitals and body metrics (e.g. heart rate, blood pressure, sleep)";
+"NSHealthUpdateUsageDescription" = "Need health data access to record and sync your physiological metrics";
+"NSFamilyControlsUsageDescription" = "Need Screen Time access to analyze your attention distribution";
+"NSMotionUsageDescription" = "Need motion data to track your steps";

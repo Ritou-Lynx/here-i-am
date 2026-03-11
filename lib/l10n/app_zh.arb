@@ -1,0 +1,629 @@
+{
+  "@@locale": "zh",
+  "timesLabel": "次数",
+  "recordSubmittedAiProcessing": "记录已提交，AI 正在处理中...",
+  "@modelSetAsDefault": {
+    "placeholders": {
+      "modelId": {}
+    }
+  },
+  "modelSetAsDefault": "已将 {modelId} 设为默认模型",
+  "@loadModelListFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadModelListFailed": "加载模型列表失败: \n{error}",
+  "retry": "重试",
+  "noModelsFound": "没有找到可用的模型",
+  "unknownModel": "未知模型",
+  "openAiModelConfig": "OpenAI 模型配置",
+  "notSet": "未设置",
+  "confirmClear": "确认清除",
+  "confirmClearTokenMessage": "清除当前用户？需要重新输入用户ID。",
+  "cancel": "取消",
+  "confirm": "确认",
+  "tokenCleared": "已清除用户",
+  "@clearTokenFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "clearTokenFailed": "清除用户失败: {error}",
+  "reprocessKnowledgeBase": "重新处理知识库",
+  "selectDateRangeOptional": "选择日期范围（可选）：",
+  "startDate": "开始日期",
+  "endDate": "结束日期",
+  "select": "选择",
+  "processLimitOptional": "处理数量限制（可选）",
+  "leaveEmptyForAll": "留空表示处理所有",
+  "startProcessing": "开始处理",
+  "userIdNotFound": "未找到用户ID",
+  "reprocessTaskCreated": "重新处理任务已创建，正在后台处理中",
+  "@createTaskFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "createTaskFailed": "创建任务失败: {error}",
+  "reprocessCards": "重新处理卡片",
+  "reprocessCardsTaskCreated": "重新处理卡片任务已创建，正在后台处理中",
+  "regenerateComments": "重新生成评论",
+  "regenerateCommentsTaskCreated": "重新生成评论任务已创建，正在后台处理中",
+  "clearData": "清除数据",
+  "confirmClearDataMessage": "确定要清除数据吗？\n",
+  "confirmClearDataKeepFactsMessage": "将仅保留 Facts 目录（原始记录），删除工作区内其他所有目录（Cards、Discoveries、KnowledgeInsights、PKM、_System 等）。\n\n此操作不可恢复！",
+  "dataClearedSuccess": "数据清除成功",
+  "@clearDataFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "clearDataFailed": "清除数据失败: {error}",
+  "personalCenter": "个人中心",
+  "viewLogs": "查看日志",
+  "systemAuthorization": "系统授权",
+  "modelAuthorization": "模型授权",
+  "pkmKnowledgeBase": "PKM知识库",
+  "aiCharacterConfig": "AI 角色配置",
+  "appLockConfig": "应用锁配置",
+  "modelConfig": "模型配置",
+  "agentConfig": "Agent配置",
+  "modelUsageStats": "模型使用统计",
+  "asyncTaskList": "异步任务列表",
+  "clearLocalToken": "清除用户",
+  "insightCardTemplates": "洞察卡片模板展示",
+  "timelineCardTemplates": "Timeline 卡片模板展示",
+  "logViewer": "日志查看",
+  "autoRefresh": "自动刷新",
+  "lineCount": "行数: ",
+  "all": "全部",
+  "@loadStatsFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadStatsFailed": "加载统计数据失败: {error}",
+  "overview": "概览",
+  "daily": "每日",
+  "detail": "详情",
+  "date": "日期",
+  "noData": "暂无数据",
+  "totalCalls": "总调用次数",
+  "@saveLlmConfigFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "saveLlmConfigFailed": "保存LLM配置失败: {error}",
+  "webHtmlPreviewUnavailable": "Web 端暂未接入 HTML 预览，请在移动端查看。",
+  "@saveUserInfoFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "saveUserInfoFailed": "保存用户信息失败: {error}",
+  "totalEstimatedCost": "总预估费用",
+  "detailSubtitle": "详情",
+  "close": "关闭",
+  "noFragments": "暂无碎片",
+  "totalTokenConsumption": "总 Token 消耗",
+  "dataLoadFailedRetry": "数据加载失败，请稍后重试",
+  "timelineLoadFailedRetry": "时间轴加载失败，请稍后重试",
+  "aggregatedLoadFailedRetry": "加载聚合数据失败，请稍后重试",
+  "newPerspective": "新的视角",
+  "startPoint": "起点",
+  "endPoint": "终点",
+  "originalInput": "原始输入",
+  "referenceContent": "引用内容",
+  "@referenceWithTitle": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "referenceWithTitle": "引用: {title}",
+  "discoveredTodoActions": "发现的待办动作",
+  "noPendingActions": "目前没有待处理的动作",
+  "askSomethingHint": "问点什么...",
+  "aiAssistant": "AI助手",
+  "footprintMap": "足迹地图",
+  "waypointPlaces": "途径地点",
+  "unknownPlace": "未知地点",
+  "loadFailedRetry": "加载失败, 请重试",
+  "noRecordsInPeriod": "该周期内无记录",
+  "releaseToSend": "松开 发送",
+  "selectFromAlbum": "从相册选择",
+  "takePhoto": "拍照",
+  "enterContentOrMediaHint": "请输入内容、选择图片或录制音频",
+  "tellAiWhatHappened": "告诉AI发生了什么...",
+  "@recordingWithDuration": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "recordingWithDuration": "录音中: {duration}",
+  "playing": "播放中...",
+  "recordedAudio": "已录制音频",
+  "recordLabel": "记录",
+  "smartSuggesting": "智能建议中...",
+  "noTaskData": "暂无任务数据",
+  "@createdAtDate": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "createdAtDate": "创建: {date}",
+  "@updatedAtDate": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "updatedAtDate": "更新: {date}",
+  "@durationLabel": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "durationLabel": "耗时: {duration}",
+  "@retryCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "retryCount": "重试: {count}",
+  "aiMaterialProcessFailed": "AI 素材处理失败",
+  "aiMaterialProcessDone": "AI 素材处理完成",
+  "aiOrganizingMaterial": "AI 正在整理素材",
+  "taskCompletedAddedToTimeline": "任务已圆满完成，卡片已加入 Timeline",
+  "processErrorRetryLater": "处理过程中发生了一些错误，请稍后重试",
+  "loadDetailFailedRetry": "加载详情失败，请稍后重试",
+  "loadFailed": "加载失败",
+  "reload": "重新加载",
+  "aiInsightDetail": "AI 洞察详情",
+  "@relatedRecordsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "relatedRecordsCount": "关联记录 ({count})",
+  "noRelatedRecords": "暂无具体关联记录",
+  "useFingerprintToUnlock": "请使用指纹解锁",
+  "locked": "已锁定",
+  "wrongPassword": "密码错误",
+  "enterPassword": "请输入密码",
+  "memexLocked": "Memex 已锁定",
+  "calendarShortSun": "日",
+  "calendarShortMon": "一",
+  "calendarShortTue": "二",
+  "calendarShortWed": "三",
+  "calendarShortThu": "四",
+  "calendarShortFri": "五",
+  "calendarShortSat": "六",
+  "@noRecordsOnDate": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "noRecordsOnDate": "{date} 无记录",
+  "footprintPath": "足迹路径",
+  "lifeCompositionTable": "生活成分表",
+  "emotionReframe": "情绪重构",
+  "chronicleOfThings": "物的编年史",
+  "goalProgress": "目标进度",
+  "trendChart": "趋势图",
+  "comparisonChart": "对比图",
+  "todayTimeFlow": "今日时间流",
+  "insightAssistant": "洞察助手",
+  "insightInputHint": "关于知识洞察，你想了解什么...",
+  "aiInputHint": "无论是回忆还是当下，我都准备好了...",
+  "noContentInPeriod": "该时间段无内容",
+  "nothingHere": "这里什么都没有",
+  "noPendingActionsToast": "当前没有待处理动作",
+  "knowledgeNewDiscovery": "知识库新发现",
+  "@discoveredNewInsightsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "discoveredNewInsightsCount": "发现了 {count} 个新洞察",
+  "@updatedExistingInsightsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "updatedExistingInsightsCount": "更新了 {count} 个现有洞察",
+  "sectionNewInsights": "发现新洞察",
+  "sectionUpdatedInsights": "更新现有洞察",
+  "unnamedInsight": "未命名洞察",
+  "@loadDirectoryFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadDirectoryFailed": "加载目录失败: {error}",
+  "@readFileFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "readFileFailed": "读取文件失败: {error}",
+  "backToParent": "返回上级",
+  "directoryEmpty": "目录为空",
+  "copiedToClipboard": "已复制到剪贴板",
+  "copy": "复制",
+  "binaryFile": "二进制文件",
+  "@fileSizeLabel": {
+    "placeholders": {
+      "size": {}
+    }
+  },
+  "fileSizeLabel": "文件大小: {size}",
+  "selectedLocation": "已选位置",
+  "confirmLocationName": "确认位置名称",
+  "confirmLocationNameHint": "你可以修改位置名称（经纬度保持不变）",
+  "nameLabel": "名称",
+  "inputPlaceNameHint": "输入地点名称...",
+  "@currentCoordinates": {
+    "placeholders": {
+      "lat": {},
+      "lng": {}
+    }
+  },
+  "currentCoordinates": "当前坐标: {lat}, {lng}",
+  "confirmLocation": "确认位置",
+  "userCreatedSuccess": "用户创建成功！",
+  "welcomeToMemex": "欢迎来到 Memex",
+  "createUserIdToStart": "请创建一个你的专属昵称",
+  "userIdLabel": "你的名字 / 昵称",
+  "userIdHint": "请输入你的名字",
+  "pleaseEnterUserId": "名字不能为空哦",
+  "userIdMinLength": "名字太短啦，至少需要1个字符",
+  "userIdMaxLength": "名字太长啦，不能超过50个字符",
+  "userIdFormat": "名字格式有误",
+  "startUsing": "下一步",
+  "userIdTip": "开启你的专属记忆。",
+  "openAiAuthInfo": "OpenAI 授权信息",
+  "setupModelConfigTitle": "连接你的 AI 大脑",
+  "setupModelConfigSubtitle": "Memex 需要 AI 模型的支持才能为你整理记忆和提炼洞察。请配置你想使用的大模型服务。",
+  "setupModelConfigComplete": "配置完成，开启旅程",
+  "skipForNow": "暂不配置，先逛逛",
+  "modelAuth": "模型授权",
+  "clearAuth": "清除授权",
+  "openAiAuthCleared": "已清除 OpenAI 授权",
+  "authorizing": "正在授权中...",
+  "@openAiAuthSuccess": {
+    "placeholders": {
+      "accountId": {}
+    }
+  },
+  "openAiAuthSuccess": "OpenAI 授权成功！AccountId: {accountId}",
+  "@authFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "authFailed": "授权失败: {error}",
+  "authorized": "已授权",
+  "viewAuthInfo": "查看授权信息",
+  "config": "配置",
+  "calendar": "日历",
+  "reminders": "提醒事项",
+  "writeToSystemFailed": "写入系统失败",
+  "@permissionRequired": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "permissionRequired": "需要{name}权限",
+  "@permissionRationale": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "permissionRationale": "请在设置中允许 App 访问你的{name}，以便我们在后台帮你创建。",
+  "goToSettings": "去设置",
+  "unknownAction": "未知操作",
+  "discoveredCalendarEvent": "发现日历日程",
+  "discoveredReminder": "发现提醒事项",
+  "addToCalendar": "加到日历",
+  "addToReminders": "加到提醒事项",
+  "@addedToSuccess": {
+    "placeholders": {
+      "target": {}
+    }
+  },
+  "addedToSuccess": "已成功添加至{target}",
+  "ignore": "忽略",
+  "appLockOn": "应用锁已开启",
+  "appLockOff": "应用锁已关闭",
+  "enableAppLockFirst": "请先启用应用锁",
+  "enterFourDigitPassword": "请输入4位数字密码",
+  "passwordSetAndLockOn": "密码已设置并开启应用锁",
+  "appLockSettings": "应用锁配置",
+  "enableAppLock": "启用应用锁",
+  "enableAppLockSubtitle": "启用后，启动应用需要验证密码",
+  "enableBiometrics": "启用生物识别",
+  "biometricsSubtitle": "解锁时可以使用面容ID或触控ID",
+  "changePassword": "修改密码",
+  "setFourDigitPassword": "设置4位密码",
+  "reenterPasswordToConfirm": "请再次输入密码以确认",
+  "passwordMismatch": "两次输入的密码不一致，请重新输入",
+  "confirmDelete": "确认删除",
+  "confirmDeleteSessionMessage": "确定要删除这个会话吗？此操作不可恢复。",
+  "delete": "删除",
+  "deleteSuccess": "删除成功",
+  "@deleteFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "deleteFailed": "删除失败: {error}",
+  "continueChat": "继续对话...",
+  "daysAgo": "{count}天前",
+  "chatHistory": "会话历史",
+  "noConversations": "暂无会话",
+  "@loadSessionListFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadSessionListFailed": "加载会话列表失败: {error}",
+  "@yesterdayAt": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "yesterdayAt": "昨天 {time}",
+  "newChat": "新对话",
+  "@messageCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "messageCount": "{count} 条消息",
+  "organize": "整理",
+  "pkmCategoryProject": "项目",
+  "pkmCategoryProjectSubtitle": "短期 · 目标 · 截止日",
+  "pkmCategoryArea": "领域",
+  "pkmCategoryAreaSubtitle": "长期 · 责任 · 标准",
+  "pkmCategoryResource": "资源",
+  "pkmCategoryResourceSubtitle": "兴趣 · 灵感 · 储备",
+  "pkmCategoryArchive": "归档",
+  "pkmCategoryArchiveSubtitle": "完成 · 沉寂 · 备查",
+  "recentChanges": "最近变动",
+  "noRecentChangesInThreeDays": "暂无最近3天的变动",
+  "unpinned": "已取消固定",
+  "pinnedStyle": "已固定该整理样式",
+  "@operationFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "operationFailed": "操作失败: {error}",
+  "refreshingInsightData": "正在刷新洞察数据，这可能需要一点时间...",
+  "@refreshFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "refreshFailed": "刷新失败: {error}",
+  "sortUpdated": "排序已更新",
+  "@sortSaveFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "sortSaveFailed": "排序保存失败: {error}",
+  "insightCardDeleted": "已删除洞察卡片",
+  "@deleteFailedShort": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "deleteFailedShort": "删除失败: {error}",
+  "aboutThisInsightHint": "关于这个洞察，你想了解什么...",
+  "knowledgeInsight": "知识洞察",
+  "completeSort": "完成排序",
+  "noKnowledgeInsight": "暂无知识洞察",
+  "updating": "更新中...",
+  "update": "更新",
+  "enabled": "已启用",
+  "disabled": "已禁用",
+  "@confirmDeleteCharacter": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "confirmDeleteCharacter": "确定要删除角色\"{name}\"吗？此操作不可恢复。",
+  "configureAiCharacter": "配置AI 角色",
+  "addCharacter": "添加角色",
+  "addCharacterSubtitle": "选择你喜欢的AI角色加入洞察团队。他们将从不同角度分析你的生活数据。",
+  "noCharacters": "暂无角色",
+  "@loadCharacterFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadCharacterFailed": "加载角色失败: {error}",
+  "characterDesignerHint": "描述你想要创建或更新的角色...",
+  "characterDesigner": "角色设计师",
+  "noTags": "无标签",
+  "createSuccess": "创建成功",
+  "updateSuccess": "更新成功",
+  "@saveFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "saveFailed": "保存失败: {error}",
+  "newCharacter": "新增角色",
+  "editCharacter": "编辑角色",
+  "save": "保存",
+  "characterName": "角色名称",
+  "characterNameHint": "给角色起个好听的名字",
+  "pleaseEnterCharacterName": "请输入角色名称",
+  "tagsLabel": "标签",
+  "tagsHint": "例如：智慧, 认可, 宏观\n用逗号分隔多个标签",
+  "characterPersonaLabel": "角色完整设定",
+  "characterPersonaHint": "包含角色人设、风格指南、示例对话、知识过滤器等所有信息。\n可以使用 ## 标题 来分段组织内容。",
+  "pleaseEnterCharacterPersona": "请输入角色完整设定",
+  "systemFeaturesAndExtensions": "系统功能与扩展",
+  "shareExtensionTitle": "分享扩展 (Share Extension)",
+  "shareExtensionSubtitle": "允许通过系统分享菜单将内容分享至应用",
+  "screenTimeTitle": "屏幕使用时间 (Screen Time API)",
+  "screenTimeSubtitle": "授权访问应用使用时长与注意力数据",
+  "@permissionRequestError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "permissionRequestError": "权限请求异常: {error}",
+  "permissionRequiredTitle": "需要权限",
+  "permissionPermanentlyDeniedMessage": "由于您已永久拒绝该权限或系统需要，请前往系统设置中手动开启。",
+  "getting": "获取中...",
+  "unauthorized": "未授权",
+  "authorizedGoToSettings": "已授权，如需修改请前往系统设置",
+  "goToSettingsShort": "前往设置",
+  "basicPermissions": "基础权限",
+  "location": "定位",
+  "locationPermissionReason": "用于记录足迹和地理位置相关功能",
+  "photos": "相册",
+  "photosPermissionReason": "用于选取照片、保存生成的图片等",
+  "camera": "相机",
+  "cameraPermissionReason": "用于拍摄照片和视频相关功能",
+  "microphone": "麦克风",
+  "microphonePermissionReason": "用于语音识别、录音等功能",
+  "calendarPermissionReason": "用于记录日程、读取日历事件等",
+  "remindersPermissionReason": "用于记录和读取您的待办提醒",
+  "fitnessAndMotion": "健身与运动",
+  "fitnessPermissionReason": "用于记录健康与运动数据",
+  "notification": "通知",
+  "notificationPermissionReason": "用于发送日程提醒等重要通知",
+  "loadDetailFailedRetryShort": "加载详情失败，请稍后重试",
+  "llmCallStats": "LLM 调用统计",
+  "noLlmCallRecords": "暂无 LLM 调用记录",
+  "total": "总计",
+  "callCount": "调用次数",
+  "estimatedCost": "预估费用",
+  "byAgent": "按 Agent 统计",
+  "cardGenerationAgent": "卡片生成 Agent",
+  "knowledgeOrgAgent": "知识库整理 Agent",
+  "commentGenerationAgent": "评论生成 Agent",
+  "timeUpdated": "时间已更新",
+  "@updateFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "updateFailed": "更新失败: {error}",
+  "locationUpdated": "地点已更新",
+  "confirmDeleteCardMessage": "确定要删除这张卡片吗？此操作不可恢复。",
+  "profileAgent": "用户画像 Agent",
+  "assetAnalysis": "媒资分析",
+  "cardDetailNotFound": "未找到卡片详情",
+  "saySomething": "说点什么...",
+  "relatedMemories": "相关回忆",
+  "viewMore": "查看更多",
+  "relatedRecords": "相关记录",
+  "replySent": "回复已发送",
+  "insightTemplateGalleryTitle": "洞察卡片模板展示",
+  "timelineTemplateGalleryTitle": "Timeline 卡片模板展示",
+  "categoryGeneral": "通用 (General)",
+  "categoryTextual": "文字 (Textual)",
+  "k411": "## 什么是心流？\n\n心流（Flow）是由心理学家米哈里·契克森米哈提出的一种心理状态。当你完全沉浸在一项具有挑战性但可完成的任务中，时间感消失，注意力高度集中，这就是心流。\n\n> 人在做感兴趣的事情时，常常浑然忘我。\n\n研究发现，心流状态下的人往往生产力最高，幸福感也最强。",
+  "timelineFilterAll": "全部",
+  "timelineDays": "日",
+  "timelineWeeks": "周",
+  "timelineMonths": "月",
+  "timelineYears": "年",
+  "insights": "洞察",
+  "memoryTitle": "记忆",
+  "longTermProfile": "长期记忆",
+  "recentBuffer": "近期记忆",
+  "@errorLoadingMemory": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "errorLoadingMemory": "加载记忆失败: {error}",
+  "agentConfiguration": "Agent 配置",
+  "resetToDefaults": "恢复默认",
+  "resetAllAgentConfigurationsTitle": "重置所有 Agent 配置",
+  "resetAllAgentConfigurationsMessage": "确定要将所有 Agent 配置恢复为默认值吗？此操作不可恢复。",
+  "resetButton": "重置",
+  "@loadDataFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadDataFailed": "加载失败: {error}",
+  "@saveConfigFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "saveConfigFailed": "保存配置失败: {error}",
+  "selectLlmClient": "选择 LLM 客户端:",
+  "agentConfigurationsReset": "Agent 配置已重置",
+  "@resetFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "resetFailed": "重置失败: {error}",
+  "modelConfiguration": "模型配置",
+  "resetAllConfigurationsTitle": "重置所有配置",
+  "resetAllModelConfigurationsMessage": "确定要将所有模型配置恢复为默认值吗？此操作不可恢复。",
+  "modelConfigurationsReset": "模型配置已重置",
+  "cannotDeleteDefaultConfiguration": "无法删除默认配置",
+  "cannotDeleteConfigurationTitle": "无法删除配置",
+  "@configUsedByAgentsMessage": {
+    "placeholders": {
+      "agentList": {}
+    }
+  },
+  "configUsedByAgentsMessage": "以下 Agent 正在使用此配置:\n\n{agentList}\n\n请先为这些 Agent 重新分配配置后再删除。",
+  "ok": "确定",
+  "deleteConfigurationTitle": "删除配置",
+  "@confirmDeleteConfigMessage": {
+    "placeholders": {
+      "key": {}
+    }
+  },
+  "confirmDeleteConfigMessage": "确定要删除「{key}」吗？",
+  "defaultLabel": "默认",
+  "missingApiKey": "缺少 API Key",
+  "invalidJsonInExtraField": "扩展字段 JSON 格式无效",
+  "keyAlreadyExists": "该 Key 已存在",
+  "resetConfigurationTitle": "重置配置",
+  "resetConfigurationMessage": "将此配置恢复为初始默认值？当前修改将丢失。",
+  "configurationResetPressSave": "配置已重置，请点击保存以应用。",
+  "addConfiguration": "添加配置",
+  "editConfiguration": "编辑配置",
+  "keyIdLabel": "Key (ID)",
+  "keyIdHelper": "此配置的唯一标识符",
+  "required": "必填",
+  "clientLabel": "提供商",
+  "geminiClient": "Gemini",
+  "chatCompletionClient": "OpenAI (ChatCompletion)",
+  "responsesClient": "OpenAI (Responses)",
+  "bedrockClient": "Bedrock",
+  "modelIdLabel": "Model ID",
+  "modelIdHelper": "例如 gemini-3.1-pro-preview、gpt-4o",
+  "apiKeyLabel": "API Key",
+  "baseUrlLabel": "Base URL",
+  "advancedSettings": "高级设置",
+  "proxyUrlOptional": "代理 URL (可选)",
+  "proxyUrlHelper": "若设置则覆盖全局代理",
+  "temperatureLabel": "Temperature",
+  "topPLabel": "Top P",
+  "maxTokensLabel": "Max Tokens",
+  "extraParamsJson": "扩展参数 (JSON)",
+  "invalidJson": "JSON 格式无效",
+  "warning": "警告",
+  "invalidConfigurationWarning": "当前配置不完整（例如：缺少 API Key、Model ID，或 Base URL），可能无法正常工作。确定要保存吗？",
+  "invalidModelConfigDetailed": "智能体“{agentId}”需要有效的模型配置 (Key: “{configKey}”) 才能运行。请在设置中更新并补全对应的参数。",
+  "discardChangesTitle": "放弃未保存的修改？",
+  "discardChangesMessage": "您有未保存的修改。确定要放弃修改并离开吗？",
+  "discardButton": "放弃"
+}

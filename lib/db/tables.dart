@@ -1,0 +1,88 @@
+import 'package:drift/drift.dart';
+
+/// Tasks Table
+/// Stores persistent background tasks
+class Tasks extends Table {
+  TextColumn get id => text()();
+  TextColumn get type => text()();
+  TextColumn get payload => text().nullable()();
+  TextColumn get status =>
+      text()(); // pending, processing, completed, failed, retrying
+  IntColumn get priority => integer().withDefault(const Constant(0))();
+
+  // Timestamps
+  IntColumn get createdAt => integer().nullable()();
+  IntColumn get scheduledAt => integer().nullable()(); // timestamp
+  IntColumn get completedAt => integer().nullable()();
+  IntColumn get updatedAt => integer().nullable()();
+
+  // Retry logic
+  IntColumn get retryCount => integer().withDefault(const Constant(0))();
+  IntColumn get maxRetries => integer().withDefault(const Constant(3))();
+
+  TextColumn get error => text().nullable()();
+  TextColumn get result => text().nullable()();
+  TextColumn get bizId => text().nullable()();
+  TextColumn get dependencies => text().nullable()(); // JSON list of task IDs
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Key-Value Store Table
+/// For simple persistent storage
+class KvStore extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text().nullable()();
+  TextColumn get bucket => text().nullable()();
+  IntColumn get updatedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
+/// Agent Activity Messages Table
+/// Stores history of agent status updates
+class AgentActivityMessages extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  // 'tool_call', 'thought', 'info', 'error', 'warn', 'plan'
+  TextColumn get type => text()();
+  TextColumn get title => text()();
+  TextColumn get content => text().nullable()();
+  TextColumn get icon => text().nullable()();
+  TextColumn get agentName => text().withDefault(const Constant('Unknown'))();
+  TextColumn get agentId => text().nullable()();
+  TextColumn get scene => text().nullable()();
+  TextColumn get sceneId => text().nullable()();
+  TextColumn get userId => text().nullable()();
+  DateTimeColumn get timestamp => dateTime()();
+}
+
+/// Card Metadata Cache Table
+/// Stores extracted metadata for quick filtering and querying
+class CardCache extends Table {
+  TextColumn get factId => text()(); // Primary Key: yyyy/mm/dd.md#ts_n
+  TextColumn get cardPath => text()(); // Relative path or absolute path
+  IntColumn get timestamp => integer()(); // Seconds since epoch
+  TextColumn get tags => text()(); // JSON list of string tags
+
+  @override
+  Set<Column> get primaryKey => {factId};
+}
+
+/// System Actions Table
+/// Stores system-level actions (e.g. Calendar, Reminders) waiting for user confirmation
+class SystemActions extends Table {
+  TextColumn get id => text()(); // Primary Key: uuid
+  TextColumn get actionType => text()(); // 'calendar', 'reminder'
+  TextColumn get actionData =>
+      text().nullable()(); // JSON payload (title, start_time, etc.)
+  TextColumn get status =>
+      text()(); // 'pending', 'completed', 'failed', 'rejected'
+  TextColumn get factId => text().nullable()(); // Associated fact_id
+  IntColumn get createdAt => integer().nullable()(); // Seconds since epoch
+  IntColumn get updatedAt => integer().nullable()(); // Seconds since epoch
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

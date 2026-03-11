@@ -1,0 +1,16 @@
+/* Permission usage descriptions - 简体中文 */
+"NSCameraUsageDescription" = "需要访问相机来拍摄照片";
+"NSPhotoLibraryUsageDescription" = "需要访问相册来选择照片";
+"NSMicrophoneUsageDescription" = "需要访问麦克风来录制音频";
+"NSFaceIDUsageDescription" = "需要使用面容ID来解锁应用";
+"NSLocationWhenInUseUsageDescription" = "需要获取位置信息以记录您所在的位置";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "需要获取位置信息以记录您所在的位置";
+"NSCalendarsUsageDescription" = "需要访问日历以读取和记录您的日程安排";
+"NSCalendarsFullAccessUsageDescription" = "需要访问日历以记录和修改您的日程安排";
+"NSCalendarsWriteOnlyUsageDescription" = "需要访问日历以记录您的日程安排";
+"NSRemindersUsageDescription" = "需要访问提醒事项以读取和记录您的待办";
+"NSRemindersFullAccessUsageDescription" = "需要访问提醒事项以读取、添加和修改您的待办";
+"NSHealthShareUsageDescription" = "需要访问健康数据以全面获取您的活动、生理体征和形体指标（如心率、血压、睡眠等）";
+"NSHealthUpdateUsageDescription" = "需要访问健康数据以记录和同步您的各项综合生理指标";
+"NSFamilyControlsUsageDescription" = "需要访问屏幕使用时间以分析您的注意力分布数据";
+"NSMotionUsageDescription" = "需要访问运动数据以追踪您的步数";

@@ -1,0 +1,629 @@
+{
+  "@@locale": "en",
+  "timesLabel": "Times",
+  "recordSubmittedAiProcessing": "Record submitted, AI is processing...",
+  "@modelSetAsDefault": {
+    "placeholders": {
+      "modelId": {}
+    }
+  },
+  "modelSetAsDefault": "Set {modelId} as default model",
+  "@loadModelListFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadModelListFailed": "Failed to load model list: \n{error}",
+  "retry": "Retry",
+  "noModelsFound": "No models found",
+  "unknownModel": "Unknown model",
+  "openAiModelConfig": "OpenAI Model Config",
+  "notSet": "Not set",
+  "confirmClear": "Confirm clear",
+  "confirmClearTokenMessage": "Clear current user? You will need to enter user ID again.",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "tokenCleared": "User cleared",
+  "@clearTokenFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "clearTokenFailed": "Failed to clear user: {error}",
+  "reprocessKnowledgeBase": "Reprocess knowledge base",
+  "selectDateRangeOptional": "Select date range (optional):",
+  "startDate": "Start date",
+  "endDate": "End date",
+  "select": "Select",
+  "processLimitOptional": "Process limit (optional)",
+  "leaveEmptyForAll": "Leave empty to process all",
+  "startProcessing": "Start processing",
+  "userIdNotFound": "User ID not found",
+  "reprocessTaskCreated": "Reprocess task created, running in background",
+  "@createTaskFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "createTaskFailed": "Failed to create task: {error}",
+  "reprocessCards": "Reprocess cards",
+  "reprocessCardsTaskCreated": "Reprocess cards task created, running in background",
+  "regenerateComments": "Regenerate comments",
+  "regenerateCommentsTaskCreated": "Regenerate comments task created, running in background",
+  "clearData": "Clear data",
+  "confirmClearDataMessage": "Clear data?",
+  "confirmClearDataKeepFactsMessage": "Only the Facts directory (raw input) will be kept. All other workspace directories (Cards, Discoveries, KnowledgeInsights, PKM, _System, etc.) will be deleted.\n\nThis action cannot be undone!",
+  "dataClearedSuccess": "Data cleared successfully",
+  "@clearDataFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "clearDataFailed": "Failed to clear data: {error}",
+  "personalCenter": "Personal center",
+  "viewLogs": "View logs",
+  "systemAuthorization": "System authorization",
+  "modelAuthorization": "Model authorization",
+  "pkmKnowledgeBase": "PKM knowledge base",
+  "aiCharacterConfig": "AI character config",
+  "appLockConfig": "App lock config",
+  "modelConfig": "Model config",
+  "agentConfig": "Agent config",
+  "modelUsageStats": "Model usage stats",
+  "asyncTaskList": "Async task list",
+  "clearLocalToken": "Clear user",
+  "insightCardTemplates": "Insight card templates",
+  "timelineCardTemplates": "Timeline card templates",
+  "logViewer": "Log viewer",
+  "autoRefresh": "Auto refresh",
+  "lineCount": "Line count: ",
+  "all": "All",
+  "@loadStatsFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadStatsFailed": "Failed to load stats: {error}",
+  "overview": "Overview",
+  "daily": "Daily",
+  "detail": "Detail",
+  "date": "Date",
+  "noData": "No data",
+  "totalCalls": "Total calls",
+  "@saveLlmConfigFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "saveLlmConfigFailed": "Failed to save LLM config: {error}",
+  "webHtmlPreviewUnavailable": "HTML preview is not available on web. Please view on mobile.",
+  "@saveUserInfoFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "saveUserInfoFailed": "Failed to save user info: {error}",
+  "totalEstimatedCost": "Total estimated cost",
+  "detailSubtitle": "Detail",
+  "close": "Close",
+  "noFragments": "No fragments",
+  "totalTokenConsumption": "Total token consumption",
+  "dataLoadFailedRetry": "Data load failed, please retry later.",
+  "timelineLoadFailedRetry": "Timeline load failed, please retry later.",
+  "aggregatedLoadFailedRetry": "Failed to load aggregated data, please retry later.",
+  "newPerspective": "New perspective",
+  "startPoint": "Start",
+  "endPoint": "End",
+  "originalInput": "Original input",
+  "referenceContent": "Reference content",
+  "@referenceWithTitle": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "referenceWithTitle": "Reference: {title}",
+  "discoveredTodoActions": "Discovered todo actions",
+  "noPendingActions": "No pending actions",
+  "askSomethingHint": "Ask something...",
+  "aiAssistant": "AI Assistant",
+  "footprintMap": "Footprint map",
+  "waypointPlaces": "Waypoint places",
+  "unknownPlace": "Unknown place",
+  "loadFailedRetry": "Load failed, please retry.",
+  "noRecordsInPeriod": "No records in this period.",
+  "releaseToSend": "Release to send",
+  "selectFromAlbum": "Select from album",
+  "takePhoto": "Take photo",
+  "enterContentOrMediaHint": "Enter content, select image or record audio.",
+  "tellAiWhatHappened": "Tell AI what happened...",
+  "@recordingWithDuration": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "recordingWithDuration": "Recording: {duration}",
+  "playing": "Playing...",
+  "recordedAudio": "Recorded audio",
+  "recordLabel": "Record",
+  "smartSuggesting": "Smart suggesting...",
+  "noTaskData": "No task data",
+  "@createdAtDate": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "createdAtDate": "Created: {date}",
+  "@updatedAtDate": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "updatedAtDate": "Updated: {date}",
+  "@durationLabel": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "durationLabel": "Duration: {duration}",
+  "@retryCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "retryCount": "Retry: {count}",
+  "aiMaterialProcessFailed": "AI material process failed",
+  "aiMaterialProcessDone": "AI material process done",
+  "aiOrganizingMaterial": "AI is organizing material",
+  "taskCompletedAddedToTimeline": "Task completed, card added to Timeline",
+  "processErrorRetryLater": "Some errors occurred, please retry later.",
+  "loadDetailFailedRetry": "Load detail failed, please retry later.",
+  "loadFailed": "Load failed",
+  "reload": "Reload",
+  "aiInsightDetail": "AI Insight Detail",
+  "@relatedRecordsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "relatedRecordsCount": "Related records ({count})",
+  "noRelatedRecords": "No related records",
+  "useFingerprintToUnlock": "Use fingerprint to unlock",
+  "locked": "Locked",
+  "wrongPassword": "Wrong password",
+  "enterPassword": "Enter password",
+  "memexLocked": "Memex is locked",
+  "calendarShortSun": "Sun",
+  "calendarShortMon": "Mon",
+  "calendarShortTue": "Tue",
+  "calendarShortWed": "Wed",
+  "calendarShortThu": "Thu",
+  "calendarShortFri": "Fri",
+  "calendarShortSat": "Sat",
+  "@noRecordsOnDate": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "noRecordsOnDate": "No records on {date}",
+  "footprintPath": "Footprint path",
+  "lifeCompositionTable": "Life composition",
+  "emotionReframe": "Emotion reframe",
+  "chronicleOfThings": "Chronicle of things",
+  "goalProgress": "Goal progress",
+  "trendChart": "Trend chart",
+  "comparisonChart": "Comparison chart",
+  "todayTimeFlow": "Today's time flow",
+  "insightAssistant": "Insight assistant",
+  "insightInputHint": "What would you like to know about your knowledge...",
+  "aiInputHint": "Whether it's memories or the present, I'm here...",
+  "noContentInPeriod": "No content in this period",
+  "nothingHere": "Nothing here",
+  "noPendingActionsToast": "No pending actions",
+  "knowledgeNewDiscovery": "Knowledge new discovery",
+  "@discoveredNewInsightsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "discoveredNewInsightsCount": "Discovered {count} new insight(s)",
+  "@updatedExistingInsightsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "updatedExistingInsightsCount": "Updated {count} existing insight(s)",
+  "sectionNewInsights": "New insights",
+  "sectionUpdatedInsights": "Updated insights",
+  "unnamedInsight": "Unnamed insight",
+  "@loadDirectoryFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadDirectoryFailed": "Failed to load directory: {error}",
+  "@readFileFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "readFileFailed": "Failed to read file: {error}",
+  "backToParent": "Back",
+  "directoryEmpty": "Directory is empty",
+  "copiedToClipboard": "Copied to clipboard",
+  "copy": "Copy",
+  "binaryFile": "Binary file",
+  "@fileSizeLabel": {
+    "placeholders": {
+      "size": {}
+    }
+  },
+  "fileSizeLabel": "File size: {size}",
+  "selectedLocation": "Selected location",
+  "confirmLocationName": "Confirm location name",
+  "confirmLocationNameHint": "You can edit the name (coordinates stay the same)",
+  "nameLabel": "Name",
+  "inputPlaceNameHint": "Enter place name...",
+  "@currentCoordinates": {
+    "placeholders": {
+      "lat": {},
+      "lng": {}
+    }
+  },
+  "currentCoordinates": "Coordinates: {lat}, {lng}",
+  "confirmLocation": "Confirm location",
+  "userCreatedSuccess": "User created successfully!",
+  "welcomeToMemex": "Welcome to Memex",
+  "createUserIdToStart": "Create your profile",
+  "userIdLabel": "Your Name / Nickname",
+  "userIdHint": "Enter your name or nickname",
+  "pleaseEnterUserId": "Please enter your name",
+  "userIdMinLength": "Name must be at least 1 character",
+  "userIdMaxLength": "Name must not exceed 50 characters",
+  "userIdFormat": "Name format is incorrect",
+  "startUsing": "Continue",
+  "userIdTip": "This will be used to personalize your experience.",
+  "openAiAuthInfo": "OpenAI auth info",
+  "setupModelConfigTitle": "Connect Your AI Brain",
+  "setupModelConfigSubtitle": "Memex needs an AI model to process your memories and insights. Please configure your preferred provider.",
+  "setupModelConfigComplete": "Complete & Go",
+  "skipForNow": "Skip for now",
+  "modelAuth": "Model auth",
+  "clearAuth": "Clear auth",
+  "openAiAuthCleared": "OpenAI auth cleared",
+  "authorizing": "Authorizing...",
+  "@openAiAuthSuccess": {
+    "placeholders": {
+      "accountId": {}
+    }
+  },
+  "openAiAuthSuccess": "OpenAI auth success! AccountId: {accountId}",
+  "@authFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "authFailed": "Auth failed: {error}",
+  "authorized": "Authorized",
+  "viewAuthInfo": "View auth info",
+  "config": "Config",
+  "calendar": "Calendar",
+  "reminders": "Reminders",
+  "writeToSystemFailed": "Failed to write to system",
+  "@permissionRequired": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "permissionRequired": "{name} permission required",
+  "@permissionRationale": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "permissionRationale": "Please allow the app to access your {name} in Settings so we can create it for you.",
+  "goToSettings": "Go to Settings",
+  "unknownAction": "Unknown action",
+  "discoveredCalendarEvent": "Calendar event found",
+  "discoveredReminder": "Reminder found",
+  "addToCalendar": "Add to calendar",
+  "addToReminders": "Add to reminders",
+  "@addedToSuccess": {
+    "placeholders": {
+      "target": {}
+    }
+  },
+  "addedToSuccess": "Successfully added to {target}",
+  "ignore": "Ignore",
+  "appLockOn": "App lock enabled",
+  "appLockOff": "App lock disabled",
+  "enableAppLockFirst": "Please enable app lock first",
+  "enterFourDigitPassword": "Enter 4-digit password",
+  "passwordSetAndLockOn": "Password set and app lock enabled",
+  "appLockSettings": "App lock settings",
+  "enableAppLock": "Enable app lock",
+  "enableAppLockSubtitle": "Password required when launching the app",
+  "enableBiometrics": "Enable biometrics",
+  "biometricsSubtitle": "Use Face ID or Touch ID to unlock",
+  "changePassword": "Change password",
+  "setFourDigitPassword": "Set 4-digit password",
+  "reenterPasswordToConfirm": "Re-enter password to confirm",
+  "passwordMismatch": "Passwords do not match. Please try again.",
+  "confirmDelete": "Confirm delete",
+  "confirmDeleteSessionMessage": "Delete this conversation? This cannot be undone.",
+  "delete": "Delete",
+  "deleteSuccess": "Deleted successfully",
+  "@deleteFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "deleteFailed": "Delete failed: {error}",
+  "continueChat": "Continue conversation...",
+  "daysAgo": "{count} days ago",
+  "chatHistory": "Chat history",
+  "noConversations": "No conversations",
+  "@loadSessionListFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadSessionListFailed": "Failed to load session list: {error}",
+  "@yesterdayAt": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "yesterdayAt": "Yesterday {time}",
+  "newChat": "New chat",
+  "@messageCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "messageCount": "{count} messages",
+  "organize": "Organize",
+  "pkmCategoryProject": "Project",
+  "pkmCategoryProjectSubtitle": "Short-term · Goals · Deadlines",
+  "pkmCategoryArea": "Area",
+  "pkmCategoryAreaSubtitle": "Long-term · Responsibility · Standards",
+  "pkmCategoryResource": "Resource",
+  "pkmCategoryResourceSubtitle": "Interests · Inspiration · Reserve",
+  "pkmCategoryArchive": "Archive",
+  "pkmCategoryArchiveSubtitle": "Done · Dormant · Reference",
+  "recentChanges": "Recent changes",
+  "noRecentChangesInThreeDays": "No changes in the last 3 days",
+  "unpinned": "Unpinned",
+  "pinnedStyle": "Style pinned",
+  "@operationFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "operationFailed": "Operation failed: {error}",
+  "refreshingInsightData": "Refreshing insight data, this may take a moment...",
+  "@refreshFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "refreshFailed": "Refresh failed: {error}",
+  "sortUpdated": "Sort order updated",
+  "@sortSaveFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "sortSaveFailed": "Failed to save sort: {error}",
+  "insightCardDeleted": "Insight card deleted",
+  "@deleteFailedShort": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "deleteFailedShort": "Delete failed: {error}",
+  "aboutThisInsightHint": "What would you like to know about this insight...",
+  "knowledgeInsight": "Knowledge insight",
+  "completeSort": "Complete sort",
+  "noKnowledgeInsight": "No knowledge insight",
+  "updating": "Updating...",
+  "update": "Update",
+  "enabled": "Enabled",
+  "disabled": "Disabled",
+  "@confirmDeleteCharacter": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "confirmDeleteCharacter": "Delete character \"{name}\"? This cannot be undone.",
+  "configureAiCharacter": "Configure AI character",
+  "addCharacter": "Add character",
+  "addCharacterSubtitle": "Choose AI characters to join your insight team. They will analyze your life data from different angles.",
+  "noCharacters": "No characters",
+  "@loadCharacterFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadCharacterFailed": "Failed to load characters: {error}",
+  "characterDesignerHint": "Describe the character you want to create or update...",
+  "characterDesigner": "Character designer",
+  "noTags": "No tags",
+  "createSuccess": "Created successfully",
+  "updateSuccess": "Updated successfully",
+  "@saveFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "saveFailed": "Save failed: {error}",
+  "newCharacter": "New character",
+  "editCharacter": "Edit character",
+  "save": "Save",
+  "characterName": "Character name",
+  "characterNameHint": "Give your character a name",
+  "pleaseEnterCharacterName": "Please enter character name",
+  "tagsLabel": "Tags",
+  "tagsHint": "e.g. wisdom, recognition, macro\nSeparate multiple tags with commas",
+  "characterPersonaLabel": "Character persona",
+  "characterPersonaHint": "Include persona, style guide, example dialogue, knowledge filters, etc.\nUse ## for section headers.",
+  "pleaseEnterCharacterPersona": "Please enter character persona",
+  "systemFeaturesAndExtensions": "System features & extensions",
+  "shareExtensionTitle": "Share extension",
+  "shareExtensionSubtitle": "Share content to the app from system share sheet",
+  "screenTimeTitle": "Screen Time (Screen Time API)",
+  "screenTimeSubtitle": "Access app usage and attention data",
+  "@permissionRequestError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "permissionRequestError": "Permission request error: {error}",
+  "permissionRequiredTitle": "Permission required",
+  "permissionPermanentlyDeniedMessage": "You have permanently denied this permission or the system requires it. Please enable it in system settings.",
+  "getting": "Getting...",
+  "unauthorized": "Unauthorized",
+  "authorizedGoToSettings": "Authorized. Go to system settings to change.",
+  "goToSettingsShort": "Open Settings",
+  "basicPermissions": "Basic permissions",
+  "location": "Location",
+  "locationPermissionReason": "For recording places and location-related features",
+  "photos": "Photos",
+  "photosPermissionReason": "For selecting photos, saving generated images, etc.",
+  "camera": "Camera",
+  "cameraPermissionReason": "For taking photos and videos",
+  "microphone": "Microphone",
+  "microphonePermissionReason": "For voice recognition, recording, etc.",
+  "calendarPermissionReason": "For recording schedule and reading calendar events",
+  "remindersPermissionReason": "For recording and reading your reminders",
+  "fitnessAndMotion": "Fitness & motion",
+  "fitnessPermissionReason": "For recording health and motion data",
+  "notification": "Notification",
+  "notificationPermissionReason": "For sending schedule and important reminders",
+  "loadDetailFailedRetryShort": "Load detail failed, please retry later.",
+  "llmCallStats": "LLM call stats",
+  "noLlmCallRecords": "No LLM call records",
+  "total": "Total",
+  "callCount": "Call count",
+  "estimatedCost": "Estimated cost",
+  "byAgent": "By Agent",
+  "cardGenerationAgent": "Card generation Agent",
+  "knowledgeOrgAgent": "Knowledge org Agent",
+  "commentGenerationAgent": "Comment generation Agent",
+  "timeUpdated": "Time updated",
+  "@updateFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "updateFailed": "Update failed: {error}",
+  "locationUpdated": "Location updated",
+  "confirmDeleteCardMessage": "Delete this card? This cannot be undone.",
+  "profileAgent": "Profile Agent",
+  "assetAnalysis": "Asset analysis",
+  "cardDetailNotFound": "Card detail not found",
+  "saySomething": "Say something...",
+  "relatedMemories": "Related memories",
+  "viewMore": "View more",
+  "relatedRecords": "Related records",
+  "replySent": "Reply sent",
+  "insightTemplateGalleryTitle": "Insight card templates",
+  "timelineTemplateGalleryTitle": "Timeline card templates",
+  "categoryGeneral": "General",
+  "categoryTextual": "Textual",
+  "k411": "## 什么是心流？  心流（Flow）是由心理学家米哈里·契克森米哈提出的一种心理状态。当你完全沉浸在一项具有挑战性但可完成的任务中，时间感消失，注意力高度集中，这就是心流。  > 人在做感兴趣的事情时，常常浑然忘我。  研究发现，心流状态下的人往往生产力最高，幸福感也最强。",
+  "timelineFilterAll": "ALL",
+  "timelineDays": "Days",
+  "timelineWeeks": "Weeks",
+  "timelineMonths": "Months",
+  "timelineYears": "Years",
+  "insights": "Insights",
+  "memoryTitle": "Memory",
+  "longTermProfile": "Long-term Profile",
+  "recentBuffer": "Recent Buffer",
+  "@errorLoadingMemory": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "errorLoadingMemory": "Error loading memory: {error}",
+  "agentConfiguration": "Agent Configuration",
+  "resetToDefaults": "Reset to Defaults",
+  "resetAllAgentConfigurationsTitle": "Reset All Agent Configurations",
+  "resetAllAgentConfigurationsMessage": "Are you sure you want to reset all agent configurations to their default values? This action cannot be undone.",
+  "resetButton": "Reset",
+  "@loadDataFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "loadDataFailed": "Failed to load data: {error}",
+  "@saveConfigFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "saveConfigFailed": "Failed to save config: {error}",
+  "selectLlmClient": "Select LLM Client:",
+  "agentConfigurationsReset": "Agent configurations reset",
+  "@resetFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "resetFailed": "Failed to reset: {error}",
+  "modelConfiguration": "Model Configuration",
+  "resetAllConfigurationsTitle": "Reset All Configurations",
+  "resetAllModelConfigurationsMessage": "Are you sure you want to reset all model configurations to their default values? This action cannot be undone.",
+  "modelConfigurationsReset": "Model configurations reset",
+  "cannotDeleteDefaultConfiguration": "Cannot delete default configuration",
+  "cannotDeleteConfigurationTitle": "Cannot Delete Configuration",
+  "@configUsedByAgentsMessage": {
+    "placeholders": {
+      "agentList": {}
+    }
+  },
+  "configUsedByAgentsMessage": "This configuration is currently used by the following agents:\n\n{agentList}\n\nPlease reassign these agents before deleting.",
+  "ok": "OK",
+  "deleteConfigurationTitle": "Delete Configuration",
+  "@confirmDeleteConfigMessage": {
+    "placeholders": {
+      "key": {}
+    }
+  },
+  "confirmDeleteConfigMessage": "Are you sure you want to delete \"{key}\"?",
+  "defaultLabel": "Default",
+  "missingApiKey": "Missing API Key",
+  "invalidJsonInExtraField": "Invalid JSON in Extra field",
+  "keyAlreadyExists": "Key already exists",
+  "resetConfigurationTitle": "Reset Configuration",
+  "resetConfigurationMessage": "Reset this configuration to its initial default values? Current changes will be lost.",
+  "configurationResetPressSave": "Configuration reset. Press Save to apply.",
+  "addConfiguration": "Add Configuration",
+  "editConfiguration": "Edit Configuration",
+  "keyIdLabel": "Key (ID)",
+  "keyIdHelper": "Unique identifier for this configuration",
+  "required": "Required",
+  "clientLabel": "Provider",
+  "geminiClient": "Gemini",
+  "chatCompletionClient": "OpenAI (ChatCompletion)",
+  "responsesClient": "OpenAI (Responses)",
+  "bedrockClient": "Bedrock",
+  "modelIdLabel": "Model ID",
+  "modelIdHelper": "e.g. gemini-3.1-pro-preview, gpt-4o",
+  "apiKeyLabel": "API Key",
+  "baseUrlLabel": "Base URL",
+  "advancedSettings": "Advanced Settings",
+  "proxyUrlOptional": "Proxy URL (Optional)",
+  "proxyUrlHelper": "e.g. http://127.0.0.1:7890",
+  "temperatureLabel": "Temperature",
+  "topPLabel": "Top P",
+  "maxTokensLabel": "Max Tokens",
+  "extraParamsJson": "Extra Params (JSON)",
+  "invalidJson": "Invalid JSON",
+  "warning": "Warning",
+  "invalidConfigurationWarning": "The current configuration is invalid (e.g., missing API Key, Model ID, or Base URL). It may not work properly. Do you want to save anyway?",
+  "invalidModelConfigDetailed": "AI Agent \"{agentId}\" needs a valid model configuration (key: \"{configKey}\") to operate. Please check the model settings.",
+  "discardChangesTitle": "Discard unsaved changes?",
+  "discardChangesMessage": "You have unsaved changes. Are you sure you want to leave without saving?",
+  "discardButton": "Discard"
+}
