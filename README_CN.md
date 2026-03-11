@@ -155,6 +155,17 @@ Insight Agent → 跨记录模式发现
 | Anthropic Claude | Claude API | 直接 API 访问 |
 | AWS Bedrock | Bedrock Claude | 适合 AWS 用户 |
 
+## 路线图
+
+- [ ] Claude / Gemini OAuth 授权登录（无需手动管理 API Key）
+- [ ] 云端同步与备份（iCloud、Google Drive 等）
+- [ ] 支持视频和文件附件
+- [ ] 可编辑 Memory — 手动整理和修改记忆条目
+- [ ] 定期刷新洞察 — 周期性重新分析记录，发现新关联
+- [ ] 自定义标签、UI 卡片模板、知识库组织方式
+- [ ] Agent Soul — 自定义 Agent 的行为风格与个性
+- [ ] 更多数据源接入（运动手环、可穿戴设备等）
+
 ## 参与贡献
 
 欢迎贡献代码。请先开 Issue 讨论你想要的改动。

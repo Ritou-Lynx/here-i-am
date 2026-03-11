@@ -155,6 +155,17 @@ Local Storage (filesystem + SQLite)
 | Anthropic Claude | Claude API | Direct API access |
 | AWS Bedrock | Bedrock Claude | For AWS users |
 
+## Roadmap
+
+- [ ] OAuth login for Claude and Gemini (use LLM without managing API keys)
+- [ ] Cloud sync & backup (iCloud, Google Drive, etc.)
+- [ ] Video and file attachments
+- [ ] Editable Memory — manually curate and refine your memory entries
+- [ ] Scheduled insight refresh — periodically re-analyze records for new patterns
+- [ ] Customizable tags, UI card templates, and knowledge base organization
+- [ ] Agent Soul — personalize agent behavior and personality
+- [ ] Extensible data sources (fitness trackers, wearables, and more)
+
 ## Contributing
 
 Contributions are welcome. Please open an issue first to discuss what you would like to change.
