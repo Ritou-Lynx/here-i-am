@@ -20,7 +20,7 @@ class MoodCard extends StatelessWidget {
       onTap: onTap,
       padding: const EdgeInsets.all(16),
       borderRadius: 24,
-      backgroundColor: moodColor.withValues(alpha:0.1),
+      backgroundColor: moodColor.withValues(alpha: 0.1),
       child: Row(
         children: [
           Container(
@@ -30,7 +30,7 @@ class MoodCard extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: moodColor.withValues(alpha:0.2),
+                  color: moodColor.withValues(alpha: 0.2),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),

@@ -67,7 +67,7 @@ class CanvasCard extends StatelessWidget {
                 height: 180,
                 width: double.infinity,
                 color:
-                    Colors.white.withValues(alpha:0.5), // Translucent to show grid
+                    Colors.white.withValues(alpha: 0.5), // Translucent to show grid
                 child: imageUrl != null
                     ? LocalImage(url: imageUrl, fit: BoxFit.contain)
                     : Center(

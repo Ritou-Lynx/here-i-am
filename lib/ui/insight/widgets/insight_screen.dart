@@ -558,7 +558,7 @@ class _InsightScreenState extends State<InsightScreen> {
                     left: _fabPosition?.dx,
                     top: _fabPosition?.dy,
                     right: _fabPosition == null ? 20 : null,
-                    bottom: _fabPosition == null ? 100 : null,
+                    bottom: _fabPosition == null ? 140 : null,
                     child: GestureDetector(
                       onPanUpdate: (details) {
                         setState(() {
