@@ -20,25 +20,25 @@
 
 ## Memex 是什么？
 
-Memex 是一个本地优先、AI 原生的个人知识管理应用，基于 Flutter 构建。支持文字、图片、语音多模态输入，通过多 Agent 协作自动将你的记录整理为结构化的时间线卡片，提取知识，并生成跨记录的洞察。
+Memex 是一个本地优先、AI 原生的个人知识管理应用。支持文字、图片、语音多模态输入，通过多 Agent 协作自动将你的记录整理为结构化的时间线卡片，提取知识，并生成跨记录的洞察。
 
 所有数据存储在你的设备上。你只需要选择你偏好的模型提供商。
 
 ## 功能
 
-### 多模态输入
+### 🎙️ 多模态输入
 - 文字、图片、语音一站式输入
 - 长按录音，松手即发送
 - 自动提取照片 EXIF 信息（时间、GPS 位置）
 - 端侧 OCR 文字识别与图像标签分析（Google ML Kit）
 
-### AI 自动整理
+### 🤖 AI 自动整理
 - 多 Agent 架构：PKM（知识管理）、卡片生成、洞察分析、评论、记忆摘要、媒体分析等各司其职
 - 输入内容自动生成结构化时间线卡片
 - 自动打标签、实体提取、关联关系链接
 - AI 对话助手，可针对任意卡片或主题展开讨论
 
-### 知识与洞察
+### 💡 知识与洞察
 - 基于 P.A.R.A 方法论的知识组织（项目、领域、资源、归档）
 - 洞察卡片，跨记录发现关联模式：
   - 图表类（趋势、柱状、雷达、气泡、构成比例、进度环）— 可视化数据规律、分布与目标进展
@@ -46,13 +46,12 @@ Memex 是一个本地优先、AI 原生的个人知识管理应用，基于 Flut
   - 时空类（地图、路线、时间线）— 还原事件发生的地点与时间脉络
   - 图集 — 以照片形式唤起视觉记忆
 
-### 隐私与本地优先
+### 🔒 隐私与本地优先
 - 所有数据存储在本地（文件系统 + SQLite）
-- 内置本地 HTTP 服务器提供资源访问
 - 应用锁（生物识别认证）
 - 无云端依赖，数据不会离开你的设备
 
-### 支持多种 LLM 提供商
+### 🔗 支持多种 LLM 提供商
 
 | 提供商 | API 类型 | 备注 |
 |--------|----------|------|
@@ -61,7 +60,40 @@ Memex 是一个本地优先、AI 原生的个人知识管理应用，基于 Flut
 | Anthropic Claude | Claude API | 直接 API 访问 |
 | AWS Bedrock | Bedrock Claude | 适合 AWS 用户 |
 
-## 快速开始
+## 安装
+
+### iOS
+
+在 App Store 搜索 **MemexAI**，或[点击这里](https://apps.apple.com/app/memexai)下载。
+
+### Android
+
+前往 [GitHub Releases](https://github.com/memex-lab/memex/releases) 下载最新 APK 安装包。
+
+### 配置 LLM
+
+Memex 需要 LLM API Key 来驱动 AI 功能。首次启动后：
+
+1. 点击头像 → 模型配置
+2. 选择 API 类型（Gemini / OpenAI / Claude 等）
+3. 填入 API Key 和 Base URL
+4. 不同 Agent 可以独立配置不同的模型
+
+## 路线图
+
+- [ ] Claude / Gemini OAuth 授权登录（无需手动管理 API Key）
+- [ ] 云端同步与备份（iCloud、Google Drive 等）
+- [ ] 支持视频和文件附件
+- [ ] 可编辑 Memory — 手动整理和修改记忆条目
+- [ ] 定期刷新洞察 — 周期性重新分析记录，发现新关联
+- [ ] Agent Soul — 自定义 Agent 的行为风格与个性
+- [ ] 事件总线 & Hook 系统 — 全局事件总线解耦数据源与 Agent 调度，自由扩展输入源与触发时机
+- [ ] 扩展市场 & 插件架构 — Agent、卡片模板、角色配置的云端市场，一键安装，热重载生效
+
+## 开发
+
+<details>
+<summary>从源码构建</summary>
 
 ### 环境要求
 
@@ -69,10 +101,10 @@ Memex 是一个本地优先、AI 原生的个人知识管理应用，基于 Flut
 - Xcode（iOS 开发）
 - Android Studio（Android 开发）
 
-### 安装
+### 安装依赖
 
 ```bash
-git clone https://github.com/your-username/memex.git
+git clone https://github.com/memex-lab/memex.git
 cd memex
 flutter pub get
 ```
@@ -89,16 +121,10 @@ cd ios && pod install && cd ..
 flutter run
 ```
 
-### 配置 LLM
+</details>
 
-Memex 需要 LLM API Key 来驱动 AI 功能。首次启动后：
-
-1. 点击头像 → 模型配置
-2. 选择 API 类型（Gemini / OpenAI / Claude 等）
-3. 填入 API Key 和 Base URL
-4. 不同 Agent 可以独立配置不同的模型
-
-## 架构
+<details>
+<summary>架构</summary>
 
 ### 技术栈
 
@@ -130,12 +156,6 @@ lib/
 ├── l10n/           # 国际化（中文/英文）
 ├── llm_client/     # LLM 客户端抽象层
 ├── ui/             # 展示层 (MVVM)
-│   ├── timeline/         # 时间线
-│   ├── knowledge/        # 知识库
-│   ├── insight/          # 洞察卡片
-│   ├── chat/             # AI 对话
-│   ├── calendar/         # 日历视图
-│   └── settings/         # 设置
 └── utils/          # 工具类
 ```
 
@@ -155,16 +175,7 @@ Insight Agent → 跨记录模式发现
 本地存储（文件系统 + SQLite）
 ```
 
-## 路线图
-
-- [ ] Claude / Gemini OAuth 授权登录（无需手动管理 API Key）
-- [ ] 云端同步与备份（iCloud、Google Drive 等）
-- [ ] 支持视频和文件附件
-- [ ] 可编辑 Memory — 手动整理和修改记忆条目
-- [ ] 定期刷新洞察 — 周期性重新分析记录，发现新关联
-- [ ] Agent Soul — 自定义 Agent 的行为风格与个性
-- [ ] 事件总线 & Hook 系统 — 引入全局事件总线，将数据源接入与 Agent 调度彻底解耦。任意输入源（系统分享面板、URL Scheme、目录监听器、定时调度器）均以类型化事件投递到总线；多维 Hook 注册表在关键生命周期节点拦截事件并触发对应 Agent，无需改动核心逻辑即可自由扩展数据源与调度时机。
-- [ ] 扩展市场 & 插件架构 — 云端注册中心作为 Agent、卡片模板、角色配置的扩展市场，用户可一键浏览并安装扩展，热重载生效，无需重启应用。
+</details>
 
 ## 参与贡献
 
