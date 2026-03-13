@@ -34,7 +34,12 @@ All data stays on your device. You just need to pick your preferred LLM provider
 
 ### AI-Powered Organization
 - Multi-agent architecture: each agent handles a specific domain (PKM, card generation, insights, comments, memory summarization, media analysis)
-- Automatically generates structured timeline cards from raw input
+- Automatically generates the most fitting card for each type of input:
+  - Life & productivity (task, routine, event, duration, progress) — track todos, habits, schedules and goals
+  - Knowledge & media (article, snippet, quote, link, conversation) — capture notes, references and dialogues
+  - People & places (person, place) — log contacts and locations with map preview
+  - Data & metrics (metric, rating, transaction, spec sheet) — record measurements, reviews and expenses
+  - Visual (gallery) — preserve moments through photos
 - Auto-tagging, entity extraction, and cross-reference linking
 - Conversational AI assistant for discussing any card or topic
 
@@ -77,26 +82,21 @@ cd memex
 flutter pub get
 ```
 
-For iOS:
-
-```bash
-cd ios && pod install && cd ..
-```
-
 ### Run
 
 ```bash
 flutter run
 ```
 
-### Configure LLM
+## Roadmap
 
-Memex requires an LLM API key to power its AI features. On first launch:
-
-1. Tap the avatar icon → Model Configuration
-2. Select your provider (Gemini / OpenAI / Claude / etc.)
-3. Enter your API key and base URL
-4. Each agent can be configured with a different model independently
+- [ ] OAuth login for Claude and Gemini (no API key management)
+- [ ] Cloud sync & backup (iCloud, Google Drive, etc.)
+- [ ] Video and file attachments
+- [ ] Agent Soul — Agent Soul — personalize agent behavior and personality
+- [ ] Customization — choose your own knowledge methodology, tagging rules, chat personas, and card styles
+- [ ] Event Bus & Hook System — a global event bus that decouples data sources from agent execution. Any input source (Share Extension, URL Scheme, Directory Watcher, Cron Scheduler) emits typed events onto the bus; a multi-dimensional Hook Registry intercepts them at key lifecycle points to trigger the right agent at the right moment — making both data source integration and agent scheduling fully extensible without touching core logic.
+- [ ] Extension Market & Plugin Architecture — a cloud registry serves as a marketplace for agents, card styles, and persona configs. Users can browse and install extensions with one tap, and changes hot-reload instantly without restarting the app.
 
 ## Architecture
 
@@ -154,17 +154,6 @@ Insight Agent → Cross-record pattern discovery
     ↓
 Local Storage (filesystem + SQLite)
 ```
-
-## Roadmap
-
-- [ ] OAuth login for Claude and Gemini (no API key management)
-- [ ] Cloud sync & backup (iCloud, Google Drive, etc.)
-- [ ] Video and file attachments
-- [ ] Editable Memory — manually curate and refine memory entries
-- [ ] Scheduled insight refresh — periodically re-analyze records for new patterns
-- [ ] Agent Soul — personalize agent behavior and personality
-- [ ] Event Bus & Hook System — a global event bus that decouples data sources from agent execution. Any input source (Share Extension, URL Scheme, Directory Watcher, Cron Scheduler) emits typed events onto the bus; a multi-dimensional Hook Registry intercepts them at key lifecycle points to trigger the right agent at the right moment — making both data source integration and agent scheduling fully extensible without touching core logic.
-- [ ] Extension Market & Plugin Architecture — a cloud registry serves as a marketplace for agents, UI card templates, and persona configs. Users can browse and install extensions with one tap, and changes hot-reload instantly without restarting the app.
 
 ## Contributing
 
