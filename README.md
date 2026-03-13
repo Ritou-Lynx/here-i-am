@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/memex-lab/memex/releases"><img src="https://img.shields.io/github/v/release/memex-lab/memex?style=flat-square&label=release" alt="Release"></a>
   <a href="https://discord.gg/ftae8GeubK"><img src="https://img.shields.io/badge/discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/memex-lab/memex?style=flat-square" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License"></a>
   <a href="README_CN.md"><img src="https://img.shields.io/badge/文档-中文-blue?style=flat-square" alt="中文文档"></a>
 </p>
 
@@ -60,8 +60,8 @@ All data stays on your device. You just need to pick your preferred LLM provider
 
 | Provider | API Type | Notes |
 |----------|----------|-------|
-| Google Gemini | Gemini API | Recommended for cost efficiency |
-| OpenAI | Chat Completions / Responses API | GPT-4o, o1, etc. |
+| Google Gemini | Gemini API | gemini-3.1-pro-preview, gemini-3.1-flash-preview, etc. |
+| OpenAI | Chat Completions / Responses API | GPT-5.4, etc. |
 | Anthropic Claude | Claude API | Direct API access |
 | AWS Bedrock | Bedrock Claude | For AWS users |
 

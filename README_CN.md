@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/memex-lab/memex/releases"><img src="https://img.shields.io/github/v/release/memex-lab/memex?style=flat-square&label=release" alt="Release"></a>
   <a href="https://discord.gg/ftae8GeubK"><img src="https://img.shields.io/badge/discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/memex-lab/memex?style=flat-square" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License"></a>
   <a href="README.md"><img src="https://img.shields.io/badge/docs-English-blue?style=flat-square" alt="English"></a>
 </p>
 
@@ -60,8 +60,8 @@ Memex 是一个本地优先、AI 原生的个人知识管理应用。支持文�
 
 | 提供商 | API 类型 | 备注 |
 |--------|----------|------|
-| Google Gemini | Gemini API | 性价比推荐 |
-| OpenAI | Chat Completions / Responses API | GPT-4o、o1 等 |
+| Google Gemini | Gemini API | gemini-3.1-pro-preview、gemini-3.1-flash-preview 等 |
+| OpenAI | Chat Completions / Responses API | GPT-5.4 等 |
 | Anthropic Claude | Claude API | 直接 API 访问 |
 | AWS Bedrock | Bedrock Claude | 适合 AWS 用户 |
 
