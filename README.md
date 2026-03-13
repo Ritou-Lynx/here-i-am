@@ -20,30 +20,30 @@
 
 ## What is Memex?
 
-Memex is a local-first, AI-native personal knowledge management app built with Flutter. Capture text, photos, and voice — a multi-agent system automatically organizes your records into structured timeline cards, extracts knowledge, and generates insights across your entries.
+Memex is a local-first, AI-native personal knowledge management app. Capture text, photos, and voice — a multi-agent system automatically organizes your records into structured timeline cards, extracts knowledge, and generates insights across your entries.
 
 All data stays on your device. You just need to pick your preferred LLM provider.
 
 ## Features
 
-### Multi-Modal Input
+### 🎙️ Multi-Modal Input
 - Text, images, and voice recording in a single input flow
 - Long-press to record audio, release to send
 - Automatic EXIF extraction (timestamp, GPS location) from photos
 - On-device OCR and image labeling via Google ML Kit
 
-### AI-Powered Organization
+### 🤖 AI-Powered Organization
 - Multi-agent architecture: each agent handles a specific domain (PKM, card generation, insights, comments, memory summarization, media analysis)
 - Automatically generates the most fitting card for each type of input:
   - Life & productivity (task, routine, event, duration, progress) — track todos, habits, schedules and goals
   - Knowledge & media (article, snippet, quote, link, conversation) — capture notes, references and dialogues
   - People & places (person, place) — log contacts and locations with map preview
   - Data & metrics (metric, rating, transaction, spec sheet) — record measurements, reviews and expenses
-  - Visual (gallery) — preserve moments through photos
++  - Visual (gallery) — preserve moments through photos
 - Auto-tagging, entity extraction, and cross-reference linking
 - Conversational AI assistant for discussing any card or topic
 
-### Knowledge & Insights
+### 💡 Knowledge & Insights
 - P.A.R.A-based knowledge organization (Projects, Areas, Resources, Archives)
 - Insight cards that surface connections across records:
   - Charts (trend, bar, radar, bubble, composition, progress ring) — visualize patterns, distributions and goal progress over time
@@ -51,13 +51,12 @@ All data stays on your device. You just need to pick your preferred LLM provider
   - Spatial & temporal (map, route, timeline) — reconstruct where and when things happened
   - Gallery — visual memory from your photos
 
-### Privacy & Local-First
+### 🔒 Privacy & Local-First
 - All data stored locally (filesystem + SQLite)
-- Built-in local HTTP server for asset serving
 - App lock with biometric authentication
 - No cloud dependency — your data never leaves your device
 
-### Multi-LLM Provider Support
+### 🔗 Multi-LLM Provider Support
 
 | Provider | API Type | Notes |
 |----------|----------|-------|
@@ -66,7 +65,41 @@ All data stays on your device. You just need to pick your preferred LLM provider
 | Anthropic Claude | Claude API | Direct API access |
 | AWS Bedrock | Bedrock Claude | For AWS users |
 
-## Getting Started
+## Install
+
+### iOS
+
+Search **MemexAI** on the App Store, or [click here](https://apps.apple.com/app/memexai) to download.
+
+### Android
+
+Download the latest APK from [GitHub Releases](https://github.com/memex-lab/memex/releases).
+
+### Configure LLM
+
+Memex requires an LLM API key to power its AI features. On first launch:
+
+1. Tap the avatar icon → Model Configuration
+2. Select your provider (Gemini / OpenAI / Claude / etc.)
+3. Enter your API key and base URL
+4. Each agent can be configured with a different model independently
+
+## Roadmap
+
+- [ ] OAuth login for Claude and Gemini (no API key management)
+- [ ] Cloud sync & backup (iCloud, Google Drive, etc.)
+- [ ] Video and file attachments
+- [ ] Editable Memory — manually curate and refine memory entries
+- [ ] Scheduled insight refresh — periodically re-analyze records for new patterns
+- [ ] Agent Soul — personalize agent behavior and personality
+- [ ] Customization — choose your own knowledge methodology, tagging rules, chat personas, and card styles
+- [ ] Event Bus & Hook System — a global event bus that decouples data sources from agent execution, making both data source integration and agent scheduling fully extensible
+- [ ] Extension Market & Plugin Architecture — a cloud registry for agents, UI card templates, and persona configs with one-tap install and hot-reload
+
+## Development
+
+<details>
+<summary>Build from source</summary>
 
 ### Prerequisites
 
@@ -74,12 +107,18 @@ All data stays on your device. You just need to pick your preferred LLM provider
 - Xcode (for iOS)
 - Android Studio (for Android)
 
-### Installation
+### Setup
 
 ```bash
-git clone https://github.com/your-username/memex.git
+git clone https://github.com/memex-lab/memex.git
 cd memex
 flutter pub get
+```
+
+For iOS:
+
+```bash
+cd ios && pod install && cd ..
 ```
 
 ### Run
@@ -88,17 +127,10 @@ flutter pub get
 flutter run
 ```
 
-## Roadmap
+</details>
 
-- [ ] OAuth login for Claude and Gemini (no API key management)
-- [ ] Cloud sync & backup (iCloud, Google Drive, etc.)
-- [ ] Video and file attachments
-- [ ] Agent Soul — Agent Soul — personalize agent behavior and personality
-- [ ] Customization — choose your own knowledge methodology, tagging rules, chat personas, and card styles
-- [ ] Event Bus & Hook System — a global event bus that decouples data sources from agent execution. Any input source (Share Extension, URL Scheme, Directory Watcher, Cron Scheduler) emits typed events onto the bus; a multi-dimensional Hook Registry intercepts them at key lifecycle points to trigger the right agent at the right moment — making both data source integration and agent scheduling fully extensible without touching core logic.
-- [ ] Extension Market & Plugin Architecture — a cloud registry serves as a marketplace for agents, card styles, and persona configs. Users can browse and install extensions with one tap, and changes hot-reload instantly without restarting the app.
-
-## Architecture
+<details>
+<summary>Architecture</summary>
 
 ### Tech Stack
 
@@ -130,12 +162,6 @@ lib/
 ├── l10n/           # i18n (English, Chinese)
 ├── llm_client/     # LLM client abstraction layer
 ├── ui/             # Presentation layer (MVVM)
-│   ├── timeline/         # Timeline feed
-│   ├── knowledge/        # Knowledge base
-│   ├── insight/          # Insight cards
-│   ├── chat/             # AI chat interface
-│   ├── calendar/         # Calendar view
-│   └── settings/         # App settings
 └── utils/          # Shared utilities
 ```
 
@@ -155,6 +181,8 @@ Insight Agent → Cross-record pattern discovery
 Local Storage (filesystem + SQLite)
 ```
 
+</details>
+
 ## Contributing
 
 Contributions are welcome. Please open an issue first to discuss what you would like to change.
@@ -167,4 +195,4 @@ Contributions are welcome. Please open an issue first to discuss what you would 
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPL-3.0 License — see the [LICENSE](LICENSE) file for details.
