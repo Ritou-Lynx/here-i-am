@@ -54,9 +54,9 @@ class CanvasCard extends StatelessWidget {
                     Row(
                       // Fake tools
                       children: [
-                        _buildTool(Colors.black),
-                        _buildTool(Colors.red),
-                        _buildTool(Colors.blue),
+                        _buildTool(const Color(0xFF0F172A)),
+                        _buildTool(const Color(0xFFEF4444)),
+                        _buildTool(const Color(0xFF6366F1)),
                       ],
                     )
                   ],
@@ -104,7 +104,7 @@ class CanvasCard extends StatelessWidget {
 class DotGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.grey.withValues(alpha:0.2);
+    final paint = Paint()..color = const Color(0xFF94A3B8).withValues(alpha: 0.2);
     const spacing = 20.0;
     for (var x = 0.0; x < size.width; x += spacing) {
       for (var y = 0.0; y < size.height; y += spacing) {
