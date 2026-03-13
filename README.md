@@ -14,15 +14,16 @@
   <a href="README_CN.md"><img src="https://img.shields.io/badge/文档-中文-blue?style=flat-square" alt="中文文档"></a>
 </p>
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/450eb6e5-8adf-4c1f-bc46-a63c9836f22c" width="300" />
-</div>
 
 ## What is Memex?
 
 Memex is a local-first, AI-native personal knowledge management app. Capture text, photos, and voice — a multi-agent system automatically organizes your records into structured timeline cards, extracts knowledge, and generates insights across your entries.
 
 All data stays on your device. You just need to pick your preferred LLM provider.
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/450eb6e5-8adf-4c1f-bc46-a63c9836f22c" width="300" />
+</div>
 
 ## Features
 

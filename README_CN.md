@@ -14,15 +14,16 @@
   <a href="README.md"><img src="https://img.shields.io/badge/docs-English-blue?style=flat-square" alt="English"></a>
 </p>
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/450eb6e5-8adf-4c1f-bc46-a63c9836f22c" width="300" />
-</div>
 
 ## Memex 是什么？
 
 Memex 是一个本地优先、AI 原生的个人知识管理应用。支持文字、图片、语音多模态输入，通过多 Agent 协作自动将你的记录整理为结构化的时间线卡片，提取知识，并生成跨记录的洞察。
 
 所有数据存储在你的设备上。你只需要选择你偏好的模型提供商。
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/450eb6e5-8adf-4c1f-bc46-a63c9836f22c" width="300" />
+</div>
 
 ## 功能
 
