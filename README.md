@@ -39,7 +39,7 @@ All data stays on your device. You just need to pick your preferred LLM provider
   - Knowledge & media (article, snippet, quote, link, conversation) — capture notes, references and dialogues
   - People & places (person, place) — log contacts and locations with map preview
   - Data & metrics (metric, rating, transaction, spec sheet) — record measurements, reviews and expenses
-+  - Visual (gallery) — preserve moments through photos
+  - Visual (gallery) — preserve moments through photos
 - Auto-tagging, entity extraction, and cross-reference linking
 - Conversational AI assistant for discussing any card or topic
 
