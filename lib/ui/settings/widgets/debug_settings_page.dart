@@ -11,9 +11,11 @@ class DebugSettingsPage extends StatelessWidget {
   final Future<void> Function() onClearData;
   final Future<void> Function() onReprocessCards;
   final Future<void> Function() onReprocessComments;
+  final Future<void> Function() onReprocessKnowledgeBase;
   final bool isClearingData;
   final bool isReprocessingCards;
   final bool isReprocessingComments;
+  final bool isReprocessingKnowledgeBase;
 
   const DebugSettingsPage({
     Key? key,
@@ -21,9 +23,11 @@ class DebugSettingsPage extends StatelessWidget {
     required this.onClearData,
     required this.onReprocessCards,
     required this.onReprocessComments,
+    required this.onReprocessKnowledgeBase,
     required this.isClearingData,
     required this.isReprocessingCards,
     required this.isReprocessingComments,
+    required this.isReprocessingKnowledgeBase,
   }) : super(key: key);
 
   @override
@@ -116,6 +120,14 @@ class DebugSettingsPage extends StatelessWidget {
             title: UserStorage.l10n.reprocessCards,
             onTap: onReprocessCards,
             isLoading: isReprocessingCards,
+          ),
+          const SizedBox(height: 12),
+          _buildFunctionTab(
+            context: context,
+            icon: Icons.menu_book_outlined,
+            title: UserStorage.l10n.reprocessKnowledgeBase,
+            onTap: onReprocessKnowledgeBase,
+            isLoading: isReprocessingKnowledgeBase,
           ),
           const SizedBox(height: 12),
           _buildFunctionTab(
