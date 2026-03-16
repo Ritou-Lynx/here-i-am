@@ -47,23 +47,19 @@ class FileSystemService {
     return _instance!;
   }
 
-  static void init(String dataRoot) {
-    if (_instance != null) {
+  /// Initialize filesystem service with data root.
+  /// Re-calls are allowed to switch workspace root immediately.
+  static Future<void> init(String dataRoot) async {
+    if (_instance?.dataRoot == dataRoot) {
+      // Ensure server knows latest root even if instance is unchanged.
+      await LocalAssetServer.startServer(dataRoot: dataRoot, preferredPort: 0);
       return;
     }
-    _instance = FileSystemService._(dataRoot: dataRoot);
 
-    // In client mode start local asset server (needed on mobile due to file:// restrictions)
-    LocalAssetServer.startServer(dataRoot: dataRoot, preferredPort: 0)
-        .then((port) {
-      getLogger('FileSystemService').info(
-        'Local asset server started, port: $port',
-      );
-    }).catchError((e) {
-      getLogger('FileSystemService').warning(
-        'Failed to start local asset server: $e',
-      );
-    });
+    _instance = FileSystemService._(dataRoot: dataRoot);
+    await LocalAssetServer.startServer(dataRoot: dataRoot, preferredPort: 0);
+    getLogger('FileSystemService')
+        .info('FileSystemService switched to new data root: $dataRoot');
   }
 
   FileSystemService._({required this.dataRoot}) {

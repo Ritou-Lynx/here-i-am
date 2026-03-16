@@ -4,6 +4,7 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/ui/user_setup/widgets/setup_model_config_page.dart';
+import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/core/widgets/avatar_picker.dart';
 
 /// User setup screen. Shown when user opens app for the first time or no local userId.
@@ -87,10 +88,22 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
       );
 
       if (mounted) {
+        setState(() => _isSubmitting = false);
+
+        // Step 2 for first-time flow: configure storage before model config/home.
+        final completedStorageSetup = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DataStoragePage(onboardingMode: true),
+          ),
+        );
+        if (!mounted || completedStorageSetup != true) {
+          return;
+        }
+
         if (defaultConfig.isValid) {
           widget.onUserCreated();
         } else {
-          setState(() => _isSubmitting = false);
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -342,14 +355,18 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
       children: [
         Icon(Icons.language, size: 18, color: Colors.grey[400]),
         const SizedBox(width: 10),
-        Text(
-          UserStorage.l10n.chooseLanguage,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[600],
+        Expanded(
+          child: Text(
+            UserStorage.l10n.chooseLanguage,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        const Spacer(),
+        const SizedBox(width: 8),
         _buildLangChip('EN', 'en'),
         const SizedBox(width: 8),
         _buildLangChip('中文', 'zh'),
@@ -368,7 +385,7 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF6366F1) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),

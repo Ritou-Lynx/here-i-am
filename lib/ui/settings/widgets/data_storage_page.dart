@@ -2,13 +2,19 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/utils/toast_helper.dart';
 
 /// Page to choose data storage: app storage, custom folder, or iCloud (iOS).
 /// Like Obsidian: custom/device storage or iCloud keeps data when app is reinstalled.
 class DataStoragePage extends StatefulWidget {
-  const DataStoragePage({super.key});
+  final bool onboardingMode;
+
+  const DataStoragePage({
+    super.key,
+    this.onboardingMode = false,
+  });
 
   @override
   State<DataStoragePage> createState() => _DataStoragePageState();
@@ -103,25 +109,25 @@ class _DataStoragePageState extends State<DataStoragePage> {
     }
     if (!mounted) return;
     await UserStorage.setWorkspaceStorageToCustom(uid, path);
+    await MemexRouter().applyWorkspaceStorageChange();
     setState(() {
       _location = StorageLocation.custom;
       _customPath = path;
     });
-    ToastHelper.showInfo(
-        context, UserStorage.l10n.restartRequiredAfterStorageChange);
+    ToastHelper.showSuccess(context, UserStorage.l10n.updateSuccess);
   }
 
   Future<void> _selectApp() async {
     final uid = _userId;
     if (uid == null) return;
     await UserStorage.setWorkspaceStorageToApp(uid);
+    await MemexRouter().applyWorkspaceStorageChange();
     setState(() {
       _location = StorageLocation.app;
       _customPath = null;
     });
     if (mounted) {
-      ToastHelper.showInfo(
-          context, UserStorage.l10n.restartRequiredAfterStorageChange);
+      ToastHelper.showSuccess(context, UserStorage.l10n.updateSuccess);
     }
   }
 
@@ -133,10 +139,10 @@ class _DataStoragePageState extends State<DataStoragePage> {
       return;
     }
     await UserStorage.setWorkspaceStorageToICloud(uid);
+    await MemexRouter().applyWorkspaceStorageChange();
     setState(() => _location = StorageLocation.icloud);
     if (mounted) {
-      ToastHelper.showInfo(
-          context, UserStorage.l10n.restartRequiredAfterStorageChange);
+      ToastHelper.showSuccess(context, UserStorage.l10n.updateSuccess);
     }
   }
 
@@ -155,6 +161,67 @@ class _DataStoragePageState extends State<DataStoragePage> {
       ? UserStorage.l10n.dataStorageDescriptionIOS
       : UserStorage.l10n.dataStorageDescriptionAndroid;
 
+  List<Widget> _buildStorageOptions(dynamic l10n) {
+    final items = <Widget>[];
+
+    void add(Widget item) {
+      if (items.isNotEmpty) {
+        items.add(const SizedBox(height: 12));
+      }
+      items.add(item);
+    }
+
+    final customCard = _buildOptionCard(
+      title: l10n.storageLocationCustom,
+      subtitle: l10n.storageLocationCustomDesc,
+      icon: Icons.folder_outlined,
+      selected: _location == StorageLocation.custom,
+      onTap: () async {
+        await _pickFolder();
+      },
+      trailing: _location == StorageLocation.custom && _customPath != null
+          ? Text(
+              _customPath!,
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            )
+          : null,
+    );
+
+    final appCard = _buildOptionCard(
+      title: l10n.storageLocationApp,
+      subtitle: l10n.storageLocationAppDesc,
+      icon: Icons.phone_android,
+      selected: _location == StorageLocation.app,
+      onTap: _selectApp,
+    );
+
+    final iCloudCard = _buildOptionCard(
+      title: l10n.storageLocationICloud,
+      subtitle: _icloudAvailable
+          ? l10n.storageLocationICloudDesc
+          : l10n.icloudRequiresCapability,
+      icon: Icons.cloud_outlined,
+      selected: _location == StorageLocation.icloud,
+      onTap: _selectICloud,
+      enabled: _icloudAvailable,
+    );
+
+    if (Platform.isIOS) {
+      // iOS priority: iCloud -> custom folder -> app storage
+      add(iCloudCard);
+      add(customCard);
+      add(appCard);
+    } else {
+      // Android priority: custom folder -> app storage
+      add(customCard);
+      add(appCard);
+    }
+
+    return items;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = UserStorage.l10n;
@@ -162,6 +229,37 @@ class _DataStoragePageState extends State<DataStoragePage> {
       appBar: AppBar(
         title: Text(l10n.dataStorage),
       ),
+      bottomNavigationBar: widget.onboardingMode
+          ? Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                MediaQuery.of(context).padding.bottom + 16,
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    UserStorage.l10n.startUsing,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _userId == null
@@ -207,48 +305,7 @@ class _DataStoragePageState extends State<DataStoragePage> {
                         ),
                       ),
                     const SizedBox(height: 24),
-                    // App storage
-                    _buildOptionCard(
-                      title: l10n.storageLocationApp,
-                      subtitle: l10n.storageLocationAppDesc,
-                      icon: Icons.phone_android,
-                      selected: _location == StorageLocation.app,
-                      onTap: _selectApp,
-                    ),
-                    const SizedBox(height: 12),
-                    // Custom folder
-                    _buildOptionCard(
-                      title: l10n.storageLocationCustom,
-                      subtitle: l10n.storageLocationCustomDesc,
-                      icon: Icons.folder_outlined,
-                      selected: _location == StorageLocation.custom,
-                      onTap: () async {
-                        await _pickFolder();
-                      },
-                      trailing: _location == StorageLocation.custom &&
-                              _customPath != null
-                          ? Text(
-                              _customPath!,
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[600]),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            )
-                          : null,
-                    ),
-                    if (Platform.isIOS) ...[
-                      const SizedBox(height: 12),
-                      _buildOptionCard(
-                        title: l10n.storageLocationICloud,
-                        subtitle: _icloudAvailable
-                            ? l10n.storageLocationICloudDesc
-                            : l10n.icloudRequiresCapability,
-                        icon: Icons.cloud_outlined,
-                        selected: _location == StorageLocation.icloud,
-                        onTap: _selectICloud,
-                        enabled: _icloudAvailable,
-                      ),
-                    ],
+                    ..._buildStorageOptions(l10n),
                   ],
                 ),
     );

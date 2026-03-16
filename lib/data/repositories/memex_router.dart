@@ -73,7 +73,7 @@ class MemexRouter {
       // 1. Resolve data root for current user (per-user workspace storage; logs/DB stay in app dir)
       final userId = await UserStorage.getUserId();
       final dataRoot = await UserStorage.resolveDataRoot(userId);
-      FileSystemService.init(dataRoot);
+      await FileSystemService.init(dataRoot);
 
       if (userId == null) {
         _logger.warning(
@@ -244,6 +244,21 @@ class MemexRouter {
     _targetUserIdForInit = null;
     _initFuture = null;
     await _ensureInitialized();
+  }
+
+  /// Apply latest per-user workspace storage configuration immediately.
+  /// Rebuilds card cache for current user so reads reflect new workspace root.
+  Future<void> applyWorkspaceStorageChange() async {
+    final userId = await UserStorage.getUserId();
+    final dataRoot = await UserStorage.resolveDataRoot(userId);
+    await FileSystemService.init(dataRoot);
+    if (userId != null && userId.isNotEmpty) {
+      try {
+        await FileSystemService.instance.rebuildCardCache(userId);
+      } catch (e) {
+        _logger.warning('Failed to rebuild cache after storage switch: $e');
+      }
+    }
   }
 
   /// Clear init state and stop executor on logout so next login re-inits for new user.

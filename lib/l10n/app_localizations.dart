@@ -2783,7 +2783,7 @@ abstract class AppLocalizations {
   /// No description provided for @storageLocationAppDesc.
   ///
   /// In en, this message translates to:
-  /// **'Data is stored inside the app. May be removed when you uninstall.'**
+  /// **'Data is stored inside the app and will be removed when you uninstall.'**
   String get storageLocationAppDesc;
 
   /// No description provided for @storageLocationCustom.
@@ -2807,7 +2807,7 @@ abstract class AppLocalizations {
   /// No description provided for @storageLocationICloudDesc.
   ///
   /// In en, this message translates to:
-  /// **'Sync across your Apple devices. Cannot be changed later.'**
+  /// **'Sync your workspace across Apple devices. Data stays after reinstall.'**
   String get storageLocationICloudDesc;
 
   /// No description provided for @chooseFolder.
@@ -2831,7 +2831,7 @@ abstract class AppLocalizations {
   /// No description provided for @icloudRequiresCapability.
   ///
   /// In en, this message translates to:
-  /// **'Enable iCloud capability in Xcode for this app to use iCloud storage.'**
+  /// **'Sign in to iCloud and turn on iCloud Drive to use iCloud storage.'**
   String get icloudRequiresCapability;
 
   /// No description provided for @customPathInvalid.
@@ -2839,12 +2839,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Selected folder is no longer accessible. Using app storage.'**
   String get customPathInvalid;
-
-  /// No description provided for @restartRequiredAfterStorageChange.
-  ///
-  /// In en, this message translates to:
-  /// **'Restart the app for the new storage location to take effect.'**
-  String get restartRequiredAfterStorageChange;
 
   /// No description provided for @storagePermissionRequired.
   ///

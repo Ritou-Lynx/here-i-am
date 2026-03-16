@@ -1551,10 +1551,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Selected folder is no longer accessible. Using app storage.';
 
   @override
-  String get restartRequiredAfterStorageChange =>
-      'Restart the app for the new storage location to take effect.';
-
-  @override
   String get storagePermissionRequired =>
       'Storage permission is needed to use a custom folder. Please allow it.';
 
