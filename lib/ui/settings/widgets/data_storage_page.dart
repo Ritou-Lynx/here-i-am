@@ -6,8 +6,9 @@ import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/utils/toast_helper.dart';
 
-/// Page to choose data storage: app storage, custom folder, or iCloud (iOS).
-/// Like Obsidian: custom/device storage or iCloud keeps data when app is reinstalled.
+/// Page to choose data storage.
+/// Android: app storage or custom folder.
+/// iOS: app storage or iCloud.
 class DataStoragePage extends StatefulWidget {
   final bool onboardingMode;
 
@@ -36,14 +37,18 @@ class _DataStoragePageState extends State<DataStoragePage> {
   Future<void> _load() async {
     final userId = await UserStorage.getUserId();
     if (userId == null || userId.isEmpty) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _userId = null;
         });
+      }
       return;
     }
-    final location = await UserStorage.getWorkspaceStorageLocation(userId);
+    var location = await UserStorage.getWorkspaceStorageLocation(userId);
+    if (Platform.isIOS && location == StorageLocation.custom) {
+      location = StorageLocation.app;
+    }
     final customPath = await UserStorage.getCustomDataRootPath(userId);
     final icloudAvailable = await UserStorage.isICloudAvailable();
     if (mounted) {
@@ -69,7 +74,8 @@ class _DataStoragePageState extends State<DataStoragePage> {
     }
     if (!manageStatus.isGranted) {
       if (mounted) {
-        ToastHelper.showInfo(context, UserStorage.l10n.storagePermissionRequired);
+        ToastHelper.showInfo(
+            context, UserStorage.l10n.storagePermissionRequired);
       }
       // Best-effort jump to system settings when user denied or policy requires manual enable.
       await openAppSettings();
@@ -95,6 +101,12 @@ class _DataStoragePageState extends State<DataStoragePage> {
   Future<void> _pickFolder() async {
     final uid = _userId;
     if (uid == null) return;
+    if (Platform.isIOS) {
+      if (mounted) {
+        ToastHelper.showInfo(context, UserStorage.l10n.customFolderAccessDenied);
+      }
+      return;
+    }
     if (Platform.isAndroid) {
       final ok = await _requestStoragePermissionIfNeeded();
       if (!ok || !mounted) return;
@@ -103,8 +115,7 @@ class _DataStoragePageState extends State<DataStoragePage> {
     if (path == null || path.isEmpty || !mounted) return;
     final canWrite = await _verifyPathWritable(path);
     if (!canWrite && mounted) {
-      ToastHelper.showInfo(
-          context, UserStorage.l10n.customFolderAccessDenied);
+      ToastHelper.showInfo(context, UserStorage.l10n.customFolderAccessDenied);
       return;
     }
     if (!mounted) return;
@@ -114,6 +125,7 @@ class _DataStoragePageState extends State<DataStoragePage> {
       _location = StorageLocation.custom;
       _customPath = path;
     });
+    if (!mounted) return;
     ToastHelper.showSuccess(context, UserStorage.l10n.updateSuccess);
   }
 
@@ -209,9 +221,8 @@ class _DataStoragePageState extends State<DataStoragePage> {
     );
 
     if (Platform.isIOS) {
-      // iOS priority: iCloud -> custom folder -> app storage
+      // iOS priority: iCloud -> app storage
       add(iCloudCard);
-      add(customCard);
       add(appCard);
     } else {
       // Android priority: custom folder -> app storage
@@ -293,7 +304,9 @@ class _DataStoragePageState extends State<DataStoragePage> {
                         color: Color(0xFF6366F1),
                       ),
                     ),
-                    if (_customPath != null && _customPath!.isNotEmpty)
+                    if (!Platform.isIOS &&
+                        _customPath != null &&
+                        _customPath!.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(

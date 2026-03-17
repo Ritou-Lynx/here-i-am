@@ -628,6 +628,12 @@ class UserStorage {
         return dir.path;
 
       case StorageLocation.custom:
+        if (Platform.isIOS) {
+          _logger.warning(
+              'Custom device folder is not supported on iOS, falling back to app dir');
+          final appDir = await getApplicationDocumentsDirectory();
+          return appDir.path;
+        }
         final path = prefs.getString(_keyCustomDataRootPathPrefix + userId);
         if (path != null && path.isNotEmpty) {
           final dir = Directory(path);
@@ -690,6 +696,10 @@ class UserStorage {
   /// Set workspace storage to custom directory for [userId]. [absolutePath] must be an existing directory path.
   static Future<void> setWorkspaceStorageToCustom(
       String userId, String absolutePath) async {
+    if (Platform.isIOS) {
+      throw UnsupportedError(
+          'Custom device folder is not supported on iOS. Use app storage or iCloud.');
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyCustomDataRootPathPrefix + userId, absolutePath);
     await prefs.setInt(
