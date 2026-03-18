@@ -634,7 +634,9 @@ ${addLineNumbers(snippet, startLine: startLine)}''';
 
     // return result
     if (resultList.isEmpty) {
-      return _maskResult('<system-reminder>Directory is empty</system-reminder>', workingDirectory);
+      return _maskResult(
+          '<system-reminder>Directory is empty</system-reminder>',
+          workingDirectory);
     } else if (resultList.length < maxFiles) {
       return _maskResult(treeStr, workingDirectory);
     } else {
@@ -966,12 +968,19 @@ ${addLineNumbers(snippet, startLine: startLine)}''';
       (match) => '\\${match.group(0)}',
     );
 
-    // **/ = zero or more dir levels; /** = at path end; ** alone = any chars
-    regex = regex.replaceAll('**/', '(?:[^/]+/)*');
-    regex = regex.replaceAll('/**', '(?:/[^/]+)*');
-    regex = regex.replaceAll(RegExp(r'\*\*(?!/)'), '.*');
+    // Use placeholders for ** patterns to avoid corruption by later * and ? replacements.
+    regex = regex.replaceAll('**/', '\x00STARSTAR_SLASH\x00');
+    regex = regex.replaceAll('/**', '\x00SLASH_STARSTAR\x00');
+    regex = regex.replaceAll(RegExp(r'\*\*'), '\x00STARSTAR\x00');
+
+    // Single glob wildcards: ? = one non-slash char, * = zero or more non-slash chars.
     regex = regex.replaceAll('?', '[^/]');
     regex = regex.replaceAll('*', '[^/]*');
+
+    // Restore ** placeholders to their regex equivalents.
+    regex = regex.replaceAll('\x00STARSTAR_SLASH\x00', '(?:[^/]+/)*');
+    regex = regex.replaceAll('\x00SLASH_STARSTAR\x00', '(?:/[^/]+)*');
+    regex = regex.replaceAll('\x00STARSTAR\x00', '.*');
 
     return '^$regex\$';
   }
@@ -1438,4 +1447,3 @@ ${addLineNumbers(snippet, startLine: startLine)}''';
     return extensions.toSet();
   }
 }
-

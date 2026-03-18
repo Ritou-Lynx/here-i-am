@@ -1679,4 +1679,103 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get llmConsentDecline => 'Decline';
+
+  @override
+  String get customAgents => 'Custom Agents';
+
+  @override
+  String get noCustomAgents => 'No custom agents configured.';
+
+  @override
+  String get deleteAgent => 'Delete Agent';
+
+  @override
+  String deleteAgentConfirm(Object name) {
+    return 'Delete custom agent \"$name\"?';
+  }
+
+  @override
+  String get deleted => 'Deleted';
+
+  @override
+  String get saved => 'Saved';
+
+  @override
+  String get newAgent => 'New Agent';
+
+  @override
+  String get editAgent => 'Edit Agent';
+
+  @override
+  String get agentName => 'Agent Name';
+
+  @override
+  String get agentNameHint => 'my-custom-agent';
+
+  @override
+  String get agentNameRequired => 'Required';
+
+  @override
+  String get agentNameInvalid => 'Only letters, digits, and hyphens';
+
+  @override
+  String get agentNameExists => 'Name already exists';
+
+  @override
+  String get hostAgentType => 'Host Agent Type';
+
+  @override
+  String get skillDirectory => 'Skill Directory';
+
+  @override
+  String get skillDirInvalid => 'Must be a relative path (no leading / or ..)';
+
+  @override
+  String get workingDirectory => 'Working Directory (optional)';
+
+  @override
+  String get workingDirectoryHint => 'Leave empty for workspace default';
+
+  @override
+  String get llmConfig => 'LLM Config';
+
+  @override
+  String get eventType => 'Event Type';
+
+  @override
+  String get executionMode => 'Execution Mode';
+
+  @override
+  String get executionModeAsync => 'Async';
+
+  @override
+  String get executionModeSync => 'Sync';
+
+  @override
+  String get dependsOn => 'Depends On';
+
+  @override
+  String get dependsOnHint => 'Select dependencies';
+
+  @override
+  String get priority => 'Priority';
+
+  @override
+  String get maxRetries => 'Max Retries';
+
+  @override
+  String get systemPromptLabel => 'System Prompt (optional)';
+
+  @override
+  String get systemPromptHint =>
+      'Additional instructions appended to host agent prompt';
+
+  @override
+  String get eventSerializer => 'Event Serializer';
+
+  @override
+  String get eventSerializerDefault => 'Default (XML)';
+
+  @override
+  String get enabledLabel => 'Enabled';
 }

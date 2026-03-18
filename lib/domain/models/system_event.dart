@@ -20,6 +20,12 @@ class SystemEventTypes {
   static const String cardCommentPosted = 'card_comment_posted';
   static const String knowledgeInsightRefreshRequested =
       'knowledge_insight_refresh_requested';
+
+  static const List<String> allTypes = [
+    userInputSubmitted,
+    cardCommentPosted,
+    knowledgeInsightRefreshRequested,
+  ];
 }
 
 // ---- Payload 类型 ----
@@ -40,6 +46,15 @@ class UserInputSubmittedPayload {
   final String markdownEntry;
   final int createdAtTs;
   final double pkmCreatedAtTs;
+
+  Map<String, dynamic> toJson() => {
+        'fact_id': factId,
+        'asset_paths': assetPaths,
+        'combined_text': combinedText,
+        'markdown_entry': markdownEntry,
+        'created_at_ts': createdAtTs,
+        'pkm_created_at_ts': pkmCreatedAtTs,
+      };
 }
 
 class CardCommentPostedPayload {
@@ -52,4 +67,10 @@ class CardCommentPostedPayload {
   final String cardId;
   final String content;
   final String commentId;
+
+  Map<String, dynamic> toJson() => {
+        'card_id': cardId,
+        'content': content,
+        'comment_id': commentId,
+      };
 }

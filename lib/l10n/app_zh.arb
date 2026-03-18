@@ -759,5 +759,44 @@
     }
   },
   "llmConsentAgree": "我同意",
-  "llmConsentDecline": "拒绝"
+  "llmConsentDecline": "拒绝",
+
+  "customAgents": "自定义 Agent",
+  "noCustomAgents": "暂无自定义 Agent 配置。",
+  "deleteAgent": "删除 Agent",
+  "deleteAgentConfirm": "确定删除自定义 Agent「{name}」？",
+  "@deleteAgentConfirm": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "deleted": "已删除",
+  "saved": "已保存",
+  "newAgent": "新建 Agent",
+  "editAgent": "编辑 Agent",
+  "save": "保存",
+  "agentName": "Agent 名称",
+  "agentNameHint": "my-custom-agent",
+  "agentNameRequired": "必填",
+  "agentNameInvalid": "仅支持字母、数字和横线",
+  "agentNameExists": "名称已存在",
+  "hostAgentType": "宿主 Agent 类型",
+  "skillDirectory": "Skill 目录",
+  "skillDirInvalid": "必须是相对路径（不能以 / 开头或包含 ..）",
+  "workingDirectory": "工作目录（可选）",
+  "workingDirectoryHint": "留空使用工作区默认路径",
+  "llmConfig": "LLM 配置",
+  "eventType": "事件类型",
+  "executionMode": "执行模式",
+  "executionModeAsync": "异步",
+  "executionModeSync": "同步",
+  "dependsOn": "执行依赖",
+  "dependsOnHint": "选择依赖项",
+  "priority": "优先级",
+  "maxRetries": "最大重试次数",
+  "systemPromptLabel": "系统提示词（可选）",
+  "systemPromptHint": "追加到宿主 Agent 系统提示词之后",
+  "eventSerializer": "事件序列化器",
+  "eventSerializerDefault": "默认（XML）",
+  "enabledLabel": "启用"
 }

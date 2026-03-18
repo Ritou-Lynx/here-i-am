@@ -3079,6 +3079,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Decline'**
   String get llmConsentDecline;
+
+  /// No description provided for @customAgents.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Agents'**
+  String get customAgents;
+
+  /// No description provided for @noCustomAgents.
+  ///
+  /// In en, this message translates to:
+  /// **'No custom agents configured.'**
+  String get noCustomAgents;
+
+  /// No description provided for @deleteAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Agent'**
+  String get deleteAgent;
+
+  /// No description provided for @deleteAgentConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete custom agent \"{name}\"?'**
+  String deleteAgentConfirm(Object name);
+
+  /// No description provided for @deleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get deleted;
+
+  /// No description provided for @saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get saved;
+
+  /// No description provided for @newAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'New Agent'**
+  String get newAgent;
+
+  /// No description provided for @editAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Agent'**
+  String get editAgent;
+
+  /// No description provided for @agentName.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent Name'**
+  String get agentName;
+
+  /// No description provided for @agentNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'my-custom-agent'**
+  String get agentNameHint;
+
+  /// No description provided for @agentNameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get agentNameRequired;
+
+  /// No description provided for @agentNameInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Only letters, digits, and hyphens'**
+  String get agentNameInvalid;
+
+  /// No description provided for @agentNameExists.
+  ///
+  /// In en, this message translates to:
+  /// **'Name already exists'**
+  String get agentNameExists;
+
+  /// No description provided for @hostAgentType.
+  ///
+  /// In en, this message translates to:
+  /// **'Host Agent Type'**
+  String get hostAgentType;
+
+  /// No description provided for @skillDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Skill Directory'**
+  String get skillDirectory;
+
+  /// No description provided for @skillDirInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Must be a relative path (no leading / or ..)'**
+  String get skillDirInvalid;
+
+  /// No description provided for @workingDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Working Directory (optional)'**
+  String get workingDirectory;
+
+  /// No description provided for @workingDirectoryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave empty for workspace default'**
+  String get workingDirectoryHint;
+
+  /// No description provided for @llmConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'LLM Config'**
+  String get llmConfig;
+
+  /// No description provided for @eventType.
+  ///
+  /// In en, this message translates to:
+  /// **'Event Type'**
+  String get eventType;
+
+  /// No description provided for @executionMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Execution Mode'**
+  String get executionMode;
+
+  /// No description provided for @executionModeAsync.
+  ///
+  /// In en, this message translates to:
+  /// **'Async'**
+  String get executionModeAsync;
+
+  /// No description provided for @executionModeSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync'**
+  String get executionModeSync;
+
+  /// No description provided for @dependsOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Depends On'**
+  String get dependsOn;
+
+  /// No description provided for @dependsOnHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select dependencies'**
+  String get dependsOnHint;
+
+  /// No description provided for @priority.
+  ///
+  /// In en, this message translates to:
+  /// **'Priority'**
+  String get priority;
+
+  /// No description provided for @maxRetries.
+  ///
+  /// In en, this message translates to:
+  /// **'Max Retries'**
+  String get maxRetries;
+
+  /// No description provided for @systemPromptLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'System Prompt (optional)'**
+  String get systemPromptLabel;
+
+  /// No description provided for @systemPromptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Additional instructions appended to host agent prompt'**
+  String get systemPromptHint;
+
+  /// No description provided for @eventSerializer.
+  ///
+  /// In en, this message translates to:
+  /// **'Event Serializer'**
+  String get eventSerializer;
+
+  /// No description provided for @eventSerializerDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default (XML)'**
+  String get eventSerializerDefault;
+
+  /// No description provided for @enabledLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get enabledLabel;
 }
 
 class _AppLocalizationsDelegate

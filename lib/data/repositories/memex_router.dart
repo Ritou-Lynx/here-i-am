@@ -32,6 +32,8 @@ import 'package:memex/data/services/task_handlers/comment_agent_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_cards_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_comments_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_knowledge_base_handler.dart';
+import 'package:memex/data/services/task_handlers/custom_agent_task_handler.dart';
+import 'package:memex/data/services/custom_agent_config_service.dart';
 import 'package:memex/data/repositories/get_tags.dart';
 import 'package:memex/data/repositories/get_timeline_cards.dart';
 import 'package:memex/data/repositories/get_aggregated_timeline.dart';
@@ -113,6 +115,11 @@ class MemexRouter {
 
       // Register event subscriptions after task handlers are ready.
       _registerEventSubscriptions();
+
+      // Initialize custom agent handler and register user-defined agents.
+      initCustomAgentHandler();
+      registerBuiltInEventSerializers();
+      await CustomAgentConfigService.instance.registerAll(userId);
     } catch (e) {
       _logger.severe('Failed to initialize MemexRouter: $e');
       // Reset future to allow retry if needed, or keep failed state

@@ -112,6 +112,33 @@ class GlobalEventBus {
 
   // ---- 同步订阅 ----
 
+  /// Returns all registered subscription IDs (async + sync) for UI dropdowns.
+  Set<String> getAllSubscriptionIds() {
+    return {...getAsyncSubscriptionIds(), ...getSyncSubscriptionIds()};
+  }
+
+  /// Returns only async (task-based) subscription IDs.
+  Set<String> getAsyncSubscriptionIds() {
+    final ids = <String>{};
+    for (final list in _subscriptions.values) {
+      for (final sub in list) {
+        ids.add(sub.subscriptionId);
+      }
+    }
+    return ids;
+  }
+
+  /// Returns only sync subscription IDs.
+  Set<String> getSyncSubscriptionIds() {
+    final ids = <String>{};
+    for (final list in _syncSubscriptions.values) {
+      for (final sub in list) {
+        ids.add(sub.subscriptionId);
+      }
+    }
+    return ids;
+  }
+
   void subscribeSync<T>({
     required String eventType,
     required EventSyncSubscription<T> subscription,

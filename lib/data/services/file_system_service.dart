@@ -728,6 +728,13 @@ class FileSystemService {
     return path.join(getWorkspacePath(userId), '_UserSettings');
   }
 
+  /// Resolve a skill directory path (relative to workspace) to an absolute path.
+  /// [skillDirectoryPath] is stored as e.g. `_UserSettings/skills/my-agent`.
+  String resolveSkillPath(String userId, String skillDirectoryPath) {
+    return path
+        .normalize(path.join(getWorkspacePath(userId), skillDirectoryPath));
+  }
+
   String getProfilePath(String userId) {
     return path.join(getUserSettingsPath(userId), 'profile.md');
   }

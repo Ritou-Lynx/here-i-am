@@ -764,5 +764,44 @@
     }
   },
   "llmConsentAgree": "I Agree",
-  "llmConsentDecline": "Decline"
+  "llmConsentDecline": "Decline",
+
+  "customAgents": "Custom Agents",
+  "noCustomAgents": "No custom agents configured.",
+  "deleteAgent": "Delete Agent",
+  "deleteAgentConfirm": "Delete custom agent \"{name}\"?",
+  "@deleteAgentConfirm": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "deleted": "Deleted",
+  "saved": "Saved",
+  "newAgent": "New Agent",
+  "editAgent": "Edit Agent",
+  "save": "Save",
+  "agentName": "Agent Name",
+  "agentNameHint": "my-custom-agent",
+  "agentNameRequired": "Required",
+  "agentNameInvalid": "Only letters, digits, and hyphens",
+  "agentNameExists": "Name already exists",
+  "hostAgentType": "Host Agent Type",
+  "skillDirectory": "Skill Directory",
+  "skillDirInvalid": "Must be a relative path (no leading / or ..)",
+  "workingDirectory": "Working Directory (optional)",
+  "workingDirectoryHint": "Leave empty for workspace default",
+  "llmConfig": "LLM Config",
+  "eventType": "Event Type",
+  "executionMode": "Execution Mode",
+  "executionModeAsync": "Async",
+  "executionModeSync": "Sync",
+  "dependsOn": "Depends On",
+  "dependsOnHint": "Select dependencies",
+  "priority": "Priority",
+  "maxRetries": "Max Retries",
+  "systemPromptLabel": "System Prompt (optional)",
+  "systemPromptHint": "Additional instructions appended to host agent prompt",
+  "eventSerializer": "Event Serializer",
+  "eventSerializerDefault": "Default (XML)",
+  "enabledLabel": "Enabled"
 }

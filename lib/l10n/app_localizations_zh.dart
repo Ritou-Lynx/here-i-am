@@ -1619,4 +1619,102 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get llmConsentDecline => '拒绝';
+
+  @override
+  String get customAgents => '自定义 Agent';
+
+  @override
+  String get noCustomAgents => '暂无自定义 Agent 配置。';
+
+  @override
+  String get deleteAgent => '删除 Agent';
+
+  @override
+  String deleteAgentConfirm(Object name) {
+    return '确定删除自定义 Agent「$name」？';
+  }
+
+  @override
+  String get deleted => '已删除';
+
+  @override
+  String get saved => '已保存';
+
+  @override
+  String get newAgent => '新建 Agent';
+
+  @override
+  String get editAgent => '编辑 Agent';
+
+  @override
+  String get agentName => 'Agent 名称';
+
+  @override
+  String get agentNameHint => 'my-custom-agent';
+
+  @override
+  String get agentNameRequired => '必填';
+
+  @override
+  String get agentNameInvalid => '仅支持字母、数字和横线';
+
+  @override
+  String get agentNameExists => '名称已存在';
+
+  @override
+  String get hostAgentType => '宿主 Agent 类型';
+
+  @override
+  String get skillDirectory => 'Skill 目录';
+
+  @override
+  String get skillDirInvalid => '必须是相对路径（不能以 / 开头或包含 ..）';
+
+  @override
+  String get workingDirectory => '工作目录（可选）';
+
+  @override
+  String get workingDirectoryHint => '留空使用工作区默认路径';
+
+  @override
+  String get llmConfig => 'LLM 配置';
+
+  @override
+  String get eventType => '事件类型';
+
+  @override
+  String get executionMode => '执行模式';
+
+  @override
+  String get executionModeAsync => '异步';
+
+  @override
+  String get executionModeSync => '同步';
+
+  @override
+  String get dependsOn => '执行依赖';
+
+  @override
+  String get dependsOnHint => '选择依赖项';
+
+  @override
+  String get priority => '优先级';
+
+  @override
+  String get maxRetries => '最大重试次数';
+
+  @override
+  String get systemPromptLabel => '系统提示词（可选）';
+
+  @override
+  String get systemPromptHint => '追加到宿主 Agent 系统提示词之后';
+
+  @override
+  String get eventSerializer => '事件序列化器';
+
+  @override
+  String get eventSerializerDefault => '默认（XML）';
+
+  @override
+  String get enabledLabel => '启用';
 }
