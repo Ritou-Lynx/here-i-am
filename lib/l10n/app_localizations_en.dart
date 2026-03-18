@@ -1852,4 +1852,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String downloadToCurrentDir(String dir) {
     return 'The zip will be extracted to current directory: $dir';
   }
+
+  @override
+  String get privacyPolicy => 'Privacy Policy';
+
+  @override
+  String get privacyPolicyDesc => 'How Memex handles your data';
+
+  @override
+  String get dataShareBanner =>
+      'When AI features are enabled, your data is sent to the configured provider for processing. Tap to learn more.';
+
+  @override
+  String llmConsentDataShareNote(Object provider) {
+    return 'Data sharing: Your data will be sent to $provider for AI processing.';
+  }
 }

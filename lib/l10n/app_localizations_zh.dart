@@ -1791,4 +1791,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String downloadToCurrentDir(String dir) {
     return 'zip 将解压到当前目录：$dir';
   }
+
+  @override
+  String get privacyPolicy => '隐私政策';
+
+  @override
+  String get privacyPolicyDesc => '了解 Memex 如何处理您的数据';
+
+  @override
+  String get dataShareBanner => '启用 AI 功能后，您的数据将发送至配置的服务商进行处理。点击了解详情。';
+
+  @override
+  String llmConsentDataShareNote(Object provider) {
+    return '数据共享提示：您的数据将发送至 $provider 进行 AI 处理。';
+  }
 }

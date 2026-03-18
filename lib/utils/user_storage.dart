@@ -747,21 +747,34 @@ class UserStorage {
     }
   }
 
-  /// Check if user has given consent for LLM data sharing.
-  static Future<bool> hasLLMConsent() async {
+  /// Check if user has given consent for LLM data sharing with a specific provider.
+  static Future<bool> hasLLMConsent({String? providerType}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      // Check global consent first (legacy)
+      if (prefs.getBool('llm_data_sharing_consent') == true &&
+          providerType == null) {
+        return true;
+      }
+      // Check per-provider consent
+      if (providerType != null) {
+        return prefs.getBool('llm_consent_$providerType') ?? false;
+      }
       return prefs.getBool('llm_data_sharing_consent') ?? false;
     } catch (e) {
       return false;
     }
   }
 
-  /// Save LLM data sharing consent.
-  static Future<void> saveLLMConsent(bool consent) async {
+  /// Save LLM data sharing consent for a specific provider.
+  static Future<void> saveLLMConsent(bool consent,
+      {String? providerType}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('llm_data_sharing_consent', consent);
+      if (providerType != null) {
+        await prefs.setBool('llm_consent_$providerType', consent);
+      }
     } catch (e) {
       _logger.warning('Failed to save LLM consent: $e');
     }
