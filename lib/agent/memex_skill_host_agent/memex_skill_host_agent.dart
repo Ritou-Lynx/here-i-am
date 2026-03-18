@@ -5,9 +5,9 @@ import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/built_in_tools/search_event_logs_tool.dart';
 import 'package:memex/agent/common_tools.dart';
 import 'package:memex/agent/flutter_js_runtime.dart';
+import 'package:memex/agent/memex_skill_host_agent/prompts.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
 import 'package:memex/agent/state_util.dart';
-import 'package:memex/agent/super_agent/prompts.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/utils/logger.dart';
@@ -61,7 +61,7 @@ class MemexSkillHostAgent {
       getCurrentTimeTool,
     ];
 
-    final systemPrompts = <String>[superAgentSystemPrompt];
+    final systemPrompts = <String>[memexSkillHostAgentSystemPrompt];
     if (additionalSystemPrompt != null) {
       systemPrompts.add(additionalSystemPrompt);
     }

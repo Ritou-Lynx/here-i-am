@@ -13,8 +13,6 @@ import 'package:memex/utils/logger.dart';
 
 const pureSkillHostAgentSystemPrompt = '''
 You are a personal assistant running on the user's mobile phone.
-You help the user manage their daily knowledge, notes, and tasks.
-You have access to file system tools and can run file-based skills (including JavaScript scripts) to assist the user.
 Always be concise, helpful, and friendly.
 ''';
 
