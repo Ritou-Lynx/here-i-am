@@ -145,7 +145,7 @@ Future<void> _handleCustomAgentTask(
   final now = DateTime.now();
   final nowStr =
       '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}_${now.microsecond.toString().padLeft(6, '0')}';
-  final sessionId = 'custom_${agentName}_${userId}_$nowStr';
+  final sessionId = '${agentName}_custom_${userId}_$nowStr';
   final state = await loadOrCreateAgentState(sessionId, {
     'userId': userId,
     'agentName': agentName,
@@ -207,13 +207,78 @@ Future<void> _handleCustomAgentTask(
     _logger.info('Custom agent "$agentName" completed, last: $last');
   }
 
+  // Persist a chat session file so AgentChatDialog can load history and
+  // continue the conversation in the same session context.
+  await _createChatSession(
+    userId: userId,
+    sessionId: sessionId,
+    agentName: agentName,
+    userText: textContent,
+    aiResponse: resultText,
+  );
+
   // Create a system_task card to show the result on the timeline.
   await _createResultCard(
     userId: userId,
     agentName: agentName,
     status: 'completed',
     message: resultText,
+    sessionId: sessionId,
   );
+}
+
+/// Create a chat session YAML file compatible with ChatService / chat.dart so
+/// that AgentChatDialog can load the conversation history and continue chatting.
+Future<void> _createChatSession({
+  required String userId,
+  required String sessionId,
+  required String agentName,
+  required String userText,
+  String? aiResponse,
+}) async {
+  final fs = FileSystemService.instance;
+  final sessionsPath = fs.getChatSessionsPath(userId);
+  final sessionFile = File(p.join(sessionsPath, '$sessionId.yaml'));
+
+  // Don't overwrite if it already exists (e.g. retry scenario).
+  if (sessionFile.existsSync()) return;
+
+  final now = DateTime.now().toIso8601String();
+  final messages = <Map<String, dynamic>>[
+    {
+      'role': 'user',
+      'content': [
+        {'type': 'text', 'text': userText},
+      ],
+      'timestamp': now,
+    },
+    if (aiResponse != null)
+      {
+        'role': 'ai',
+        'content': [
+          {'type': 'text', 'text': aiResponse},
+        ],
+        'timestamp': now,
+      },
+  ];
+
+  final sessionData = <String, dynamic>{
+    'session_id': sessionId,
+    'agent_name': agentName,
+    'title': agentName,
+    'created_at': now,
+    'updated_at': now,
+    'messages': messages,
+    'is_custom_agent': true,
+  };
+
+  try {
+    await fs.writeYamlFile(sessionFile.path, sessionData);
+    _logger
+        .info('Created chat session for custom agent "$agentName": $sessionId');
+  } catch (e) {
+    _logger.warning('Failed to create chat session file: $e');
+  }
 }
 
 /// Create a system_task card for the custom agent result and notify the UI.
@@ -222,6 +287,7 @@ Future<void> _createResultCard({
   required String agentName,
   required String status,
   String? message,
+  String? sessionId,
 }) async {
   final now = DateTime.now();
   final timestampMs = now.millisecondsSinceEpoch;
@@ -238,6 +304,8 @@ Future<void> _createResultCard({
       'title': title,
       'status': status,
       if (message != null) 'message': message,
+      if (sessionId != null) 'sessionId': sessionId,
+      'agentName': agentName,
     },
   );
 

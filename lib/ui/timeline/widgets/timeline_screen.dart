@@ -204,6 +204,39 @@ class TimelineScreenState extends State<TimelineScreen> {
     }
   }
 
+  /// Check if a card is a system_task created by a custom agent.
+  bool _isCustomAgentSystemTask(TimelineCardModel card) {
+    if (card.uiConfigs.isEmpty) return false;
+    final config = card.uiConfigs.first;
+    return config.templateId == 'system_task' &&
+        config.data['agentName'] != null &&
+        config.data['sessionId'] != null;
+  }
+
+  /// Open AgentChatDialog for a custom agent system_task card.
+  void _openCustomAgentChat(TimelineCardModel card) {
+    final config = card.uiConfigs.first;
+    final agentName = config.data['agentName'] as String;
+    final sessionId = config.data['sessionId'] as String;
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 500),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return AgentChatDialog(
+          agentName: agentName,
+          title: agentName,
+          initialSessionId: sessionId,
+          inputHint: UserStorage.l10n.aiInputHint,
+          scene: 'custom_agent_$agentName',
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -910,6 +943,11 @@ class TimelineScreenState extends State<TimelineScreen> {
           return _TimelineEntryItem(
             card: card,
             onTap: () async {
+              // If this is a custom agent system_task card, open chat dialog.
+              if (_isCustomAgentSystemTask(card)) {
+                _openCustomAgentChat(card);
+                return;
+              }
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(

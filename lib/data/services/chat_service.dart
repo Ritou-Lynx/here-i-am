@@ -5,7 +5,11 @@ import 'dart:io';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:logging/logging.dart';
+import 'package:memex/agent/memex_skill_host_agent/memex_skill_host_agent.dart';
+import 'package:memex/agent/pure_skill_host_agent/pure_skill_host_agent.dart';
 import 'package:memex/agent/super_agent/super_agent.dart';
+import 'package:memex/data/services/custom_agent_config_service.dart';
+import 'package:memex/domain/models/custom_agent_config.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/utils/logger.dart';
@@ -96,15 +100,29 @@ class ChatService {
     }
 
     // 2. Initialize Agent
-    // 2. Initialize Agent
     StatefulAgent? agent;
     AgentController? controller;
 
-    // 4. Get LLM Resources (Default to Gemini Flash for Chat)
     try {
+      // Check if this session belongs to a custom agent by reading session metadata,
+      // then load the latest config from CustomAgentConfigService.
+      CustomAgentConfig? customAgentCfg;
+      if (sessionId != null && sessionId.isNotEmpty) {
+        final isCustom = await _isCustomAgentSession(userId, finalSessionId);
+        if (isCustom && agentName != null && agentName.isNotEmpty) {
+          final configs =
+              await CustomAgentConfigService.instance.loadAll(userId);
+          customAgentCfg =
+              configs.where((c) => c.agentName == agentName).firstOrNull;
+        }
+      }
+
+      final agentIdForLLM =
+          customAgentCfg?.llmConfigKey ?? AgentDefinitions.chatAgent;
       final resources = await UserStorage.getAgentLLMResources(
-        AgentDefinitions.chatAgent,
-        defaultClientKey: LLMConfig.defaultClientKey,
+        agentIdForLLM,
+        defaultClientKey:
+            customAgentCfg?.llmConfigKey ?? LLMConfig.defaultClientKey,
       );
       final client = resources.client;
       final modelConfig = resources.modelConfig;
@@ -121,7 +139,42 @@ class ChatService {
 
       controller = AgentController();
 
-      var additionalSystemPrompt = """## Comprehensive Correction Principles
+      if (customAgentCfg != null) {
+        // Recreate the same agent type used by custom_agent_task_handler.
+        final skillDir = _fileService.resolveSkillPath(
+            userId, customAgentCfg.skillDirectoryPath);
+
+        switch (customAgentCfg.hostAgentType) {
+          case HostAgentType.pure:
+            agent = await PureSkillHostAgent.createAgent(
+              client: client,
+              modelConfig: modelConfig,
+              userId: userId,
+              name: agentName ?? 'custom_agent',
+              state: state,
+              skillDirectoryPath: skillDir,
+              workingDirectory: customAgentCfg.workingDirectory,
+              controller: controller,
+              additionalSystemPrompt: customAgentCfg.systemPrompt,
+            );
+            break;
+          case HostAgentType.memex:
+            agent = await MemexSkillHostAgent.createAgent(
+              client: client,
+              modelConfig: modelConfig,
+              userId: userId,
+              name: agentName ?? 'custom_agent',
+              state: state,
+              skillDirectoryPath: skillDir,
+              workingDirectory: customAgentCfg.workingDirectory,
+              controller: controller,
+              additionalSystemPrompt: customAgentCfg.systemPrompt,
+            );
+            break;
+        }
+      } else {
+        // Default: use SuperAgent for normal chat sessions.
+        var additionalSystemPrompt = """## Comprehensive Correction Principles
 When the user disputes content you generated (such as Cards, PKM entries, or Asset Analysis Results) and provides correction suggestions, you must perform a **comprehensive** correction.
 -   **Do not modify only a single dimension** (e.g., do not just modify the card body or just the asset analysis).
 -   **You must check and synchronously correct all related content** to ensure overall consistency.
@@ -136,25 +189,26 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
 - **Language**: ${UserStorage.l10n.chatLanguageInstruction}
 """;
 
-      final forceActiveSkills = <String>[];
-      if (scene == 'assistant_timeline_card_detail') {
-        forceActiveSkills.add('manage_timeline_card');
-        forceActiveSkills.add('manage_pkm');
-      } else if (scene == 'insight_card_chat') {
-        forceActiveSkills.add('update_knowledge_insight');
-      }
+        final forceActiveSkills = <String>[];
+        if (scene == 'assistant_timeline_card_detail') {
+          forceActiveSkills.add('manage_timeline_card');
+          forceActiveSkills.add('manage_pkm');
+        } else if (scene == 'insight_card_chat') {
+          forceActiveSkills.add('update_knowledge_insight');
+        }
 
-      agent = await SuperAgent.createAgent(
-        client: client,
-        modelConfig: modelConfig,
-        userId: userId,
-        name: agentName ?? 'memex_agent',
-        state: state,
-        controller: controller,
-        disableSubAgents: false,
-        forceActiveSkills: forceActiveSkills,
-        additionalSystemPrompt: additionalSystemPrompt,
-      );
+        agent = await SuperAgent.createAgent(
+          client: client,
+          modelConfig: modelConfig,
+          userId: userId,
+          name: agentName ?? 'memex_agent',
+          state: state,
+          controller: controller,
+          disableSubAgents: false,
+          forceActiveSkills: forceActiveSkills,
+          additionalSystemPrompt: additionalSystemPrompt,
+        );
+      }
     } catch (e) {
       _logger.severe('Failed to initialize agent', e);
       yield ChatErrorEvent('Failed to initialize agent: $e');
@@ -469,6 +523,21 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
   }
 
   // --- Session Helpers (Recreated from chat.dart to be independent) ---
+
+  /// Check whether a session file has `is_custom_agent: true`.
+  Future<bool> _isCustomAgentSession(String userId, String sessionId) async {
+    try {
+      final sessionFile = _getSessionFilePath(userId, sessionId);
+      if (!await sessionFile.exists()) return false;
+      final content = await sessionFile.readAsString();
+      final doc = loadYaml(content);
+      final data = jsonDecode(jsonEncode(doc)) as Map<String, dynamic>;
+      return data['is_custom_agent'] == true;
+    } catch (e) {
+      _logger.warning('Failed to read session metadata: $e');
+    }
+    return false;
+  }
 
   Future<String> _createSession(
     String userId,
