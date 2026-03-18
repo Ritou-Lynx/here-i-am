@@ -543,7 +543,8 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
 
       // Check LLM data sharing consent before saving a valid config
       if (newConfig.isValid) {
-        final hasConsent = await UserStorage.hasLLMConsent();
+        final hasConsent =
+            await UserStorage.hasLLMConsent(providerType: _selectedType);
         if (!hasConsent && mounted) {
           final l10n = UserStorage.l10n;
           final providerName = _selectedType.isNotEmpty
@@ -573,7 +574,7 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
             setState(() => _isSubmitting = false);
             return;
           }
-          await UserStorage.saveLLMConsent(true);
+          await UserStorage.saveLLMConsent(true, providerType: _selectedType);
         }
       }
 
@@ -677,6 +678,34 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 48),
+
+                // Data sharing notice banner
+                if (_selectedType.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFBBF24)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline,
+                            size: 18, color: Color(0xFFD97706)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            UserStorage.l10n.llmConsentDataShareNote(
+                                LLMConfig.providerDisplayName(_selectedType)),
+                            style: const TextStyle(
+                                fontSize: 13, color: Color(0xFF92400E)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                 // Form Fields
                 _buildProviderDropdown(),

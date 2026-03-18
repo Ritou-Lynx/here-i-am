@@ -759,5 +759,15 @@
     }
   },
   "llmConsentAgree": "我同意",
-  "llmConsentDecline": "拒绝"
+  "llmConsentDecline": "拒绝",
+
+  "privacyPolicy": "隐私政策",
+  "privacyPolicyDesc": "了解 Memex 如何处理您的数据",
+  "dataShareBanner": "启用 AI 功能后，您的数据将发送至配置的服务商进行处理。点击了解详情。",
+  "llmConsentDataShareNote": "数据共享提示：您的数据将发送至 {provider} 进行 AI 处理。",
+  "@llmConsentDataShareNote": {
+    "placeholders": {
+      "provider": {}
+    }
+  }
 }

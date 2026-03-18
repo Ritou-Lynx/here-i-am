@@ -36,19 +36,25 @@ Version reviewed: 1.0
 
 ## Issue 3: Third-Party AI Data Sharing Disclosure — Guidelines 5.1.1(i) & 5.1.2(i)
 
-**Status**: DONE
+**Status**: DONE (v2 — enhanced after second rejection)
 
 **Problem**: App shares user data with third-party AI services (LLM providers) but does not:
 1. Clearly explain what data is sent
 2. Identify who the data is sent to
 3. Ask the user's permission before sharing
 
-**Fix**: Added in-app consent dialog that appears when user first saves a valid LLM configuration (both in Settings and during onboarding). The dialog clearly states:
+**Fix (v1)**: Added in-app consent dialog that appears when user first saves a valid LLM configuration (both in Settings and during onboarding). The dialog clearly states:
 - What data is sent (text input, photo metadata/OCR, health summaries, card content)
 - Who it is sent to (the specific provider being configured)
 - That data goes directly from device to provider, not through Memex servers
 - Requests explicit consent before proceeding
 
-Consent state is stored in SharedPreferences (`llm_data_sharing_consent`). The dialog only appears once — subsequent config changes don't re-prompt.
+**Fix (v2 — second rejection 2026-03-18)**: Enhanced disclosure to be more prominent and per-provider:
+1. Consent dialog now triggers per-provider (switching to a new provider re-prompts consent), not just once globally
+2. Added persistent data sharing notice banner on model configuration pages showing which provider data will be sent to
+3. Added "Privacy Policy" link in Settings page (opens https://github.com/memex-lab/memex/blob/main/PRIVACY_POLICY.md)
+4. Privacy policy already documents all data types collected, how they are collected, all uses, and third-party sharing details
 
-**Files changed**: `lib/ui/settings/widgets/model_config_edit_page.dart`, `lib/ui/user_setup/widgets/setup_model_config_page.dart`, `lib/utils/user_storage.dart`, `lib/l10n/app_en.arb`, `lib/l10n/app_zh.arb`
+Consent state is stored in SharedPreferences per provider type (`llm_consent_{type}`).
+
+**Files changed**: `lib/ui/settings/widgets/model_config_edit_page.dart`, `lib/ui/user_setup/widgets/setup_model_config_page.dart`, `lib/ui/settings/widgets/settings_page.dart`, `lib/utils/user_storage.dart`, `lib/l10n/app_en.arb`, `lib/l10n/app_zh.arb`

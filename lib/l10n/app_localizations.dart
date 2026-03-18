@@ -3079,6 +3079,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Decline'**
   String get llmConsentDecline;
+
+  /// No description provided for @privacyPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Policy'**
+  String get privacyPolicy;
+
+  /// No description provided for @privacyPolicyDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'How Memex handles your data'**
+  String get privacyPolicyDesc;
+
+  /// No description provided for @dataShareBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'When AI features are enabled, your data is sent to the configured provider for processing. Tap to learn more.'**
+  String get dataShareBanner;
+
+  /// No description provided for @llmConsentDataShareNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Data sharing: Your data will be sent to {provider} for AI processing.'**
+  String llmConsentDataShareNote(Object provider);
 }
 
 class _AppLocalizationsDelegate
