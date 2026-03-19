@@ -2522,6 +2522,12 @@ abstract class AppLocalizations {
   /// **'Ollama (Local)'**
   String get providerOllama;
 
+  /// No description provided for @providerMimo.
+  ///
+  /// In en, this message translates to:
+  /// **'Xiaomi MIMO'**
+  String get providerMimo;
+
   /// No description provided for @modelIdLabel.
   ///
   /// In en, this message translates to:

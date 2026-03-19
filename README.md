@@ -81,6 +81,14 @@ All data stays on your device. You just need to pick your preferred LLM provider
 | OpenAI | OAuth (no API key required) | Sign in with OpenAI account. Unofficial — use at your own risk |
 | Anthropic Claude | Claude API | Direct API access |
 | AWS Bedrock | Bedrock Claude | For AWS users |
+| Kimi (Moonshot) | OpenAI-compatible | kimi-k2.5, kimi-k2, etc. |
+| Aliyun (Qwen) | OpenAI-compatible | qwen3.5-plus, qwen-max, etc. |
+| Volcengine (Doubao) | OpenAI-compatible | doubao-seed-1-8, doubao-1.5-pro, etc. |
+| Zhipu GLM | OpenAI-compatible | GLM-4.7, GLM-4-Plus |
+| MiniMax | Anthropic-compatible | MiniMax-M2.5, MiniMax-M1 |
+| Xiaomi MIMO | Anthropic-compatible | MiMo-7B-RL |
+| OpenRouter | OpenAI-compatible | Access multiple providers via one API |
+| Ollama | OpenAI-compatible (local) | Run models locally on your device |
 
 ## Install
 - **App Store & Google Play**: ⏳ **Coming Soon**. Both iOS and Android versions are currently under review in the major app stores.
@@ -194,7 +202,7 @@ flutter run
 | Platforms | iOS, Android |
 | Database | Drift (SQLite) |
 | State Management | Provider + MVVM |
-| LLM Providers | Gemini, OpenAI, Claude, Bedrock Claude |
+| LLM Providers | Gemini, OpenAI, Claude, Bedrock, Kimi, Qwen, Doubao, GLM, MiniMax, MIMO, OpenRouter, Ollama |
 | Agent Framework | dart_agent_core |
 
 ### Project Structure

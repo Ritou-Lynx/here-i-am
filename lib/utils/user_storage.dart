@@ -510,8 +510,9 @@ class UserStorage {
           proxyUrl: proxyUrl,
         );
         break;
-      // MiniMax is compatible with Anthropic API
+      // MiniMax and MIMO are compatible with Anthropic API
       case LLMConfig.typeMinimax:
+      case LLMConfig.typeMimo:
         client = ClaudeClient(
           apiKey: llmConfig.getEffectiveApiKey(),
           baseUrl: llmConfig.baseUrl,

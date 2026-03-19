@@ -1321,6 +1321,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get providerOllama => 'Ollama (本地)';
 
   @override
+  String get providerMimo => 'Xiaomi MIMO (小米)';
+
+  @override
   String get modelIdLabel => 'Model ID';
 
   @override

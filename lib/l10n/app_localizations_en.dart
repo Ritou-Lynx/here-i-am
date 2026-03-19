@@ -1359,6 +1359,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerOllama => 'Ollama (Local)';
 
   @override
+  String get providerMimo => 'Xiaomi MIMO';
+
+  @override
   String get modelIdLabel => 'Model ID';
 
   @override
