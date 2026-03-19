@@ -567,19 +567,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       final healthService = HealthService();
       Map<String, Map<String, dynamic>> dailySummary = {};
 
-      final typesToCheck = [
-        HealthDataType.STEPS,
-        HealthDataType.HEART_RATE,
-        HealthDataType.RESTING_HEART_RATE,
-        HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
-        HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
-        HealthDataType.BLOOD_OXYGEN,
-        HealthDataType.BLOOD_GLUCOSE,
-        HealthDataType.SLEEP_ASLEEP,
-        HealthDataType.ACTIVE_ENERGY_BURNED,
-        HealthDataType.WEIGHT,
-        HealthDataType.WORKOUT,
-      ];
+      // Use only the types registered in HealthService (Android: STEPS only,
+      // iOS: all types). This respects the platform-specific strategy config.
+      final typesToCheck = healthService.registeredTypes;
 
       // Skip health data collection if fitness permission is not granted
       // (permissions are now requested via System Authorization page)
