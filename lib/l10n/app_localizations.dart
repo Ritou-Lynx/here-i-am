@@ -2966,6 +2966,12 @@ abstract class AppLocalizations {
   /// **'Sign in to iCloud and turn on iCloud Drive to use iCloud storage.'**
   String get icloudRequiresCapability;
 
+  /// No description provided for @loadingFromICloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading data from iCloud…'**
+  String get loadingFromICloud;
+
   /// No description provided for @customPathInvalid.
   ///
   /// In en, this message translates to:

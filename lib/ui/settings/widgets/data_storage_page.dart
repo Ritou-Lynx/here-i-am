@@ -27,6 +27,7 @@ class _DataStoragePageState extends State<DataStoragePage> {
   String? _customPath;
   bool _icloudAvailable = false;
   bool _loading = true;
+  bool _isSwitching = false;
   String? _userId;
 
   @override
@@ -121,28 +122,29 @@ class _DataStoragePageState extends State<DataStoragePage> {
       return;
     }
     if (!mounted) return;
+    setState(() => _isSwitching = true);
     await UserStorage.setWorkspaceStorageToCustom(uid, path);
     await MemexRouter().applyWorkspaceStorageChange();
     if (!mounted) return;
     setState(() {
       _location = StorageLocation.custom;
       _customPath = path;
+      _isSwitching = false;
     });
-    if (!mounted) return;
-    ToastHelper.showSuccess(context, UserStorage.l10n.updateSuccess);
   }
 
   Future<void> _selectApp() async {
     final uid = _userId;
     if (uid == null) return;
+    setState(() => _isSwitching = true);
     await UserStorage.setWorkspaceStorageToApp(uid);
     await MemexRouter().applyWorkspaceStorageChange();
     if (!mounted) return;
     setState(() {
       _location = StorageLocation.app;
       _customPath = null;
+      _isSwitching = false;
     });
-    ToastHelper.showSuccess(context, UserStorage.l10n.updateSuccess);
   }
 
   Future<void> _selectICloud() async {
@@ -152,11 +154,14 @@ class _DataStoragePageState extends State<DataStoragePage> {
       ToastHelper.showInfo(context, UserStorage.l10n.icloudRequiresCapability);
       return;
     }
+    setState(() => _isSwitching = true);
     await UserStorage.setWorkspaceStorageToICloud(uid);
     await MemexRouter().applyWorkspaceStorageChange();
     if (!mounted) return;
-    setState(() => _location = StorageLocation.icloud);
-    ToastHelper.showSuccess(context, UserStorage.l10n.updateSuccess);
+    setState(() {
+      _location = StorageLocation.icloud;
+      _isSwitching = false;
+    });
   }
 
   String _locationLabel(StorageLocation loc) {
@@ -285,41 +290,53 @@ class _DataStoragePageState extends State<DataStoragePage> {
                     ),
                   ),
                 )
-              : ListView(
-                  padding: const EdgeInsets.all(16),
+              : Stack(
                   children: [
-                    Text(
-                      _dataStorageDescription,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
+                    ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        Text(
+                          _dataStorageDescription,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Current
+                        Text(
+                          l10n.storageLocationCurrent(
+                              _locationLabel(_location)),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF6366F1),
+                          ),
+                        ),
+                        if (!Platform.isIOS &&
+                            _customPath != null &&
+                            _customPath!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              _customPath!,
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey[600]),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        const SizedBox(height: 24),
+                        ..._buildStorageOptions(l10n),
+                      ],
                     ),
-                    const SizedBox(height: 20),
-                    // Current
-                    Text(
-                      l10n.storageLocationCurrent(_locationLabel(_location)),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF6366F1),
-                      ),
-                    ),
-                    if (!Platform.isIOS &&
-                        _customPath != null &&
-                        _customPath!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          _customPath!,
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600]),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                    if (_isSwitching)
+                      const Positioned.fill(
+                        child: ColoredBox(
+                          color: Color(0x55FFFFFF),
+                          child: Center(child: AgentLogoLoading()),
                         ),
                       ),
-                    const SizedBox(height: 24),
-                    ..._buildStorageOptions(l10n),
                   ],
                 ),
     );

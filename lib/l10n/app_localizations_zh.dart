@@ -1557,6 +1557,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get icloudRequiresCapability => '请先登录 iCloud 账号并开启 iCloud Drive 同步功能。';
 
   @override
+  String get loadingFromICloud => '正在从 iCloud 加载数据…';
+
+  @override
   String get customPathInvalid => '所选文件夹无法访问，已改用应用存储。';
 
   @override

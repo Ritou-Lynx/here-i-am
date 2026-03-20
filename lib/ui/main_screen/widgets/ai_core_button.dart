@@ -79,32 +79,11 @@ class _AICoreButtonState extends State<AICoreButton>
           height: 64,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            color: Colors.black,
-            boxShadow: _isPressing
-                ? []
-                : [
-                    BoxShadow(
-                      color: const Color(0xFF6366F1).withOpacity(0.30),
-                      blurRadius: 18,
-                      spreadRadius: 0,
-                      offset: Offset.zero,
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
           ),
-          child: Container(
+          alignment: Alignment.center,
+          child: SizedBox(
             width: 60,
             height: 60,
-            margin: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              color: Colors.black,
-            ),
-            alignment: Alignment.center,
             child: const _AnimatedStarIcon(
               isPulse: false,
               hasGlow: false,
@@ -174,22 +153,40 @@ class _AnimatedStarIconState extends State<_AnimatedStarIcon>
         final opacity =
             widget.isPulse ? 0.4 + 0.6 * _pulseController.value : 1.0;
 
-        return ShaderMask(
-          blendMode: BlendMode.srcIn,
-          shaderCallback: (bounds) => const LinearGradient(
-            colors: [Color(0xFF818CF8), Color(0xFFC084FC), Color(0xFFF472B6)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ).createShader(bounds),
+        return Opacity(
+          opacity: opacity,
           child: Container(
-            decoration: const BoxDecoration(),
-            child: Opacity(
-              opacity: opacity,
-              child: const Icon(
-                Icons.auto_awesome, // fallback standard star equivalent
-                size: 32,
-                color: Colors.white, // Color is defined by ShaderMask
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF818CF8),
+                  Color(0xFF6366F1),
+                  Color(0xFF4F46E5)
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white,
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6366F1).withOpacity(0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.add_rounded,
+              size: 36,
+              color: Colors.white,
+              weight: 700,
             ),
           ),
         );
@@ -197,4 +194,3 @@ class _AnimatedStarIconState extends State<_AnimatedStarIcon>
     );
   }
 }
-

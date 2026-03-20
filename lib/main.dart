@@ -101,6 +101,7 @@ class RootShellState extends State<RootShell> {
   bool _hasUser = false;
   bool _onboardingComplete = false;
   bool _isChecking = true;
+  bool _isLoadingFromICloud = false;
 
   @override
   void initState() {
@@ -132,12 +133,36 @@ class RootShellState extends State<RootShell> {
     }
   }
 
-  void _onUserCreated() {
-    OnboardingService.markOnboardingComplete();
-    setState(() {
-      _hasUser = true;
-      _onboardingComplete = true;
-    });
+  void _onUserCreated() async {
+    await OnboardingService.markOnboardingComplete();
+
+    // Check if user selected iCloud during onboarding
+    final userId = await UserStorage.getUserId();
+    bool isICloud = false;
+    if (userId != null) {
+      final loc = await UserStorage.getWorkspaceStorageLocation(userId);
+      isICloud = loc == StorageLocation.icloud;
+    }
+
+    if (isICloud && mounted) {
+      setState(() {
+        _isLoadingFromICloud = true;
+      });
+      // Trigger MemexRouter to re-resolve data root to iCloud path
+      await MemexRouter().applyWorkspaceStorageChange();
+      if (mounted) {
+        setState(() {
+          _isLoadingFromICloud = false;
+          _hasUser = true;
+          _onboardingComplete = true;
+        });
+      }
+    } else if (mounted) {
+      setState(() {
+        _hasUser = true;
+        _onboardingComplete = true;
+      });
+    }
   }
 
   /// Reset state and re-check user. Called after account deletion.
@@ -155,6 +180,26 @@ class RootShellState extends State<RootShell> {
     if (_isChecking) {
       return const Scaffold(
         body: Center(child: AgentLogoLoading()),
+      );
+    }
+    if (_isLoadingFromICloud) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AgentLogoLoading(),
+              const SizedBox(height: 16),
+              Text(
+                UserStorage.l10n.loadingFromICloud,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
     if (!_hasUser || !_onboardingComplete) {

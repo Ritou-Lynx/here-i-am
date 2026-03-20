@@ -1613,6 +1613,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sign in to iCloud and turn on iCloud Drive to use iCloud storage.';
 
   @override
+  String get loadingFromICloud => 'Loading data from iCloud…';
+
+  @override
   String get customPathInvalid =>
       'Selected folder is no longer accessible. Using app storage.';
 
