@@ -2621,13 +2621,13 @@ abstract class AppLocalizations {
   /// No description provided for @warning.
   ///
   /// In en, this message translates to:
-  /// **'Warning'**
+  /// **'Incomplete Setup'**
   String get warning;
 
   /// No description provided for @invalidConfigurationWarning.
   ///
   /// In en, this message translates to:
-  /// **'The current configuration is invalid (e.g., missing API Key, Model ID, or Base URL). It may not work properly. Do you want to save anyway?'**
+  /// **'The configuration is not complete yet (e.g., API Key or Model ID is missing). You can still save and configure it later. Continue?'**
   String get invalidConfigurationWarning;
 
   /// No description provided for @invalidModelConfigDetailed.

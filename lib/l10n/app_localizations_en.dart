@@ -1407,11 +1407,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get invalidJson => 'Invalid JSON';
 
   @override
-  String get warning => 'Warning';
+  String get warning => 'Incomplete Setup';
 
   @override
   String get invalidConfigurationWarning =>
-      'The current configuration is invalid (e.g., missing API Key, Model ID, or Base URL). It may not work properly. Do you want to save anyway?';
+      'The configuration is not complete yet (e.g., API Key or Model ID is missing). You can still save and configure it later. Continue?';
 
   @override
   String invalidModelConfigDetailed(Object agentId, Object configKey) {

@@ -523,7 +523,6 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: Text(UserStorage.l10n.confirm),
             ),
           ],

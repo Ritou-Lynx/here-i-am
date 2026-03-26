@@ -1369,11 +1369,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get invalidJson => 'JSON 格式无效';
 
   @override
-  String get warning => '警告';
+  String get warning => '配置未完成';
 
   @override
   String get invalidConfigurationWarning =>
-      '当前配置不完整（例如：缺少 API Key、Model ID，或 Base URL），可能无法正常工作。确定要保存吗？';
+      '当前配置尚未完成（例如：缺少 API Key 或 Model ID）。你可以先保存，稍后再补全配置。是否继续？';
 
   @override
   String invalidModelConfigDetailed(Object agentId, Object configKey) {
