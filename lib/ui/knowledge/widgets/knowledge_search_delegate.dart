@@ -5,6 +5,7 @@ import 'package:memex/ui/knowledge/widgets/knowledge_file_page.dart';
 import 'package:memex/utils/result.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 import 'package:path/path.dart' as p;
 
 /// Search delegate for knowledge base files.
@@ -29,10 +30,7 @@ class KnowledgeSearchDelegate extends SearchDelegate<String?> {
 
   @override
   Widget? buildLeading(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back),
-      onPressed: () => close(context, null),
-    );
+    return AppBackButton(onTap: () => close(context, null));
   }
 
   @override

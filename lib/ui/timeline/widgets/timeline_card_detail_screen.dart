@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/routing/routes.dart';
@@ -763,25 +764,60 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _RoundIconButton(
-                      icon: Icons.arrow_back,
+                    GestureDetector(
                       onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 9,
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.chevron_left,
+                              size: 22, color: Color(0xFF99A1AF)),
+                        ),
+                      ),
                     ),
                     Row(
                       children: [
-                        _RoundIconButton(
-                          icon: Icons.ios_share,
+                        GestureDetector(
                           onTap: _shareCard,
+                          child: SvgPicture.asset(
+                            'assets/icons/btn_share.svg',
+                            width: 36,
+                            height: 36,
+                          ),
                         ),
-                        const SizedBox(width: 8),
-                        _RoundIconButton(
-                          icon: Icons.chat_bubble_outline,
+                        const SizedBox(width: 4),
+                        GestureDetector(
                           onTap: _showChatDialog,
+                          child: SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: Center(
+                              child: SvgPicture.asset(
+                                'assets/icons/chat_add.svg',
+                                width: 22,
+                                height: 20,
+                              ),
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 8),
-                        _RoundIconButton(
-                          icon: Icons.delete_outline,
+                        const SizedBox(width: 4),
+                        GestureDetector(
                           onTap: _deleteCard,
+                          child: SvgPicture.asset(
+                            'assets/icons/btn_delete.svg',
+                            width: 36,
+                            height: 36,
+                          ),
                         ),
                       ],
                     ),
@@ -1492,32 +1528,6 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RoundIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _RoundIconButton({
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 32,
-        height: 32,
-        child: Icon(
-          icon,
-          size: 20,
-          color: const Color(0xFF4A5565),
         ),
       ),
     );

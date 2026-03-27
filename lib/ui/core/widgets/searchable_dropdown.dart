@@ -86,11 +86,23 @@ class SearchableDropdownState extends State<SearchableDropdown> {
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
     final size = renderBox.size;
+    final position = renderBox.localToGlobal(Offset.zero);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final availableBelow =
+        screenHeight - keyboardHeight - position.dy - size.height - 8;
+    const double maxDropdownHeight = 240;
+
+    // If not enough space below, show above
+    final showAbove = availableBelow < maxDropdownHeight * 0.5;
+    final effectiveMaxHeight = showAbove
+        ? (position.dy - 8).clamp(100.0, maxDropdownHeight)
+        : availableBelow.clamp(100.0, maxDropdownHeight);
+    final yOffset = showAbove ? -effectiveMaxHeight - 4 : size.height + 4;
 
     _overlayEntry = OverlayEntry(
       builder: (ctx) => Stack(
         children: [
-          // Tap-away barrier to dismiss overlay
           if (_dropdownMode)
             Positioned.fill(
               child: GestureDetector(
@@ -103,12 +115,12 @@ class SearchableDropdownState extends State<SearchableDropdown> {
             child: CompositedTransformFollower(
               link: _layerLink,
               showWhenUnlinked: false,
-              offset: Offset(0, size.height + 4),
+              offset: Offset(0, yOffset),
               child: Material(
                 elevation: 4,
                 borderRadius: BorderRadius.circular(8),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 240),
+                  constraints: BoxConstraints(maxHeight: effectiveMaxHeight),
                   child: _filtered.isEmpty
                       ? const SizedBox.shrink()
                       : ListView.builder(

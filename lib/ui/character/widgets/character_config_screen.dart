@@ -8,6 +8,7 @@ import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/main_screen/widgets/chat_input_bar.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 
 /// AI character config screen. Receives [viewModel] from parent (Compass-style).
 class CharacterConfigScreen extends StatefulWidget {
@@ -120,11 +121,7 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
             backgroundColor: const Color(0xFFF7F8FA),
             elevation: 0,
             centerTitle: true,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-              onPressed: () => Navigator.of(context).pop(),
-              color: const Color(0xFF64748B),
-            ),
+            leading: const AppBackButton(),
             actions: [
               IconButton(
                 icon: const Icon(Icons.add, size: 24),
@@ -451,11 +448,7 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-          color: const Color(0xFF64748B),
-        ),
+        leading: const AppBackButton(),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),

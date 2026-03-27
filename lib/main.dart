@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:logging/logging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:memex/l10n/app_localizations.dart';
@@ -940,65 +941,57 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   Widget _buildBottomBar() {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    // Figma exact values (393w × 852h screen):
-    // Background bar: top=738, h=92, full width (no rounded corners)
-    // + button: top=707, size=68 → protrudes 31px above bar top
-    // button center y=741, bar top y=738 → center is 3px below bar top
-    // Home indicator area: 34px at very bottom
-    const double barHeight = 92;
-    const double buttonProtrude = 31; // button top is 31px above bar top
-    // notch: button half = 34, add 8px margin = 42
-    const double notchRadius = 42;
+    // SVG viewBox 393×121: white shape from y=20 to y=100, shadow above y=20
+    // We allocate 120px for the nav + bottomPadding for safe area
+    // Button: 68×68, top at y=-11 relative to this widget (31px above bar top at y=20)
 
     return Positioned(
       bottom: 0,
       left: 0,
       right: 0,
       child: SizedBox(
-        height: barHeight + buttonProtrude + bottomPadding,
+        height: 120 + bottomPadding,
         child: Stack(
           clipBehavior: Clip.none,
-          alignment: Alignment.bottomCenter,
           children: [
-            // Full-width white bar with notch, no rounded corners
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
+            // Curved white background + safe area
+            Positioned.fill(
               child: CustomPaint(
-                size: Size(double.infinity, barHeight + bottomPadding),
-                painter: _NotchedBarPainter(
-                  notchRadius: notchRadius,
-                  bottomPadding: bottomPadding,
-                ),
+                painter: _NavBarPainter(bottomPadding: bottomPadding),
               ),
             ),
-            // Tab buttons — vertically centered in bar area
+            // Tab buttons in the flat white area
             Positioned(
-              bottom: bottomPadding,
               left: 0,
               right: 0,
+              bottom: bottomPadding,
               child: SizedBox(
-                height: barHeight,
+                height: 80,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(child: _buildMemoryTabButton()),
-                    SizedBox(width: notchRadius * 2 + 4),
+                    const SizedBox(width: 100),
                     Expanded(child: _buildKnowledgeTabButton()),
                   ],
                 ),
               ),
             ),
-            // + button: top of button = bar top + bottomPadding - buttonProtrude
+            // + button: SVG 88×88 (circle 68 starts at y=6 in SVG)
+            // Need circle top at -11 from widget top, so SVG top = -11 - 6 = -17
             Positioned(
-              bottom: bottomPadding + barHeight - buttonProtrude,
-              child: AICoreButton(
-                key: _aiButtonKey,
-                onTap: _handleAICoreButtonTap,
-                onLongPress: _handleAICoreButtonLongPressStart,
-                onLongPressMoveUpdate: _handleAICoreButtonLongPressMoveUpdate,
-                onLongPressEnd: _handleAICoreButtonLongPressEnd,
+              top: -17,
+              left: 0,
+              right: 0,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: AICoreButton(
+                  key: _aiButtonKey,
+                  onTap: _handleAICoreButtonTap,
+                  onLongPress: _handleAICoreButtonLongPressStart,
+                  onLongPressMoveUpdate: _handleAICoreButtonLongPressMoveUpdate,
+                  onLongPressEnd: _handleAICoreButtonLongPressEnd,
+                ),
               ),
             ),
           ],
@@ -1038,10 +1031,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.event_available_outlined,
-              size: 22,
-              color: isActive ? activeColor : inactiveColor,
+            SvgPicture.asset(
+              'assets/icons/tab_timeline.svg',
+              width: 22,
+              height: 23,
+              colorFilter: ColorFilter.mode(
+                isActive ? activeColor : inactiveColor,
+                BlendMode.srcIn,
+              ),
             ),
             const SizedBox(height: 3),
             Text(
@@ -1050,7 +1047,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                 fontSize: 14,
                 fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
                 color: isActive ? activeColor : inactiveColor,
-                letterSpacing: 0.14,
+                letterSpacing: 0.14, // 1% of 14px
+                height: 1.0,
               ),
             ),
           ],
@@ -1104,6 +1102,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                 fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
                 color: isActive ? activeColor : inactiveColor,
                 letterSpacing: 0.14,
+                height: 1.0,
               ),
             ),
           ],
@@ -1113,65 +1112,71 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 }
 
-class _NotchedBarPainter extends CustomPainter {
-  final double notchRadius;
+/// Draws the curved bottom nav bar background.
+/// Reproduces the Figma SVG path: white shape with concave curve notch at top center.
+/// SVG viewBox: 393×121, white fill from y=20 to y=100.
+class _NavBarPainter extends CustomPainter {
   final double bottomPadding;
-
-  const _NotchedBarPainter({
-    required this.notchRadius,
-    required this.bottomPadding,
-  });
+  const _NavBarPainter({required this.bottomPadding});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double cx = size.width / 2;
-    // notch center is at the very top of the bar
-    const double notchCenterY = 0;
+    final w = size.width;
+    final h = size.height;
+    final s = w / 393; // scale factor from Figma 393px to actual width
 
-    final path = Path();
-    path.moveTo(0, 0);
-    path.lineTo(cx - notchRadius, notchCenterY);
-    // concave arc for the notch
-    path.arcToPoint(
-      Offset(cx + notchRadius, notchCenterY),
-      radius: Radius.circular(notchRadius),
-      clockwise: false,
-    );
-    path.lineTo(size.width, 0);
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
-    path.close();
+    // The white shape top edge (y=20 in SVG, scaled)
+    final top = 20 * s;
 
-    // shadow
+    final path = Path()
+      ..moveTo(0, top)
+      ..lineTo(142.528 * s, top)
+      // Left curve entry
+      ..cubicTo(
+        148.501 * s,
+        top,
+        153.977 * s,
+        top + 3.3275 * s,
+        156.729 * s,
+        top + 8.6293 * s,
+      )
+      ..lineTo(164.497 * s, top + 23.5965 * s)
+      // Center concave curve (the notch)
+      ..cubicTo(
+        179.426 * s,
+        top + 52.36 * s,
+        220.574 * s,
+        top + 52.36 * s,
+        235.503 * s,
+        top + 23.5966 * s,
+      )
+      // Right curve exit
+      ..lineTo(243.271 * s, top + 8.6293 * s)
+      ..cubicTo(
+        246.023 * s,
+        top + 3.3275 * s,
+        251.499 * s,
+        top,
+        257.472 * s,
+        top,
+      )
+      ..lineTo(w, top)
+      ..lineTo(w, h)
+      ..lineTo(0, h)
+      ..close();
+
+    // Shadow (matches SVG filter: blur 10, black 8% opacity)
     canvas.drawPath(
       path,
       Paint()
-        ..color = Colors.black.withOpacity(0.06)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        ..color = const Color(0x14000000)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
     );
-    // fill
+    // White fill
     canvas.drawPath(path, Paint()..color = Colors.white);
-    // top border
-    final borderPath = Path()
-      ..moveTo(0, 0)
-      ..lineTo(cx - notchRadius, notchCenterY)
-      ..arcToPoint(
-        Offset(cx + notchRadius, notchCenterY),
-        radius: Radius.circular(notchRadius),
-        clockwise: false,
-      )
-      ..lineTo(size.width, 0);
-    canvas.drawPath(
-      borderPath,
-      Paint()
-        ..color = const Color(0xFFE2E8F0)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
   }
 
   @override
-  bool shouldRepaint(covariant _NotchedBarPainter oldDelegate) =>
-      oldDelegate.notchRadius != notchRadius ||
-      oldDelegate.bottomPadding != bottomPadding;
+  bool shouldRepaint(covariant _NavBarPainter old) =>
+      old.bottomPadding != bottomPadding;
 }

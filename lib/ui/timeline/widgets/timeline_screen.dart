@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:memex/domain/models/timeline_card_model.dart';
@@ -83,20 +84,6 @@ class TimelineScreenState extends State<TimelineScreen> {
     if (mounted) {
       widget.viewModel.refresh();
     }
-  }
-
-  Widget _buildHeaderIconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 36,
-        height: 36,
-        child: Icon(icon, size: 20, color: const Color(0xFF4A5565)),
-      ),
-    );
   }
 
   void _showChatDialog(TimelineViewModel vm) {
@@ -260,161 +247,195 @@ class TimelineScreenState extends State<TimelineScreen> {
         final vm = widget.viewModel;
         return Column(
           children: [
-            // Header block: Title + icons on line 1, view controls on line 2
+            // Header: Memex title + action icons
+            // Figma: title top=73, left=20; buttons top=68, left=253, w=120, h=36
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Line 1: Memex title + action icons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      RichText(
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'Meme',
-                              style: GoogleFonts.bricolageGrotesque(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.4,
-                                color: const Color(0xFF0A0A0A),
-                              ),
-                            ),
-                            TextSpan(
-                              text: 'x',
-                              style: GoogleFonts.bricolageGrotesque(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.4,
-                                color: const Color(0xFF5B6CFF),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Search icon
-                          _buildHeaderIconButton(
-                            icon: Icons.chat_bubble_outline,
-                            onTap: () => _showChatDialog(vm),
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Meme',
+                          style: GoogleFonts.bricolageGrotesque(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.41,
+                            height: 22 / 32,
+                            color: const Color(0xFF0A0A0A),
                           ),
-                          const SizedBox(width: 8),
-                          // Notification / action center icon
-                          if (AppDatabase.isInitialized)
-                            StreamBuilder<List<SystemAction>>(
-                              stream: (AppDatabase.instance.select(
-                                      AppDatabase.instance.systemActions)
-                                    ..where((t) => t.status.equals('pending')))
-                                  .watch(),
-                              builder: (context, snapshot) {
-                                final pendingCount = snapshot.data?.length ?? 0;
-                                return GestureDetector(
-                                  onTap: () {
-                                    if (pendingCount > 0) {
-                                      showModalBottomSheet(
-                                        context: context,
-                                        isScrollControlled: true,
-                                        backgroundColor: Colors.transparent,
-                                        builder: (context) =>
-                                            const ActionCenterSheet(),
-                                      );
-                                    } else {
-                                      ToastHelper.showSuccess(
-                                          context,
-                                          UserStorage
-                                              .l10n.noPendingActionsToast);
-                                    }
-                                  },
-                                  child: SizedBox(
-                                    width: 36,
-                                    height: 36,
-                                    child: Stack(
-                                      children: [
-                                        const Center(
-                                          child: Icon(
-                                            Icons.notifications_outlined,
-                                            size: 20,
-                                            color: Color(0xFF4A5565),
-                                          ),
+                        ),
+                        TextSpan(
+                          text: 'x',
+                          style: GoogleFonts.bricolageGrotesque(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.41,
+                            height: 22 / 32,
+                            color: const Color(0xFF5B6CFF),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // 3 buttons: 36px each, 6px gap, total 120px
+                  SizedBox(
+                    width: 120,
+                    height: 36,
+                    child: Row(
+                      children: [
+                        // Chat button
+                        GestureDetector(
+                          onTap: () => _showChatDialog(vm),
+                          child: SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: Center(
+                              child: SvgPicture.asset(
+                                'assets/icons/chat_add.svg',
+                                width: 22,
+                                height: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Notification button
+                        if (AppDatabase.isInitialized)
+                          StreamBuilder<List<SystemAction>>(
+                            stream: (AppDatabase.instance
+                                    .select(AppDatabase.instance.systemActions)
+                                  ..where((t) => t.status.equals('pending')))
+                                .watch(),
+                            builder: (context, snapshot) {
+                              final pendingCount = snapshot.data?.length ?? 0;
+                              return GestureDetector(
+                                onTap: () {
+                                  if (pendingCount > 0) {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (context) =>
+                                          const ActionCenterSheet(),
+                                    );
+                                  } else {
+                                    ToastHelper.showSuccess(context,
+                                        UserStorage.l10n.noPendingActionsToast);
+                                  }
+                                },
+                                child: SizedBox(
+                                  width: 36,
+                                  height: 36,
+                                  child: Stack(
+                                    children: [
+                                      Center(
+                                        child: SvgPicture.asset(
+                                          'assets/icons/notification_bell.svg',
+                                          width: 19,
+                                          height: 20,
                                         ),
-                                        if (pendingCount > 0)
-                                          Positioned(
-                                            top: 6,
-                                            right: 6,
-                                            child: Container(
-                                              width: 7,
-                                              height: 7,
-                                              decoration: const BoxDecoration(
-                                                color: Color(0xFF5B6CFF),
-                                                shape: BoxShape.circle,
-                                              ),
+                                      ),
+                                      if (pendingCount > 0)
+                                        Positioned(
+                                          top: 6,
+                                          left: 22,
+                                          child: Container(
+                                            width: 8,
+                                            height: 8,
+                                            decoration: const BoxDecoration(
+                                              color: Color(0xFF5B6CFF),
+                                              shape: BoxShape.circle,
                                             ),
                                           ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          const SizedBox(width: 8),
-                          // Avatar button
-                          GestureDetector(
-                            onTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (context) =>
-                                    const PersonalCenterScreen(),
-                              ).then((_) {
-                                _checkPermissionBadge();
-                                _checkFitnessBanner();
-                                _loadUserAvatar();
-                              });
-                            },
-                            child: Badge(
-                              isLabelVisible: _showPermissionBadge,
-                              smallSize: 10,
-                              backgroundColor: Colors.red,
-                              child: Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Color(0xFF5B6CFF),
-                                      Color(0xFF7B8CFF),
+                                        ),
                                     ],
                                   ),
-                                  borderRadius: BorderRadius.circular(18),
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    _userAvatar ?? 'M',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
+                              );
+                            },
+                          ),
+                        const SizedBox(width: 8),
+                        // Avatar button
+                        GestureDetector(
+                          onTap: () {
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (context) =>
+                                  const PersonalCenterScreen(),
+                            ).then((_) {
+                              _checkPermissionBadge();
+                              _checkFitnessBanner();
+                              _loadUserAvatar();
+                            });
+                          },
+                          child: Badge(
+                            isLabelVisible: _showPermissionBadge,
+                            smallSize: 10,
+                            backgroundColor: Colors.red,
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  stops: [
+                                    0.0,
+                                    0.0909,
+                                    0.1818,
+                                    0.2727,
+                                    0.3636,
+                                    0.4545,
+                                    0.5455,
+                                    0.6364,
+                                    0.7273,
+                                    0.8182,
+                                    0.9091,
+                                    1.0
+                                  ],
+                                  colors: [
+                                    Color(0xFF5B6CFF),
+                                    Color(0xFF5E6FFF),
+                                    Color(0xFF6172FF),
+                                    Color(0xFF6375FF),
+                                    Color(0xFF6677FF),
+                                    Color(0xFF697AFF),
+                                    Color(0xFF6C7DFF),
+                                    Color(0xFF6F80FF),
+                                    Color(0xFF7282FF),
+                                    Color(0xFF7585FF),
+                                    Color(0xFF7887FF),
+                                    Color(0xFF7B8AFF),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  _userAvatar ?? 'M',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 16),
 
             // Tag Chips (All + Insight + user tags)
             if (_showModelConfigBanner)
@@ -660,9 +681,9 @@ class TimelineScreenState extends State<TimelineScreen> {
               ),
             if (vm.tags.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 0, 12),
+                padding: const EdgeInsets.only(bottom: 12),
                 child: SizedBox(
-                  height: 32,
+                  height: 36,
                   child: _buildInlineTagChips(vm),
                 ),
               ),
@@ -727,9 +748,9 @@ class TimelineScreenState extends State<TimelineScreen> {
 
     return ListView.separated(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.only(right: 24),
+      padding: const EdgeInsets.only(left: 20, right: 20),
       itemCount: totalCount,
-      separatorBuilder: (_, __) => const SizedBox(width: 8),
+      separatorBuilder: (_, __) => const SizedBox(width: 10),
       itemBuilder: (context, index) {
         // Index 0: "All"
         if (index == 0) {
@@ -793,32 +814,22 @@ class TimelineScreenState extends State<TimelineScreen> {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0F172A) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isSelected ? 0.1 : 0.05),
-              blurRadius: isSelected ? 8 : 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          color: isSelected ? const Color(0xFF1A1A1A) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null) ...[
-              Text(icon, style: const TextStyle(fontSize: 13)),
-              const SizedBox(width: 4),
-            ],
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF64748B),
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                fontSize: 12,
+                color: isSelected ? Colors.white : const Color(0xFF4A5565),
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+                letterSpacing: -0.15,
               ),
             ),
           ],
@@ -1052,12 +1063,12 @@ class _TimelineEntryItemState extends State<_TimelineEntryItem> {
     if (isSingleCompactCard) {
       final config = displayConfigs.first;
       final content = Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(bottom: 20),
         child: GestureDetector(
           onTap: onTap,
           behavior: HitTestBehavior.opaque,
           child: Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(bottom: 20),
             child: NativeCardFactory.build(
               status: card.status,
               templateId: config.templateId,
@@ -1102,7 +1113,7 @@ class _TimelineEntryItemState extends State<_TimelineEntryItem> {
               content,
               if (actions.isNotEmpty)
                 ...actions.map((action) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.only(bottom: 20),
                       child: SystemActionCard(
                         action: action,
                         service: SystemActionService.instance,
@@ -1115,7 +1126,7 @@ class _TimelineEntryItemState extends State<_TimelineEntryItem> {
     }
 
     final normalContent = Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 20),
       child: GestureDetector(
         onTap: onTap,
         onLongPress: isAlreadyClassic ? null : _toggleClassicMode,
@@ -1202,7 +1213,7 @@ class _TimelineEntryItemState extends State<_TimelineEntryItem> {
             normalContent,
             if (actions.isNotEmpty)
               ...actions.map((action) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: 20),
                     child: SystemActionCard(
                       action: action,
                       service: SystemActionService.instance,
@@ -1217,7 +1228,7 @@ class _TimelineEntryItemState extends State<_TimelineEntryItem> {
   Widget _buildTimestampHeader() {
     final card = widget.card;
     return Padding(
-      padding: const EdgeInsets.only(left: 8, bottom: 12),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Row(
         children: [
           Text(

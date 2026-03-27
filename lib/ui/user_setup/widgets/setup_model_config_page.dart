@@ -740,7 +740,7 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
                 // Model ID
                 if (_modelSelectorDisabled)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.only(top: 8, bottom: 12),
                     child: Text(
                       UserStorage.l10n.enterApiKeyFirst,
                       style: TextStyle(

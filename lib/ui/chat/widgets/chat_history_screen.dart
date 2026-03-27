@@ -4,6 +4,7 @@ import 'package:memex/ui/chat/view_models/chat_viewmodel.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 import 'package:memex/ui/chat/widgets/agent_chat_dialog.dart';
 
 /// Chat history list screen. Receives [viewModel] from parent (Compass-style).
@@ -133,11 +134,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
             backgroundColor: const Color(0xFFF7F8FA),
             elevation: 0,
             centerTitle: true,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-              onPressed: () => Navigator.of(context).pop(),
-              color: const Color(0xFF64748B),
-            ),
+            leading: const AppBackButton(),
           ),
           body: vm.isLoading
               ? Center(child: AgentLogoLoading())

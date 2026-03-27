@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'icon_helper.dart';
 
@@ -103,27 +104,23 @@ class DetailPageLayout extends StatelessWidget {
             ],
           ),
 
-          // Top actions and close button
+          // Back button (left)
           Positioned(
             top: topPadding + 8,
-            right: 16,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (actions != null) ...actions!,
-                if (actions != null) const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const SizedBox(
-                    width: 32,
-                    height: 32,
-                    child:
-                        Icon(Icons.close, size: 20, color: Color(0xFF4A5565)),
-                  ),
-                ),
-              ],
-            ),
+            left: 16,
+            child: const AppBackButton(),
           ),
+
+          // Actions (right)
+          if (actions != null)
+            Positioned(
+              top: topPadding + 8,
+              right: 16,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: actions!,
+              ),
+            ),
         ],
       ),
     );

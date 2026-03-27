@@ -7,6 +7,7 @@ import 'package:memex/ui/core/cards/templates/classic_card.dart';
 import 'package:path/path.dart' as path;
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 
 class KnowledgeFilePage extends StatefulWidget {
   final String filePath;
@@ -104,10 +105,7 @@ class _KnowledgeFilePageState extends State<KnowledgeFilePage> {
                 fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF64748B)),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: const AppBackButton(),
         iconTheme: const IconThemeData(color: Color(0xFF64748B)),
       ),
       body: _isLoading

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:memex/ui/calendar/view_models/calendar_viewmodel.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 import 'package:memex/ui/timeline/widgets/timeline_card_detail_screen.dart';
 
 /// Calendar screen. Receives [viewModel] from parent (Compass-style).
@@ -53,11 +54,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
             backgroundColor: Colors.white,
             elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new,
-                  size: 20, color: Color(0xFF64748B)),
-              onPressed: () => Navigator.pop(context),
-            ),
+            leading: const AppBackButton(),
             centerTitle: true,
           ),
           body: Column(

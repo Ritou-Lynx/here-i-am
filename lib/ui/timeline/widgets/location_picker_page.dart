@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 
 class LocationPickerResult {
   final LatLng point;
@@ -293,24 +294,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                     Row(
                       children: [
                         // Back Button
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.arrow_back,
-                                color: Color(0xFF1E293B)),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ),
+                        const AppBackButton(),
                         const SizedBox(width: 12),
                         // Search Input
                         Expanded(

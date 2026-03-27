@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:memex/l10n/app_localizations_ext_zh.dart';
 import 'package:memex/ui/core/cards/native_card_factory.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 
 /// Timeline 卡片模板展示页面
 /// 展示所有支持的 Timeline 卡片模板及示例数据
@@ -23,10 +24,7 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
         ),
         backgroundColor: const Color(0xFFF7F8FA),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF0F172A)),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        leading: const AppBackButton(),
       ),
       backgroundColor: const Color(0xFFF7F8FA),
       body: ListView(
@@ -34,7 +32,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
         children: [
           // ─── 通用 ───
           _buildCategoryHeader(isZh ? '通用 (General)' : 'General'),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '1. Classic Card (文字笔记)' : '1. Classic Card (Text note)',
             'classic_card',
             isZh
@@ -52,7 +51,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
           ),
           // ─── 文字 ───
           _buildCategoryHeader(UserStorage.l10n.categoryTextual),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '2. Snippet Card (文字片段)' : '2. Snippet Card (Text snippet)',
             'snippet',
             isZh
@@ -69,7 +69,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '科技名言' : 'Tech quote',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '3. Article Card (长文章)' : '3. Article Card (Long article)',
             'article',
             isZh
@@ -83,7 +84,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '什么是心流体验' : 'What is flow experience',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh
                 ? '4. Conversation Card (对话)'
                 : '4. Conversation Card (Conversation)',
@@ -132,7 +134,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '与 AI 的对话' : 'Conversation with AI',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '5. Quote Card (引言)' : '5. Quote Card (Quote)',
             'quote',
             isZh
@@ -149,7 +152,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '每日金句' : 'Quote of the day',
           ),
-          _buildWrappedSection(context, 
+          _buildWrappedSection(
+            context,
             isZh ? '6. Compact Card (紧凑行)' : '6. Compact Card (Compact row)',
             'compact_card',
             isZh
@@ -166,7 +170,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
 
           // ─── 视觉 ───
           _buildCategoryHeader(isZh ? '视觉 (Visual)' : 'Visual'),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '7. Snapshot Card (照片)' : '7. Snapshot Card (Photo)',
             'snapshot',
             isZh
@@ -180,7 +185,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '黄昏时刻' : 'Dusk moment',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '8. Gallery Card (相册)' : '8. Gallery Card (Album)',
             'gallery',
             {
@@ -192,7 +198,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
             },
             title: isZh ? '周末露营' : 'Weekend camping',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '9. Video Card (视频)' : '9. Video Card (Video)',
             'video',
             {
@@ -202,7 +209,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
             },
             title: isZh ? '视频记录' : 'Video log',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '10. Canvas Card (画布)' : '10. Canvas Card (Canvas)',
             'canvas',
             {},
@@ -211,7 +219,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
 
           // ─── 数值 ───
           _buildCategoryHeader(isZh ? '数值 (Quantifiable)' : 'Quantifiable'),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '11. Metric Card (多指标)' : '11. Metric Card (Metrics)',
             'metric',
             isZh
@@ -273,7 +282,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '健康指标' : 'Health metrics',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '12. Rating Card (评分)' : '12. Rating Card (Rating)',
             'rating',
             isZh
@@ -292,7 +302,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '电影评分' : 'Movie rating',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '13. Mood Card (心情)' : '13. Mood Card (Mood)',
             'mood',
             isZh
@@ -309,7 +320,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '今日心情' : 'Today’s mood',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '14. Progress Card (进度条)' : '14. Progress Card (Progress)',
             'progress',
             isZh
@@ -330,7 +342,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
 
           // ─── 时间 ───
           _buildCategoryHeader(isZh ? '时间 (Temporal)' : 'Temporal'),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '15. Event Card (日程事件)' : '15. Event Card (Event)',
             'event',
             isZh
@@ -347,7 +360,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? 'AI 产品评审会议' : 'AI product review meeting',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '16. Duration Card (计时器)' : '16. Duration Card (Timer)',
             'duration',
             {
@@ -357,7 +371,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
             },
             title: isZh ? '番茄钟' : 'Pomodoro timer',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '17. Task Card (任务)' : '17. Task Card (Task)',
             'task',
             isZh
@@ -389,7 +404,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '完成产品需求分析' : 'Complete product requirements analysis',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh
                 ? '18. Routine Card (习惯打卡)'
                 : '18. Routine Card (Habit tracker)',
@@ -407,7 +423,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '每日冥想' : 'Daily meditation',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '19. Procedure Card (操作步骤)' : '19. Procedure Card (Steps)',
             'procedure',
             isZh
@@ -436,7 +453,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
 
           // ─── 实体 ───
           _buildCategoryHeader(isZh ? '实体 (Entities)' : 'Entities'),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '20. Person Card (人物)' : '20. Person Card (Person)',
             'person',
             isZh
@@ -452,7 +470,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '联系人' : 'Contact',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '21. Place Card (地点)' : '21. Place Card (Place)',
             'place',
             isZh
@@ -470,7 +489,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '常去书店' : 'Favorite bookstore',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '22. Spec Sheet (产品规格)' : '22. Spec Sheet (Product specs)',
             'spec_sheet',
             isZh
@@ -498,7 +518,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: 'Apple Watch Series 9',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh
                 ? '23. Transaction Card (消费)'
                 : '23. Transaction Card (Spending)',
@@ -529,7 +550,8 @@ class TimelineTemplateGalleryPage extends StatelessWidget {
                   },
             title: isZh ? '午餐消费' : 'Lunch spending',
           ),
-          _buildSection(context, 
+          _buildSection(
+            context,
             isZh ? '24. Link Card (链接)' : '24. Link Card (Link)',
             'link',
             {
@@ -697,15 +719,7 @@ class _TemplatePreviewPage extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: Icon(Icons.arrow_back,
-                          size: 20, color: Color(0xFF4A5565)),
-                    ),
-                  ),
+                  const AppBackButton(),
                   Text(
                     templateId,
                     style: const TextStyle(

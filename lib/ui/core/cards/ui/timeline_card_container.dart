@@ -28,7 +28,7 @@ class TimelineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8), // Default visual rhythm
+      margin: EdgeInsets.zero,
       decoration: _buildDecoration(),
       clipBehavior: Clip.antiAlias,
       child: Material(

@@ -3,6 +3,7 @@ import 'package:memex/utils/result.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/ui/knowledge/widgets/knowledge/knowledge_file_card.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 
 class KnowledgeDirectoryPage extends StatefulWidget {
   final String path;
@@ -104,20 +105,7 @@ class _KnowledgeDirectoryPageState extends State<KnowledgeDirectoryPage> {
         centerTitle: false,
         backgroundColor: const Color(0xFFF7F8FA),
         elevation: 0,
-        leading: Container(
-          margin: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            color: Colors.white,
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back,
-                color: Color(0xFF64748B), size: 20),
-            padding: EdgeInsets.zero,
-            onPressed: () => Navigator.pop(context),
-          ),
-        ),
+        leading: const AppBackButton(),
       ),
       body: _isLoading
           ? Center(child: AgentLogoLoading())

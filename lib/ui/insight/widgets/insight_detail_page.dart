@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/domain/models/insight_detail_model.dart';
 import 'package:memex/ui/core/cards/native_card_factory.dart';
@@ -9,6 +10,7 @@ import 'package:memex/ui/core/widgets/detail_page_layout.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/utils/share_service.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 
 /// Unified AI Insight detail page
 class InsightDetailPage extends StatefulWidget {
@@ -134,10 +136,7 @@ class _InsightDetailPageState extends State<InsightDetailPage> {
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.close, color: Colors.black),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: const AppBackButton(),
         ),
         body: Center(
           child: Column(
@@ -174,10 +173,10 @@ class _InsightDetailPageState extends State<InsightDetailPage> {
       actions: [
         GestureDetector(
           onTap: _shareInsight,
-          child: const SizedBox(
-            width: 32,
-            height: 32,
-            child: Icon(Icons.ios_share, size: 20, color: Color(0xFF4A5565)),
+          child: SvgPicture.asset(
+            'assets/icons/btn_share.svg',
+            width: 36,
+            height: 36,
           ),
         ),
       ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:memex/l10n/app_localizations_ext_zh.dart';
 import 'package:memex/ui/core/cards/native_widget_factory.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 
 class InsightTemplateGalleryPage extends StatelessWidget {
   const InsightTemplateGalleryPage({super.key});
@@ -21,10 +22,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
         ),
         backgroundColor: const Color(0xFFF7F8FA),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF0A0A0A)),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        leading: const AppBackButton(),
       ),
       backgroundColor: const Color(0xFFF7F8FA),
       body: ListView(
@@ -132,9 +130,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
                   },
           ),
           _buildSection(
-            isZh
-                ? '3. Trend Line (趋势图)'
-                : '3. Trend Line (Trend chart)',
+            isZh ? '3. Trend Line (趋势图)' : '3. Trend Line (Trend chart)',
             'trend_chart_card_v1',
             isZh
                 ? {
@@ -172,9 +168,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
                   },
           ),
           _buildSection(
-            isZh
-                ? '4. Bar Chart (柱状对比)'
-                : '4. Bar Chart (Bar comparison)',
+            isZh ? '4. Bar Chart (柱状对比)' : '4. Bar Chart (Bar comparison)',
             'bar_chart_card_v1',
             isZh
                 ? {
@@ -243,9 +237,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
                   },
           ),
           _buildSection(
-            isZh
-                ? '6. Radar Chart (雷达图)'
-                : '6. Radar Chart (Radar)',
+            isZh ? '6. Radar Chart (雷达图)' : '6. Radar Chart (Radar)',
             'radar_chart_card_v1',
             isZh
                 ? {
@@ -278,9 +270,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
                   },
           ),
           _buildSection(
-            isZh
-                ? '7. Highlight/Quote (金句)'
-                : '7. Highlight/Quote (Quote)',
+            isZh ? '7. Highlight/Quote (金句)' : '7. Highlight/Quote (Quote)',
             'highlight_card_v1',
             {
               "title": "DAILY INSIGHT",
@@ -293,9 +283,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
             },
           ),
           _buildSection(
-            isZh
-                ? '8. Composition (成分表)'
-                : '8. Composition (Breakdown)',
+            isZh ? '8. Composition (成分表)' : '8. Composition (Breakdown)',
             'composition_card_v1',
             isZh
                 ? {
@@ -312,11 +300,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
                         "percentage": 30,
                         "color": "#F43F5E"
                       },
-                      {
-                        "label": "Reading",
-                        "percentage": 20,
-                        "color": "#10B981"
-                      }
+                      {"label": "Reading", "percentage": 20, "color": "#10B981"}
                     ],
                     "footer": "精力充沛的一天"
                   }
@@ -334,11 +318,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
                         "percentage": 30,
                         "color": "#F43F5E"
                       },
-                      {
-                        "label": "Reading",
-                        "percentage": 20,
-                        "color": "#10B981"
-                      }
+                      {"label": "Reading", "percentage": 20, "color": "#10B981"}
                     ],
                     "footer": "A very productive day",
                   },
@@ -359,8 +339,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
                     },
                     "highlight_section": {
                       "title": "新视角",
-                      "content":
-                          "忙碌说明通过实践学习的机会很多。我可以从做中学。",
+                      "content": "忙碌说明通过实践学习的机会很多。我可以从做中学。",
                       "icon": "💡",
                       "color": "#10B981"
                     }
@@ -429,9 +408,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
                   },
           ),
           _buildSection(
-            isZh
-                ? '11. Map Card (地图)'
-                : '11. Map Card (Map)',
+            isZh ? '11. Map Card (地图)' : '11. Map Card (Map)',
             'map_card_v1',
             isZh
                 ? {
@@ -450,13 +427,12 @@ class InsightTemplateGalleryPage extends StatelessWidget {
                       {"lat": 31.2304, "lng": 121.4737, "name": "Shanghai"}
                     ],
                     "info_title": "A tale of two cities",
-                    "info_detail": "Commuting between Beijing and Shanghai this week",
+                    "info_detail":
+                        "Commuting between Beijing and Shanghai this week",
                   },
           ),
           _buildSection(
-            isZh
-                ? '12. Summary Card (总结卡片)'
-                : '12. Summary Card (Summary)',
+            isZh ? '12. Summary Card (总结卡片)' : '12. Summary Card (Summary)',
             'summary_card_v1',
             isZh
                 ? {

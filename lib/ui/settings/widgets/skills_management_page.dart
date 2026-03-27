@@ -9,6 +9,7 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/widgets/back_button.dart';
 
 /// Skills directory browser & downloader.
 /// Root is `_UserSettings/skills/` under the user workspace.
@@ -425,12 +426,7 @@ class _SkillsManagementPageState extends State<SkillsManagementPage> {
     final l10n = UserStorage.l10n;
     return Scaffold(
       appBar: AppBar(
-        leading: _canGoBack
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: _goBack,
-              )
-            : null,
+        leading: _canGoBack ? AppBackButton(onTap: _goBack) : null,
         title: Text(l10n.skillsManagement),
         actions: [
           IconButton(
