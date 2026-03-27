@@ -723,10 +723,11 @@ class TimelineScreenState extends State<TimelineScreen> {
             label: UserStorage.l10n.timelineFilterAll,
             isSelected: isSelected,
             onTap: () {
+              final wasAlreadyAll = vm.activeFilter == 'all' &&
+                  vm.viewMode == TimelineViewMode.timeline;
               vm.setViewMode(TimelineViewMode.timeline);
               vm.setActiveFilter('all');
-              if (vm.cards.isEmpty ||
-                  vm.viewMode != TimelineViewMode.timeline) {
+              if (!wasAlreadyAll) {
                 vm.loadCards(refresh: true);
               }
             },
