@@ -796,6 +796,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     if (mounted) {
       setState(() {
         _isInputOpen = false;
+        _sharedDraft = null;
       });
     }
 
