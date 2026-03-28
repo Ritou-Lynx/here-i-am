@@ -82,7 +82,7 @@ class RouteMapCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFF7F8FA)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 16,
             offset: const Offset(0, 2),
           ),
@@ -108,15 +108,19 @@ class RouteMapCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0A0A0A),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0A0A0A),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               const Icon(
                 Icons.chevron_right,
                 color: Color(0xFFCBD5E1),
@@ -196,7 +200,8 @@ class _RoutePainter extends CustomPainter {
     canvas.drawCircle(startOffset, 3, whitePaint); // Hollow effect look
 
     // Draw labels
-    _drawLabel(canvas, locations.first.name ?? UserStorage.l10n.startPoint, startOffset,
+    _drawLabel(canvas, locations.first.name ?? UserStorage.l10n.startPoint,
+        startOffset,
         isStart: true);
 
     // Draw End Point
@@ -204,7 +209,8 @@ class _RoutePainter extends CustomPainter {
 
     // Draw End Label (Bubble style)
     if (locations.length > 1) {
-      _drawBubbleLabel(canvas, locations.last.name ?? UserStorage.l10n.endPoint, endOffset);
+      _drawBubbleLabel(
+          canvas, locations.last.name ?? UserStorage.l10n.endPoint, endOffset);
     }
   }
 
@@ -254,7 +260,7 @@ class _RoutePainter extends CustomPainter {
 
     final bgPaint = Paint()..color = Colors.white;
     final shadowPaint = Paint()
-      ..color = Colors.black.withValues(alpha:0.05)
+      ..color = Colors.black.withValues(alpha: 0.05)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
 
     canvas.drawRRect(bgRect.shift(const Offset(0, 2)), shadowPaint);

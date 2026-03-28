@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:memex/ui/core/widgets/emoji_icon.dart';
 
 class BarItem {
   final String label;
@@ -46,7 +48,6 @@ class BarChartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Determine max value for normalization
     double maxY = items.isNotEmpty
         ? items.map((e) => e.value).reduce((a, b) => a > b ? a : b)
         : 10;
@@ -55,7 +56,7 @@ class BarChartCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -70,124 +71,127 @@ class BarChartCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF0A0A0A), // Slate-900
+            // Title
+            SizedBox(
+              height: 28,
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontFamily: 'PingFang SC',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  height: 28 / 18,
+                  letterSpacing: -0.44,
+                  color: Color(0xFF101828),
+                ),
               ),
             ),
+
+            // Subtitle
             if (subtitle != null) ...[
               const SizedBox(height: 8),
               Text(
                 subtitle!,
                 style: const TextStyle(
-                  fontSize: 15,
-                  color: Color(0xFF4A5565), // Slate-500
+                  fontFamily: 'PingFang SC',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  height: 20 / 14,
+                  letterSpacing: -0.15,
+                  color: Color(0xFF9CA3AF),
                 ),
               ),
             ],
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
-            // Horizontal Bars List
+            // Items
             ...items.asMap().entries.map((entry) {
               final index = entry.key;
               final item = entry.value;
               final isLast = index == items.length - 1;
-
               final percent = (item.value / maxY).clamp(0.0, 1.0);
-              final color = item.color != null
+              final barColor = item.color != null
                   ? _parseColor(item.color!)
                   : const Color(0xFF5B6CFF);
-              final isHighlight = item.isHighlight;
 
               return Padding(
-                padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
+                padding: EdgeInsets.only(bottom: isLast ? 0 : 24),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Icon
+                    // Emoji icon container
                     if (item.icon != null) ...[
                       Container(
                         width: 40,
                         height: 40,
-                        alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF7F8FA),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          color: const Color(0xFFF2F4FF),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(
-                          item.icon!,
-                          style: const TextStyle(fontSize: 20),
+                        child: Center(
+                          child: EmojiIcon(
+                            emoji: item.icon!,
+                            size: 20,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                     ],
 
-                    // Content
+                    // Label + bar + value
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Label & Value
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
+                          // Label and value row
+                          SizedBox(
+                            height: 20,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
                                   item.label,
-                                  style: TextStyle(
+                                  style: const TextStyle(
+                                    fontFamily: 'PingFang SC',
                                     fontSize: 14,
-                                    fontWeight: isHighlight
-                                        ? FontWeight.bold
-                                        : FontWeight.w500,
-                                    color: isHighlight
-                                        ? const Color(0xFF0A0A0A)
-                                        : const Color(0xFF4A5565),
+                                    fontWeight: FontWeight.w400,
+                                    height: 20 / 14,
+                                    letterSpacing: -0.15,
+                                    color: Color(0xFF364153),
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '${item.value.toStringAsFixed(1)}$unit',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: isHighlight
-                                      ? color
-                                      : const Color(0xFF4A5565),
+                                Text(
+                                  '${item.value % 1 == 0 ? item.value.toInt() : item.value}$unit',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    height: 20 / 14,
+                                    letterSpacing: -0.15,
+                                    color: const Color(0xFF101828),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           const SizedBox(height: 8),
 
-                          // Bar
+                          // Progress bar
                           SizedBox(
-                            height: 10,
+                            height: 6,
                             child: Stack(
                               children: [
-                                // Background
                                 Container(
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF7F8FA), // Slate-100
-                                    borderRadius: BorderRadius.circular(5),
+                                    color: const Color(0xFFE5E7EB),
+                                    borderRadius: BorderRadius.circular(3),
                                   ),
                                 ),
-                                // Foreground
                                 FractionallySizedBox(
                                   widthFactor: percent,
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: isHighlight
-                                          ? color
-                                          : color.withValues(alpha:0.5),
-                                      borderRadius: BorderRadius.circular(5),
+                                      color: barColor,
+                                      borderRadius: BorderRadius.circular(3),
                                     ),
                                   ),
                                 ),
@@ -200,18 +204,17 @@ class BarChartCard extends StatelessWidget {
                   ],
                 ),
               );
-            }).toList(),
+            }),
 
             // Insight
             if (insight != null && insight!.isNotEmpty) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               Text(
                 insight!,
-                style: const TextStyle(
+                style: GoogleFonts.inter(
                   fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF4A5565), // Slate-500
-                  fontStyle: FontStyle.italic,
+                  fontWeight: FontWeight.w400,
+                  color: const Color(0xFF4A5565),
                   height: 1.5,
                 ),
               ),
@@ -224,22 +227,14 @@ class BarChartCard extends StatelessWidget {
 
   Color _parseColor(String colorStr) {
     if (colorStr.isEmpty) return const Color(0xFF5B6CFF);
-
     try {
-      // 1. Clean up the string (remove hash, whitespace)
       String hex = colorStr.replaceAll('#', '').trim();
-
-      // 2. Handle malformed strings like "EC4899,is_highlight:true"
-      // Match the first sequence of 6 or 8 hex digits
       final match = RegExp(r'^[0-9a-fA-F]{6,8}').firstMatch(hex);
       if (match != null) {
         hex = match.group(0)!;
       } else {
-        // If no valid hex found at start, return default
         return const Color(0xFF5B6CFF);
       }
-
-      // 3. Parse based on length
       if (hex.length == 6) {
         return Color(int.parse(hex, radix: 16) + 0xFF000000);
       } else if (hex.length == 8) {

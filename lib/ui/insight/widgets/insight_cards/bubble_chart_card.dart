@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class InsightBubble {
   final String label;
@@ -67,33 +68,67 @@ class BubbleChartCard extends StatelessWidget {
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             // Header
             Text(
               title,
               style: const TextStyle(
+                fontFamily: 'PingFang SC',
                 fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF99A1AF), // Slate-400
-                letterSpacing: 1.2,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF0A0A0A),
+                height: 20 / 14,
+                letterSpacing: -0.08,
               ),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
-            // Bubbles Area
-            Center(
-              child: Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                alignment: WrapAlignment.center,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: bubbles.map((b) => _buildBubble(b)).toList(),
-              ),
+            // Bubbles Area — Figma exact positions
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final w = constraints.maxWidth;
+                final s = w / 330;
+
+                final sorted = List<InsightBubble>.from(bubbles);
+                sorted.sort((a, b) {
+                  if (a.isHighlight && !b.isHighlight) return -1;
+                  if (!a.isHighlight && b.isHighlight) return 1;
+                  return b.value.compareTo(a.value);
+                });
+
+                // Figma: center, top-left, top-right, bottom-left, bottom-right
+                final specs = <Map<String, double>>[
+                  {'left': 95, 'top': 84, 'size': 140},
+                  {'left': 10, 'top': 34, 'size': 90},
+                  {'left': 206, 'top': 8, 'size': 100},
+                  {'left': 32, 'top': 211, 'size': 100},
+                  {'left': 216, 'top': 193, 'size': 100},
+                ];
+
+                return SizedBox(
+                  height: 310 * s,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      for (int i = 0;
+                          i < sorted.length && i < specs.length;
+                          i++)
+                        Positioned(
+                          left: specs[i]['left']! * s,
+                          top: specs[i]['top']! * s,
+                          child: _buildBubble(
+                            sorted[i],
+                            specs[i]['size']! * s,
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
             ),
-
-            const SizedBox(height: 32),
 
             const SizedBox(height: 24),
 
@@ -117,9 +152,12 @@ class BubbleChartCard extends StatelessWidget {
             if (footer != null)
               Text(
                 footer!,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: Color(0xFF99A1AF), // Slate-400
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: const Color(0xFF99A1AF),
+                  height: 18 / 12,
+                  letterSpacing: 0,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -129,27 +167,9 @@ class BubbleChartCard extends StatelessWidget {
     );
   }
 
-  Widget _buildBubble(InsightBubble bubble) {
-    // Scale size based on value (roughly).
-    // Assume value is 1-100.
-    // Base size 80, Max size 160.
-
-    double size = 80;
-    if (bubble.isHighlight) {
-      size = 140;
-    } else {
-      // Simple dynamic sizing
-      size = 70 + (bubble.value.clamp(0, 100) * 0.6).toDouble();
-      if (size > 110) size = 110;
-    }
-
+  Widget _buildBubble(InsightBubble bubble, double size) {
     final color = _parseColor(bubble.color);
-    // Lighter background for the bubble
-    final bgColor = color.withValues(alpha:0.15);
-    final textColor = color;
-
-    // Highlight bubble style might be different (Solid bg?)
-    // Converting design: "AI Agent" bubble is solid blue, text white. Others are light bg, colored text.
+    final bgColor = color.withValues(alpha: 0.15);
     final bool isSolid = bubble.isHighlight;
 
     return Container(
@@ -159,55 +179,19 @@ class BubbleChartCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isSolid ? color : bgColor,
         shape: BoxShape.circle,
-        boxShadow: isSolid
-            ? [
-                BoxShadow(
-                  color: color.withValues(alpha:0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 2),
-                )
-              ]
-            : null,
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (bubble.isHighlight &&
-              bubble.subLabel != null) // "Top Topic" logic if needed
-            const Text(
-              "Top Topic",
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 10,
-              ),
-            ),
-          Text(
-            bubble.label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isSolid ? Colors.white : textColor,
-              fontWeight: FontWeight.bold,
-              fontSize: isSolid ? 18 : 13,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+      child: Center(
+        child: Text(
+          bubble.label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isSolid ? Colors.white : color,
+            fontWeight: FontWeight.w600,
+            fontSize: isSolid ? 18 : 14,
           ),
-          if (bubble.subLabel != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                bubble.subLabel!,
-                style: TextStyle(
-                  color: isSolid
-                      ? Colors.white.withValues(alpha:0.8)
-                      : textColor.withValues(alpha:0.8),
-                  fontSize: 10,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-        ],
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ProgressItem {
   final String label;
@@ -48,7 +49,7 @@ class ProgressChartCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(16, 24, 24, 24),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -61,20 +62,20 @@ class ProgressChartCard extends StatelessWidget {
           ],
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start, // Align to top
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Left: Chart
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0), // Slight adjustment
+            // Left: Ring chart (100×100, offset left by -8)
+            Transform.translate(
+              offset: const Offset(-8, 0),
               child: SizedBox(
-                width: 120,
-                height: 120,
+                width: 100,
+                height: 100,
                 child: Stack(
                   children: [
                     PieChart(
                       PieChartData(
                         sectionsSpace: 0,
-                        centerSpaceRadius: 40,
+                        centerSpaceRadius: 32,
                         startDegreeOffset: -90,
                         sections: _buildSections(),
                       ),
@@ -82,10 +83,12 @@ class ProgressChartCard extends StatelessWidget {
                     Center(
                       child: Text(
                         centerText ?? '${((current / target) * 100).toInt()}%',
-                        style: const TextStyle(
+                        style: GoogleFonts.inter(
                           fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0A0A0A), // Slate-900
+                          fontWeight: FontWeight.w700,
+                          height: 36 / 24,
+                          letterSpacing: 0.4,
+                          color: const Color(0xFF0A0A0A),
                         ),
                       ),
                     ),
@@ -93,82 +96,81 @@ class ProgressChartCard extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 24),
+            const SizedBox(width: 16),
 
-            // Right: Content
+            // Right: Title + subtitle + legend
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Title
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0A0A0A), // Slate-900
+                      fontFamily: 'PingFang SC',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      height: 24 / 16,
+                      letterSpacing: -0.31,
+                      color: Color(0xFF0A0A0A),
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
+
+                  // Subtitle
                   if (subtitle != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Text(
                       subtitle!,
                       style: const TextStyle(
-                        fontSize: 15,
-                        color: Color(0xFF4A5565), // Slate-500
+                        fontFamily: 'PingFang SC',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        height: 20 / 14,
+                        letterSpacing: -0.15,
+                        color: Color(0xFF0A0A0A),
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                  const SizedBox(height: 16),
 
-                  // Legend Items
-                  ...items
-                      .map((item) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: _parseColor(item.color),
-                                    shape: BoxShape.circle,
-                                  ),
+                  // Legend items
+                  if (items.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    ...items.map((item) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: _parseColor(item.color),
+                                  shape: BoxShape.circle,
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  item.label,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '${item.label} (${item.value.toInt()})',
                                   style: const TextStyle(
+                                    fontFamily: 'PingFang SC',
                                     fontSize: 12,
-                                    color: Color(0xFF4A5565), // Slate-500
+                                    fontWeight: FontWeight.w400,
+                                    height: 16 / 12,
+                                    letterSpacing: 0,
+                                    color: Color(0xFF9CA3AF),
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '(${item.value.toInt()})',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF99A1AF), // Slate-400
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ))
-                      .toList(),
-
-                  // Insight
-                  if (insight != null && insight!.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      insight!,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF4A5565), // Slate-500
-                        fontStyle: FontStyle.italic,
-                        height: 1.5,
-                      ),
-                    ),
+                              ),
+                            ],
+                          ),
+                        )),
                   ],
                 ],
               ),
@@ -180,37 +182,33 @@ class ProgressChartCard extends StatelessWidget {
   }
 
   List<PieChartSectionData> _buildSections() {
-    // If explicit items are provided and they sum up to roughly the target, use them.
-    // Otherwise fallback to simple current/remainder logic.
-
     if (items.isNotEmpty) {
       return items.map((item) {
         return PieChartSectionData(
           color: _parseColor(item.color),
           value: item.value,
           title: '',
-          radius: 12, // Thickness
+          radius: 10,
           showTitle: false,
         );
       }).toList();
     }
 
-    // Default Fallback
     final remainder = target - current;
     return [
       PieChartSectionData(
-        color: const Color(0xFFF43F5E), // Rose-500
+        color: const Color(0xFF5B6CFF),
         value: current,
         title: '',
-        radius: 12,
+        radius: 10,
         showTitle: false,
       ),
       if (remainder > 0)
         PieChartSectionData(
-          color: const Color(0xFFF7F8FA), // Slate-100/200 like
+          color: const Color(0xFFE2E8F0),
           value: remainder,
           title: '',
-          radius: 12,
+          radius: 10,
           showTitle: false,
         ),
     ];
@@ -220,23 +218,10 @@ class ProgressChartCard extends StatelessWidget {
     if (colorStr.startsWith('#')) {
       return Color(int.parse(colorStr.substring(1), radix: 16) + 0xFF000000);
     }
-    // Fallback simple names
     switch (colorStr.toLowerCase()) {
-      case 'red':
-        return Colors.red;
-      case 'blue':
-        return Colors.blue;
-      case 'green':
-        return Colors.green;
-      case 'orange':
-        return Colors.orange;
-      case 'purple':
-        return Colors.purple;
-      case 'pink':
-        return Colors.pink;
       case 'grey':
       case 'gray':
-        return const Color(0xFF99A1AF);
+        return const Color(0xFF9CA3AF);
       default:
         return const Color(0xFFE2E8F0);
     }

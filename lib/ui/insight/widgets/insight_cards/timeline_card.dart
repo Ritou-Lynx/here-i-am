@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:memex/ui/core/widgets/emoji_icon.dart';
 
 class TimelineItem {
   final String time;
@@ -61,162 +63,127 @@ class TimelineCard extends StatelessWidget {
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // Title
             Text(
               title,
               style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF0A0A0A), // Slate-900
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0A0A0A),
+                height: 1.3,
               ),
             ),
             const SizedBox(height: 24),
 
-            // Insight
-            if (insight != null && insight!.isNotEmpty) ...[
-              Text(
-                insight!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF4A5565), // Slate-500
-                  fontStyle: FontStyle.italic,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-
-            // Timeline Items
+            // Timeline items
             ...items.asMap().entries.map((entry) {
               final index = entry.key;
               final item = entry.value;
               final isLast = index == items.length - 1;
-              final color = _parseColor(item.color ?? '#6366F1');
+              final dotColor = _parseColor(item.color ?? '#5B6CFF');
 
-              return IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Timeline Line Column
-                    SizedBox(
-                      width: 24,
-                      child: Stack(
-                        alignment: Alignment.topCenter,
-                        children: [
-                          // Vertical Line
-                          if (!isLast)
-                            Positioned(
-                              top: 24,
-                              bottom: 0,
-                              left: 11,
-                              child: Container(
-                                width: 2,
-                                color: const Color(0xFFF7F8FA),
-                              ),
-                            ),
-                          // Dot
-                          Container(
-                            margin: const EdgeInsets.only(
-                                top: 2), // Align with text
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: item.isFilledDot
-                                  ? const Color(0xFFCBD5E1)
-                                  : Colors.transparent,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: item.isFilledDot
-                                    ? Colors.transparent
-                                    : color,
-                                width: 3,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+              return _buildTimelineItem(item, dotColor, isLast);
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimelineItem(TimelineItem item, Color dotColor, bool isLast) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left: dot + line
+          SizedBox(
+            width: 32,
+            child: Column(
+              children: [
+                const SizedBox(height: 4),
+                // Solid filled dot
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                // Vertical line
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 1.5,
+                      color: const Color(0xFFE2E8F0),
                     ),
-                    // Content Column
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 24),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: item.isFilledDot
-                                ? Colors.transparent
-                                : color.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Header: Time + Icon
-                              Row(
-                                children: [
-                                  Text(
-                                    item.time,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF99A1AF),
-                                      fontFeatures: [
-                                        FontFeature.tabularFigures()
-                                      ],
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  if (item.icon != null)
-                                    Text(item.icon!,
-                                        style: const TextStyle(fontSize: 16)),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-
-                              // Title
-                              if (item.title != null) ...[
-                                Text(
-                                  item.title!,
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                    color: item.isFilledDot
-                                        ? const Color(0xFF99A1AF)
-                                        : const Color(0xFF0A0A0A),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                              ],
-
-                              // Content
-                              if (item.content != null)
-                                Text(
-                                  item.content!,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    height: 1.5,
-                                    color: item.isFilledDot
-                                        ? const Color(0xFF99A1AF)
-                                        : const Color(0xFF4A5565),
-                                    fontStyle: item.isFilledDot
-                                        ? FontStyle.italic
-                                        : FontStyle.normal,
-                                  ),
-                                ),
-                            ],
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Right: content
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Time + icon row
+                  SizedBox(
+                    height: 30,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          item.time,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                            color: const Color(0xFF99A1AF),
+                            height: 19.5 / 13,
+                            letterSpacing: -0.08,
                           ),
                         ),
+                        if (item.icon != null)
+                          EmojiIcon(emoji: item.icon!, size: 16),
+                      ],
+                    ),
+                  ),
+                  if (item.title != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      item.title!,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: item.isFilledDot
+                            ? const Color(0xFF99A1AF)
+                            : const Color(0xFF0A0A0A),
+                        height: 1.4,
                       ),
                     ),
                   ],
-                ),
-              );
-            }).toList(),
-          ],
-        ),
+                  if (item.content != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      item.content!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: item.isFilledDot
+                            ? const Color(0xFF99A1AF)
+                            : const Color(0xFF4A5565),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

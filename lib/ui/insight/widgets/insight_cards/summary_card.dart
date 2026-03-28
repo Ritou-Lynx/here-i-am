@@ -179,12 +179,16 @@ class SummaryCard extends StatelessWidget {
                       const Icon(Icons.smart_toy_outlined,
                           size: 18, color: Color(0xFF5B6CFF)),
                       const SizedBox(width: 8),
-                      Text(
-                        insightTitle,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF334155),
+                      Expanded(
+                        child: Text(
+                          insightTitle,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF334155),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class HighlightCard extends StatelessWidget {
   final String title;
@@ -12,7 +13,7 @@ class HighlightCard extends StatelessWidget {
 
   const HighlightCard({
     super.key,
-    this.title = 'INSIGHT',
+    this.title = 'DAILY INSIGHT',
     required this.quoteContent,
     this.quoteHighlight,
     this.footer,
@@ -22,216 +23,129 @@ class HighlightCard extends StatelessWidget {
     this.onTap,
   });
 
-  List<Color> get _gradientColors {
-    switch (theme) {
-      case 'orange':
-        return [const Color(0xFFF97316), const Color(0xFFFB923C)];
-      case 'blue':
-        return [const Color(0xFF3B82F6), const Color(0xFF60A5FA)];
-      case 'primary':
-      default:
-        return [const Color(0xFF5B6CFF), const Color(0xFFA855F7)];
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: _gradientColors,
-          ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: _gradientColors.first.withValues(alpha: 0.3),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 16,
-              offset: const Offset(0, 8),
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Watermark Icon
-            Positioned(
-              top: -20,
-              right: -20,
-              child: Icon(
-                Icons.format_quote_rounded,
-                size: 180,
-                color: Colors.white.withValues(alpha: 0.1),
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+            // Header: DAILY INSIGHT | date
+            SizedBox(
+              height: 26,
+              child: Row(
                 children: [
-                  // Header
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.5),
-                              width: 1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          title.toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
-                      if (date != null) ...[
-                        const SizedBox(width: 12),
-                        Text(
-                          date!,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.8),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            fontFamily:
-                                'monospace', // Monospace for date looks nice
-                          ),
-                        ),
-                      ],
-                    ],
+                  // Badge
+                  Text(
+                    title.toUpperCase(),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      height: 16 / 12,
+                      letterSpacing: 0,
+                      color: const Color(0xFF0A0A0A),
+                    ),
                   ),
-                  const SizedBox(height: 32),
-
-                  // Quote Content with Highlight
-                  _buildRichQuote(),
-
-                  const SizedBox(height: 32),
-
-                  // Insight
-                  if (insight != null) ...[
-                    Text(
-                      insight!,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 13,
-                        fontStyle: FontStyle.italic,
-                      ),
+                  if (date != null) ...[
+                    const SizedBox(width: 10),
+                    // Vertical divider
+                    Container(
+                      width: 1,
+                      height: 9,
+                      color: const Color(0xFF99A1AF),
                     ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Footer
-                  if (footer != null)
+                    const SizedBox(width: 10),
+                    // Date
                     Text(
-                      footer!,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 15,
-                        height: 1.5,
+                      date!,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
                         fontWeight: FontWeight.w400,
+                        height: 20 / 14,
+                        letterSpacing: -0.15,
+                        color: const Color(0xFF99A1AF),
                       ),
                     ),
+                  ],
                 ],
               ),
             ),
+
+            const SizedBox(height: 48),
+
+            // Opening quote " — use negative margin to pull quote text closer
+            Text(
+              '\u201C',
+              style: GoogleFonts.imbue(
+                fontSize: 80,
+                fontWeight: FontWeight.w700,
+                height: 0.2,
+                letterSpacing: 0.4,
+                color: const Color(0xFFD1D5DB),
+              ),
+            ),
+
+            // Quote content (no extra spacing — quote height:0.2 keeps it tight)
+
+            // Quote content
+            Text(
+              quoteContent,
+              style: GoogleFonts.inter(
+                fontSize: 30,
+                fontWeight: FontWeight.w700,
+                height: 38 / 30,
+                letterSpacing: 0.4,
+                color: const Color(0xFF0A0A0A),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Closing quote "
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '\u201D',
+                style: GoogleFonts.imbue(
+                  fontSize: 80,
+                  fontWeight: FontWeight.w700,
+                  height: 0.4,
+                  letterSpacing: 0.4,
+                  color: const Color(0xFFD1D5DB),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Footer (author)
+            if (footer != null)
+              Text(
+                footer!,
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  height: 24 / 16,
+                  letterSpacing: -0.31,
+                  color: const Color(0xFF99A1AF),
+                ),
+              ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildRichQuote() {
-    if (quoteHighlight == null || quoteHighlight!.isEmpty) {
-      return Text(
-        quoteContent,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-          height: 1.4,
-          letterSpacing: -0.5,
-        ),
-      );
-    }
-
-    final spans = <TextSpan>[];
-    final lowerContent = quoteContent.toLowerCase();
-    final lowerHighlight = quoteHighlight!.toLowerCase();
-
-    int start = 0;
-    while (true) {
-      final index = lowerContent.indexOf(lowerHighlight, start);
-      if (index == -1) {
-        // No more matches
-        spans.add(TextSpan(text: quoteContent.substring(start)));
-        break;
-      }
-
-      // Add text before match
-      if (index > start) {
-        spans.add(TextSpan(text: quoteContent.substring(start, index)));
-      }
-
-      // Add matched text
-      final matchedText =
-          quoteContent.substring(index, index + quoteHighlight!.length);
-      spans.add(TextSpan(
-        text: matchedText,
-        style: const TextStyle(
-          color: Color(0xFFFDE047), // Yellow highlight
-        ),
-      ));
-
-      start = index + quoteHighlight!.length;
-    }
-
-    // Add opening quote icon
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '"', // Explicit large opening quote for style
-          style: TextStyle(
-              color: Colors.white,
-              fontSize: 40,
-              height: 0.5,
-              fontWeight: FontWeight.bold),
-        ),
-        RichText(
-          text: TextSpan(
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              height: 1.4,
-              letterSpacing: -0.5,
-            ),
-            children: spans,
-          ),
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: const Text(
-            '"', // Explicit large closing quote
-            style: TextStyle(
-                color: Colors.white,
-                fontSize: 40,
-                height: 0.5,
-                fontWeight: FontWeight.bold),
-          ),
-        )
-      ],
     );
   }
 }

@@ -36,7 +36,7 @@ class ContrastCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha:0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 16,
               offset: const Offset(0, 2),
             ),
@@ -59,12 +59,16 @@ class ContrastCard extends StatelessWidget {
                   children: [
                     _buildEmotionIcon(),
                     const SizedBox(width: 8),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFE11D48), // Rose-600
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFE11D48), // Rose-600
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -139,12 +143,17 @@ class ContrastCard extends StatelessWidget {
                             color: Color(0xFF5B6CFF), // Indigo-500
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            newPerspective['title'] ?? UserStorage.l10n.newPerspective,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF4338CA), // Indigo-700
+                          Expanded(
+                            child: Text(
+                              newPerspective['title'] ??
+                                  UserStorage.l10n.newPerspective,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF4338CA),
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],

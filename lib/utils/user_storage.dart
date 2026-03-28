@@ -561,7 +561,7 @@ class UserStorage {
 
   /// Predefined avatar options (people & character faces).
   static const List<String> avatarOptions = [
-    '👤',
+    '🧑',
     '👨',
     '👩',
     '🧑',

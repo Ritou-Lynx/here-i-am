@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:memex/ui/core/themes/design_system.dart';
 
 /// Figma back button: 36px white circle with shadow + chevron left arrow.
-/// Original SVG is 54×54 (circle 36 + 9px shadow padding each side).
 class AppBackButton extends StatelessWidget {
   final VoidCallback? onTap;
 
@@ -14,21 +14,16 @@ class AppBackButton extends StatelessWidget {
       child: Container(
         width: 36,
         height: 36,
-        decoration: BoxDecoration(
-          color: Colors.white,
+        decoration: const BoxDecoration(
+          color: AppColors.cardBackground,
           shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 9,
-            ),
-          ],
+          boxShadow: [AppShadows.backButton],
         ),
         child: const Center(
           child: Icon(
             Icons.chevron_left,
             size: 22,
-            color: Color(0xFF99A1AF),
+            color: AppColors.textTertiary,
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:logging/logging.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -942,242 +943,255 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   Widget _buildBottomBar() {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    // SVG viewBox 393×121: white shape from y=20 to y=100, shadow above y=20
-    // We allocate 120px for the nav + bottomPadding for safe area
-    // Button: 68×68, top at y=-11 relative to this widget (31px above bar top at y=20)
 
     return Positioned(
       bottom: 0,
       left: 0,
       right: 0,
-      child: SizedBox(
-        height: 120 + bottomPadding,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // Curved white background + safe area
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _NavBarPainter(bottomPadding: bottomPadding),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // The 393x120.5 Figma Canvas scaled flawlessly to screen width
+          FittedBox(
+            fit: BoxFit.fitWidth,
+            alignment: Alignment.bottomCenter,
+            child: SizedBox(
+              width: 393,
+              // PNG bounding box height: 120.5 (includes 20px top shadow + 80.5px white shape)
+              height: 120.5,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Painted Native Vector Overlay
+                  // Completely removing dependencies on Figma PNG/SVG transparent paddings!
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _NavBarPainter(),
+                    ),
+                  ),
+
+                  // Shadow occluder mask
+                  // The Figma export's shadow has a giant blur that leaks downward.
+                  // Placed OVER the image at exactly y=100.0 (where the white shape ends)
+                  // It completely masks out the grey blur and extends solidly into the Safe Area.
+                  Positioned(
+                    top: 100.0,
+                    bottom: -100.0,
+                    left: 0,
+                    right: 0,
+                    child: Container(color: Colors.white),
+                  ),
+
+                  // Center Action Button (88x88 widget, 68x68 nested circle)
+                  // Dialed down to -16.0 for a more subdued hover gap.
+                  Positioned(
+                    top: -16.0,
+                    left: 156.0,
+                    child: AICoreButton(
+                      key: _aiButtonKey,
+                      onTap: _handleAICoreButtonTap,
+                      onLongPress: _handleAICoreButtonLongPressStart,
+                      onLongPressMoveUpdate:
+                          _handleAICoreButtonLongPressMoveUpdate,
+                      onLongPressEnd: _handleAICoreButtonLongPressEnd,
+                    ),
+                  ),
+
+                  // Timeline Icon
+                  Positioned(
+                    top: 46.63, // 26.63 local + 20px shadow
+                    left: 64.17,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _handleTimelineTabTap,
+                      child: SvgPicture.asset(
+                        'assets/icons/tab_timeline_active.svg',
+                        width: 22,
+                        height: 23,
+                        colorFilter: ColorFilter.mode(
+                          _currentTab == 0
+                              ? const Color(0xFF1F1F1F)
+                              : const Color(0xFF99A1AF),
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Timeline Text
+                  Positioned(
+                    top: 76.0,
+                    left: 25.17,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _handleTimelineTabTap,
+                      child: SizedBox(
+                        width:
+                            100, // Widened from strict 58 to permit iOS text expansion
+                        // Removed strict height boundary to prevent vertical ascender clipping
+                        child: Text(
+                          UserStorage.l10n.bottomNavTimeline,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: _currentTab == 0
+                                ? FontWeight.w500
+                                : FontWeight.w400,
+                            color: _currentTab == 0
+                                ? const Color(0xFF1F1F1F)
+                                : const Color(0xFF99A1AF),
+                            letterSpacing: 0.14,
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Library Icon
+                  Positioned(
+                    top: 47.02, // 27.02 local + 20px shadow
+                    left: 299.58,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _handleLibraryTabTap,
+                      child: SvgPicture.asset(
+                        'assets/icons/tab_library_inactive.svg',
+                        width: 25.06,
+                        height: 21.15,
+                        colorFilter: ColorFilter.mode(
+                          _currentTab == 1
+                              ? const Color(0xFF1F1F1F)
+                              : const Color(0xFF99A1AF),
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Library text
+                  Positioned(
+                    top: 76.0,
+                    left: 262.11,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _handleLibraryTabTap,
+                      child: SizedBox(
+                        width:
+                            100, // Widened from strict 48 to permit iOS text expansion
+                        // Removed strict height boundary to prevent vertical ascender clipping
+                        child: Text(
+                          UserStorage.l10n.bottomNavLibrary,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: _currentTab == 1
+                                ? FontWeight.w500
+                                : FontWeight.w400,
+                            color: _currentTab == 1
+                                ? const Color(0xFF1F1F1F)
+                                : const Color(0xFF99A1AF),
+                            letterSpacing: 0.14,
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            // Tab buttons in the flat white area
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: bottomPadding,
-              child: SizedBox(
-                height: 80,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(child: _buildMemoryTabButton()),
-                    const SizedBox(width: 100),
-                    Expanded(child: _buildKnowledgeTabButton()),
-                  ],
-                ),
-              ),
+          ),
+
+          // Native Safe Area Block
+          // We bridge the standard 1px sub-pixel hardware scaling seam with an exact translation overlap.
+          // Pulled up aggressively by 10 pixels to forcibly fuse over the PNG bottom tail seamlessly!
+          Transform.translate(
+            offset: const Offset(0, -10.0),
+            child: Container(
+              height: bottomPadding + 10.0,
+              color: Colors.white,
+              width: double.infinity,
             ),
-            // + button: SVG 88×88 (circle 68 starts at y=6 in SVG)
-            // Need circle top at -11 from widget top, so SVG top = -11 - 6 = -17
-            Positioned(
-              top: -17,
-              left: 0,
-              right: 0,
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: AICoreButton(
-                  key: _aiButtonKey,
-                  onTap: _handleAICoreButtonTap,
-                  onLongPress: _handleAICoreButtonLongPressStart,
-                  onLongPressMoveUpdate: _handleAICoreButtonLongPressMoveUpdate,
-                  onLongPressEnd: _handleAICoreButtonLongPressEnd,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildMemoryTabButton() {
-    final isActive = _currentTab == 0;
-    final activeColor = const Color(0xFF1F1F1F);
-    final inactiveColor = const Color(0xFF888888);
-    return GestureDetector(
-      onTap: () {
-        _memoryButtonTapCount++;
-        if (_memoryButtonTapCount == 1) {
-          setState(() {
-            _currentTab = 0;
-          });
-          _memoryButtonTapTimer?.cancel();
-          _memoryButtonTapTimer = Timer(const Duration(milliseconds: 300), () {
-            _memoryButtonTapCount = 0;
-          });
-        } else if (_memoryButtonTapCount == 2) {
-          _memoryButtonTapTimer?.cancel();
-          _memoryButtonTapCount = 0;
-          if (_currentTab == 0) {
-            _timelineKey.currentState?.scrollToTopAndRefresh();
-          }
-        }
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        height: 60,
-        color: Colors.transparent,
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SvgPicture.asset(
-              'assets/icons/tab_timeline.svg',
-              width: 22,
-              height: 23,
-              colorFilter: ColorFilter.mode(
-                isActive ? activeColor : inactiveColor,
-                BlendMode.srcIn,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              UserStorage.l10n.bottomNavTimeline,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
-                color: isActive ? activeColor : inactiveColor,
-                letterSpacing: 0.14, // 1% of 14px
-                height: 1.0,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  void _handleTimelineTabTap() {
+    _memoryButtonTapCount++;
+    if (_memoryButtonTapCount == 1) {
+      setState(() => _currentTab = 0);
+      _memoryButtonTapTimer?.cancel();
+      _memoryButtonTapTimer = Timer(const Duration(milliseconds: 300), () {
+        _memoryButtonTapCount = 0;
+      });
+    } else if (_memoryButtonTapCount == 2) {
+      _memoryButtonTapTimer?.cancel();
+      _memoryButtonTapCount = 0;
+      if (_currentTab == 0) {
+        _timelineKey.currentState?.scrollToTopAndRefresh();
+      }
+    }
   }
 
-  Widget _buildKnowledgeTabButton() {
-    final isActive = _currentTab == 1;
-    final activeColor = const Color(0xFF1F1F1F);
-    final inactiveColor = const Color(0xFF888888);
-    return GestureDetector(
-      onTap: () {
-        _knowledgeBaseButtonTapCount++;
-        if (_knowledgeBaseButtonTapCount == 1) {
-          setState(() {
-            _currentTab = 1;
-          });
-          _knowledgeBaseButtonTapTimer?.cancel();
-          _knowledgeBaseButtonTapTimer =
-              Timer(const Duration(milliseconds: 300), () {
-            _knowledgeBaseButtonTapCount = 0;
-          });
-        } else if (_knowledgeBaseButtonTapCount == 2) {
-          _knowledgeBaseButtonTapTimer?.cancel();
-          _knowledgeBaseButtonTapCount = 0;
-          if (_currentTab == 1) {
-            _knowledgeBaseKey.currentState?.scrollToTopAndRefresh();
-          }
-        }
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        height: 60,
-        color: Colors.transparent,
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.school_outlined,
-              size: 22,
-              color: isActive ? activeColor : inactiveColor,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              UserStorage.l10n.bottomNavLibrary,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
-                color: isActive ? activeColor : inactiveColor,
-                letterSpacing: 0.14,
-                height: 1.0,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  void _handleLibraryTabTap() {
+    _knowledgeBaseButtonTapCount++;
+    if (_knowledgeBaseButtonTapCount == 1) {
+      setState(() => _currentTab = 1);
+      _knowledgeBaseButtonTapTimer?.cancel();
+      _knowledgeBaseButtonTapTimer =
+          Timer(const Duration(milliseconds: 300), () {
+        _knowledgeBaseButtonTapCount = 0;
+      });
+    } else if (_knowledgeBaseButtonTapCount == 2) {
+      _knowledgeBaseButtonTapTimer?.cancel();
+      _knowledgeBaseButtonTapCount = 0;
+      if (_currentTab == 1) {
+        _knowledgeBaseKey.currentState?.scrollToTopAndRefresh();
+      }
+    }
   }
 }
 
-/// Draws the curved bottom nav bar background.
-/// Reproduces the Figma SVG path: white shape with concave curve notch at top center.
-/// SVG viewBox: 393×121, white fill from y=20 to y=100.
 class _NavBarPainter extends CustomPainter {
-  final double bottomPadding;
-  const _NavBarPainter({required this.bottomPadding});
-
   @override
   void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final s = w / 393; // scale factor from Figma 393px to actual width
+    final Path path = Path();
+    path.moveTo(0, 20);
+    path.lineTo(142.528, 20);
+    path.cubicTo(148.501, 20, 153.977, 23.3275, 156.729, 28.6293);
+    path.lineTo(164.497, 43.5965);
+    path.cubicTo(179.426, 72.3609, 220.574, 72.3609, 235.503, 43.5966);
+    path.lineTo(243.271, 28.6293);
+    path.cubicTo(246.023, 23.3275, 251.499, 20, 257.472, 20);
+    path.lineTo(size.width, 20);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.lineTo(0, 20);
+    path.close();
 
-    // The white shape top edge (y=20 in SVG, scaled)
-    final top = 20 * s;
-
-    final path = Path()
-      ..moveTo(0, top)
-      ..lineTo(142.528 * s, top)
-      // Left curve entry
-      ..cubicTo(
-        148.501 * s,
-        top,
-        153.977 * s,
-        top + 3.3275 * s,
-        156.729 * s,
-        top + 8.6293 * s,
-      )
-      ..lineTo(164.497 * s, top + 23.5965 * s)
-      // Center concave curve (the notch)
-      ..cubicTo(
-        179.426 * s,
-        top + 52.36 * s,
-        220.574 * s,
-        top + 52.36 * s,
-        235.503 * s,
-        top + 23.5966 * s,
-      )
-      // Right curve exit
-      ..lineTo(243.271 * s, top + 8.6293 * s)
-      ..cubicTo(
-        246.023 * s,
-        top + 3.3275 * s,
-        251.499 * s,
-        top,
-        257.472 * s,
-        top,
-      )
-      ..lineTo(w, top)
-      ..lineTo(w, h)
-      ..lineTo(0, h)
-      ..close();
-
-    // Shadow (matches SVG filter: blur 10, black 8% opacity)
+    // Custom drop shadow that doesn't bleed weirdly
+    // We clip the bottom so the shadow never goes below the nav bar visually
+    canvas.save();
+    canvas
+        .clipRect(Rect.fromLTWH(-50, -50, size.width + 100, size.height + 50));
     canvas.drawPath(
       path,
       Paint()
-        ..color = const Color(0x14000000)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+        ..color = Colors.black.withOpacity(0.08)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10.0),
     );
-    // White fill
-    canvas.drawPath(path, Paint()..color = Colors.white);
+    canvas.restore();
+
+    canvas.drawPath(
+      path,
+      Paint()..color = Colors.white,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _NavBarPainter old) =>
-      old.bottomPadding != bottomPadding;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

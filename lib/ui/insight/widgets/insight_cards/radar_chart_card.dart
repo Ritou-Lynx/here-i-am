@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class RadarDimension {
   final String label;
@@ -45,18 +46,16 @@ class RadarChartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = _parseColor(color);
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF0A0A0A), // Dark Navy/Slate-900 per design
+          color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha:0.2),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 16,
               offset: const Offset(0, 2),
             ),
@@ -66,40 +65,42 @@ class RadarChartCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF99A1AF), // Slate-400
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                if (badge != null)
-                  Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: themeColor,
-                          shape: BoxShape.circle,
-                        ),
+            SizedBox(
+              height: 20,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontFamily: 'PingFang SC',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF0A0A0A),
+                        height: 20 / 14,
+                        letterSpacing: -0.15,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        badge!,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFFCBD5E1), // Slate-300
-                        ),
-                      ),
-                    ],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-              ],
+                  if (badge != null) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      badge!,
+                      style: const TextStyle(
+                        fontFamily: 'PingFang SC',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF0A0A0A),
+                        height: 20 / 14,
+                        letterSpacing: -0.15,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: 32),
 
@@ -114,8 +115,8 @@ class RadarChartCard extends StatelessWidget {
                       RadarChartData(
                         dataSets: [
                           RadarDataSet(
-                            fillColor: themeColor.withValues(alpha:0.4),
-                            borderColor: themeColor.withValues(alpha:0.8),
+                            fillColor: const Color(0xD95B6CFF), // #5B6CFFD9
+                            borderColor: const Color(0xD95B6CFF),
                             entryRadius: 0, // No dots on corners
                             borderWidth: 2, // Thicker border
                             dataEntries: dimensions
@@ -124,25 +125,27 @@ class RadarChartCard extends StatelessWidget {
                           ),
                         ],
                         radarBackgroundColor: Colors.transparent,
+                        radarShape: RadarShape.polygon,
                         borderData: FlBorderData(show: false),
                         radarBorderData: const BorderSide(
-                          color: Color(0xFF334155), // Slate-700 lines
+                          color: Color(0xFF374151), // Slate-700 lines
                           width: 1.5,
                         ),
                         titlePositionPercentageOffset: 0.1,
-                        titleTextStyle: const TextStyle(
-                          color: Color(0xFF99A1AF), // Slate-400
+                        titleTextStyle: GoogleFonts.inter(
+                          color: const Color(0xFF9CA3AF),
                           fontSize: 12,
+                          fontWeight: FontWeight.w400,
                         ),
-                        tickCount: 1, // Minimize grid lines
+                        tickCount: 4,
                         ticksTextStyle: const TextStyle(
                             color: Colors.transparent, fontSize: 0),
                         tickBorderData: const BorderSide(
-                          color: Color(0xFF334155), // Slate-700
+                          color: Color(0xFF374151), // Slate-700
                           width: 1,
                         ),
                         gridBorderData: const BorderSide(
-                          color: Color(0xFF334155), // Slate-700
+                          color: Color(0xFF374151), // Slate-700
                           width: 1.5,
                         ),
                         getTitle: (index, angle) {
@@ -162,19 +165,23 @@ class RadarChartCard extends StatelessWidget {
                       children: [
                         Text(
                           centerValue,
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white.withValues(alpha:0.9),
-                            height: 1,
+                          style: GoogleFonts.inter(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            height: 40 / 36,
+                            letterSpacing: 0.37,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 1),
                         Text(
                           centerLabel,
-                          style: TextStyle(
+                          style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: Colors.white.withValues(alpha:0.5),
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white,
+                            height: 16 / 12,
+                            letterSpacing: 0,
                           ),
                         ),
                       ],
@@ -191,8 +198,7 @@ class RadarChartCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color:
-                      Colors.white.withValues(alpha:0.7), // Keeping dark mode style
+                  color: const Color(0xFF4A5565),
                   fontStyle: FontStyle.italic,
                   height: 1.5,
                 ),
@@ -229,11 +235,11 @@ class RadarChartCard extends StatelessWidget {
       case 'orange':
         return Colors.orange;
       case 'purple':
-        return const Color(0xFF8B5CF6); // Violet-500
+        return const Color(0xFF5B6CFF); // Violet-500
       case 'pink':
         return Colors.pink;
       default:
-        return const Color(0xFF8B5CF6);
+        return const Color(0xFF5B6CFF);
     }
   }
 }

@@ -106,60 +106,60 @@ class CompositionCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Header Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    title.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF99A1AF), // Muted header
-                      letterSpacing: 1.0,
+            SizedBox(
+              height: 20,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontFamily: 'PingFang SC',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 20 / 14,
+                        letterSpacing: -0.15,
+                        color: Color(0xFF0A0A0A),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ),
-                if (badge != null)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7F8FA), // Slate-100
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
+                  if (badge != null)
+                    Text(
                       badge!,
                       style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF4A5565),
+                        fontFamily: 'PingFang SC',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        height: 20 / 14,
+                        letterSpacing: -0.15,
+                        color: Color(0xFF0A0A0A),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-
-            const SizedBox(height: 16),
 
             // Insight
             if (insight != null && insight!.isNotEmpty) ...[
+              const SizedBox(height: 12),
               Text(
                 insight!,
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: Color(0xFF4A5565), // Slate-500
+                  color: Color(0xFF4A5565),
                   fontStyle: FontStyle.italic,
                   height: 1.5,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
             ],
 
             // Headline
-            if (headlineItems.isNotEmpty)
+            if (headlineItems.isNotEmpty) ...[
               RichText(
                 text: TextSpan(
                   style: const TextStyle(
@@ -183,56 +183,44 @@ class CompositionCard extends StatelessWidget {
                   }).toList(),
                 ),
               ),
-
-            const SizedBox(height: 24),
+              const SizedBox(height: 16),
+            ],
 
             // Progress Bar
             _buildProgressBar(),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
             // Items Legend
             _buildLegendGrid(),
 
             // Footer
             if (footer != null) ...[
-              const SizedBox(height: 24),
-              Container(
-                height: 1,
-                color: const Color(0xFFF7F8FA), // Divider
-              ),
-              const SizedBox(height: 20),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(top: 2),
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0xFF4A5565),
-                    ),
-                    width: 16,
-                    height: 16,
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.info_rounded,
-                      color: Colors.white,
-                      size: 12,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      footer!,
-                      style: const TextStyle(
-                        color: Color(0xFF4A5565),
-                        fontSize: 15,
-                        height: 1.5,
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 20,
+                child: Row(
+                  children: [
+                    const Text('🔥', style: TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        footer!,
+                        style: const TextStyle(
+                          fontFamily: 'PingFang SC',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          height: 20 / 14,
+                          letterSpacing: -0.15,
+                          color: Color(0xFF99A1AF),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                ],
-              )
+                  ],
+                ),
+              ),
             ],
           ],
         ),

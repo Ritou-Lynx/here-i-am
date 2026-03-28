@@ -3,13 +3,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 /// Application theme (Compass-aligned: centralised in ui/core/themes).
 abstract final class AppTheme {
   AppTheme._();
 
-  /// App background
-  static const Color scaffoldBackgroundLight = Color(0xFFF7F8FA);
+  /// App background — delegates to AppColors
+  static const Color scaffoldBackgroundLight = AppColors.background;
 
   /// Indigo seed
   static const Color seedColor = Color(0xFF6366F1);

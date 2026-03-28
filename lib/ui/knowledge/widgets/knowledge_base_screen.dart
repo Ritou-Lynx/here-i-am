@@ -72,7 +72,8 @@ class KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
                 ],
               ),
             ),
-            backgroundColor: Colors.transparent,
+            backgroundColor: const Color(0xFFF7F8FA),
+            surfaceTintColor: const Color(0xFFF7F8FA),
             elevation: 0,
             centerTitle: false,
             actions: [
@@ -115,7 +116,7 @@ class KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
                         const SizedBox(height: 16),
                         _buildRecentChangesList(vm),
                         const SizedBox(
-                            height: 80), // Bottom padding for nav bar
+                            height: 160), // Bottom padding for nav bar
                       ],
                     ),
                   ),

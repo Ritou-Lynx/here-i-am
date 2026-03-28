@@ -20,6 +20,7 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: backgroundColor ?? Colors.white,
         borderRadius: BorderRadius.circular(borderRadius),
