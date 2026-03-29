@@ -816,7 +816,7 @@ class TimelineScreenState extends State<TimelineScreen> {
       onTap: onTap,
       child: Container(
         height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF1A1A1A) : Colors.white,
           borderRadius: BorderRadius.circular(18),
