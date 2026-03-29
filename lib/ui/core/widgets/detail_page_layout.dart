@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:memex/ui/core/widgets/back_button.dart';
 import 'package:memex/utils/user_storage.dart';
-import 'icon_helper.dart';
 
 class DetailPageLayout extends StatelessWidget {
   final String title;
@@ -21,20 +20,8 @@ class DetailPageLayout extends StatelessWidget {
     this.actions,
   });
 
-  Color _getIconBgColor(String? type) {
-    if (type == 'alert') return const Color(0xFFFFE4E6);
-    return const Color(0xFFEEF0FF);
-  }
-
-  Color _getIconColor(String? type) {
-    if (type == 'alert') return const Color(0xFFE11D48);
-    return const Color(0xFF5B6CFF);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final iconBgColor = _getIconBgColor(type);
-    final iconColor = _getIconColor(type);
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
@@ -43,55 +30,9 @@ class DetailPageLayout extends StatelessWidget {
         children: [
           CustomScrollView(
             slivers: [
-              // Header
+              // Top spacing
               SliverToBoxAdapter(
-                child: Container(
-                  padding: EdgeInsets.fromLTRB(24, topPadding + 48, 24, 20),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: iconBgColor,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: IconHelper.getIcon(icon,
-                              size: 20, color: iconColor),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              subTitle.isEmpty
-                                  ? UserStorage.l10n.detailSubtitle
-                                  : subTitle,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF99A1AF),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0A0A0A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                child: SizedBox(height: topPadding + 56),
               ),
 
               // Content
@@ -104,23 +45,33 @@ class DetailPageLayout extends StatelessWidget {
             ],
           ),
 
-          // Back button (left)
+          // Top bar: back + title + actions
           Positioned(
-            top: topPadding + 8,
-            left: 16,
-            child: const AppBackButton(),
-          ),
-
-          // Actions (right)
-          if (actions != null)
-            Positioned(
-              top: topPadding + 8,
-              right: 16,
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              color: const Color(0xFFF7F8FA),
+              padding: EdgeInsets.fromLTRB(16, topPadding + 8, 16, 12),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: actions!,
+                children: [
+                  const AppBackButton(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      UserStorage.l10n.aiInsightDetail,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0A0A0A),
+                      ),
+                    ),
+                  ),
+                  if (actions != null) ...actions!,
+                ],
               ),
             ),
+          ),
         ],
       ),
     );

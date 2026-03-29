@@ -365,7 +365,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reload => '重新加载';
 
   @override
-  String get aiInsightDetail => 'AI 洞察详情';
+  String get aiInsightDetail => '洞察详情';
 
   @override
   String relatedRecordsCount(Object count) {

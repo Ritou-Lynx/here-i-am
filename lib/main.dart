@@ -942,8 +942,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildBottomBar() {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-
     return Positioned(
       bottom: 0,
       left: 0,
@@ -1101,18 +1099,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   ),
                 ],
               ),
-            ),
-          ),
-
-          // Native Safe Area Block
-          // We bridge the standard 1px sub-pixel hardware scaling seam with an exact translation overlap.
-          // Pulled up aggressively by 10 pixels to forcibly fuse over the PNG bottom tail seamlessly!
-          Transform.translate(
-            offset: const Offset(0, -10.0),
-            child: Container(
-              height: bottomPadding + 10.0,
-              color: Colors.white,
-              width: double.infinity,
             ),
           ),
         ],

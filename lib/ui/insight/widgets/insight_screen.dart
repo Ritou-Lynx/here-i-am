@@ -363,7 +363,7 @@ class _InsightScreenState extends State<InsightScreen> {
                   onRefresh: () => vm.loadData(),
                   child: vm.isReordering
                       ? ReorderableListView(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 160),
                           onReorder: (oldIndex, newIndex) =>
                               vm.moveItem(oldIndex, newIndex),
                           header: Column(
@@ -409,7 +409,7 @@ class _InsightScreenState extends State<InsightScreen> {
                               .toList(),
                         )
                       : ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 160),
                           children: [
                             // Header
                             // Add some top padding if embedded since we removed SafeArea/Scaffold top padding
@@ -457,8 +457,8 @@ class _InsightScreenState extends State<InsightScreen> {
                                                 color: Colors.white,
                                                 shape: BoxShape.circle,
                                                 border: Border.all(
-                                                    color:
-                                                        const Color(0xFFE2E8F0)),
+                                                    color: const Color(
+                                                        0xFFE2E8F0)),
                                               ),
                                               child: const Icon(
                                                 Icons.chat_bubble_outline,

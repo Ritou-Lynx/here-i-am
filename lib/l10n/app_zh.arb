@@ -179,7 +179,7 @@
   "loadDetailFailedRetry": "加载详情失败，请稍后重试",
   "loadFailed": "加载失败",
   "reload": "重新加载",
-  "aiInsightDetail": "AI 洞察详情",
+  "aiInsightDetail": "洞察详情",
   "@relatedRecordsCount": {
     "placeholders": {
       "count": {}

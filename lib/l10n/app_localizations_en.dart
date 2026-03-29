@@ -376,7 +376,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reload => 'Reload';
 
   @override
-  String get aiInsightDetail => 'AI Insight Detail';
+  String get aiInsightDetail => 'Insight Detail';
 
   @override
   String relatedRecordsCount(Object count) {

@@ -179,7 +179,7 @@
   "loadDetailFailedRetry": "Load detail failed, please retry later.",
   "loadFailed": "Load failed",
   "reload": "Reload",
-  "aiInsightDetail": "AI Insight Detail",
+  "aiInsightDetail": "Insight Detail",
   "@relatedRecordsCount": {
     "placeholders": {
       "count": {}

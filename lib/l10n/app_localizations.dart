@@ -755,7 +755,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiInsightDetail.
   ///
   /// In en, this message translates to:
-  /// **'AI Insight Detail'**
+  /// **'Insight Detail'**
   String get aiInsightDetail;
 
   /// No description provided for @relatedRecordsCount.
