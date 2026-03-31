@@ -13,6 +13,7 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/agent/agent_utils.dart';
 import 'package:memex/domain/models/card_detail_model.dart';
 import 'package:memex/domain/models/card_model.dart';
+import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 
 final Logger _logger = getLogger('CardAgentHandler');
 
@@ -69,7 +70,7 @@ Future<void> processWithCardAgent({
     _logger.info('Card Agent task completed for $factId');
   } catch (e, stack) {
     _logger.severe('Error in processWithCardAgent', e, stack);
-    rethrow;
+    rethrowIfNonRetryable(e);
   }
 }
 
@@ -200,16 +201,28 @@ Future<void> handleCardAgentFailureImpl(
       return;
     }
 
+    // Classify error and generate friendly message
+    final category = classifyError(error);
+    final friendlyMessage = getLocalizedErrorMessage(category, error);
+
     final fs = FileSystemService.instance;
 
     // Update status to 'failed' using updateCardFile for concurrent safety
     final cardData = await fs.updateCardFile(
       userId,
       factId,
-      (card) => card.copyWith(
-        status: 'failed',
-        failureReason: error.toString(),
-      ),
+      (card) {
+        // Handle uiConfigs: preserve existing or set classic_card fallback
+        final uiConfigs = card.uiConfigs.isEmpty
+            ? [const UiConfig(templateId: 'classic_card', data: {})]
+            : card.uiConfigs;
+
+        return card.copyWith(
+          status: 'failed',
+          failureReason: friendlyMessage,
+          uiConfigs: uiConfigs,
+        );
+      },
     );
 
     if (cardData == null) {
@@ -250,7 +263,14 @@ Future<void> handleCardAgentFailureImpl(
         assets: assets.isNotEmpty ? assets : null,
         rawText: rawText,
         address: cardData.address,
-        failureReason: error.toString(),
+        failureReason: friendlyMessage,
+      ));
+
+      // Emit error notification for UI dialog
+      EventBusService.instance.emitEvent(ErrorNotificationMessage(
+        errorCategory: category.name,
+        errorMessage: friendlyMessage,
+        cardId: factId,
       ));
     } catch (e) {
       _logger.warning('Failed to send EventBus update for failed card: $e');

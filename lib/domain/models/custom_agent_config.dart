@@ -71,7 +71,7 @@ class CustomAgentConfig {
     this.dependsOn = const [],
     this.enabled = true,
     this.priority = 0,
-    this.maxRetries = 10,
+    this.maxRetries = 5,
     this.isCustom = true,
     this.systemPrompt,
     this.eventSerializerName,

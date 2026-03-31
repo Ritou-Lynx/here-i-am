@@ -8,6 +8,7 @@ import 'package:memex/data/services/character_service.dart'; // Import Character
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/repositories/post_comment.dart';
 import 'package:memex/data/services/local_task_executor.dart';
+import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/utils/logger.dart';
 
 final Logger _logger = getLogger('ReprocessCommentsHandler');
@@ -206,7 +207,7 @@ Future<void> handleReprocessCommentsImpl(
         'Reprocess comments task completed. Success: $successCount, Failed: $failCount, Total: $total');
   } catch (e, stack) {
     _logger.severe('Error in reprocess comments task: $e', e, stack);
-    rethrow;
+    rethrowIfNonRetryable(e);
   }
 }
 
@@ -283,4 +284,3 @@ Future<void> _saveProgress(
     jsonEncode(result),
   );
 }
-

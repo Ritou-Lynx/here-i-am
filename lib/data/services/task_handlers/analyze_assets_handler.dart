@@ -14,6 +14,7 @@ import 'package:memex/utils/logger.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/llm_call_record_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
+import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
 
 final Logger _logger = getLogger('AnalyzeAssetsHandler');
@@ -401,7 +402,7 @@ Future<AssetAnalysisResult?> _analyzeSingleAsset({
     );
   } catch (e, stack) {
     _logger.severe('Failed to analyze asset: $assetPath', e, stack);
-    rethrow;
+    rethrowIfNonRetryable(e);
   }
 }
 

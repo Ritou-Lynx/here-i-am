@@ -406,6 +406,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   final GlobalKey _aiButtonKey = GlobalKey();
   final GlobalKey _mainStackKey = GlobalKey();
   bool _isInvalidConfigDialogShowing = false;
+  bool _isErrorNotificationDialogShowing = false;
   bool _showFirstPostCoachMark = false;
   late final ShareIntentHandler _shareIntentHandler;
   InputData? _sharedDraft;
@@ -437,6 +438,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
     _eventBus.addHandler(
         EventBusMessageType.invalidModelConfig, _handleInvalidModelConfig);
+    _eventBus.addHandler(
+        EventBusMessageType.errorNotification, _handleErrorNotification);
 
     // Check onboarding state for first post coach mark
     _checkFirstPostOnboarding();
@@ -499,6 +502,55 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       ),
     ).then((_) {
       if (mounted) setState(() => _isInvalidConfigDialogShowing = false);
+    });
+  }
+
+  void _handleErrorNotification(EventBusMessage message) {
+    if (!mounted) return;
+    if (message is! ErrorNotificationMessage) return;
+    if (_isErrorNotificationDialogShowing) return;
+
+    final context = rootNavigatorKey.currentContext;
+    if (context == null) return;
+
+    setState(() => _isErrorNotificationDialogShowing = true);
+
+    final isAuthError = message.errorCategory == 'authenticationError';
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: Text(UserStorage.l10n.llmErrorDialogTitle),
+        content: Text(message.errorMessage),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (mounted)
+                setState(() => _isErrorNotificationDialogShowing = false);
+            },
+            child: Text(UserStorage.l10n.cancel),
+          ),
+          if (isAuthError)
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                if (mounted)
+                  setState(() => _isErrorNotificationDialogShowing = false);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ModelConfigListPage(),
+                  ),
+                );
+              },
+              child: Text(UserStorage.l10n.goToModelConfig),
+            ),
+        ],
+      ),
+    ).then((_) {
+      if (mounted) setState(() => _isErrorNotificationDialogShowing = false);
     });
   }
 
@@ -724,6 +776,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     _shareIntentHandler.dispose();
     _eventBus.removeHandler(
         EventBusMessageType.invalidModelConfig, _handleInvalidModelConfig);
+    _eventBus.removeHandler(
+        EventBusMessageType.errorNotification, _handleErrorNotification);
     // Note: do not disconnect event bus here; other screens may still use it
     super.dispose();
   }

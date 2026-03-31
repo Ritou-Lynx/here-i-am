@@ -838,5 +838,14 @@
     "placeholders": {
       "provider": {}
     }
-  }
+  },
+
+  "llmAuthError": "API 认证失败，请在设置中检查 LLM 配置。",
+  "llmBadRequestError": "请求被 LLM 服务商拒绝，当前模型可能不支持该输入格式。",
+  "llmRateLimitError": "API 调用频率超限，请稍后再试。",
+  "llmServerError": "LLM 服务暂时不可用，请稍后再试。",
+  "llmNetworkError": "网络连接失败，请检查网络设置。",
+  "llmUnknownError": "处理内容时发生未知错误。",
+  "llmErrorDialogTitle": "处理失败",
+  "goToModelConfig": "前往设置"
 }

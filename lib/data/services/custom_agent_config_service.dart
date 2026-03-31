@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/global_event_bus.dart';
 import 'package:memex/data/services/local_task_executor.dart';
+import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/domain/models/custom_agent_config.dart';
 import 'package:memex/domain/models/system_event.dart';
 import 'package:memex/utils/logger.dart';
@@ -289,6 +290,10 @@ class CustomAgentConfigService {
         (userId, payload, taskContext) async {
       await _runCustomAgentTask(userId, config, payload);
     });
+
+    // Register generic failure handler for error notification.
+    LocalTaskExecutor.instance
+        .registerFailureHandler(taskType, handleGenericAgentFailure);
 
     if (config.executionMode == ExecutionMode.async_) {
       eventBus.subscribe(

@@ -28,6 +28,7 @@ import 'package:memex/data/repositories/submit_input.dart'
 import 'package:memex/data/services/task_handlers/analyze_assets_handler.dart';
 import 'package:memex/data/services/task_handlers/card_agent_handler.dart';
 import 'package:memex/data/services/task_handlers/pkm_agent_handler.dart';
+import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/data/services/task_handlers/comment_agent_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_cards_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_comments_handler.dart';
@@ -112,6 +113,20 @@ class MemexRouter {
       // Register Failure Handlers
       LocalTaskExecutor.instance.registerFailureHandler(
           'card_agent_task', handleCardAgentFailureImpl);
+      // Generic failure handler for all other agent tasks — emits ErrorNotificationMessage
+      for (final taskType in [
+        'pkm_agent_task',
+        'comment_agent_task',
+        'knowledge_insight_task',
+        'reprocess_cards_task',
+        'reprocess_comments_task',
+        'reprocess_knowledge_base_task',
+        'process_ai_reply',
+        'handle_analyze_assets',
+      ]) {
+        LocalTaskExecutor.instance
+            .registerFailureHandler(taskType, handleGenericAgentFailure);
+      }
 
       // Register event subscriptions after task handlers are ready.
       _registerEventSubscriptions();

@@ -8,6 +8,7 @@ enum EventBusMessageType {
   newInsight('new_insight'),
   newSystemAction('new_system_action'),
   invalidModelConfig('invalid_model_config'),
+  errorNotification('error_notification'),
   unknown('unknown');
 
   final String value;
@@ -47,6 +48,8 @@ abstract class EventBusMessage {
         return NewSystemActionMessage.fromJson(json);
       case EventBusMessageType.invalidModelConfig:
         return InvalidModelConfigMessage.fromJson(json);
+      case EventBusMessageType.errorNotification:
+        return ErrorNotificationMessage.fromJson(json);
       default:
         return UnknownMessage.fromJson(json);
     }
@@ -282,6 +285,35 @@ class InvalidModelConfigMessage extends EventBusMessage {
     return InvalidModelConfigMessage(
       agentId: data['agent_id'] as String,
       configKey: data['config_key'] as String,
+    );
+  }
+}
+
+/// Error Notification Message (Trigger error alert dialog)
+class ErrorNotificationMessage extends EventBusMessage {
+  final String errorCategory;
+  final String errorMessage;
+  final String? cardId;
+
+  ErrorNotificationMessage({
+    required this.errorCategory,
+    required this.errorMessage,
+    this.cardId,
+  }) : super(
+          type: EventBusMessageType.errorNotification,
+          data: {
+            'error_category': errorCategory,
+            'error_message': errorMessage,
+            if (cardId != null) 'card_id': cardId,
+          },
+        );
+
+  factory ErrorNotificationMessage.fromJson(Map<String, dynamic> json) {
+    final data = json['data'] as Map<String, dynamic>;
+    return ErrorNotificationMessage(
+      errorCategory: data['error_category'] as String,
+      errorMessage: data['error_message'] as String,
+      cardId: data['card_id'] as String?,
     );
   }
 }

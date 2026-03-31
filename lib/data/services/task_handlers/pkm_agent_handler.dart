@@ -6,6 +6,7 @@ import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/agent/agent_utils.dart';
 import 'package:memex/data/services/memory_sync_service.dart';
+import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/utils/logger.dart';
 
@@ -65,7 +66,7 @@ Future<void> processWithPkmAgent({
     await MemorySyncService.instance.enqueueFact(userId, factId);
   } catch (e, stack) {
     _logger.severe('Error in processWithPkmAgent', e, stack);
-    rethrow;
+    rethrowIfNonRetryable(e);
   }
 }
 
@@ -122,6 +123,6 @@ Future<void> handlePkmAgentImpl(
     _logger.info('PKM Agent task completed for $factId');
   } catch (e, stack) {
     _logger.severe('Error in PKM Agent task: $e', e, stack);
-    rethrow;
+    rethrowIfNonRetryable(e);
   }
 }

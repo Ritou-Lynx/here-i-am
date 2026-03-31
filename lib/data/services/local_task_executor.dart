@@ -130,7 +130,7 @@ class LocalTaskExecutor {
     required Map<String, dynamic> payload,
     int priority = 0,
     int? scheduledAt,
-    int maxRetries = 10,
+    int maxRetries = 5,
     String? bizId,
     List<String>? dependencies,
   }) async {

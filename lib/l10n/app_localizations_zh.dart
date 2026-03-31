@@ -1817,4 +1817,28 @@ class AppLocalizationsZh extends AppLocalizations {
   String llmConsentDataShareNote(Object provider) {
     return '数据共享提示：您的数据将发送至 $provider 进行 AI 处理。';
   }
+
+  @override
+  String get llmAuthError => 'API 认证失败，请在设置中检查 LLM 配置。';
+
+  @override
+  String get llmBadRequestError => '请求被 LLM 服务商拒绝，当前模型可能不支持该输入格式。';
+
+  @override
+  String get llmRateLimitError => 'API 调用频率超限，请稍后再试。';
+
+  @override
+  String get llmServerError => 'LLM 服务暂时不可用，请稍后再试。';
+
+  @override
+  String get llmNetworkError => '网络连接失败，请检查网络设置。';
+
+  @override
+  String get llmUnknownError => '处理内容时发生未知错误。';
+
+  @override
+  String get llmErrorDialogTitle => '处理失败';
+
+  @override
+  String get goToModelConfig => '前往设置';
 }

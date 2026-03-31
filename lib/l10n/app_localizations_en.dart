@@ -1879,4 +1879,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String llmConsentDataShareNote(Object provider) {
     return 'Data sharing: Your data will be sent to $provider for AI processing.';
   }
+
+  @override
+  String get llmAuthError =>
+      'API authentication failed. Please check your LLM configuration in Settings.';
+
+  @override
+  String get llmBadRequestError =>
+      'The request was rejected by the LLM provider. The input format may not be supported by the current model.';
+
+  @override
+  String get llmRateLimitError =>
+      'API rate limit exceeded. Please try again later.';
+
+  @override
+  String get llmServerError =>
+      'LLM service is temporarily unavailable. Please try again later.';
+
+  @override
+  String get llmNetworkError =>
+      'Network connection failed. Please check your internet connection.';
+
+  @override
+  String get llmUnknownError =>
+      'An unexpected error occurred while processing your content.';
+
+  @override
+  String get llmErrorDialogTitle => 'Processing Failed';
+
+  @override
+  String get goToModelConfig => 'Go to Settings';
 }

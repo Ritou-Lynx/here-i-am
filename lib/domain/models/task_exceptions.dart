@@ -14,3 +14,23 @@ class InvalidModelConfigException implements NonRetryableTaskException {
   @override
   String toString() => "InvalidModelConfigException: $message";
 }
+
+/// Exception thrown when an LLM API call fails with a non-retryable HTTP error
+/// (e.g. 401, 403, 400). Task executor will skip retries and invoke the failure handler.
+class NonRetryableLlmException implements NonRetryableTaskException {
+  @override
+  final String message;
+
+  final int? statusCode;
+  final Object? originalError;
+
+  NonRetryableLlmException(
+    this.message, {
+    this.statusCode,
+    this.originalError,
+  });
+
+  @override
+  String toString() =>
+      "NonRetryableLlmException: $message${statusCode != null ? ' (HTTP $statusCode)' : ''}";
+}

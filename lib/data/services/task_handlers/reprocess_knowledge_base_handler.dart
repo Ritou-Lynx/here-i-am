@@ -4,6 +4,7 @@ import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/task_handlers/pkm_agent_handler.dart';
+import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/utils/logger.dart';
 
 final Logger _logger = getLogger('ReprocessKnowledgeBaseHandler');
@@ -196,7 +197,7 @@ Future<void> handleReprocessKnowledgeBaseImpl(
         'Reprocess knowledge base task completed. Success: $successCount, Failed: $failCount, Total: $total');
   } catch (e, stack) {
     _logger.severe('Error in reprocess knowledge base task: $e', e, stack);
-    rethrow;
+    rethrowIfNonRetryable(e);
   }
 }
 

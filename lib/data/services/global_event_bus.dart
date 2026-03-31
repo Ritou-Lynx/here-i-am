@@ -30,7 +30,7 @@ class EventTaskSubscription {
     required this.payloadBuilder,
     this.dependsOn = const [],
     this.priority = 0,
-    this.maxRetries = 10,
+    this.maxRetries = 5,
     this.dependenciesBuilder,
   });
 

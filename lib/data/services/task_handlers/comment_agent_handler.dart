@@ -5,6 +5,7 @@ import 'package:memex/agent/prompts.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/repositories/post_comment.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 
 final _logger = Logger('CommentAgentHandler');
 
@@ -57,7 +58,7 @@ Future<void> handleCommentAgentImpl(
     );
   } catch (e, stack) {
     _logger.severe("CommentAgentHandler failed: $e", e, stack);
-    rethrow;
+    rethrowIfNonRetryable(e);
   }
 }
 

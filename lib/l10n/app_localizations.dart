@@ -3451,6 +3451,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Data sharing: Your data will be sent to {provider} for AI processing.'**
   String llmConsentDataShareNote(Object provider);
+
+  /// No description provided for @llmAuthError.
+  ///
+  /// In en, this message translates to:
+  /// **'API authentication failed. Please check your LLM configuration in Settings.'**
+  String get llmAuthError;
+
+  /// No description provided for @llmBadRequestError.
+  ///
+  /// In en, this message translates to:
+  /// **'The request was rejected by the LLM provider. The input format may not be supported by the current model.'**
+  String get llmBadRequestError;
+
+  /// No description provided for @llmRateLimitError.
+  ///
+  /// In en, this message translates to:
+  /// **'API rate limit exceeded. Please try again later.'**
+  String get llmRateLimitError;
+
+  /// No description provided for @llmServerError.
+  ///
+  /// In en, this message translates to:
+  /// **'LLM service is temporarily unavailable. Please try again later.'**
+  String get llmServerError;
+
+  /// No description provided for @llmNetworkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Network connection failed. Please check your internet connection.'**
+  String get llmNetworkError;
+
+  /// No description provided for @llmUnknownError.
+  ///
+  /// In en, this message translates to:
+  /// **'An unexpected error occurred while processing your content.'**
+  String get llmUnknownError;
+
+  /// No description provided for @llmErrorDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing Failed'**
+  String get llmErrorDialogTitle;
+
+  /// No description provided for @goToModelConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Settings'**
+  String get goToModelConfig;
 }
 
 class _AppLocalizationsDelegate
