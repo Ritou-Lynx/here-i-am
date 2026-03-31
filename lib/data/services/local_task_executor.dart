@@ -402,6 +402,18 @@ class LocalTaskExecutor {
     }
   }
 
+  /// Check if a task of [taskType] with [bizId] has failed.
+  /// Returns the error string if failed, null otherwise.
+  Future<String?> getTaskErrorByBizId(String taskType, String bizId) async {
+    final query = _db.select(_db.tasks)
+      ..where((t) => t.type.equals(taskType))
+      ..where((t) => t.bizId.equals(bizId))
+      ..where((t) => t.status.equals('failed'))
+      ..limit(1);
+    final task = await query.getSingleOrNull();
+    return task?.error;
+  }
+
   /// Update task result (called by handlers)
   Future<void> updateTaskResult(String taskId, String result) async {
     await (_db.update(_db.tasks)..where((t) => t.id.equals(taskId))).write(

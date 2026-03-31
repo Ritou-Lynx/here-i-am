@@ -19,6 +19,12 @@ Future<void> handleCommentAgentImpl(
       .info("Running Comment Agent selection for fact $factId, user $userId");
 
   try {
+    // Check if asset analysis failed and input is media-only
+    await failIfAssetAnalysisFailed(
+      bizId: context.bizId,
+      combinedText: combinedText,
+    );
+
     // 1. Character Selection
     // If character_id is explicitly provided in payload, use it.
     // Otherwise, select one.

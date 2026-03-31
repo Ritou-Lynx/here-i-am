@@ -31,6 +31,10 @@ class NonRetryableLlmException implements NonRetryableTaskException {
   });
 
   @override
-  String toString() =>
-      "NonRetryableLlmException: $message${statusCode != null ? ' (HTTP $statusCode)' : ''}";
+  String toString() {
+    final buf = StringBuffer('NonRetryableLlmException: $message');
+    if (statusCode != null) buf.write(' (HTTP $statusCode)');
+    if (originalError != null) buf.write('\nOriginal error: $originalError');
+    return buf.toString();
+  }
 }

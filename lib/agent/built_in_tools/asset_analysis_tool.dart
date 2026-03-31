@@ -106,7 +106,7 @@ class AssetAnalysisTool {
   Note: Do not exceed 500 words.
   """;
 
-      _logger.info("Calling Gemini API...");
+      _logger.info("Calling API...");
       final response = await client.generate(
         [
           SystemMessage("You are an image analysis expert."),
@@ -140,12 +140,14 @@ class AssetAnalysisTool {
         path,
         minWidth: targetSize, // limit width
         minHeight: targetSize, // limit height
-        quality: quality, // 0-100, 85 is usually a good balance for visually lossless
+        quality:
+            quality, // 0-100, 85 is usually a good balance for visually lossless
         format: CompressFormat.webp, // output as WebP
 
         // Key: keep aspect ratio, auto-rotate (handles phone photo orientation)
         autoCorrectionAngle: true,
-        keepExif: false, // AI analysis usually doesn't need Exif (GPS etc.), omitting reduces size
+        keepExif:
+            false, // AI analysis usually doesn't need Exif (GPS etc.), omitting reduces size
       );
 
       return result;
@@ -193,8 +195,7 @@ class AssetAnalysisTool {
         case '.wma':
           // Gemini doesn't officially support WMA according to docs, but we can try or fail.
           // Python implementation throws error for WMA.
-          throw Exception(
-              "Audio format $ext (WMA) is not supported by Gemini.");
+          throw Exception("Audio format $ext (WMA) is not supported.");
       }
 
       // Python uses "Generate a transcript of the speech." as fixed prompt for audio
@@ -203,7 +204,7 @@ class AssetAnalysisTool {
       final base64Audio = base64Encode(bytes);
 
       _logger.info(
-          "Calling Gemini API for audio transcription..., mimeType: $mimeType, audioLength: ${bytes.length}");
+          "Calling API for audio transcription..., mimeType: $mimeType, audioLength: ${bytes.length}");
       final response = await client.generate(
         [
           UserMessage([

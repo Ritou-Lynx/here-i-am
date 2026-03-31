@@ -94,6 +94,11 @@ Future<void> handlePkmAgentImpl(
     // 2. Retrieve asset analyses (Stage 1 result)
     List<Map<String, dynamic>>? assetAnalyses;
     if (context.bizId != null) {
+      // Check if asset analysis failed and input is media-only
+      await failIfAssetAnalysisFailed(
+        bizId: context.bizId,
+        combinedText: combinedText,
+      );
       try {
         final analysisResult = await LocalTaskExecutor.instance
             .getTaskResultByBizId(
