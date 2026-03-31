@@ -961,7 +961,6 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
           Text(l10n.providerQwen),
           Text(l10n.providerSeed),
           Text(l10n.providerZhipu),
-          Text(l10n.providerMinimax),
           Text(l10n.providerMimo),
           Text(l10n.providerOpenRouter),
           Text(l10n.providerOllama),
@@ -1108,14 +1107,6 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
           child: Padding(
             padding: const EdgeInsets.only(left: 12),
             child: Text(UserStorage.l10n.providerZhipu,
-                style: TextStyle(color: Colors.grey[800])),
-          ),
-        ),
-        DropdownMenuItem(
-          value: LLMConfig.typeMinimax,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 12),
-            child: Text(UserStorage.l10n.providerMinimax,
                 style: TextStyle(color: Colors.grey[800])),
           ),
         ),
