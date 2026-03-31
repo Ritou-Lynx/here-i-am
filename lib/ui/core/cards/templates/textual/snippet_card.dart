@@ -15,45 +15,48 @@ class SnippetCard extends StatelessWidget {
     final List<String> tags =
         (data['tags'] as List<dynamic>?)?.cast<String>() ?? [];
 
-    return GlassCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          MarkdownBody(
-            data: text,
-            styleSheet: MarkdownStyleSheet(
-              p: _getTextStyle(style),
-              code: const TextStyle(
-                backgroundColor: Color(0xFFF7F8FA),
-                color: Color(0xFF0A0A0A),
-                fontFamily: 'monospace',
-              ),
-              codeblockDecoration: BoxDecoration(
-                color: const Color(0xFFF7F8FA),
-                borderRadius: BorderRadius.circular(8),
+    return SizedBox(
+      width: double.infinity,
+      child: GlassCard(
+        onTap: onTap,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            MarkdownBody(
+              data: text,
+              styleSheet: MarkdownStyleSheet(
+                p: _getTextStyle(style),
+                code: const TextStyle(
+                  backgroundColor: Color(0xFFF7F8FA),
+                  color: Color(0xFF0A0A0A),
+                  fontFamily: 'monospace',
+                ),
+                codeblockDecoration: BoxDecoration(
+                  color: const Color(0xFFF7F8FA),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
-          ),
-          if (tags.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              children: tags
-                  .map((tag) => Text(
-                        '#$tag',
-                        style: const TextStyle(
-                          fontFamily: 'PingFang SC',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: Color(0xFF5B6CFF),
-                        ),
-                      ))
-                  .toList(),
-            ),
+            if (tags.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: tags
+                    .map((tag) => Text(
+                          '#$tag',
+                          style: const TextStyle(
+                            fontFamily: 'PingFang SC',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: Color(0xFF5B6CFF),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
