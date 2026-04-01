@@ -86,6 +86,11 @@ coverage/
 
 .state_dir/
 
+# Android signing
+android/key-*.properties
+android/app/*.keystore
+android/app/*.jks
+
 # Exceptions to above rules.
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 

@@ -1,25 +1,36 @@
-import java.util.Properties
 import java.io.FileInputStream
+import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("kotlin-android")
+    id("org.jetbrains.kotlin.android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-}
-val hasKeystore = keystorePropertiesFile.exists() &&
-    keystoreProperties["keyAlias"] != null &&
-    keystoreProperties["keyPassword"] != null &&
-    keystoreProperties["storeFile"] != null &&
-    keystoreProperties["storePassword"] != null
-
 android {
+    val globalKeystoreProperties = Properties()
+    val globalKeystorePropertiesFile = rootProject.file("key-global.properties")
+    if (globalKeystorePropertiesFile.exists()) {
+        globalKeystoreProperties.load(FileInputStream(globalKeystorePropertiesFile))
+    }
+    val hasGlobalKeystore = globalKeystorePropertiesFile.exists() &&
+        globalKeystoreProperties["keyAlias"] != null &&
+        globalKeystoreProperties["keyPassword"] != null &&
+        globalKeystoreProperties["storeFile"] != null &&
+        globalKeystoreProperties["storePassword"] != null
+
+    val cnKeystoreProperties = Properties()
+    val cnKeystorePropertiesFile = rootProject.file("key-cn.properties")
+    if (cnKeystorePropertiesFile.exists()) {
+        cnKeystoreProperties.load(FileInputStream(cnKeystorePropertiesFile))
+    }
+    val hasCnKeystore = cnKeystorePropertiesFile.exists() &&
+        cnKeystoreProperties["keyAlias"] != null &&
+        cnKeystoreProperties["keyPassword"] != null &&
+        cnKeystoreProperties["storeFile"] != null &&
+        cnKeystoreProperties["storePassword"] != null
+
     namespace = "com.memexlab.memex"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
@@ -41,34 +52,48 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasGlobalKeystore) {
+            create("globalRelease") {
+                keyAlias = globalKeystoreProperties["keyAlias"] as String
+                keyPassword = globalKeystoreProperties["keyPassword"] as String
+                storeFile = file(globalKeystoreProperties["storeFile"] as String)
+                storePassword = globalKeystoreProperties["storePassword"] as String
+            }
+        }
+        if (hasCnKeystore) {
+            create("cnRelease") {
+                keyAlias = cnKeystoreProperties["keyAlias"] as String
+                keyPassword = cnKeystoreProperties["keyPassword"] as String
+                storeFile = file(cnKeystoreProperties["storeFile"] as String)
+                storePassword = cnKeystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     flavorDimensions += "market"
     productFlavors {
         create("global") {
             dimension = "market"
             applicationId = "com.memexlab.memex"
+            if (hasGlobalKeystore) {
+                signingConfig = signingConfigs.getByName("globalRelease")
+            }
         }
         create("cn") {
             dimension = "market"
             applicationId = "com.memexlab.memex.cn"
-        }
-    }
-
-    signingConfigs {
-        if (hasKeystore) {
-            create("release") {
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
+            if (hasCnKeystore) {
+                signingConfig = signingConfigs.getByName("cnRelease")
             }
         }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
-            if (hasKeystore) {
-                signingConfig = signingConfigs.getByName("release")
-            }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
