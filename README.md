@@ -27,7 +27,7 @@ Under the hood, Memex's multi-agent intelligence is powered by a fully open Cust
 All data stays on your device. You bring your own LLM provider.
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/450eb6e5-8adf-4c1f-bc46-a63c9836f22c" width="300" />
+  <img src="https://github.com/user-attachments/assets/2a1c1c29-9925-4b9d-aea4-863b5666d5c5" width="300" />
 </div>
 
 ## Features
