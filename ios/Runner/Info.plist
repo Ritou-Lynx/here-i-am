@@ -87,6 +87,8 @@
 		<string>Need reminders access to read, add and edit your todos</string>
 		<key>NSHealthShareUsageDescription</key>
 		<string>Memex reads your daily step count to generate personalized activity insights and trend analysis.</string>
+		<key>NSHealthUpdateUsageDescription</key>
+		<string>Memex does not write health data. This key is required by a third-party library.</string>
 		<key>NSFamilyControlsUsageDescription</key>
 		<string>Need Screen Time access to analyze your attention distribution</string>
 		<key>NSMotionUsageDescription</key>
