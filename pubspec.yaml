@@ -97,6 +97,6 @@ flutter:
   generate: true
 
   assets:
-    - assets/startup.jpg
+    - assets/startup.png
     - assets/icon.png
     - assets/icons/
