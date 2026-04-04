@@ -56,7 +56,7 @@ class BubbleChartCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F8FA), // Slate-50
+          color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           // Gradient border or shadow if needed, but design looks clean flat/soft
           boxShadow: [
@@ -131,22 +131,6 @@ class BubbleChartCard extends StatelessWidget {
             ),
 
             const SizedBox(height: 24),
-
-            // Insight
-            if (insight != null && insight!.isNotEmpty) ...[
-              Text(
-                insight!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF4A5565), // Slate-500
-                  fontStyle: FontStyle.italic,
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-            ],
 
             // Footer
             if (footer != null)

@@ -559,33 +559,11 @@ class UserStorage {
     }
   }
 
-  /// Predefined avatar options (people & character faces).
-  static const List<String> avatarOptions = [
-    '🧑',
-    '👨',
-    '👩',
-    '🧑',
-    '👦',
-    '👧',
-    '🧔',
-    '👱',
-    '👨\u200D🦰',
-    '👩\u200D🦰',
-    '👨\u200D🦱',
-    '👩\u200D🦱',
-    '👨\u200D🦳',
-    '👩\u200D🦳',
-    '👴',
-    '👵',
-    '🧑\u200D💻',
-    '👨\u200D💻',
-    '👩\u200D💻',
-    '🧑\u200D🚀',
-    '🧑\u200D🎨',
-    '🧑\u200D🔬',
-    '🥷',
-    '🧙',
-  ];
+  /// Default avatar seed for DiceBear Notionists style.
+  static const String defaultAvatarSeed = 'Felix';
+
+  /// Legacy emoji avatar options — kept for migration detection only.
+  static const List<String> avatarOptions = ['Felix'];
 
   /// Get stored user avatar. Returns null if not set.
   static Future<String?> getUserAvatar() async {

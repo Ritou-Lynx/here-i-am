@@ -736,6 +736,8 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
                 ] else if (_selectedType == LLMConfig.typeBedrockClaude) ...[
                   _buildBedrockFields(),
                   const SizedBox(height: 20),
+                ] else if (_selectedType == LLMConfig.typeOllama) ...[
+                  // Ollama doesn't need an API key
                 ] else ...[
                   _buildApiKeyField(),
                   const SizedBox(height: 20),

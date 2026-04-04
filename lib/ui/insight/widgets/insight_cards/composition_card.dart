@@ -55,8 +55,13 @@ class HeadlineItem {
   HeadlineItem({required this.text, this.color});
 
   factory HeadlineItem.fromJson(Map<String, dynamic> json) {
+    // Support both {"text": "..."} and {"label": "...", "value": "..."}
+    final text = json['text'] as String? ??
+        (json['label'] != null && json['value'] != null
+            ? '${json['label']}: ${json['value']}'
+            : json['label'] as String? ?? '');
     return HeadlineItem(
-      text: json['text'] as String? ?? '',
+      text: text,
       color: json['color'] != null
           ? CompositionItem._parseColor(json['color'])
           : null,
@@ -142,33 +147,20 @@ class CompositionCard extends StatelessWidget {
               ),
             ),
 
-            // Insight
-            if (insight != null && insight!.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                insight!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF4A5565),
-                  fontStyle: FontStyle.italic,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-
             // Headline
-            if (headlineItems.isNotEmpty) ...[
+            if (headlineItems.isNotEmpty &&
+                headlineItems.any((h) => h.text.isNotEmpty)) ...[
               RichText(
                 text: TextSpan(
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF0A0A0A), // Slate-800
-                    height: 1.4,
+                    color: Color(0xFF0A0A0A),
+                    height: 1.3,
                   ),
-                  children: headlineItems.map((item) {
+                  children: headlineItems
+                      .where((item) => item.text.isNotEmpty)
+                      .map((item) {
                     return TextSpan(
                       text: item.text,
                       style: TextStyle(
@@ -177,16 +169,16 @@ class CompositionCard extends StatelessWidget {
                             item.color != null && item.color != Colors.black
                                 ? FontWeight.bold
                                 : FontWeight.w600,
-                        // Add underlining or other styles if needed
                       ),
                     );
                   }).toList(),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 6),
             ],
 
             // Progress Bar
+            const SizedBox(height: 12),
             _buildProgressBar(),
 
             const SizedBox(height: 16),

@@ -1068,6 +1068,8 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                   ),
                 ),
                 const SizedBox(height: 16),
+              ] else if (_selectedType == LLMConfig.typeOllama) ...[
+                // Ollama doesn't need an API key — skip
               ] else ...[
                 TextFormField(
                   controller: _apiKeyController,
