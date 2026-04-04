@@ -503,7 +503,7 @@ class InsightTemplateGalleryPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 8, top: 12),
+          padding: const EdgeInsets.only(bottom: 8, top: 22),
           child: Text(
             label,
             style: const TextStyle(

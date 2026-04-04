@@ -205,20 +205,6 @@ class BarChartCard extends StatelessWidget {
                 ),
               );
             }),
-
-            // Insight
-            if (insight != null && insight!.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              Text(
-                insight!,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: const Color(0xFF4A5565),
-                  height: 1.5,
-                ),
-              ),
-            ],
           ],
         ),
       ),

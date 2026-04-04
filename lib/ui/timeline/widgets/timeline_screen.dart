@@ -27,6 +27,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:memex/ui/settings/widgets/model_config_list_page.dart';
 import 'package:memex/ui/settings/widgets/system_authorization_page.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 
 /// Timeline screen - main memory view. Receives [viewModel] and [insightViewModel] from parent (Compass-style).
 class TimelineScreen extends StatefulWidget {
@@ -448,21 +449,15 @@ class TimelineScreenState extends State<TimelineScreen> {
                             child: Container(
                               width: 32,
                               height: 32,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFFEEF2FF),
                               ),
-                              child: Center(
-                                child: Text(
-                                  _userAvatar ?? 'M',
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF5B6CFF),
-                                    height: 1.0,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
+                              child: DiceBearAvatar(
+                                seed: _userAvatar ??
+                                    UserStorage.defaultAvatarSeed,
+                                size: 32,
+                                backgroundColor: Colors.transparent,
                               ),
                             ),
                           ),

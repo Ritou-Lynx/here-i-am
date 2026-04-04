@@ -170,11 +170,9 @@ class TimelineCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       item.content!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
-                        color: item.isFilledDot
-                            ? const Color(0xFF99A1AF)
-                            : const Color(0xFF4A5565),
+                        color: Color(0xFF99A1AF),
                         height: 1.5,
                       ),
                     ),

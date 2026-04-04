@@ -66,19 +66,6 @@ class GalleryCard extends StatelessWidget {
                 color: Color(0xFF0A0A0A),
               ),
             ),
-            if (insight != null && insight!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                insight!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF4A5565),
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
-            const SizedBox(height: 4),
 
             // Subtitle (headline)
             Text(
@@ -92,7 +79,7 @@ class GalleryCard extends StatelessWidget {
                 color: Color(0xFF9CA3AF),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 15),
 
             // Images Carousel
             if (images.isNotEmpty) ...[

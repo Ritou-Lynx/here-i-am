@@ -13,6 +13,7 @@ import 'package:memex/ui/settings/widgets/debug_settings_page.dart';
 import 'package:memex/ui/settings/widgets/settings_page.dart';
 import 'package:memex/utils/permission_utils.dart';
 import 'package:memex/ui/core/widgets/avatar_picker.dart';
+import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 
 /// Personal center screen
 class PersonalCenterScreen extends StatefulWidget {
@@ -61,7 +62,8 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
   }
 
   Future<void> _changeAvatar() async {
-    final picked = await showAvatarPicker(context, _userAvatar ?? '👤');
+    final picked = await showAvatarPicker(
+        context, _userAvatar ?? UserStorage.defaultAvatarSeed);
     if (picked != null && mounted) {
       await UserStorage.saveUserAvatar(picked);
       setState(() => _userAvatar = picked);
@@ -699,11 +701,10 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
                                   color: Color(0xFFEEF2FF),
                                   shape: BoxShape.circle,
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    _userAvatar ?? '👤',
-                                    style: const TextStyle(fontSize: 44),
-                                  ),
+                                child: DiceBearAvatar(
+                                  seed: _userAvatar ??
+                                      UserStorage.defaultAvatarSeed,
+                                  size: 80,
                                 ),
                               ),
                               Positioned(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/domain/models/insight_detail_model.dart';
 import 'package:memex/ui/core/cards/native_card_factory.dart';
@@ -192,6 +193,46 @@ class _InsightDetailPageState extends State<InsightDetailPage> {
                   _insightDetail!.widgetData!,
                 ) ??
                 const SizedBox.shrink(),
+
+            // Insight comment below card
+            if (_content.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8FA),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 1),
+                      child: Icon(
+                        Icons.auto_awesome,
+                        size: 16,
+                        color: Color(0xFF5B6CFF),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _content,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: const Color(0xFF4A5565),
+                          height: 1.6,
+                          letterSpacing: -0.15,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 32),
           ] else if (_content.isNotEmpty) ...[
             Text(

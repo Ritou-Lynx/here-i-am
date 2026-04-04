@@ -93,6 +93,12 @@
 		<string>Need Screen Time access to analyze your attention distribution</string>
 		<key>NSMotionUsageDescription</key>
 		<string>Memex uses motion data to track your daily step count and create activity-based timeline cards.</string>
+		<key>NSLocalNetworkUsageDescription</key>
+		<string>Memex needs local network access to connect to self-hosted AI models (e.g. Ollama) running on your computer.</string>
+		<key>NSBonjourServices</key>
+		<array>
+			<string>_http._tcp</string>
+		</array>
 		<key>UIBackgroundModes</key>
 		<array>
 			<string>processing</string>

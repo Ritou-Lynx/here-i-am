@@ -8,6 +8,7 @@ import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/ui/user_setup/widgets/setup_model_config_page.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/core/widgets/avatar_picker.dart';
+import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 
 /// User setup screen. Shown when user opens app for the first time or no local userId.
@@ -28,7 +29,8 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   final _userIdController = TextEditingController();
   bool _isSubmitting = false;
   String _selectedLang = 'en';
-  String _selectedAvatar = UserStorage.avatarOptions[0];
+  String _selectedAvatar = UserStorage.defaultAvatarSeed;
+  bool _hasPickedAvatar = false;
 
   @override
   void initState() {
@@ -36,6 +38,14 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
     _detectSystemLanguage();
     _loadExistingUserId();
     _loadExistingAvatar();
+    _userIdController.addListener(_onNicknameChanged);
+  }
+
+  void _onNicknameChanged() {
+    // Auto-update avatar seed to match nickname if user hasn't explicitly picked one
+    if (!_hasPickedAvatar && _userIdController.text.trim().isNotEmpty) {
+      setState(() => _selectedAvatar = _userIdController.text.trim());
+    }
   }
 
   void _detectSystemLanguage() {
@@ -57,7 +67,10 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   Future<void> _loadExistingAvatar() async {
     final avatar = await UserStorage.getUserAvatar();
     if (avatar != null && mounted) {
-      setState(() => _selectedAvatar = avatar);
+      setState(() {
+        _selectedAvatar = avatar;
+        _hasPickedAvatar = true;
+      });
     }
   }
 
@@ -70,6 +83,7 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
 
   @override
   void dispose() {
+    _userIdController.removeListener(_onNicknameChanged);
     _userIdController.dispose();
     super.dispose();
   }
@@ -172,11 +186,9 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
                               ),
                             ],
                           ),
-                          child: Center(
-                            child: Text(
-                              _selectedAvatar,
-                              style: const TextStyle(fontSize: 48),
-                            ),
+                          child: DiceBearAvatar(
+                            seed: _selectedAvatar,
+                            size: 94,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -350,7 +362,10 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   void _showAvatarPicker() async {
     final picked = await showAvatarPicker(context, _selectedAvatar);
     if (picked != null && mounted) {
-      setState(() => _selectedAvatar = picked);
+      setState(() {
+        _selectedAvatar = picked;
+        _hasPickedAvatar = true;
+      });
     }
   }
 

@@ -160,21 +160,6 @@ class RadarChartCard extends StatelessWidget {
                   );
                 },
               ),
-            if (insight != null && insight!.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              Text(
-                insight!,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: const Color(0xFF4A5565),
-                  fontStyle: FontStyle.italic,
-                  height: 1.5,
-                  letterSpacing: -0.15,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
           ],
         ),
       ),

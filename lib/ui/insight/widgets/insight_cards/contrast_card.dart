@@ -53,7 +53,7 @@ class ContrastCard extends StatelessWidget {
                 color: Color(0xFF0A0A0A),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 4),
 
             // Old perspective (quoted)
             Text(
@@ -67,7 +67,7 @@ class ContrastCard extends StatelessWidget {
                 color: Color(0xFF9CA3AF),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 14),
 
             // New perspective box
             Container(

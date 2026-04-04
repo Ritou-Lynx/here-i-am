@@ -527,6 +527,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(UserStorage.l10n.confirmDelete),
         content: Text(UserStorage.l10n.confirmDeleteCardMessage),
         actions: [
@@ -1280,7 +1281,6 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                 Text(
                   UserStorage.l10n.relatedMemories, // Semantic and soft
                   style: const TextStyle(
-                    
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
                     color: Color(0xFF4A5565),
