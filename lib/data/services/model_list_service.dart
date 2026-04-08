@@ -68,6 +68,12 @@ class ModelListService {
     if (type == LLMConfig.typeSeed) {
       return _parseVolcengineModels(json);
     }
+    if (type == LLMConfig.typeQwen) {
+      return _parseQwenModels(json);
+    }
+    if (type == LLMConfig.typeZhipu) {
+      return _parseZhipuModels(json);
+    }
     return _parseOpenAiModels(json);
   }
 
@@ -84,6 +90,35 @@ class ModelListService {
     }
     ids.sort();
     return ids;
+  }
+
+  /// Parse Qwen (Aliyun) response: OpenAI-compatible, with irrelevant models filtered out.
+  static final _qwenExcludePattern = RegExp(
+    r'MiniMax|codeqwen|qwen-coder|qwen-image|qwen-math|qwen-mt-|qwen1\.5|qwen2-|-tts-|tongyi-|z-image|wan2',
+    caseSensitive: false,
+  );
+
+  static List<String> _parseQwenModels(dynamic json) {
+    final all = _parseOpenAiModels(json);
+    return all.where((id) => !_qwenExcludePattern.hasMatch(id)).toList();
+  }
+
+  /// Zhipu models that don't support multimodal input — exact match only.
+  static const _zhipuExcludeExact = {
+    'glm-4.5',
+    'glm-4.5-air',
+    'glm-4.6',
+    'glm-4.7',
+    'glm-5',
+    'glm-5-turbo',
+    'glm-5.1',
+  };
+
+  static List<String> _parseZhipuModels(dynamic json) {
+    final all = _parseOpenAiModels(json);
+    return all
+        .where((id) => !_zhipuExcludeExact.contains(id.toLowerCase()))
+        .toList();
   }
 
   /// Parse Gemini response: { "models": [{ "name": "models/gemini-..." }, ...] }

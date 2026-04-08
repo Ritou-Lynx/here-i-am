@@ -7,6 +7,7 @@ import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class AppLockSettingsPage extends StatefulWidget {
   const AppLockSettingsPage({super.key});
@@ -140,15 +141,16 @@ class _AppLockSettingsPageState extends State<AppLockSettingsPage> {
       appBar: AppBar(
         title: Text(
           UserStorage.l10n.appLockSettings,
-          style: TextStyle(
-            color: Color(0xFF0F172A),
+          style: const TextStyle(
+            color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
       body: _isLoading
           ? Center(child: AgentLogoLoading())
@@ -161,44 +163,44 @@ class _AppLockSettingsPageState extends State<AppLockSettingsPage> {
                       SwitchListTile(
                         title: Text(
                           UserStorage.l10n.enableAppLock,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F172A),
+                            color: AppColors.textPrimary,
                           ),
                         ),
                         subtitle: Text(
                           UserStorage.l10n.enableAppLockSubtitle,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF64748B),
+                            color: AppColors.textSecondary,
                           ),
                         ),
                         value: _isLockEnabled,
                         onChanged: _toggleLock,
-                        activeColor: const Color(0xFF6366F1),
+                        activeColor: AppColors.primary,
                       ),
                       if (_canCheckBiometrics && _isLockEnabled) ...[
                         const Divider(height: 1),
                         SwitchListTile(
                           title: Text(
                             UserStorage.l10n.enableBiometrics,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF0F172A),
+                              color: AppColors.textPrimary,
                             ),
                           ),
                           subtitle: Text(
                             UserStorage.l10n.biometricsSubtitle,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 12,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textSecondary,
                             ),
                           ),
                           value: _isBiometricsEnabled,
                           onChanged: _toggleBiometrics,
-                          activeColor: const Color(0xFF6366F1),
+                          activeColor: AppColors.primary,
                         ),
                       ],
                     ],
@@ -210,10 +212,10 @@ class _AppLockSettingsPageState extends State<AppLockSettingsPage> {
                     child: ListTile(
                       title: Text(
                         UserStorage.l10n.changePassword,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF0F172A),
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       trailing: const Icon(Icons.chevron_right),
@@ -232,7 +234,7 @@ class _AppLockSettingsPageState extends State<AppLockSettingsPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF64748B).withOpacity(0.08),
+            color: AppColors.textSecondary.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -342,7 +344,7 @@ class _SetPasswordSheetState extends State<_SetPasswordSheet> {
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+              color: AppColors.textPrimary,
             ),
           ),
           if (_errorMessage.isNotEmpty) ...[
@@ -367,9 +369,7 @@ class _SetPasswordSheetState extends State<_SetPasswordSheet> {
                 height: 16,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isFilled
-                      ? const Color(0xFF6366F1)
-                      : const Color(0xFFE2E8F0),
+                  color: isFilled ? AppColors.primary : const Color(0xFFE2E8F0),
                 ),
               );
             }),
@@ -438,7 +438,7 @@ class _SetPasswordSheetState extends State<_SetPasswordSheet> {
           style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w500,
-            color: Color(0xFF0F172A),
+            color: AppColors.textPrimary,
           ),
         ),
       ),

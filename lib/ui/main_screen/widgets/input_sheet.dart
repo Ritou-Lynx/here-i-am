@@ -13,6 +13,7 @@ import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/data/services/photo_suggestion_service.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 /// Input data model for submission
 class InputData {
@@ -662,14 +663,14 @@ class _InputSheetState extends State<InputSheet>
                                           hintText: UserStorage
                                               .l10n.tellAiWhatHappened,
                                           hintStyle: const TextStyle(
-                                            color: Color(0xFF94A3B8),
+                                            color: AppColors.textTertiary,
                                             fontSize: 18,
                                           ),
                                           border: InputBorder.none,
                                         ),
                                         style: const TextStyle(
                                           fontSize: 18,
-                                          color: Color(0xFF1E293B),
+                                          color: AppColors.textPrimary,
                                           fontWeight: FontWeight.w500,
                                           height: 1.5,
                                         ),
@@ -687,12 +688,12 @@ class _InputSheetState extends State<InputSheet>
                                                 vertical: 6,
                                               ),
                                               decoration: BoxDecoration(
-                                                color: const Color(0xFFEEF2FF),
+                                                color: AppColors.iconBgLight,
                                                 borderRadius:
                                                     BorderRadius.circular(16),
                                                 border: Border.all(
-                                                  color:
-                                                      const Color(0xFFC7D2FE),
+                                                  color: AppColors.primary
+                                                      .withValues(alpha: 0.3),
                                                   width: 1,
                                                 ),
                                               ),
@@ -702,7 +703,7 @@ class _InputSheetState extends State<InputSheet>
                                                   const Text(
                                                     '#',
                                                     style: TextStyle(
-                                                      color: Color(0xFF6366F1),
+                                                      color: AppColors.primary,
                                                       fontSize: 12,
                                                       fontWeight:
                                                           FontWeight.bold,
@@ -712,7 +713,7 @@ class _InputSheetState extends State<InputSheet>
                                                   Text(
                                                     tag,
                                                     style: const TextStyle(
-                                                      color: Color(0xFF6366F1),
+                                                      color: AppColors.primary,
                                                       fontSize: 12,
                                                       fontWeight:
                                                           FontWeight.w500,
@@ -832,8 +833,7 @@ class _InputSheetState extends State<InputSheet>
                                                           .pause_circle_filled
                                                       : Icons
                                                           .play_circle_filled,
-                                                  color:
-                                                      const Color(0xFF6366F1),
+                                                  color: AppColors.primary,
                                                   size: 24,
                                                 ),
                                                 const SizedBox(width: 8),
@@ -851,10 +851,9 @@ class _InputSheetState extends State<InputSheet>
                                                                 .recordedAudio),
                                                     style: TextStyle(
                                                       color: _isPlaying
-                                                          ? const Color(
-                                                              0xFF6366F1)
-                                                          : const Color(
-                                                              0xFF64748B),
+                                                          ? AppColors.primary
+                                                          : AppColors
+                                                              .textSecondary,
                                                       fontSize: 14,
                                                       fontWeight: _isPlaying
                                                           ? FontWeight.bold
@@ -868,7 +867,8 @@ class _InputSheetState extends State<InputSheet>
                                                     child: const Icon(
                                                       Icons.close,
                                                       size: 20,
-                                                      color: Color(0xFF64748B),
+                                                      color: AppColors
+                                                          .textSecondary,
                                                     ),
                                                   ),
                                               ],
@@ -900,7 +900,7 @@ class _InputSheetState extends State<InputSheet>
                                                 size: 22,
                                                 color: _isRecording
                                                     ? Colors.white
-                                                    : const Color(0xFF64748B),
+                                                    : AppColors.textSecondary,
                                               ),
                                             ),
                                           ),
@@ -918,7 +918,7 @@ class _InputSheetState extends State<InputSheet>
                                               child: const Icon(
                                                 Icons.image,
                                                 size: 22,
-                                                color: Color(0xFF64748B),
+                                                color: AppColors.textSecondary,
                                               ),
                                             ),
                                           ),
@@ -994,7 +994,7 @@ class _InputSheetState extends State<InputSheet>
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  const Color(0xFF6366F1).withOpacity(0.5),
+                  AppColors.primary.withValues(alpha: 0.5),
                 ),
               ),
             ),
@@ -1002,7 +1002,7 @@ class _InputSheetState extends State<InputSheet>
             Text(
               UserStorage.l10n.smartSuggesting,
               style: const TextStyle(
-                color: Color(0xFF94A3B8),
+                color: AppColors.textTertiary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -1088,7 +1088,7 @@ class _InputSheetState extends State<InputSheet>
                 child: Text(
                   '+${cluster.length - 5}',
                   style: const TextStyle(
-                    color: Color(0xFF94A3B8),
+                    color: AppColors.textTertiary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1098,9 +1098,8 @@ class _InputSheetState extends State<InputSheet>
             Icon(
               isAllSelected ? Icons.check_circle : Icons.add_circle_outline,
               size: 20,
-              color: isAllSelected
-                  ? const Color(0xFF6366F1)
-                  : const Color(0xFFCBD5E1),
+              color:
+                  isAllSelected ? AppColors.primary : const Color(0xFFCBD5E1),
             ),
           ],
         ),

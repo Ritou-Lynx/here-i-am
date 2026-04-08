@@ -10,6 +10,7 @@ import 'package:memex/data/services/model_list_service.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/ui/core/widgets/searchable_dropdown.dart';
 import 'package:memex/config/app_config.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class ModelConfigEditPage extends StatefulWidget {
   final LLMConfig? config;
@@ -223,6 +224,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(l10n.oauthHintTitle),
         content: Text(l10n.oauthHintMessage),
         actions: [
@@ -553,9 +555,22 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
   }
 
   /// Returns the model options to show: fetched models if available, else recommended.
+  /// Featured models are sorted to the top.
+  /// Missing featured models are prepended even if not in the fetched list.
   List<String> _modelOptions() {
-    if (_fetchedModels.isNotEmpty) return _fetchedModels;
-    return _getRecommendedModels(_selectedType);
+    final models = _fetchedModels.isNotEmpty
+        ? _fetchedModels
+        : _getRecommendedModels(_selectedType);
+    final featured = LLMConfig.featuredModels(_selectedType);
+    if (featured.isEmpty) return models;
+    // Ensure all featured models appear, even if API didn't return them
+    final missingFeatured = featured.where((m) => !models.contains(m)).toList();
+    final top = [
+      ...missingFeatured,
+      ...models.where((m) => featured.contains(m))
+    ];
+    final rest = models.where((m) => !featured.contains(m)).toList();
+    return [...top, ...rest];
   }
 
   /// Whether the model selector should be disabled (needs API key first).
@@ -677,6 +692,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
+          backgroundColor: Colors.white,
           title: Text(UserStorage.l10n.warning),
           content: Text(UserStorage.l10n.invalidConfigurationWarning),
           actions: [
@@ -710,6 +726,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
+            backgroundColor: Colors.white,
             title: Text(l10n.llmConsentTitle),
             content: SingleChildScrollView(
               child: Text(l10n.llmConsentMessage(providerName)),
@@ -759,6 +776,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(UserStorage.l10n.resetConfigurationTitle),
         content: Text(UserStorage.l10n.resetConfigurationMessage),
         actions: [
@@ -825,6 +843,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(UserStorage.l10n.discardChangesTitle),
         content: Text(UserStorage.l10n.discardChangesMessage),
         actions: [
@@ -858,6 +877,8 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
       },
       child: Scaffold(
         appBar: AppBar(
+          backgroundColor: AppColors.background,
+          surfaceTintColor: AppColors.background,
           title: Text(widget.config == null
               ? UserStorage.l10n.addConfiguration
               : UserStorage.l10n.editConfiguration),
@@ -1137,12 +1158,35 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                             final isPro =
                                 _selectedType == LLMConfig.typeOpenAiOauth &&
                                     _isProModel(option);
+                            final isFeatured =
+                                LLMConfig.featuredModels(_selectedType)
+                                    .contains(option);
                             return Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 12),
                               child: Row(
                                 children: [
                                   Expanded(child: Text(option)),
+                                  if (isFeatured)
+                                    Container(
+                                      margin: const EdgeInsets.only(left: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        UserStorage.l10n.localeName == 'zh'
+                                            ? '推荐'
+                                            : 'Recommended',
+                                        style: TextStyle(
+                                            fontSize: 10,
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
                                   if (isPro)
                                     Container(
                                       margin: const EdgeInsets.only(left: 8),

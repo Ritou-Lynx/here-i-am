@@ -4,6 +4,7 @@ import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'model_config_edit_page.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 import 'package:memex/domain/models/agent_definitions.dart';
 
@@ -96,6 +97,7 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
+          backgroundColor: Colors.white,
           title: Text(l10n.cannotDeleteConfigurationTitle),
           content: Text(
             l10n.configUsedByAgentsMessage(usingAgents.join('\n')),
@@ -116,6 +118,7 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(l10n.deleteConfigurationTitle),
         content: Text(l10n.confirmDeleteConfigMessage(config.key)),
         actions: [
@@ -157,6 +160,8 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.modelConfiguration),
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         actions: [
           IconButton(
             icon: const Icon(Icons.restore_page),
@@ -166,6 +171,7 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
               final confirmed = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
+                  backgroundColor: Colors.white,
                   title: Text(l10n.resetAllConfigurationsTitle),
                   content: Text(l10n.resetAllModelConfigurationsMessage),
                   actions: [
@@ -241,6 +247,7 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                             showDialog(
                               context: context,
                               builder: (context) => AlertDialog(
+                                backgroundColor: Colors.white,
                                 title:
                                     Text(l10n.cannotDeleteConfigurationTitle),
                                 content: Text(
@@ -264,6 +271,7 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                           return await showDialog<bool>(
                             context: context,
                             builder: (context) => AlertDialog(
+                              backgroundColor: Colors.white,
                               title: Text(l10n.deleteConfigurationTitle),
                               content: Text(
                                   l10n.confirmDeleteConfigMessage(config.key)),

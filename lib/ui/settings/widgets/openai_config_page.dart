@@ -5,6 +5,7 @@ import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class OpenAiConfigPage extends StatefulWidget {
   const OpenAiConfigPage({super.key});
@@ -146,7 +147,8 @@ class _OpenAiConfigPageState extends State<OpenAiConfigPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.openAiModelConfig),
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
       ),

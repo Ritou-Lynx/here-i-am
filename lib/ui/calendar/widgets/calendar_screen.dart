@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/calendar/view_models/calendar_viewmodel.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
@@ -44,15 +45,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
       builder: (context, _) {
         final vm = widget.viewModel;
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.background,
           appBar: AppBar(
             title: Text(
               DateFormat.yMMM(UserStorage.l10n.localeName)
                   .format(vm.focusedMonth),
-              style: const TextStyle(
-                  color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: AppColors.textPrimary, fontWeight: FontWeight.bold),
             ),
-            backgroundColor: Colors.white,
+            backgroundColor: AppColors.background,
+            surfaceTintColor: AppColors.background,
             elevation: 0,
             leading: const AppBackButton(),
             centerTitle: true,
@@ -109,8 +111,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
         children: days
             .map((e) => Text(
                   e,
-                  style:
-                      const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                  style: const TextStyle(
+                      color: AppColors.textTertiary, fontSize: 13),
                 ))
             .toList(),
       ),
@@ -167,11 +169,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 height: 32,
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? const Color(0xFF6366F1)
-                      : (hasData ? const Color(0xFFE0E7FF) : null),
+                      ? AppColors.primary
+                      : (hasData
+                          ? AppColors.primary.withValues(alpha: 0.15)
+                          : null),
                   shape: BoxShape.circle,
                   border: isToday && !isSelected
-                      ? Border.all(color: const Color(0xFF6366F1))
+                      ? Border.all(color: AppColors.primary)
                       : null,
                 ),
                 alignment: Alignment.center,
@@ -183,8 +187,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         : (hasData
                             ? const Color(0xFF4338CA)
                             : (date.weekday >= 6
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF0F172A))),
+                                ? AppColors.textTertiary
+                                : AppColors.textPrimary)),
                     fontWeight: isSelected || isToday || hasData
                         ? FontWeight.bold
                         : FontWeight.normal,
@@ -202,7 +206,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         Icons.check_circle,
                         size: 10,
                         color: isSelected
-                            ? const Color(0xFF6366F1)
+                            ? AppColors.primary
                             : const Color(0xFF10B981),
                       ),
                       const SizedBox(width: 2),
@@ -211,8 +215,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         style: TextStyle(
                           fontSize: 9,
                           color: isSelected
-                              ? const Color(0xFF6366F1)
-                              : const Color(0xFF64748B),
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -248,7 +252,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 DateFormat.MMMd(UserStorage.l10n.localeName)
                     .format(vm.selectedDate),
               ),
-              style: const TextStyle(color: Color(0xFF94A3B8)),
+              style: const TextStyle(color: AppColors.textTertiary),
             ),
           ],
         ),
@@ -290,7 +294,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       Text(
                         DateFormat('HH:mm').format(time),
                         style: const TextStyle(
-                          color: Color(0xFF94A3B8),
+                          color: AppColors.textTertiary,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -307,7 +311,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             child: Text(
                               tag,
                               style: const TextStyle(
-                                  fontSize: 10, color: Color(0xFF64748B)),
+                                  fontSize: 10, color: AppColors.textSecondary),
                             ),
                           )),
                     ],
@@ -327,13 +331,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     Row(
                       children: [
                         const Icon(Icons.location_on_outlined,
-                            size: 14, color: Color(0xFF94A3B8)),
+                            size: 14, color: AppColors.textTertiary),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             card.location,
                             style: const TextStyle(
-                                fontSize: 12, color: Color(0xFF94A3B8)),
+                                fontSize: 12, color: AppColors.textTertiary),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
@@ -50,6 +51,8 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.settings),
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -62,7 +65,7 @@ class _SettingsPageState extends State<SettingsPage> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF64748B).withValues(alpha: 0.08),
+                  color: AppColors.textSecondary.withValues(alpha: 0.08),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -73,8 +76,7 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.language,
-                        color: Color(0xFF6366F1), size: 22),
+                    Icon(Icons.language, color: AppColors.primary, size: 22),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -82,10 +84,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         children: [
                           Text(
                             UserStorage.l10n.languageSettings,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF0F172A),
+                              color: AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -134,7 +136,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF64748B).withValues(alpha: 0.08),
+                        color: AppColors.textSecondary.withValues(alpha: 0.08),
                         blurRadius: 16,
                         offset: const Offset(0, 4),
                       ),
@@ -142,8 +144,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.folder_outlined,
-                          color: Color(0xFF6366F1), size: 22),
+                      Icon(Icons.folder_outlined,
+                          color: AppColors.primary, size: 22),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -151,10 +153,10 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             Text(
                               UserStorage.l10n.dataStorage,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
-                                color: Color(0xFF0F172A),
+                                color: AppColors.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -198,7 +200,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF64748B).withValues(alpha: 0.08),
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -206,8 +208,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.backup_outlined,
-                        color: Color(0xFF6366F1), size: 22),
+                    Icon(Icons.backup_outlined,
+                        color: AppColors.primary, size: 22),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -215,10 +217,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         children: [
                           Text(
                             UserStorage.l10n.backupAndRestore,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF0F172A),
+                              color: AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -260,7 +262,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF64748B).withValues(alpha: 0.08),
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -268,8 +270,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.privacy_tip_outlined,
-                        color: Color(0xFF6366F1), size: 22),
+                    Icon(Icons.privacy_tip_outlined,
+                        color: AppColors.primary, size: 22),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -277,10 +279,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         children: [
                           Text(
                             UserStorage.l10n.privacyPolicy,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF0F172A),
+                              color: AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -317,7 +319,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF64748B).withValues(alpha: 0.08),
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -377,6 +379,7 @@ class _SettingsPageState extends State<SettingsPage> {
             final isMatch = controller.text == userId;
             final showError = controller.text.isNotEmpty && !isMatch;
             return AlertDialog(
+              backgroundColor: Colors.white,
               title: Text(l10n.deleteAccountConfirmTitle),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -470,10 +473,10 @@ class _SettingsPageState extends State<SettingsPage> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF6366F1) : Colors.transparent,
+          color: isSelected ? AppColors.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? const Color(0xFF6366F1) : Colors.grey[300]!,
+            color: isSelected ? AppColors.primary : Colors.grey[300]!,
           ),
         ),
         child: Text(

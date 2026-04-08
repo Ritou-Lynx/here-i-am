@@ -6,6 +6,7 @@ import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class BackupRestorePage extends StatefulWidget {
   const BackupRestorePage({super.key});
@@ -111,6 +112,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(UserStorage.l10n.confirmRestore),
         content: Text(UserStorage.l10n.confirmRestoreMessage),
         actions: [
@@ -153,6 +155,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
+            backgroundColor: Colors.white,
             title: Text(UserStorage.l10n.restoreComplete),
             content: Text(UserStorage.l10n.restoreRestartHint),
             actions: [
@@ -188,6 +191,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.backupAndRestore),
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -238,7 +243,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                     style: TextStyle(
                       fontSize: 14,
                       color: isBusy
-                          ? const Color(0xFF64748B)
+                          ? AppColors.textSecondary
                           : const Color(0xFF16A34A),
                     ),
                   ),
@@ -267,7 +272,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF64748B).withValues(alpha: 0.08),
+            color: AppColors.textSecondary.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -278,7 +283,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         children: [
           Row(
             children: [
-              Icon(icon, color: const Color(0xFF6366F1), size: 24),
+              Icon(icon, color: AppColors.primary, size: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -289,7 +294,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF0F172A),
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     if (subtitle != null)
@@ -299,7 +304,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                           subtitle,
                           style: const TextStyle(
                             fontSize: 13,
-                            color: Color(0xFF64748B),
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ),
@@ -313,7 +318,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             description,
             style: const TextStyle(
               fontSize: 13,
-              color: Color(0xFF94A3B8),
+              color: AppColors.textTertiary,
               height: 1.5,
             ),
           ),
@@ -323,7 +328,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             child: ElevatedButton(
               onPressed: onPressed,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(

@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/back_button.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class LocationPickerResult {
   final LatLng point;
@@ -188,6 +189,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(UserStorage.l10n.confirmLocationName),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -275,7 +277,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
               child: const Icon(
                 Icons.location_on,
                 size: 48,
-                color: Color(0xFF6366F1),
+                color: AppColors.primary,
               ),
             ),
           ),
@@ -318,7 +320,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                                 contentPadding: EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 14),
                                 suffixIcon: Icon(Icons.search,
-                                    color: Color(0xFF94A3B8)),
+                                    color: AppColors.textTertiary),
                               ),
                               style: const TextStyle(fontSize: 16),
                             ),
@@ -373,7 +375,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                                       )
                                     : null,
                                 leading: const Icon(Icons.location_on_outlined,
-                                    size: 20, color: Color(0xFF64748B)),
+                                    size: 20, color: AppColors.textSecondary),
                                 onTap: () => _onSuggestionSelected(suggestion),
                                 dense: true,
                               );
@@ -416,7 +418,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                         _currentCenter.longitude.toStringAsFixed(5)),
                     style: const TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF94A3B8),
+                      color: AppColors.textTertiary,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -424,7 +426,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                   ElevatedButton(
                     onPressed: _confirmSelection,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6366F1),
+                      backgroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),

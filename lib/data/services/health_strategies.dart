@@ -467,6 +467,14 @@ class PedometerFetcher implements HealthDataFetcher {
       throw UnsupportedError('Pedometer strategy only supports STEPS.');
     }
 
+    // Check permission before accessing pedometer to avoid native crashes
+    final hasPermission = await requestPermissions(type);
+    if (!hasPermission) {
+      _logger.warning(
+          'Motion & Fitness permission not granted, skipping step count');
+      return <String, int>{};
+    }
+
     // 1. Ensure background task is registered (critical for daily tracking)
     await ensureBackgroundTaskRegistered();
 
@@ -516,7 +524,7 @@ class PedometerFetcher implements HealthDataFetcher {
         _logger.info('Current total device steps: $currentSteps');
       } catch (e) {
         _logger.severe('Failed to read current pedometer: $e');
-        rethrow;
+        return <String, int>{}; // Return empty instead of crashing
       }
 
       final prefs = await SharedPreferences.getInstance();

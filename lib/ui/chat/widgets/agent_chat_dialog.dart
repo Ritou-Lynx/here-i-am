@@ -11,6 +11,7 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:go_router/go_router.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 // --- Display Models ---
 
@@ -414,14 +415,14 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                                               CircleAvatar(
                                                 radius: 12,
                                                 backgroundColor:
-                                                    Color(0xFFEEF2FF),
+                                                    AppColors.iconBgLight,
                                                 child: SizedBox(
                                                   width: 12,
                                                   height: 12,
                                                   child:
                                                       CircularProgressIndicator(
                                                     strokeWidth: 2,
-                                                    color: Color(0xFF6366F1),
+                                                    color: AppColors.primary,
                                                   ),
                                                 ),
                                               ),
@@ -430,7 +431,8 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                                                 'Thinking...',
                                                 style: TextStyle(
                                                     fontSize: 13,
-                                                    color: Color(0xFF94A3B8)),
+                                                    color:
+                                                        AppColors.textTertiary),
                                               ),
                                             ],
                                           ),
@@ -469,14 +471,14 @@ class _AgentChatDialogState extends State<AgentChatDialog>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          const Icon(Icons.link, size: 16, color: Color(0xFF6366F1)),
+          const Icon(Icons.link, size: 16, color: AppColors.primary),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               UserStorage.l10n.referenceWithTitle(title),
               style: const TextStyle(
                 fontSize: 12,
-                color: Color(0xFF475569),
+                color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
               maxLines: 1,
@@ -497,18 +499,19 @@ class _AgentChatDialogState extends State<AgentChatDialog>
       ),
       child: Row(
         children: [
-          const Icon(Icons.auto_awesome, size: 18, color: Color(0xFF6366F1)),
+          const Icon(Icons.auto_awesome, size: 18, color: AppColors.primary),
           const SizedBox(width: 8),
           Text(
             widget.title,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1E293B)),
+                color: AppColors.textPrimary),
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(Icons.history, size: 18, color: Color(0xFF94A3B8)),
+            icon: const Icon(Icons.history,
+                size: 18, color: AppColors.textTertiary),
             onPressed: () {
               context.push(
                 AppRoutes.chatHistory,
@@ -525,7 +528,8 @@ class _AgentChatDialogState extends State<AgentChatDialog>
             },
           ),
           IconButton(
-            icon: const Icon(Icons.close, size: 20, color: Color(0xFF94A3B8)),
+            icon: const Icon(Icons.close,
+                size: 20, color: AppColors.textTertiary),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],
@@ -559,7 +563,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                       decoration: InputDecoration(
                         hintText: widget.inputHint,
                         hintStyle: const TextStyle(
-                            color: Color(0xFF94A3B8), fontSize: 14),
+                            color: AppColors.textTertiary, fontSize: 14),
                         border: InputBorder.none,
                         contentPadding:
                             const EdgeInsets.symmetric(vertical: 12),
@@ -572,9 +576,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: _isStreaming
-                            ? Colors.grey
-                            : const Color(0xFF6366F1),
+                        color: _isStreaming ? Colors.grey : AppColors.primary,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -605,7 +607,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                   maxWidth: MediaQuery.of(context).size.width * 0.75),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF6366F1),
+                color: AppColors.primary,
                 borderRadius: BorderRadius.circular(16)
                     .copyWith(bottomRight: const Radius.circular(4)),
               ),
@@ -668,9 +670,9 @@ class _AgentChatDialogState extends State<AgentChatDialog>
           children: [
             const CircleAvatar(
               radius: 12,
-              backgroundColor: Color(0xFFEEF2FF),
+              backgroundColor: AppColors.iconBgLight,
               child:
-                  Icon(Icons.auto_awesome, size: 12, color: Color(0xFF6366F1)),
+                  Icon(Icons.auto_awesome, size: 12, color: AppColors.primary),
             ),
             const SizedBox(width: 8),
             Container(
@@ -685,8 +687,8 @@ class _AgentChatDialogState extends State<AgentChatDialog>
               ),
               child: Text(
                 item.text,
-                style: const TextStyle(
-                    fontSize: 14, color: Color(0xFF475569), height: 1.5),
+                style: TextStyle(
+                    fontSize: 14, color: AppColors.textSecondary, height: 1.5),
               ),
             ),
           ],
@@ -723,7 +725,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                                     ? Icons.check_circle_outline
                                     : Icons.sync,
                                 size: 14,
-                                color: const Color(0xFF94A3B8)),
+                                color: AppColors.textTertiary),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -732,7 +734,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                                     : 'Processing...',
                                 style: const TextStyle(
                                     fontSize: 12,
-                                    color: Color(0xFF94A3B8),
+                                    color: AppColors.textTertiary,
                                     fontWeight: FontWeight.w500),
                               ),
                             ),
@@ -741,7 +743,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                                   ? Icons.keyboard_arrow_up
                                   : Icons.keyboard_arrow_down,
                               size: 16,
-                              color: const Color(0xFF94A3B8),
+                              color: AppColors.textTertiary,
                             ),
                           ],
                         ),
@@ -800,7 +802,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
             'Tokens: ${item.totalTokens} (P:${item.promptTokens} C:${item.completionTokens} Cache:$cacheRate) • Est: \$${item.estimatedCost.toStringAsFixed(5)}',
             style: const TextStyle(
               fontSize: 10,
-              color: Color(0xFF64748B),
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -822,7 +824,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
               Text('Thinking...',
                   style: TextStyle(
                       fontSize: 11,
-                      color: Color(0xFF94A3B8),
+                      color: AppColors.textTertiary,
                       fontWeight: FontWeight.w500)),
             ],
           ),
@@ -832,7 +834,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
             styleSheet: MarkdownStyleSheet(
               p: const TextStyle(
                 fontSize: 12,
-                color: Color(0xFF64748B),
+                color: AppColors.textSecondary,
                 fontStyle: FontStyle.italic,
                 height: 1.4,
               ),
@@ -869,7 +871,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                         ? Icons.error_outline
                         : Icons.build_circle_outlined,
                     size: 14,
-                    color: item.isError ? Colors.red : const Color(0xFF6366F1),
+                    color: item.isError ? Colors.red : AppColors.primary,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -890,7 +892,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                     Icon(
                       item.isExpanded ? Icons.expand_less : Icons.expand_more,
                       size: 16,
-                      color: const Color(0xFF94A3B8),
+                      color: AppColors.textTertiary,
                     ),
                 ],
               ),
@@ -911,7 +913,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                       style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF64748B))),
+                          color: AppColors.textSecondary)),
                   const SizedBox(height: 4),
                   Text(item.args,
                       style: const TextStyle(
@@ -924,7 +926,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                         style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF64748B))),
+                            color: AppColors.textSecondary)),
                     const SizedBox(height: 4),
                     Text(item.result!,
                         style: const TextStyle(

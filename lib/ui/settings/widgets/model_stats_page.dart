@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class ModelStatsPage extends StatefulWidget {
   const ModelStatsPage({super.key});
@@ -269,6 +270,8 @@ class _ModelStatsPageState extends State<ModelStatsPage>
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.modelUsageStats),
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         elevation: 0,
         actions: [
           IconButton(
@@ -828,6 +831,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(call['agent_name'] ?? 'Call Details'),
         content: SingleChildScrollView(
           child: Column(

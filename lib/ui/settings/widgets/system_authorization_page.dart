@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/data/services/health_service.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 import 'dart:io' show Platform;
 
 class SystemAuthorizationPage extends StatefulWidget {
@@ -123,6 +124,7 @@ class _SystemAuthorizationPageState extends State<SystemAuthorizationPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(UserStorage.l10n.permissionRequiredTitle),
         content: Text(UserStorage.l10n.permissionPermanentlyDeniedMessage),
         actions: [
@@ -168,7 +170,7 @@ class _SystemAuthorizationPageState extends State<SystemAuthorizationPage> {
       leading: Stack(
         clipBehavior: Clip.none,
         children: [
-          Icon(icon, color: const Color(0xFF6366F1), size: 28),
+          Icon(icon, color: AppColors.primary, size: 28),
           if (showBadge)
             Positioned(
               right: -2,
@@ -214,7 +216,8 @@ class _SystemAuthorizationPageState extends State<SystemAuthorizationPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.systemAuthorization),
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         foregroundColor: Colors.black,
         elevation: 0.5,
       ),

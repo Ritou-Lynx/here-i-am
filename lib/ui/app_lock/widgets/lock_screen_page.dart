@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class LockScreen extends StatefulWidget {
   final VoidCallback onUnlock;
@@ -30,7 +31,8 @@ class _LockScreenState extends State<LockScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
-        _isBiometricsEnabled = prefs.getBool('app_lock_biometrics_enabled') ?? false;
+        _isBiometricsEnabled =
+            prefs.getBool('app_lock_biometrics_enabled') ?? false;
       });
       if (_isBiometricsEnabled) {
         _authenticate();
@@ -79,7 +81,7 @@ class _LockScreenState extends State<LockScreen> {
   Future<void> _checkPassword() async {
     final prefs = await SharedPreferences.getInstance();
     final storedPassword = prefs.getString('app_lock_password') ?? '';
-    
+
     if (storedPassword.isEmpty || _input == storedPassword) {
       // Success
       Future.delayed(const Duration(milliseconds: 200), () {
@@ -129,15 +131,15 @@ class _LockScreenState extends State<LockScreen> {
             const Icon(
               Icons.lock_outline,
               size: 48,
-              color: Color(0xFF6366F1),
+              color: AppColors.primary,
             ),
             const SizedBox(height: 24),
             Text(
               UserStorage.l10n.enterPassword,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF1E293B),
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -156,7 +158,7 @@ class _LockScreenState extends State<LockScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isFilled
-                          ? const Color(0xFF6366F1)
+                          ? AppColors.primary
                           : const Color(0xFFE2E8F0),
                       border: isFilled
                           ? null
@@ -198,7 +200,7 @@ class _LockScreenState extends State<LockScreen> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
-                                color: Color(0xFF64748B),
+                                color: AppColors.textSecondary,
                               ),
                             ),
                           ),
@@ -211,7 +213,7 @@ class _LockScreenState extends State<LockScreen> {
             ),
             const Spacer(flex: 2),
             // Biometric Icon
-             if (_isBiometricsEnabled)
+            if (_isBiometricsEnabled)
               Padding(
                 padding: const EdgeInsets.only(bottom: 32),
                 child: GestureDetector(
@@ -223,7 +225,7 @@ class _LockScreenState extends State<LockScreen> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF64748B).withOpacity(0.1),
+                          color: AppColors.textSecondary.withValues(alpha: 0.1),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -232,7 +234,7 @@ class _LockScreenState extends State<LockScreen> {
                     child: const Icon(
                       Icons.fingerprint,
                       size: 32,
-                      color: Color(0xFF6366F1),
+                      color: AppColors.primary,
                     ),
                   ),
                 ),
@@ -270,10 +272,10 @@ class _LockScreenState extends State<LockScreen> {
         alignment: Alignment.center,
         child: Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w400,
-            color: Color(0xFF1E293B),
+            color: AppColors.textPrimary,
           ),
         ),
       ),
@@ -295,7 +297,7 @@ class PrivacyScreen extends StatelessWidget {
             const Icon(
               Icons.lock_outline,
               size: 64,
-              color: Color(0xFF6366F1),
+              color: AppColors.primary,
             ),
             const SizedBox(height: 24),
             Text(

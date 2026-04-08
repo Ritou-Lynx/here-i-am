@@ -6,6 +6,7 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/core/widgets/back_button.dart';
 import 'package:memex/ui/chat/widgets/agent_chat_dialog.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 /// Chat history list screen. Receives [viewModel] from parent (Compass-style).
 class ChatHistoryScreen extends StatefulWidget {
@@ -43,6 +44,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(UserStorage.l10n.confirmDelete),
         content: Text(UserStorage.l10n.confirmDeleteSessionMessage),
         actions: [
@@ -128,10 +130,11 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF0F172A),
+                color: AppColors.textPrimary,
               ),
             ),
-            backgroundColor: const Color(0xFFF7F8FA),
+            backgroundColor: AppColors.background,
+            surfaceTintColor: AppColors.background,
             elevation: 0,
             centerTitle: true,
             leading: const AppBackButton(),
@@ -148,7 +151,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                           const SizedBox(height: 16),
                           Text(
                             UserStorage.l10n.noConversations,
-                            style: const TextStyle(color: Color(0xFF94A3B8)),
+                            style:
+                                const TextStyle(color: AppColors.textTertiary),
                           ),
                         ],
                       ),
@@ -179,8 +183,8 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                   Border.all(color: const Color(0xFFF7F8FA)),
                               boxShadow: [
                                 BoxShadow(
-                                  color:
-                                      const Color(0xFF64748B).withOpacity(0.04),
+                                  color: AppColors.textSecondary
+                                      .withValues(alpha: 0.04),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                 ),
@@ -205,7 +209,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                               style: const TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.w600,
-                                                color: Color(0xFF0F172A),
+                                                color: AppColors.textPrimary,
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -214,10 +218,9 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                             if (lastMessagePreview.isNotEmpty)
                                               Text(
                                                 lastMessagePreview,
-                                                style: TextStyle(
+                                                style: const TextStyle(
                                                   fontSize: 14,
-                                                  color:
-                                                      const Color(0xFF94A3B8),
+                                                  color: AppColors.textTertiary,
                                                   height: 1.4,
                                                 ),
                                                 maxLines: 2,
@@ -228,29 +231,29 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                               children: [
                                                 Text(
                                                   _formatDateTime(updatedAt),
-                                                  style: TextStyle(
+                                                  style: const TextStyle(
                                                     fontSize: 12,
                                                     color:
-                                                        const Color(0xFF94A3B8),
+                                                        AppColors.textTertiary,
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
-                                                Text(
+                                                const Text(
                                                   '•',
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     color:
-                                                        const Color(0xFF94A3B8),
+                                                        AppColors.textTertiary,
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
                                                 Text(
                                                   UserStorage.l10n.messageCount(
                                                       messageCount),
-                                                  style: TextStyle(
+                                                  style: const TextStyle(
                                                     fontSize: 12,
                                                     color:
-                                                        const Color(0xFF94A3B8),
+                                                        AppColors.textTertiary,
                                                   ),
                                                 ),
                                               ],
@@ -276,28 +279,6 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                         },
                       ),
                     ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: () {
-              showGeneralDialog(
-                context: context,
-                barrierDismissible: true,
-                barrierLabel: '',
-                barrierColor: Colors.transparent,
-                transitionDuration: const Duration(milliseconds: 500),
-                pageBuilder: (context, animation, secondaryAnimation) {
-                  return AgentChatDialog(
-                    agentName: widget.agentName,
-                    title: widget.title ?? UserStorage.l10n.aiAssistant,
-                    inputHint: UserStorage.l10n.askSomethingHint,
-                  );
-                },
-              ).then((_) {
-                if (mounted) widget.viewModel.loadSessions();
-              });
-            },
-            backgroundColor: const Color(0xFF6366F1),
-            child: const Icon(Icons.add, color: Colors.white),
-          ),
         );
       },
     );

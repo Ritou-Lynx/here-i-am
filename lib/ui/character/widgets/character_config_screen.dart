@@ -9,6 +9,7 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/main_screen/widgets/chat_input_bar.dart';
 import 'package:memex/ui/core/widgets/back_button.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 /// AI character config screen. Receives [viewModel] from parent (Compass-style).
 class CharacterConfigScreen extends StatefulWidget {
@@ -53,6 +54,7 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(UserStorage.l10n.confirmDelete),
         content: Text(UserStorage.l10n.confirmDeleteCharacter(character.name)),
         actions: [
@@ -112,21 +114,22 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
           appBar: AppBar(
             title: Text(
               UserStorage.l10n.configureAiCharacter,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF0F172A),
+                color: AppColors.textPrimary,
               ),
             ),
             backgroundColor: const Color(0xFFF7F8FA),
+            surfaceTintColor: AppColors.background,
             elevation: 0,
             centerTitle: true,
             leading: const AppBackButton(),
             actions: [
               IconButton(
-                icon: const Icon(Icons.add, size: 24),
+                icon: Icon(Icons.add, size: 24),
                 onPressed: () => _showAddCharacterDialog(vm),
-                color: const Color(0xFF6366F1),
+                color: AppColors.primary,
                 tooltip: UserStorage.l10n.addCharacter,
               ),
               const SizedBox(width: 8),
@@ -142,7 +145,7 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
                       UserStorage.l10n.addCharacterSubtitle,
                       style: TextStyle(
                         fontSize: 14,
-                        color: const Color(0xFF64748B),
+                        color: AppColors.textSecondary,
                         height: 1.5,
                       ),
                     ),
@@ -207,7 +210,7 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
         border: Border.all(color: const Color(0xFFF7F8FA)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF64748B).withOpacity(0.04),
+            color: AppColors.textSecondary.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -240,7 +243,7 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
                   child: Center(
                     child: Icon(
                       Icons.face,
-                      color: const Color(0xFF64748B),
+                      color: AppColors.textSecondary,
                       size: 24,
                     ),
                   ),
@@ -257,7 +260,7 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F172A),
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -268,7 +271,7 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
                             : UserStorage.l10n.noTags,
                         style: TextStyle(
                           fontSize: 13,
-                          color: const Color(0xFF94A3B8),
+                          color: AppColors.textTertiary,
                           height: 1.4,
                         ),
                         maxLines: 2,
@@ -291,7 +294,7 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
                           onChanged: (enabled) =>
                               _toggleCharacterEnabled(vm, character, enabled),
                           activeColor: Colors.white,
-                          activeTrackColor: const Color(0xFF6366F1),
+                          activeTrackColor: AppColors.primary,
                           inactiveThumbColor: Colors.white,
                           inactiveTrackColor: const Color(0xFFE2E8F0),
                         ),
@@ -439,14 +442,15 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
           widget.character == null
               ? UserStorage.l10n.newCharacter
               : UserStorage.l10n.editCharacter,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF0F172A),
+            color: AppColors.textPrimary,
           ),
         ),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         elevation: 0,
         leading: const AppBackButton(),
         actions: [
@@ -455,7 +459,7 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
             child: TextButton(
               onPressed: _isSaving ? null : _save,
               style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1).withOpacity(0.1),
+                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 shape: RoundedRectangleBorder(
@@ -471,7 +475,7 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
                   : Text(
                       UserStorage.l10n.save,
                       style: TextStyle(
-                        color: Color(0xFF6366F1),
+                        color: AppColors.primary,
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
                       ),
@@ -558,10 +562,10 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
   Widget _buildLabel(String text) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w600,
-        color: Color(0xFF64748B),
+        color: AppColors.textSecondary,
       ),
     );
   }
@@ -583,7 +587,7 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5),
+        borderSide: BorderSide(color: AppColors.primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),

@@ -6,6 +6,7 @@ import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class AgentConfigListPage extends StatefulWidget {
   const AgentConfigListPage({super.key});
@@ -88,6 +89,8 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.agentConfiguration),
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         actions: [
           IconButton(
             icon: const Icon(Icons.restore_page),
@@ -97,6 +100,7 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
               final confirmed = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
+                  backgroundColor: Colors.white,
                   title: Text(l10n.resetAllAgentConfigurationsTitle),
                   content: Text(l10n.resetAllAgentConfigurationsMessage),
                   actions: [

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:memex/ui/core/cards/style/timeline_theme.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 
 class SharePreviewDialog extends StatelessWidget {
@@ -126,10 +127,13 @@ class SharePreviewDialog extends StatelessWidget {
             height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isPrimary ? Colors.white : Colors.white.withValues(alpha: 0.15),
+              color: isPrimary
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.15),
               border: isPrimary
                   ? null
-                  : Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                  : Border.all(
+                      color: Colors.white.withValues(alpha: 0.3), width: 1.5),
               boxShadow: isPrimary
                   ? [
                       BoxShadow(
@@ -142,7 +146,7 @@ class SharePreviewDialog extends StatelessWidget {
             ),
             child: Icon(
               icon,
-              color: isPrimary ? const Color(0xFF6366F1) : Colors.white,
+              color: isPrimary ? AppColors.primary : Colors.white,
               size: 28,
             ),
           ),

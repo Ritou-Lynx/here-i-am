@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/settings/widgets/model_stats_page.dart';
 import 'package:memex/ui/insight/widgets/insight_template_gallery_page.dart';
@@ -37,7 +38,8 @@ class DebugSettingsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Debugging'),
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         foregroundColor: Colors.black,
         elevation: 0.5,
       ),
@@ -206,7 +208,7 @@ class DebugSettingsPage extends StatelessWidget {
             border: Border.all(color: Colors.white),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF64748B).withOpacity(0.08),
+                color: AppColors.textSecondary.withValues(alpha: 0.08),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -216,7 +218,7 @@ class DebugSettingsPage extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: const Color(0xFF6366F1),
+                color: AppColors.primary,
                 size: 24,
               ),
               const SizedBox(width: 16),
@@ -225,8 +227,7 @@ class DebugSettingsPage extends StatelessWidget {
                   title,
                   style: TextStyle(
                     fontSize: 16,
-                    color:
-                        isLoading ? Colors.grey[400] : const Color(0xFF0F172A),
+                    color: isLoading ? Colors.grey[400] : AppColors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

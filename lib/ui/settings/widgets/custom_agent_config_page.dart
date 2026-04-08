@@ -7,6 +7,7 @@ import 'package:memex/domain/models/system_event.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class CustomAgentConfigPage extends StatefulWidget {
   const CustomAgentConfigPage({super.key});
@@ -45,6 +46,7 @@ class _CustomAgentConfigPageState extends State<CustomAgentConfigPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text(l10n.deleteAgent),
         content: Text(l10n.deleteAgentConfirm(agentName)),
         actions: [
@@ -101,6 +103,8 @@ class _CustomAgentConfigPageState extends State<CustomAgentConfigPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.customAgents),
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -381,6 +385,8 @@ class _CustomAgentEditPageState extends State<_CustomAgentEditPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? l10n.editAgent : l10n.newAgent),
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         actions: [
           TextButton(onPressed: _save, child: Text(l10n.save)),
         ],

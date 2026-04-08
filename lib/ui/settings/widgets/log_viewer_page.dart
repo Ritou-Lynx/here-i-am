@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:memex/data/services/file_logger_service.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class LogViewerPage extends StatefulWidget {
   const LogViewerPage({super.key});
@@ -208,6 +209,8 @@ class _LogViewerPageState extends State<LogViewerPage> {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         title: _isSearching
             ? TextField(
                 controller: _searchController,

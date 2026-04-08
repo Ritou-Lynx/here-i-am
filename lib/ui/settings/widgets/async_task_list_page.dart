@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 class AsyncTaskListPage extends StatefulWidget {
   const AsyncTaskListPage({super.key});
@@ -108,6 +109,7 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: Text('${task.type} Details'),
         content: SingleChildScrollView(
           child: Column(
@@ -177,6 +179,8 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.asyncTaskList),
+        backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
       ),
       body: RefreshIndicator(
         onRefresh: () => _loadTasks(refresh: true),
@@ -298,7 +302,8 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                                       size: 14, color: Colors.grey[500]),
                                   const SizedBox(width: 4),
                                   Text(
-                                    UserStorage.l10n.createdAtDate(_formatDate(task.createdAt)),
+                                    UserStorage.l10n.createdAtDate(
+                                        _formatDate(task.createdAt)),
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.grey[500],
@@ -314,7 +319,8 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                                         size: 14, color: Colors.grey[500]),
                                     const SizedBox(width: 4),
                                     Text(
-                                      UserStorage.l10n.updatedAtDate(_formatDate(task.updatedAt)),
+                                      UserStorage.l10n.updatedAtDate(
+                                          _formatDate(task.updatedAt)),
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Colors.grey[500],
@@ -333,7 +339,8 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                                           size: 14, color: Colors.grey[500]),
                                       const SizedBox(width: 4),
                                       Text(
-                                        UserStorage.l10n.durationLabel(durationStr!),
+                                        UserStorage.l10n
+                                            .durationLabel(durationStr!),
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: Colors.grey[500],
@@ -347,7 +354,8 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                                           size: 14, color: Colors.grey[500]),
                                       const SizedBox(width: 4),
                                       Text(
-                                        UserStorage.l10n.retryCount(task.retryCount),
+                                        UserStorage.l10n
+                                            .retryCount(task.retryCount),
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: Colors.grey[500],

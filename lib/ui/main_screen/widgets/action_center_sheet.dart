@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/agent_activity/widgets/system_action_card.dart';
@@ -55,13 +56,13 @@ class ActionCenterSheet extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Color(0xFF64748B)),
+                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
                   onPressed: () => Navigator.pop(context),
                   style: IconButton.styleFrom(
                     backgroundColor: Colors.white,
@@ -104,7 +105,7 @@ class ActionCenterSheet extends StatelessWidget {
                           UserStorage.l10n.noPendingActions,
                           style: const TextStyle(
                             fontSize: 16,
-                            color: Color(0xFF94A3B8),
+                            color: AppColors.textTertiary,
                           ),
                         ),
                       ],

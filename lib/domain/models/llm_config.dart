@@ -126,6 +126,53 @@ class LLMConfig {
   static bool isChatgptProModel(String modelId) =>
       chatgptProOnlyModels.contains(modelId);
 
+  /// Featured model IDs that get a "Recommended" badge, per provider type.
+  static Set<String> featuredModels(String type) {
+    switch (type) {
+      case typeChatCompletion:
+      case typeResponses:
+        return const {'gpt-5.4', 'o3', 'o1', 'gpt-5.2'};
+      case typeOpenAiOauth:
+        return const {'gpt-5.4', 'gpt-5.2'};
+      case typeClaude:
+        return const {'claude-opus-4-6', 'claude-sonnet-4-6'};
+      case typeBedrockClaude:
+        return const {
+          'us.anthropic.claude-opus-4-6-v1',
+          'us.anthropic.claude-sonnet-4-6'
+        };
+      case typeGemini:
+      case typeGeminiOauth:
+        return const {'gemini-3.1-pro-preview', 'gemini-3-flash-preview'};
+      case typeKimi:
+        return const {'kimi-k2.5'};
+      case typeQwen:
+        return const {'qwen3.5-plus'};
+      case typeSeed:
+        return const {'doubao-seed-2-0-pro-260215', 'doubao-seed-1-8-251228'};
+      case typeZhipu:
+        return const {'glm-5v-turbo', 'glm-4.6v'};
+      case typeMimo:
+        return const {'mimo-v2-pro'};
+      case typeOpenRouter:
+        return const {
+          'anthropic/claude-opus-4.6',
+          'anthropic/claude-sonnet-4.6',
+          'google/gemini-3.1-pro-preview',
+          'openai/gpt-5.4',
+          'openai/gpt-5.2',
+          'openai/o3',
+          'qwen/qwen-plus',
+          'qwen/qwen-max',
+          'x-ai/grok-4',
+          'z-ai/glm-4.6v',
+          'z-ai/glm-5v-turbo',
+        };
+      default:
+        return const {};
+    }
+  }
+
   /// Recommended model IDs per provider type.
   static List<String> recommendedModels(String type) {
     switch (type) {
@@ -142,11 +189,11 @@ class LLMConfig {
       case typeResponses:
         return const [
           'gpt-5.4',
+          'o3',
+          'o1',
           'gpt-5.4-pro',
           'gpt-5-mini',
-          'o1',
           'o1-mini',
-          'o3',
           'o3-pro',
           'o3-mini',
           'gpt-5.2',
@@ -200,7 +247,7 @@ class LLMConfig {
       case typeSeed:
         return const ['doubao-seed-1-8-251228', 'doubao-1.5-pro-256k'];
       case typeZhipu:
-        return const ['GLM-4.7', 'GLM-4-Plus'];
+        return const ['glm-5v-turbo', 'glm-4.6v'];
       case typeMinimax:
         return const ['MiniMax-M2.5', 'MiniMax-M1'];
       case typeOpenRouter:
@@ -217,7 +264,6 @@ class LLMConfig {
           'mimo-v2-pro',
           'mimo-v2-omni',
           'mimo-v2-flash',
-          'MiMo-7B-RL',
         ];
       default:
         return const [];
@@ -290,7 +336,7 @@ class LLMConfig {
       case typeSeed:
         return 'https://ark.cn-beijing.volces.com/api/v3';
       case typeZhipu:
-        return 'https://open.bigmodel.cn/api/coding/paas/v4';
+        return 'https://open.bigmodel.cn/api/paas/v4';
       case typeMinimax:
         return 'https://api.minimaxi.com/anthropic';
       case typeOpenRouter:

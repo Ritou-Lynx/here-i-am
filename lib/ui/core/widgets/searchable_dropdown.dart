@@ -49,7 +49,10 @@ class SearchableDropdownState extends State<SearchableDropdown> {
   void didUpdateWidget(covariant SearchableDropdown oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.options != widget.options) {
-      _updateFiltered();
+      // Defer to avoid markNeedsBuild during build phase
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _updateFiltered();
+      });
     }
   }
 

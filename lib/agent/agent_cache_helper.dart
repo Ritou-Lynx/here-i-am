@@ -35,6 +35,10 @@ class AgentCacheHelper {
     if (!client.baseUrl.startsWith("https://ark.cn-beijing.volces.com")) {
       return null;
     }
+    if (true) {
+      //disable all cache
+      return null;
+    }
     // Create a temporary agent to calculate current systemPrompt and tools hashCode
     // We need this to compare with cached values
     final tempAgentForHash = await agentFactory(
@@ -116,7 +120,8 @@ class AgentCacheHelper {
           model: modelConfig.model,
           extra: initExtra,
           temperature: modelConfig.temperature,
-          maxTokens: modelConfig.maxTokens,
+          maxTokens:
+              null, // Volcengine does not support caching.prefix with max_output_tokens
           topP: modelConfig.topP,
           topK: modelConfig.topK,
           generationConfig: modelConfig.generationConfig,

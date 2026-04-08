@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
+import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/memory/view_models/memory_viewmodel.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
@@ -35,11 +36,12 @@ class _MemoryScreenState extends State<MemoryScreen> {
             title: Text(
               UserStorage.l10n.memoryTitle,
               style: const TextStyle(
-                  color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
+                  color: AppColors.textPrimary, fontWeight: FontWeight.bold),
             ),
-            backgroundColor: Colors.white,
+            backgroundColor: AppColors.background,
+            surfaceTintColor: AppColors.background,
             elevation: 0,
-            iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+            iconTheme: const IconThemeData(color: AppColors.textPrimary),
           ),
           backgroundColor: const Color(0xFFF7F8FA),
           body: _buildBody(vm),
@@ -74,9 +76,9 @@ class _MemoryScreenState extends State<MemoryScreen> {
           Container(
             color: Colors.white,
             child: TabBar(
-              labelColor: const Color(0xFF6366F1),
+              labelColor: AppColors.primary,
               unselectedLabelColor: Colors.grey,
-              indicatorColor: const Color(0xFF6366F1),
+              indicatorColor: AppColors.primary,
               tabs: [
                 Tab(text: UserStorage.l10n.longTermProfile),
                 Tab(text: UserStorage.l10n.recentBuffer),
@@ -114,18 +116,18 @@ class _MemoryScreenState extends State<MemoryScreen> {
           h1: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A)),
+              color: AppColors.textPrimary),
           h2: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B)),
+              color: AppColors.textPrimary),
           h3: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: Color(0xFF334155)),
           p: const TextStyle(
-              fontSize: 15, color: Color(0xFF475569), height: 1.5),
-          listBullet: const TextStyle(color: Color(0xFF6366F1)),
+              fontSize: 15, color: AppColors.textSecondary, height: 1.5),
+          listBullet: const TextStyle(color: AppColors.primary),
         ),
       ),
     );
@@ -165,14 +167,14 @@ class _MemoryScreenState extends State<MemoryScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEEF2FF),
+                        color: AppColors.iconBgLight,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         item['subject'] ?? 'General',
                         style: const TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF6366F1),
+                          color: AppColors.primary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
