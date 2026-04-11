@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
@@ -35,6 +36,7 @@ import 'package:memex/data/services/publish_timestamp_service.dart';
 import 'package:memex/data/services/health_service.dart';
 import 'package:memex/data/services/health_strategies.dart';
 import 'package:memex/data/services/whisper_service.dart';
+import 'package:memex/data/services/streaming_transcriber.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:health/health.dart';
@@ -414,6 +416,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   List<ShortcutItem> _shortcuts = [];
   final AudioRecorder _audioRecorder = AudioRecorder();
   String? _recordingPath;
+  StreamingTranscriber? _quickTranscriber;
+  StreamSubscription<Uint8List>? _quickAudioSub;
+  final List<int> _quickPcmBuffer = [];
+  String _quickTranscribedText = '';
+  bool _isQuickCalibrating = false;
   Offset _centerButtonCenter = Offset.zero;
   final GlobalKey<RadialMenuState> _radialMenuKey =
       GlobalKey<RadialMenuState>();
@@ -814,7 +821,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     try {
       // Check if speech model is downloaded
       if (!await WhisperService.instance.isModelDownloaded()) {
-        // Cancel the radial menu and show download prompt
         setState(() => _isRadialMenuOpen = false);
         if (!mounted) return;
         _showSpeechModelDownloadDialog();
@@ -822,18 +828,32 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       }
 
       if (await Permission.microphone.request().isGranted) {
-        final directory = await getTemporaryDirectory();
-        final path =
-            '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.wav';
-        await _audioRecorder.start(
+        // Initialize streaming transcriber
+        _quickTranscribedText = '';
+        _quickPcmBuffer.clear();
+        _quickTranscriber = StreamingTranscriber(
+          onTextChanged: (fullText) {
+            _quickTranscribedText = fullText;
+            if (mounted) setState(() {});
+          },
+        );
+        await _quickTranscriber!.init();
+
+        // Start streaming PCM recording
+        final audioStream = await _audioRecorder.startStream(
           const RecordConfig(
-            encoder: AudioEncoder.wav,
+            encoder: AudioEncoder.pcm16bits,
             sampleRate: 16000,
             numChannels: 1,
           ),
-          path: path,
         );
-        _recordingPath = path;
+
+        _quickAudioSub = audioStream.listen((chunk) {
+          _quickPcmBuffer.addAll(chunk);
+          _quickTranscriber?.addAudioChunk(chunk);
+        });
+
+        _recordingPath = 'streaming'; // marker that recording is active
       }
     } catch (e) {
       _logger.severe('Error starting recording: $e', e);
@@ -841,23 +861,66 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   void _showSpeechModelDownloadDialog() {
-    final isZh = UserStorage.l10n.localeName == 'zh';
     final sizeMB = WhisperService.modelSizeMB.toInt();
+
+    // CN flavor: single download button
+    if (AppFlavor.isCN) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          title: Text(UserStorage.l10n.speechModelDownloadTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(UserStorage.l10n.speechModelDownloadDesc(sizeMB)),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _downloadSpeechModel(useChineseMirror: true);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text(UserStorage.l10n.speechModelStartDownload),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(UserStorage.l10n.cancel),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Global flavor: two source options
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        title: Text(isZh ? '下载语音识别模型' : 'Download Speech Model'),
+        title: Text(UserStorage.l10n.speechModelDownloadTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(isZh
-                ? '首次使用语音功能需要下载离线模型（约${sizeMB}MB）。\n\n下载后语音识别将完全在本地运行，无需联网。'
-                : 'A one-time model download (~${sizeMB}MB) is required.\n\nOnce downloaded, transcription runs entirely on-device.'),
+            Text(UserStorage.l10n.speechModelDownloadDesc(sizeMB)),
             const SizedBox(height: 20),
             Text(
-              isZh ? '选择下载线路：' : 'Choose download source:',
+              UserStorage.l10n.speechModelChooseSource,
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -880,7 +943,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Text(isZh ? '🇨🇳 国内线路（推荐）' : '🇨🇳 China Mirror'),
+                child: Text(UserStorage.l10n.speechModelChinaMirror),
               ),
             ),
             const SizedBox(height: 8),
@@ -897,7 +960,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Text(isZh ? '🌐 GitHub（海外线路）' : '🌐 GitHub (Global)'),
+                child: Text(UserStorage.l10n.speechModelGithub),
               ),
             ),
           ],
@@ -916,7 +979,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   StateSetter? _speechDownloadSetState;
 
   Future<void> _downloadSpeechModel({required bool useChineseMirror}) async {
-    final isZh = UserStorage.l10n.localeName == 'zh';
+    final l10n = UserStorage.l10n;
     _speechDownloadProgress = 0;
 
     showDialog(
@@ -927,7 +990,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           _speechDownloadSetState = setDialogState;
           return AlertDialog(
             backgroundColor: Colors.white,
-            title: Text(isZh ? '正在下载模型...' : 'Downloading model...'),
+            title: Text(l10n.speechModelDownloading),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -942,7 +1005,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                 Text(
                   _speechDownloadProgress > 0
                       ? '${(_speechDownloadProgress * 100).toInt()}%'
-                      : (isZh ? '连接中...' : 'Connecting...'),
+                      : l10n.speechModelConnecting,
                   style: const TextStyle(
                     fontSize: 14,
                     color: AppColors.textSecondary,
@@ -974,13 +1037,34 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   Future<void> _stopRecording({bool cancel = false}) async {
     try {
-      final path = await _audioRecorder.stop();
-      if (cancel && path != null) {
-        final file = File(path);
-        if (await file.exists()) {
-          await file.delete();
-        }
+      await _quickAudioSub?.cancel();
+      _quickAudioSub = null;
+      await _audioRecorder.stop();
+
+      _quickTranscriber?.dispose();
+      _quickTranscriber = null;
+
+      if (cancel) {
+        _quickPcmBuffer.clear();
+        _quickTranscribedText = '';
         _recordingPath = null;
+        return;
+      }
+
+      // Final calibration from accumulated PCM
+      if (_quickPcmBuffer.isNotEmpty) {
+        final aligned = Uint8List.fromList(_quickPcmBuffer);
+        final int16Data = Int16List.view(aligned.buffer);
+        final samples = Float32List(int16Data.length);
+        for (int i = 0; i < int16Data.length; i++) {
+          samples[i] = int16Data[i] / 32768.0;
+        }
+        final calibrated =
+            await WhisperService.instance.transcribeSamples(samples);
+        if (calibrated != null && calibrated.isNotEmpty) {
+          _quickTranscribedText = calibrated;
+        }
+        _quickPcmBuffer.clear();
       }
     } catch (e) {
       _logger.severe('Error stopping recording: $e', e);
@@ -988,21 +1072,31 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   void _handleShortcutSelect(ShortcutItem? item) async {
-    // In the new simplified radial menu, item will be null for "Release to Send"
-    final path = _recordingPath;
-
-    if (mounted) {
-      setState(() => _isRadialMenuOpen = false);
-    }
+    final hasRecording = _recordingPath != null;
 
     if (item != null) {
-      // This path is for legacy shortcuts if they ever return
+      if (mounted) setState(() => _isRadialMenuOpen = false);
       _handleInputSubmit(InputData(text: item.content));
-    } else if (path != null) {
-      // Audio selected (released elsewhere)
+    } else if (hasRecording) {
+      // Show calibrating state — keep menu open
+      if (mounted) setState(() => _isQuickCalibrating = true);
+
       await _stopRecording(cancel: false);
-      _handleInputSubmit(InputData(audioPath: path));
+
+      // Now dismiss and submit
+      if (mounted) {
+        setState(() {
+          _isRadialMenuOpen = false;
+          _isQuickCalibrating = false;
+        });
+      }
+      if (_quickTranscribedText.isNotEmpty) {
+        _handleInputSubmit(InputData(text: _quickTranscribedText));
+      }
+      _quickTranscribedText = '';
       _recordingPath = null;
+    } else {
+      if (mounted) setState(() => _isRadialMenuOpen = false);
     }
   }
 
@@ -1157,6 +1251,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   visible: _isRadialMenuOpen,
                   onItemSelected: _handleShortcutSelect,
                   onCancel: _handleRadialCancel,
+                  transcriptText: _quickTranscribedText.isNotEmpty
+                      ? _quickTranscribedText
+                      : null,
+                  isCalibrating: _isQuickCalibrating,
                 ),
 
               // First post onboarding coach mark

@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:io' show File, Directory, Platform;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/audio_converter.dart';
+import 'package:memex/data/services/transcription_isolate.dart';
 import 'package:archive/archive.dart';
 
 /// Service for on-device speech-to-text using sherpa-onnx + SenseVoice.
@@ -33,6 +34,15 @@ class WhisperService {
       'https://hf-mirror.com/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/tokens.txt';
 
   sherpa.OfflineRecognizer? _recognizer;
+  TranscriptionIsolate? _bgIsolate;
+
+  /// Pick the best available execution provider for the current platform.
+  static String get _provider {
+    if (Platform.isIOS) return 'coreml';
+    // NNAPI requires Android 8.1+ (API 27), older devices fallback to cpu
+    if (Platform.isAndroid) return 'nnapi';
+    return 'cpu';
+  }
 
   /// Model directory path.
   Future<String> _modelDir() async {
@@ -143,6 +153,7 @@ class WhisperService {
         tokens: '$dir/$_tokensFileName',
         numThreads: 2,
         debug: false,
+        provider: _provider,
       ),
     );
 
@@ -200,14 +211,17 @@ class WhisperService {
           : waveData.samples;
 
       final stream = recognizer.createStream();
-      stream.acceptWaveform(
-        samples: samples,
-        sampleRate: waveData.sampleRate,
-      );
-      recognizer.decode(stream);
-
-      final text = recognizer.getResult(stream).text.trim();
-      stream.free();
+      String text;
+      try {
+        stream.acceptWaveform(
+          samples: samples,
+          sampleRate: waveData.sampleRate,
+        );
+        recognizer.decode(stream);
+        text = recognizer.getResult(stream).text.trim();
+      } finally {
+        stream.free();
+      }
 
       // Clean up converted temp file
       if (wavPath != audioPath) {
@@ -225,10 +239,47 @@ class WhisperService {
     }
   }
 
-  /// Dispose the recognizer to free memory.
+  /// Dispose the recognizer and background isolate.
   void dispose() {
     _recognizer?.free();
     _recognizer = null;
+    _bgIsolate?.dispose();
+    _bgIsolate = null;
+  }
+
+  /// Transcribe a speech segment (Float32List samples at 16kHz).
+  /// Runs in a background Isolate so the UI thread is not blocked.
+  Future<String?> transcribeSamples(Float32List samples) async {
+    try {
+      if (!await isModelDownloaded()) return null;
+      await _ensureBgIsolate();
+      final text = await _bgIsolate!.transcribe(samples);
+      if (text != null) {
+        _logger.info(
+            'Segment transcribed (bg): ${text.substring(0, text.length.clamp(0, 80))}');
+      }
+      return text;
+    } catch (e) {
+      _logger.severe('Segment transcription failed: $e');
+      return null;
+    }
+  }
+
+  /// Ensure the background isolate is running.
+  Future<void> _ensureBgIsolate() async {
+    if (_bgIsolate != null && _bgIsolate!.isReady) return;
+    _bgIsolate = TranscriptionIsolate();
+    final dir = await _modelDir();
+    await _bgIsolate!.start(
+      modelPath: '$dir/$_modelFileName',
+      tokensPath: '$dir/$_tokensFileName',
+      provider: _provider,
+    );
+  }
+
+  /// Ensure sherpa-onnx bindings are initialized.
+  void ensureInitialized() {
+    sherpa.initBindings();
   }
 
   /// Model download size in MB (approximate, int8 model).
