@@ -217,61 +217,77 @@ import AVFoundation
       // Remove existing output file
       try? FileManager.default.removeItem(at: outputURL)
 
-      guard let inputFile = try? AVAudioFile(forReading: inputURL) else {
-        DispatchQueue.main.async { result(FlutterError(code: "READ_ERROR", message: "Cannot read input audio file", details: nil)) }
+      // Use AVAssetReader for robust handling of compressed formats
+      let asset = AVURLAsset(url: inputURL)
+      guard let track = asset.tracks(withMediaType: .audio).first else {
+        DispatchQueue.main.async { result(FlutterError(code: "READ_ERROR", message: "No audio track found", details: nil)) }
         return
       }
 
-      // Target format: PCM 16kHz mono 16-bit
-      guard let outputFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true) else {
-        DispatchQueue.main.async { result(FlutterError(code: "FORMAT_ERROR", message: "Cannot create output format", details: nil)) }
+      guard let reader = try? AVAssetReader(asset: asset) else {
+        DispatchQueue.main.async { result(FlutterError(code: "READ_ERROR", message: "Cannot create asset reader", details: nil)) }
         return
       }
 
-      guard let converter = AVAudioConverter(from: inputFile.processingFormat, to: outputFormat) else {
-        DispatchQueue.main.async { result(FlutterError(code: "CONVERTER_ERROR", message: "Cannot create audio converter", details: nil)) }
+      let outputSettings: [String: Any] = [
+        AVFormatIDKey: kAudioFormatLinearPCM,
+        AVSampleRateKey: 16000,
+        AVNumberOfChannelsKey: 1,
+        AVLinearPCMBitDepthKey: 16,
+        AVLinearPCMIsFloatKey: false,
+        AVLinearPCMIsBigEndianKey: false,
+        AVLinearPCMIsNonInterleaved: false,
+      ]
+
+      let readerOutput = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
+      reader.add(readerOutput)
+
+      guard reader.startReading() else {
+        DispatchQueue.main.async { result(FlutterError(code: "READ_ERROR", message: "Cannot start reading: \(reader.error?.localizedDescription ?? "unknown")", details: nil)) }
         return
       }
 
-      // Calculate output frame count
-      let ratio = outputFormat.sampleRate / inputFile.processingFormat.sampleRate
-      let outputFrameCount = AVAudioFrameCount(Double(inputFile.length) * ratio)
+      // Collect all PCM samples
+      var pcmData = Data()
+      while let sampleBuffer = readerOutput.copyNextSampleBuffer() {
+        if let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) {
+          let length = CMBlockBufferGetDataLength(blockBuffer)
+          var data = Data(count: length)
+          data.withUnsafeMutableBytes { ptr in
+            CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: length, destination: ptr.baseAddress!)
+          }
+          pcmData.append(data)
+        }
+      }
 
-      guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputFrameCount) else {
-        DispatchQueue.main.async { result(FlutterError(code: "BUFFER_ERROR", message: "Cannot create output buffer", details: nil)) }
+      guard reader.status == .completed else {
+        DispatchQueue.main.async { result(FlutterError(code: "READ_ERROR", message: "Reading failed: \(reader.error?.localizedDescription ?? "unknown")", details: nil)) }
         return
       }
 
-      // Read input into buffer
-      let inputFrameCapacity = AVAudioFrameCount(inputFile.length)
-      guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: inputFile.processingFormat, frameCapacity: inputFrameCapacity) else {
-        DispatchQueue.main.async { result(FlutterError(code: "BUFFER_ERROR", message: "Cannot create input buffer", details: nil)) }
-        return
-      }
+      // Write WAV header + PCM data
+      let dataSize = UInt32(pcmData.count)
+      let fileSize = UInt32(36 + dataSize)
+      var header = Data()
+      header.append(contentsOf: "RIFF".utf8)
+      header.append(contentsOf: withUnsafeBytes(of: fileSize.littleEndian) { Array($0) })
+      header.append(contentsOf: "WAVE".utf8)
+      header.append(contentsOf: "fmt ".utf8)
+      header.append(contentsOf: withUnsafeBytes(of: UInt32(16).littleEndian) { Array($0) })
+      header.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) })  // PCM
+      header.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) })  // mono
+      header.append(contentsOf: withUnsafeBytes(of: UInt32(16000).littleEndian) { Array($0) })  // sample rate
+      header.append(contentsOf: withUnsafeBytes(of: UInt32(32000).littleEndian) { Array($0) })  // byte rate
+      header.append(contentsOf: withUnsafeBytes(of: UInt16(2).littleEndian) { Array($0) })  // block align
+      header.append(contentsOf: withUnsafeBytes(of: UInt16(16).littleEndian) { Array($0) })  // bits per sample
+      header.append(contentsOf: "data".utf8)
+      header.append(contentsOf: withUnsafeBytes(of: dataSize.littleEndian) { Array($0) })
+
+      var wavData = header
+      wavData.append(pcmData)
 
       do {
-        try inputFile.read(into: inputBuffer)
-      } catch {
-        DispatchQueue.main.async { result(FlutterError(code: "READ_ERROR", message: "Cannot read audio data: \(error)", details: nil)) }
-        return
-      }
-
-      // Convert
-      var conversionError: NSError?
-      converter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
-        outStatus.pointee = .haveData
-        return inputBuffer
-      }
-
-      if let error = conversionError {
-        DispatchQueue.main.async { result(FlutterError(code: "CONVERT_ERROR", message: "Conversion failed: \(error)", details: nil)) }
-        return
-      }
-
-      // Write WAV file
-      do {
-        let outputFile = try AVAudioFile(forWriting: outputURL, settings: outputFormat.settings)
-        try outputFile.write(from: outputBuffer)
+        try wavData.write(to: outputURL)
         DispatchQueue.main.async { result(outputPath) }
       } catch {
         DispatchQueue.main.async { result(FlutterError(code: "WRITE_ERROR", message: "Cannot write WAV: \(error)", details: nil)) }

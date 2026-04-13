@@ -33,7 +33,7 @@ class WhisperService {
   static const _tokensUrlChina =
       'https://hf-mirror.com/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/tokens.txt';
 
-  sherpa.OfflineRecognizer? _recognizer;
+  sherpa.OfflineRecognizer? _recognizer; // kept for legacy, prefer bg isolate
   TranscriptionIsolate? _bgIsolate;
 
   /// Pick the best available execution provider for the current platform.
@@ -168,13 +168,16 @@ class WhisperService {
 
   /// Transcribe an audio file to text.
   /// Supports WAV directly; other formats (m4a, mp3, etc.) are auto-converted.
-  /// Audio longer than 60 seconds is truncated.
-  Future<String?> transcribe(String audioPath) async {
+  /// Audio longer than 60 seconds is truncated unless [skipLengthCheck] is true.
+  Future<String?> transcribe(String audioPath,
+      {bool skipLengthCheck = false}) async {
     try {
       if (!await isModelDownloaded()) {
         _logger.warning('SenseVoice model not downloaded yet');
         return null;
       }
+
+      ensureInitialized();
 
       // Convert to WAV 16kHz mono if needed
       final wavPath = await AudioConverter.toWav16kMono(audioPath);
@@ -187,40 +190,57 @@ class WhisperService {
       // 16kHz × 2 bytes × 60s = ~1.92MB + 44 bytes header
       final wavFile = File(wavPath);
       final fileSize = await wavFile.length();
-      final maxSize = 16000 * 2 * _maxAudioSeconds + 44;
-      if (fileSize > maxSize * 2) {
-        _logger.warning(
-            'Audio too long (${fileSize ~/ 1024}KB), max ~${_maxAudioSeconds}s. Skipping.');
-        if (wavPath != audioPath) {
-          try {
-            wavFile.deleteSync();
-          } catch (_) {}
+      if (!skipLengthCheck) {
+        final maxSize = 16000 * 2 * _maxAudioSeconds + 44;
+        if (fileSize > maxSize * 2) {
+          _logger.warning(
+              'Audio too long (${fileSize ~/ 1024}KB), max ~${_maxAudioSeconds}s. Skipping.');
+          if (wavPath != audioPath) {
+            try {
+              wavFile.deleteSync();
+            } catch (_) {}
+          }
+          return null;
         }
-        return null;
       }
 
       _logger.info('Transcribing audio: $wavPath (${fileSize ~/ 1024}KB)');
-      final recognizer = await _getRecognizer();
 
       final waveData = sherpa.readWave(wavPath);
 
       // Truncate samples to max duration to prevent OOM
       final maxSamples = 16000 * _maxAudioSeconds;
-      final samples = waveData.samples.length > maxSamples
+      final samples = (!skipLengthCheck && waveData.samples.length > maxSamples)
           ? Float32List.fromList(waveData.samples.sublist(0, maxSamples))
           : waveData.samples;
 
-      final stream = recognizer.createStream();
-      String text;
-      try {
-        stream.acceptWaveform(
-          samples: samples,
-          sampleRate: waveData.sampleRate,
-        );
-        recognizer.decode(stream);
-        text = recognizer.getResult(stream).text.trim();
-      } finally {
-        stream.free();
+      // Use background Isolate for transcription
+      // For long audio, split into chunks to avoid OOM
+      const chunkSeconds = 30;
+      const chunkSamples = 16000 * chunkSeconds;
+
+      if (samples.length <= chunkSamples) {
+        final text = await transcribeSamples(samples);
+        // Clean up converted temp file
+        if (wavPath != audioPath) {
+          try {
+            File(wavPath).deleteSync();
+          } catch (_) {}
+        }
+        _logger.info(
+            'Transcription complete: ${text?.substring(0, (text?.length ?? 0).clamp(0, 100))}');
+        return text;
+      }
+
+      // Split into 30-second chunks and transcribe each
+      final results = <String>[];
+      for (int offset = 0; offset < samples.length; offset += chunkSamples) {
+        final end = (offset + chunkSamples).clamp(0, samples.length);
+        final chunk = Float32List.fromList(samples.sublist(offset, end));
+        final text = await transcribeSamples(chunk);
+        if (text != null && text.isNotEmpty) {
+          results.add(text);
+        }
       }
 
       // Clean up converted temp file
@@ -230,9 +250,10 @@ class WhisperService {
         } catch (_) {}
       }
 
+      final fullText = results.join(' ').trim();
       _logger.info(
-          'Transcription complete: ${text.substring(0, text.length.clamp(0, 100))}');
-      return text.isEmpty ? null : text;
+          'Transcription complete (${results.length} chunks): ${fullText.substring(0, fullText.length.clamp(0, 100))}');
+      return fullText.isEmpty ? null : fullText;
     } catch (e) {
       _logger.severe('Transcription failed: $e');
       return null;
@@ -268,6 +289,9 @@ class WhisperService {
   /// Ensure the background isolate is running.
   Future<void> _ensureBgIsolate() async {
     if (_bgIsolate != null && _bgIsolate!.isReady) return;
+    // Free main-thread recognizer to avoid double memory usage
+    _recognizer?.free();
+    _recognizer = null;
     _bgIsolate = TranscriptionIsolate();
     final dir = await _modelDir();
     await _bgIsolate!.start(

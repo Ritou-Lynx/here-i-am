@@ -19,6 +19,7 @@ import 'package:memex/data/services/whisper_service.dart';
 import 'package:memex/data/services/streaming_transcriber.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// Input data model for submission
@@ -609,6 +610,103 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
   }
 
   bool _isTranscribing = false;
+
+  /// Long press mic button: pick an audio file and transcribe it.
+  Future<void> _pickAudioFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['m4a', 'mp3', 'wav', 'ogg', 'aac', 'flac'],
+      );
+
+      if (result == null || result.files.isEmpty || !mounted) return;
+      final filePath = result.files.single.path;
+      if (filePath == null) return;
+
+      // Check if model is downloaded
+      if (!await WhisperService.instance.isModelDownloaded()) {
+        if (!mounted) return;
+        await _showModelDownloadDialog();
+        if (!await WhisperService.instance.isModelDownloaded() || !mounted)
+          return;
+      }
+
+      // Show loading dialog over the input sheet
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.transparent,
+        builder: (_) => Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  UserStorage.l10n.speechTranscribing,
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final text = await WhisperService.instance
+          .transcribe(filePath, skipLengthCheck: true);
+      if (text != null && text.trim().isNotEmpty && mounted) {
+        final current = _textController.text;
+        final separator = current.isNotEmpty ? '\n' : '';
+        setState(() {
+          _textController.text = '$current$separator${text.trim()}';
+          _textController.selection = TextSelection.collapsed(
+            offset: _textController.text.length,
+          );
+        });
+        _scrollTextToBottom();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(UserStorage.l10n.speechNoResult)),
+        );
+      }
+    } catch (e) {
+      _logger.severe('Pick audio file failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to process audio: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        Navigator.of(context).pop(); // Dismiss loading dialog
+      }
+    }
+  }
 
   Widget _buildRipple(double animValue, double offset) {
     final t = (animValue + offset) % 1.0;
@@ -1305,6 +1403,10 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
                                                 : (_isRecording
                                                     ? _stopRecording
                                                     : _startRecording),
+                                            onLongPress: (_isRecording ||
+                                                    _isTranscribing)
+                                                ? null
+                                                : _pickAudioFile,
                                             child: AnimatedBuilder(
                                               animation: _pulseController,
                                               builder: (context, child) {
