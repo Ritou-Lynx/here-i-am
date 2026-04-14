@@ -10,7 +10,7 @@ import 'daos/card_dao.dart';
 part 'app_database.g.dart';
 
 @DriftDatabase(
-  tables: [Tasks, KvStore, AgentActivityMessages, CardCache, SystemActions],
+  tables: [Tasks, KvStore, AgentActivityMessages, CardCache, SystemActions, PersonaChatMessages],
   daos: [CardDao],
 )
 class AppDatabase extends _$AppDatabase {
@@ -43,7 +43,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase._(String userId) : super(_openConnection(userId));
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -112,6 +112,13 @@ class AppDatabase extends _$AppDatabase {
               _logger
                   .info('is_draft column may not exist or already dropped: $e');
             }
+          }
+          if (from < 9) {
+            await m.createTable(personaChatMessages);
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_persona_chat_character ON persona_chat_messages(character_id)');
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_persona_chat_unread ON persona_chat_messages(character_id, is_read)');
           }
         },
       );

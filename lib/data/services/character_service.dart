@@ -243,6 +243,12 @@ class CharacterService {
       if (updates.containsKey('memory')) {
         charData['memory'] = updates['memory'];
       }
+      if (updates.containsKey('is_primary_companion')) {
+        charData['is_primary_companion'] = updates['is_primary_companion'];
+      }
+      if (updates.containsKey('interest_filter')) {
+        charData['interest_filter'] = updates['interest_filter'];
+      }
 
       // Remove legacy fields if they exist (merged into persona already by backend logic usually, but cleanup is good)
       charData.remove('style_guide');
@@ -290,5 +296,39 @@ class CharacterService {
       updates: {"enabled": enabled},
     );
     return result != null;
+  }
+
+  /// Set a character as the primary companion.
+  /// Clears the flag on all other characters first.
+  Future<bool> setPrimaryCompanion(
+      String userId, String characterId) async {
+    final characters = await getAllCharacters(userId);
+    // Clear existing primary
+    for (final char in characters) {
+      if (char.isPrimaryCompanion && char.id != characterId) {
+        await updateCharacter(
+          userId: userId,
+          characterId: char.id,
+          updates: {'is_primary_companion': false},
+        );
+      }
+    }
+    // Set new primary
+    final result = await updateCharacter(
+      userId: userId,
+      characterId: characterId,
+      updates: {'is_primary_companion': true, 'enabled': true},
+    );
+    return result != null;
+  }
+
+  /// Get the user's primary companion character.
+  /// Returns the first enabled character if none is explicitly set.
+  Future<CharacterModel?> getPrimaryCompanion(String userId) async {
+    final characters = await getAllCharacters(userId);
+    final primary = characters.where((c) => c.isPrimaryCompanion).firstOrNull;
+    if (primary != null) return primary;
+    // Fallback: first enabled character
+    return characters.where((c) => c.enabled).firstOrNull;
   }
 }
