@@ -1150,11 +1150,11 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
         radius: 18,
         backgroundColor: Colors.white,
         child: ClipOval(
-          child: SvgPicture.asset(
-            'assets/logo_perfect.svg',
-            width: 28,
-            height: 28,
-            fit: BoxFit.contain,
+          child: Image.asset(
+            'assets/icon.png',
+            width: 36,
+            height: 36,
+            fit: BoxFit.cover,
           ),
         ),
       );
