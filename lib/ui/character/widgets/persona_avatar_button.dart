@@ -29,7 +29,7 @@ class _PersonaAvatarButtonState extends State<PersonaAvatarButton> {
   }
 
   Future<void> _load() async {
-    final userId = UserStorage.userId;
+    final userId = await UserStorage.getUserId();
     if (userId == null) return;
 
     final primary =

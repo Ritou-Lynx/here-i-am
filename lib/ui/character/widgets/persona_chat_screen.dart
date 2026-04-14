@@ -44,7 +44,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
   }
 
   Future<void> _init() async {
-    final userId = UserStorage.userId;
+    final userId = await UserStorage.getUserId();
     if (userId == null) return;
 
     final character = await CharacterService.instance
@@ -89,7 +89,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
 
   void _updateMemoryInBackground() async {
     if (_llmHistory.isEmpty) return;
-    final userId = UserStorage.userId;
+    final userId = await UserStorage.getUserId();
     if (userId == null) return;
 
     try {
@@ -130,7 +130,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
     _scrollToBottom();
 
     // Get LLM resources
-    final userId = UserStorage.userId;
+    final userId = await UserStorage.getUserId();
     if (userId == null) return;
 
     try {
