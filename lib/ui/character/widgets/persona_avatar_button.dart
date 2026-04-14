@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 import 'package:memex/utils/user_storage.dart';
 
 /// Small avatar button in the timeline header.
@@ -22,28 +24,40 @@ class _PersonaAvatarButtonState extends State<PersonaAvatarButton> {
   StreamSubscription? _unreadSub;
   int _unreadCount = 0;
 
+  final Logger _logger = Logger('PersonaAvatarButton');
+
   @override
   void initState() {
     super.initState();
-    _load();
+    // Delay load to ensure FileSystemService is initialized
+    // (TimelineScreen builds before MemexRouter finishes init)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(seconds: 2), _load);
+    });
   }
 
   Future<void> _load() async {
-    final userId = await UserStorage.getUserId();
-    if (userId == null) return;
+    try {
+      final userId = await UserStorage.getUserId();
+      _logger.info('PersonaAvatarButton _load: userId=$userId');
+      if (userId == null) return;
 
-    final primary =
-        await CharacterService.instance.getPrimaryCompanion(userId);
-    if (!mounted || primary == null) return;
+      final primary =
+          await CharacterService.instance.getPrimaryCompanion(userId);
+      _logger.info('PersonaAvatarButton _load: primary=${primary?.name}, enabled=${primary?.enabled}');
+      if (!mounted || primary == null) return;
 
-    setState(() => _character = primary);
+      setState(() => _character = primary);
 
-    if (AppDatabase.isInitialized) {
-      _unreadSub = PersonaChatService.instance
-          .watchTotalUnreadCount()
-          .listen((count) {
-        if (mounted) setState(() => _unreadCount = count);
-      });
+      if (AppDatabase.isInitialized) {
+        _unreadSub = PersonaChatService.instance
+            .watchTotalUnreadCount()
+            .listen((count) {
+          if (mounted) setState(() => _unreadCount = count);
+        });
+      }
+    } catch (e, stack) {
+      _logger.warning('PersonaAvatarButton _load failed: $e', e, stack);
     }
   }
 
@@ -74,30 +88,10 @@ class _PersonaAvatarButtonState extends State<PersonaAvatarButton> {
         child: Stack(
           children: [
             Center(
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.primary.withValues(alpha: 0.15),
-                      AppColors.primary.withValues(alpha: 0.25),
-                    ],
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    _character!.name.characters.first,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
+              child: DiceBearAvatar(
+                seed: 'companion_${_character!.name}',
+                size: 30,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
               ),
             ),
             if (_unreadCount > 0)

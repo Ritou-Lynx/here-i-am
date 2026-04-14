@@ -9,6 +9,7 @@ import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/core/widgets/back_button.dart';
+import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:intl/intl.dart';
@@ -223,23 +224,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.primary.withValues(alpha: 0.15),
-                    ),
-                    child: Center(
-                      child: Text(
-                        _character!.name.characters.first,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
+                  DiceBearAvatar(
+                    seed: 'companion_${_character!.name}',
+                    size: 28,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -315,15 +303,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
                 shape: BoxShape.circle,
                 color: AppColors.primary.withValues(alpha: 0.1),
               ),
-              child: Center(
-                child: Text(
-                  _character?.name.characters.first ?? '?',
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
+              child: DiceBearAvatar(
+                seed: 'companion_${_character?.name ?? ''}',
+                size: 64,
+                backgroundColor: Colors.transparent,
               ),
             ),
             const SizedBox(height: 16),
@@ -387,23 +370,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (isCharacter) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: 0.12),
-              ),
-              child: Center(
-                child: Text(
-                  _character?.name.characters.first ?? '?',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
+            DiceBearAvatar(
+              seed: 'companion_${_character?.name ?? ''}',
+              size: 32,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.08),
             ),
             const SizedBox(width: 8),
           ],
