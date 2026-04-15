@@ -377,7 +377,7 @@ $instruction
       final reminderParts = <String>[];
       if (!check.wrotePara) {
         reminderParts.add(
-            'Write to P.A.R.A.: use the Write or Edit tool to organize the current raw input under /PKM and record the current fact_id in the file (e.g. as a comment: <!-- fact_id: ... -->)');
+            'Write to P.A.R.A.: use the Write or Edit tool to organize the current raw input under / and record the current fact_id in the file (e.g. as a comment: <!-- fact_id: ... -->)');
       }
       if (!check.updatedInsight) {
         reminderParts.add(

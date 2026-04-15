@@ -61,7 +61,7 @@ Future<Map<String, dynamic>> listPkmDirectory({String? path}) async {
           'Projects': '项目',
           'Areas': '领域',
           'Resources': '资源',
-          'Archives': '存档',
+          'Archives': '归档',
         };
 
         if (categoryMapping.containsKey(dirPath)) {
@@ -77,7 +77,11 @@ Future<Map<String, dynamic>> listPkmDirectory({String? path}) async {
     }
 
     if (!await targetDir.exists()) {
-      throw ApiException('Directory not found: $dirPath');
+      _logger.info('PKM directory not found: $dirPath, returning empty list');
+      return {
+        'items': <Map<String, dynamic>>[],
+        'current_path': dirPath ?? '',
+      };
     }
 
     // List directory contents
