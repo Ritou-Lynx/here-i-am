@@ -1,0 +1,92 @@
+import 'package:drift/drift.dart';
+import 'package:memex/db/app_database.dart';
+
+/// Service for managing persona chat messages.
+class PersonaChatService {
+  static PersonaChatService? _instance;
+  static PersonaChatService get instance {
+    _instance ??= PersonaChatService._();
+    return _instance!;
+  }
+  PersonaChatService._();
+
+  AppDatabase get _db => AppDatabase.instance;
+
+  Future<List<PersonaChatMessage>> getMessages(String characterId,
+      {int limit = 50, int offset = 0}) async {
+    return (_db.select(_db.personaChatMessages)
+          ..where((t) => t.characterId.equals(characterId))
+          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..limit(limit, offset: offset))
+        .get();
+  }
+
+  Future<int> addUserMessage(String characterId, String content) async {
+    return _db.into(_db.personaChatMessages).insert(
+          PersonaChatMessagesCompanion.insert(
+            characterId: characterId,
+            isFromCharacter: false,
+            content: content,
+            isRead: const Value(true),
+            timestamp: DateTime.now(),
+          ),
+        );
+  }
+
+  Future<int> addCharacterMessage(String characterId, String content,
+      {String? factId, bool isRead = false}) async {
+    return _db.into(_db.personaChatMessages).insert(
+          PersonaChatMessagesCompanion.insert(
+            characterId: characterId,
+            isFromCharacter: true,
+            content: content,
+            factId: Value(factId),
+            isRead: Value(isRead),
+            timestamp: DateTime.now(),
+          ),
+        );
+  }
+
+  Stream<int> watchUnreadCount(String characterId) {
+    final query = _db.selectOnly(_db.personaChatMessages)
+      ..addColumns([_db.personaChatMessages.id.count()])
+      ..where(_db.personaChatMessages.characterId.equals(characterId) &
+          _db.personaChatMessages.isFromCharacter.equals(true) &
+          _db.personaChatMessages.isRead.equals(false));
+    return query.watchSingle().map((row) =>
+        row.read(_db.personaChatMessages.id.count()) ?? 0);
+  }
+
+  Stream<int> watchTotalUnreadCount() {
+    final query = _db.selectOnly(_db.personaChatMessages)
+      ..addColumns([_db.personaChatMessages.id.count()])
+      ..where(_db.personaChatMessages.isFromCharacter.equals(true) &
+          _db.personaChatMessages.isRead.equals(false));
+    return query.watchSingle().map((row) =>
+        row.read(_db.personaChatMessages.id.count()) ?? 0);
+  }
+
+  Future<int> markAllRead(String characterId) async {
+    return (_db.update(_db.personaChatMessages)
+          ..where((t) =>
+              t.characterId.equals(characterId) &
+              t.isFromCharacter.equals(true) &
+              t.isRead.equals(false)))
+        .write(const PersonaChatMessagesCompanion(isRead: Value(true)));
+  }
+
+  Future<PersonaChatMessage?> getLastMessage(String characterId) async {
+    final results = await (_db.select(_db.personaChatMessages)
+          ..where((t) => t.characterId.equals(characterId))
+          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..limit(1))
+        .get();
+    return results.isEmpty ? null : results.first;
+  }
+
+  Future<int> clearMessages(String characterId) async {
+    return (_db.delete(_db.personaChatMessages)
+          ..where((t) => t.characterId.equals(characterId)))
+        .go();
+  }
+}

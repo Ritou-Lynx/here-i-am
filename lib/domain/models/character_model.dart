@@ -9,6 +9,8 @@ class CharacterModel {
   final bool enabled;
   final String? avatar;
   final List<CharacterMemoryBlock> memory;
+  final bool isPrimaryCompanion; // user's chosen main companion
+  final String? interestFilter; // what this character cares about (for selection)
 
   CharacterModel({
     required this.id,
@@ -18,6 +20,8 @@ class CharacterModel {
     required this.enabled,
     this.avatar,
     this.memory = const [],
+    this.isPrimaryCompanion = false,
+    this.interestFilter,
   });
 
   factory CharacterModel.fromJson(Map<String, dynamic> json) {
@@ -35,6 +39,8 @@ class CharacterModel {
                   CharacterMemoryBlock.fromJson(Map<String, dynamic>.from(e)))
               .toList() ??
           [],
+      isPrimaryCompanion: json['is_primary_companion'] as bool? ?? false,
+      interestFilter: json['interest_filter'] as String?,
     );
   }
 
@@ -47,6 +53,8 @@ class CharacterModel {
       'enabled': enabled,
       'avatar': avatar,
       'memory': memory.map((e) => e.toJson()).toList(),
+      'is_primary_companion': isPrimaryCompanion,
+      if (interestFilter != null) 'interest_filter': interestFilter,
     };
   }
 
@@ -58,6 +66,8 @@ class CharacterModel {
     bool? enabled,
     String? avatar,
     List<CharacterMemoryBlock>? memory,
+    bool? isPrimaryCompanion,
+    String? interestFilter,
   }) {
     return CharacterModel(
       id: id ?? this.id,
@@ -67,6 +77,8 @@ class CharacterModel {
       enabled: enabled ?? this.enabled,
       avatar: avatar ?? this.avatar,
       memory: memory ?? this.memory,
+      isPrimaryCompanion: isPrimaryCompanion ?? this.isPrimaryCompanion,
+      interestFilter: interestFilter ?? this.interestFilter,
     );
   }
 }

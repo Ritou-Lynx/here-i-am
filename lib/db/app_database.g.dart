@@ -2184,6 +2184,390 @@ class SystemActionsCompanion extends UpdateCompanion<SystemAction> {
   }
 }
 
+class $PersonaChatMessagesTable extends PersonaChatMessages
+    with TableInfo<$PersonaChatMessagesTable, PersonaChatMessage> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PersonaChatMessagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _characterIdMeta =
+      const VerificationMeta('characterId');
+  @override
+  late final GeneratedColumn<String> characterId = GeneratedColumn<String>(
+      'character_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _isFromCharacterMeta =
+      const VerificationMeta('isFromCharacter');
+  @override
+  late final GeneratedColumn<bool> isFromCharacter = GeneratedColumn<bool>(
+      'is_from_character', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("is_from_character" IN (0, 1))'));
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _factIdMeta = const VerificationMeta('factId');
+  @override
+  late final GeneratedColumn<String> factId = GeneratedColumn<String>(
+      'fact_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _isReadMeta = const VerificationMeta('isRead');
+  @override
+  late final GeneratedColumn<bool> isRead = GeneratedColumn<bool>(
+      'is_read', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_read" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _timestampMeta =
+      const VerificationMeta('timestamp');
+  @override
+  late final GeneratedColumn<DateTime> timestamp = GeneratedColumn<DateTime>(
+      'timestamp', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, characterId, isFromCharacter, content, factId, isRead, timestamp];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'persona_chat_messages';
+  @override
+  VerificationContext validateIntegrity(Insertable<PersonaChatMessage> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('character_id')) {
+      context.handle(
+          _characterIdMeta,
+          characterId.isAcceptableOrUnknown(
+              data['character_id']!, _characterIdMeta));
+    } else if (isInserting) {
+      context.missing(_characterIdMeta);
+    }
+    if (data.containsKey('is_from_character')) {
+      context.handle(
+          _isFromCharacterMeta,
+          isFromCharacter.isAcceptableOrUnknown(
+              data['is_from_character']!, _isFromCharacterMeta));
+    } else if (isInserting) {
+      context.missing(_isFromCharacterMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('fact_id')) {
+      context.handle(_factIdMeta,
+          factId.isAcceptableOrUnknown(data['fact_id']!, _factIdMeta));
+    }
+    if (data.containsKey('is_read')) {
+      context.handle(_isReadMeta,
+          isRead.isAcceptableOrUnknown(data['is_read']!, _isReadMeta));
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(_timestampMeta,
+          timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta));
+    } else if (isInserting) {
+      context.missing(_timestampMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PersonaChatMessage map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PersonaChatMessage(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      characterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
+      isFromCharacter: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool, data['${effectivePrefix}is_from_character'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      factId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}fact_id']),
+      isRead: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_read'])!,
+      timestamp: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}timestamp'])!,
+    );
+  }
+
+  @override
+  $PersonaChatMessagesTable createAlias(String alias) {
+    return $PersonaChatMessagesTable(attachedDatabase, alias);
+  }
+}
+
+class PersonaChatMessage extends DataClass
+    implements Insertable<PersonaChatMessage> {
+  final int id;
+  final String characterId;
+  final bool isFromCharacter;
+  final String content;
+  final String? factId;
+  final bool isRead;
+  final DateTime timestamp;
+  const PersonaChatMessage(
+      {required this.id,
+      required this.characterId,
+      required this.isFromCharacter,
+      required this.content,
+      this.factId,
+      required this.isRead,
+      required this.timestamp});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['character_id'] = Variable<String>(characterId);
+    map['is_from_character'] = Variable<bool>(isFromCharacter);
+    map['content'] = Variable<String>(content);
+    if (!nullToAbsent || factId != null) {
+      map['fact_id'] = Variable<String>(factId);
+    }
+    map['is_read'] = Variable<bool>(isRead);
+    map['timestamp'] = Variable<DateTime>(timestamp);
+    return map;
+  }
+
+  PersonaChatMessagesCompanion toCompanion(bool nullToAbsent) {
+    return PersonaChatMessagesCompanion(
+      id: Value(id),
+      characterId: Value(characterId),
+      isFromCharacter: Value(isFromCharacter),
+      content: Value(content),
+      factId:
+          factId == null && nullToAbsent ? const Value.absent() : Value(factId),
+      isRead: Value(isRead),
+      timestamp: Value(timestamp),
+    );
+  }
+
+  factory PersonaChatMessage.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PersonaChatMessage(
+      id: serializer.fromJson<int>(json['id']),
+      characterId: serializer.fromJson<String>(json['characterId']),
+      isFromCharacter: serializer.fromJson<bool>(json['isFromCharacter']),
+      content: serializer.fromJson<String>(json['content']),
+      factId: serializer.fromJson<String?>(json['factId']),
+      isRead: serializer.fromJson<bool>(json['isRead']),
+      timestamp: serializer.fromJson<DateTime>(json['timestamp']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'characterId': serializer.toJson<String>(characterId),
+      'isFromCharacter': serializer.toJson<bool>(isFromCharacter),
+      'content': serializer.toJson<String>(content),
+      'factId': serializer.toJson<String?>(factId),
+      'isRead': serializer.toJson<bool>(isRead),
+      'timestamp': serializer.toJson<DateTime>(timestamp),
+    };
+  }
+
+  PersonaChatMessage copyWith(
+          {int? id,
+          String? characterId,
+          bool? isFromCharacter,
+          String? content,
+          Value<String?> factId = const Value.absent(),
+          bool? isRead,
+          DateTime? timestamp}) =>
+      PersonaChatMessage(
+        id: id ?? this.id,
+        characterId: characterId ?? this.characterId,
+        isFromCharacter: isFromCharacter ?? this.isFromCharacter,
+        content: content ?? this.content,
+        factId: factId.present ? factId.value : this.factId,
+        isRead: isRead ?? this.isRead,
+        timestamp: timestamp ?? this.timestamp,
+      );
+  PersonaChatMessage copyWithCompanion(PersonaChatMessagesCompanion data) {
+    return PersonaChatMessage(
+      id: data.id.present ? data.id.value : this.id,
+      characterId:
+          data.characterId.present ? data.characterId.value : this.characterId,
+      isFromCharacter: data.isFromCharacter.present
+          ? data.isFromCharacter.value
+          : this.isFromCharacter,
+      content: data.content.present ? data.content.value : this.content,
+      factId: data.factId.present ? data.factId.value : this.factId,
+      isRead: data.isRead.present ? data.isRead.value : this.isRead,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PersonaChatMessage(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('isFromCharacter: $isFromCharacter, ')
+          ..write('content: $content, ')
+          ..write('factId: $factId, ')
+          ..write('isRead: $isRead, ')
+          ..write('timestamp: $timestamp')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, characterId, isFromCharacter, content, factId, isRead, timestamp);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PersonaChatMessage &&
+          other.id == this.id &&
+          other.characterId == this.characterId &&
+          other.isFromCharacter == this.isFromCharacter &&
+          other.content == this.content &&
+          other.factId == this.factId &&
+          other.isRead == this.isRead &&
+          other.timestamp == this.timestamp);
+}
+
+class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
+  final Value<int> id;
+  final Value<String> characterId;
+  final Value<bool> isFromCharacter;
+  final Value<String> content;
+  final Value<String?> factId;
+  final Value<bool> isRead;
+  final Value<DateTime> timestamp;
+  const PersonaChatMessagesCompanion({
+    this.id = const Value.absent(),
+    this.characterId = const Value.absent(),
+    this.isFromCharacter = const Value.absent(),
+    this.content = const Value.absent(),
+    this.factId = const Value.absent(),
+    this.isRead = const Value.absent(),
+    this.timestamp = const Value.absent(),
+  });
+  PersonaChatMessagesCompanion.insert({
+    this.id = const Value.absent(),
+    required String characterId,
+    required bool isFromCharacter,
+    required String content,
+    this.factId = const Value.absent(),
+    this.isRead = const Value.absent(),
+    required DateTime timestamp,
+  })  : characterId = Value(characterId),
+        isFromCharacter = Value(isFromCharacter),
+        content = Value(content),
+        timestamp = Value(timestamp);
+  static Insertable<PersonaChatMessage> custom({
+    Expression<int>? id,
+    Expression<String>? characterId,
+    Expression<bool>? isFromCharacter,
+    Expression<String>? content,
+    Expression<String>? factId,
+    Expression<bool>? isRead,
+    Expression<DateTime>? timestamp,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (characterId != null) 'character_id': characterId,
+      if (isFromCharacter != null) 'is_from_character': isFromCharacter,
+      if (content != null) 'content': content,
+      if (factId != null) 'fact_id': factId,
+      if (isRead != null) 'is_read': isRead,
+      if (timestamp != null) 'timestamp': timestamp,
+    });
+  }
+
+  PersonaChatMessagesCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? characterId,
+      Value<bool>? isFromCharacter,
+      Value<String>? content,
+      Value<String?>? factId,
+      Value<bool>? isRead,
+      Value<DateTime>? timestamp}) {
+    return PersonaChatMessagesCompanion(
+      id: id ?? this.id,
+      characterId: characterId ?? this.characterId,
+      isFromCharacter: isFromCharacter ?? this.isFromCharacter,
+      content: content ?? this.content,
+      factId: factId ?? this.factId,
+      isRead: isRead ?? this.isRead,
+      timestamp: timestamp ?? this.timestamp,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (characterId.present) {
+      map['character_id'] = Variable<String>(characterId.value);
+    }
+    if (isFromCharacter.present) {
+      map['is_from_character'] = Variable<bool>(isFromCharacter.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (factId.present) {
+      map['fact_id'] = Variable<String>(factId.value);
+    }
+    if (isRead.present) {
+      map['is_read'] = Variable<bool>(isRead.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<DateTime>(timestamp.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PersonaChatMessagesCompanion(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('isFromCharacter: $isFromCharacter, ')
+          ..write('content: $content, ')
+          ..write('factId: $factId, ')
+          ..write('isRead: $isRead, ')
+          ..write('timestamp: $timestamp')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2193,13 +2577,21 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $AgentActivityMessagesTable(this);
   late final $CardCacheTable cardCache = $CardCacheTable(this);
   late final $SystemActionsTable systemActions = $SystemActionsTable(this);
+  late final $PersonaChatMessagesTable personaChatMessages =
+      $PersonaChatMessagesTable(this);
   late final CardDao cardDao = CardDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [tasks, kvStore, agentActivityMessages, cardCache, systemActions];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+        tasks,
+        kvStore,
+        agentActivityMessages,
+        cardCache,
+        systemActions,
+        personaChatMessages
+      ];
 }
 
 typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
@@ -3290,6 +3682,210 @@ typedef $$SystemActionsTableProcessedTableManager = ProcessedTableManager<
     ),
     SystemAction,
     PrefetchHooks Function()>;
+typedef $$PersonaChatMessagesTableCreateCompanionBuilder
+    = PersonaChatMessagesCompanion Function({
+  Value<int> id,
+  required String characterId,
+  required bool isFromCharacter,
+  required String content,
+  Value<String?> factId,
+  Value<bool> isRead,
+  required DateTime timestamp,
+});
+typedef $$PersonaChatMessagesTableUpdateCompanionBuilder
+    = PersonaChatMessagesCompanion Function({
+  Value<int> id,
+  Value<String> characterId,
+  Value<bool> isFromCharacter,
+  Value<String> content,
+  Value<String?> factId,
+  Value<bool> isRead,
+  Value<DateTime> timestamp,
+});
+
+class $$PersonaChatMessagesTableFilterComposer
+    extends Composer<_$AppDatabase, $PersonaChatMessagesTable> {
+  $$PersonaChatMessagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isFromCharacter => $composableBuilder(
+      column: $table.isFromCharacter,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get factId => $composableBuilder(
+      column: $table.factId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isRead => $composableBuilder(
+      column: $table.isRead, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnFilters(column));
+}
+
+class $$PersonaChatMessagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PersonaChatMessagesTable> {
+  $$PersonaChatMessagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isFromCharacter => $composableBuilder(
+      column: $table.isFromCharacter,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get factId => $composableBuilder(
+      column: $table.factId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isRead => $composableBuilder(
+      column: $table.isRead, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnOrderings(column));
+}
+
+class $$PersonaChatMessagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PersonaChatMessagesTable> {
+  $$PersonaChatMessagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => column);
+
+  GeneratedColumn<bool> get isFromCharacter => $composableBuilder(
+      column: $table.isFromCharacter, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get factId =>
+      $composableBuilder(column: $table.factId, builder: (column) => column);
+
+  GeneratedColumn<bool> get isRead =>
+      $composableBuilder(column: $table.isRead, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+}
+
+class $$PersonaChatMessagesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $PersonaChatMessagesTable,
+    PersonaChatMessage,
+    $$PersonaChatMessagesTableFilterComposer,
+    $$PersonaChatMessagesTableOrderingComposer,
+    $$PersonaChatMessagesTableAnnotationComposer,
+    $$PersonaChatMessagesTableCreateCompanionBuilder,
+    $$PersonaChatMessagesTableUpdateCompanionBuilder,
+    (
+      PersonaChatMessage,
+      BaseReferences<_$AppDatabase, $PersonaChatMessagesTable,
+          PersonaChatMessage>
+    ),
+    PersonaChatMessage,
+    PrefetchHooks Function()> {
+  $$PersonaChatMessagesTableTableManager(
+      _$AppDatabase db, $PersonaChatMessagesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PersonaChatMessagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PersonaChatMessagesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PersonaChatMessagesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> characterId = const Value.absent(),
+            Value<bool> isFromCharacter = const Value.absent(),
+            Value<String> content = const Value.absent(),
+            Value<String?> factId = const Value.absent(),
+            Value<bool> isRead = const Value.absent(),
+            Value<DateTime> timestamp = const Value.absent(),
+          }) =>
+              PersonaChatMessagesCompanion(
+            id: id,
+            characterId: characterId,
+            isFromCharacter: isFromCharacter,
+            content: content,
+            factId: factId,
+            isRead: isRead,
+            timestamp: timestamp,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String characterId,
+            required bool isFromCharacter,
+            required String content,
+            Value<String?> factId = const Value.absent(),
+            Value<bool> isRead = const Value.absent(),
+            required DateTime timestamp,
+          }) =>
+              PersonaChatMessagesCompanion.insert(
+            id: id,
+            characterId: characterId,
+            isFromCharacter: isFromCharacter,
+            content: content,
+            factId: factId,
+            isRead: isRead,
+            timestamp: timestamp,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$PersonaChatMessagesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $PersonaChatMessagesTable,
+    PersonaChatMessage,
+    $$PersonaChatMessagesTableFilterComposer,
+    $$PersonaChatMessagesTableOrderingComposer,
+    $$PersonaChatMessagesTableAnnotationComposer,
+    $$PersonaChatMessagesTableCreateCompanionBuilder,
+    $$PersonaChatMessagesTableUpdateCompanionBuilder,
+    (
+      PersonaChatMessage,
+      BaseReferences<_$AppDatabase, $PersonaChatMessagesTable,
+          PersonaChatMessage>
+    ),
+    PersonaChatMessage,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3304,4 +3900,6 @@ class $AppDatabaseManager {
       $$CardCacheTableTableManager(_db, _db.cardCache);
   $$SystemActionsTableTableManager get systemActions =>
       $$SystemActionsTableTableManager(_db, _db.systemActions);
+  $$PersonaChatMessagesTableTableManager get personaChatMessages =>
+      $$PersonaChatMessagesTableTableManager(_db, _db.personaChatMessages);
 }

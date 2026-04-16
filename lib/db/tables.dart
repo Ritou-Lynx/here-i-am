@@ -86,3 +86,16 @@ class SystemActions extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+/// Persona Chat Messages Table
+/// Stores chat messages between user and their AI companion character.
+class PersonaChatMessages extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get characterId => text()();
+  BoolColumn get isFromCharacter => boolean()();
+  TextColumn get content => text()();
+  TextColumn get factId => text().nullable()();
+  BoolColumn get isRead =>
+      boolean().withDefault(const Constant(false))();
+  DateTimeColumn get timestamp => dateTime()();
+}
