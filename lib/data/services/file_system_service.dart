@@ -2358,7 +2358,7 @@ class FileSystemService {
       'Projects': '项目',
       'Areas': '领域',
       'Resources': '资源',
-      'Archives': '存档',
+      'Archives': '归档',
     };
 
     for (final relativePath in paths) {
