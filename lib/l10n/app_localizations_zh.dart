@@ -1877,6 +1877,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get speechNoResult => '未识别到语音内容';
 
   @override
+  String get speechProcessingModel => '语音处理模型';
+
+  @override
+  String get localSpeechModel => '本地模型';
+
+  @override
+  String get speechProcessingModelDesc => '为语音转写选择一个模型。';
+
+  @override
+  String get speechFallbackToLocal => '失败时回退到本地模型';
+
+  @override
+  String get speechFallbackToLocalDesc => '当云端模型失败或没有返回结果时，自动改用本地语音模型。';
+
+  @override
   String get pendingAiProcessingHint => '配置 AI 模型以自动整理此记录';
 
   @override

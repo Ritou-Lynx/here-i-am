@@ -3560,6 +3560,36 @@ abstract class AppLocalizations {
   /// **'No speech detected'**
   String get speechNoResult;
 
+  /// No description provided for @speechProcessingModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech processing model'**
+  String get speechProcessingModel;
+
+  /// No description provided for @localSpeechModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Local model'**
+  String get localSpeechModel;
+
+  /// No description provided for @speechProcessingModelDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose one model for speech transcription.'**
+  String get speechProcessingModelDesc;
+
+  /// No description provided for @speechFallbackToLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Fallback to local model'**
+  String get speechFallbackToLocal;
+
+  /// No description provided for @speechFallbackToLocalDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the local speech model if the cloud model fails or returns no result.'**
+  String get speechFallbackToLocalDesc;
+
   /// No description provided for @pendingAiProcessingHint.
   ///
   /// In en, this message translates to:

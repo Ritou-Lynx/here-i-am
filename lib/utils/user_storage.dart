@@ -297,14 +297,26 @@ class UserStorage {
   /// Save specified agent config
   static Future<void> saveAgentConfig(
       String agentId, AgentConfig config) async {
+    final allConfigs = await getLLMConfigs();
+    final availableKeys = allConfigs.map((c) => c.key).join(', ');
+
     // Validate llmConfigKey if present
     if (config.llmConfigKey != null && config.llmConfigKey!.isNotEmpty) {
-      final allConfigs = await getLLMConfigs();
       final exists = allConfigs.any((c) => c.key == config.llmConfigKey);
       if (!exists) {
-        final availableKeys = allConfigs.map((c) => c.key).join(', ');
         throw Exception(
             'Invalid LLM Config Key: ${config.llmConfigKey}. Available keys: $availableKeys');
+      }
+    }
+
+    // Validate speechLlmConfigKey if present
+    if (config.speechLlmConfigKey != null &&
+        config.speechLlmConfigKey!.isNotEmpty) {
+      final exists =
+          allConfigs.any((c) => c.key == config.speechLlmConfigKey);
+      if (!exists) {
+        throw Exception(
+            'Invalid speech LLM Config Key: ${config.speechLlmConfigKey}. Available keys: $availableKeys');
       }
     }
 
@@ -314,7 +326,8 @@ class UserStorage {
       await prefs.setString('${_keyAgentConfigs}_$agentId', jsonString);
     } catch (e) {
       // Re-throw validation exception, wrap others
-      if (e.toString().contains('Invalid LLM Config Key')) {
+      if (e.toString().contains('Invalid LLM Config Key') ||
+          e.toString().contains('Invalid speech LLM Config Key')) {
         rethrow;
       }
       throw Exception('Failed to save agent config: $e');
@@ -378,21 +391,17 @@ class UserStorage {
     }
   }
 
-  /// Get both the LLMClient and ModelConfig for an agent.
-  /// This centralized method handles client creation and model configuration mapping.
-  /// [defaultClientKey] specifies which default config to use if the agent hasn't selected one.
   static Future<({LLMClient client, ModelConfig modelConfig})>
-      getAgentLLMResources(String agentId, {String? defaultClientKey}) async {
-    final llmConfig =
-        await getAgentLLMConfig(agentId, defaultClientKey: defaultClientKey);
-
+      getLLMResourcesByConfig(LLMConfig llmConfig, {String? agentId}) async {
     if (!llmConfig.isValid) {
-      EventBusService.instance.emitEvent(InvalidModelConfigMessage(
-        agentId: AgentDefinitions.displayNames[agentId] ?? agentId,
-        configKey: llmConfig.key,
-      ));
+      if (agentId != null) {
+        EventBusService.instance.emitEvent(InvalidModelConfigMessage(
+          agentId: AgentDefinitions.displayNames[agentId] ?? agentId,
+          configKey: llmConfig.key,
+        ));
+      }
       throw InvalidModelConfigException(
-          'The LLM configuration for $agentId is invalid.');
+          'The LLM configuration${agentId != null ? ' for $agentId' : ''} is invalid.');
     }
 
     // Use proxy URL from LLM config if set
@@ -535,6 +544,25 @@ class UserStorage {
     );
 
     return (client: client, modelConfig: modelConfig);
+  }
+
+  static Future<LLMConfig> getLLMConfigByKey(String configKey) async {
+    final allConfigs = await getLLMConfigs();
+    try {
+      return allConfigs.firstWhere((c) => c.key == configKey);
+    } catch (e) {
+      throw Exception('LLM config not found (key: $configKey)');
+    }
+  }
+
+  /// Get both the LLMClient and ModelConfig for an agent.
+  /// This centralized method handles client creation and model configuration mapping.
+  /// [defaultClientKey] specifies which default config to use if the agent hasn't selected one.
+  static Future<({LLMClient client, ModelConfig modelConfig})>
+      getAgentLLMResources(String agentId, {String? defaultClientKey}) async {
+    final llmConfig =
+        await getAgentLLMConfig(agentId, defaultClientKey: defaultClientKey);
+    return getLLMResourcesByConfig(llmConfig, agentId: agentId);
   }
 
   /// Get photo suggestion cache
@@ -789,7 +817,7 @@ class UserStorage {
 
     for (final entity in rootEntities) {
       final name = entity.path.split('/').last;
-      final destination = '${documentsPath}/$name';
+      final destination = '$documentsPath/$name';
       try {
         await entity.rename(destination);
         _logger.info('iCloud migration: moved $name');

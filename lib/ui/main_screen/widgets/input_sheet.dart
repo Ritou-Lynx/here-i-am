@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:logging/logging.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:crypto/crypto.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'dart:convert';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
@@ -17,6 +17,7 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/data/services/photo_suggestion_service.dart';
 import 'package:memex/data/services/whisper_service.dart';
 import 'package:memex/data/services/streaming_transcriber.dart';
+import 'package:memex/data/services/speech_transcription_service.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/data/services/demo_service.dart';
@@ -110,7 +111,6 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
   List<List<EnhancedPhoto>>? _autoClusters;
   bool _isLoadingAuto = false;
   final Map<String, AssetEntity> _assetsMap = {}; // path -> AssetEntity
-  bool _isPlaying = false;
 
   @override
   void initState() {
@@ -150,8 +150,7 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
 
     _audioPlayer.onPlayerComplete.listen((event) {
       setState(() {
-        _isPlaying = false;
-      });
+        });
     });
   }
 
@@ -193,7 +192,6 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
       _originalFilenames.clear();
       _audioPath = data.audioPath;
       _isRecording = false;
-      _isPlaying = false;
       _recordingDuration = Duration.zero;
       _detectedTags = tags;
       _autoClusters = null;
@@ -209,7 +207,6 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
       _originalFilenames.clear();
       _audioPath = null;
       _isRecording = false;
-      _isPlaying = false;
       _recordingDuration = Duration.zero;
       _detectedTags = [];
       _autoClusters = null;
@@ -387,12 +384,16 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
 
   Future<void> _startRecording() async {
     try {
-      // Check if speech model is downloaded before recording
-      if (!await WhisperService.instance.isModelDownloaded()) {
+      final speechService = SpeechTranscriptionService.instance;
+      final usesLocalSpeechModel = await speechService.isUsingLocalModel();
+
+      if (usesLocalSpeechModel &&
+          !await WhisperService.instance.isModelDownloaded()) {
         if (!mounted) return;
         await _showModelDownloadDialog();
-        if (!await WhisperService.instance.isModelDownloaded() || !mounted)
+        if (!await WhisperService.instance.isModelDownloaded() || !mounted) {
           return;
+        }
       }
 
       var status = await Permission.microphone.status;
@@ -409,27 +410,27 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
         return;
       }
 
-      // Initialize streaming transcriber
       _preRecordingText = _textController.text;
 
-      _streamingTranscriber = StreamingTranscriber(
-        onTextChanged: (fullText) {
-          if (mounted) {
-            final separator =
-                _preRecordingText.isNotEmpty && fullText.isNotEmpty ? ' ' : '';
-            setState(() {
-              _textController.text = '$_preRecordingText$separator$fullText';
-              _textController.selection = TextSelection.collapsed(
-                offset: _textController.text.length,
-              );
-            });
-            _scrollTextToBottom();
-          }
-        },
-      );
-      await _streamingTranscriber!.init();
+      if (usesLocalSpeechModel) {
+        _streamingTranscriber = StreamingTranscriber(
+          onTextChanged: (fullText) {
+            if (mounted) {
+              final separator =
+                  _preRecordingText.isNotEmpty && fullText.isNotEmpty ? ' ' : '';
+              setState(() {
+                _textController.text = '$_preRecordingText$separator$fullText';
+                _textController.selection = TextSelection.collapsed(
+                  offset: _textController.text.length,
+                );
+              });
+              _scrollTextToBottom();
+            }
+          },
+        );
+        await _streamingTranscriber!.init();
+      }
 
-      // Start streaming recording (PCM 16-bit, 16kHz, mono)
       _pcmBuffer.clear();
       final audioStream = await _audioRecorder.startStream(
         const RecordConfig(
@@ -439,12 +440,12 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
         ),
       );
 
-      int _chunkCount = 0;
+      int chunkCount = 0;
       _audioStreamSub = audioStream.listen((chunk) {
-        _chunkCount++;
-        if (_chunkCount % 50 == 1) {
+        chunkCount++;
+        if (chunkCount % 50 == 1) {
           _logger.info(
-              'Audio stream chunk #$_chunkCount, size=${chunk.length} bytes');
+              'Audio stream chunk #$chunkCount, size=${chunk.length} bytes');
         }
         _pcmBuffer.addAll(chunk);
         _streamingTranscriber?.addAudioChunk(chunk);
@@ -594,7 +595,8 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
       for (int i = 0; i < int16Data.length; i++) {
         samples[i] = int16Data[i] / 32768.0;
       }
-      final text = await WhisperService.instance.transcribeSamples(samples);
+      final text =
+          await SpeechTranscriptionService.instance.transcribeSamples(samples);
       if (text != null && text.isNotEmpty && mounted) {
         final separator = _preRecordingText.isNotEmpty ? ' ' : '';
         setState(() {
@@ -628,13 +630,20 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
       final filePath = result.files.single.path;
       if (filePath == null) return;
 
-      // Check if model is downloaded
-      if (!await WhisperService.instance.isModelDownloaded()) {
+      final speechService = SpeechTranscriptionService.instance;
+      if (await speechService.isUsingLocalModel() &&
+          !await WhisperService.instance.isModelDownloaded()) {
         if (!mounted) return;
         await _showModelDownloadDialog();
-        if (!await WhisperService.instance.isModelDownloaded() || !mounted)
+        if (!await WhisperService.instance.isModelDownloaded() || !mounted) {
           return;
+        }
       }
+
+      if (!mounted) return;
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+      final l10n = UserStorage.l10n;
 
       // Show loading dialog
       showedLoading = true;
@@ -660,7 +669,7 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
+                const SizedBox(
                   width: 32,
                   height: 32,
                   child: CircularProgressIndicator(
@@ -670,7 +679,7 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  UserStorage.l10n.speechTranscribing,
+                  l10n.speechTranscribing,
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
@@ -683,13 +692,14 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
         ),
       );
 
-      final text = await WhisperService.instance
-          .transcribe(filePath, skipLengthCheck: true);
+      final text = await SpeechTranscriptionService.instance
+          .transcribeFile(filePath, skipLengthCheck: true);
 
-      if (mounted) Navigator.of(context).pop(); // Dismiss loading dialog
+      if (!mounted) return;
+      navigator.pop();
       showedLoading = false;
 
-      if (text != null && text.trim().isNotEmpty && mounted) {
+      if (text != null && text.trim().isNotEmpty) {
         final current = _textController.text;
         final separator = current.isNotEmpty ? '\n' : '';
         setState(() {
@@ -699,9 +709,9 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
           );
         });
         _scrollTextToBottom();
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(UserStorage.l10n.speechNoResult)),
+      } else {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.speechNoResult)),
         );
       }
     } catch (e) {
@@ -733,123 +743,6 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
             width: 2,
           ),
         ),
-      ),
-    );
-  }
-
-  /// Transcribe audio and show result in a bottom sheet.
-  Future<void> _previewTranscription() async {
-    if (_audioPath == null) return;
-    final whisper = WhisperService.instance;
-
-    if (!await whisper.isModelDownloaded()) {
-      if (!mounted) return;
-      await _showModelDownloadDialog();
-      if (!await whisper.isModelDownloaded() || !mounted) return;
-    }
-
-    final l10n = UserStorage.l10n;
-    String? resultText;
-    bool isLoading = true;
-
-    setState(() => _isTranscribing = true);
-
-    // Show bottom sheet immediately with loading state
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          // Kick off transcription on first build
-          if (isLoading && resultText == null) {
-            whisper.transcribe(_audioPath!).then((text) {
-              resultText = text;
-              isLoading = false;
-              if (ctx.mounted) setSheetState(() {});
-              if (mounted) setState(() => _isTranscribing = false);
-            }).catchError((_) {
-              isLoading = false;
-              if (ctx.mounted) setSheetState(() {});
-              if (mounted) setState(() => _isTranscribing = false);
-            });
-          }
-
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  l10n.speechTranscriptionTitle,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  constraints: const BoxConstraints(minHeight: 60),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: isLoading
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              l10n.speechTranscribing,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                          ],
-                        )
-                      : SelectableText(
-                          resultText?.trim().isNotEmpty == true
-                              ? resultText!
-                              : l10n.speechNoResult,
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            color: resultText?.trim().isNotEmpty == true
-                                ? AppColors.textPrimary
-                                : AppColors.textTertiary,
-                            height: 1.5,
-                          ),
-                        ),
-                ),
-              ],
-            ),
-          );
-        },
       ),
     );
   }
@@ -1042,26 +935,6 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
     });
   }
 
-  void _removeAudio() {
-    _audioPlayer.stop();
-    setState(() {
-      _audioPath = null;
-      _isPlaying = false;
-    });
-  }
-
-  Future<void> _toggleAudioPlayback() async {
-    if (_audioPath == null) return;
-
-    if (_isPlaying) {
-      await _audioPlayer.pause();
-      setState(() => _isPlaying = false);
-    } else {
-      await _audioPlayer.play(DeviceFileSource(_audioPath!));
-      setState(() => _isPlaying = true);
-    }
-  }
-
   void _showImagePreview(int index) {
     if (index < 0 || index >= _selectedImages.length) return;
 
@@ -1115,7 +988,8 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
     );
   }
 
-  void _handleSubmit() async {
+  Future<void> _handleSubmit() async {
+    if (!mounted) return;
     final trimmedText = _textController.text.trim().isEmpty
         ? null
         : _textController.text.trim();
@@ -1125,7 +999,7 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
     List<String>? imageHashes;
 
     if (trimmedText != null && trimmedText.isNotEmpty) {
-      textHash = md5.convert(utf8.encode(trimmedText)).toString();
+      textHash = crypto.md5.convert(utf8.encode(trimmedText)).toString();
     }
 
     if (_selectedImages.isNotEmpty) {
@@ -1138,9 +1012,9 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
 
           _logger.info('Generating hash for image: $rawHashStr');
           await Future.delayed(Duration.zero);
-          imageHashes.add(md5.convert(utf8.encode(rawHashStr)).toString());
+          imageHashes.add(crypto.md5.convert(utf8.encode(rawHashStr)).toString());
         } catch (e) {
-          imageHashes.add(md5
+          imageHashes.add(crypto.md5
               .convert(utf8.encode(
                   'photo_${xFile.path}_${DateTime.now().millisecondsSinceEpoch}'))
               .toString());
@@ -1166,13 +1040,6 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
     _resetForm();
   }
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
-  }
-
   @override
   Widget build(BuildContext context) {
     if (!widget.isOpen) return const SizedBox.shrink();
@@ -1191,7 +1058,7 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
           child: GestureDetector(
             onTap: widget.onClose,
             child: Container(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha:0.2),
             ),
           ),
         ),
@@ -1220,7 +1087,7 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
                           borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha:0.1),
                               blurRadius: 30,
                               offset:
                                   const Offset(0, 10), // Shadow below for float
@@ -1645,7 +1512,7 @@ class _InputSheetState extends State<InputSheet> with TickerProviderStateMixin {
           border: Border.all(color: const Color(0xFFF7F8FA), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha:0.04),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),

@@ -1944,6 +1944,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get speechNoResult => 'No speech detected';
 
   @override
+  String get speechProcessingModel => 'Speech processing model';
+
+  @override
+  String get localSpeechModel => 'Local model';
+
+  @override
+  String get speechProcessingModelDesc =>
+      'Choose one model for speech transcription.';
+
+  @override
+  String get speechFallbackToLocal => 'Fallback to local model';
+
+  @override
+  String get speechFallbackToLocalDesc =>
+      'Use the local speech model if the cloud model fails or returns no result.';
+
+  @override
   String get pendingAiProcessingHint => 'Set up AI model to process';
 
   @override
