@@ -63,7 +63,7 @@ class ChatService {
       if (finalSessionId.isEmpty) {
         finalSessionId = await _createSession(userId, agentName, [
           {'type': 'text', 'text': message}
-        ]);
+        ], isQuickQuery: isQuickQuery);
       }
 
       // Notify UI of the active session ID immediately
@@ -77,7 +77,8 @@ class ChatService {
           [
             {'type': 'text', 'text': message}
           ],
-          refs: refs);
+          refs: refs,
+          isQuickQuery: isQuickQuery);
 
       // Log chat event
       try {
@@ -567,8 +568,9 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
   Future<String> _createSession(
     String userId,
     String? agentName,
-    List<Map<String, dynamic>> initialContent,
-  ) async {
+    List<Map<String, dynamic>> initialContent, {
+    bool isQuickQuery = false,
+  }) async {
     final uuidStr = _uuid.v4();
     final sessionId = agentName != null && agentName.isNotEmpty
         ? '${agentName}_$uuidStr'
@@ -590,6 +592,7 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
       'title': title ?? 'New Chat',
       'created_at': now.toIso8601String(),
       'updated_at': now.toIso8601String(),
+      'is_quick_query': isQuickQuery,
       'messages': <dynamic>[],
     };
 
@@ -608,6 +611,7 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
     List<Map<String, dynamic>> content, {
     Map<String, dynamic>? usage,
     List<Map<String, String>>? refs,
+    bool? isQuickQuery,
   }) async {
     final sessionFile = _getSessionFilePath(userId, sessionId);
     if (!await sessionFile.exists()) return null;
@@ -652,6 +656,11 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
         'total_cost': (currentTotal['total_cost'] as double? ?? 0.0) +
             (usage['total_cost'] as double? ?? 0.0),
       };
+    }
+
+    // Update session-level mode flag so history can restore it
+    if (isQuickQuery != null) {
+      sessionData['is_quick_query'] = isQuickQuery;
     }
 
     sessionData['updated_at'] = DateTime.now().toIso8601String();

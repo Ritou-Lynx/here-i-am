@@ -98,10 +98,8 @@ class _AgentChatDialogState extends State<AgentChatDialog>
   bool _isLoadingAgent = false;
   ChatTokenUsageEvent? _lastTokenUsage;
   bool _isReadOnly = false;
-  // Tracks whether the user switched from read-only to normal (but hasn't sent a message yet).
-  bool _previouslyReadOnly = false;
-  // Once the user sends a message in normal mode after having been in read-only, lock permanently.
-  bool _readOnlyLocked = false;
+  // Whether the user has sent at least one message in normal mode — prevents switching to read-only.
+  bool _hasSentInNormalMode = false;
 
   // Controllers
   final TextEditingController _messageController = TextEditingController();
@@ -201,6 +199,11 @@ class _AgentChatDialogState extends State<AgentChatDialog>
         _items = historyItems;
         _lastTokenUsage = restoredUsage;
         _isLoading = false;
+        // Restore read-only mode from persisted session
+        final wasQuickQuery = sessionData['is_quick_query'] == true;
+        _isReadOnly = wasQuickQuery;
+        // If session was in normal mode (or field missing for old sessions), lock toggle
+        _hasSentInNormalMode = !wasQuickQuery;
       });
       _scrollToBottom();
     } catch (e) {
@@ -221,10 +224,9 @@ class _AgentChatDialogState extends State<AgentChatDialog>
       _contextSent = true;
     }
 
-    // Lock read-only if user sends a message in normal mode after having been in read-only
-    if (!_isReadOnly && _previouslyReadOnly) {
-      _readOnlyLocked = true;
-      _previouslyReadOnly = false;
+    // Lock read-only toggle once user sends in normal mode
+    if (!_isReadOnly) {
+      _hasSentInNormalMode = true;
     }
 
     setState(() {
@@ -568,7 +570,8 @@ class _AgentChatDialogState extends State<AgentChatDialog>
   }
 
   Widget _buildModeToggle() {
-    final locked = _readOnlyLocked;
+    // Can always switch FROM read-only; can switch TO read-only only if never sent in normal mode
+    final locked = !_isReadOnly && _hasSentInNormalMode;
     final canToggle = !locked && !_isStreaming;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -578,13 +581,7 @@ class _AgentChatDialogState extends State<AgentChatDialog>
             onTap: canToggle
                 ? () {
                     setState(() {
-                      if (_isReadOnly) {
-                        _isReadOnly = false;
-                        _previouslyReadOnly = true;
-                      } else {
-                        _isReadOnly = true;
-                        _previouslyReadOnly = false;
-                      }
+                      _isReadOnly = !_isReadOnly;
                     });
                   }
                 : null,
