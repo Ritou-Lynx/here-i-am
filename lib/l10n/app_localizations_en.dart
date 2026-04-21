@@ -1944,8 +1944,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get speechNoResult => 'No speech detected';
 
   @override
-  String get pendingAiProcessingHint =>
-      'Set up AI model to auto-process this record';
+  String get pendingAiProcessingHint => 'Set up AI model to process';
 
   @override
   String get demoWelcome =>

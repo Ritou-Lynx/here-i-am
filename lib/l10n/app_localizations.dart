@@ -3563,7 +3563,7 @@ abstract class AppLocalizations {
   /// No description provided for @pendingAiProcessingHint.
   ///
   /// In en, this message translates to:
-  /// **'Set up AI model to auto-process this record'**
+  /// **'Set up AI model to process'**
   String get pendingAiProcessingHint;
 
   /// No description provided for @demoWelcome.
