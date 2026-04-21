@@ -3641,14 +3641,20 @@ abstract class AppLocalizations {
   /// No description provided for @readOnlyMode.
   ///
   /// In en, this message translates to:
-  /// **'Read-Only Mode'**
+  /// **'Chat'**
   String get readOnlyMode;
 
   /// No description provided for @readOnlyBadge.
   ///
   /// In en, this message translates to:
-  /// **'READ-ONLY'**
+  /// **'CHAT'**
   String get readOnlyBadge;
+
+  /// No description provided for @chatModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent'**
+  String get chatModeLabel;
 }
 
 class _AppLocalizationsDelegate

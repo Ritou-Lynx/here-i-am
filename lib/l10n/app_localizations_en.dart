@@ -1985,8 +1985,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get demoPrefillText => 'Hello Memex! This is my first record 🎉';
 
   @override
-  String get readOnlyMode => 'Read-Only Mode';
+  String get readOnlyMode => 'Chat';
 
   @override
-  String get readOnlyBadge => 'READ-ONLY';
+  String get readOnlyBadge => 'CHAT';
+
+  @override
+  String get chatModeLabel => 'Agent';
 }

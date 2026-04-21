@@ -894,6 +894,8 @@
   "demoSkip": "Skip",
   "demoPrefillText": "Hello Memex! This is my first record 🎉",
 
-  "readOnlyMode": "Read-Only Mode",
-  "readOnlyBadge": "READ-ONLY"
+  "readOnlyMode": "Chat",
+  "readOnlyBadge": "CHAT",
+
+  "chatModeLabel": "Agent"
 }

@@ -1916,8 +1916,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get demoPrefillText => '你好 Memex！这是我的第一条记录 🎉';
 
   @override
-  String get readOnlyMode => '只读模式';
+  String get readOnlyMode => '对话';
 
   @override
-  String get readOnlyBadge => '只读';
+  String get readOnlyBadge => '对话';
+
+  @override
+  String get chatModeLabel => '智能体';
 }
