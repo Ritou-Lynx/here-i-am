@@ -1311,6 +1311,11 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                     controller: _extraController,
                     decoration: InputDecoration(
                       labelText: UserStorage.l10n.extraParamsJson,
+                      helperText:
+                          LLMConfig.extraParamsHint(_selectedType).isNotEmpty
+                              ? LLMConfig.extraParamsHint(_selectedType)
+                              : null,
+                      helperMaxLines: 10,
                       border: const OutlineInputBorder(),
                       alignLabelWithHint: true,
                     ),

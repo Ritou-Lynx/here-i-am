@@ -350,6 +350,24 @@ class LLMConfig {
     }
   }
 
+  /// Example hint text for the extra params JSON field, per provider type.
+  static String extraParamsHint(String type) {
+    final effective = underlyingClientType(type) ?? type;
+    switch (effective) {
+      case typeGemini:
+      case typeGeminiOauth:
+        return 'e.g. {\n  "thinkingConfig": {\n    "includeThoughts": true,\n    "thinkingLevel": "high"\n  }\n}';
+      case typeChatCompletion:
+      case typeResponses:
+        return 'e.g. {\n  "reasoning_effort": "medium"\n}';
+      case typeClaude:
+      case typeBedrockClaude:
+        return 'e.g. {\n  "thinking": {\n    "type": "enabled",\n    "budget_tokens": N\n  }\n}\nor {\n  "thinking": {\n    "type": "adaptive"\n  }\n}';
+      default:
+        return '';
+    }
+  }
+
   /// Get valid API Key (return default if empty)
   String getEffectiveApiKey() {
     if (apiKey.isNotEmpty) {
@@ -501,7 +519,7 @@ class LLMConfig {
       modelId: 'gpt-5.4',
       maxTokens: 65536,
       apiKey: '',
-      extra: {"reasoning_effort": "medium"},
+      extra: {},
     );
   }
 
