@@ -227,7 +227,11 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                             const SizedBox(height: 8),
-                                            Row(
+                                            Wrap(
+                                              spacing: 8,
+                                              runSpacing: 4,
+                                              crossAxisAlignment:
+                                                  WrapCrossAlignment.center,
                                               children: [
                                                 Text(
                                                   _formatDateTime(updatedAt),
@@ -237,7 +241,6 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                                         AppColors.textTertiary,
                                                   ),
                                                 ),
-                                                const SizedBox(width: 8),
                                                 const Text(
                                                   '•',
                                                   style: TextStyle(
@@ -246,7 +249,6 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                                         AppColors.textTertiary,
                                                   ),
                                                 ),
-                                                const SizedBox(width: 8),
                                                 Text(
                                                   UserStorage.l10n.messageCount(
                                                       messageCount),
@@ -258,16 +260,14 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                                 ),
                                                 if (session['is_quick_query'] ==
                                                     true) ...[
-                                                  const SizedBox(width: 8),
                                                   const Text(
                                                     '•',
                                                     style: TextStyle(
                                                       fontSize: 12,
-                                                      color:
-                                                          AppColors.textTertiary,
+                                                      color: AppColors
+                                                          .textTertiary,
                                                     ),
                                                   ),
-                                                  const SizedBox(width: 8),
                                                   Container(
                                                     padding: const EdgeInsets
                                                         .symmetric(
@@ -284,7 +284,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                                                     child: Text(
                                                       UserStorage
                                                           .l10n.readOnlyBadge,
-                                                      style: TextStyle(
+                                                      style: const TextStyle(
                                                         fontSize: 10,
                                                         fontWeight:
                                                             FontWeight.w600,
