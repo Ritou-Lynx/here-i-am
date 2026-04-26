@@ -54,6 +54,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
       Duration(seconds: 5); // poll every 5s
   String _userName = 'User';
   String? _userAvatar;
+  double? _firstImageAspectRatio;
 
   @override
   void initState() {
@@ -71,6 +72,19 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
       setState(() {
         _userName = name ?? 'User';
         _userAvatar = avatar;
+      });
+    }
+  }
+
+  void _resolveFirstImageAspectRatio(CardDetailModel detail) {
+    if (_firstImageAspectRatio != null) return;
+    final imageAssets = detail.assets.where((a) => a.isImage).toList();
+    if (imageAssets.isEmpty) return;
+
+    final dims = LocalImage.extractDimensionsFromUrl(imageAssets.first.url);
+    if (dims != null && dims.width > 0 && dims.height > 0) {
+      setState(() {
+        _firstImageAspectRatio = dims.width / dims.height;
       });
     }
   }
@@ -95,6 +109,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
       setState(() {
         _detail = detail;
       });
+      _resolveFirstImageAspectRatio(detail);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -1033,13 +1048,28 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
 
   Widget _buildHeaderMedia(BuildContext context, CardDetailModel detail) {
     if (detail.assets.isNotEmpty) {
+      final screenHeight = MediaQuery.of(context).size.height;
+      final topPadding = MediaQuery.of(context).padding.top;
+      final containerWidth = MediaQuery.of(context).size.width -
+          32; // minus horizontal padding 16*2
+      // Max: screen - status bar - nav bar(52) - bottom input bar(76) - title area(~60)
+      final maxHeight = screenHeight - topPadding - 52 - 76 - 60;
+      // Calculate height from first image aspect ratio
+      final double imageHeight;
+      if (_firstImageAspectRatio != null && _firstImageAspectRatio! > 0) {
+        final naturalHeight = containerWidth / _firstImageAspectRatio!;
+        imageHeight = naturalHeight.clamp(150.0, maxHeight);
+      } else {
+        imageHeight = (screenHeight * 0.55).clamp(150.0, maxHeight);
+      }
+
       // Asset Gallery
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           children: [
             SizedBox(
-              height: MediaQuery.of(context).size.height * 0.55,
+              height: imageHeight,
               child: GestureDetector(
                 onTap: _showFullScreenGallery,
                 child: ClipRRect(
@@ -1056,7 +1086,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                           color: const Color(0xFFF7F8FA),
                           child: LocalImage(
                             url: asset.url,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                           ),
                         );
                       } else if (asset.isAudio) {

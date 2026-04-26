@@ -168,6 +168,21 @@ class LocalImage extends StatefulWidget {
 
   @override
   State<LocalImage> createState() => _LocalImageState();
+
+  /// Extract width/height from URL in _1920x1080 format; ignore suffix like _max768.jpg
+  static Size? extractDimensionsFromUrl(String url) {
+    // match _1920x1080_ followed by any chars or .png etc.
+    final regex = RegExp(r'_(\d+)x(\d+)(?:_|\[|\.|$)');
+    final match = regex.firstMatch(url);
+    if (match != null) {
+      final width = double.tryParse(match.group(1)!);
+      final height = double.tryParse(match.group(2)!);
+      if (width != null && height != null && height > 0) {
+        return Size(width, height);
+      }
+    }
+    return null;
+  }
 }
 
 class _LocalImageState extends State<LocalImage> {
@@ -341,21 +356,6 @@ class _LocalImageState extends State<LocalImage> {
     }
   }
 
-  /// Extract width/height from URL in _1920x1080 format; ignore suffix like _max768.jpg
-  Size? _extractDimensionsFromUrl(String url) {
-    // match _1920x1080_ followed by any chars or .png etc.
-    final regex = RegExp(r'_(\d+)x(\d+)(?:_|\[|\.|$)');
-    final match = regex.firstMatch(url);
-    if (match != null) {
-      final width = double.tryParse(match.group(1)!);
-      final height = double.tryParse(match.group(2)!);
-      if (width != null && height != null && height > 0) {
-        return Size(width, height);
-      }
-    }
-    return null;
-  }
-
   /// Build skeleton placeholder
   Widget _buildSkeleton() {
     Widget skeleton = Shimmer.fromColors(
@@ -374,7 +374,7 @@ class _LocalImageState extends State<LocalImage> {
     }
 
     // try infer aspect ratio from filename
-    final Size? dims = _extractDimensionsFromUrl(widget.url);
+    final Size? dims = LocalImage.extractDimensionsFromUrl(widget.url);
     if (dims != null && dims.height > 0) {
       return AspectRatio(
         aspectRatio: dims.width / dims.height,
