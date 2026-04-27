@@ -1923,6 +1923,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get demoPrefillText => '你好 Memex！这是我的第一条记录 🎉';
 
   @override
+  String get visionBadge => '视觉';
+
+  @override
+  String get notMultimodalHint =>
+      'Memex依赖模型多模态能力用于媒体分析，如果您的记录内容包含图片，请确保您配置的模型支持图片输入。';
+
+  @override
+  String get defaultModelPrefix => '默认使用';
+
+  @override
+  String get recommendedBadge => '推荐';
+
+  @override
+  String get reanalyzeMediaAssets => '重新分析图片/音频';
+
+  @override
+  String get reanalyzeMediaAssetsDesc => '会先刷新 Facts/assets 下的媒体分析，再重新生成卡片。';
+
+  @override
   String get readOnlyMode => '对话';
 
   @override

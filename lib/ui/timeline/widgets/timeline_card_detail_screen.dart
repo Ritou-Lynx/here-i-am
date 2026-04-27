@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -53,6 +54,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
       Duration(seconds: 5); // poll every 5s
   String _userName = 'User';
   String? _userAvatar;
+  double? _firstImageAspectRatio;
 
   @override
   void initState() {
@@ -70,6 +72,19 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
       setState(() {
         _userName = name ?? 'User';
         _userAvatar = avatar;
+      });
+    }
+  }
+
+  void _resolveFirstImageAspectRatio(CardDetailModel detail) {
+    if (_firstImageAspectRatio != null) return;
+    final imageAssets = detail.assets.where((a) => a.isImage).toList();
+    if (imageAssets.isEmpty) return;
+
+    final dims = LocalImage.extractDimensionsFromUrl(imageAssets.first.url);
+    if (dims != null && dims.width > 0 && dims.height > 0) {
+      setState(() {
+        _firstImageAspectRatio = dims.width / dims.height;
       });
     }
   }
@@ -94,6 +109,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
       setState(() {
         _detail = detail;
       });
+      _resolveFirstImageAspectRatio(detail);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -1032,13 +1048,28 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
 
   Widget _buildHeaderMedia(BuildContext context, CardDetailModel detail) {
     if (detail.assets.isNotEmpty) {
+      final screenHeight = MediaQuery.of(context).size.height;
+      final topPadding = MediaQuery.of(context).padding.top;
+      final containerWidth = MediaQuery.of(context).size.width -
+          32; // minus horizontal padding 16*2
+      // Max: screen - status bar - nav bar(52) - bottom input bar(76) - title area(~60)
+      final maxHeight = screenHeight - topPadding - 52 - 76 - 60;
+      // Calculate height from first image aspect ratio
+      final double imageHeight;
+      if (_firstImageAspectRatio != null && _firstImageAspectRatio! > 0) {
+        final naturalHeight = containerWidth / _firstImageAspectRatio!;
+        imageHeight = naturalHeight.clamp(150.0, maxHeight);
+      } else {
+        imageHeight = (screenHeight * 0.55).clamp(150.0, maxHeight);
+      }
+
       // Asset Gallery
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           children: [
             SizedBox(
-              height: MediaQuery.of(context).size.height * 0.55,
+              height: imageHeight,
               child: GestureDetector(
                 onTap: _showFullScreenGallery,
                 child: ClipRRect(
@@ -1055,7 +1086,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                           color: const Color(0xFFF7F8FA),
                           child: LocalImage(
                             url: asset.url,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                           ),
                         );
                       } else if (asset.isAudio) {
@@ -1299,10 +1330,17 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
       BuildContext context, List<RelatedCard> cards) {
     if (cards.isEmpty) return const SizedBox.shrink();
 
+    // Calculate how many cards fit on screen
+    // card width 170 + separator 12, horizontal padding 20 each side
+    final screenWidth = MediaQuery.of(context).size.width;
+    final availableWidth = screenWidth - 40; // minus left+right padding
+    final visibleCount = (availableWidth + 12) ~/
+        (170 + 12); // +12 because last card has no separator
+    final hasOverflow = cards.length > visibleCount;
+
     return Container(
       width: double.infinity,
-      color:
-          TimelineTheme.colors.backgroundSecondary, // Using semantic background
+      color: TimelineTheme.colors.backgroundSecondary,
       padding: const EdgeInsets.only(top: 24, bottom: 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1322,7 +1360,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  UserStorage.l10n.relatedMemories, // Semantic and soft
+                  UserStorage.l10n.relatedMemories,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
@@ -1331,7 +1369,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                   ),
                 ),
                 const Spacer(),
-                if (cards.length > 3)
+                if (hasOverflow)
                   GestureDetector(
                     onTap: () => _showRelatedCards(context, cards),
                     child: Row(
@@ -1358,7 +1396,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
 
           // Horizontal Vertical-Poster Carousel
           SizedBox(
-            height: 270, // Reduced height to minimize whitespace
+            height: 270,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               scrollDirection: Axis.horizontal,
@@ -1377,8 +1415,10 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
   }
 
   Widget _buildRichRelatedCardItem(BuildContext context, RelatedCard card) {
+    final hasImage = card.assets.isNotEmpty && card.assets.first.isImage;
+
     return Container(
-      width: 170, // Slightly narrower
+      width: 170,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1405,89 +1445,178 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
               ),
             );
           },
+          child: hasImage
+              ? _buildImageRelatedCard(card)
+              : _buildTextRelatedCard(card),
+        ),
+      ),
+    );
+  }
+
+  /// Related card with image: image top + compact title/date bottom
+  Widget _buildImageRelatedCard(RelatedCard card) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: TimelineTheme.colors.backgroundSecondary,
+              image: DecorationImage(
+                image: LocalImage.provider(card.assets.first.url),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        ),
+        Container(
+          height: 85,
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Media / Visual Area (Dominant)
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: TimelineTheme.colors.backgroundSecondary,
-                    image: card.assets.isNotEmpty && card.assets.first.isImage
-                        ? DecorationImage(
-                            image: LocalImage.provider(card.assets.first.url),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: card.assets.isEmpty || !card.assets.first.isImage
-                      ? Center(
-                          child: Icon(
-                            Icons.image_not_supported_outlined,
-                            size: 28,
-                            color: TimelineTheme.colors.textTertiary
-                                .withOpacity(0.3),
-                          ),
-                        )
-                      : null,
+              Text(
+                card.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TimelineTheme.typography.body.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  height: 1.3,
                 ),
               ),
-
-              // Content Area (Compact)
-              Container(
-                height: 85, // Fixed compact height for text area
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Title
-                    Text(
-                      card.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TimelineTheme.typography.body.copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13, // Slightly smaller for density
-                        height: 1.3,
+              Row(
+                children: [
+                  if (card.rawContent.isNotEmpty)
+                    Expanded(
+                      child: Text(
+                        card.rawContent,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TimelineTheme.typography.small.copyWith(
+                          color: TimelineTheme.colors.textSecondary,
+                          fontSize: 10,
+                        ),
                       ),
                     ),
-
-                    // Footer: Content Preview or Date
-                    Row(
-                      children: [
-                        if (card.rawContent.isNotEmpty)
-                          Expanded(
-                            child: Text(
-                              card.rawContent,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TimelineTheme.typography.small.copyWith(
-                                color: TimelineTheme.colors.textSecondary,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                        if (card.rawContent.isNotEmpty)
-                          const SizedBox(width: 4),
-
-                        // Date always shown but compact
-                        Text(
-                          card.date.substring(5), // MM-DD
-                          style: TimelineTheme.typography.small.copyWith(
-                            color: TimelineTheme.colors.textTertiary,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
+                  if (card.rawContent.isNotEmpty) const SizedBox(width: 4),
+                  Text(
+                    card.date.substring(5),
+                    style: TimelineTheme.typography.small.copyWith(
+                      color: TimelineTheme.colors.textTertiary,
+                      fontSize: 10,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-      ),
+      ],
+    );
+  }
+
+  /// Text-only related card: same layout as image card, top area shows text content instead of image
+  Widget _buildTextRelatedCard(RelatedCard card) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Top area: text content replacing image, with quote decorations
+        Expanded(
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            color: const Color(0xFFF8FAFC),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Opening quote
+                const Text(
+                  '\u275D',
+                  style: TextStyle(
+                    fontSize: 36,
+                    color: Color(0x0A334155),
+                    height: 1,
+                  ),
+                ),
+                // Text content, vertically centered in remaining space
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      const style = TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF64748B),
+                        height: 1.6,
+                      );
+                      final tp = TextPainter(
+                        text: TextSpan(text: 'A', style: style),
+                        textDirection: ui.TextDirection.ltr,
+                      )..layout();
+                      final maxLines = (constraints.maxHeight / tp.height)
+                          .floor()
+                          .clamp(1, 999);
+                      return Center(
+                        child: Text(
+                          card.rawContent,
+                          maxLines: maxLines,
+                          overflow: TextOverflow.ellipsis,
+                          style: style,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                // Closing quote
+                const Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '\u275E',
+                    style: TextStyle(
+                      fontSize: 36,
+                      color: Color(0x0A334155),
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Bottom area: same structure as image card, rawContent already shown above
+        Container(
+          height: 85,
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                card.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TimelineTheme.typography.body.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  height: 1.3,
+                ),
+              ),
+              Row(
+                children: [
+                  Text(
+                    card.date.substring(5),
+                    style: TimelineTheme.typography.small.copyWith(
+                      color: TimelineTheme.colors.textTertiary,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

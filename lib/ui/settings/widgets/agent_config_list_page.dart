@@ -56,7 +56,9 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
     } catch (e) {
       if (mounted) {
         ToastHelper.showError(
-            context, UserStorage.l10n.loadDataFailed(e.toString()));
+          context,
+          UserStorage.l10n.loadDataFailed(e.toString()),
+        );
         setState(() => _isLoading = false);
       }
     }
@@ -74,17 +76,40 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
     } catch (e) {
       if (mounted) {
         ToastHelper.showError(
-            context, UserStorage.l10n.saveConfigFailed(e.toString()));
+          context,
+          UserStorage.l10n.saveConfigFailed(e.toString()),
+        );
       }
     }
   }
 
   Future<void> _updateAgentModelConfig(
-      String agentId, String? llmConfigKey) async {
-    final newConfig = (_agentConfigs[agentId] ?? const AgentConfig())
-        .copyWith(llmConfigKey: llmConfigKey);
+    String agentId,
+    String? llmConfigKey,
+  ) async {
+    final newConfig = (_agentConfigs[agentId] ?? const AgentConfig()).copyWith(
+      llmConfigKey: llmConfigKey,
+    );
     await _saveAgentConfig(agentId, newConfig);
   }
+
+  String get _visionBadgeText => UserStorage.l10n.visionBadge;
+
+  String get _defaultModelPrefix => UserStorage.l10n.defaultModelPrefix;
+
+  LLMConfig? _findConfig(String? key) {
+    if (key == null || key.isEmpty) return null;
+    for (final config in _llmConfigs) {
+      if (config.key == key) return config;
+    }
+    return null;
+  }
+
+  LLMConfig? _effectiveConfig(String? selectedKey) =>
+      _findConfig(selectedKey) ?? _findConfig(LLMConfig.defaultClientKey);
+
+  bool _isKnownMultimodalConfig(LLMConfig config) =>
+      LLMConfig.isKnownMultimodal(config.type, config.modelId);
 
   InputDecoration _dropdownDecoration() {
     return InputDecoration(
@@ -124,8 +149,10 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(context, true),
-                      child: Text(l10n.resetButton,
-                          style: const TextStyle(color: Colors.red)),
+                      child: Text(
+                        l10n.resetButton,
+                        style: const TextStyle(color: Colors.red),
+                      ),
                     ),
                   ],
                 ),
@@ -139,8 +166,10 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                          content:
-                              Text(UserStorage.l10n.agentConfigurationsReset)),
+                        content: Text(
+                          UserStorage.l10n.agentConfigurationsReset,
+                        ),
+                      ),
                     );
                   }
                 } catch (e) {
@@ -148,8 +177,10 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                          content:
-                              Text(UserStorage.l10n.resetFailed(e.toString()))),
+                        content: Text(
+                          UserStorage.l10n.resetFailed(e.toString()),
+                        ),
+                      ),
                     );
                   }
                 }
@@ -167,8 +198,10 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
                 final agentId = _agentIds[index];
                 final displayName =
                     AgentDefinitions.displayNames[agentId] ?? agentId;
-                final currentConfig = _agentConfigs[agentId] ?? const AgentConfig();
+                final currentConfig =
+                    _agentConfigs[agentId] ?? const AgentConfig();
                 final selectedKey = currentConfig.llmConfigKey;
+                final effectiveConfig = _effectiveConfig(selectedKey);
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -203,9 +236,22 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
                           color: AppColors.textTertiary,
                         ),
                       ),
+                      if (selectedKey == null && effectiveConfig != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '$_defaultModelPrefix: ${effectiveConfig.key} / ${effectiveConfig.modelId}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textTertiary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        key: ValueKey('agent-model-$agentId-${selectedKey ?? ''}'),
+                        key: ValueKey(
+                          'agent-model-$agentId-${selectedKey ?? ''}',
+                        ),
                         initialValue: selectedKey,
                         isExpanded: true,
                         decoration: _dropdownDecoration(),
@@ -214,13 +260,41 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
                           ..._llmConfigs.map((config) {
                             return DropdownMenuItem<String>(
                               value: config.key,
-                              child: Text(
-                                config.key,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: AppColors.textPrimary,
-                                ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${config.key} / ${config.modelId}',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_isKnownMultimodalConfig(config))
+                                    Container(
+                                      margin: const EdgeInsets.only(left: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        _visionBadgeText,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.green,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             );
                           }),
