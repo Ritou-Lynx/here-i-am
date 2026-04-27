@@ -423,17 +423,19 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
   List<String> _getRecommendedModels(String type) =>
       LLMConfig.recommendedModels(type);
 
+  /// Returns the model options to show: fetched models if available, else recommended.
+  /// Featured models are sorted to the top.
+  /// Missing featured models are prepended even if not in the fetched list.
   List<String> _modelOptions() {
     final models = _fetchedModels.isNotEmpty
         ? _fetchedModels
         : _getRecommendedModels(_selectedType);
     final featured = LLMConfig.featuredModels(_selectedType);
     if (featured.isEmpty) return models;
-    // Ensure all featured models appear, even if API didn't return them
     final missingFeatured = featured.where((m) => !models.contains(m)).toList();
     final top = [
       ...missingFeatured,
-      ...models.where((m) => featured.contains(m))
+      ...models.where((m) => featured.contains(m)),
     ];
     final rest = models.where((m) => !featured.contains(m)).toList();
     return [...top, ...rest];
@@ -835,10 +837,8 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
                                               BorderRadius.circular(4),
                                         ),
                                         child: Text(
-                                          UserStorage.l10n.localeName == 'zh'
-                                              ? '推荐'
-                                              : 'Recommended',
-                                          style: TextStyle(
+                                          UserStorage.l10n.recommendedBadge,
+                                          style: const TextStyle(
                                               fontSize: 10,
                                               color: AppColors.primary,
                                               fontWeight: FontWeight.w600),

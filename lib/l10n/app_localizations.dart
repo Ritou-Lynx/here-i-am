@@ -3650,6 +3650,42 @@ abstract class AppLocalizations {
   /// **'Hello Memex! This is my first record 🎉'**
   String get demoPrefillText;
 
+  /// No description provided for @visionBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Vision'**
+  String get visionBadge;
+
+  /// No description provided for @notMultimodalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Memex relies on multimodal model capabilities for media analysis. If your records contain images, please make sure the model you configured supports image input.'**
+  String get notMultimodalHint;
+
+  /// No description provided for @defaultModelPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get defaultModelPrefix;
+
+  /// No description provided for @recommendedBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended'**
+  String get recommendedBadge;
+
+  /// No description provided for @reanalyzeMediaAssets.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-analyze media assets'**
+  String get reanalyzeMediaAssets;
+
+  /// No description provided for @reanalyzeMediaAssetsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Refreshes media analysis files before regenerating cards.'**
+  String get reanalyzeMediaAssetsDesc;
+
   /// No description provided for @readOnlyMode.
   ///
   /// In en, this message translates to:

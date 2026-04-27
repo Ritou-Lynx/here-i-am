@@ -896,6 +896,13 @@
   "demoSkip": "Skip",
   "demoPrefillText": "Hello Memex! This is my first record 🎉",
 
+  "visionBadge": "Vision",
+  "notMultimodalHint": "Memex relies on multimodal model capabilities for media analysis. If your records contain images, please make sure the model you configured supports image input.",
+  "defaultModelPrefix": "Default",
+  "recommendedBadge": "Recommended",
+  "reanalyzeMediaAssets": "Re-analyze media assets",
+  "reanalyzeMediaAssetsDesc": "Refreshes media analysis files before regenerating cards.",
+
   "readOnlyMode": "Chat",
   "readOnlyBadge": "CHAT",
 

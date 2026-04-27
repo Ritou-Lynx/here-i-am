@@ -1992,6 +1992,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get demoPrefillText => 'Hello Memex! This is my first record 🎉';
 
   @override
+  String get visionBadge => 'Vision';
+
+  @override
+  String get notMultimodalHint =>
+      'Memex relies on multimodal model capabilities for media analysis. If your records contain images, please make sure the model you configured supports image input.';
+
+  @override
+  String get defaultModelPrefix => 'Default';
+
+  @override
+  String get recommendedBadge => 'Recommended';
+
+  @override
+  String get reanalyzeMediaAssets => 'Re-analyze media assets';
+
+  @override
+  String get reanalyzeMediaAssetsDesc =>
+      'Refreshes media analysis files before regenerating cards.';
+
+  @override
   String get readOnlyMode => 'Chat';
 
   @override
