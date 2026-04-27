@@ -93,15 +93,9 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
     await _saveAgentConfig(agentId, newConfig);
   }
 
-  bool get _isZh => UserStorage.l10n.localeName == 'zh';
+  String get _visionBadgeText => UserStorage.l10n.visionBadge;
 
-  String get _visionBadgeText => _isZh ? '视觉' : 'Vision';
-
-  String get _mediaModelWarning => _isZh
-      ? '媒体分析需要多模态模型。当前模型未标记为可读图，可能会忽略图片内容。'
-      : 'Media analysis needs a multimodal model. The current model is not marked as vision-capable and may ignore images.';
-
-  String get _defaultModelPrefix => _isZh ? '默认使用' : 'Default';
+  String get _defaultModelPrefix => UserStorage.l10n.defaultModelPrefix;
 
   LLMConfig? _findConfig(String? key) {
     if (key == null || key.isEmpty) return null;
@@ -208,10 +202,6 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
                     _agentConfigs[agentId] ?? const AgentConfig();
                 final selectedKey = currentConfig.llmConfigKey;
                 final effectiveConfig = _effectiveConfig(selectedKey);
-                final showMediaWarning =
-                    agentId == AgentDefinitions.analyzeAssets &&
-                    effectiveConfig != null &&
-                    !_isKnownMultimodalConfig(effectiveConfig);
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -315,30 +305,6 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
                           }
                         },
                       ),
-                      if (showMediaWarning) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.visibility_off_outlined,
-                              size: 15,
-                              color: Color(0xFFD97706),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                _mediaModelWarning,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFFD97706),
-                                  height: 1.3,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
                     ],
                   ),
                 );

@@ -583,33 +583,18 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
   }
 
   /// Returns the model options to show: fetched models if available, else recommended.
-  /// Featured models are sorted to the top.
-  /// Missing featured models are prepended even if not in the fetched list.
   List<String> _modelOptions() {
-    final models = _fetchedModels.isNotEmpty
+    return _fetchedModels.isNotEmpty
         ? _fetchedModels
         : _getRecommendedModels(_selectedType);
-    final featured = LLMConfig.featuredModels(_selectedType);
-    if (featured.isEmpty) return models;
-    // Ensure all featured models appear, even if API didn't return them
-    final missingFeatured = featured.where((m) => !models.contains(m)).toList();
-    final top = [
-      ...missingFeatured,
-      ...models.where((m) => featured.contains(m)),
-    ];
-    final rest = models.where((m) => !featured.contains(m)).toList();
-    return [...top, ...rest];
   }
 
   bool _isKnownMultimodalModel(String modelId) =>
       LLMConfig.isKnownMultimodal(_selectedType, modelId);
 
-  String get _visionBadgeText =>
-      UserStorage.l10n.localeName == 'zh' ? '视觉' : 'Vision';
+  String get _visionBadgeText => UserStorage.l10n.visionBadge;
 
-  String get _notMultimodalHint => UserStorage.l10n.localeName == 'zh'
-      ? '该模型未标记为多模态；如果用于媒体分析，可能无法读取图片。建议媒体分析使用 mimo-v2.5、mimo-v2-omni 或其他视觉模型。'
-      : 'This model is not marked as multimodal; Media analysis may not be able to read images. Use mimo-v2.5, mimo-v2-omni, or another vision-capable model.';
+  String get _notMultimodalHint => UserStorage.l10n.notMultimodalHint;
 
   /// Whether the model selector should be disabled (needs API key first).
   bool get _modelSelectorDisabled {
@@ -1228,9 +1213,6 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                             final isPro =
                                 _selectedType == LLMConfig.typeOpenAiOauth &&
                                     _isProModel(option);
-                            final isFeatured = LLMConfig.featuredModels(
-                              _selectedType,
-                            ).contains(option);
                             final isVision = _isKnownMultimodalModel(option);
                             return Padding(
                               padding: const EdgeInsets.symmetric(
@@ -1240,30 +1222,6 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                               child: Row(
                                 children: [
                                   Expanded(child: Text(option)),
-                                  if (isFeatured)
-                                    Container(
-                                      margin: const EdgeInsets.only(left: 8),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primary.withValues(
-                                          alpha: 0.1,
-                                        ),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        UserStorage.l10n.localeName == 'zh'
-                                            ? '推荐'
-                                            : 'Recommended',
-                                        style: const TextStyle(
-                                          fontSize: 10,
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
                                   if (isVision)
                                     Container(
                                       margin: const EdgeInsets.only(left: 8),
@@ -1367,27 +1325,14 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                   _modelIdController.text.trim().isNotEmpty &&
                   !_isKnownMultimodalModel(_modelIdController.text))
                 Padding(
-                  padding: const EdgeInsets.only(top: 6, left: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.visibility_off_outlined,
-                        size: 14,
-                        color: Color(0xFFD97706),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          _notMultimodalHint,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFFD97706),
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.only(top: 6, left: 16),
+                  child: Text(
+                    _notMultimodalHint,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFD97706),
+                      height: 1.3,
+                    ),
                   ),
                 ),
               const SizedBox(height: 24),

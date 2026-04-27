@@ -424,19 +424,9 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
       LLMConfig.recommendedModels(type);
 
   List<String> _modelOptions() {
-    final models = _fetchedModels.isNotEmpty
+    return _fetchedModels.isNotEmpty
         ? _fetchedModels
         : _getRecommendedModels(_selectedType);
-    final featured = LLMConfig.featuredModels(_selectedType);
-    if (featured.isEmpty) return models;
-    // Ensure all featured models appear, even if API didn't return them
-    final missingFeatured = featured.where((m) => !models.contains(m)).toList();
-    final top = [
-      ...missingFeatured,
-      ...models.where((m) => featured.contains(m))
-    ];
-    final rest = models.where((m) => !featured.contains(m)).toList();
-    return [...top, ...rest];
   }
 
   bool get _modelSelectorDisabled {
@@ -814,36 +804,12 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
                               final isPro =
                                   _selectedType == LLMConfig.typeOpenAiOauth &&
                                       _isProModel(option);
-                              final isFeatured =
-                                  LLMConfig.featuredModels(_selectedType)
-                                      .contains(option);
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 12),
                                 child: Row(
                                   children: [
                                     Expanded(child: Text(option)),
-                                    if (isFeatured)
-                                      Container(
-                                        margin: const EdgeInsets.only(left: 8),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primary
-                                              .withValues(alpha: 0.1),
-                                          borderRadius:
-                                              BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          UserStorage.l10n.localeName == 'zh'
-                                              ? '推荐'
-                                              : 'Recommended',
-                                          style: TextStyle(
-                                              fontSize: 10,
-                                              color: AppColors.primary,
-                                              fontWeight: FontWeight.w600),
-                                        ),
-                                      ),
                                     if (isPro)
                                       Container(
                                         margin: const EdgeInsets.only(left: 8),

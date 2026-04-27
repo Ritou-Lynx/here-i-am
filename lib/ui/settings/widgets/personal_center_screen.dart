@@ -199,14 +199,10 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
                   contentPadding: EdgeInsets.zero,
                   value: reanalyzeAssets,
                   title: Text(
-                    UserStorage.l10n.localeName == 'zh'
-                        ? '重新分析图片/音频'
-                        : 'Re-analyze media assets',
+                    UserStorage.l10n.reanalyzeMediaAssets,
                   ),
                   subtitle: Text(
-                    UserStorage.l10n.localeName == 'zh'
-                        ? '会先刷新 Facts/assets 下的媒体分析，再重新生成卡片。'
-                        : 'Refreshes media analysis files before regenerating cards.',
+                    UserStorage.l10n.reanalyzeMediaAssetsDesc,
                   ),
                   onChanged: (value) {
                     setDialogState(() {

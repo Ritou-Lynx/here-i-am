@@ -55,9 +55,7 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
     }
   }
 
-  bool get _isZh => UserStorage.l10n.localeName == 'zh';
-
-  String get _visionBadgeText => _isZh ? '视觉' : 'Vision';
+  String get _visionBadgeText => UserStorage.l10n.visionBadge;
 
   bool _isKnownMultimodalConfig(LLMConfig config) =>
       LLMConfig.isKnownMultimodal(config.type, config.modelId);
