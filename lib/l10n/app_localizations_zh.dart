@@ -1933,6 +1933,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get defaultModelPrefix => '默认使用';
 
   @override
+  String get recommendedBadge => '推荐';
+
+  @override
   String get reanalyzeMediaAssets => '重新分析图片/音频';
 
   @override

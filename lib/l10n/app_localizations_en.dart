@@ -2002,6 +2002,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get defaultModelPrefix => 'Default';
 
   @override
+  String get recommendedBadge => 'Recommended';
+
+  @override
   String get reanalyzeMediaAssets => 'Re-analyze media assets';
 
   @override

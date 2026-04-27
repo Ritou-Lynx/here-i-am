@@ -3668,6 +3668,12 @@ abstract class AppLocalizations {
   /// **'Default'**
   String get defaultModelPrefix;
 
+  /// No description provided for @recommendedBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended'**
+  String get recommendedBadge;
+
   /// No description provided for @reanalyzeMediaAssets.
   ///
   /// In en, this message translates to:

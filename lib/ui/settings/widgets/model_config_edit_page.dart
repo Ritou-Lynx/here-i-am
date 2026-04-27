@@ -583,10 +583,21 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
   }
 
   /// Returns the model options to show: fetched models if available, else recommended.
+  /// Featured models are sorted to the top.
+  /// Missing featured models are prepended even if not in the fetched list.
   List<String> _modelOptions() {
-    return _fetchedModels.isNotEmpty
+    final models = _fetchedModels.isNotEmpty
         ? _fetchedModels
         : _getRecommendedModels(_selectedType);
+    final featured = LLMConfig.featuredModels(_selectedType);
+    if (featured.isEmpty) return models;
+    final missingFeatured = featured.where((m) => !models.contains(m)).toList();
+    final top = [
+      ...missingFeatured,
+      ...models.where((m) => featured.contains(m)),
+    ];
+    final rest = models.where((m) => !featured.contains(m)).toList();
+    return [...top, ...rest];
   }
 
   bool _isKnownMultimodalModel(String modelId) =>
@@ -1213,6 +1224,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                             final isPro =
                                 _selectedType == LLMConfig.typeOpenAiOauth &&
                                     _isProModel(option);
+                            final isFeatured = LLMConfig.featuredModels(
+                              _selectedType,
+                            ).contains(option);
                             final isVision = _isKnownMultimodalModel(option);
                             return Padding(
                               padding: const EdgeInsets.symmetric(
@@ -1222,6 +1236,28 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                               child: Row(
                                 children: [
                                   Expanded(child: Text(option)),
+                                  if (isFeatured)
+                                    Container(
+                                      margin: const EdgeInsets.only(left: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        UserStorage.l10n.recommendedBadge,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
                                   if (isVision)
                                     Container(
                                       margin: const EdgeInsets.only(left: 8),
