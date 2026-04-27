@@ -13,6 +13,9 @@ import 'package:memex/utils/logger.dart';
 class CharacterService {
   static final CharacterService _instance = CharacterService._();
   static CharacterService get instance => _instance;
+  static const String _counselorCharacterId = 'counselor';
+  static const String _counselorSeedMarkerFile =
+      '.default_character_counselor_seeded';
 
   final Logger _logger = getLogger('CharacterService');
   final FileSystemService _fileSystem = FileSystemService.instance;
@@ -41,6 +44,13 @@ class CharacterService {
 
     if (visibleFiles.isEmpty) {
       await _createDefaultCharacters(userId, charsPath);
+      if (await File(
+        p.join(charsPath, '$_counselorCharacterId.yaml'),
+      ).exists()) {
+        await _markCounselorDefaultSeeded(charsPath);
+      }
+    } else {
+      await _ensureCounselorDefaultCharacter(userId, charsPath);
     }
 
     return charsPath;
@@ -82,6 +92,72 @@ class CharacterService {
         _logger
             .severe("Failed to create character $charId for user $userId: $e");
       }
+    }
+  }
+
+  Future<void> _ensureCounselorDefaultCharacter(
+    String userId,
+    String charsPath,
+  ) async {
+    final markerFile = File(p.join(charsPath, _counselorSeedMarkerFile));
+    if (await markerFile.exists()) {
+      return;
+    }
+
+    final charFile = File(p.join(charsPath, '$_counselorCharacterId.yaml'));
+    if (!await charFile.exists()) {
+      Map<String, dynamic>? counselorData;
+      for (final charData in UserStorage.l10n.defaultCharacters) {
+        if (charData['id'] == _counselorCharacterId) {
+          counselorData = charData;
+          break;
+        }
+      }
+
+      if (counselorData == null) {
+        return;
+      }
+
+      // Construct merged persona
+      var persona = counselorData['persona'] as String;
+      if (counselorData.containsKey('style_guide')) {
+        persona += "\n\n## Style Guide\n${counselorData['style_guide']}";
+      }
+      if (counselorData.containsKey('pkm_interest_filter')) {
+        persona +=
+            "\n\n## PKM Interest Filter\n${counselorData['pkm_interest_filter']}";
+      }
+      if (counselorData.containsKey('example_dialogue')) {
+        persona += "\n\n## Example Dialogue\n${counselorData['example_dialogue']}";
+      }
+
+      final charDict = {
+        "name": counselorData['name'],
+        "tags": counselorData['tags'],
+        "persona": persona,
+        "avatar": counselorData['avatar'],
+        "enabled": true,
+      };
+
+      try {
+        await _fileSystem.writeYamlFile(charFile.path, charDict);
+        _logger.info("Created default character $_counselorCharacterId for user $userId");
+      } catch (e) {
+        _logger.severe(
+            "Failed to create character $_counselorCharacterId for user $userId: $e");
+        return;
+      }
+    }
+
+    await _markCounselorDefaultSeeded(charsPath);
+  }
+
+  Future<void> _markCounselorDefaultSeeded(String charsPath) async {
+    try {
+      final markerFile = File(p.join(charsPath, _counselorSeedMarkerFile));
+      await markerFile.writeAsString(DateTime.now().toIso8601String());
+    } catch (e) {
+      _logger.warning('Failed to write counselor seed marker: $e');
     }
   }
 
