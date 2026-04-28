@@ -4,6 +4,8 @@ class AgentDefinitions {
   static const String profileAgent = 'profile_agent';
   static const String knowledgeInsightAgent = 'knowledge_insight_agent';
   static const String scheduleAggregatorAgent = 'schedule_aggregator_agent';
+  static const String scheduleRefreshRouterAgent =
+      'schedule_refresh_router_agent';
   static const String commentAgent = 'comment_agent';
   static const String chatAgent = 'chat_agent';
   static const String analyzeAssets = 'analyze_assets';
@@ -14,6 +16,7 @@ class AgentDefinitions {
     profileAgent: 'Memory summary',
     knowledgeInsightAgent: 'Insights',
     scheduleAggregatorAgent: 'Schedule',
+    scheduleRefreshRouterAgent: 'Schedule Router',
     commentAgent: 'Comments',
     chatAgent: 'Chat',
     analyzeAssets: 'Media analysis',

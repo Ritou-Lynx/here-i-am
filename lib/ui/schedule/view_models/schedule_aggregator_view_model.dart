@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:memex/data/repositories/get_schedule_aggregation.dart';
+import 'package:memex/data/repositories/get_schedule_refresh_state.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/domain/models/card_detail_model.dart';
 import 'package:memex/domain/models/schedule_aggregation_model.dart';
+import 'package:memex/domain/models/schedule_refresh_state.dart';
 import 'package:memex/ui/schedule/models/schedule_item.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/result.dart';
@@ -17,6 +19,7 @@ typedef ScheduleAggregationFreshnessChecker = Future<bool> Function({
   Duration? maxAge,
 });
 typedef ScheduleAggregationRefresher = Future<Result<void>> Function();
+typedef ScheduleRefreshStateLoader = Future<ScheduleRefreshState> Function();
 typedef ScheduleCardDetailFetcher = Future<CardDetailModel> Function(
   String cardId,
 );
@@ -31,14 +34,16 @@ class ScheduleAggregatorViewModel extends ChangeNotifier {
     ScheduleAggregationLoader? loadAggregation,
     ScheduleAggregationFreshnessChecker? needsRefresh,
     ScheduleAggregationRefresher? refreshAggregation,
+    ScheduleRefreshStateLoader? loadRefreshState,
     ScheduleCardDetailFetcher? fetchCardDetail,
     ScheduleCardUiConfigUpdater? updateCardUiConfig,
-    Duration refreshReloadDelay = const Duration(seconds: 2),
+    Duration refreshReloadDelay = const Duration(seconds: 90),
     bool listenToEvents = true,
   })  : _loadAggregation = loadAggregation ?? getScheduleAggregation,
         _needsRefresh = needsRefresh ?? scheduleAggregationNeedsRefresh,
         _refreshAggregation = refreshAggregation ??
             (() => MemexRouter().refreshScheduleAggregation()),
+        _loadRefreshState = loadRefreshState ?? getScheduleRefreshState,
         _fetchCardDetail = fetchCardDetail ??
             ((cardId) => MemexRouter().fetchCardDetail(cardId)),
         _updateCardUiConfig = updateCardUiConfig ??
@@ -51,12 +56,17 @@ class ScheduleAggregatorViewModel extends ChangeNotifier {
         EventBusMessageType.scheduleAggregationUpdated,
         _handleScheduleAggregationUpdated,
       );
+      EventBusService.instance.addHandler(
+        EventBusMessageType.scheduleAggregationDirty,
+        _handleScheduleAggregationDirty,
+      );
     }
   }
 
   final ScheduleAggregationLoader _loadAggregation;
   final ScheduleAggregationFreshnessChecker _needsRefresh;
   final ScheduleAggregationRefresher _refreshAggregation;
+  final ScheduleRefreshStateLoader _loadRefreshState;
   final ScheduleCardDetailFetcher _fetchCardDetail;
   final ScheduleCardUiConfigUpdater _updateCardUiConfig;
   final Duration _refreshReloadDelay;
@@ -65,12 +75,16 @@ class ScheduleAggregatorViewModel extends ChangeNotifier {
   ScheduleAggregationModel? _aggregation;
   bool _isLoading = false;
   String? _error;
+  ScheduleRefreshState _refreshState = ScheduleRefreshState.clean();
+  Completer<void>? _pendingRefreshCompletion;
   final Map<String, ScheduleItemStatus> _statusOverrides = {};
 
   ScheduleAggregationModel? get aggregation => _aggregation;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get hasData => _aggregation != null;
+  bool get isDirty => _refreshState.isDirty;
+  String? get dirtyReason => _refreshState.reason;
   List<ScheduleItem> get items {
     if (_aggregation == null) return const [];
     return ScheduleItem.fromAggregation(_aggregation!).map((item) {
@@ -102,6 +116,7 @@ class ScheduleAggregatorViewModel extends ChangeNotifier {
     _setLoading(true);
     try {
       _aggregation = await _loadAggregation();
+      _refreshState = await _loadRefreshState();
       _statusOverrides.clear();
       _error = null;
     } catch (e) {
@@ -115,6 +130,8 @@ class ScheduleAggregatorViewModel extends ChangeNotifier {
   /// Refresh schedule aggregation by triggering the Agent
   Future<void> refreshAggregation() async {
     _setLoading(true);
+    final completion = Completer<void>();
+    _pendingRefreshCompletion = completion;
     try {
       // Trigger agent run via MemexRouter
       final result = await _refreshAggregation();
@@ -130,16 +147,24 @@ class ScheduleAggregatorViewModel extends ChangeNotifier {
         },
       );
 
-      if (!triggered) return;
+      if (!triggered) {
+        _pendingRefreshCompletion = null;
+        return;
+      }
 
-      // Keep a short reload for immediate feedback; the event bus also reloads
-      // when the agent emits a completion event.
-      await Future.delayed(_refreshReloadDelay);
+      try {
+        await completion.future.timeout(_refreshReloadDelay);
+      } on TimeoutException {
+        _logger.info('Schedule aggregation refresh wait timed out');
+      }
       await loadAggregation();
     } catch (e) {
       _logger.severe('Failed to refresh schedule aggregation: $e');
       _error = 'Failed to refresh schedule data';
     } finally {
+      if (identical(_pendingRefreshCompletion, completion)) {
+        _pendingRefreshCompletion = null;
+      }
       _setLoading(false);
     }
   }
@@ -189,7 +214,24 @@ class ScheduleAggregatorViewModel extends ChangeNotifier {
 
   void _handleScheduleAggregationUpdated(EventBusMessage message) {
     if (message is! ScheduleAggregationUpdatedMessage) return;
+    final pending = _pendingRefreshCompletion;
+    if (pending != null && !pending.isCompleted) {
+      pending.complete();
+      return;
+    }
     unawaited(loadAggregation());
+  }
+
+  void _handleScheduleAggregationDirty(EventBusMessage message) {
+    if (message is! ScheduleAggregationDirtyMessage) return;
+    _refreshState = _refreshState.copyWith(
+      isDirty: message.isDirty,
+      reason: message.reason,
+      cardIds: message.cardIds,
+      clearReason: !message.isDirty,
+      clearDirtySince: !message.isDirty,
+    );
+    notifyListeners();
   }
 
   void _applyStatusOverride(String itemId, ScheduleItemStatus status) {
@@ -213,6 +255,10 @@ class ScheduleAggregatorViewModel extends ChangeNotifier {
       EventBusService.instance.removeHandler(
         EventBusMessageType.scheduleAggregationUpdated,
         _handleScheduleAggregationUpdated,
+      );
+      EventBusService.instance.removeHandler(
+        EventBusMessageType.scheduleAggregationDirty,
+        _handleScheduleAggregationDirty,
       );
     }
     super.dispose();

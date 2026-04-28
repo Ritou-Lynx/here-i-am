@@ -197,12 +197,12 @@ class ScheduleAggregatorAgent {
         }
 
         result = await agent.run(messages);
-
-        // Post-processing: emit UI refresh event
-        EventBusService.instance.emitEvent(ScheduleAggregationUpdatedMessage(
-          aggregationId: sessionId,
-        ));
       }
+
+      // Post-processing: emit UI refresh event for both fresh runs and resume.
+      EventBusService.instance.emitEvent(ScheduleAggregationUpdatedMessage(
+        aggregationId: sessionId,
+      ));
     } on AgentException catch (e) {
       if (e.code == AgentExceptionCode.loopDetection) {
         await deleteAgentState(userId, sessionId);

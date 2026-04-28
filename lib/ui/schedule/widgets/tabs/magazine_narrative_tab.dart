@@ -3,17 +3,22 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../domain/models/schedule_aggregation_model.dart';
+import '../../models/schedule_item.dart';
 import '../../../core/cards/ui/glass_card.dart';
 
 /// Magazine Narrative Tab renders the AI-curated schedule aggregation.
 class MagazineNarrativeTab extends StatelessWidget {
   final ScheduleAggregationModel aggregation;
   final void Function(String cardId)? onTapCardId;
+  final Map<String, ScheduleItemStatus> itemStatuses;
+  final void Function(String cardId)? onToggleTask;
 
   const MagazineNarrativeTab({
     super.key,
     required this.aggregation,
     this.onTapCardId,
+    this.itemStatuses = const {},
+    this.onToggleTask,
   });
 
   @override
@@ -27,6 +32,7 @@ class MagazineNarrativeTab extends StatelessWidget {
 
   Widget _buildAgentMode(ScheduleAggregationModel agg) {
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
       children: [
         // Magazine header
@@ -317,7 +323,9 @@ class MagazineNarrativeTab extends StatelessWidget {
   }
 
   Widget _buildAgentTimelineCard(TimelineItem item) {
-    final isCompleted = item.status == 'completed';
+    final status = itemStatuses[item.cardId] ?? _parseStatus(item.status);
+    final isCompleted = status == ScheduleItemStatus.completed;
+    final isTask = _isTaskItem(item);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -368,6 +376,10 @@ class MagazineNarrativeTab extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        if (isTask) ...[
+                          _buildTaskCompletionCircle(item.cardId, isCompleted),
+                          const SizedBox(width: 10),
+                        ],
                         Expanded(
                           child: Text(
                             item.title,
@@ -524,6 +536,34 @@ class MagazineNarrativeTab extends StatelessWidget {
     );
   }
 
+  Widget _buildTaskCompletionCircle(String cardId, bool isCompleted) {
+    return GestureDetector(
+      onTap: () => onToggleTask?.call(cardId),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 22,
+        height: 22,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isCompleted ? const Color(0xFF5B6CFF) : Colors.transparent,
+          border: Border.all(
+            color:
+                isCompleted ? const Color(0xFF5B6CFF) : const Color(0xFFCBD5E1),
+            width: 2,
+          ),
+        ),
+        child: isCompleted
+            ? const Icon(
+                Icons.check,
+                size: 13,
+                color: Colors.white,
+              )
+            : null,
+      ),
+    );
+  }
+
   Widget _buildSectionTitle(String title) {
     return Row(
       children: [
@@ -545,5 +585,23 @@ class MagazineNarrativeTab extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  bool _isTaskItem(TimelineItem item) {
+    final type = item.type.toLowerCase().trim();
+    return type == 'task' || type == 'todo';
+  }
+
+  ScheduleItemStatus _parseStatus(String value) {
+    final normalized = value.toLowerCase().trim().replaceAll('-', '_');
+    return switch (normalized) {
+      'completed' || 'done' => ScheduleItemStatus.completed,
+      'in_progress' ||
+      'inprogress' ||
+      'active' =>
+        ScheduleItemStatus.inProgress,
+      'overdue' => ScheduleItemStatus.overdue,
+      _ => ScheduleItemStatus.pending,
+    };
   }
 }

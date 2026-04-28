@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/domain/models/card_detail_model.dart';
 import 'package:memex/domain/models/schedule_aggregation_model.dart';
+import 'package:memex/domain/models/schedule_refresh_state.dart';
 import 'package:memex/ui/schedule/models/schedule_item.dart';
 import 'package:memex/ui/schedule/view_models/schedule_aggregator_view_model.dart';
 import 'package:memex/utils/result.dart';
@@ -63,6 +64,35 @@ void main() {
       expect(loadCount, 2);
       expect(vm.aggregation?.id, 'agg_2');
       expect(vm.items.single.title, '任务 2');
+
+      vm.dispose();
+    });
+
+    test('loads and updates dirty state from schedule dirty events', () async {
+      final vm = ScheduleAggregatorViewModel(
+        loadAggregation: () async => _aggregation(),
+        loadRefreshState: () async => ScheduleRefreshState(
+          isDirty: true,
+          reason: '新卡片可能影响日程',
+          dirtySince: DateTime(2026, 4, 26, 9),
+        ),
+      );
+
+      await vm.loadAggregation();
+
+      expect(vm.isDirty, isTrue);
+      expect(vm.dirtyReason, '新卡片可能影响日程');
+
+      EventBusService.instance.emitEvent(
+        ScheduleAggregationDirtyMessage(
+          isDirty: false,
+          cardIds: const ['task-1'],
+        ),
+      );
+      await _drainEventQueue();
+
+      expect(vm.isDirty, isFalse);
+      expect(vm.dirtyReason, isNull);
 
       vm.dispose();
     });

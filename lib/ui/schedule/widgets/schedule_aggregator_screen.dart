@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:memex/utils/user_storage.dart';
 import 'package:provider/provider.dart';
 
-import '../models/schedule_item.dart';
 import '../view_models/schedule_aggregator_view_model.dart';
 import '../../core/themes/app_colors.dart';
-import '../../core/themes/app_shadows.dart';
 import '../../timeline/widgets/timeline_card_detail_screen.dart';
-import 'tabs/daily_focus_tab.dart';
-import 'tabs/weekly_overview_tab.dart';
-import 'tabs/smart_agenda_tab.dart';
-import 'tabs/adaptive_cards_tab.dart';
-import 'tabs/conversational_briefing_tab.dart';
 import 'tabs/magazine_narrative_tab.dart';
 
 /// Schedule Aggregator Screen - entry point with ViewModel
@@ -36,38 +31,13 @@ class _ScheduleAggregatorScreenBody extends StatefulWidget {
 }
 
 class _ScheduleAggregatorScreenState
-    extends State<_ScheduleAggregatorScreenBody> with TickerProviderStateMixin {
-  late TabController _tabController;
-
+    extends State<_ScheduleAggregatorScreenBody> {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ScheduleAggregatorViewModel>().ensureFresh();
     });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  void _toggleTodoCompletion(List<ScheduleItem> items, int index) {
-    if (index < 0 || index >= items.length) {
-      return;
-    }
-    final item = items[index];
-    if (item.type != ScheduleItemType.todo) {
-      return;
-    }
-    context.read<ScheduleAggregatorViewModel>().toggleCompletion(item);
-  }
-
-  void _navigateToDetail(ScheduleItem item) {
-    _navigateToCard(item.id);
   }
 
   void _navigateToCard(String cardId) {
@@ -82,9 +52,21 @@ class _ScheduleAggregatorScreenState
     );
   }
 
-  Future<void> _onRefresh() async {
+  Future<void> _onReload() async {
+    final vm = context.read<ScheduleAggregatorViewModel>();
+    await vm.loadAggregation();
+  }
+
+  Future<void> _onUpdate() async {
     final vm = context.read<ScheduleAggregatorViewModel>();
     await vm.refreshAggregation();
+  }
+
+  void _toggleTaskCompletion(String cardId) {
+    final vm = context.read<ScheduleAggregatorViewModel>();
+    final index = vm.items.indexWhere((item) => item.id == cardId);
+    if (index < 0) return;
+    vm.toggleCompletion(vm.items[index]);
   }
 
   @override
@@ -94,74 +76,60 @@ class _ScheduleAggregatorScreenState
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             _buildHeader(),
-            // Tab Bar
-            _buildTabBar(),
-            // Tab Content
+            Consumer<ScheduleAggregatorViewModel>(
+              builder: (context, vm, child) {
+                if (!vm.isDirty) return const SizedBox.shrink();
+                return _buildDirtyBanner(vm.dirtyReason);
+              },
+            ),
             Expanded(
               child: Consumer<ScheduleAggregatorViewModel>(
                 builder: (context, vm, child) {
                   if (vm.isLoading && !vm.hasData) {
-                    return _buildLoadingState();
+                    return _buildRefreshableState(_buildLoadingState());
                   }
                   if (!vm.hasData) {
-                    return _buildEmptyState(vm.error);
+                    return _buildRefreshableState(_buildEmptyState(vm.error));
                   }
 
-                  final allItems = vm.items;
-                  final todayItems = vm.todayItems;
+                  final itemStatuses = {
+                    for (final item in vm.items) item.id: item.status,
+                  };
 
-                  return TabBarView(
-                    controller: _tabController,
-                    children: [
-                      DailyFocusTab(
-                        items: todayItems,
-                        onToggle: (index) => _toggleTodoCompletion(
-                          todayItems,
-                          index,
-                        ),
-                        onTapItem: _navigateToDetail,
-                      ),
-                      WeeklyOverviewTab(
-                        items: allItems,
-                        onToggle: (index) => _toggleTodoCompletion(
-                          allItems,
-                          index,
-                        ),
-                        onTapItem: _navigateToDetail,
-                      ),
-                      SmartAgendaTab(
-                        items: allItems,
-                        onToggle: (index) => _toggleTodoCompletion(
-                          allItems,
-                          index,
-                        ),
-                        onTapItem: _navigateToDetail,
-                      ),
-                      AdaptiveCardsTab(
-                        items: allItems,
-                        onToggle: (index) => _toggleTodoCompletion(
-                          allItems,
-                          index,
-                        ),
-                        onTapItem: _navigateToDetail,
-                      ),
-                      ConversationalBriefingTab(
-                        items: allItems,
-                        onTapItem: _navigateToDetail,
-                      ),
-                      MagazineNarrativeTab(
-                        aggregation: vm.aggregation!,
-                        onTapCardId: _navigateToCard,
-                      ),
-                    ],
+                  return RefreshIndicator(
+                    onRefresh: _onReload,
+                    child: MagazineNarrativeTab(
+                      aggregation: vm.aggregation!,
+                      onTapCardId: _navigateToCard,
+                      itemStatuses: itemStatuses,
+                      onToggleTask: _toggleTaskCompletion,
+                    ),
                   );
                 },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRefreshableState(Widget child) {
+    return RefreshIndicator(
+      onRefresh: _onReload,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              SizedBox(
+                height: constraints.maxHeight,
+                child: child,
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -194,7 +162,7 @@ class _ScheduleAggregatorScreenState
             ),
             const SizedBox(height: 18),
             Text(
-              '暂无日程聚合',
+              UserStorage.l10n.noScheduleAggregation,
               style: GoogleFonts.inter(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -203,7 +171,7 @@ class _ScheduleAggregatorScreenState
             ),
             const SizedBox(height: 8),
             Text(
-              error ?? '点击右上角 AI 生成，从真实时间卡片里整理日程和待办。',
+              error ?? UserStorage.l10n.scheduleAggregationEmptyHint,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 14,
@@ -213,9 +181,9 @@ class _ScheduleAggregatorScreenState
             ),
             const SizedBox(height: 18),
             FilledButton.icon(
-              onPressed: _onRefresh,
+              onPressed: _onUpdate,
               icon: const Icon(Icons.auto_awesome, size: 18),
-              label: const Text('AI 生成'),
+              label: Text(UserStorage.l10n.update),
             ),
           ],
         ),
@@ -233,7 +201,7 @@ class _ScheduleAggregatorScreenState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '日程聚合',
+                UserStorage.l10n.scheduleAggregation,
                 style: GoogleFonts.bricolageGrotesque(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
@@ -256,7 +224,7 @@ class _ScheduleAggregatorScreenState
           Consumer<ScheduleAggregatorViewModel>(
             builder: (context, vm, child) {
               return GestureDetector(
-                onTap: vm.isLoading ? null : _onRefresh,
+                onTap: vm.isLoading ? null : _onUpdate,
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -290,7 +258,7 @@ class _ScheduleAggregatorScreenState
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '生成中...',
+                              UserStorage.l10n.updating,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -303,7 +271,7 @@ class _ScheduleAggregatorScreenState
                                 size: 16, color: Colors.white),
                             const SizedBox(width: 6),
                             Text(
-                              'AI 生成',
+                              UserStorage.l10n.update,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -321,54 +289,56 @@ class _ScheduleAggregatorScreenState
     );
   }
 
-  String _buildDateSubtitle() {
-    final now = DateTime.now();
-    final weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-    return '${now.year}年${now.month}月${now.day}日 ${weekdays[now.weekday % 7]}';
-  }
-
-  Widget _buildTabBar() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [AppShadows.card],
-      ),
-      child: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        indicator: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF5B6CFF), Color(0xFF8B5CF6)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(14),
+  Widget _buildDirtyBanner(String? reason) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF8E7),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFFFD166)),
         ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: Colors.white,
-        unselectedLabelColor: AppColors.textSecondary,
-        labelStyle: GoogleFonts.inter(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
+        child: Row(
+          children: [
+            const Icon(
+              Icons.update,
+              size: 18,
+              color: Color(0xFF9A6A00),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                reason == null || reason.isEmpty
+                    ? UserStorage.l10n.scheduleAggregationDirtyReason
+                    : reason,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.35,
+                  color: Color(0xFF765000),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: _onUpdate,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                foregroundColor: const Color(0xFF765000),
+              ),
+              child: Text(UserStorage.l10n.update),
+            ),
+          ],
         ),
-        unselectedLabelStyle: GoogleFonts.inter(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-        ),
-        padding: const EdgeInsets.all(4),
-        tabs: const [
-          Tab(text: '日程一'),
-          Tab(text: '日程二'),
-          Tab(text: '日程三'),
-          Tab(text: '日程四'),
-          Tab(text: '日程五'),
-          Tab(text: '日程六'),
-        ],
       ),
     );
+  }
+
+  String _buildDateSubtitle() {
+    final now = DateTime.now();
+    return DateFormat.yMMMMEEEEd(UserStorage.l10n.localeName).format(now);
   }
 }

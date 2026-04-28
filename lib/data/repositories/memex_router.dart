@@ -5,6 +5,7 @@ import 'package:memex/data/repositories/update_card_ui_config.dart'
     as update_config_endpoint;
 import 'package:memex/data/services/task_handlers/knowledge_insight_handler.dart';
 import 'package:memex/data/services/task_handlers/schedule_aggregator_handler.dart';
+import 'package:memex/data/services/task_handlers/schedule_refresh_router_handler.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/repositories/get_timeline_card.dart'; // Import for fetchTimelineCard
@@ -111,8 +112,10 @@ class MemexRouter {
           .registerHandler('process_ai_reply', handleProcessAiReplyImpl);
       LocalTaskExecutor.instance
           .registerHandler('knowledge_insight_task', handleKnowledgeInsight);
-      LocalTaskExecutor.instance
-          .registerHandler('schedule_aggregator_task', handleScheduleAggregation);
+      LocalTaskExecutor.instance.registerHandler(
+          'schedule_aggregator_task', handleScheduleAggregation);
+      LocalTaskExecutor.instance.registerHandler(
+          'schedule_refresh_router_task', handleScheduleRefreshRouter);
 
       // Register Failure Handlers
       LocalTaskExecutor.instance.registerFailureHandler(
@@ -123,6 +126,7 @@ class MemexRouter {
         'comment_agent_task',
         'knowledge_insight_task',
         'schedule_aggregator_task',
+        'schedule_refresh_router_task',
         'reprocess_cards_task',
         'reprocess_comments_task',
         'reprocess_knowledge_base_task',
@@ -215,6 +219,24 @@ class MemexRouter {
         subscriptionId: 'comment_agent',
         taskType: 'comment_agent_task',
         dependsOn: const ['pkm_agent'],
+        payloadBuilder: (_, event) {
+          final p = event.payload as UserInputSubmittedPayload;
+          return Future.value({
+            'fact_id': p.factId,
+            'combined_text': p.combinedText,
+            'created_at_ts': p.createdAtTs,
+          });
+        },
+      ),
+    );
+
+    eventBus.subscribe(
+      eventType: SystemEventTypes.userInputSubmitted,
+      subscription: EventTaskSubscription(
+        subscriptionId: 'schedule_refresh_router',
+        taskType: 'schedule_refresh_router_task',
+        dependsOn: const ['card_agent'],
+        priority: -1,
         payloadBuilder: (_, event) {
           final p = event.payload as UserInputSubmittedPayload;
           return Future.value({

@@ -179,6 +179,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get all => '全部';
 
   @override
+  String get schedule => '日程';
+
+  @override
   String loadStatsFailed(Object error) {
     return '加载统计数据失败: $error';
   }
@@ -190,16 +193,89 @@ class AppLocalizationsZh extends AppLocalizations {
   String get daily => '每日';
 
   @override
+  String get modelStatsByAgent => '分模型统计';
+
+  @override
   String get detail => '详情';
 
   @override
   String get date => '日期';
 
   @override
+  String get agent => 'Agent';
+
+  @override
   String get noData => '暂无数据';
 
   @override
   String get totalCalls => '总调用次数';
+
+  @override
+  String get calls => '调用';
+
+  @override
+  String callsCount(Object count) {
+    return '$count 次调用';
+  }
+
+  @override
+  String get selectDateRange => '选择日期范围';
+
+  @override
+  String get totalTokens => '总 Token';
+
+  @override
+  String get cacheRate => '缓存命中率';
+
+  @override
+  String get promptTokens => 'Prompt Token';
+
+  @override
+  String get completionTokens => 'Completion Token';
+
+  @override
+  String get cachedTokens => 'Cached Token';
+
+  @override
+  String get thoughtTokens => 'Thought Token';
+
+  @override
+  String get prompt => 'Prompt';
+
+  @override
+  String get completion => 'Completion';
+
+  @override
+  String get cached => 'Cached';
+
+  @override
+  String get thought => 'Thought';
+
+  @override
+  String get model => '模型';
+
+  @override
+  String get scene => '场景';
+
+  @override
+  String get sceneId => '场景 ID';
+
+  @override
+  String get tokenUsage => 'Token 用量';
+
+  @override
+  String get handler => '处理器';
+
+  @override
+  String get modelBreakdown => '模型拆分';
+
+  @override
+  String get callDetails => '调用详情';
+
+  @override
+  String recordDetailsTitle(Object scene) {
+    return '记录详情: $scene';
+  }
 
   @override
   String saveLlmConfigFailed(Object error) {
@@ -855,6 +931,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get noKnowledgeInsight => '暂无知识洞察';
+
+  @override
+  String get scheduleAggregation => '日程聚合';
+
+  @override
+  String get noScheduleAggregation => '暂无日程聚合';
+
+  @override
+  String get scheduleAggregationEmptyHint => '点击更新，从真实时间卡片里整理日程和待办。';
+
+  @override
+  String get scheduleAggregationDirtyReason => '有新的日程相关内容，点击更新后重新整理。';
 
   @override
   String get updating => '更新中...';

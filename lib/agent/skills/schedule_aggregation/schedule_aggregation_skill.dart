@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/prompts.dart';
 import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/services/schedule_refresh_state_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 
@@ -22,6 +23,103 @@ class ScheduleAggregationSkill extends Skill {
             buildSaveScheduleAggregationTool(),
           ],
         );
+}
+
+const scheduleTemporalTemplateIds = {
+  'event',
+  'task',
+  'routine',
+  'duration',
+  'procedure',
+};
+
+Future<Map<String, dynamic>> queryScheduleCardsForRange({
+  required String userId,
+  DateTime? from,
+  DateTime? to,
+  int? limit,
+}) async {
+  final logger = getLogger('ScheduleAggregationSkill');
+  final fileSystem = FileSystemService.instance;
+  final now = DateTime.now();
+  final effectiveFrom = from ?? now.subtract(const Duration(days: 3));
+  final effectiveTo = to ?? now.add(const Duration(days: 7));
+
+  final db = AppDatabase.instance;
+  if (await db.cardDao.isCacheEmpty()) {
+    await fileSystem.rebuildCardCache(userId);
+  }
+  final query = db.select(db.cardCache);
+  final cachedCards = await query.get();
+  final results = <Map<String, dynamic>>[];
+
+  for (final cached in cachedCards) {
+    try {
+      final cardData = await fileSystem.readCardFile(userId, cached.factId);
+      if (cardData == null) continue;
+
+      final temporalConfigs = cardData.uiConfigs.where(
+        (config) => scheduleTemporalTemplateIds.contains(config.templateId),
+      );
+      if (temporalConfigs.isEmpty) continue;
+
+      final uiConfig = temporalConfigs.first;
+      final templateId = uiConfig.templateId;
+      final data = uiConfig.data;
+
+      if (!_isCardInScheduleRange(
+        templateId: templateId,
+        data: data,
+        fallbackTimestamp: cardData.timestamp,
+        from: effectiveFrom,
+        to: effectiveTo,
+      )) {
+        continue;
+      }
+
+      final result = <String, dynamic>{
+        'card_id': cached.factId,
+        'title': cardData.title,
+        'template_id': templateId,
+        'timestamp': cardData.timestamp,
+        'status': deriveScheduleCardStatus(templateId, data),
+        'tags': cardData.tags,
+        'start_time': data['start_time'],
+        'end_time': data['end_time'],
+        'location': data['location'],
+        'is_completed': templateId == 'task'
+            ? _parseScheduleBool(data['is_completed']) == true
+            : data['is_completed'],
+        'priority': data['priority'],
+        'due_date': data['due_date'],
+        'subtasks': data['subtasks'],
+        'habit_name': data['habit_name'],
+        'streak': data['streak'],
+        'steps': data['steps'],
+        'elapsed': data['elapsed'],
+      };
+
+      results.add(result);
+    } catch (e) {
+      logger.warning('Error processing card ${cached.factId}: $e');
+    }
+  }
+
+  results.sort((a, b) {
+    final aTime = _resultScheduleDate(a);
+    final bTime = _resultScheduleDate(b);
+    return aTime.compareTo(bTime);
+  });
+
+  final cards = limit == null ? results : results.take(limit).toList();
+  return {
+    'count': cards.length,
+    'date_range': {
+      'from': effectiveFrom.toIso8601String(),
+      'to': effectiveTo.toIso8601String(),
+    },
+    'cards': cards,
+  };
 }
 
 /// Tool to query temporal cards within a date range
@@ -50,7 +148,6 @@ Tool buildGetScheduleCardsTool() {
       String? toDate,
     ) async {
       final logger = getLogger('ScheduleAggregationSkill');
-      final fileSystem = FileSystemService.instance;
       final userId = AgentCallToolContext.current!.state.metadata['userId'];
 
       // Default date range: past 3 days ~ future 7 days
@@ -66,110 +163,16 @@ Tool buildGetScheduleCardsTool() {
       );
 
       try {
-        // Query all cached cards, then filter temporal cards by their own
-        // schedule fields. Creation time alone misses tasks created earlier
-        // with future due dates.
-        final db = AppDatabase.instance;
-        if (await db.cardDao.isCacheEmpty()) {
-          await fileSystem.rebuildCardCache(userId);
-        }
-        final query = db.select(db.cardCache);
-        final cachedCards = await query.get();
-
-        if (cachedCards.isEmpty) {
-          return "No temporal cards found in the specified date range.";
-        }
-
-        // Temporal template IDs
-        const temporalTemplates = {
-          'event',
-          'task',
-          'routine',
-          'duration',
-          'procedure',
-        };
-
-        final results = <Map<String, dynamic>>[];
-
-        for (final cached in cachedCards) {
-          try {
-            // Read card YAML
-            final cardData =
-                await fileSystem.readCardFile(userId, cached.factId);
-            if (cardData == null) continue;
-
-            // Check if card has temporal template
-            final uiConfigs = cardData.uiConfigs;
-            if (uiConfigs.isEmpty) continue;
-
-            final temporalConfigs = uiConfigs.where(
-              (config) => temporalTemplates.contains(config.templateId),
-            );
-            if (temporalConfigs.isEmpty) continue;
-
-            final uiConfig = temporalConfigs.first;
-            final templateId = uiConfig.templateId;
-
-            final data = uiConfig.data;
-            if (!_isCardInScheduleRange(
-              templateId: templateId,
-              data: data,
-              fallbackTimestamp: cardData.timestamp,
-              from: from,
-              to: to,
-            )) {
-              continue;
-            }
-
-            // Extract key fields
-            final result = <String, dynamic>{
-              'card_id': cached.factId,
-              'title': cardData.title,
-              'template_id': templateId,
-              'timestamp': cardData.timestamp,
-              'status': cardData.status,
-              'tags': cardData.tags,
-            };
-
-            // Extract temporal-specific fields
-            result['start_time'] = data['start_time'];
-            result['end_time'] = data['end_time'];
-            result['location'] = data['location'];
-            result['is_completed'] = data['is_completed'];
-            result['priority'] = data['priority'];
-            result['due_date'] = data['due_date'];
-            result['subtasks'] = data['subtasks'];
-            result['habit_name'] = data['habit_name'];
-            result['streak'] = data['streak'];
-            result['steps'] = data['steps'];
-            result['elapsed'] = data['elapsed'];
-
-            results.add(result);
-          } catch (e) {
-            logger.warning('Error processing card ${cached.factId}: $e');
-            continue;
-          }
-        }
-
-        if (results.isEmpty) {
+        final result = await queryScheduleCardsForRange(
+          userId: userId,
+          from: from,
+          to: to,
+        );
+        if ((result['cards'] as List).isEmpty) {
           return "No temporal cards (event/task/routine/duration/procedure) found in the specified date range.";
         }
 
-        // Sort by actual schedule time, then by card timestamp.
-        results.sort((a, b) {
-          final aTime = _resultScheduleDate(a);
-          final bTime = _resultScheduleDate(b);
-          return aTime.compareTo(bTime);
-        });
-
-        return jsonEncode({
-          'count': results.length,
-          'date_range': {
-            'from': from.toIso8601String(),
-            'to': to.toIso8601String(),
-          },
-          'cards': results,
-        });
+        return jsonEncode(result);
       } catch (e) {
         logger.severe('Failed to get schedule cards: $e');
         return "Error: $e";
@@ -224,6 +227,10 @@ Tool buildSaveScheduleAggregationTool() {
           userId,
           aggregationId,
           yamlData,
+        );
+        await ScheduleRefreshStateService.instance.clearDirty(
+          userId: userId,
+          aggregationId: aggregationId,
         );
 
         // Log event
@@ -314,6 +321,33 @@ DateTime _resultScheduleDate(Map<String, dynamic> result) {
   return _parseScheduleDateTime(result['start_time']) ??
       _parseScheduleDateTime(result['due_date']) ??
       fallback;
+}
+
+String deriveScheduleCardStatus(
+  String templateId,
+  Map<String, dynamic> data,
+) {
+  if (templateId == 'task') {
+    return _parseScheduleBool(data['is_completed']) == true
+        ? 'completed'
+        : 'pending';
+  }
+
+  return 'pending';
+}
+
+bool? _parseScheduleBool(dynamic value) {
+  if (value == null) return null;
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    return switch (value.toLowerCase().trim()) {
+      'true' || 'yes' || 'y' || '1' || 'done' || 'completed' => true,
+      'false' || 'no' || 'n' || '0' || 'pending' || 'todo' => false,
+      _ => null,
+    };
+  }
+  return null;
 }
 
 int _countAggregationItems(Map<String, dynamic> yamlData) {
