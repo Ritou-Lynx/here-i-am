@@ -13,9 +13,17 @@ import 'package:memex/utils/logger.dart';
 class CharacterService {
   static final CharacterService _instance = CharacterService._();
   static CharacterService get instance => _instance;
-  static const String _counselorCharacterId = 'counselor';
-  static const String _counselorSeedMarkerFile =
-      '.default_character_counselor_seeded';
+
+  /// Bump this whenever new default characters need to be seeded to existing users.
+  /// New users get all characters from l10n.defaultCharacters at once.
+  static const int _currentSeedVersion = 1;
+  static const String _seedVersionFile = '.characters_seed_version';
+
+  /// Migrations: version -> list of character IDs to seed for existing users.
+  /// Only append new entries; never modify existing ones.
+  static const Map<int, List<String>> _migrations = {
+    1: ['counselor'],
+  };
 
   final Logger _logger = getLogger('CharacterService');
   final FileSystemService _fileSystem = FileSystemService.instance;
@@ -44,13 +52,9 @@ class CharacterService {
 
     if (visibleFiles.isEmpty) {
       await _createDefaultCharacters(userId, charsPath);
-      if (await File(
-        p.join(charsPath, '$_counselorCharacterId.yaml'),
-      ).exists()) {
-        await _markCounselorDefaultSeeded(charsPath);
-      }
+      await _writeSeedVersion(charsPath, _currentSeedVersion);
     } else {
-      await _ensureCounselorDefaultCharacter(userId, charsPath);
+      await _runMigrations(userId, charsPath);
     }
 
     return charsPath;
@@ -62,103 +66,102 @@ class CharacterService {
 
     for (var charData in defaultCharacters) {
       final charId = charData['id'] as String;
-      final charFile = p.join(charsPath, '$charId.yaml');
-
-      // Construct merged persona
-      var persona = charData['persona'] as String;
-      if (charData.containsKey('style_guide')) {
-        persona += "\n\n## Style Guide\n${charData['style_guide']}";
-      }
-      if (charData.containsKey('pkm_interest_filter')) {
-        persona +=
-            "\n\n## PKM Interest Filter\n${charData['pkm_interest_filter']}";
-      }
-      if (charData.containsKey('example_dialogue')) {
-        persona += "\n\n## Example Dialogue\n${charData['example_dialogue']}";
-      }
-
-      final charDict = {
-        "name": charData['name'],
-        "tags": charData['tags'],
-        "persona": persona,
-        "avatar": charData['avatar'],
-        "enabled": true,
-      };
-
-      try {
-        await _fileSystem.writeYamlFile(charFile, charDict);
-        _logger.info("Created default character $charId for user $userId");
-      } catch (e) {
-        _logger
-            .severe("Failed to create character $charId for user $userId: $e");
-      }
+      await _seedCharacterFromData(userId, charsPath, charId, charData);
     }
   }
 
-  Future<void> _ensureCounselorDefaultCharacter(
+  /// Build merged persona string from character data map.
+  String _buildPersona(Map<String, dynamic> charData) {
+    var persona = charData['persona'] as String;
+    if (charData.containsKey('style_guide')) {
+      persona += "\n\n## Style Guide\n${charData['style_guide']}";
+    }
+    if (charData.containsKey('pkm_interest_filter')) {
+      persona +=
+          "\n\n## PKM Interest Filter\n${charData['pkm_interest_filter']}";
+    }
+    if (charData.containsKey('example_dialogue')) {
+      persona += "\n\n## Example Dialogue\n${charData['example_dialogue']}";
+    }
+    return persona;
+  }
+
+  /// Seed a single character from its data map. Skips if file already exists.
+  Future<void> _seedCharacterFromData(
     String userId,
     String charsPath,
+    String charId,
+    Map<String, dynamic> charData,
   ) async {
-    final markerFile = File(p.join(charsPath, _counselorSeedMarkerFile));
-    if (await markerFile.exists()) {
-      return;
+    final charFile = p.join(charsPath, '$charId.yaml');
+    if (await File(charFile).exists()) return;
+
+    final charDict = {
+      "name": charData['name'],
+      "tags": charData['tags'],
+      "persona": _buildPersona(charData),
+      "avatar": charData['avatar'],
+      "enabled": true,
+    };
+
+    try {
+      await _fileSystem.writeYamlFile(charFile, charDict);
+      _logger.info("Created default character $charId for user $userId");
+    } catch (e) {
+      _logger.severe("Failed to create character $charId for user $userId: $e");
     }
-
-    final charFile = File(p.join(charsPath, '$_counselorCharacterId.yaml'));
-    if (!await charFile.exists()) {
-      Map<String, dynamic>? counselorData;
-      for (final charData in UserStorage.l10n.defaultCharacters) {
-        if (charData['id'] == _counselorCharacterId) {
-          counselorData = charData;
-          break;
-        }
-      }
-
-      if (counselorData == null) {
-        return;
-      }
-
-      // Construct merged persona
-      var persona = counselorData['persona'] as String;
-      if (counselorData.containsKey('style_guide')) {
-        persona += "\n\n## Style Guide\n${counselorData['style_guide']}";
-      }
-      if (counselorData.containsKey('pkm_interest_filter')) {
-        persona +=
-            "\n\n## PKM Interest Filter\n${counselorData['pkm_interest_filter']}";
-      }
-      if (counselorData.containsKey('example_dialogue')) {
-        persona += "\n\n## Example Dialogue\n${counselorData['example_dialogue']}";
-      }
-
-      final charDict = {
-        "name": counselorData['name'],
-        "tags": counselorData['tags'],
-        "persona": persona,
-        "avatar": counselorData['avatar'],
-        "enabled": true,
-      };
-
-      try {
-        await _fileSystem.writeYamlFile(charFile.path, charDict);
-        _logger.info("Created default character $_counselorCharacterId for user $userId");
-      } catch (e) {
-        _logger.severe(
-            "Failed to create character $_counselorCharacterId for user $userId: $e");
-        return;
-      }
-    }
-
-    await _markCounselorDefaultSeeded(charsPath);
   }
 
-  Future<void> _markCounselorDefaultSeeded(String charsPath) async {
+  /// Seed a single character by ID if it doesn't exist. Looks up data from l10n defaults.
+  Future<void> _seedCharacterById(
+    String userId,
+    String charsPath,
+    String charId,
+  ) async {
+    final allDefaults = UserStorage.l10n.defaultCharacters;
+    final charData = allDefaults.cast<Map<String, dynamic>?>().firstWhere(
+          (c) => c!['id'] == charId,
+          orElse: () => null,
+        );
+    if (charData == null) return;
+    await _seedCharacterFromData(userId, charsPath, charId, charData);
+  }
+
+  /// Read the current seed version (0 if file doesn't exist).
+  Future<int> _readSeedVersion(String charsPath) async {
+    final file = File(p.join(charsPath, _seedVersionFile));
+    if (!await file.exists()) return 0;
     try {
-      final markerFile = File(p.join(charsPath, _counselorSeedMarkerFile));
-      await markerFile.writeAsString(DateTime.now().toIso8601String());
-    } catch (e) {
-      _logger.warning('Failed to write counselor seed marker: $e');
+      return int.parse((await file.readAsString()).trim());
+    } catch (_) {
+      return 0;
     }
+  }
+
+  /// Write the seed version marker.
+  Future<void> _writeSeedVersion(String charsPath, int version) async {
+    try {
+      final file = File(p.join(charsPath, _seedVersionFile));
+      await file.writeAsString(version.toString());
+    } catch (e) {
+      _logger.warning('Failed to write seed version: $e');
+    }
+  }
+
+  /// Run all pending migrations from current version to [_currentSeedVersion].
+  Future<void> _runMigrations(String userId, String charsPath) async {
+    final currentVersion = await _readSeedVersion(charsPath);
+    if (currentVersion >= _currentSeedVersion) return;
+
+    for (int v = currentVersion + 1; v <= _currentSeedVersion; v++) {
+      final charIds = _migrations[v];
+      if (charIds == null) continue;
+      for (final charId in charIds) {
+        await _seedCharacterById(userId, charsPath, charId);
+      }
+    }
+
+    await _writeSeedVersion(charsPath, _currentSeedVersion);
   }
 
   /// Get all characters for a user
