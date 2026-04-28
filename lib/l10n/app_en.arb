@@ -123,7 +123,23 @@
   },
   "referenceWithTitle": "Reference: {title}",
   "discoveredTodoActions": "Discovered todo actions",
+  "actionCenterTitle": "Pending actions",
   "noPendingActions": "No pending actions",
+  "clarificationNeeded": "Memex wants to confirm",
+  "clarificationTextHint": "Type a short answer",
+  "clarificationTextRequired": "Add a short answer first",
+  "clarificationAnswered": "Answered",
+  "@clarificationAnswerPrefix": {
+    "placeholders": {
+      "answer": {}
+    }
+  },
+  "clarificationAnswerPrefix": "Answer: {answer}",
+  "answerSaved": "Answer saved",
+  "clarificationOtherAnswer": "Manual input",
+  "clarificationNotSure": "Not sure / prefer not to say",
+  "yes": "Yes",
+  "no": "No",
   "askSomethingHint": "Ask something...",
   "aiAssistant": "AI Assistant",
   "footprintMap": "Footprint map",

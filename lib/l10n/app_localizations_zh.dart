@@ -262,7 +262,42 @@ class AppLocalizationsZh extends AppLocalizations {
   String get discoveredTodoActions => '发现的待办动作';
 
   @override
+  String get actionCenterTitle => '待处理事项';
+
+  @override
   String get noPendingActions => '目前没有待处理的动作';
+
+  @override
+  String get clarificationNeeded => 'Memex 想确认一下';
+
+  @override
+  String get clarificationTextHint => '输入一个简短回答';
+
+  @override
+  String get clarificationTextRequired => '请先补充一个简短回答';
+
+  @override
+  String get clarificationAnswered => '已回答';
+
+  @override
+  String clarificationAnswerPrefix(Object answer) {
+    return '已回答：$answer';
+  }
+
+  @override
+  String get answerSaved => '回答已保存';
+
+  @override
+  String get clarificationOtherAnswer => '手动输入';
+
+  @override
+  String get clarificationNotSure => '不知道/不方便说';
+
+  @override
+  String get yes => '是';
+
+  @override
+  String get no => '否';
 
   @override
   String get askSomethingHint => '问点什么...';

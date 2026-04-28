@@ -3,7 +3,9 @@ import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/agent_activity/widgets/system_action_card.dart';
+import 'package:memex/ui/agent_activity/widgets/clarification_request_card.dart';
 import 'package:memex/data/services/system_action_service.dart';
+import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 
@@ -52,7 +54,7 @@ class ActionCenterSheet extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      UserStorage.l10n.discoveredTodoActions,
+                      UserStorage.l10n.actionCenterTitle,
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -84,45 +86,63 @@ class ActionCenterSheet extends StatelessWidget {
                     ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
                   .watch(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: AgentLogoLoading());
-                }
+                return StreamBuilder<List<ClarificationRequest>>(
+                  stream: ClarificationRequestService.instance.watchPending(),
+                  builder: (context, clarificationSnapshot) {
+                    final isWaiting =
+                        snapshot.connectionState == ConnectionState.waiting ||
+                            clarificationSnapshot.connectionState ==
+                                ConnectionState.waiting;
+                    if (isWaiting) {
+                      return const Center(child: AgentLogoLoading());
+                    }
 
-                final actions = snapshot.data ?? [];
+                    final actions = snapshot.data ?? [];
+                    final clarifications = clarificationSnapshot.data ?? [];
+                    final itemCount = actions.length + clarifications.length;
 
-                if (actions.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.inbox_rounded,
-                          size: 64,
-                          color: Color(0xFFCBD5E1),
+                    if (itemCount == 0) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.inbox_rounded,
+                              size: 64,
+                              color: Color(0xFFCBD5E1),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              UserStorage.l10n.noPendingActions,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: AppColors.textTertiary,
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(height: 16),
-                        Text(
-                          UserStorage.l10n.noPendingActions,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
+                      );
+                    }
 
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  itemCount: actions.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final action = actions[index]; // Define 'action'
-                    return SystemActionCard(
-                      action: action,
-                      service: SystemActionService.instance,
+                    return ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      itemCount: itemCount,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        if (index < clarifications.length) {
+                          return ClarificationRequestCard(
+                            request: clarifications[index],
+                            service: ClarificationRequestService.instance,
+                          );
+                        }
+
+                        final action = actions[index - clarifications.length];
+                        return SystemActionCard(
+                          action: action,
+                          service: SystemActionService.instance,
+                        );
+                      },
                     );
                   },
                 );

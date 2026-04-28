@@ -270,7 +270,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get discoveredTodoActions => 'Discovered todo actions';
 
   @override
+  String get actionCenterTitle => 'Pending actions';
+
+  @override
   String get noPendingActions => 'No pending actions';
+
+  @override
+  String get clarificationNeeded => 'Memex wants to confirm';
+
+  @override
+  String get clarificationTextHint => 'Type a short answer';
+
+  @override
+  String get clarificationTextRequired => 'Add a short answer first';
+
+  @override
+  String get clarificationAnswered => 'Answered';
+
+  @override
+  String clarificationAnswerPrefix(Object answer) {
+    return 'Answer: $answer';
+  }
+
+  @override
+  String get answerSaved => 'Answer saved';
+
+  @override
+  String get clarificationOtherAnswer => 'Manual input';
+
+  @override
+  String get clarificationNotSure => 'Not sure / prefer not to say';
+
+  @override
+  String get yes => 'Yes';
+
+  @override
+  String get no => 'No';
 
   @override
   String get askSomethingHint => 'Ask something...';

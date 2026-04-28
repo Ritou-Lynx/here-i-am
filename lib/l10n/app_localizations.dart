@@ -566,11 +566,77 @@ abstract class AppLocalizations {
   /// **'Discovered todo actions'**
   String get discoveredTodoActions;
 
+  /// No description provided for @actionCenterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending actions'**
+  String get actionCenterTitle;
+
   /// No description provided for @noPendingActions.
   ///
   /// In en, this message translates to:
   /// **'No pending actions'**
   String get noPendingActions;
+
+  /// No description provided for @clarificationNeeded.
+  ///
+  /// In en, this message translates to:
+  /// **'Memex wants to confirm'**
+  String get clarificationNeeded;
+
+  /// No description provided for @clarificationTextHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Type a short answer'**
+  String get clarificationTextHint;
+
+  /// No description provided for @clarificationTextRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a short answer first'**
+  String get clarificationTextRequired;
+
+  /// No description provided for @clarificationAnswered.
+  ///
+  /// In en, this message translates to:
+  /// **'Answered'**
+  String get clarificationAnswered;
+
+  /// No description provided for @clarificationAnswerPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer: {answer}'**
+  String clarificationAnswerPrefix(Object answer);
+
+  /// No description provided for @answerSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer saved'**
+  String get answerSaved;
+
+  /// No description provided for @clarificationOtherAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual input'**
+  String get clarificationOtherAnswer;
+
+  /// No description provided for @clarificationNotSure.
+  ///
+  /// In en, this message translates to:
+  /// **'Not sure / prefer not to say'**
+  String get clarificationNotSure;
+
+  /// No description provided for @yes.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get yes;
+
+  /// No description provided for @no.
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get no;
 
   /// No description provided for @askSomethingHint.
   ///

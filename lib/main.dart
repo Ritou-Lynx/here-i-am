@@ -1256,6 +1256,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         ),
         child: Scaffold(
           extendBody: true,
+          resizeToAvoidBottomInset: false,
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: Stack(
             key: _mainStackKey,

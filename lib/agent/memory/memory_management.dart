@@ -120,6 +120,55 @@ class MemoryManagement {
     await file.writeAsString(encoder.convert(memory));
   }
 
+  Future<String> appendMemories(List<String> memories) async {
+    return _runWithMemoryLock(() async {
+      var mem = await _loadMemory();
+      final buffer = (mem['recent_buffer'] as List?)
+              ?.map((e) => Map<String, dynamic>.from(e))
+              .toList() ??
+          [];
+
+      int nextId = (mem['next_mem_id'] as int?) ?? 101;
+      final addedIds = <String>[];
+
+      for (final memory in memories) {
+        final m = memory.trim();
+        if (m.isEmpty) continue;
+
+        final memoryId = "mem_$nextId";
+        nextId++;
+
+        final newEntry = {
+          "memory_id": memoryId,
+          "content": m,
+          "source_agent": sourceAgent,
+          "created_at": DateTime.now().toIso8601String(),
+        };
+
+        buffer.add(newEntry);
+        addedIds.add(memoryId);
+      }
+
+      mem['next_mem_id'] = nextId;
+      mem['recent_buffer'] = buffer;
+
+      String resultMsg =
+          "Memories appended successfully. IDs: ${addedIds.join(', ')}";
+
+      if (buffer.length > recentBufferThreshold) {
+        try {
+          mem = await _summarizeMemory(mem);
+          resultMsg += "\n(Memory buffer consolidated to archive)";
+        } catch (e) {
+          resultMsg += "\n(Memory consolidation failed: $e)";
+        }
+      }
+
+      await _writeMemory(mem);
+      return resultMsg;
+    });
+  }
+
   List<Tool> buildMemoryManagementTools() {
     return [
       Tool(
@@ -141,53 +190,7 @@ class MemoryManagement {
           'required': ['memories'],
         },
         executable: (List<dynamic> memories) async {
-          return _runWithMemoryLock(() async {
-            var mem = await _loadMemory();
-            final buffer = (mem['recent_buffer'] as List?)
-                    ?.map((e) => Map<String, dynamic>.from(e))
-                    .toList() ??
-                [];
-
-            int nextId = (mem['next_mem_id'] as int?) ?? 101;
-            final addedIds = <String>[];
-
-            for (var m in memories) {
-              if (m is! String) continue;
-
-              final memoryId = "mem_$nextId";
-              nextId++;
-
-              final newEntry = {
-                "memory_id": memoryId,
-                "content": m,
-                "source_agent": sourceAgent,
-                "created_at": DateTime.now().toIso8601String(),
-              };
-
-              buffer.add(newEntry);
-              addedIds.add(memoryId);
-            }
-
-            mem['next_mem_id'] = nextId;
-            mem['recent_buffer'] = buffer;
-
-            String resultMsg =
-                "Memories appended successfully. IDs: ${addedIds.join(', ')}";
-
-            // Check threshold and summarize if needed
-            if (buffer.length > recentBufferThreshold) {
-              try {
-                mem = await _summarizeMemory(mem);
-                resultMsg += "\n(Memory buffer consolidated to archive)";
-              } catch (e) {
-                resultMsg += "\n(Memory consolidation failed: $e)";
-              }
-            }
-
-            await _writeMemory(mem);
-
-            return resultMsg;
-          });
+          return appendMemories(memories.whereType<String>().toList());
         },
       ),
     ];
@@ -344,6 +347,7 @@ While executing your primary directive, **silently observe** the conversation fo
 2. **Record (Analytic & Selective)**: 
    - **Trigger Condition**: Use the `append_memories` tool **IF AND ONLY IF** you detect new information with clear **Long-term Strategic Value**.
    - **Analyst Mindset**: Do not act as a passive scribe. Look for patterns and attributes (e.g., "User buys expensive gear" -> "High spending power"), rather than just logging events.
+   - **AI Interaction Preferences**: Treat durable preferences about how the AI should interact as memory candidates, such as asking fewer clarification questions, confirming more proactively, or avoiding small interruptions.
    - **The "Silence is Okay" Rule**: If the conversation is casual, transactional, or contains no new profile data, **DO NOT call the tool**. It is better to record *nothing* than to fill the memory with noise.
 
    #### Recording Rules (Strict Filters)

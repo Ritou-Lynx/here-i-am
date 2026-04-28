@@ -20,11 +20,13 @@ class SystemEventTypes {
   static const String cardCommentPosted = 'card_comment_posted';
   static const String knowledgeInsightRefreshRequested =
       'knowledge_insight_refresh_requested';
+  static const String clarificationAnswered = 'clarification_answered';
 
   static const List<String> allTypes = [
     userInputSubmitted,
     cardCommentPosted,
     knowledgeInsightRefreshRequested,
+    clarificationAnswered,
   ];
 }
 
@@ -72,5 +74,17 @@ class CardCommentPostedPayload {
         'card_id': cardId,
         'content': content,
         'comment_id': commentId,
+      };
+}
+
+class ClarificationAnsweredPayload {
+  ClarificationAnsweredPayload({
+    required this.requestId,
+  });
+
+  final String requestId;
+
+  Map<String, dynamic> toJson() => {
+        'request_id': requestId,
       };
 }

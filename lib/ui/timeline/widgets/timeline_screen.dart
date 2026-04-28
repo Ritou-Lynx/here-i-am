@@ -6,7 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/agent_activity/widgets/system_action_card.dart';
+import 'package:memex/ui/agent_activity/widgets/clarification_request_card.dart';
 import 'package:memex/data/services/system_action_service.dart';
+import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:memex/ui/core/widgets/html_webview_card.dart';
 import 'package:memex/ui/main_screen/widgets/action_center_sheet.dart';
 
@@ -384,50 +386,60 @@ class TimelineScreenState extends State<TimelineScreen> {
                                   ..where((t) => t.status.equals('pending')))
                                 .watch(),
                             builder: (context, snapshot) {
-                              final pendingCount = snapshot.data?.length ?? 0;
-                              return GestureDetector(
-                                onTap: () {
-                                  if (pendingCount > 0) {
-                                    showModalBottomSheet(
-                                      context: context,
-                                      isScrollControlled: true,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (context) =>
-                                          const ActionCenterSheet(),
-                                    );
-                                  } else {
-                                    ToastHelper.showSuccess(context,
-                                        UserStorage.l10n.noPendingActionsToast);
-                                  }
-                                },
-                                child: SizedBox(
-                                  width: 36,
-                                  height: 36,
-                                  child: Stack(
-                                    children: [
-                                      Center(
-                                        child: SvgPicture.asset(
-                                          'assets/icons/notification_bell.svg',
-                                          width: 19,
-                                          height: 20,
-                                        ),
-                                      ),
-                                      if (pendingCount > 0)
-                                        Positioned(
-                                          top: 6,
-                                          left: 22,
-                                          child: Container(
-                                            width: 8,
-                                            height: 8,
-                                            decoration: const BoxDecoration(
-                                              color: Color(0xFF5B6CFF),
-                                              shape: BoxShape.circle,
+                              return StreamBuilder<List<ClarificationRequest>>(
+                                stream: ClarificationRequestService.instance
+                                    .watchPending(),
+                                builder: (context, clarificationSnapshot) {
+                                  final pendingCount = (snapshot.data?.length ??
+                                          0) +
+                                      (clarificationSnapshot.data?.length ?? 0);
+                                  return GestureDetector(
+                                    onTap: () {
+                                      if (pendingCount > 0) {
+                                        showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          backgroundColor: Colors.transparent,
+                                          builder: (context) =>
+                                              const ActionCenterSheet(),
+                                        );
+                                      } else {
+                                        ToastHelper.showSuccess(
+                                            context,
+                                            UserStorage
+                                                .l10n.noPendingActionsToast);
+                                      }
+                                    },
+                                    child: SizedBox(
+                                      width: 36,
+                                      height: 36,
+                                      child: Stack(
+                                        children: [
+                                          Center(
+                                            child: SvgPicture.asset(
+                                              'assets/icons/notification_bell.svg',
+                                              width: 19,
+                                              height: 20,
                                             ),
                                           ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
+                                          if (pendingCount > 0)
+                                            Positioned(
+                                              top: 6,
+                                              left: 22,
+                                              child: Container(
+                                                width: 8,
+                                                height: 8,
+                                                decoration: const BoxDecoration(
+                                                  color: Color(0xFF5B6CFF),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
                               );
                             },
                           ),
@@ -899,19 +911,19 @@ class TimelineScreenState extends State<TimelineScreen> {
 
   Widget _buildTimelineBody(TimelineViewModel vm) {
     if ((vm.isLoading || vm.load.running) && vm.cards.isEmpty) {
-      return Center(child: AgentLogoLoading());
+      return const Center(child: AgentLogoLoading());
     }
 
     if (vm.isSubmitting) {
       if (vm.cards.isEmpty) {
-        return Center(child: AgentLogoLoading());
+        return const Center(child: AgentLogoLoading());
       } else {
         return Stack(
           children: [
             _buildTimelineContent(vm),
             Container(
               color: Colors.white.withOpacity(0.7),
-              child: Center(
+              child: const Center(
                 child: AgentLogoLoading(),
               ),
             ),
@@ -961,7 +973,31 @@ class TimelineScreenState extends State<TimelineScreen> {
       );
     }
 
-    if (vm.cards.isEmpty) {
+    if (!AppDatabase.isInitialized) {
+      return _buildTimelineList(vm, const []);
+    }
+
+    return StreamBuilder<List<ClarificationRequest>>(
+      stream: ClarificationRequestService.instance.watchVisibleGlobal(),
+      builder: (context, snapshot) {
+        final globalClarifications = snapshot.data ?? const [];
+        if (vm.cards.isEmpty &&
+            globalClarifications.isEmpty &&
+            snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: AgentLogoLoading());
+        }
+        return _buildTimelineList(vm, globalClarifications);
+      },
+    );
+  }
+
+  Widget _buildTimelineList(
+    TimelineViewModel vm,
+    List<ClarificationRequest> globalClarifications,
+  ) {
+    final entries = _buildTimelineFeedEntries(vm, globalClarifications);
+
+    if (entries.isEmpty) {
       return RefreshIndicator(
         onRefresh: () async {
           await vm.refresh();
@@ -1017,18 +1053,32 @@ class TimelineScreenState extends State<TimelineScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
         cacheExtent: 400,
-        itemCount: vm.cards.length + (vm.hasMore ? 1 : 0),
+        itemCount: entries.length + (vm.hasMore ? 1 : 0),
         itemBuilder: (context, index) {
-          if (index >= vm.cards.length) {
+          if (index >= entries.length) {
             return const Padding(
               padding: EdgeInsets.all(16),
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final card = vm.cards[index];
+
+          final entry = entries[index];
+          final request = entry.clarification;
+          if (request != null) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: ClarificationRequestCard(
+                request: request,
+                service: ClarificationRequestService.instance,
+              ),
+            );
+          }
+
+          final card = entry.card!;
+          final cardIndex = entry.cardIndex!;
           return _TimelineEntryItem(
             card: card,
-            isDemoTarget: index == 0,
+            isDemoTarget: cardIndex == 0,
             onTap: () async {
               // If this is a custom agent system_task card, open chat dialog.
               if (_isCustomAgentSystemTask(card)) {
@@ -1045,7 +1095,7 @@ class TimelineScreenState extends State<TimelineScreen> {
 
               // Advance demo AFTER returning from detail screen so the
               // knowledgeTab spotlight measures the correct position.
-              if (index == 0) {
+              if (cardIndex == 0) {
                 DemoService.instance.tryAdvance(DemoStep.tapCard);
               }
 
@@ -1063,6 +1113,53 @@ class TimelineScreenState extends State<TimelineScreen> {
       ),
     );
   }
+
+  List<_TimelineFeedEntry> _buildTimelineFeedEntries(
+    TimelineViewModel vm,
+    List<ClarificationRequest> globalClarifications,
+  ) {
+    final entries = <_TimelineFeedEntry>[
+      for (var i = 0; i < vm.cards.length; i++)
+        _TimelineFeedEntry.card(vm.cards[i], i),
+      for (final request in globalClarifications)
+        _TimelineFeedEntry.clarification(request),
+    ];
+    entries.sort((a, b) => b.timestampMs.compareTo(a.timestampMs));
+    return entries;
+  }
+}
+
+class _TimelineFeedEntry {
+  const _TimelineFeedEntry._({
+    this.card,
+    this.cardIndex,
+    this.clarification,
+    required this.timestampMs,
+  });
+
+  factory _TimelineFeedEntry.card(TimelineCardModel card, int cardIndex) {
+    return _TimelineFeedEntry._(
+      card: card,
+      cardIndex: cardIndex,
+      timestampMs: card.timestamp.millisecondsSinceEpoch,
+    );
+  }
+
+  factory _TimelineFeedEntry.clarification(
+    ClarificationRequest clarification,
+  ) {
+    return _TimelineFeedEntry._(
+      clarification: clarification,
+      timestampMs: ((clarification.createdAt ?? clarification.updatedAt) ??
+              DateTime.now().millisecondsSinceEpoch ~/ 1000) *
+          1000,
+    );
+  }
+
+  final TimelineCardModel? card;
+  final int? cardIndex;
+  final ClarificationRequest? clarification;
+  final int timestampMs;
 }
 
 class _TimelineEntryItem extends StatefulWidget {
@@ -1071,7 +1168,6 @@ class _TimelineEntryItem extends StatefulWidget {
   final bool isDemoTarget;
 
   const _TimelineEntryItem({
-    super.key,
     required this.card,
     required this.onTap,
     this.isDemoTarget = false,
@@ -1172,24 +1268,39 @@ class _TimelineEntryItemState extends State<_TimelineEntryItem> {
               ..where((t) => t.factId.equals(card.id)))
             .watch(),
         builder: (context, snapshot) {
-          // Filter to only show actionable or completed UI (hide rejected)
-          final actions = (snapshot.data ?? [])
-              .where((a) => a.status != 'rejected')
-              .toList();
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTimestampHeader(),
-              content,
-              if (actions.isNotEmpty)
-                ...actions.map((action) => Padding(
-                      padding: const EdgeInsets.only(bottom: 20),
-                      child: SystemActionCard(
-                        action: action,
-                        service: SystemActionService.instance,
-                      ),
-                    )),
-            ],
+          return StreamBuilder<List<ClarificationRequest>>(
+            stream: ClarificationRequestService.instance
+                .watchVisibleForFact(card.id),
+            builder: (context, clarificationSnapshot) {
+              // Filter to only show actionable or completed UI (hide rejected)
+              final actions = (snapshot.data ?? [])
+                  .where((a) => a.status != 'rejected')
+                  .toList();
+              final clarifications = clarificationSnapshot.data ?? [];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTimestampHeader(),
+                  content,
+                  if (clarifications.isNotEmpty)
+                    ...clarifications.map((request) => Padding(
+                          padding: const EdgeInsets.only(bottom: 20),
+                          child: ClarificationRequestCard(
+                            request: request,
+                            service: ClarificationRequestService.instance,
+                          ),
+                        )),
+                  if (actions.isNotEmpty)
+                    ...actions.map((action) => Padding(
+                          padding: const EdgeInsets.only(bottom: 20),
+                          child: SystemActionCard(
+                            action: action,
+                            service: SystemActionService.instance,
+                          ),
+                        )),
+                ],
+              );
+            },
           );
         },
       );
@@ -1282,23 +1393,39 @@ class _TimelineEntryItemState extends State<_TimelineEntryItem> {
             ..where((t) => t.factId.equals(card.id)))
           .watch(),
       builder: (context, snapshot) {
-        // Filter to only show actionable or completed UI (hide rejected)
-        final actions =
-            (snapshot.data ?? []).where((a) => a.status != 'rejected').toList();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildTimestampHeader(),
-            normalContent,
-            if (actions.isNotEmpty)
-              ...actions.map((action) => Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: SystemActionCard(
-                      action: action,
-                      service: SystemActionService.instance,
-                    ),
-                  )),
-          ],
+        return StreamBuilder<List<ClarificationRequest>>(
+          stream:
+              ClarificationRequestService.instance.watchVisibleForFact(card.id),
+          builder: (context, clarificationSnapshot) {
+            // Filter to only show actionable or completed UI (hide rejected)
+            final actions = (snapshot.data ?? [])
+                .where((a) => a.status != 'rejected')
+                .toList();
+            final clarifications = clarificationSnapshot.data ?? [];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTimestampHeader(),
+                normalContent,
+                if (clarifications.isNotEmpty)
+                  ...clarifications.map((request) => Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: ClarificationRequestCard(
+                          request: request,
+                          service: ClarificationRequestService.instance,
+                        ),
+                      )),
+                if (actions.isNotEmpty)
+                  ...actions.map((action) => Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: SystemActionCard(
+                          action: action,
+                          service: SystemActionService.instance,
+                        ),
+                      )),
+              ],
+            );
+          },
         );
       },
     );

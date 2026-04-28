@@ -10,7 +10,15 @@ import 'daos/card_dao.dart';
 part 'app_database.g.dart';
 
 @DriftDatabase(
-  tables: [Tasks, KvStore, AgentActivityMessages, CardCache, SystemActions, PersonaChatMessages],
+  tables: [
+    Tasks,
+    KvStore,
+    AgentActivityMessages,
+    CardCache,
+    SystemActions,
+    ClarificationRequests,
+    PersonaChatMessages
+  ],
   daos: [CardDao],
 )
 class AppDatabase extends _$AppDatabase {
@@ -43,7 +51,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase._(String userId) : super(_openConnection(userId));
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -60,6 +68,14 @@ class AppDatabase extends _$AppDatabase {
               'CREATE INDEX IF NOT EXISTS idx_kv_bucket ON kv_store(bucket)');
           await customStatement(
               'CREATE INDEX IF NOT EXISTS idx_card_cache_timestamp ON card_cache(timestamp)');
+          await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_system_actions_status ON system_actions(status)');
+          await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_clarification_requests_status ON clarification_requests(status)');
+          await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_clarification_requests_fact_id ON clarification_requests(fact_id)');
+          await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_clarification_requests_dedupe ON clarification_requests(dedupe_key)');
         },
         onUpgrade: (Migrator m, int from, int to) async {
           if (from < 2) {
@@ -119,6 +135,15 @@ class AppDatabase extends _$AppDatabase {
                 'CREATE INDEX IF NOT EXISTS idx_persona_chat_character ON persona_chat_messages(character_id)');
             await customStatement(
                 'CREATE INDEX IF NOT EXISTS idx_persona_chat_unread ON persona_chat_messages(character_id, is_read)');
+          }
+          if (from < 10) {
+            await m.createTable(clarificationRequests);
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_clarification_requests_status ON clarification_requests(status)');
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_clarification_requests_fact_id ON clarification_requests(fact_id)');
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_clarification_requests_dedupe ON clarification_requests(dedupe_key)');
           }
         },
       );

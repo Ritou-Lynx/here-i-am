@@ -4,6 +4,7 @@ import 'package:memex/domain/models/calendar_model.dart';
 import 'package:memex/data/repositories/update_card_ui_config.dart'
     as update_config_endpoint;
 import 'package:memex/data/services/task_handlers/knowledge_insight_handler.dart';
+import 'package:memex/data/services/task_handlers/clarification_resolution_handler.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/repositories/get_timeline_card.dart'; // Import for fetchTimelineCard
@@ -110,6 +111,8 @@ class MemexRouter {
           .registerHandler('process_ai_reply', handleProcessAiReplyImpl);
       LocalTaskExecutor.instance
           .registerHandler('knowledge_insight_task', handleKnowledgeInsight);
+      LocalTaskExecutor.instance.registerHandler(
+          'clarification_resolution_task', handleClarificationResolution);
 
       // Register Failure Handlers
       LocalTaskExecutor.instance.registerFailureHandler(
@@ -119,6 +122,7 @@ class MemexRouter {
         'pkm_agent_task',
         'comment_agent_task',
         'knowledge_insight_task',
+        'clarification_resolution_task',
         'reprocess_cards_task',
         'reprocess_comments_task',
         'reprocess_knowledge_base_task',
@@ -244,6 +248,18 @@ class MemexRouter {
         subscriptionId: 'knowledge_insight_refresh',
         taskType: 'knowledge_insight_task',
         payloadBuilder: (_, event) => Future.value(const {}),
+      ),
+    );
+
+    eventBus.subscribe(
+      eventType: SystemEventTypes.clarificationAnswered,
+      subscription: EventTaskSubscription(
+        subscriptionId: 'clarification_resolution',
+        taskType: 'clarification_resolution_task',
+        payloadBuilder: (_, event) {
+          final p = event.payload as ClarificationAnsweredPayload;
+          return Future.value({'request_id': p.requestId});
+        },
       ),
     );
   }
