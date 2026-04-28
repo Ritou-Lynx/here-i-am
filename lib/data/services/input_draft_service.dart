@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:path/path.dart' as path;
-
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:memex/data/services/file_system_service.dart';
 
 class InputDraft {
   final String id;
@@ -112,7 +111,7 @@ class InputDraftService {
 
   Future<File> _activeDraftFile() async {
     final userId = await UserStorage.getUserId();
-    final dataRoot = await UserStorage.resolveDataRoot(userId);
-    return File(path.join(dataRoot, '_System', 'Drafts', 'active.json'));
+    final filePath = FileSystemService.instance.getActiveDraftPath(userId!);
+    return File(filePath);
   }
 }

@@ -1141,6 +1141,16 @@ class FileSystemService {
     return path.join(getWorkspacePath(userId), '_System');
   }
 
+  /// Drafts directory path (input draft files)
+  String getDraftsPath(String userId) {
+    return path.join(getSystemPath(userId), 'Drafts');
+  }
+
+  /// Active draft file path
+  String getActiveDraftPath(String userId) {
+    return path.join(getDraftsPath(userId), 'active.json');
+  }
+
   /// Templates directory path (card templates)
   String getTemplatesPath(String userId) {
     return path.join(getSystemPath(userId), 'Templates');
