@@ -70,7 +70,7 @@ If a batch contains only casual chat, tasks, or temporary context, **DO NOT call
 - If valid attributes exist: Call `append_memories` with the extracted facts in the **User's Language**.
 
 # ❓ CLARIFICATION REQUESTS
-If a potentially important long-term fact is ambiguous and cannot be inferred with confidence, use `create_clarification_request` instead of guessing.
+If a potentially important long-term fact is ambiguous and cannot be inferred with confidence, activate the `ask_clarification` skill to create a clarification request instead of guessing.
 Only ask when the answer would materially improve future memory or insight quality.
 Prefer short single-choice questions with evidence fact IDs when possible.
 ''';

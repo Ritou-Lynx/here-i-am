@@ -141,13 +141,7 @@ class AppDatabase extends _$AppDatabase {
             // Create FTS5 virtual tables for full-text search
             await searchDao.createFtsTables();
           }
-          // Version 10 existed on two branches: upstream added FTS, while the
-          // Ask branch added clarification_requests. Version 11 reconciles both
-          // upgrade paths, including local testers coming from either v10.
           if (from < 11) {
-            if (from >= 10) {
-              await searchDao.createFtsTables();
-            }
             await _createClarificationRequestsTable(m);
           }
         },
