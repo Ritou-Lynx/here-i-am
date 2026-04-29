@@ -103,6 +103,10 @@ cd ios && pod install && cd ..
 - Keep localization in sync for user-visible strings.
 - Do not commit secrets, signing keys, generated build artifacts, or local config files.
 
+## Using Coding Agents
+
+If you use an AI coding agent (Cursor, Codex, Claude Code, Kiro, etc.) to work on this codebase, make sure the agent reads `AGENTS.md` before it starts writing code. Most agents already look for this file automatically, but if yours doesn't, include it in the agent's context or prompt it to read the file first. `AGENTS.md` contains architecture rules, layer boundaries, naming conventions, and data-access patterns that are easy to violate without context.
+
 ## Security and Privacy
 
 Do not open public issues for vulnerabilities that could expose private data, files, model credentials, app lock behavior, or backup contents. Please contact the maintainers privately first.
