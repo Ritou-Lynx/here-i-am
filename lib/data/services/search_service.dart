@@ -40,6 +40,10 @@ class SearchService {
 
   /// Wire up event subscriptions and file-change callback.
   /// Safe to call multiple times; only the first call takes effect.
+  ///
+  /// When FTS tables were just created via DB migration (existing users
+  /// upgrading to schema v10), triggers a one-time full rebuild in the
+  /// background so historical data gets indexed.
   void init(String userId) {
     if (_initialized) return;
     _initialized = true;
@@ -49,6 +53,22 @@ class SearchService {
 
     _subscribeToDataChanges();
     _bridgeFileOperationEvents(userId);
+
+    // Check if a post-migration FTS rebuild is needed.
+    if (AppDatabase.isInitialized && AppDatabase.instance.needsFtsRebuild) {
+      AppDatabase.instance.clearFtsRebuildFlag();
+      _logger.info(
+          'FTS tables newly created via migration — scheduling full rebuild');
+      // Fire-and-forget so app startup is not blocked.
+      Future(() async {
+        try {
+          await rebuildAll(userId);
+          _logger.info('Post-migration FTS rebuild completed');
+        } catch (e) {
+          _logger.warning('Post-migration FTS rebuild failed: $e');
+        }
+      });
+    }
   }
 
   /// Reset state on logout so the next login re-initializes.

@@ -28,6 +28,17 @@ class AppDatabase extends _$AppDatabase {
   /// Lazy-initialized SearchDao for FTS5 full-text search.
   late final SearchDao searchDao = SearchDao(this);
 
+  /// Set to true during onUpgrade when FTS tables are first created for an
+  /// existing user. [MemexRouter._init] reads and clears this after services
+  /// are ready so it can trigger a one-time full rebuild.
+  bool _needsFtsRebuild = false;
+
+  /// Whether a full FTS rebuild is needed (set during migration, cleared after rebuild).
+  bool get needsFtsRebuild => _needsFtsRebuild;
+
+  /// Clear the FTS rebuild flag after the rebuild has been triggered.
+  void clearFtsRebuildFlag() => _needsFtsRebuild = false;
+
   /// Singleton pattern to ensure one DB connection
   static AppDatabase?
       _instance; // We will treat the current opened DB as singleton for the app lifecycle
@@ -138,8 +149,12 @@ class AppDatabase extends _$AppDatabase {
                 'CREATE INDEX IF NOT EXISTS idx_persona_chat_unread ON persona_chat_messages(character_id, is_read)');
           }
           if (from < 10) {
-            // Create FTS5 virtual tables for full-text search
+            // Create FTS5 virtual tables for full-text search.
+            // Existing users upgrading to v10 need a full FTS rebuild
+            // because their data was never indexed. We set a flag here
+            // and MemexRouter._init() picks it up after all services are ready.
             await searchDao.createFtsTables();
+            _needsFtsRebuild = true;
           }
           if (from < 11) {
             await _createClarificationRequestsTable(m);

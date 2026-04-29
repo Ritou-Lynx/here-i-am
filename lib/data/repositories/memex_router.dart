@@ -156,7 +156,9 @@ class MemexRouter {
       registerBuiltInEventSerializers();
       await CustomAgentConfigService.instance.registerAll(userId);
 
-      // Register file change callback and FTS event subscriptions
+      // Register file change callback and FTS event subscriptions.
+      // Also triggers a one-time full rebuild when FTS tables were just created
+      // via migration (existing users upgrading to schema v10).
       SearchService.instance.init(userId);
     } catch (e) {
       _logger.severe('Failed to initialize MemexRouter: $e');
