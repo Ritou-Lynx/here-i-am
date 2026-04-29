@@ -5,10 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/ui/agent_activity/widgets/system_action_card.dart';
-import 'package:memex/ui/agent_activity/widgets/clarification_request_card.dart';
-import 'package:memex/data/services/system_action_service.dart';
-import 'package:memex/data/services/clarification_request_service.dart';
+import 'package:memex/ui/card_attachments/card_attachment_data.dart';
+import 'package:memex/ui/card_attachments/card_attachment_factory.dart';
 import 'package:memex/ui/core/widgets/html_webview_card.dart';
 import 'package:memex/ui/main_screen/widgets/action_center_sheet.dart';
 
@@ -290,6 +288,12 @@ class TimelineScreenState extends State<TimelineScreen> {
         config.data['sessionId'] != null;
   }
 
+  /// Check if a card is a clarification_ask card (global Ask).
+  bool _isClarificationAskCard(TimelineCardModel card) {
+    if (card.uiConfigs.isEmpty) return false;
+    return card.uiConfigs.first.templateId == 'clarification_ask';
+  }
+
   /// Open AgentChatDialog for a custom agent system_task card.
   void _openCustomAgentChat(TimelineCardModel card) {
     final config = card.uiConfigs.first;
@@ -380,66 +384,52 @@ class TimelineScreenState extends State<TimelineScreen> {
                         const SizedBox(width: 6),
                         // Notification button
                         if (AppDatabase.isInitialized)
-                          StreamBuilder<List<SystemAction>>(
-                            stream: (AppDatabase.instance
-                                    .select(AppDatabase.instance.systemActions)
-                                  ..where((t) => t.status.equals('pending')))
-                                .watch(),
-                            builder: (context, snapshot) {
-                              return StreamBuilder<List<ClarificationRequest>>(
-                                stream: ClarificationRequestService.instance
-                                    .watchPending(),
-                                builder: (context, clarificationSnapshot) {
-                                  final pendingCount = (snapshot.data?.length ??
-                                          0) +
-                                      (clarificationSnapshot.data?.length ?? 0);
-                                  return GestureDetector(
-                                    onTap: () {
-                                      if (pendingCount > 0) {
-                                        showModalBottomSheet(
-                                          context: context,
-                                          isScrollControlled: true,
-                                          backgroundColor: Colors.transparent,
-                                          builder: (context) =>
-                                              const ActionCenterSheet(),
-                                        );
-                                      } else {
-                                        ToastHelper.showSuccess(
-                                            context,
-                                            UserStorage
-                                                .l10n.noPendingActionsToast);
-                                      }
-                                    },
-                                    child: SizedBox(
-                                      width: 36,
-                                      height: 36,
-                                      child: Stack(
-                                        children: [
-                                          Center(
-                                            child: SvgPicture.asset(
-                                              'assets/icons/notification_bell.svg',
-                                              width: 19,
-                                              height: 20,
+                          Builder(
+                            builder: (context) {
+                              final pendingCount = vm.pendingAttachmentCount;
+                              return GestureDetector(
+                                onTap: () {
+                                  if (pendingCount > 0) {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (context) =>
+                                          const ActionCenterSheet(),
+                                    );
+                                  } else {
+                                    ToastHelper.showSuccess(context,
+                                        UserStorage.l10n.noPendingActionsToast);
+                                  }
+                                },
+                                child: SizedBox(
+                                  width: 36,
+                                  height: 36,
+                                  child: Stack(
+                                    children: [
+                                      Center(
+                                        child: SvgPicture.asset(
+                                          'assets/icons/notification_bell.svg',
+                                          width: 19,
+                                          height: 20,
+                                        ),
+                                      ),
+                                      if (pendingCount > 0)
+                                        Positioned(
+                                          top: 6,
+                                          left: 22,
+                                          child: Container(
+                                            width: 8,
+                                            height: 8,
+                                            decoration: const BoxDecoration(
+                                              color: Color(0xFF5B6CFF),
+                                              shape: BoxShape.circle,
                                             ),
                                           ),
-                                          if (pendingCount > 0)
-                                            Positioned(
-                                              top: 6,
-                                              left: 22,
-                                              child: Container(
-                                                width: 8,
-                                                height: 8,
-                                                decoration: const BoxDecoration(
-                                                  color: Color(0xFF5B6CFF),
-                                                  shape: BoxShape.circle,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
+                                        ),
+                                    ],
+                                  ),
+                                ),
                               );
                             },
                           ),
@@ -974,28 +964,19 @@ class TimelineScreenState extends State<TimelineScreen> {
     }
 
     if (!AppDatabase.isInitialized) {
-      return _buildTimelineList(vm, const []);
+      return _buildTimelineList(vm);
     }
 
-    return StreamBuilder<List<ClarificationRequest>>(
-      stream: ClarificationRequestService.instance.watchVisibleGlobal(),
-      builder: (context, snapshot) {
-        final globalClarifications = snapshot.data ?? const [];
-        if (vm.cards.isEmpty &&
-            globalClarifications.isEmpty &&
-            snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: AgentLogoLoading());
-        }
-        return _buildTimelineList(vm, globalClarifications);
-      },
-    );
+    if (vm.cards.isEmpty && (vm.isLoading || vm.load.running)) {
+      return const Center(child: AgentLogoLoading());
+    }
+    return _buildTimelineList(vm);
   }
 
   Widget _buildTimelineList(
     TimelineViewModel vm,
-    List<ClarificationRequest> globalClarifications,
   ) {
-    final entries = _buildTimelineFeedEntries(vm, globalClarifications);
+    final entries = _buildTimelineFeedEntries(vm);
 
     if (entries.isEmpty) {
       return RefreshIndicator(
@@ -1063,28 +1044,20 @@ class TimelineScreenState extends State<TimelineScreen> {
           }
 
           final entry = entries[index];
-          final request = entry.clarification;
-          if (request != null) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: ClarificationRequestCard(
-                request: request,
-                service: ClarificationRequestService.instance,
-              ),
-            );
-          }
-
-          final card = entry.card!;
-          final cardIndex = entry.cardIndex!;
+          final card = entry.card;
+          final cardIndex = entry.cardIndex;
           return _TimelineEntryItem(
             card: card,
             isDemoTarget: cardIndex == 0,
+            attachments: vm.attachments[card.id] ?? const [],
             onTap: () async {
               // If this is a custom agent system_task card, open chat dialog.
               if (_isCustomAgentSystemTask(card)) {
                 _openCustomAgentChat(card);
                 return;
               }
+              // Clarification Ask cards are self-contained; no detail page.
+              if (_isClarificationAskCard(card)) return;
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -1116,60 +1089,35 @@ class TimelineScreenState extends State<TimelineScreen> {
 
   List<_TimelineFeedEntry> _buildTimelineFeedEntries(
     TimelineViewModel vm,
-    List<ClarificationRequest> globalClarifications,
   ) {
     final entries = <_TimelineFeedEntry>[
       for (var i = 0; i < vm.cards.length; i++)
-        _TimelineFeedEntry.card(vm.cards[i], i),
-      for (final request in globalClarifications)
-        _TimelineFeedEntry.clarification(request),
+        _TimelineFeedEntry(card: vm.cards[i], cardIndex: i),
     ];
-    entries.sort((a, b) => b.timestampMs.compareTo(a.timestampMs));
     return entries;
   }
 }
 
 class _TimelineFeedEntry {
-  const _TimelineFeedEntry._({
-    this.card,
-    this.cardIndex,
-    this.clarification,
-    required this.timestampMs,
+  const _TimelineFeedEntry({
+    required this.card,
+    required this.cardIndex,
   });
 
-  factory _TimelineFeedEntry.card(TimelineCardModel card, int cardIndex) {
-    return _TimelineFeedEntry._(
-      card: card,
-      cardIndex: cardIndex,
-      timestampMs: card.timestamp.millisecondsSinceEpoch,
-    );
-  }
-
-  factory _TimelineFeedEntry.clarification(
-    ClarificationRequest clarification,
-  ) {
-    return _TimelineFeedEntry._(
-      clarification: clarification,
-      timestampMs: ((clarification.createdAt ?? clarification.updatedAt) ??
-              DateTime.now().millisecondsSinceEpoch ~/ 1000) *
-          1000,
-    );
-  }
-
-  final TimelineCardModel? card;
-  final int? cardIndex;
-  final ClarificationRequest? clarification;
-  final int timestampMs;
+  final TimelineCardModel card;
+  final int cardIndex;
 }
 
 class _TimelineEntryItem extends StatefulWidget {
   final TimelineCardModel card;
   final VoidCallback onTap;
   final bool isDemoTarget;
+  final List<CardAttachmentData> attachments;
 
   const _TimelineEntryItem({
     required this.card,
     required this.onTap,
+    required this.attachments,
     this.isDemoTarget = false,
   });
 
@@ -1263,46 +1211,17 @@ class _TimelineEntryItemState extends State<_TimelineEntryItem> {
         );
       }
 
-      return StreamBuilder<List<SystemAction>>(
-        stream: (AppDatabase.instance.select(AppDatabase.instance.systemActions)
-              ..where((t) => t.factId.equals(card.id)))
-            .watch(),
-        builder: (context, snapshot) {
-          return StreamBuilder<List<ClarificationRequest>>(
-            stream: ClarificationRequestService.instance
-                .watchVisibleForFact(card.id),
-            builder: (context, clarificationSnapshot) {
-              // Filter to only show actionable or completed UI (hide rejected)
-              final actions = (snapshot.data ?? [])
-                  .where((a) => a.status != 'rejected')
-                  .toList();
-              final clarifications = clarificationSnapshot.data ?? [];
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTimestampHeader(),
-                  content,
-                  if (clarifications.isNotEmpty)
-                    ...clarifications.map((request) => Padding(
-                          padding: const EdgeInsets.only(bottom: 20),
-                          child: ClarificationRequestCard(
-                            request: request,
-                            service: ClarificationRequestService.instance,
-                          ),
-                        )),
-                  if (actions.isNotEmpty)
-                    ...actions.map((action) => Padding(
-                          padding: const EdgeInsets.only(bottom: 20),
-                          child: SystemActionCard(
-                            action: action,
-                            service: SystemActionService.instance,
-                          ),
-                        )),
-                ],
-              );
-            },
-          );
-        },
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTimestampHeader(),
+          content,
+          ...widget.attachments.map((a) => Padding(
+                key: ValueKey(a.id),
+                padding: const EdgeInsets.only(bottom: 20),
+                child: CardAttachmentFactory.build(a),
+              )),
+        ],
       );
     }
 
@@ -1388,46 +1307,17 @@ class _TimelineEntryItemState extends State<_TimelineEntryItem> {
       );
     }
 
-    return StreamBuilder<List<SystemAction>>(
-      stream: (AppDatabase.instance.select(AppDatabase.instance.systemActions)
-            ..where((t) => t.factId.equals(card.id)))
-          .watch(),
-      builder: (context, snapshot) {
-        return StreamBuilder<List<ClarificationRequest>>(
-          stream:
-              ClarificationRequestService.instance.watchVisibleForFact(card.id),
-          builder: (context, clarificationSnapshot) {
-            // Filter to only show actionable or completed UI (hide rejected)
-            final actions = (snapshot.data ?? [])
-                .where((a) => a.status != 'rejected')
-                .toList();
-            final clarifications = clarificationSnapshot.data ?? [];
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildTimestampHeader(),
-                normalContent,
-                if (clarifications.isNotEmpty)
-                  ...clarifications.map((request) => Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        child: ClarificationRequestCard(
-                          request: request,
-                          service: ClarificationRequestService.instance,
-                        ),
-                      )),
-                if (actions.isNotEmpty)
-                  ...actions.map((action) => Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        child: SystemActionCard(
-                          action: action,
-                          service: SystemActionService.instance,
-                        ),
-                      )),
-              ],
-            );
-          },
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTimestampHeader(),
+        normalContent,
+        ...widget.attachments.map((a) => Padding(
+              key: ValueKey(a.id),
+              padding: const EdgeInsets.only(bottom: 20),
+              child: CardAttachmentFactory.build(a),
+            )),
+      ],
     );
   }
 

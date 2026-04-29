@@ -2,15 +2,54 @@ import 'package:flutter/material.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/ui/agent_activity/widgets/system_action_card.dart';
-import 'package:memex/ui/agent_activity/widgets/clarification_request_card.dart';
-import 'package:memex/data/services/system_action_service.dart';
-import 'package:memex/data/services/clarification_request_service.dart';
-import 'package:drift/drift.dart' hide Column;
+import 'package:memex/data/services/card_attachment_service.dart';
+import 'package:memex/data/services/event_bus_service.dart';
+import 'package:memex/ui/card_attachments/card_attachment_data.dart';
+import 'package:memex/ui/card_attachments/card_attachment_factory.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 
-class ActionCenterSheet extends StatelessWidget {
+class ActionCenterSheet extends StatefulWidget {
   const ActionCenterSheet({super.key});
+
+  @override
+  State<ActionCenterSheet> createState() => _ActionCenterSheetState();
+}
+
+class _ActionCenterSheetState extends State<ActionCenterSheet> {
+  List<CardAttachmentData>? _items;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    EventBusService.instance.addHandler(
+      EventBusMessageType.attachmentsChanged,
+      _onAttachmentsChanged,
+    );
+  }
+
+  @override
+  void dispose() {
+    EventBusService.instance.removeHandler(
+      EventBusMessageType.attachmentsChanged,
+      _onAttachmentsChanged,
+    );
+    super.dispose();
+  }
+
+  void _onAttachmentsChanged(EventBusMessage message) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final items = await CardAttachmentService.instance.getPendingAttachments();
+    if (!mounted) return;
+    setState(() {
+      _items = items;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +61,7 @@ class ActionCenterSheet extends StatelessWidget {
 
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFFF7F8FA), // matches standard app background
+        color: Color(0xFFF7F8FA),
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       constraints: BoxConstraints(
@@ -76,81 +115,54 @@ class ActionCenterSheet extends StatelessWidget {
 
           const Divider(height: 1),
 
-          // Stream Content
-          Expanded(
-            child: StreamBuilder<List<SystemAction>>(
-              stream: (AppDatabase.instance
-                      .select(AppDatabase.instance.systemActions)
-                    ..where((t) => t.status
-                        .equals('pending')) // Only show pending initially
-                    ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
-                  .watch(),
-              builder: (context, snapshot) {
-                return StreamBuilder<List<ClarificationRequest>>(
-                  stream: ClarificationRequestService.instance.watchPending(),
-                  builder: (context, clarificationSnapshot) {
-                    final isWaiting =
-                        snapshot.connectionState == ConnectionState.waiting ||
-                            clarificationSnapshot.connectionState ==
-                                ConnectionState.waiting;
-                    if (isWaiting) {
-                      return const Center(child: AgentLogoLoading());
-                    }
-
-                    final actions = snapshot.data ?? [];
-                    final clarifications = clarificationSnapshot.data ?? [];
-                    final itemCount = actions.length + clarifications.length;
-
-                    if (itemCount == 0) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.inbox_rounded,
-                              size: 64,
-                              color: Color(0xFFCBD5E1),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              UserStorage.l10n.noPendingActions,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    return ListView.separated(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      itemCount: itemCount,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        if (index < clarifications.length) {
-                          return ClarificationRequestCard(
-                            request: clarifications[index],
-                            service: ClarificationRequestService.instance,
-                          );
-                        }
-
-                        final action = actions[index - clarifications.length];
-                        return SystemActionCard(
-                          action: action,
-                          service: SystemActionService.instance,
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
+          // Content
+          Expanded(child: _buildContent()),
         ],
       ),
+    );
+  }
+
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const Center(child: AgentLogoLoading());
+    }
+
+    final items = _items ?? const [];
+
+    if (items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.inbox_rounded,
+              size: 64,
+              color: Color(0xFFCBD5E1),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              UserStorage.l10n.noPendingActions,
+              style: const TextStyle(
+                fontSize: 16,
+                color: AppColors.textTertiary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      itemCount: items.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return KeyedSubtree(
+          key: ValueKey(item.id),
+          child: CardAttachmentFactory.build(item),
+        );
+      },
     );
   }
 }

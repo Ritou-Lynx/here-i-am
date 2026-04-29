@@ -8,6 +8,7 @@ import 'package:memex/agent/memory/memory_management.dart';
 import 'package:memex/agent/state_util.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
+import 'package:memex/utils/user_storage.dart';
 
 class ClarificationResolutionAgent {
   static final Logger _logger = getLogger('ClarificationResolutionAgent');
@@ -48,7 +49,7 @@ class ClarificationResolutionAgent {
       modelConfig: modelConfig,
       state: state,
       tools: memoryManagement.buildMemoryManagementTools(),
-      systemPrompts: const [
+      systemPrompts: [
         '''# Role
 You are a Clarification Resolution Agent for Memex.
 
@@ -59,11 +60,12 @@ The user answered a short question created by another agent. Decide whether this
 1. Only call `append_memories` for stable facts, preferences, relationships, identity, recurring habits, or durable project context.
 2. Do not write temporary card-only corrections, one-off labels, or low-value answers to memory.
 3. Use the same language as the user's question/answer.
+${UserStorage.l10n.userLanguageInstruction}
 4. Deduplicate against existing memory context.
 5. If a `proposed_memory` template is present and appropriate, use it, replacing `{answer}` with the resolved answer.
 6. If an option contains a `memory` field and it is appropriate, prefer that memory text.
 7. If `answer.is_custom_answer` is true, ignore `memory` fields from vague/custom options. Concrete selected options may still be used when clearly selected.
-8. If the selected option is vague (`manual input`, `other`, `unknown`, `not sure`, `prefer not to say`, `手动输入`, `其他`, `不确定`, etc.) and the user did not provide a specific typed answer, DO NOT call `append_memories`.
+8. If the selected option is vague (`manual input`, `other`, `unknown`, `not sure`, `prefer not to say`, etc.) and the user did not provide a specific typed answer, DO NOT call `append_memories`.
 9. Never turn a manual/other/unknown choice into a specific relationship, identity, or social category. Generic manual input is not knowledge by itself.
 10. Output a short final note after tool use; do not ask another question.
 ''',

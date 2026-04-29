@@ -69,8 +69,8 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
     final answerText = typedText ??
         options
             .map((option) =>
-                _nonEmptyString(option['value']) ??
-                _nonEmptyString(option['label']))
+                _nonEmptyString(option['label']) ??
+                _nonEmptyString(option['value']))
             .whereType<String>()
             .join(', ');
 
@@ -142,19 +142,16 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
   }
 
   String _normalizedOptionText(Map<String, dynamic> option) {
-    return [
-      option['id'],
-      option['label'],
-      option['value'],
-    ].whereType<Object>().map((e) => e.toString().toLowerCase()).join(' ');
+    return [option['id'], option['label'], option['value']]
+        .whereType<Object>()
+        .map((e) => e.toString().toLowerCase())
+        .join(' ');
   }
 
   Future<void> _dismiss() async {
     setState(() => _isProcessing = true);
     await widget.service.dismissRequest(widget.request.id);
-    if (mounted) {
-      setState(() => _isProcessing = false);
-    }
+    if (mounted) setState(() => _isProcessing = false);
   }
 
   void _openCustomAnswerInput(List<Map<String, dynamic>> options) {
@@ -247,43 +244,39 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: (isAnswered
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color:
+                    (isAnswered ? colorScheme.primary : const Color(0xFF5B6CFF))
+                        .withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isAnswered
+                    ? Icons.check_circle_outline_rounded
+                    : Icons.help_outline_rounded,
+                size: 18,
+                color:
+                    isAnswered ? colorScheme.primary : const Color(0xFF5B6CFF),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                isAnswered
+                    ? UserStorage.l10n.clarificationAnswered
+                    : UserStorage.l10n.clarificationNeeded,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: isAnswered
                           ? colorScheme.primary
-                          : const Color(0xFF5B6CFF))
-                      .withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isAnswered
-                      ? Icons.check_circle_outline_rounded
-                      : Icons.help_outline_rounded,
-                  size: 18,
-                  color: isAnswered
-                      ? colorScheme.primary
-                      : const Color(0xFF5B6CFF),
-                ),
+                          : const Color(0xFF5B6CFF),
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  isAnswered
-                      ? UserStorage.l10n.clarificationAnswered
-                      : UserStorage.l10n.clarificationNeeded,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: isAnswered
-                            ? colorScheme.primary
-                            : const Color(0xFF5B6CFF),
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ]),
           const SizedBox(height: 12),
           Text(
             widget.request.question,
@@ -336,18 +329,17 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
                               final selected = responseType ==
                                       ClarificationResponseType.multiChoice
                                   ? options
-                                      .where((option) => _selectedOptionIds
-                                          .contains(option['id']?.toString()))
+                                      .where((o) => _selectedOptionIds
+                                          .contains(o['id']?.toString()))
                                       .toList()
                                   : _customAnswerOptions;
                               _submit(
-                                selectedOptions: selected,
-                                text: _textController.text,
-                              );
+                                  selectedOptions: selected,
+                                  text: _textController.text);
                             } else {
                               final selected = options
-                                  .where((option) => _selectedOptionIds
-                                      .contains(option['id']?.toString()))
+                                  .where((o) => _selectedOptionIds
+                                      .contains(o['id']?.toString()))
                                   .toList();
                               _submit(selectedOptions: selected);
                             }
@@ -356,8 +348,7 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
                         ? const SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                            child: CircularProgressIndicator(strokeWidth: 2))
                         : Text(UserStorage.l10n.save),
                   ),
                 ],
@@ -373,18 +364,14 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
     final answerData = widget.service.decodeAnswerData(widget.request);
     final text = _nonEmptyString(answerData['text']);
     if (text != null) return text;
-
     final selectedIds =
         (answerData['option_ids'] as List?)?.map((e) => e.toString()).toSet() ??
             const <String>{};
-    final labels = options
-        .where((option) => selectedIds.contains(option['id']?.toString()))
-        .map((option) =>
-            _nonEmptyString(option['label']) ??
-            _nonEmptyString(option['value']))
+    return options
+        .where((o) => selectedIds.contains(o['id']?.toString()))
+        .map((o) => _nonEmptyString(o['label']) ?? _nonEmptyString(o['value']))
         .whereType<String>()
-        .toList();
-    return labels.join(', ');
+        .join(', ');
   }
 
   Widget _buildAnsweredSummary(BuildContext context, String answerSummary) {
@@ -396,34 +383,26 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.check_circle_rounded,
-            size: 18,
-            color: colorScheme.primary,
+      child: Row(children: [
+        Icon(Icons.check_circle_rounded, size: 18, color: colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            answerSummary.isEmpty
+                ? UserStorage.l10n.clarificationAnswered
+                : UserStorage.l10n.clarificationAnswerPrefix(answerSummary),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              answerSummary.isEmpty
-                  ? UserStorage.l10n.clarificationAnswered
-                  : UserStorage.l10n.clarificationAnswerPrefix(answerSummary),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 
   Widget _buildSingleChoice(
-    BuildContext context,
-    List<Map<String, dynamic>> options,
-  ) {
+      BuildContext context, List<Map<String, dynamic>> options) {
     return Padding(
       padding: const EdgeInsets.only(top: 14),
       child: Wrap(
@@ -449,9 +428,7 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
   }
 
   Widget _buildMultiChoice(
-    BuildContext context,
-    List<Map<String, dynamic>> options,
-  ) {
+      BuildContext context, List<Map<String, dynamic>> options) {
     return Padding(
       padding: const EdgeInsets.only(top: 14),
       child: Wrap(
@@ -472,29 +449,24 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
                           ..clear()
                           ..add(id);
                       } else {
-                        final uncertainOptionIds = options
+                        _selectedOptionIds.removeAll(options
                             .where(_isUncertainOption)
-                            .map((option) => option['id']?.toString())
-                            .whereType<String>();
-                        _selectedOptionIds.removeAll(uncertainOptionIds);
-
+                            .map((o) => o['id']?.toString())
+                            .whereType<String>());
                         if (selected) {
                           _selectedOptionIds.add(id);
                         } else {
                           _selectedOptionIds.remove(id);
                         }
                       }
-
-                      final selectedOptions = options
-                          .where((option) => _selectedOptionIds
-                              .contains(option['id']?.toString()))
+                      final sel = options
+                          .where((o) =>
+                              _selectedOptionIds.contains(o['id']?.toString()))
                           .toList();
                       _customAnswerOptions =
-                          selectedOptions.where(_requiresCustomAnswer).toList();
+                          sel.where(_requiresCustomAnswer).toList();
                       _isCustomAnswerMode = _customAnswerOptions.isNotEmpty;
-                      if (!_isCustomAnswerMode) {
-                        _textController.clear();
-                      }
+                      if (!_isCustomAnswerMode) _textController.clear();
                     });
                     if (_isCustomAnswerMode) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -518,9 +490,7 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
         maxLines: 3,
         decoration: InputDecoration(
           hintText: UserStorage.l10n.clarificationTextHint,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           isDense: true,
         ),
       ),
@@ -537,9 +507,7 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
         maxLines: 3,
         decoration: InputDecoration(
           hintText: UserStorage.l10n.clarificationTextHint,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           isDense: true,
         ),
       ),

@@ -58,7 +58,7 @@ class PkmAgent {
         workingDirectory: '/',
       ),
       SystemActionSkill(forceActivate: true),
-      AskClarificationSkill(forceActivate: true),
+      AskClarificationSkill(),
     ];
 
     final pkmPath = '${fileService.getWorkspacePath(userId)}/PKM';

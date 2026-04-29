@@ -1,6 +1,7 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/data/services/clarification_request_service.dart';
+import 'package:memex/utils/user_storage.dart';
 
 final _logger = Logger('AskClarificationSkill');
 
@@ -9,7 +10,8 @@ class AskClarificationSkill extends Skill {
       : super(
           name: 'ask_clarification',
           description:
-              'Creates short, high-impact questions for the user when missing information would materially affect memory, PKM organization, or insight quality.',
+              'Ask the user a short clarification question when missing information would materially affect memory accuracy, entity understanding, relationship mapping, PKM organization, or insight quality. '
+              'Use when context is ambiguous, a person/place/project identity is unclear, a preference or relationship cannot be confidently inferred, or a fact correction needs user confirmation. ',
           systemPrompt: _buildSystemPrompt(),
           tools: _buildTools(),
         );
@@ -31,9 +33,10 @@ Use this skill when a small answer from the user would materially improve future
 7. Respect user memory or recent chat preferences about clarification frequency. If the user says questions feel too frequent, ask only for critical, high-impact uncertainty. If the user asks for more proactive confirmation, you may ask slightly more often.
 8. Do not block the current task; creating a clarification request is enough.
 9. Keep the question short and in the user's language.
+${UserStorage.l10n.userLanguageInstruction}
 10. Use `proposed_memory` only for stable facts worth retaining, and write it with an `{answer}` placeholder when the answer should be inserted.
-11. Do not create generic escape-hatch options like "Other", "Manual input", "Unknown", "Not sure", "Prefer not to say", "其他", "手动输入", or "不确定"; the app UI supplies these affordances.
-12. Do not attach a `memory` field to vague options like "Other", "Unknown", "Not sure", "Prefer not to say", "其他", or "不确定".
+11. Do not create generic escape-hatch options like "Other", "Manual input", "Unknown", "Not sure", or "Prefer not to say"; the app UI supplies these affordances.
+12. Do not attach a `memory` field to vague options like "Other", "Unknown", "Not sure", or "Prefer not to say".
 13. Option `memory` values must be literal, conservative facts. Do not invent a more specific category than the label says.
 ''';
   }
@@ -81,7 +84,7 @@ Use this skill when a small answer from the user would materially improve future
             },
             'entity_label': {
               'type': 'string',
-              'description': 'The entity being clarified, such as 小张.',
+              'description': 'The entity being clarified, such as John.',
             },
             'evidence_fact_ids': {
               'type': 'array',
@@ -101,7 +104,8 @@ Use this skill when a small answer from the user would materially improve future
             },
             'proposed_memory': {
               'type': 'string',
-              'description': 'Optional memory template, e.g. "小张是用户的{answer}。"',
+              'description':
+                  'Optional memory template, e.g. "John is the user\'s {answer}."',
             },
             'resolution_target': {
               'type': 'string',

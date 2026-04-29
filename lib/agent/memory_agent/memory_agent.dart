@@ -89,7 +89,7 @@ Prefer short single-choice questions with evidence fact IDs when possible.
       modelConfig: modelConfig,
       state: state,
       tools: tools,
-      skills: [AskClarificationSkill(forceActivate: true)],
+      skills: [AskClarificationSkill()],
       systemPrompts: [systemPrompt],
       disableSubAgents: true, // Purely analytical agent
       controller: controller,

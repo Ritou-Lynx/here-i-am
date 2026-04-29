@@ -7,6 +7,9 @@ import 'package:memex/data/services/search_service.dart';
 import 'package:memex/data/repositories/hydrate_card.dart';
 import 'package:memex/data/services/task_handlers/knowledge_insight_handler.dart';
 import 'package:memex/data/services/task_handlers/clarification_resolution_handler.dart';
+import 'package:memex/data/services/table_change_notifier.dart';
+import 'package:memex/data/services/card_attachment_service.dart';
+import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/repositories/get_timeline_card.dart'; // Import for fetchTimelineCard
@@ -93,6 +96,13 @@ class MemexRouter {
       _logger.info('Initializing Local DB for user: $userId');
       await AppDatabase.init(userId);
       await LocalTaskExecutor.instance.start(userId: userId);
+
+      // Start table change notifier (binlog-style listener for Drift tables)
+      TableChangeNotifier.instance.init();
+      // Register attachment table watchers
+      CardAttachmentService.instance.init();
+      // Register clarification request table watcher (creates timeline cards for global Ask)
+      ClarificationRequestService.instance.init();
 
       // Register Task Handlers - idempotent registration or check if registered?
       // LocalTaskExecutor handles this map, re-registering overwrites which is fine.
