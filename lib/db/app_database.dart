@@ -17,6 +17,7 @@ part 'app_database.g.dart';
     AgentActivityMessages,
     CardCache,
     SystemActions,
+    ClarificationRequests,
     PersonaChatMessages
   ],
   daos: [CardDao],
@@ -65,7 +66,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase._(String userId) : super(_openConnection(userId));
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -82,6 +83,9 @@ class AppDatabase extends _$AppDatabase {
               'CREATE INDEX IF NOT EXISTS idx_kv_bucket ON kv_store(bucket)');
           await customStatement(
               'CREATE INDEX IF NOT EXISTS idx_card_cache_timestamp ON card_cache(timestamp)');
+          await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_system_actions_status ON system_actions(status)');
+          await _createClarificationRequestIndices();
           // Create FTS5 virtual tables for full-text search
           await searchDao.createFtsTables();
         },
@@ -152,8 +156,41 @@ class AppDatabase extends _$AppDatabase {
             await searchDao.createFtsTables();
             _needsFtsRebuild = true;
           }
+          if (from < 11) {
+            await _createClarificationRequestsTable(m);
+          }
         },
       );
+
+  Future<void> _createClarificationRequestsTable(Migrator m) async {
+    try {
+      await m.createTable(clarificationRequests);
+    } catch (e) {
+      if (_isAlreadyExistsError(e, 'clarification_requests')) {
+        _logger.info(
+            'clarification_requests table already exists, skipping migration');
+      } else {
+        rethrow;
+      }
+    }
+    await _createClarificationRequestIndices();
+  }
+
+  Future<void> _createClarificationRequestIndices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_clarification_requests_status ON clarification_requests(status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_clarification_requests_fact_id ON clarification_requests(fact_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_clarification_requests_dedupe ON clarification_requests(dedupe_key)');
+  }
+
+  bool _isAlreadyExistsError(Object error, String tableName) {
+    final errorStr = error.toString().toLowerCase();
+    return errorStr.contains(tableName) &&
+        (errorStr.contains('already exists') ||
+            errorStr.contains('duplicate table'));
+  }
 }
 
 /// Opens the connection using drift_flutter

@@ -87,6 +87,39 @@ class SystemActions extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Clarification Requests Table
+/// Stores agent-created questions that need a lightweight user answer.
+class ClarificationRequests extends Table {
+  TextColumn get id => text()();
+  TextColumn get question => text()();
+  TextColumn get responseType =>
+      text()(); // confirm, single_choice, multi_choice, short_text
+  TextColumn get options => text().nullable()(); // JSON list
+  TextColumn get status =>
+      text()(); // pending, answered, completed, dismissed, failed, expired
+  TextColumn get answerData => text().nullable()(); // JSON payload
+  TextColumn get entityType => text().nullable()();
+  TextColumn get entityLabel => text().nullable()();
+  TextColumn get evidenceFactIds => text().nullable()(); // JSON list
+  TextColumn get reason => text().nullable()();
+  TextColumn get impact => text().nullable()();
+  RealColumn get confidence => real().nullable()();
+  TextColumn get proposedMemory => text().nullable()();
+  TextColumn get resolutionTarget =>
+      text().nullable()(); // auto, memory, pkm, card, insight, none
+  TextColumn get sourceAgent => text().nullable()();
+  TextColumn get dedupeKey => text().nullable()();
+  TextColumn get factId => text().nullable()();
+  TextColumn get error => text().nullable()();
+  IntColumn get createdAt => integer().nullable()();
+  IntColumn get updatedAt => integer().nullable()();
+  IntColumn get answeredAt => integer().nullable()();
+  IntColumn get expiresAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Persona Chat Messages Table
 /// Stores chat messages between user and their AI companion character.
 class PersonaChatMessages extends Table {

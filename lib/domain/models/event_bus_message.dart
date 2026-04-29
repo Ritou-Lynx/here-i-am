@@ -7,6 +7,7 @@ enum EventBusMessageType {
   cardDetailUpdated('card_detail_updated'),
   newInsight('new_insight'),
   newSystemAction('new_system_action'),
+  attachmentsChanged('attachments_changed'),
   invalidModelConfig('invalid_model_config'),
   errorNotification('error_notification'),
   unknown('unknown');
@@ -46,6 +47,8 @@ abstract class EventBusMessage {
         return NewInsightMessage.fromJson(json);
       case EventBusMessageType.newSystemAction:
         return NewSystemActionMessage.fromJson(json);
+      case EventBusMessageType.attachmentsChanged:
+        return AttachmentsChangedMessage.fromJson(json);
       case EventBusMessageType.invalidModelConfig:
         return InvalidModelConfigMessage.fromJson(json);
       case EventBusMessageType.errorNotification:
@@ -314,6 +317,26 @@ class ErrorNotificationMessage extends EventBusMessage {
       errorCategory: data['error_category'] as String,
       errorMessage: data['error_message'] as String,
       cardId: data['card_id'] as String?,
+    );
+  }
+}
+
+/// Attachments changed for a card (system actions, clarification requests, etc.)
+class AttachmentsChangedMessage extends EventBusMessage {
+  final String? factId;
+
+  AttachmentsChangedMessage({this.factId})
+      : super(
+          type: EventBusMessageType.attachmentsChanged,
+          data: {
+            if (factId != null) 'fact_id': factId,
+          },
+        );
+
+  factory AttachmentsChangedMessage.fromJson(Map<String, dynamic> json) {
+    final data = json['data'] as Map<String, dynamic>? ?? {};
+    return AttachmentsChangedMessage(
+      factId: data['fact_id'] as String?,
     );
   }
 }

@@ -126,7 +126,23 @@
   },
   "referenceWithTitle": "引用: {title}",
   "discoveredTodoActions": "发现的待办动作",
+  "actionCenterTitle": "待处理事项",
   "noPendingActions": "目前没有待处理的动作",
+  "clarificationNeeded": "Memex 想确认一下",
+  "clarificationTextHint": "输入一个简短回答",
+  "clarificationTextRequired": "请先补充一个简短回答",
+  "clarificationAnswered": "已回答",
+  "@clarificationAnswerPrefix": {
+    "placeholders": {
+      "answer": {}
+    }
+  },
+  "clarificationAnswerPrefix": "已回答：{answer}",
+  "answerSaved": "回答已保存",
+  "clarificationOtherAnswer": "手动输入",
+  "clarificationNotSure": "不知道/不方便说",
+  "yes": "是",
+  "no": "否",
   "askSomethingHint": "问点什么...",
   "aiAssistant": "AI助手",
   "footprintMap": "足迹地图",

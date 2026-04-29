@@ -6,6 +6,10 @@ import 'package:memex/data/repositories/update_card_ui_config.dart'
 import 'package:memex/data/services/search_service.dart';
 import 'package:memex/data/repositories/hydrate_card.dart';
 import 'package:memex/data/services/task_handlers/knowledge_insight_handler.dart';
+import 'package:memex/data/services/task_handlers/clarification_resolution_handler.dart';
+import 'package:memex/data/services/table_change_notifier.dart';
+import 'package:memex/data/services/card_attachment_service.dart';
+import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/repositories/get_timeline_card.dart'; // Import for fetchTimelineCard
@@ -93,6 +97,13 @@ class MemexRouter {
       await AppDatabase.init(userId);
       await LocalTaskExecutor.instance.start(userId: userId);
 
+      // Start table change notifier (binlog-style listener for Drift tables)
+      TableChangeNotifier.instance.init();
+      // Register attachment table watchers
+      CardAttachmentService.instance.init();
+      // Register clarification request table watcher (creates timeline cards for global Ask)
+      ClarificationRequestService.instance.init();
+
       // Register Task Handlers - idempotent registration or check if registered?
       // LocalTaskExecutor handles this map, re-registering overwrites which is fine.
       LocalTaskExecutor.instance
@@ -115,6 +126,8 @@ class MemexRouter {
           .registerHandler('process_ai_reply', handleProcessAiReplyImpl);
       LocalTaskExecutor.instance
           .registerHandler('knowledge_insight_task', handleKnowledgeInsight);
+      LocalTaskExecutor.instance.registerHandler(
+          'clarification_resolution_task', handleClarificationResolution);
 
       // Register Failure Handlers
       LocalTaskExecutor.instance.registerFailureHandler(
@@ -124,6 +137,7 @@ class MemexRouter {
         'pkm_agent_task',
         'comment_agent_task',
         'knowledge_insight_task',
+        'clarification_resolution_task',
         'reprocess_cards_task',
         'reprocess_comments_task',
         'reprocess_knowledge_base_task',
@@ -254,6 +268,18 @@ class MemexRouter {
         subscriptionId: 'knowledge_insight_refresh',
         taskType: 'knowledge_insight_task',
         payloadBuilder: (_, event) => Future.value(const {}),
+      ),
+    );
+
+    eventBus.subscribe(
+      eventType: SystemEventTypes.clarificationAnswered,
+      subscription: EventTaskSubscription(
+        subscriptionId: 'clarification_resolution',
+        taskType: 'clarification_resolution_task',
+        payloadBuilder: (_, event) {
+          final p = event.payload as ClarificationAnsweredPayload;
+          return Future.value({'request_id': p.requestId});
+        },
       ),
     );
   }
