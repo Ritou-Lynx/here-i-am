@@ -3811,6 +3811,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Agent'**
   String get chatModeLabel;
+
+  /// No description provided for @switchCompanion.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch companion'**
+  String get switchCompanion;
 }
 
 class _AppLocalizationsDelegate

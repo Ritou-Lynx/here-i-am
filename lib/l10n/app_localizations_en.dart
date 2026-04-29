@@ -2083,4 +2083,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatModeLabel => 'Agent';
+
+  @override
+  String get switchCompanion => 'Switch companion';
 }

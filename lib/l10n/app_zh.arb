@@ -914,5 +914,7 @@
   "readOnlyMode": "对话",
   "readOnlyBadge": "对话",
 
-  "chatModeLabel": "智能体"
+  "chatModeLabel": "智能体",
+
+  "switchCompanion": "切换角色"
 }

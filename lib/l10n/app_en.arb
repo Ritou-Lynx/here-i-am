@@ -936,5 +936,7 @@
   "readOnlyMode": "Chat",
   "readOnlyBadge": "CHAT",
 
-  "chatModeLabel": "Agent"
+  "chatModeLabel": "Agent",
+
+  "switchCompanion": "Switch companion"
 }

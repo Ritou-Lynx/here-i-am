@@ -2007,4 +2007,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatModeLabel => '智能体';
+
+  @override
+  String get switchCompanion => '切换角色';
 }

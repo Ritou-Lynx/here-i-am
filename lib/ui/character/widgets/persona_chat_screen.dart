@@ -29,6 +29,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
   final _scrollController = ScrollController();
   final _chatService = PersonaChatService.instance;
 
+  late String _currentCharacterId = widget.characterId;
   CharacterModel? _character;
   List<PersonaChatMessage> _messages = [];
   bool _isLoading = true;
@@ -57,12 +58,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
     if (userId == null) return;
 
     final character = await CharacterService.instance
-        .getCharacter(userId, widget.characterId);
+        .getCharacter(userId, _currentCharacterId);
 
-    final messages = await _chatService.getMessages(widget.characterId);
-    await _chatService.markAllRead(widget.characterId);
+    final messages = await _chatService.getMessages(_currentCharacterId);
+    await _chatService.markAllRead(_currentCharacterId);
 
     // Build LLM history from persisted messages
+    _llmHistory.clear();
     final reversed = messages.reversed.toList();
     for (final msg in reversed) {
       if (msg.isFromCharacter) {
@@ -111,7 +113,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
         client: resources.client,
         modelConfig: resources.modelConfig,
         userId: userId,
-        characterId: widget.characterId,
+        characterId: _currentCharacterId,
         conversation: _llmHistory,
       );
     } catch (_) {}
@@ -124,13 +126,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
     _textController.clear();
 
     // Persist user message
-    await _chatService.addUserMessage(widget.characterId, text);
+    await _chatService.addUserMessage(_currentCharacterId, text);
 
     // Add to LLM history
     _llmHistory.add(UserMessage([TextPart(text)]));
 
     // Reload messages to show user's message
-    final messages = await _chatService.getMessages(widget.characterId);
+    final messages = await _chatService.getMessages(_currentCharacterId);
     setState(() {
       _messages = messages.reversed.toList();
       _isStreaming = true;
@@ -160,7 +162,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
         client: resources.client,
         modelConfig: resources.modelConfig,
         userId: userId,
-        characterId: widget.characterId,
+        characterId: _currentCharacterId,
         userMessage: text,
         history: historyToSend,
       )) {
@@ -175,7 +177,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
       final fullResponse = buffer.toString().trim();
       if (fullResponse.isNotEmpty) {
         await _chatService.addCharacterMessage(
-          widget.characterId,
+          _currentCharacterId,
           fullResponse,
           isRead: true, // User is looking at it
         );
@@ -184,7 +186,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
       }
 
       // Reload messages
-      final updated = await _chatService.getMessages(widget.characterId);
+      final updated = await _chatService.getMessages(_currentCharacterId);
       if (mounted) {
         setState(() {
           _messages = updated.reversed.toList();
@@ -217,6 +219,38 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
     });
   }
 
+  Future<void> _switchCharacter() async {
+    if (_isStreaming) return;
+
+    final userId = await UserStorage.getUserId();
+    if (userId == null) return;
+
+    final characters = await CharacterService.instance.getAllCharacters(userId);
+    final enabled = characters.where((c) => c.enabled).toList();
+    if (enabled.length <= 1 || !mounted) return;
+
+    final selected = await _CharacterSwitcherSheet.show(
+      context,
+      characters: enabled,
+      currentId: _currentCharacterId,
+    );
+
+    if (selected != null && selected.id != _currentCharacterId && mounted) {
+      // Save memory for current conversation before switching
+      _updateMemoryInBackground();
+
+      // Set as primary companion
+      await CharacterService.instance.setPrimaryCompanion(userId, selected.id);
+
+      // Switch to new character
+      setState(() {
+        _currentCharacterId = selected.id;
+        _isLoading = true;
+      });
+      await _init();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -229,24 +263,35 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
         leading: const AppBackButton(),
         title: _character == null
             ? null
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DiceBearAvatar(
-                    seed: _avatarSeed,
-                    size: 28,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _character!.name,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+            : GestureDetector(
+                onTap: _isStreaming ? null : _switchCharacter,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DiceBearAvatar(
+                      seed: _avatarSeed,
+                      size: 28,
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      _character!.name,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(
+                      Icons.unfold_more,
+                      size: 18,
+                      color: _isStreaming
+                          ? AppColors.textTertiary
+                          : AppColors.primary,
+                    ),
+                  ],
+                ),
               ),
       ),
       body: _isLoading
@@ -637,6 +682,127 @@ class _TypingDotsState extends State<_TypingDots>
           }),
         );
       },
+    );
+  }
+}
+
+/// Bottom sheet for switching companion characters.
+class _CharacterSwitcherSheet extends StatelessWidget {
+  final List<CharacterModel> characters;
+  final String? currentId;
+
+  const _CharacterSwitcherSheet({
+    required this.characters,
+    this.currentId,
+  });
+
+  static Future<CharacterModel?> show(
+    BuildContext context, {
+    required List<CharacterModel> characters,
+    String? currentId,
+  }) {
+    return showModalBottomSheet<CharacterModel>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _CharacterSwitcherSheet(
+        characters: characters,
+        currentId: currentId,
+      ),
+    );
+  }
+
+  String _avatarSeed(CharacterModel char) {
+    if (char.avatar != null && char.avatar!.isNotEmpty) return char.avatar!;
+    return 'companion_${char.name}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = UserStorage.l10n;
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              l10n.switchCompanion,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.4,
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: characters.length,
+                itemBuilder: (context, index) {
+                  final char = characters[index];
+                  final isCurrent = char.id == currentId;
+                  return ListTile(
+                    leading: DiceBearAvatar(
+                      seed: _avatarSeed(char),
+                      size: 40,
+                      backgroundColor:
+                          AppColors.primary.withValues(alpha: 0.08),
+                    ),
+                    title: Text(
+                      char.name,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight:
+                            isCurrent ? FontWeight.w600 : FontWeight.w400,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    subtitle: char.tags.isNotEmpty
+                        ? Text(
+                            char.tags.join(' · '),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textTertiary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : null,
+                    trailing: isCurrent
+                        ? const Icon(Icons.check_circle,
+                            color: AppColors.primary, size: 20)
+                        : null,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    onTap: isCurrent
+                        ? () => Navigator.pop(context)
+                        : () => Navigator.pop(context, char),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
     );
   }
 }
