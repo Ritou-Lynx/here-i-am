@@ -122,6 +122,10 @@ class SearchService {
           await JiebaSegmenter.instance.ensureLoaded();
 
           final candidatePaths = <String>[];
+          // Maps file path → fact_id for results found via card association
+          // (Strategy 2b), so the snippet can centre on the fact_id marker
+          // when the search query itself does not appear in the file.
+          final factIdHintForPath = <String, String>{};
 
           // 2a. Direct PKM FTS match
           final ftsResults = await dao.searchPkmFiles(trimmed, limit: limit);
@@ -142,7 +146,15 @@ class SearchService {
               final associated = await findPkmFilesByFactIds(userId, factIds,
                   limit: limit - candidatePaths.length);
               for (final f in associated) {
-                candidatePaths.add(f['path'] as String);
+                final filePath = f['path'] as String;
+                candidatePaths.add(filePath);
+                // Remember which fact_id led us to this file so we can
+                // centre the snippet around it when the query itself does
+                // not appear in the file content.
+                factIdHintForPath[filePath] ??= factIds.firstWhere(
+                  (id) => (f['snippet'] as String? ?? '').contains(id),
+                  orElse: () => factIds.first,
+                );
               }
             }
           }
@@ -151,8 +163,8 @@ class SearchService {
             if (results.length >= limit) break;
             if (!seenPaths.add(relativePath)) continue;
             try {
-              final result =
-                  await _buildResultFromFile(pkmPath, relativePath, trimmed);
+              final result = await _buildResultFromFile(pkmPath, relativePath,
+                  trimmed, factIdHintForPath[relativePath]);
               if (result != null) results.add(result);
             } catch (_) {}
           }
@@ -195,8 +207,14 @@ class SearchService {
 
   /// Read the original file and build a search result map with a raw snippet,
   /// identical to what [FileSystemService.grepPkmFiles] produces.
+  ///
+  /// When [factIdHint] is provided (file found via card→fact_id association)
+  /// and the search query cannot be located in the file content, the snippet
+  /// is centred on the `<!-- fact_id: ... -->` marker instead of falling back
+  /// to the file beginning.
   Future<Map<String, dynamic>?> _buildResultFromFile(
-      String pkmPath, String relativePath, String query) async {
+      String pkmPath, String relativePath, String query,
+      [String? factIdHint]) async {
     final absPath = '$pkmPath/$relativePath';
     final file = File(absPath);
     if (!await file.exists()) return null;
@@ -233,6 +251,16 @@ class SearchService {
         if (idx >= 0) {
           final start = (idx - 40).clamp(0, content.length);
           final end = (idx + query.length + 60).clamp(0, content.length);
+          snippet = (start > 0 ? '...' : '') +
+              content.substring(start, end).replaceAll('\n', ' ') +
+              (end < content.length ? '...' : '');
+        } else if (factIdHint != null && content.contains(factIdHint)) {
+          // File was found via card→fact_id association. Centre the snippet
+          // on the fact_id marker so the user sees relevant context.
+          final markerIdx = content.indexOf(factIdHint);
+          final start = (markerIdx - 40).clamp(0, content.length);
+          final end =
+              (markerIdx + factIdHint.length + 60).clamp(0, content.length);
           snippet = (start > 0 ? '...' : '') +
               content.substring(start, end).replaceAll('\n', ' ') +
               (end < content.length ? '...' : '');
