@@ -50,6 +50,7 @@ import 'package:memex/data/repositories/get_cards_by_ids.dart';
 import 'package:memex/data/repositories/get_calendar_data.dart';
 import 'package:memex/data/repositories/card.dart';
 import 'package:memex/data/repositories/post_comment.dart';
+import 'package:memex/data/services/comment_settings_service.dart';
 import 'package:memex/data/repositories/pin_insight.dart';
 import 'package:memex/data/repositories/character.dart';
 import 'package:memex/data/repositories/health.dart' as health_endpoint;
@@ -257,6 +258,7 @@ class MemexRouter {
             'card_id': p.cardId,
             'content': p.content,
             'comment_id': p.commentId,
+            if (p.replyToId != null) 'reply_to_id': p.replyToId,
           });
         },
       ),
@@ -521,7 +523,10 @@ class MemexRouter {
   }
 
   Future<Map<String, dynamic>> postComment(
-      String cardId, String content) async {
+    String cardId,
+    String content, {
+    String? replyToId,
+  }) async {
     await _ensureInitialized();
     _logger.info('LocalMode: postComment called: cardId=$cardId');
 
@@ -531,11 +536,28 @@ class MemexRouter {
         throw Exception('User not logged in, cannot submit comment');
       }
 
-      return await postCommentEndpoint(cardId, userId, content);
+      return await postCommentEndpoint(cardId, userId, content,
+          replyToId: replyToId);
     } catch (e) {
       _logger.severe('Failed to post comment for card $cardId: $e');
       rethrow;
     }
+  }
+
+  /// Load per-user comment settings.
+  Future<CommentSettings> getCommentSettings() async {
+    await _ensureInitialized();
+    final userId = await UserStorage.getUserId();
+    if (userId == null) return const CommentSettings();
+    return CommentSettingsService.load(userId);
+  }
+
+  /// Save per-user comment settings.
+  Future<void> saveCommentSettings(CommentSettings settings) async {
+    await _ensureInitialized();
+    final userId = await UserStorage.getUserId();
+    if (userId == null) return;
+    await CommentSettingsService.save(userId, settings);
   }
 
   Future<void> enqueueTask({

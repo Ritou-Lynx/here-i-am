@@ -916,5 +916,20 @@
 
   "chatModeLabel": "智能体",
 
-  "switchCompanion": "切换角色"
+  "switchCompanion": "切换角色",
+
+  "showInsightTextTitle": "显示 Memex 洞察评论",
+  "showInsightTextDesc": "是否在卡片详情的评论区显示 Memex 洞察评论。",
+  "enableCharacterCommentTitle": "角色自动评论",
+  "enableCharacterCommentDesc": "角色自动对新记录发表评论。",
+  "maxCommentCharactersTitle": "最大评论角色数",
+  "maxCommentCharactersDesc": "每条记录最多几个角色参与评论。",
+  "replyTo": "回复 {name}",
+  "@replyTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -176,6 +176,7 @@ Future<CardDetailModel> getCardDetail(String cardId) async {
 
     // Read comments (from card file comments field if present)
     final comments = <Comment>[];
+    // First pass: build comments with character info
     for (final commentData in cardData.comments) {
       try {
         CharacterInfo? commentCharacter;
@@ -203,10 +204,41 @@ Future<CardDetailModel> getCardDetail(String cardId) async {
           isAi: commentData.isAi,
           timestamp: commentData.timestamp,
           character: commentCharacter,
+          replyToId: commentData.replyToId,
         ));
       } catch (e) {
         _logger.warning('Failed to process comment: $e');
         continue;
+      }
+    }
+
+    // Second pass: resolve replyToName from the comment list
+    // Build a lookup: commentId -> display name
+    final commentNameMap = <String, String>{};
+    for (final c in comments) {
+      if (!c.isAi) {
+        // User comment — use the userId as display name
+        commentNameMap[c.id] = userId;
+      } else {
+        commentNameMap[c.id] = c.character?.name ?? 'AI';
+      }
+    }
+    // Resolve replyToName for each comment that has a replyToId
+    for (var i = 0; i < comments.length; i++) {
+      final c = comments[i];
+      if (c.replyToId != null && c.replyToName == null) {
+        final resolvedName = commentNameMap[c.replyToId];
+        if (resolvedName != null) {
+          comments[i] = Comment(
+            id: c.id,
+            content: c.content,
+            isAi: c.isAi,
+            timestamp: c.timestamp,
+            character: c.character,
+            replyToId: c.replyToId,
+            replyToName: resolvedName,
+          );
+        }
       }
     }
 
