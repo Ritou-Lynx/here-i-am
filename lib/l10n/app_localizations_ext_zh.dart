@@ -204,4 +204,10 @@ class AppLocalizationsExtZh extends AppLocalizationsZh
 
   @override
   String get shareCardStyle => '卡片样式';
+
+  @override
+  String get shareHideBranding => '隐藏水印';
+
+  @override
+  String get shareShowBranding => '显示水印';
 }

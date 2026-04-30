@@ -18,12 +18,34 @@ class ShareService {
     Widget content, {
     Widget? detailContent,
   }) async {
-    final cardBytes = await _captureWidget(context, content);
+    // Initial render with branding
+    var showBranding = true;
+    var isDetailStyle = false;
+
+    // Cache rendered images keyed by (isDetail, showBranding)
+    final cache = <String, Uint8List>{};
+
+    String cacheKey(bool detail, bool branding) =>
+        '${detail ? 'd' : 'c'}_${branding ? 'b' : 'n'}';
+
+    Future<Uint8List> renderCurrent(BuildContext ctx) async {
+      final key = cacheKey(isDetailStyle, showBranding);
+      if (cache.containsKey(key)) return cache[key]!;
+
+      final widget = isDetailStyle ? detailContent! : content;
+      final bytes = isDetailStyle
+          ? await _captureLongWidget(ctx, widget, showBranding: showBranding)
+          : await _captureWidget(ctx, widget, showBranding: showBranding);
+      cache[key] = bytes;
+      return bytes;
+    }
+
+    final initialBytes =
+        await _captureWidget(context, content, showBranding: showBranding);
+    cache[cacheKey(false, true)] = initialBytes;
     if (!context.mounted) return;
 
-    Uint8List? detailBytes;
-    bool isDetailStyle = false;
-    Uint8List currentBytes = cardBytes;
+    Uint8List currentBytes = initialBytes;
 
     await showDialog(
       context: context,
@@ -32,34 +54,24 @@ class ShareService {
         builder: (ctx, setDialogState) => SharePreviewDialog(
           imageBytes: currentBytes,
           isDetailStyle: isDetailStyle,
+          showBranding: showBranding,
           onCancel: () => Navigator.of(ctx).pop(),
           onToggleStyle: detailContent != null
               ? () async {
-                  if (!isDetailStyle) {
-                    // Switch to detail style — capture on first toggle
-                    if (detailBytes == null) {
-                      // Show a brief loading indicator
-                      setDialogState(() {});
-                      detailBytes = await _captureLongWidget(
-                        ctx,
-                        detailContent,
-                      );
-                    }
-                    if (detailBytes != null) {
-                      setDialogState(() {
-                        isDetailStyle = true;
-                        currentBytes = detailBytes!;
-                      });
-                    }
-                  } else {
-                    // Switch back to card style
-                    setDialogState(() {
-                      isDetailStyle = false;
-                      currentBytes = cardBytes;
-                    });
-                  }
+                  isDetailStyle = !isDetailStyle;
+                  final bytes = await renderCurrent(ctx);
+                  setDialogState(() {
+                    currentBytes = bytes;
+                  });
                 }
               : null,
+          onToggleBranding: () async {
+            showBranding = !showBranding;
+            final bytes = await renderCurrent(ctx);
+            setDialogState(() {
+              currentBytes = bytes;
+            });
+          },
           onShare: () async {
             Navigator.of(ctx).pop();
             await _performShare(currentBytes);
@@ -72,10 +84,13 @@ class ShareService {
   /// Capture a normal-sized widget (fits in viewport).
   static Future<Uint8List> _captureWidget(
     BuildContext context,
-    Widget content,
-  ) async {
-    final poster =
-        _wrapForCapture(context, SharePosterDecorator(content: content));
+    Widget content, {
+    bool showBranding = true,
+  }) async {
+    final poster = _wrapForCapture(
+      context,
+      SharePosterDecorator(content: content, showBranding: showBranding),
+    );
     final screenshotController = ScreenshotController();
     final pixelRatio = MediaQuery.of(context).devicePixelRatio;
     return screenshotController.captureFromWidget(
@@ -90,10 +105,13 @@ class ShareService {
   /// Uses [captureFromLongWidget] for off-screen rendering.
   static Future<Uint8List> _captureLongWidget(
     BuildContext context,
-    Widget content,
-  ) async {
-    final poster =
-        _wrapForCapture(context, SharePosterDecorator(content: content));
+    Widget content, {
+    bool showBranding = true,
+  }) async {
+    final poster = _wrapForCapture(
+      context,
+      SharePosterDecorator(content: content, showBranding: showBranding),
+    );
     final screenshotController = ScreenshotController();
     final pixelRatio = MediaQuery.of(context).devicePixelRatio;
     return screenshotController.captureFromLongWidget(

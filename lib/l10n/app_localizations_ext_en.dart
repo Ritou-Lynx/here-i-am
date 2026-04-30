@@ -193,7 +193,7 @@ class AppLocalizationsExtEn extends AppLocalizationsEn
   String get sharePreviewTitle => 'Share Preview';
 
   @override
-  String get shareNow => 'Share Now';
+  String get shareNow => 'Share';
 
   @override
   String get sharedFromMemex => 'Shared from Memex';
@@ -202,8 +202,14 @@ class AppLocalizationsExtEn extends AppLocalizationsEn
   String get appTagline => 'Record the Spark, Architect the Soul';
 
   @override
-  String get shareDetailStyle => 'Detail Style';
+  String get shareDetailStyle => 'Detail';
 
   @override
-  String get shareCardStyle => 'Card Style';
+  String get shareCardStyle => 'Card';
+
+  @override
+  String get shareHideBranding => 'No Mark';
+
+  @override
+  String get shareShowBranding => 'Mark';
 }

@@ -17,6 +17,12 @@ class SharePreviewDialog extends StatelessWidget {
   /// Whether the current preview is in detail (long image) style.
   final bool isDetailStyle;
 
+  /// Callback to toggle branding (Memex watermark).
+  final VoidCallback? onToggleBranding;
+
+  /// Whether branding is currently shown.
+  final bool showBranding;
+
   const SharePreviewDialog({
     super.key,
     required this.imageBytes,
@@ -24,6 +30,8 @@ class SharePreviewDialog extends StatelessWidget {
     required this.onCancel,
     this.onToggleStyle,
     this.isDetailStyle = false,
+    this.onToggleBranding,
+    this.showBranding = true,
   });
 
   @override
@@ -95,36 +103,47 @@ class SharePreviewDialog extends StatelessWidget {
 
               const SizedBox(height: 32),
 
-              // Action Buttons
+              // Action Buttons — equal width distribution
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildButton(
-                    onTap: onCancel,
-                    icon: Icons.close_rounded,
-                    label: l10n.cancel,
-                    isPrimary: false,
-                  ),
-                  if (onToggleStyle != null) ...[
-                    const SizedBox(width: 24),
-                    _buildButton(
-                      onTap: onToggleStyle!,
-                      icon: isDetailStyle
-                          ? Icons.crop_square_rounded
-                          : Icons.article_outlined,
-                      label: isDetailStyle
-                          ? l10n.shareCardStyle
-                          : l10n.shareDetailStyle,
-                      isPrimary: false,
-                      isAccent: true,
+                  Expanded(
+                    child: _buildButton(
+                      onTap: onCancel,
+                      icon: Icons.close_rounded,
+                      label: l10n.cancel,
                     ),
-                  ],
-                  const SizedBox(width: 24),
-                  _buildButton(
-                    onTap: onShare,
-                    icon: Icons.share_rounded,
-                    label: l10n.shareNow,
-                    isPrimary: true,
+                  ),
+                  if (onToggleStyle != null)
+                    Expanded(
+                      child: _buildButton(
+                        onTap: onToggleStyle!,
+                        icon: isDetailStyle
+                            ? Icons.crop_square_rounded
+                            : Icons.article_outlined,
+                        label: isDetailStyle
+                            ? l10n.shareCardStyle
+                            : l10n.shareDetailStyle,
+                      ),
+                    ),
+                  if (onToggleBranding != null)
+                    Expanded(
+                      child: _buildButton(
+                        onTap: onToggleBranding!,
+                        icon: showBranding
+                            ? Icons.bookmark_remove_outlined
+                            : Icons.bookmark_add_outlined,
+                        label: showBranding
+                            ? l10n.shareHideBranding
+                            : l10n.shareShowBranding,
+                      ),
+                    ),
+                  Expanded(
+                    child: _buildButton(
+                      onTap: onShare,
+                      icon: Icons.share_rounded,
+                      label: l10n.shareNow,
+                      isPrimary: true,
+                    ),
                   ),
                 ],
               ),
@@ -139,27 +158,26 @@ class SharePreviewDialog extends StatelessWidget {
     required VoidCallback onTap,
     required IconData icon,
     required String label,
-    required bool isPrimary,
-    bool isAccent = false,
+    bool isPrimary = false,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
         children: [
           Container(
-            width: 56,
-            height: 56,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isPrimary
                   ? Colors.white
-                  : isAccent
-                      ? AppColors.primary.withValues(alpha: 0.25)
-                      : Colors.white.withValues(alpha: 0.15),
-              border: isPrimary || isAccent
+                  : Colors.white.withValues(alpha: 0.15),
+              border: isPrimary
                   ? null
                   : Border.all(
-                      color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
               boxShadow: isPrimary
                   ? [
                       BoxShadow(
@@ -172,20 +190,16 @@ class SharePreviewDialog extends StatelessWidget {
             ),
             child: Icon(
               icon,
-              color: isPrimary
-                  ? AppColors.primary
-                  : isAccent
-                      ? Colors.white
-                      : Colors.white,
-              size: 24,
+              color: isPrimary ? AppColors.primary : Colors.white,
+              size: 22,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             label,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
           ),
