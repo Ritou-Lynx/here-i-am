@@ -32,7 +32,7 @@ class CardDetailModel {
 
   factory CardDetailModel.fromJson(Map<String, dynamic> json) {
     final location = json['location'] as Map<String, dynamic>?;
-    
+
     List<UiConfig> configs = [];
     if (json['ui_configs'] != null) {
       configs = (json['ui_configs'] as List)
@@ -141,6 +141,8 @@ class Comment {
   final bool isAi;
   final int timestamp;
   final CharacterInfo? character;
+  final String? replyToId;
+  final String? replyToName;
 
   Comment({
     required this.id,
@@ -148,6 +150,8 @@ class Comment {
     required this.isAi,
     required this.timestamp,
     this.character,
+    this.replyToId,
+    this.replyToName,
   });
 
   factory Comment.fromJson(Map<String, dynamic> json) {
@@ -159,6 +163,8 @@ class Comment {
       character: json['character'] != null
           ? CharacterInfo.fromJson(json['character'] as Map<String, dynamic>)
           : null,
+      replyToId: json['reply_to_id'] as String?,
+      replyToName: json['reply_to_name'] as String?,
     );
   }
 }
@@ -353,4 +359,3 @@ class AgentStats {
     };
   }
 }
-

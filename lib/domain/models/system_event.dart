@@ -66,16 +66,19 @@ class CardCommentPostedPayload {
     required this.cardId,
     required this.content,
     required this.commentId,
+    this.replyToId,
   });
 
   final String cardId;
   final String content;
   final String commentId;
+  final String? replyToId;
 
   Map<String, dynamic> toJson() => {
         'card_id': cardId,
         'content': content,
         'comment_id': commentId,
+        if (replyToId != null) 'reply_to_id': replyToId,
       };
 }
 

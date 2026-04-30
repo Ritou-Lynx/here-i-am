@@ -2010,4 +2010,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get switchCompanion => '切换角色';
+
+  @override
+  String get showInsightTextTitle => '显示 Memex 洞察评论';
+
+  @override
+  String get showInsightTextDesc => '是否在卡片详情的评论区显示 Memex 洞察评论。';
+
+  @override
+  String get enableCharacterCommentTitle => '角色自动评论';
+
+  @override
+  String get enableCharacterCommentDesc => '角色自动对新记录发表评论。';
+
+  @override
+  String get maxCommentCharactersTitle => '最大评论角色数';
+
+  @override
+  String get maxCommentCharactersDesc => '每条记录最多几个角色参与评论。';
+
+  @override
+  String replyTo(String name) {
+    return '回复 $name';
+  }
 }

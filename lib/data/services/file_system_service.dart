@@ -979,6 +979,11 @@ class FileSystemService {
     return path.join(getUserSettingsPath(userId), 'profile.md');
   }
 
+  /// Comment settings file path
+  String getCommentSettingsPath(String userId) {
+    return path.join(getUserSettingsPath(userId), 'comment_settings.yaml');
+  }
+
   /// Add user custom location (lat, lng, name).
   Future<bool> addUserLocation(
       String userId, double lat, double lng, String name) async {

@@ -27,7 +27,9 @@ import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 import 'package:memex/ui/core/cards/style/timeline_theme.dart';
+import 'package:memex/ui/core/themes/design_system.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/utils/share_service.dart';
 import 'package:memex/ui/core/cards/native_card_factory.dart';
 
@@ -56,6 +58,9 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
   String _userName = 'User';
   String? _userAvatar;
   double? _firstImageAspectRatio;
+  bool _showInsightText = true;
+  String? _replyToCommentId;
+  String? _replyToCommentName;
 
   @override
   void initState() {
@@ -69,10 +74,12 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
   Future<void> _loadUserInfo() async {
     final name = await UserStorage.getUserId();
     final avatar = await UserStorage.getUserAvatar();
+    final settings = await _memexRouter.getCommentSettings();
     if (mounted) {
       setState(() {
         _userName = name ?? 'User';
         _userAvatar = avatar;
+        _showInsightText = settings.showInsightText;
       });
     }
   }
@@ -723,6 +730,8 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
   }
 
   void _showInputModal(String cardId) {
+    final replyId = _replyToCommentId;
+    final replyName = _replyToCommentName;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -736,6 +745,8 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
           color: Colors.white,
           child: _CommentInputWidget(
             cardId: cardId,
+            replyToId: replyId,
+            replyToName: replyName,
             onCommentPosted: () {
               Navigator.pop(context);
               _fetchDetail();
@@ -744,7 +755,15 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
           ),
         ),
       ),
-    );
+    ).whenComplete(() {
+      // Clear reply state when modal is dismissed
+      if (mounted) {
+        setState(() {
+          _replyToCommentId = null;
+          _replyToCommentName = null;
+        });
+      }
+    });
   }
 
   @override
@@ -1138,8 +1157,8 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
   Widget _buildCommentsList(CardDetailModel detail) {
     final List<Widget> commentWidgets = [];
 
-    // Add Insight as the first "Pinned" comment/description
-    if (detail.insight.character != null) {
+    // Add Insight as the first "Pinned" comment/description (if enabled)
+    if (_showInsightText && detail.insight.character != null) {
       commentWidgets.add(
         _buildSingleComment(
           characterId: detail.insight.characterId,
@@ -1152,18 +1171,53 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
       );
     }
 
+    // Build a lookup map for comment names (for reply chain display)
+    final commentNameMap = <String, String>{};
+    // Add insight character as a possible reply target
+    if (detail.insight.character != null) {
+      commentNameMap['insight'] = detail.insight.character!.name;
+    }
+    for (var comment in detail.insight.comments) {
+      final isUser = !comment.isAi;
+      final name = isUser ? _userName : (comment.character?.name ?? 'AI');
+      commentNameMap[comment.id] = name;
+    }
+
     // Add other comments
     for (var comment in detail.insight.comments) {
       final isUser = !comment.isAi;
+      final commentName =
+          isUser ? _userName : (comment.character?.name ?? 'AI');
       commentWidgets.add(
-        _buildSingleComment(
-          characterId: isUser ? 'user' : comment.character?.id,
-          avatar: isUser ? _userAvatar : comment.character?.avatar,
-          name: isUser ? _userName : (comment.character?.name ?? 'AI'),
-          content: comment.content,
-          time: DateFormat('MM-dd').format(
-              DateTime.fromMillisecondsSinceEpoch(comment.timestamp * 1000)),
-          isAi: comment.isAi,
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              // Tap a comment to reply to it
+              setState(() {
+                _replyToCommentId = comment.id;
+                _replyToCommentName = commentName;
+              });
+              _showInputModal(detail.id);
+            },
+            borderRadius: BorderRadius.circular(8),
+            splashColor: AppColors.primary.withValues(alpha: 0.06),
+            highlightColor: AppColors.primary.withValues(alpha: 0.03),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+              child: _buildSingleComment(
+                characterId: isUser ? 'user' : comment.character?.id,
+                avatar: isUser ? _userAvatar : comment.character?.avatar,
+                name: commentName,
+                content: comment.content,
+                time: DateFormat('MM-dd').format(
+                    DateTime.fromMillisecondsSinceEpoch(
+                        comment.timestamp * 1000)),
+                isAi: comment.isAi,
+                replyToName: comment.replyToName,
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -1184,6 +1238,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
     required String time,
     bool isAuthor = false,
     bool isAi = false,
+    String? replyToName,
   }) {
     // Determine avatar widget:
     // - characterId "0" or null = Memex system → use logo
@@ -1225,27 +1280,54 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
       );
     }
 
+    // Wrap avatar with tap-to-chat for AI characters
+    final bool isCharacterAvatar = !isUserComment &&
+        !isMemexSystem &&
+        characterId != null &&
+        characterId != '0';
+    final tappableAvatar = isCharacterAvatar
+        ? GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PersonaChatScreen(characterId: characterId),
+                ),
+              );
+            },
+            child: avatarWidget,
+          )
+        : avatarWidget;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        avatarWidget,
+        tappableAvatar,
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              // Name row with optional reply chain indicator
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 0,
                 children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF0A0A0A),
-                      letterSpacing: -0.15,
-                      height: 1.25,
+                  Text(name, style: AppTextStyles.commentName),
+                  if (replyToName != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Icon(Icons.subdirectory_arrow_right_rounded,
+                          size: 14, color: AppColors.textTertiary),
                     ),
-                  ),
+                    Text(
+                      replyToName,
+                      style: AppTextStyles.commentName.copyWith(
+                        color: AppColors.primary,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 4),
@@ -1254,61 +1336,32 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                   data: content,
                   softLineBreak: true,
                   styleSheet: MarkdownStyleSheet(
-                    p: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF334155),
-                      height: 1.43,
-                      letterSpacing: 0,
-                    ),
-                    strong: const TextStyle(
+                    p: AppTextStyles.commentContent,
+                    strong: AppTextStyles.commentContent.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF0A0A0A),
+                      color: AppColors.textPrimary,
                     ),
                     em: const TextStyle(fontStyle: FontStyle.italic),
-                    listBullet: const TextStyle(color: Color(0xFF5B6CFF)),
-                    code: const TextStyle(
+                    listBullet: const TextStyle(color: AppColors.primary),
+                    code: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF334155),
-                      backgroundColor: Color(0xFFF7F8FA),
+                      color: AppColors.textSecondary,
+                      backgroundColor: AppColors.background,
                       fontFamily: 'monospace',
                     ),
                     codeblockDecoration: BoxDecoration(
-                      color: const Color(0xFFF7F8FA),
+                      color: AppColors.background,
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 )
               else
-                Text(
-                  content,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF334155),
-                    height: 1.43,
-                    letterSpacing: 0,
-                  ),
-                ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Text(
-                    time,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF94A3B8),
-                      height: 1.43,
-                      letterSpacing: -0.15,
-                    ),
-                  ),
-                ],
-              ),
+                Text(content, style: AppTextStyles.commentContent),
+              const SizedBox(height: 6),
+              Text(time, style: AppTextStyles.commentDate),
             ],
           ),
         ),
-        // Like button removed
       ],
     );
   }
@@ -1321,9 +1374,11 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(
             16, 8, 16, 32), // Safe area handled by bottom padding
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          border: Border(
+              top: BorderSide(
+                  color: AppColors.textTertiary.withValues(alpha: 0.2))),
         ),
         child: Row(
           children: [
@@ -1334,18 +1389,18 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                   height: 36,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF7F8FA),
+                    color: AppColors.background,
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.edit_outlined,
-                          size: 16, color: Color(0xFF94A3B8)),
+                      Icon(Icons.edit_outlined,
+                          size: 16, color: AppColors.textTertiary),
                       const SizedBox(width: 8),
                       Text(
                         UserStorage.l10n.saySomething,
-                        style: const TextStyle(
-                            fontSize: 14, color: Color(0xFF94A3B8)),
+                        style: TextStyle(
+                            fontSize: 14, color: AppColors.textTertiary),
                       ),
                     ],
                   ),
@@ -1849,11 +1904,15 @@ class _CommentInputWidget extends StatefulWidget {
   final String cardId;
   final VoidCallback onCommentPosted;
   final bool autofocus;
+  final String? replyToId;
+  final String? replyToName;
 
   const _CommentInputWidget({
     required this.cardId,
     required this.onCommentPosted,
     this.autofocus = false,
+    this.replyToId,
+    this.replyToName,
   });
 
   @override
@@ -1880,7 +1939,11 @@ class _CommentInputWidgetState extends State<_CommentInputWidget> {
 
     try {
       final memexRouter = MemexRouter();
-      await memexRouter.postComment(widget.cardId, content);
+      await memexRouter.postComment(
+        widget.cardId,
+        content,
+        replyToId: widget.replyToId,
+      );
 
       _controller.clear();
       widget.onCommentPosted();
@@ -1903,56 +1966,99 @@ class _CommentInputWidgetState extends State<_CommentInputWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              autofocus: widget.autofocus,
-              decoration: InputDecoration(
-                hintText: UserStorage.l10n.saySomething,
-                border: InputBorder.none,
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                hintStyle: TextStyle(
-                  color: Color(0xFF94A3B8),
-                  fontSize: 14,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Reply-to banner (WeChat-style)
+        if (widget.replyToName != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.06),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.reply_rounded, size: 16, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    UserStorage.l10n.replyTo(widget.replyToName!),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF1E293B),
-              ),
-              maxLines: null,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _postComment(),
+              ],
             ),
           ),
-          IconButton(
-            icon: _isPosting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
-                    ),
-                  )
-                : const Icon(
-                    Icons.send,
-                    color: Color(0xFF6366F1),
-                    size: 20,
+        // Input field
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius:
+                BorderRadius.circular(widget.replyToName != null ? 0 : 20),
+            border: widget.replyToName != null
+                ? null
+                : Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.0),
+                    width: 1.5,
                   ),
-            onPressed: _isPosting ? null : _postComment,
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  autofocus: widget.autofocus,
+                  decoration: InputDecoration(
+                    hintText: widget.replyToName != null
+                        ? UserStorage.l10n.replyTo(widget.replyToName!)
+                        : UserStorage.l10n.saySomething,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    hintStyle: TextStyle(
+                      color: AppColors.textTertiary,
+                      fontSize: 14,
+                    ),
+                  ),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: null,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _postComment(),
+                ),
+              ),
+              IconButton(
+                icon: _isPosting
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        ),
+                      )
+                    : Icon(
+                        Icons.send_rounded,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                onPressed: _isPosting ? null : _postComment,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

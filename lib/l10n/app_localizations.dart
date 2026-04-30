@@ -3817,6 +3817,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Switch companion'**
   String get switchCompanion;
+
+  /// No description provided for @showInsightTextTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Memex insight comment'**
+  String get showInsightTextTitle;
+
+  /// No description provided for @showInsightTextDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Whether to show the Memex insight as a pinned comment in the card detail comment section.'**
+  String get showInsightTextDesc;
+
+  /// No description provided for @enableCharacterCommentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Character auto-comment'**
+  String get enableCharacterCommentTitle;
+
+  /// No description provided for @enableCharacterCommentDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Characters automatically comment on new records.'**
+  String get enableCharacterCommentDesc;
+
+  /// No description provided for @maxCommentCharactersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Max commenting characters'**
+  String get maxCommentCharactersTitle;
+
+  /// No description provided for @maxCommentCharactersDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'How many characters can comment on each record.'**
+  String get maxCommentCharactersDesc;
+
+  /// No description provided for @replyTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply to {name}'**
+  String replyTo(String name);
 }
 
 class _AppLocalizationsDelegate

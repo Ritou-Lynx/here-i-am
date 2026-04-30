@@ -122,7 +122,7 @@ class CommentAgent {
         },
         systemCallback: createSystemCallback(userId));
 
-    _logger.info('PkmAgent created, userId: $userId, sessionId: $sessionId');
+    _logger.info('CommentAgent created, userId: $userId, sessionId: $sessionId');
     return agent;
   }
 
