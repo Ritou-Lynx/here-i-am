@@ -253,76 +253,14 @@ Future<CardDetailModel> getCardDetail(String cardId) async {
       );
 
       if (record != null) {
-        final _pricing = {
-          'gemini-3-flash-preview': {
-            'input': 0.0000005,
-            'cached': 0.00000005,
-            'output': 0.000003,
-          },
-          'gemini-2.5-flash': {
-            'input': 0.0000003,
-            'cached': 0.00000003,
-            'output': 0.0000025,
-          },
-          'gemini-3.1-pro-preview': {
-            'input': 0.000002,
-            'cached': 0.0000002,
-            'output': 0.000012,
-          },
-          'gemini-3-pro-preview': {
-            'input': 0.000002,
-            'cached': 0.0000002,
-            'output': 0.000012,
-          },
-          'gpt-4o': {
-            'input': 0.0000025,
-            'cached': 0.00000125,
-            'output': 0.00001,
-          },
-        };
-
-        double _calculateCost(String model, int prompt, int completion,
-            int cached, int thought, bool? cachedTokensIncludedInPrompt) {
-          // Find matching model pricing
-          Map<String, double>? prices;
-          for (final key in _pricing.keys) {
-            if (model.toLowerCase().contains(key)) {
-              prices = _pricing[key];
-              break;
-            }
-          }
-
-          // Default to gpt-4o if not found
-          prices ??= _pricing['gpt-4o'];
-
-          if (prices == null) return 0.0;
-
-          // Input cost: uncached prompt * input_price + cached * cached_price.
-          final effectivePrompt = TokenUsageUtils.nonCachedPromptTokensOrNull(
-                  promptTokens: prompt,
-                  cachedTokens: cached,
-                  cachedTokensIncludedInPrompt: cachedTokensIncludedInPrompt) ??
-              prompt;
-          final inputCost = (effectivePrompt * prices['input']!) +
-              (cached * prices['cached']!);
-
-          // Output cost: (completion + thought) * output_price
-          final outputCost = model.startsWith(
-                  'ep-') // todo: responses API completion includes thought
-              ? completion * prices['output']!
-              : (completion + thought) * prices['output']!;
-
-          return inputCost + outputCost;
-        }
-
         final calls = record['calls'] as List? ?? [];
-        final agentStats = <String, AgentStats>{};
+        final agentTokens = <String, AgentStats>{};
         int totalCalls = 0;
         int totalPromptTokens = 0;
         int totalCompletionTokens = 0;
         int totalCachedTokens = 0;
-        int totalCacheBaseTokens = 0;
-        int totalCacheUnknownTokens = 0;
+        int totalEffectivePromptTokens = 0;
+        int totalCachedForRate = 0;
         int totalThoughtTokens = 0;
         int totalTokens = 0;
         double totalCost = 0.0;
@@ -336,58 +274,46 @@ Future<CardDetailModel> getCardDetail(String cardId) async {
           final tokens = usage['total_tokens'] as int? ?? 0;
           final agentName = call['agent_name'] as String;
           final model = call['model'] as String? ?? '';
-          final cachedTokensIncludedInPrompt =
-              TokenUsageUtils.cachedTokensIncludedInPrompt(
-            originalUsage: usage['original_usage'],
-            recordedValue: usage['cache_tokens_included_in_prompt'],
-          );
-          final cacheBaseTokens = (usage['cache_base_tokens'] as int?) ??
-              TokenUsageUtils.effectivePromptTokensOrNull(
-                promptTokens: promptTokens,
-                cachedTokens: cachedTokens,
-                cachedTokensIncludedInPrompt: cachedTokensIncludedInPrompt,
-              );
-          final cacheUnknownTokens =
-              cacheBaseTokens == null && cachedTokens > 0 ? cachedTokens : 0;
+          final sem = TokenUsageUtils.resolveFromUsageRecord(usage);
+          final effPrompt = TokenUsageUtils.effectivePromptTokensOrNull(
+              promptTokens: promptTokens,
+              cachedTokens: cachedTokens,
+              cachedTokensIncludedInPrompt: sem);
 
-          final cost = _calculateCost(model, promptTokens, completionTokens,
-              cachedTokens, thoughtTokens, cachedTokensIncludedInPrompt);
+          final cost = TokenUsageUtils.calculateCost(
+              model: model,
+              promptTokens: promptTokens,
+              completionTokens: completionTokens,
+              cachedTokens: cachedTokens,
+              thoughtTokens: thoughtTokens,
+              cachedTokensIncludedInPrompt: sem)['total']!;
 
           totalCalls++;
           totalPromptTokens += promptTokens;
           totalCompletionTokens += completionTokens;
           totalCachedTokens += cachedTokens;
-          totalCacheBaseTokens += cacheBaseTokens ?? 0;
-          totalCacheUnknownTokens += cacheUnknownTokens;
+          if (effPrompt != null) {
+            totalEffectivePromptTokens += effPrompt;
+            totalCachedForRate += cachedTokens;
+          }
           totalThoughtTokens += thoughtTokens;
           totalTokens += tokens;
           totalCost += cost;
 
-          if (!agentStats.containsKey(agentName)) {
-            agentStats[agentName] = AgentStats(
-              calls: 0,
-              promptTokens: 0,
-              completionTokens: 0,
-              cachedTokens: 0,
-              cacheBaseTokens: 0,
-              cacheUnknownTokens: 0,
-              thoughtTokens: 0,
-              totalTokens: 0,
-              totalCost: 0.0,
-            );
-          }
-          final agentStat = agentStats[agentName]!;
-          agentStats[agentName] = AgentStats(
-            calls: agentStat.calls + 1,
-            promptTokens: agentStat.promptTokens + promptTokens,
-            completionTokens: agentStat.completionTokens + completionTokens,
-            cachedTokens: agentStat.cachedTokens + cachedTokens,
-            cacheBaseTokens: agentStat.cacheBaseTokens + (cacheBaseTokens ?? 0),
-            cacheUnknownTokens:
-                agentStat.cacheUnknownTokens + cacheUnknownTokens,
-            thoughtTokens: agentStat.thoughtTokens + thoughtTokens,
-            totalTokens: agentStat.totalTokens + tokens,
-            totalCost: agentStat.totalCost + cost,
+          // Per-agent accumulation
+          final prev = agentTokens[agentName];
+          agentTokens[agentName] = AgentStats(
+            calls: (prev?.calls ?? 0) + 1,
+            promptTokens: (prev?.promptTokens ?? 0) + promptTokens,
+            completionTokens: (prev?.completionTokens ?? 0) + completionTokens,
+            cachedTokens: (prev?.cachedTokens ?? 0) + cachedTokens,
+            effectivePromptTokens:
+                (prev?.effectivePromptTokens ?? 0) + (effPrompt ?? 0),
+            cachedTokensForRate: (prev?.cachedTokensForRate ?? 0) +
+                (effPrompt != null ? cachedTokens : 0),
+            thoughtTokens: (prev?.thoughtTokens ?? 0) + thoughtTokens,
+            totalTokens: (prev?.totalTokens ?? 0) + tokens,
+            totalCost: (prev?.totalCost ?? 0) + cost,
           );
         }
 
@@ -396,12 +322,12 @@ Future<CardDetailModel> getCardDetail(String cardId) async {
           totalPromptTokens: totalPromptTokens,
           totalCompletionTokens: totalCompletionTokens,
           totalCachedTokens: totalCachedTokens,
-          totalCacheBaseTokens: totalCacheBaseTokens,
-          totalCacheUnknownTokens: totalCacheUnknownTokens,
+          totalEffectivePromptTokens: totalEffectivePromptTokens,
+          totalCachedTokensForRate: totalCachedForRate,
           totalThoughtTokens: totalThoughtTokens,
           totalTokens: totalTokens,
           totalCost: totalCost,
-          byAgent: agentStats,
+          byAgent: agentTokens,
         );
       }
     } catch (e) {

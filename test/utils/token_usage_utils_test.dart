@@ -202,5 +202,87 @@ void main() {
         '0.0%',
       );
     });
+
+    test('resolveFromUsageRecord reads persisted semantics', () {
+      expect(
+        TokenUsageUtils.resolveFromUsageRecord({
+          'cache_tokens_included_in_prompt': true,
+        }),
+        isTrue,
+      );
+      expect(
+        TokenUsageUtils.resolveFromUsageRecord({
+          'original_usage': {'cache_read_input_tokens': 100},
+        }),
+        isFalse,
+      );
+      expect(
+        TokenUsageUtils.resolveFromUsageRecord({}),
+        isNull,
+      );
+    });
+
+    test('formatCacheRateFromAggregated computes from pre-normalized values',
+        () {
+      // 250 cached out of 1000 effective prompt = 25%
+      expect(
+        TokenUsageUtils.formatCacheRateFromAggregated(
+          effectivePromptTokens: 1000,
+          cachedTokens: 250,
+        ),
+        '25.0%',
+      );
+      // zero cached
+      expect(
+        TokenUsageUtils.formatCacheRateFromAggregated(
+          effectivePromptTokens: 1000,
+          cachedTokens: 0,
+        ),
+        '0.0%',
+      );
+      // zero denominator
+      expect(
+        TokenUsageUtils.formatCacheRateFromAggregated(
+          effectivePromptTokens: 0,
+          cachedTokens: 0,
+        ),
+        '0.0%',
+      );
+    });
+
+    test('calculateCost estimates token cost with known pricing', () {
+      // gemini-2.5-flash: input=0.0000003, cached=0.00000003, output=0.0000025
+      final costs = TokenUsageUtils.calculateCost(
+        model: 'gemini-2.5-flash-preview-05-20',
+        promptTokens: 1000,
+        completionTokens: 200,
+        cachedTokens: 300,
+        thoughtTokens: 50,
+        cachedTokensIncludedInPrompt: true,
+      );
+      // nonCached = 1000 - 300 = 700
+      // inputCost = 700 * 0.0000003 + 300 * 0.00000003
+      final expectedInput = 700 * 0.0000003 + 300 * 0.00000003;
+      // outputCost = (200 + 50) * 0.0000025
+      final expectedOutput = 250 * 0.0000025;
+      expect(costs['input'], closeTo(expectedInput, 1e-10));
+      expect(costs['output'], closeTo(expectedOutput, 1e-10));
+      expect(costs['total'], closeTo(expectedInput + expectedOutput, 1e-10));
+    });
+
+    test('calculateCost falls back to gpt-4o for unknown models', () {
+      final costs = TokenUsageUtils.calculateCost(
+        model: 'unknown-model-xyz',
+        promptTokens: 100,
+        completionTokens: 50,
+        cachedTokens: 0,
+        thoughtTokens: 0,
+        cachedTokensIncludedInPrompt: true,
+      );
+      // gpt-4o: input=0.0000025, output=0.00001
+      final expectedInput = 100 * 0.0000025;
+      final expectedOutput = 50 * 0.00001;
+      expect(costs['total'], closeTo(expectedInput + expectedOutput, 1e-10));
+    });
   });
 }

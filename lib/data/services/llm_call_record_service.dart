@@ -20,7 +20,7 @@ class LLMCallRecordService {
   final BaseFileService _baseService = BaseFileService();
   final Logger _logger = getLogger('LLMCallRecordService');
   final _lock = Lock();
-  final _uuid = Uuid();
+  final _uuid = const Uuid();
 
   static LLMCallRecordService? _instance;
   static LLMCallRecordService get instance {
@@ -96,6 +96,7 @@ class LLMCallRecordService {
     String? handlerName,
     required ModelMessage message,
     required AgentState state,
+    Object? client,
   }) async {
     if (message.usage == null) {
       return; // No usage data, skip recording
@@ -117,6 +118,7 @@ class LLMCallRecordService {
       handlerName: handlerName,
       usage: message.usage!,
       model: message.model,
+      client: client,
     );
   }
 
@@ -165,18 +167,15 @@ class LLMCallRecordService {
           record = _createEmptyRecord(scene, sceneId);
         }
 
-        // Append the new call to the record.
-        final callId = _uuid.v4();
+        // Resolve cache semantics from client + original usage.
         final cachedTokensIncludedInPrompt =
             TokenUsageUtils.cachedTokensIncludedInPrompt(
           client: client,
           originalUsage: usage.originalUsage,
         );
-        final cacheBaseTokens = TokenUsageUtils.effectivePromptTokensOrNull(
-          promptTokens: usage.promptTokens,
-          cachedTokens: usage.cachedToken,
-          cachedTokensIncludedInPrompt: cachedTokensIncludedInPrompt,
-        );
+
+        // Append the new call to the record.
+        final callId = _uuid.v4();
         final call = {
           'call_id': callId,
           'agent_name': agentName,
@@ -191,7 +190,6 @@ class LLMCallRecordService {
             'cached_tokens': usage.cachedToken,
             if (cachedTokensIncludedInPrompt != null)
               'cache_tokens_included_in_prompt': cachedTokensIncludedInPrompt,
-            if (cacheBaseTokens != null) 'cache_base_tokens': cacheBaseTokens,
             'thought_tokens': usage.thoughtToken,
             if (usage.originalUsage != null)
               'original_usage': usage.originalUsage,
@@ -331,8 +329,8 @@ class LLMCallRecordService {
     int totalPromptTokens = 0;
     int totalCompletionTokens = 0;
     int totalCachedTokens = 0;
-    int totalCacheBaseTokens = 0;
-    int totalCacheUnknownTokens = 0;
+    int totalEffectivePromptTokens = 0;
+    int totalCachedForRate = 0;
     int totalThoughtTokens = 0;
     int totalTokens = 0;
 
@@ -346,18 +344,11 @@ class LLMCallRecordService {
         final promptTokens = usage['prompt_tokens'] as int? ?? 0;
         final completionTokens = usage['completion_tokens'] as int? ?? 0;
         final cachedTokens = usage['cached_tokens'] as int? ?? 0;
-        final cachedTokensIncludedInPrompt =
-            TokenUsageUtils.cachedTokensIncludedInPrompt(
-          originalUsage: usage['original_usage'],
-          recordedValue: usage['cache_tokens_included_in_prompt'],
-        );
-        final cacheBaseTokens = (usage['cache_base_tokens'] as int?) ??
-            TokenUsageUtils.effectivePromptTokensOrNull(
-                promptTokens: promptTokens,
-                cachedTokens: cachedTokens,
-                cachedTokensIncludedInPrompt: cachedTokensIncludedInPrompt);
-        final cacheUnknownTokens =
-            cacheBaseTokens == null && cachedTokens > 0 ? cachedTokens : 0;
+        final sem = TokenUsageUtils.resolveFromUsageRecord(usage);
+        final effPrompt = TokenUsageUtils.effectivePromptTokensOrNull(
+            promptTokens: promptTokens,
+            cachedTokens: cachedTokens,
+            cachedTokensIncludedInPrompt: sem);
         final thoughtTokens = usage['thought_tokens'] as int? ?? 0;
         final tokens = usage['total_tokens'] as int? ?? 0;
         final agentName = call['agent_name'] as String;
@@ -366,134 +357,65 @@ class LLMCallRecordService {
             ? DateTime.fromMicrosecondsSinceEpoch(timestamp)
             : DateTime.fromMicrosecondsSinceEpoch(record['created_at'] as int);
 
+        // Helper to create empty stat bucket.
+        Map<String, dynamic> emptyStat() => {
+              'calls': 0,
+              'prompt_tokens': 0,
+              'completion_tokens': 0,
+              'cached_tokens': 0,
+              'effective_prompt_tokens': 0,
+              'cached_tokens_for_rate': 0,
+              'thought_tokens': 0,
+              'total_tokens': 0,
+            };
+
+        // Helper to accumulate into a stat bucket.
+        void accumulate(Map<String, dynamic> stat) {
+          stat['calls'] = (stat['calls'] as int) + 1;
+          stat['prompt_tokens'] = (stat['prompt_tokens'] as int) + promptTokens;
+          stat['completion_tokens'] =
+              (stat['completion_tokens'] as int) + completionTokens;
+          stat['cached_tokens'] = (stat['cached_tokens'] as int) + cachedTokens;
+          if (effPrompt != null) {
+            stat['effective_prompt_tokens'] =
+                (stat['effective_prompt_tokens'] as int) + effPrompt;
+            stat['cached_tokens_for_rate'] =
+                (stat['cached_tokens_for_rate'] as int) + cachedTokens;
+          }
+          stat['thought_tokens'] =
+              (stat['thought_tokens'] as int) + thoughtTokens;
+          stat['total_tokens'] = (stat['total_tokens'] as int) + tokens;
+        }
+
         // Aggregate by day.
         final dayKey =
             '${callCreatedAt.year}-${callCreatedAt.month.toString().padLeft(2, '0')}-${callCreatedAt.day.toString().padLeft(2, '0')}';
-        if (!dailyStats.containsKey(dayKey)) {
-          dailyStats[dayKey] = {
-            'calls': 0,
-            'prompt_tokens': 0,
-            'completion_tokens': 0,
-            'cached_tokens': 0,
-            'cache_base_tokens': 0,
-            'cache_unknown_tokens': 0,
-            'thought_tokens': 0,
-            'total_tokens': 0,
-          };
-        }
-        final dayStat = dailyStats[dayKey]!;
-        dayStat['calls'] = (dayStat['calls'] as int) + 1;
-        dayStat['prompt_tokens'] =
-            (dayStat['prompt_tokens'] as int) + promptTokens;
-        dayStat['completion_tokens'] =
-            (dayStat['completion_tokens'] as int) + completionTokens;
-        dayStat['cached_tokens'] =
-            (dayStat['cached_tokens'] as int) + cachedTokens;
-        dayStat['cache_base_tokens'] =
-            (dayStat['cache_base_tokens'] as int) + (cacheBaseTokens ?? 0);
-        dayStat['cache_unknown_tokens'] =
-            (dayStat['cache_unknown_tokens'] as int) + cacheUnknownTokens;
-        dayStat['thought_tokens'] =
-            (dayStat['thought_tokens'] as int) + thoughtTokens;
-        dayStat['total_tokens'] = (dayStat['total_tokens'] as int) + tokens;
+        dailyStats.putIfAbsent(dayKey, emptyStat);
+        accumulate(dailyStats[dayKey]!);
 
         // Aggregate by month.
         final monthKey =
             '${callCreatedAt.year}-${callCreatedAt.month.toString().padLeft(2, '0')}';
-        if (!monthlyStats.containsKey(monthKey)) {
-          monthlyStats[monthKey] = {
-            'calls': 0,
-            'prompt_tokens': 0,
-            'completion_tokens': 0,
-            'cached_tokens': 0,
-            'cache_base_tokens': 0,
-            'cache_unknown_tokens': 0,
-            'thought_tokens': 0,
-            'total_tokens': 0,
-          };
-        }
-        final monthStat = monthlyStats[monthKey]!;
-        monthStat['calls'] = (monthStat['calls'] as int) + 1;
-        monthStat['prompt_tokens'] =
-            (monthStat['prompt_tokens'] as int) + promptTokens;
-        monthStat['completion_tokens'] =
-            (monthStat['completion_tokens'] as int) + completionTokens;
-        monthStat['cached_tokens'] =
-            (monthStat['cached_tokens'] as int) + cachedTokens;
-        monthStat['cache_base_tokens'] =
-            (monthStat['cache_base_tokens'] as int) + (cacheBaseTokens ?? 0);
-        monthStat['cache_unknown_tokens'] =
-            (monthStat['cache_unknown_tokens'] as int) + cacheUnknownTokens;
-        monthStat['thought_tokens'] =
-            (monthStat['thought_tokens'] as int) + thoughtTokens;
-        monthStat['total_tokens'] = (monthStat['total_tokens'] as int) + tokens;
+        monthlyStats.putIfAbsent(monthKey, emptyStat);
+        accumulate(monthlyStats[monthKey]!);
 
         // Aggregate by scene.
-        if (!sceneStats.containsKey(sceneType)) {
-          sceneStats[sceneType] = {
-            'calls': 0,
-            'prompt_tokens': 0,
-            'completion_tokens': 0,
-            'cached_tokens': 0,
-            'cache_base_tokens': 0,
-            'cache_unknown_tokens': 0,
-            'thought_tokens': 0,
-            'total_tokens': 0,
-          };
-        }
-        final sceneStat = sceneStats[sceneType]!;
-        sceneStat['calls'] = (sceneStat['calls'] as int) + 1;
-        sceneStat['prompt_tokens'] =
-            (sceneStat['prompt_tokens'] as int) + promptTokens;
-        sceneStat['completion_tokens'] =
-            (sceneStat['completion_tokens'] as int) + completionTokens;
-        sceneStat['cached_tokens'] =
-            (sceneStat['cached_tokens'] as int) + cachedTokens;
-        sceneStat['cache_base_tokens'] =
-            (sceneStat['cache_base_tokens'] as int) + (cacheBaseTokens ?? 0);
-        sceneStat['cache_unknown_tokens'] =
-            (sceneStat['cache_unknown_tokens'] as int) + cacheUnknownTokens;
-        sceneStat['thought_tokens'] =
-            (sceneStat['thought_tokens'] as int) + thoughtTokens;
-        sceneStat['total_tokens'] = (sceneStat['total_tokens'] as int) + tokens;
+        sceneStats.putIfAbsent(sceneType, emptyStat);
+        accumulate(sceneStats[sceneType]!);
 
         // Aggregate by agent.
-        if (!agentStats.containsKey(agentName)) {
-          agentStats[agentName] = {
-            'calls': 0,
-            'prompt_tokens': 0,
-            'completion_tokens': 0,
-            'cached_tokens': 0,
-            'cache_base_tokens': 0,
-            'cache_unknown_tokens': 0,
-            'thought_tokens': 0,
-            'total_tokens': 0,
-          };
-        }
-        final aggAgentStat = agentStats[agentName]!;
-        aggAgentStat['calls'] = (aggAgentStat['calls'] as int) + 1;
-        aggAgentStat['prompt_tokens'] =
-            (aggAgentStat['prompt_tokens'] as int) + promptTokens;
-        aggAgentStat['completion_tokens'] =
-            (aggAgentStat['completion_tokens'] as int) + completionTokens;
-        aggAgentStat['cached_tokens'] =
-            (aggAgentStat['cached_tokens'] as int) + cachedTokens;
-        aggAgentStat['cache_base_tokens'] =
-            (aggAgentStat['cache_base_tokens'] as int) + (cacheBaseTokens ?? 0);
-        aggAgentStat['cache_unknown_tokens'] =
-            (aggAgentStat['cache_unknown_tokens'] as int) + cacheUnknownTokens;
-        aggAgentStat['thought_tokens'] =
-            (aggAgentStat['thought_tokens'] as int) + thoughtTokens;
-        aggAgentStat['total_tokens'] =
-            (aggAgentStat['total_tokens'] as int) + tokens;
+        agentStats.putIfAbsent(agentName, emptyStat);
+        accumulate(agentStats[agentName]!);
 
         // Totals.
         totalCalls++;
         totalPromptTokens += promptTokens;
         totalCompletionTokens += completionTokens;
         totalCachedTokens += cachedTokens;
-        totalCacheBaseTokens += cacheBaseTokens ?? 0;
-        totalCacheUnknownTokens += cacheUnknownTokens;
+        if (effPrompt != null) {
+          totalEffectivePromptTokens += effPrompt;
+          totalCachedForRate += cachedTokens;
+        }
         totalThoughtTokens += thoughtTokens;
         totalTokens += tokens;
       }
@@ -505,8 +427,8 @@ class LLMCallRecordService {
         'prompt_tokens': totalPromptTokens,
         'completion_tokens': totalCompletionTokens,
         'cached_tokens': totalCachedTokens,
-        'cache_base_tokens': totalCacheBaseTokens,
-        'cache_unknown_tokens': totalCacheUnknownTokens,
+        'effective_prompt_tokens': totalEffectivePromptTokens,
+        'cached_tokens_for_rate': totalCachedForRate,
         'thought_tokens': totalThoughtTokens,
         'total_tokens': totalTokens,
       },

@@ -399,7 +399,11 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                     'Total Tokens': stats.totalTokens,
                     UserStorage.l10n.estimatedCost: -2, // Special flag for cost
                   },
-                  cost: stats.totalCost),
+                  cost: stats.totalCost,
+                  cacheRate: TokenUsageUtils.formatCacheRateFromAggregated(
+                    effectivePromptTokens: stats.totalEffectivePromptTokens,
+                    cachedTokens: stats.totalCachedTokensForRate,
+                  )),
               const SizedBox(height: 16),
               // by Agent
               if (stats.byAgent.isNotEmpty) ...[
@@ -414,13 +418,11 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                 ...stats.byAgent.entries.map((entry) {
                   final agentName = entry.key;
                   final agentStat = entry.value;
-                  final cacheRate = agentStat.cacheUnknownTokens > 0
-                      ? 'N/A'
-                      : TokenUsageUtils.formatCacheRate(
-                          promptTokens: agentStat.cacheBaseTokens,
-                          cachedTokens: agentStat.cachedTokens,
-                          cachedTokensIncludedInPrompt: true,
-                        );
+                  final cacheRate =
+                      TokenUsageUtils.formatCacheRateFromAggregated(
+                    effectivePromptTokens: agentStat.effectivePromptTokens,
+                    cachedTokens: agentStat.cachedTokensForRate,
+                  );
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _buildStatSection(

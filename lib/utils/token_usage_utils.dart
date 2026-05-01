@@ -58,7 +58,19 @@ class TokenUsageUtils {
     return null;
   }
 
+  /// Resolves [cachedTokensIncludedInPrompt] from a persisted usage record.
+  static bool? resolveFromUsageRecord(Map<String, dynamic> usage) {
+    return cachedTokensIncludedInPrompt(
+      originalUsage: usage['original_usage'],
+      recordedValue: usage['cache_tokens_included_in_prompt'],
+    );
+  }
+
   /// Returns the total input-token denominator for cache-rate display.
+  ///
+  /// When [cachedTokensIncludedInPrompt] is true (OpenAI/Gemini), prompt
+  /// already contains cached, so the denominator is just prompt.
+  /// When false (Claude), cached is separate, so denominator = prompt + cached.
   static int effectivePromptTokens({
     required int promptTokens,
     required int cachedTokens,
@@ -121,6 +133,23 @@ class TokenUsageUtils {
     );
   }
 
+  /// Computes cache rate from pre-normalized effective prompt tokens.
+  ///
+  /// [effectivePromptTokens] is the denominator (total input tokens including
+  /// cached), already normalized per-call before aggregation.
+  /// [cachedTokens] is the numerator.
+  static String formatCacheRateFromAggregated({
+    required int effectivePromptTokens,
+    required int cachedTokens,
+    int fractionDigits = 1,
+  }) {
+    final cached = _nonNegative(cachedTokens);
+    final denom = _nonNegative(effectivePromptTokens);
+    if (cached == 0 || denom == 0) return '0.0%';
+    final rate = ((cached / denom) * 100).clamp(0.0, 100.0);
+    return '${rate.toStringAsFixed(fractionDigits)}%';
+  }
+
   static double cacheRate({
     required int promptTokens,
     required int cachedTokens,
@@ -137,22 +166,6 @@ class TokenUsageUtils {
     if (denominator == 0) return 0.0;
 
     return ((cached / denominator) * 100).clamp(0.0, 100.0).toDouble();
-  }
-
-  static double? cacheRateOrNull({
-    required int promptTokens,
-    required int cachedTokens,
-    required bool? cachedTokensIncludedInPrompt,
-  }) {
-    final cached = _nonNegative(cachedTokens);
-    if (cached == 0) return 0.0;
-    if (cachedTokensIncludedInPrompt == null) return null;
-
-    return cacheRate(
-      promptTokens: promptTokens,
-      cachedTokens: cachedTokens,
-      cachedTokensIncludedInPrompt: cachedTokensIncludedInPrompt,
-    );
   }
 
   static String formatCacheRate({
@@ -176,12 +189,91 @@ class TokenUsageUtils {
     int fractionDigits = 1,
     String unavailableLabel = 'N/A',
   }) {
-    final rate = cacheRateOrNull(
+    final cached = _nonNegative(cachedTokens);
+    if (cached == 0) return '0.0%';
+    if (cachedTokensIncludedInPrompt == null) return unavailableLabel;
+    final rate = cacheRate(
       promptTokens: promptTokens,
       cachedTokens: cachedTokens,
       cachedTokensIncludedInPrompt: cachedTokensIncludedInPrompt,
     );
-    if (rate == null) return unavailableLabel;
     return '${rate.toStringAsFixed(fractionDigits)}%';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cost estimation
+  // ---------------------------------------------------------------------------
+
+  static const _pricing = {
+    'gemini-3-flash-preview': {
+      'input': 0.0000005,
+      'cached': 0.00000005,
+      'output': 0.000003,
+    },
+    'gemini-2.5-flash': {
+      'input': 0.0000003,
+      'cached': 0.00000003,
+      'output': 0.0000025,
+    },
+    'gemini-3.1-pro-preview': {
+      'input': 0.000002,
+      'cached': 0.0000002,
+      'output': 0.000012,
+    },
+    'gemini-3-pro-preview': {
+      'input': 0.000002,
+      'cached': 0.0000002,
+      'output': 0.000012,
+    },
+    'gpt-4o': {
+      'input': 0.0000025,
+      'cached': 0.00000125,
+      'output': 0.00001,
+    },
+  };
+
+  /// Estimates the cost of a single LLM call.
+  ///
+  /// Returns a map with 'input', 'output', and 'total' cost values.
+  static Map<String, double> calculateCost({
+    required String model,
+    required int promptTokens,
+    required int completionTokens,
+    required int cachedTokens,
+    required int thoughtTokens,
+    required bool? cachedTokensIncludedInPrompt,
+  }) {
+    // Find matching model pricing via substring match.
+    Map<String, double>? prices;
+    final modelLower = model.toLowerCase();
+    for (final key in _pricing.keys) {
+      if (modelLower.contains(key)) {
+        prices = _pricing[key];
+        break;
+      }
+    }
+    prices ??= _pricing['gpt-4o'];
+    if (prices == null) {
+      return {'input': 0.0, 'output': 0.0, 'total': 0.0};
+    }
+
+    final uncached = nonCachedPromptTokensOrNull(
+            promptTokens: promptTokens,
+            cachedTokens: cachedTokens,
+            cachedTokensIncludedInPrompt: cachedTokensIncludedInPrompt) ??
+        promptTokens;
+    final inputCost =
+        (uncached * prices['input']!) + (cachedTokens * prices['cached']!);
+
+    // todo: responses API completion includes thought
+    final outputCost = model.startsWith('ep-')
+        ? completionTokens * prices['output']!
+        : (completionTokens + thoughtTokens) * prices['output']!;
+
+    return {
+      'input': inputCost,
+      'output': outputCost,
+      'total': inputCost + outputCost,
+    };
   }
 }

@@ -348,41 +348,50 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
       int totalPrompt = 0;
       int totalCompletion = 0;
       int totalCached = 0;
-      int totalCacheBase = 0;
+      int totalEffectivePrompt = 0;
+      int totalCachedForRate = 0;
       int totalTokens = 0;
       double totalCost = 0.0;
+      // Within a single agent turn all calls share the same client.
+      bool? turnCacheSemantics;
 
       for (final msg in event.modelMessages) {
         final u = msg.usage;
         if (u == null) {
-          continue; // Just in case, but lint says it's not null. Actually if lint says it CANT be null, then I don't need check.
+          continue;
         }
-        // Wait, if lint says "Left operand cant be null", it means msg.usage is NOT null.
-        // So I can just use it.
 
         final p = u.promptTokens;
         final c = u.completionTokens;
         final ca = u.cachedToken;
-        final cachedTokensIncludedInPrompt =
-            TokenUsageUtils.cachedTokensIncludedInPrompt(
+        final sem = TokenUsageUtils.cachedTokensIncludedInPrompt(
           client: event.agent.client,
           originalUsage: u.originalUsage,
         );
-        final cacheBase = TokenUsageUtils.effectivePromptTokensOrNull(
+        turnCacheSemantics ??= sem;
+        final effP = TokenUsageUtils.effectivePromptTokensOrNull(
             promptTokens: p,
             cachedTokens: ca,
-            cachedTokensIncludedInPrompt: cachedTokensIncludedInPrompt);
+            cachedTokensIncludedInPrompt: sem);
 
         totalPrompt += p;
         totalCompletion += c;
         totalCached += ca;
-        totalCacheBase += cacheBase ?? 0;
+        if (effP != null) {
+          totalEffectivePrompt += effP;
+          totalCachedForRate += ca;
+        }
         totalTokens += u.totalTokens;
 
         // Calculate cost
-        final cost = _calculateCost(
-            msg.model, p, c, ca, u.thoughtToken, cachedTokensIncludedInPrompt);
-        totalCost += cost['total']!;
+        final cost = TokenUsageUtils.calculateCost(
+            model: msg.model,
+            promptTokens: p,
+            completionTokens: c,
+            cachedTokens: ca,
+            thoughtTokens: u.thoughtToken,
+            cachedTokensIncludedInPrompt: sem)['total']!;
+        totalCost += cost;
       }
 
       if (event.error != null) {
@@ -411,7 +420,8 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
         'prompt_tokens': totalPrompt,
         'completion_tokens': totalCompletion,
         'cached_tokens': totalCached,
-        'cache_base_tokens': totalCacheBase,
+        if (turnCacheSemantics != null)
+          'cache_tokens_included_in_prompt': turnCacheSemantics,
         'total_tokens': totalTokens,
         'total_cost': totalCost
       });
@@ -422,7 +432,8 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
           promptTokens: sessionTotalUsage['prompt_tokens'] as int? ?? 0,
           completionTokens: sessionTotalUsage['completion_tokens'] as int? ?? 0,
           cachedTokens: sessionTotalUsage['cached_tokens'] as int? ?? 0,
-          cacheBaseTokens: sessionTotalUsage['cache_base_tokens'] as int? ?? 0,
+          effectivePromptTokens: totalEffectivePrompt,
+          cachedTokensForRate: totalCachedForRate,
           totalTokens: sessionTotalUsage['total_tokens'] as int? ?? 0,
           estimatedCost: sessionTotalUsage['total_cost'] as double? ?? 0.0,
         ));
@@ -432,7 +443,8 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
           promptTokens: totalPrompt,
           completionTokens: totalCompletion,
           cachedTokens: totalCached,
-          cacheBaseTokens: totalCacheBase,
+          effectivePromptTokens: totalEffectivePrompt,
+          cachedTokensForRate: totalCachedForRate,
           totalTokens: totalTokens,
           estimatedCost: totalCost,
         ));
@@ -517,59 +529,6 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
       stream.add(ChatToolResultEvent(event.result.name, resultPreview,
           isError: event.result.isError));
     });
-  }
-
-  static const _pricing = {
-    'gemini-3-flash-preview': {
-      'input': 0.0000005,
-      'cached': 0.00000005,
-      'output': 0.000003,
-    },
-    'gemini-2.5-flash': {
-      'input': 0.0000003,
-      'cached': 0.00000003,
-      'output': 0.0000025,
-    },
-    'gemini-3.1-pro-preview': {
-      'input': 0.000002,
-      'cached': 0.0000002,
-      'output': 0.000012,
-    },
-    'gemini-3-pro-preview': {
-      'input': 0.000002,
-      'cached': 0.0000002,
-      'output': 0.000012,
-    },
-    'gpt-4o': {
-      'input': 0.0000025,
-      'cached': 0.00000125,
-      'output': 0.00001,
-    },
-  };
-
-  Map<String, double> _calculateCost(String model, int prompt, int completion,
-      int cached, int thought, bool? cachedTokensIncludedInPrompt) {
-    // Default to gemini-1.5-flash pricing if unknown
-    final prices = _pricing[model] ?? _pricing['gemini-3-flash-preview']!;
-
-    final effectivePrompt = TokenUsageUtils.nonCachedPromptTokensOrNull(
-            promptTokens: prompt,
-            cachedTokens: cached,
-            cachedTokensIncludedInPrompt: cachedTokensIncludedInPrompt) ??
-        prompt;
-
-    final inputCost =
-        (effectivePrompt * prices['input']!) + (cached * prices['cached']!);
-    final outputCost = model.startsWith(
-            'ep-') // todo: responses API completion includes thought
-        ? completion * prices['output']!
-        : (completion + thought) * prices['output']!;
-
-    return {
-      'input': inputCost,
-      'output': outputCost,
-      'total': inputCost + outputCost,
-    };
   }
 
   // --- Session Helpers (Recreated from chat.dart to be independent) ---
@@ -664,7 +623,6 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
                 'prompt_tokens': 0,
                 'completion_tokens': 0,
                 'cached_tokens': 0,
-                'cache_base_tokens': 0,
                 'total_tokens': 0,
                 'total_cost': 0.0,
               };
@@ -676,8 +634,6 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
             (usage['completion_tokens'] as int? ?? 0),
         'cached_tokens': (currentTotal['cached_tokens'] as int? ?? 0) +
             (usage['cached_tokens'] as int? ?? 0),
-        'cache_base_tokens': (currentTotal['cache_base_tokens'] as int? ?? 0) +
-            (usage['cache_base_tokens'] as int? ?? 0),
         'total_tokens': (currentTotal['total_tokens'] as int? ?? 0) +
             (usage['total_tokens'] as int? ?? 0),
         'total_cost': (currentTotal['total_cost'] as double? ?? 0.0) +
