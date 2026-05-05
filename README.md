@@ -4,7 +4,7 @@
     </picture>
 </p>
 <p align="center">
-  An AI-powered personal life recording app that runs entirely on your device. 
+  An open-source, local-first AI journal. Not for writing daily entries — for capturing life in fragments and letting AI organize them.
 </p>
 
 <p align="center">
@@ -26,11 +26,11 @@
 
 ## What is Memex?
 
-Memex is a local-first, AI-native personal life recording app. Capture text, photos, and voice — a multi-agent system automatically organizes your records into structured timeline cards, extracts knowledge, and generates insights across your entries.
+Memex is an open-source, local-first AI journal for iOS and Android. It takes a different approach from traditional journaling apps — instead of asking you to sit down and write polished entries, Memex lets you capture life in fragments (text, photos, voice) and uses a multi-agent AI system to organize them into structured timeline cards, extract knowledge, and surface insights across your records.
 
 Under the hood, Memex's multi-agent intelligence is powered by a fully open Custom Agent System — you can use the same engine to orchestrate and run your own agents. If you're curious about building autonomous workflows on your phone, [jump straight to the details](#-custom-agent-system).
 
-All data stays on your device. You bring your own LLM provider.
+**What "local-first" means here:** Your records, cards, and knowledge all stay on your device. There is no Memex account and no Memex server storing your journal. You bring your own LLM provider (OpenAI, Claude, Gemini, etc.), and your prompts go directly from your phone to that provider — we never see your data.
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/2a1c1c29-9925-4b9d-aea4-863b5666d5c5" width="300" />
