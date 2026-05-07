@@ -2051,4 +2051,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String replyTo(String name) {
     return '回复 $name';
   }
+
+  @override
+  String get cdnSignalsComments => '收到新回复';
+
+  @override
+  String get cdnSignalsInsight => '生成了新洞察';
+
+  @override
+  String get cdnSignalsBoth => '有新回复和洞察';
+
+  @override
+  String get untitledCard => '未命名卡片';
 }

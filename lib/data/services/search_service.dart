@@ -472,7 +472,7 @@ class SearchService {
               op: DataChangeOp.insert,
               ns: DataChangeNs.pkmFile,
               documentKey: _pkmRelative(pkmRoot, filePath),
-              fullDocument: await _readPkmDocument(filePath),
+              after: await _readPkmDocument(filePath),
             ),
           ),
         );
@@ -507,7 +507,7 @@ class SearchService {
                 : DataChangeOp.update,
             ns: DataChangeNs.pkmFile,
             documentKey: rel,
-            fullDocument: await _readPkmDocument(filePath),
+            after: await _readPkmDocument(filePath),
           ),
         ),
       );

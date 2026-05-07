@@ -20,7 +20,7 @@ Future<void> handleFtsIndexUpdateImpl(
   final op = payload['op'] as String?;
   final ns = payload['ns'] as String?;
   final documentKey = payload['document_key'] as String?;
-  final fullDocument = payload['full_document'] as Map<String, dynamic>?;
+  final after = payload['after'] as Map<String, dynamic>?;
 
   if (op == null || ns == null || documentKey == null) {
     _logger.warning('Invalid FTS index task payload: $payload');
@@ -39,10 +39,10 @@ Future<void> handleFtsIndexUpdateImpl(
 
   switch (ns) {
     case DataChangeNs.pkmFile:
-      await _handlePkmFts(searchDao, op, documentKey, fullDocument);
+      await _handlePkmFts(searchDao, op, documentKey, after);
       break;
     case DataChangeNs.card:
-      await _handleCardFts(searchDao, op, documentKey, fullDocument);
+      await _handleCardFts(searchDao, op, documentKey, after);
       break;
     default:
       _logger.fine('Unknown FTS namespace: $ns');
@@ -82,12 +82,13 @@ Future<void> _handleCardFts(SearchDao searchDao, String op, String documentKey,
           ocrTexts is List ? ocrTexts.whereType<String>().join(' ') : '';
       final combined =
           [raw, assetText, ocrText].where((s) => s.isNotEmpty).join(' ');
+      final insightMap = doc['insight'] as Map<String, dynamic>?;
       await searchDao.upsertCardFts(
         factId: documentKey,
         title: doc['title'] as String? ?? '',
         tags: (doc['tags'] as List?)?.whereType<String>().join(' ') ?? '',
         content: combined,
-        insight: doc['insight'] as String? ?? '',
+        insight: insightMap?['text'] as String? ?? '',
       );
       break;
     case 'delete':
@@ -102,6 +103,6 @@ Map<String, dynamic> dataChangeRecordToPayload(DataChangeRecord record) {
     'op': record.op.name,
     'ns': record.ns,
     'document_key': record.documentKey,
-    if (record.fullDocument != null) 'full_document': record.fullDocument,
+    if (record.after != null) 'after': record.after,
   };
 }

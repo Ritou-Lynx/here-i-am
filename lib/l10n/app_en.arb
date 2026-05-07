@@ -959,5 +959,10 @@
         "type": "String"
       }
     }
-  }
+  },
+
+  "cdnSignalsComments": "New reply received",
+  "cdnSignalsInsight": "New insight generated",
+  "cdnSignalsBoth": "New reply and insight",
+  "untitledCard": "Untitled card"
 }

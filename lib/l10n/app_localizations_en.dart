@@ -2131,4 +2131,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String replyTo(String name) {
     return 'Reply to $name';
   }
+
+  @override
+  String get cdnSignalsComments => 'New reply received';
+
+  @override
+  String get cdnSignalsInsight => 'New insight generated';
+
+  @override
+  String get cdnSignalsBoth => 'New reply and insight';
+
+  @override
+  String get untitledCard => 'Untitled card';
 }

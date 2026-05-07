@@ -110,15 +110,17 @@ class DataChangeNs {
 /// A generic data-change record modeled after database change streams
 /// (MongoDB oplog / MySQL binlog).
 ///
-/// Subscribers filter by [ns] (namespace) and [op] (operation) to decide
-/// how to react. [documentKey] is the primary identifier of the changed
-/// entity. [fullDocument] carries the post-change snapshot (null on delete).
+/// Subscribers filter by [ns] (namespace) and [op] (operation). [op] is
+/// decided by the publisher at the call site from operation intent, not
+/// by inspecting the snapshots. [documentKey] is the primary identifier
+/// of the changed entity. [before] / [after] are pre/post-change snapshots.
 class DataChangeRecord {
   DataChangeRecord({
     required this.op,
     required this.ns,
     required this.documentKey,
-    this.fullDocument,
+    this.before,
+    this.after,
   });
 
   /// The operation: insert, update, or delete.
@@ -130,14 +132,13 @@ class DataChangeRecord {
   /// Primary key of the document (e.g. relative file path, factId).
   final String documentKey;
 
-  /// Post-change document snapshot. Null for [DataChangeOp.delete].
-  /// Structure depends on [ns]:
-  ///
-  /// For `pkm_file`:
-  ///   `{ 'file_name': String, 'absolute_path': String, 'content': String }`
-  ///
-  /// For `card`:
-  ///   `{ 'title': String?, 'tags': List<String>?, 'content': String?,
-  ///      'asset_analyses': List<String>?, 'insight': String? }`
-  final Map<String, dynamic>? fullDocument;
+  /// Pre-change snapshot. Null on [DataChangeOp.insert]. Null when the
+  /// prior state could not be read (e.g. file missing/corrupt at the
+  /// moment of update) — consumers treat this as "prior state unknown"
+  /// rather than "prior state empty" for non-insert ops.
+  final Map<String, dynamic>? before;
+
+  /// Post-change snapshot. Null on [DataChangeOp.delete]. Non-null
+  /// otherwise.
+  final Map<String, dynamic>? after;
 }

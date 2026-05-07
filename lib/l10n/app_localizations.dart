@@ -3889,6 +3889,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reply to {name}'**
   String replyTo(String name);
+
+  /// No description provided for @cdnSignalsComments.
+  ///
+  /// In en, this message translates to:
+  /// **'New reply received'**
+  String get cdnSignalsComments;
+
+  /// No description provided for @cdnSignalsInsight.
+  ///
+  /// In en, this message translates to:
+  /// **'New insight generated'**
+  String get cdnSignalsInsight;
+
+  /// No description provided for @cdnSignalsBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'New reply and insight'**
+  String get cdnSignalsBoth;
+
+  /// No description provided for @untitledCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Untitled card'**
+  String get untitledCard;
 }
 
 class _AppLocalizationsDelegate
