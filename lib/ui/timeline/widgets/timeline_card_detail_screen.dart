@@ -64,6 +64,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
   void initState() {
     super.initState();
     _memexRouter = MemexRouter();
+    _memexRouter.registerCardDetailForeground(widget.cardId);
     _fetchDetail();
     _loadUserInfo();
     _setupEventBus();
@@ -112,6 +113,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
 
   @override
   void dispose() {
+    _memexRouter.unregisterCardDetailForeground(widget.cardId);
     EventBusService.instance.removeHandler(
       EventBusMessageType.cardDetailUpdated,
       _handleCardDetailUpdated,
@@ -134,6 +136,9 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
         _detail = detail;
       });
       _resolveFirstImageAspectRatio(detail);
+
+      // Dismiss any pending card-detail notification for this card.
+      _memexRouter.dismissCardDetailOnViewed(widget.cardId);
     } catch (e) {
       if (!mounted) return;
       setState(() {

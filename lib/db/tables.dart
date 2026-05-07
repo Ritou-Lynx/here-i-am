@@ -120,6 +120,34 @@ class ClarificationRequests extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Generic per-user notification table. Producer writes rows keyed by
+/// (userId, notificationType, subjectKey). Physical delete model:
+/// dismissing a notification removes its row. At most one row per triple,
+/// enforced by a UNIQUE index.
+class UserNotifications extends Table {
+  /// UUID v4 string.
+  TextColumn get id => text()();
+  TextColumn get userId => text()();
+
+  /// Open string namespace. First value: 'card_detail_update'.
+  TextColumn get notificationType => text()();
+
+  /// Type-specific aggregation key. For card_detail_update: factId.
+  TextColumn get subjectKey => text()();
+
+  /// Opaque JSON blob defined by the producer. Null allowed.
+  TextColumn get payload => text().nullable()();
+
+  /// Seconds since epoch.
+  IntColumn get createdAt => integer()();
+
+  /// Seconds since epoch.
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Persona Chat Messages Table
 /// Stores chat messages between user and their AI companion character.
 class PersonaChatMessages extends Table {
@@ -128,7 +156,6 @@ class PersonaChatMessages extends Table {
   BoolColumn get isFromCharacter => boolean()();
   TextColumn get content => text()();
   TextColumn get factId => text().nullable()();
-  BoolColumn get isRead =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get isRead => boolean().withDefault(const Constant(false))();
   DateTimeColumn get timestamp => dateTime()();
 }

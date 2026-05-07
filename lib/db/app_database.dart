@@ -18,7 +18,8 @@ part 'app_database.g.dart';
     CardCache,
     SystemActions,
     ClarificationRequests,
-    PersonaChatMessages
+    PersonaChatMessages,
+    UserNotifications,
   ],
   daos: [CardDao],
 )
@@ -66,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase._(String userId) : super(_openConnection(userId));
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -86,6 +87,7 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
               'CREATE INDEX IF NOT EXISTS idx_system_actions_status ON system_actions(status)');
           await _createClarificationRequestIndices();
+          await _createUserNotificationIndices();
           // Create FTS5 virtual tables for full-text search
           await searchDao.createFtsTables();
         },
@@ -159,6 +161,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 11) {
             await _createClarificationRequestsTable(m);
           }
+          if (from < 12) {
+            await m.createTable(userNotifications);
+            await _createUserNotificationIndices();
+          }
         },
       );
 
@@ -183,6 +189,15 @@ class AppDatabase extends _$AppDatabase {
         'CREATE INDEX IF NOT EXISTS idx_clarification_requests_fact_id ON clarification_requests(fact_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_clarification_requests_dedupe ON clarification_requests(dedupe_key)');
+  }
+
+  Future<void> _createUserNotificationIndices() async {
+    await customStatement(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_user_notifications_unique '
+        'ON user_notifications(user_id, notification_type, subject_key)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_user_notifications_list '
+        'ON user_notifications(user_id, notification_type, updated_at)');
   }
 
   bool _isAlreadyExistsError(Object error, String tableName) {

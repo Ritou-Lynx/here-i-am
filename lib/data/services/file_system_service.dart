@@ -300,9 +300,16 @@ class FileSystemService {
     final lock = await _getCardLock(userId, cardId);
 
     return lock.synchronized(() async {
-      var currentData = await readCardFile(userId, cardId);
-      if (currentData == null) {
+      // Capture prior data ONCE before running updateFn.
+      final priorData = await readCardFile(userId, cardId);
+
+      CardData currentData;
+      final DataChangeOp op;
+      final Map<String, dynamic>? beforeMap;
+
+      if (priorData == null) {
         if (createIfNotExists) {
+          // No prior file and caller wants creation → insert.
           currentData = CardData(
             factId: cardId,
             timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -310,15 +317,24 @@ class FileSystemService {
             tags: const [],
             uiConfigs: const [],
           );
+          op = DataChangeOp.insert;
+          beforeMap = null;
         } else {
+          // Corrupt YAML / unreadable prior file: keep op == update,
+          // before == null (R1.7 semantics).
           _logger.warning('Card not found for update: $cardId');
           return null;
         }
+      } else {
+        currentData = priorData;
+        op = DataChangeOp.update;
+        beforeMap = priorData.toJson();
       }
 
       final updatedData = updateFn(currentData);
-      final success =
-          await _safeWriteCardFileInternal(userId, cardId, updatedData);
+      final success = await _safeWriteCardFileInternal(
+          userId, cardId, updatedData,
+          beforeSnapshot: beforeMap, op: op);
       if (success) {
         return updatedData;
       } else {
@@ -333,13 +349,55 @@ class FileSystemService {
     final lock = await _getCardLock(userId, cardId);
 
     return lock.synchronized(() async {
-      return await _safeWriteCardFileInternal(userId, cardId, data);
+      final previous = await readCardFile(userId, cardId);
+      final beforeMap = previous?.toJson();
+      final op = previous == null ? DataChangeOp.insert : DataChangeOp.update;
+      return await _safeWriteCardFileInternal(userId, cardId, data,
+          beforeSnapshot: beforeMap, op: op);
     });
   }
 
-  /// Internal write (no lock; caller must hold lock)
+  /// Publish a card-change event via [GlobalEventBus].
+  ///
+  /// Asserts the card-path invariant: at least one of [before] / [after] must
+  /// be non-null. Catches and warn-logs any publish failure so it never
+  /// propagates to the write caller.
+  Future<void> _publishCardChange({
+    required String userId,
+    required DataChangeOp op,
+    required String factId,
+    required Map<String, dynamic>? before,
+    required Map<String, dynamic>? after,
+  }) async {
+    assert(before != null || after != null,
+        'Card publish invariant violated: both before and after are null');
+    try {
+      await GlobalEventBus.instance.publish(
+        userId: userId,
+        event: SystemEvent<DataChangeRecord>(
+          type: SystemEventTypes.dataChanged,
+          source: 'file_system_service',
+          payload: DataChangeRecord(
+            op: op,
+            ns: DataChangeNs.card,
+            documentKey: factId,
+            before: before,
+            after: after,
+          ),
+        ),
+      );
+    } catch (e) {
+      _logger.warning('Failed to publish card change event for $factId: $e');
+    }
+  }
+
+  /// Internal write (no lock; caller must hold lock).
+  ///
+  /// On success, builds the enriched `afterMap` for the change event, updates
+  /// the card cache, and publishes via [_publishCardChange].
   Future<bool> _safeWriteCardFileInternal(
-      String userId, String cardId, CardData data) async {
+      String userId, String cardId, CardData data,
+      {Map<String, dynamic>? beforeSnapshot, required DataChangeOp op}) async {
     try {
       final cardPath = getCardPath(userId, cardId);
       final parentDir = path.dirname(cardPath);
@@ -356,7 +414,37 @@ class FileSystemService {
       await tempFile.writeAsString(yamlContent, encoding: utf8);
       await tempFile.rename(cardPath);
 
-      updateCardCache(userId, cardId, data);
+      // Build enriched afterMap for the change event (same shape as the
+      // legacy publish that used to live inside updateCardCache).
+      final factInfo = await extractFactContentFromFile(userId, cardId);
+      final rawContent = factInfo?.content ?? '';
+      final assetAnalysisTexts = (factInfo?.assetAnalyses ?? [])
+          .map((a) => a['analysis'] as String? ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+      final assetOcrTexts = (factInfo?.assetOcrTexts ?? [])
+          .map((a) => a['ocr_text'] as String? ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+      final afterMap = <String, dynamic>{
+        ...data.toJson(),
+        // FTS-specific enrichment fields that don't exist in the raw card YAML.
+        'content': rawContent,
+        'asset_analyses': assetAnalysisTexts,
+        'asset_ocr': assetOcrTexts,
+      };
+
+      // Update the Drift cache row.
+      await updateCardCache(userId, cardId, data);
+
+      // Publish the change event with before/after snapshots.
+      await _publishCardChange(
+        userId: userId,
+        op: op,
+        factId: cardId,
+        before: beforeSnapshot,
+        after: afterMap,
+      );
 
       return true;
     } catch (e) {
@@ -416,40 +504,9 @@ class FileSystemService {
 
       await AppDatabase.instance.cardDao.upsertCard(entry);
 
-      // Publish card change event for FTS and other subscribers
-      try {
-        final rawContent = factInfo?.content ?? '';
-        final assetAnalysisTexts = (factInfo?.assetAnalyses ?? [])
-            .map((a) => a['analysis'] as String? ?? '')
-            .where((s) => s.isNotEmpty)
-            .toList();
-        final assetOcrTexts = (factInfo?.assetOcrTexts ?? [])
-            .map((a) => a['ocr_text'] as String? ?? '')
-            .where((s) => s.isNotEmpty)
-            .toList();
-        await GlobalEventBus.instance.publish(
-          userId: userId,
-          event: SystemEvent<DataChangeRecord>(
-            type: SystemEventTypes.dataChanged,
-            source: 'file_system_service',
-            payload: DataChangeRecord(
-              op: DataChangeOp.update,
-              ns: DataChangeNs.card,
-              documentKey: factId,
-              fullDocument: {
-                'title': cardData.title,
-                'tags': cardData.tags,
-                'content': rawContent,
-                'asset_analyses': assetAnalysisTexts,
-                'asset_ocr': assetOcrTexts,
-                'insight': cardData.insight?.text,
-              },
-            ),
-          ),
-        );
-      } catch (e) {
-        _logger.warning('Failed to publish card change event for $factId: $e');
-      }
+      // NOTE: Publish responsibility now belongs to _safeWriteCardFileInternal.
+      // updateCardCache is also called from rebuildCardCache where we do NOT
+      // want to emit change events, so keeping publish here was a latent bug.
     } catch (e) {
       _logger.warning('Failed to update card cache for $factId: $e');
     }
@@ -460,6 +517,9 @@ class FileSystemService {
     final lock = await _getCardLock(userId, cardId);
     return lock.synchronized(() async {
       try {
+        // Read the previous file for the before snapshot.
+        final previous = await readCardFile(userId, cardId);
+
         final cardPath = getCardPath(userId, cardId);
         final file = File(cardPath);
 
@@ -472,21 +532,20 @@ class FileSystemService {
             await (AppDatabase.instance.delete(AppDatabase.instance.cardCache)
                   ..where((tbl) => tbl.factId.equals(cardId)))
                 .go();
-            // Publish card deleted event
-            await GlobalEventBus.instance.publish(
-              userId: userId,
-              event: SystemEvent<DataChangeRecord>(
-                type: SystemEventTypes.dataChanged,
-                source: 'file_system_service',
-                payload: DataChangeRecord(
-                  op: DataChangeOp.delete,
-                  ns: DataChangeNs.card,
-                  documentKey: cardId,
-                ),
-              ),
-            );
           } catch (e) {
             _logger.warning('Failed to delete card from cache $cardId: $e');
+          }
+
+          // Publish delete event only when we had a previous state.
+          // Deleting a file that never existed has no observable data change.
+          if (previous != null) {
+            await _publishCardChange(
+              userId: userId,
+              op: DataChangeOp.delete,
+              factId: cardId,
+              before: previous.toJson(),
+              after: null,
+            );
           }
 
           return true;

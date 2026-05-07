@@ -2,12 +2,15 @@ import 'package:memex/data/services/system_action_service.dart';
 import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/table_change_notifier.dart';
+import 'package:memex/data/services/user_notification_service.dart';
 import 'package:memex/ui/card_attachments/card_attachment_data.dart';
+import 'package:memex/utils/user_storage.dart';
 
 /// Attachment type constants.
 class CardAttachmentType {
   static const systemAction = 'system_action';
   static const clarificationRequest = 'clarification_request';
+  static const cardDetailNotification = 'card_detail_notification';
 }
 
 /// Aggregates all attachment data sources for a given factId into a single
@@ -27,6 +30,7 @@ class CardAttachmentService {
     final notifier = TableChangeNotifier.instance;
     notifier.watch('system_actions', (_) => _emitChanged());
     notifier.watch('clarification_requests', (_) => _emitChanged());
+    notifier.watch('user_notifications', (_) => _emitChanged());
   }
 
   void _emitChanged() {
@@ -35,12 +39,23 @@ class CardAttachmentService {
 
   /// Fetches all pending attachments (for the action center / notification badge).
   Future<List<CardAttachmentData>> getPendingAttachments() async {
+    final userId = await UserStorage.getUserId();
     final results = await Future.wait([
       _getPendingSystemActions(),
       _getPendingClarificationRequests(),
+      if (userId != null)
+        _getPendingCardDetailNotifications(userId)
+      else
+        Future.value(<CardAttachmentData>[]),
     ]);
     final merged = results.expand((e) => e).toList()
-      ..sort((a, b) => a.sortKey.compareTo(b.sortKey));
+      ..sort((a, b) {
+        final k = a.sortKey.compareTo(b.sortKey);
+        if (k != 0) return k;
+        final aUpdated = a.data['updated_at'] as int? ?? 0;
+        final bUpdated = b.data['updated_at'] as int? ?? 0;
+        return bUpdated.compareTo(aUpdated);
+      });
     return merged;
   }
 
@@ -119,6 +134,27 @@ class CardAttachmentService {
               type: CardAttachmentType.clarificationRequest,
               data: {'request': r},
               sortKey: 50,
+            ))
+        .toList();
+  }
+
+  Future<List<CardAttachmentData>> _getPendingCardDetailNotifications(
+    String userId,
+  ) async {
+    final rows = await UserNotificationService.instance.list(
+      userId: userId,
+      notificationType: 'card_detail_update',
+    );
+    return rows
+        .map((r) => CardAttachmentData(
+              id: 'card_detail_notification_${r.id}',
+              type: CardAttachmentType.cardDetailNotification,
+              data: {
+                'notification': r,
+                'fact_id': r.subjectKey,
+                'updated_at': r.updatedAt,
+              },
+              sortKey: 30,
             ))
         .toList();
   }

@@ -9,13 +9,16 @@ import 'package:memex/data/services/task_handlers/knowledge_insight_handler.dart
 import 'package:memex/data/services/task_handlers/clarification_resolution_handler.dart';
 import 'package:memex/data/services/table_change_notifier.dart';
 import 'package:memex/data/services/card_attachment_service.dart';
+import 'package:memex/data/services/card_detail_notifier.dart';
 import 'package:memex/data/services/clarification_request_service.dart';
+import 'package:memex/data/services/user_notification_service.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/repositories/get_timeline_card.dart'; // Import for fetchTimelineCard
 import 'package:logging/logging.dart';
 import 'package:memex/data/services/card_renderer.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
+import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/domain/models/card_detail_model.dart';
 import 'package:memex/domain/models/tag_model.dart';
 import 'package:memex/domain/models/insight_detail_model.dart';
@@ -102,6 +105,10 @@ class MemexRouter {
       TableChangeNotifier.instance.init();
       // Register attachment table watchers
       CardAttachmentService.instance.init();
+      // Register user notification table watch (must precede CardDetailNotifier)
+      UserNotificationService.instance.init();
+      // Register card-detail change notifier (subscribes to GlobalEventBus)
+      CardDetailNotifier.instance.init();
       // Register clarification request table watcher (creates timeline cards for global Ask)
       ClarificationRequestService.instance.init();
 
@@ -1276,4 +1283,41 @@ class MemexRouter {
 
   Future<List<Task>> getTasks({int limit = 10, int offset = 0}) =>
       LocalTaskExecutor.instance.getTasks(limit: limit, offset: offset);
+
+  // ---------------------------------------------------------------------------
+  // Card-detail notification helpers
+  // ---------------------------------------------------------------------------
+
+  /// Resolve the [CardData] for a notification's subject card.
+  /// Returns `null` if the card no longer exists or the user is not logged in.
+  Future<CardData?> resolveCardForNotification(String factId) async {
+    await _ensureInitialized();
+    final userId = await UserStorage.getUserId();
+    if (userId == null) return null;
+    return FileSystemService.instance.readCardFile(userId, factId);
+  }
+
+  /// Dismiss a user notification by its primary key.
+  Future<void> dismissNotification(String id) async {
+    await _ensureInitialized();
+    await UserNotificationService.instance.dismiss(id);
+  }
+
+  /// Register a card detail page as viewing [factId] (foreground suppression).
+  void registerCardDetailForeground(String factId) {
+    CardDetailNotifier.instance.registerForeground(factId);
+  }
+
+  /// Unregister a card detail page for [factId].
+  void unregisterCardDetailForeground(String factId) {
+    CardDetailNotifier.instance.unregisterForeground(factId);
+  }
+
+  /// Dismiss any pending card-detail notification after the user has viewed
+  /// the card's latest content.
+  Future<void> dismissCardDetailOnViewed(String factId) async {
+    final userId = await UserStorage.getUserId();
+    if (userId == null) return;
+    await CardDetailNotifier.instance.dismissOnViewed(userId, factId);
+  }
 }
