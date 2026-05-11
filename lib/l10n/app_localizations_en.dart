@@ -1319,6 +1319,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get defaultLabel => 'Default';
 
   @override
+  String get setAsDefault => 'Set as default';
+
+  @override
   String get missingApiKey => 'Missing API Key';
 
   @override

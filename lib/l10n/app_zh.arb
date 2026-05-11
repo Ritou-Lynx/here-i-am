@@ -631,6 +631,7 @@
   },
   "confirmDeleteConfigMessage": "确定要删除「{key}」吗？",
   "defaultLabel": "默认",
+  "setAsDefault": "设为默认",
   "missingApiKey": "缺少 API Key",
   "invalidJsonInExtraField": "扩展字段 JSON 格式无效",
   "keyAlreadyExists": "该 Key 已存在",

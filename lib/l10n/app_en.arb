@@ -631,6 +631,7 @@
   },
   "confirmDeleteConfigMessage": "Are you sure you want to delete \"{key}\"?",
   "defaultLabel": "Default",
+  "setAsDefault": "Set as default",
   "missingApiKey": "Missing API Key",
   "invalidJsonInExtraField": "Invalid JSON in Extra field",
   "keyAlreadyExists": "Key already exists",
