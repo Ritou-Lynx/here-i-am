@@ -1754,6 +1754,18 @@ abstract class AppLocalizations {
   /// **'No knowledge insight'**
   String get noKnowledgeInsight;
 
+  /// No description provided for @insightProcessingBacklogMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} background tasks are still processing. Insights may update after they finish.'**
+  String insightProcessingBacklogMessage(Object count);
+
+  /// No description provided for @insightUnavailableMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This insight is still being generated or was updated. Refresh insights and try again later.'**
+  String get insightUnavailableMessage;
+
   /// No description provided for @updating.
   ///
   /// In en, this message translates to:

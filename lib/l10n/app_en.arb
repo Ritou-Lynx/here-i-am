@@ -464,6 +464,13 @@
   "knowledgeInsight": "Knowledge insight",
   "completeSort": "Complete sort",
   "noKnowledgeInsight": "No knowledge insight",
+  "@insightProcessingBacklogMessage": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "insightProcessingBacklogMessage": "{count} background tasks are still processing. Insights may update after they finish.",
+  "insightUnavailableMessage": "This insight is still being generated or was updated. Refresh insights and try again later.",
   "updating": "Updating...",
   "update": "Update",
   "enabled": "Enabled",

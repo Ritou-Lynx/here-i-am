@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:logging/logging.dart';
 
 // Import tables
@@ -65,6 +66,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Private constructor
   AppDatabase._(String userId) : super(_openConnection(userId));
+
+  @visibleForTesting
+  AppDatabase.forTesting(super.e);
 
   @override
   int get schemaVersion => 12;
