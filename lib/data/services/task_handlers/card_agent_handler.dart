@@ -31,6 +31,7 @@ Future<void> processWithCardAgent({
   required String contentText,
   List<Map<String, dynamic>>? assetAnalyses,
   DateTime? inputDateTime,
+  String? locationContextReminder,
   bool dryRun = false,
 }) async {
   try {
@@ -63,6 +64,11 @@ Future<void> processWithCardAgent({
 
     // 2. Prepare Fact Content (merge assets info if needed)
     var enhancedFactContent = contentText;
+    final locationReminder =
+        _formatLocationContextReminder(locationContextReminder);
+    if (locationReminder.isNotEmpty) {
+      enhancedFactContent = '$locationReminder$enhancedFactContent';
+    }
     if (assetAnalyses != null && assetAnalyses.isNotEmpty) {
       enhancedFactContent += formatAssetAnalysis(
         assetAnalyses,
@@ -97,6 +103,12 @@ Future<void> processWithCardAgent({
     _logger.severe('Error in processWithCardAgent', e, stack);
     rethrowIfNonRetryable(e);
   }
+}
+
+String _formatLocationContextReminder(String? reminder) {
+  final trimmed = reminder?.trim();
+  if (trimmed == null || trimmed.isEmpty) return '';
+  return '<system-reminder>\n$trimmed\n</system-reminder>\n\n';
 }
 
 /// Applies rule-based template matching and writes the card file.
@@ -147,6 +159,8 @@ Future<void> handleCardAgentImpl(
     final factId = payload['fact_id'] as String;
     final combinedText = payload['combined_text'] as String;
     final inputDateTime = dateTimeFromUnixSeconds(payload['created_at_ts']);
+    final locationContextReminder =
+        payload['location_context_reminder'] as String?;
 
     // 2. Retrieve asset analyses (Stage 1 result)
     List<Map<String, dynamic>>? assetAnalyses;
@@ -182,6 +196,7 @@ Future<void> handleCardAgentImpl(
       contentText: combinedText,
       assetAnalyses: assetAnalyses,
       inputDateTime: inputDateTime,
+      locationContextReminder: locationContextReminder,
       dryRun: false,
     );
 

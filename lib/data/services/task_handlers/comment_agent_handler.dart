@@ -18,6 +18,8 @@ Future<void> handleCommentAgentImpl(
   final factId = payload['fact_id'] as String;
   final combinedText = payload['combined_text'] as String;
   final inputDateTime = tryParseUnixSeconds(payload['created_at_ts']);
+  final locationContextReminder =
+      payload['location_context_reminder'] as String?;
 
   _logger
       .info("Running Comment Agent selection for fact $factId, user $userId");
@@ -62,6 +64,7 @@ Future<void> handleCommentAgentImpl(
         characterId: selectedCharId,
         rawInputContent: combinedText,
         inputDateTime: inputDateTime,
+        locationContextReminder: locationContextReminder,
       );
       return;
     }
@@ -90,6 +93,7 @@ Future<void> handleCommentAgentImpl(
         characterId: selectedChar.id,
         rawInputContent: combinedText,
         inputDateTime: inputDateTime,
+        locationContextReminder: locationContextReminder,
       );
     } else {
       // Multi-character mode: LLM-based selection
@@ -124,6 +128,7 @@ Future<void> handleCommentAgentImpl(
           characterId: char.id,
           rawInputContent: combinedText,
           inputDateTime: inputDateTime,
+          locationContextReminder: locationContextReminder,
         );
       }
     }
@@ -141,6 +146,8 @@ Future<void> handleProcessAiReplyImpl(
   final commentId = payload['comment_id'] as String?;
   final replyToId = payload['reply_to_id'] as String?;
   final inputDateTime = tryParseUnixSeconds(payload['created_at_ts']);
+  final locationContextReminder =
+      payload['location_context_reminder'] as String?;
 
   _logger.info(
       'HandleProcessAiReply: Processing AI reply for card $cardId, user $userId');
@@ -173,6 +180,7 @@ Future<void> handleProcessAiReplyImpl(
     userCommentId: commentId,
     characterId: targetCharacterId,
     inputDateTime: inputDateTime,
+    locationContextReminder: locationContextReminder,
     withMemoryManagement: true,
   );
 }

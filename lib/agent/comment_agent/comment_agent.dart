@@ -126,7 +126,8 @@ class CommentAgent {
         },
         systemCallback: createSystemCallback(userId));
 
-    _logger.info('CommentAgent created, userId: $userId, sessionId: $sessionId');
+    _logger
+        .info('CommentAgent created, userId: $userId, sessionId: $sessionId');
     return agent;
   }
 
@@ -143,6 +144,7 @@ class CommentAgent {
     String? initialInsight,
     DateTime? currentTime,
     DateTime? entryTime,
+    String? locationContextReminder,
     bool withMemoryManagement = false,
   }) async {
     final effectiveCurrentTime = currentTime ?? DateTime.now();
@@ -160,7 +162,10 @@ class CommentAgent {
       withMemoryManagement: withMemoryManagement,
     );
     final state = agent.state;
-    final systemReminder = buildCurrentTimeReminder(effectiveCurrentTime);
+    final systemReminder = _buildSystemReminder(
+      effectiveCurrentTime,
+      locationContextReminder,
+    );
     final fullUserContent = "$systemReminder$userContent";
     final userMessage = UserMessage([TextPart(fullUserContent)]);
 
@@ -200,6 +205,20 @@ class CommentAgent {
       }
     }
     return "";
+  }
+
+  static String _buildSystemReminder(
+    DateTime currentTime,
+    String? locationContextReminder,
+  ) {
+    final locationReminder = locationContextReminder?.trim();
+    if (locationReminder == null || locationReminder.isEmpty) {
+      return buildCurrentTimeReminder(currentTime);
+    }
+    return '<system-reminder>\n'
+        'Current Local Time: ${formatLocalDateTimeWithZone(currentTime)}\n\n'
+        '$locationReminder\n'
+        '</system-reminder>\n\n';
   }
 
   /// Find PKM Context using Grep.
@@ -249,8 +268,10 @@ class CommentAgent {
 
   /// Read the most recent daily fact files to give the character
   /// awareness of the user's recent life context.
-  static Future<String> _getRecentFactsContext(String userId,
-      String workingDirectory, FileOperationService fileOpService,
+  static Future<String> _getRecentFactsContext(
+      String userId,
+      String workingDirectory,
+      FileOperationService fileOpService,
       DateTime baseTime) async {
     final fileSystem = FileSystemService.instance;
     final now = baseTime.toLocal();

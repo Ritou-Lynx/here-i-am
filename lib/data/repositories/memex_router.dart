@@ -210,6 +210,7 @@ class MemexRouter {
             'combined_text': p.combinedText,
             'markdown_entry': p.markdownEntry,
             'created_at_ts': p.createdAtTs,
+            'location_context_reminder': p.locationContextReminder,
           });
         },
       ),
@@ -227,6 +228,7 @@ class MemexRouter {
             'fact_id': p.factId,
             'combined_text': p.combinedText,
             'created_at_ts': p.pkmCreatedAtTs,
+            'location_context_reminder': p.locationContextReminder,
           });
         },
         dependenciesBuilder: (_, __) async {
@@ -249,6 +251,7 @@ class MemexRouter {
             'fact_id': p.factId,
             'combined_text': p.combinedText,
             'created_at_ts': p.createdAtTs,
+            'location_context_reminder': p.locationContextReminder,
           });
         },
       ),
@@ -261,13 +264,14 @@ class MemexRouter {
         taskType: 'process_ai_reply',
         payloadBuilder: (_, event) {
           final p = event.payload as CardCommentPostedPayload;
-            return Future.value({
-              'card_id': p.cardId,
-              'content': p.content,
-              'comment_id': p.commentId,
-              if (p.createdAtTs != null) 'created_at_ts': p.createdAtTs,
-              if (p.replyToId != null) 'reply_to_id': p.replyToId,
-            });
+          return Future.value({
+            'card_id': p.cardId,
+            'content': p.content,
+            'comment_id': p.commentId,
+            if (p.createdAtTs != null) 'created_at_ts': p.createdAtTs,
+            if (p.replyToId != null) 'reply_to_id': p.replyToId,
+            'location_context_reminder': p.locationContextReminder,
+          });
         },
       ),
     );

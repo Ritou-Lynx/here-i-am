@@ -5,6 +5,7 @@ import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/card_renderer.dart';
 import 'package:memex/data/services/global_event_bus.dart';
+import 'package:memex/data/services/location_context_service.dart';
 import 'package:memex/domain/models/system_event.dart';
 
 final _logger = getLogger('SubmitInputEndpoint');
@@ -210,6 +211,17 @@ Future<Map<String, dynamic>> submitInput(
     }
 
     final publishTimestamp = now.millisecondsSinceEpoch ~/ 1000;
+    String? locationContextReminder;
+    String? locationContextStatus;
+    try {
+      final locationContext =
+          await LocationContextService.instance.getCurrentContext();
+      locationContextReminder = locationContext.toAgentSystemReminderContent();
+      locationContextStatus = locationContext.status;
+    } catch (e) {
+      _logger
+          .warning('Failed to decorate user input with location context: $e');
+    }
 
     // 5. Publish domain event.
     // Event subscriptions convert this event into persistent tasks and dependency chains.
@@ -225,6 +237,7 @@ Future<Map<String, dynamic>> submitInput(
           markdownEntry: markdownEntry,
           createdAtTs: publishTimestamp,
           pkmCreatedAtTs: now.millisecondsSinceEpoch / 1000.0,
+          locationContextReminder: locationContextReminder,
         ),
       ),
     );
@@ -245,6 +258,8 @@ Future<Map<String, dynamic>> submitInput(
 
     return {
       'fact_id': factId,
+      if (locationContextStatus != null)
+        'location_context_status': locationContextStatus,
       'card': {
         'id': factId,
         'status': renderResult.status,

@@ -8,7 +8,9 @@ import 'package:memex/agent/memex_skill_host_agent/memex_skill_host_agent.dart';
 import 'package:memex/agent/pure_skill_host_agent/pure_skill_host_agent.dart';
 import 'package:memex/agent/super_agent/super_agent.dart';
 import 'package:memex/data/services/custom_agent_config_service.dart';
+import 'package:memex/data/services/location_context_service.dart';
 import 'package:memex/domain/models/custom_agent_config.dart';
+import 'package:memex/domain/models/location_context_config.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/utils/logger.dart';
@@ -261,9 +263,20 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
     }
 
     List<LLMMessage> userMessages = [];
+    CurrentLocationContext? locationContext;
+    String? locationContextReminder;
+    try {
+      locationContext =
+          await LocationContextService.instance.getCurrentContext();
+      locationContextReminder = locationContext.toAgentSystemReminderContent();
+    } catch (e) {
+      _logger.warning('Failed to decorate chat with location context: $e');
+    }
 
     // Build combined system reminder content
-    if (sceneContext.isNotEmpty || (refs != null && refs.isNotEmpty)) {
+    if (sceneContext.isNotEmpty ||
+        locationContextReminder != null ||
+        (refs != null && refs.isNotEmpty)) {
       final StringBuffer reminderContent = StringBuffer();
       reminderContent.write('<system-reminder>\n');
 
@@ -273,9 +286,17 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
         reminderContent.write('\n');
       }
 
+      if (locationContextReminder != null) {
+        if (sceneContext.isNotEmpty) {
+          reminderContent.write('\n');
+        }
+        reminderContent.write(locationContextReminder);
+        reminderContent.write('\n');
+      }
+
       // Add refs context if available
       if (refs != null && refs.isNotEmpty) {
-        if (sceneContext.isNotEmpty) {
+        if (sceneContext.isNotEmpty || locationContextReminder != null) {
           reminderContent.write('\n');
         }
         final refsString = refs
