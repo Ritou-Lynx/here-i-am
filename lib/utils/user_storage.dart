@@ -144,6 +144,7 @@ class UserStorage {
   }
 
   static const String _keyLLMConfigs = 'llm_client_configs';
+  static const String _keyDefaultLLMConfigKey = 'default_llm_config_key';
 
   /// Get stored LLM config list. Creates default config if none.
   static Future<List<LLMConfig>> getLLMConfigs() async {
@@ -182,9 +183,62 @@ class UserStorage {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = jsonEncode(configs.map((c) => c.toJson()).toList());
       await prefs.setString(_keyLLMConfigs, jsonString);
+
+      final defaultKey = prefs.getString(_keyDefaultLLMConfigKey);
+      if (defaultKey != null && !configs.any((c) => c.key == defaultKey)) {
+        if (configs.any((c) => c.key == LLMConfig.defaultClientKey)) {
+          await prefs.setString(
+              _keyDefaultLLMConfigKey, LLMConfig.defaultClientKey);
+        } else {
+          await prefs.remove(_keyDefaultLLMConfigKey);
+        }
+      }
     } catch (e) {
       throw Exception(UserStorage.l10n.saveLlmConfigFailed(e));
     }
+  }
+
+  /// Get the globally selected default LLM config key.
+  ///
+  /// Agents without an explicit model selection use this key. The legacy
+  /// `default` config remains the fallback so existing installs keep working.
+  static Future<String> getDefaultLLMConfigKey() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final configs = await getLLMConfigs();
+      final storedKey = prefs.getString(_keyDefaultLLMConfigKey);
+
+      if (storedKey != null && configs.any((c) => c.key == storedKey)) {
+        return storedKey;
+      }
+
+      final fallbackKey = configs.any((c) => c.key == LLMConfig.defaultClientKey)
+          ? LLMConfig.defaultClientKey
+          : configs.isNotEmpty
+              ? configs.first.key
+              : LLMConfig.defaultClientKey;
+
+      if (configs.any((c) => c.key == fallbackKey)) {
+        await prefs.setString(_keyDefaultLLMConfigKey, fallbackKey);
+      }
+      return fallbackKey;
+    } catch (e) {
+      return LLMConfig.defaultClientKey;
+    }
+  }
+
+  /// Set the globally selected default LLM config key.
+  static Future<void> setDefaultLLMConfigKey(String configKey) async {
+    final configs = await getLLMConfigs();
+    final exists = configs.any((c) => c.key == configKey);
+    if (!exists) {
+      final availableKeys = configs.map((c) => c.key).join(', ');
+      throw Exception(
+          'Invalid default LLM Config Key: $configKey. Available keys: $availableKeys');
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyDefaultLLMConfigKey, configKey);
   }
 
   static const String _keyLanguage = 'language';
@@ -354,6 +408,7 @@ class UserStorage {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyLLMConfigs);
+      await prefs.remove(_keyDefaultLLMConfigKey);
       // Force reload to ensure defaults are re-populated
       await getLLMConfigs();
     } catch (e) {
@@ -390,7 +445,9 @@ class UserStorage {
 
     // If no user-set key, use the provided default for this agent
     if (keyToUse == null || keyToUse.isEmpty) {
-      keyToUse = defaultClientKey;
+      keyToUse = defaultClientKey == LLMConfig.defaultClientKey
+          ? await getDefaultLLMConfigKey()
+          : defaultClientKey;
     }
 
     if (keyToUse == null) {

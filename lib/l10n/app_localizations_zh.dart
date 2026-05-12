@@ -1277,6 +1277,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get defaultLabel => '默认';
 
   @override
+  String get setAsDefault => '设为默认';
+
+  @override
   String get missingApiKey => '缺少 API Key';
 
   @override

@@ -2426,6 +2426,12 @@ abstract class AppLocalizations {
   /// **'Default'**
   String get defaultLabel;
 
+  /// No description provided for @setAsDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Set as default'**
+  String get setAsDefault;
+
   /// No description provided for @missingApiKey.
   ///
   /// In en, this message translates to:

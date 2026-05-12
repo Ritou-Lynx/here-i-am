@@ -1250,6 +1250,12 @@ class MemexRouter {
 
   Future<void> resetLLMConfigs() => UserStorage.resetLLMConfigs();
 
+  Future<String> getDefaultLLMConfigKey() =>
+      UserStorage.getDefaultLLMConfigKey();
+
+  Future<void> setDefaultLLMConfigKey(String configKey) =>
+      UserStorage.setDefaultLLMConfigKey(configKey);
+
   Future<AgentConfig> getAgentConfig(String agentId) =>
       UserStorage.getAgentConfig(agentId);
 

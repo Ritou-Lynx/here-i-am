@@ -19,4 +19,11 @@ class AgentDefinitions {
     analyzeAssets: 'Media analysis',
     clarificationResolutionAgent: 'Ask resolution',
   };
+
+  /// Agent IDs exposed in the model configuration screen.
+  ///
+  /// Keeping this derived from the display-name registry makes the settings UI
+  /// pick up newly registered built-in agents automatically.
+  static List<String> get configurableAgentIds =>
+      List.unmodifiable(displayNames.keys);
 }
