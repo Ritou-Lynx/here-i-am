@@ -68,6 +68,8 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Do not answer a normal chat turn with only tool calls or empty content.');
     b.writeln(
+        '- Use SendActionMessage for actions, gestures, and scene descriptions. Spoken dialogue goes in the text reply.');
+    b.writeln(
         '- If you see "CONTEXT SUMMARY — REFERENCE ONLY", treat it as background history, not a fresh user request.');
     b.writeln('- Always prioritize the latest real user message.');
     b.writeln(

@@ -3,6 +3,7 @@ import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
 import 'package:memex/agent/skills/comment_agent/tools/comment_tools.dart';
 import 'package:memex/agent/skills/comment_agent/tools/memory_tools.dart';
+import 'package:memex/agent/skills/companion_agent/tools/action_message_tools.dart';
 
 class CharacterToolsFactory {
   CharacterToolsFactory._();
@@ -15,12 +16,14 @@ class CharacterToolsFactory {
       userId: userId,
       defaultCharacterId: characterId,
     );
+    final actionFactory = ActionMessageToolFactory(characterId: characterId);
     return [
       memoryFactory.buildMemoryReadTool(),
       memoryFactory.buildMemoryWriteTool(),
       memoryFactory.buildMemoryEditTool(),
       memoryFactory.buildMemoryRemoveTool(),
       memoryFactory.buildHistorySearchTool(),
+      actionFactory.buildSendActionMessageTool(),
     ];
   }
 

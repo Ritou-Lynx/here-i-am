@@ -2765,13 +2765,13 @@ abstract class AppLocalizations {
   /// No description provided for @discardChangesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Discard unsaved changes?'**
+  /// **'Leave this page?'**
   String get discardChangesTitle;
 
   /// No description provided for @discardChangesMessage.
   ///
   /// In en, this message translates to:
-  /// **'You have unsaved changes. Are you sure you want to leave without saving?'**
+  /// **'If you made any changes, please save them before leaving.'**
   String get discardChangesMessage;
 
   /// No description provided for @discardButton.

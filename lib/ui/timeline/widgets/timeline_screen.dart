@@ -28,7 +28,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:memex/ui/settings/widgets/model_config_list_page.dart';
 import 'package:memex/ui/settings/widgets/system_authorization_page.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
-import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
+import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/character/widgets/persona_avatar_button.dart';
 
 /// Timeline screen - main memory view. Receives [viewModel] and [insightViewModel] from parent (Compass-style).
@@ -194,7 +194,7 @@ class TimelineScreenState extends State<TimelineScreen> {
   }
 
   Future<void> _loadUserAvatar() async {
-    final avatar = await UserStorage.getUserAvatar();
+    final avatar = await MemexRouter().getUserAvatar();
     if (mounted && avatar != null) {
       setState(() => _userAvatar = avatar);
     }
@@ -463,9 +463,10 @@ class TimelineScreenState extends State<TimelineScreen> {
                                 shape: BoxShape.circle,
                                 color: Color(0xFFEEF2FF),
                               ),
-                              child: DiceBearAvatar(
-                                seed: _userAvatar ??
+                              child: CharacterAvatar(
+                                avatar: _userAvatar ??
                                     UserStorage.defaultAvatarSeed,
+                                name: '',
                                 size: 32,
                                 backgroundColor: Colors.transparent,
                               ),

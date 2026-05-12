@@ -35,11 +35,20 @@ class QueryMatcher {
         final token = word.trim();
         if (token.isEmpty) continue;
         if (_containsCjk(token)) {
+          // CJK token: exact match (no prefix wildcard — FTS5 doesn't support
+          // prefix search on CJK characters anyway).
           tokens.add('"$token"');
         } else {
-          tokens.add('"$token"*');
+          // ASCII token: keep only alphanumeric/underscore/hyphen characters.
+          // Punctuation-only tokens (e.g. ".", "!", "[") cause FTS5 syntax
+          // errors when used with the prefix wildcard operator.
+          final clean = token.replaceAll(RegExp(r'[^\w\-]'), '').trim();
+          if (clean.length >= 2) {
+            tokens.add('"$clean"*');
+          }
         }
       }
+      if (tokens.isEmpty) return '';
       return tokens.join(' OR ');
     }
 

@@ -15,6 +15,9 @@ enum CharacterMemoryEventType {
   postObserved,
   characterComment,
   userCommentReply,
+
+  /// Narrative / action description sent by the character (e.g. *leans closer*).
+  characterActionMessage,
 }
 
 class CharacterMemoryService {

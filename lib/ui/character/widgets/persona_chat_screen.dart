@@ -3,13 +3,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
+import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/domain/models/llm_config.dart';
+import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
-import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
@@ -54,12 +55,16 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
   void initState() {
     super.initState();
     _init();
+    EventBusService.instance.addHandler(
+      EventBusMessageType.personaChatMessageAdded,
+      _onPersonaChatMessageAdded,
+    );
   }
 
   Future<void> _init() async {
     final userId = await UserStorage.getUserId();
     if (userId == null) return;
-    final userAvatar = await UserStorage.getUserAvatar();
+    final userAvatar = await MemexRouter().getUserAvatar();
 
     final character = await CharacterService.instance
         .getCharacter(userId, _currentCharacterId);
@@ -112,9 +117,26 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
 
   @override
   void dispose() {
+    EventBusService.instance.removeHandler(
+      EventBusMessageType.personaChatMessageAdded,
+      _onPersonaChatMessageAdded,
+    );
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onPersonaChatMessageAdded(EventBusMessage message) {
+    if (message is! PersonaChatMessageAddedMessage) return;
+    if (message.characterId != _currentCharacterId) return;
+    if (!mounted) return;
+    // Reload messages immediately so the action message appears before
+    // the spoken reply arrives.
+    _chatService.getMessages(_currentCharacterId).then((updated) {
+      if (!mounted) return;
+      setState(() => _messages = updated);
+      _scrollToBottom();
+    });
   }
 
   Future<void> _sendMessage() async {
@@ -398,10 +420,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
         return Column(
           children: [
             if (showDate) _buildDateDivider(msg.timestamp),
-            _buildBubble(
-              text: msg.content,
-              isCharacter: msg.isFromCharacter,
-            ),
+            if (msg.messageType == 'action')
+              _buildActionMessage(text: msg.content)
+            else
+              _buildBubble(
+                text: msg.content,
+                isCharacter: msg.isFromCharacter,
+              ),
           ],
         );
       },
@@ -509,6 +534,52 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
             style: const TextStyle(fontSize: 11, color: _personaTextMuted),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Renders a narrative / action description message.
+  /// No speech bubble — italic text centred with a subtle divider style,
+  /// matching the roleplay convention for stage directions.
+  Widget _buildActionMessage({required String text}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 24),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 0.5,
+              color: _personaLine.withValues(alpha: 0.4),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            flex: 0,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.68,
+              ),
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  height: 1.6,
+                  fontStyle: FontStyle.italic,
+                  color: _personaTextMuted,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Container(
+              height: 0.5,
+              color: _personaLine.withValues(alpha: 0.4),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1011,11 +1082,10 @@ class _UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final seed = (avatar != null && avatar!.isNotEmpty)
-        ? avatar!
-        : (name.isNotEmpty ? name : UserStorage.defaultAvatarSeed);
-    return DiceBearAvatar(
-      seed: seed,
+    return CharacterAvatar(
+      avatar:
+          avatar ?? (name.isNotEmpty ? name : UserStorage.defaultAvatarSeed),
+      name: name,
       size: size,
       backgroundColor: _personaAccentCool.withValues(alpha: 0.22),
     );

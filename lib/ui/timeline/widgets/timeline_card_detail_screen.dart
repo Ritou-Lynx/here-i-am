@@ -26,7 +26,6 @@ import 'package:memex/ui/chat/widgets/agent_chat_dialog.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
-import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/cards/style/timeline_theme.dart';
 import 'package:memex/ui/core/themes/design_system.dart';
@@ -89,7 +88,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
 
   Future<void> _loadUserInfo() async {
     final name = await UserStorage.getUserId();
-    final avatar = await UserStorage.getUserAvatar();
+    final avatar = await _memexRouter.getUserAvatar();
     final settings = await _memexRouter.getCommentSettings();
     if (mounted) {
       setState(() {
@@ -992,8 +991,9 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
     final isUserComment = characterId == 'user';
 
     if (isUserComment) {
-      avatarWidget = DiceBearAvatar(
-        seed: (avatar != null && avatar.isNotEmpty) ? avatar : name,
+      avatarWidget = CharacterAvatar(
+        avatar: avatar,
+        name: name,
         size: 36,
         backgroundColor: const Color(0xFFEEF2FF),
       );
@@ -1585,9 +1585,9 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
     final isUserComment = characterId == 'user';
 
     if (isUserComment) {
-      // User's own DiceBear avatar
-      avatarWidget = DiceBearAvatar(
-        seed: (avatar != null && avatar.isNotEmpty) ? avatar : name,
+      avatarWidget = CharacterAvatar(
+        avatar: avatar,
+        name: name,
         size: 36,
         backgroundColor: const Color(0xFFEEF2FF),
       );

@@ -1448,10 +1448,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get discardChangesTitle => '放弃未保存的修改？';
+  String get discardChangesTitle => '离开此页面？';
 
   @override
-  String get discardChangesMessage => '您有未保存的修改。确定要放弃修改并离开吗？';
+  String get discardChangesMessage => '如果您做了更改，请先保存后再离开。';
 
   @override
   String get discardButton => '放弃';

@@ -261,13 +261,13 @@ class MemexRouter {
         taskType: 'process_ai_reply',
         payloadBuilder: (_, event) {
           final p = event.payload as CardCommentPostedPayload;
-            return Future.value({
-              'card_id': p.cardId,
-              'content': p.content,
-              'comment_id': p.commentId,
-              if (p.createdAtTs != null) 'created_at_ts': p.createdAtTs,
-              if (p.replyToId != null) 'reply_to_id': p.replyToId,
-            });
+          return Future.value({
+            'card_id': p.cardId,
+            'content': p.content,
+            'comment_id': p.commentId,
+            if (p.createdAtTs != null) 'created_at_ts': p.createdAtTs,
+            if (p.replyToId != null) 'reply_to_id': p.replyToId,
+          });
         },
       ),
     );
@@ -1232,6 +1232,50 @@ class MemexRouter {
   }
 
   Future<List<LLMConfig>> getLLMConfigs() => UserStorage.getLLMConfigs();
+
+  Future<String?> getUserAvatar() async {
+    await _ensureInitialized();
+    final userId = await UserStorage.getUserId();
+    if (userId == null || userId.isEmpty) return null;
+
+    final meta = await fileSystemService.readProfileMeta(userId);
+    var avatar = meta['avatar'] as String?;
+    if (avatar == null || avatar.isEmpty) {
+      final legacyAvatar = await UserStorage.getUserAvatar();
+      if (legacyAvatar != null && legacyAvatar.isNotEmpty) {
+        meta['avatar'] = legacyAvatar;
+        await fileSystemService.writeProfileMeta(userId, meta);
+        avatar = legacyAvatar;
+      }
+    }
+    if (avatar == null || avatar.isEmpty) {
+      return null;
+    }
+
+    final lower = avatar.toLowerCase();
+    final isRelativeImagePath = !avatar.startsWith('/') &&
+        (lower.endsWith('.png') ||
+            lower.endsWith('.jpg') ||
+            lower.endsWith('.jpeg') ||
+            lower.endsWith('.webp'));
+
+    if (isRelativeImagePath) {
+      return fileSystemService.toAbsolutePath(avatar);
+    }
+    return avatar;
+  }
+
+  Future<void> updateUserAvatar(String avatar) async {
+    await _ensureInitialized();
+    final userId = await UserStorage.getUserId();
+    if (userId == null || userId.isEmpty) {
+      throw Exception('User not logged in');
+    }
+
+    final meta = await fileSystemService.readProfileMeta(userId);
+    meta['avatar'] = avatar;
+    await fileSystemService.writeProfileMeta(userId, meta);
+  }
 
   Future<void> saveLLMConfigs(List<LLMConfig> configs) async {
     final previousConfigs = await UserStorage.getLLMConfigs();

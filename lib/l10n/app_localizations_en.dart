@@ -1492,11 +1492,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get discardChangesTitle => 'Discard unsaved changes?';
+  String get discardChangesTitle => 'Leave this page?';
 
   @override
   String get discardChangesMessage =>
-      'You have unsaved changes. Are you sure you want to leave without saving?';
+      'If you made any changes, please save them before leaving.';
 
   @override
   String get discardButton => 'Discard';

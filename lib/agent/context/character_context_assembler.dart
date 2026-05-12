@@ -228,6 +228,9 @@ class CharacterContextAssembler {
         case 'characterChatMessage':
           b.writeln('[$ts] Character: $content');
           break;
+        case 'characterActionMessage':
+          b.writeln('[$ts] Character action: $content');
+          break;
         default:
           b.writeln('[$ts] $eventType: $content');
       }

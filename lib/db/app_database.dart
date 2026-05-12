@@ -76,7 +76,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -177,6 +177,16 @@ class AppDatabase extends _$AppDatabase {
           if (from < 13) {
             // Create FTS5 virtual tables for character world and timeline search.
             await searchDao.createCharacterFtsTables();
+          }
+          if (from < 14) {
+            // Add messageType column to persona_chat_messages.
+            try {
+              await customStatement(
+                  "ALTER TABLE persona_chat_messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'chat'");
+            } catch (e) {
+              _logger
+                  .info('message_type column may already exist, skipping: $e');
+            }
           }
         },
       );

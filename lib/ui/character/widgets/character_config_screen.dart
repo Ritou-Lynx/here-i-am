@@ -1,7 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/agent/memory/character_memory_service.dart';
 import 'package:memex/domain/models/character_model.dart';
@@ -18,7 +16,6 @@ import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/main_screen/widgets/chat_input_bar.dart';
 import 'package:memex/ui/core/widgets/back_button.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
-import 'package:path/path.dart' as p;
 
 /// AI character config screen. Receives [viewModel] from parent (Compass-style).
 class CharacterConfigScreen extends StatefulWidget {
@@ -367,8 +364,10 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
   final _postHistoryController = TextEditingController();
   final _mesExampleController = TextEditingController();
   bool _isSaving = false;
+  bool _allowImmediatePop = false;
 
-  String _avatarSeed = '';
+  String _avatarValueForSave = '';
+  String _avatarPreview = '';
   bool _hasPickedAvatar = false;
 
   // World book entries and memory entries (loaded from CharacterMemoryService)
@@ -388,13 +387,17 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
       _postHistoryController.text =
           widget.character!.postHistoryInstructions ?? '';
       _mesExampleController.text = widget.character!.mesExample ?? '';
-      _avatarSeed = widget.character!.avatar ?? '';
+      _avatarValueForSave = widget.character!.avatar ?? '';
+      _avatarPreview = widget.character!.avatar ?? '';
       _hasPickedAvatar = widget.character!.avatar != null &&
           widget.character!.avatar!.isNotEmpty;
       _loadCharacterData();
     }
-    if (_avatarSeed.isEmpty) {
-      _avatarSeed = 'companion_${_nameController.text}';
+    if (_avatarValueForSave.isEmpty) {
+      _avatarValueForSave = 'companion_${_nameController.text}';
+    }
+    if (_avatarPreview.isEmpty) {
+      _avatarPreview = _avatarValueForSave;
     }
     _nameController.addListener(_onNameChanged);
   }
@@ -417,7 +420,11 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
   void _onNameChanged() {
     // Only auto-derive avatar from name if user hasn't explicitly picked one
     if (!_hasPickedAvatar) {
-      setState(() => _avatarSeed = 'companion_${_nameController.text}');
+      final seed = 'companion_${_nameController.text}';
+      setState(() {
+        _avatarValueForSave = seed;
+        _avatarPreview = seed;
+      });
     }
   }
 
@@ -435,120 +442,49 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
   }
 
   void _pickAvatar() async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                UserStorage.l10n.chooseAvatar,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                leading:
-                    const Icon(Icons.auto_awesome, color: AppColors.primary),
-                title: Text(UserStorage.l10n.localeName == 'zh'
-                    ? '随机头像'
-                    : 'Random Avatar'),
-                onTap: () => Navigator.pop(ctx, 'dicebear'),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              ListTile(
-                leading:
-                    const Icon(Icons.photo_library, color: AppColors.primary),
-                title: Text(UserStorage.l10n.localeName == 'zh'
-                    ? '从相册选择'
-                    : 'Choose from Gallery'),
-                onTap: () => Navigator.pop(ctx, 'gallery'),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final picked = await showAvatarPicker(
+      context,
+      _avatarPreview,
+      onPickGallery: _pickImageFromGallery,
     );
-
-    if (choice == null || !mounted) return;
-
-    if (choice == 'dicebear') {
-      final picked = await showAvatarPicker(context, _avatarSeed);
-      if (picked != null && mounted) {
-        setState(() {
-          _avatarSeed = picked;
-          _hasPickedAvatar = true;
-        });
-      }
-    } else if (choice == 'gallery') {
-      await _pickImageFromGallery();
+    if (picked != null && mounted) {
+      setState(() {
+        _avatarValueForSave = picked;
+        if (!CharacterService.isRelativeAvatarPath(picked)) {
+          _avatarPreview = picked;
+        }
+        _hasPickedAvatar = true;
+      });
     }
   }
 
-  Future<void> _pickImageFromGallery() async {
+  Future<String?> _pickImageFromGallery() async {
     try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 512,
-        maxHeight: 512,
-        imageQuality: 85,
-      );
-      if (picked == null || !mounted) return;
+      final pickedPath = await pickAvatarImageFromGallery();
+      if (pickedPath == null) return null;
 
       final userId = await UserStorage.getUserId();
-      if (userId == null) return;
+      if (userId == null) return null;
 
-      // Save the image to the Characters directory
       final charsPath = CharacterService.instance.getCharactersPath(userId);
-      final dir = Directory(charsPath);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-
-      final ext = p.extension(picked.path).toLowerCase();
-      final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}$ext';
-      final destPath = p.join(charsPath, fileName);
-      await File(picked.path).copy(destPath);
-
-      // Store as relative path to dataRoot so it survives iOS container UUID changes.
-      final relativePath = FileSystemService.instance.toRelativePath(destPath);
-
-      if (mounted) {
-        setState(() {
-          _avatarSeed = relativePath;
-          _hasPickedAvatar = true;
-        });
-      }
+      final relativePath = await saveAvatarImageAsRelativePath(
+        sourceImagePath: pickedPath,
+        destinationDirPath: charsPath,
+        fileSystemService: FileSystemService.instance,
+      );
+      if (!mounted) return null;
+      setState(() {
+        _avatarPreview =
+            FileSystemService.instance.toAbsolutePath(relativePath);
+      });
+      return relativePath;
     } catch (e) {
       _logger.warning('Failed to pick avatar image: $e');
       if (mounted) {
         ToastHelper.showError(
             context, UserStorage.l10n.operationFailed(e.toString()));
       }
+      return null;
     }
   }
 
@@ -564,7 +500,8 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
           .where((e) => e.isNotEmpty)
           .toList();
 
-      final avatarSeed = _avatarSeed.isEmpty ? null : _avatarSeed;
+      final avatarSeed =
+          _avatarValueForSave.isEmpty ? null : _avatarValueForSave;
 
       final userId = await UserStorage.getUserId();
       if (userId == null) return;
@@ -616,6 +553,7 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
       }
 
       if (mounted) {
+        _allowImmediatePop = true;
         ToastHelper.showSuccess(
             context,
             widget.character == null
@@ -633,227 +571,272 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(
-          widget.character == null
-              ? UserStorage.l10n.newCharacter
-              : UserStorage.l10n.editCharacter,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
-        elevation: 0,
-        leading: const AppBackButton(),
+  Future<bool> _showDiscardDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(UserStorage.l10n.discardChangesTitle),
+        content: Text(UserStorage.l10n.discardChangesMessage),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: TextButton(
-              onPressed: _isSaving ? null : _save,
-              style: TextButton.styleFrom(
-                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: _isSaving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(
-                      UserStorage.l10n.save,
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-            ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(UserStorage.l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(UserStorage.l10n.discardButton),
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            // Avatar — tap to change
-            Center(
-              child: GestureDetector(
-                onTap: _pickAvatar,
-                child: Column(
-                  children: [
-                    Container(
-                      width: 88,
-                      height: 88,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          width: 2.5,
+    );
+    return confirmed ?? false;
+  }
+
+  Future<void> _handleBackNavigation() async {
+    if (_allowImmediatePop) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    final shouldPop = await _showDiscardDialog();
+    if (shouldPop && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: _allowImmediatePop,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldPop = await _showDiscardDialog();
+        if (shouldPop && context.mounted) {
+          _allowImmediatePop = true;
+          Navigator.of(context).pop(result);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: Text(
+            widget.character == null
+                ? UserStorage.l10n.newCharacter
+                : UserStorage.l10n.editCharacter,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          centerTitle: true,
+          backgroundColor: AppColors.background,
+          surfaceTintColor: AppColors.background,
+          elevation: 0,
+          leading: AppBackButton(onTap: _handleBackNavigation),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: TextButton(
+                onPressed: _isSaving ? null : _save,
+                style: TextButton.styleFrom(
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        UserStorage.l10n.save,
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
                         ),
                       ),
-                      child: CharacterAvatar(
-                        key: ValueKey(_avatarSeed),
-                        avatar: _avatarSeed.isEmpty ? null : _avatarSeed,
-                        name: _nameController.text,
-                        size: 82,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.edit,
-                            size: 13, color: AppColors.textTertiary),
-                        const SizedBox(width: 4),
-                        Text(
-                          UserStorage.l10n.chooseAvatar,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textTertiary,
+              ),
+            ),
+          ],
+        ),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              // Avatar — tap to change
+              Center(
+                child: GestureDetector(
+                  onTap: _pickAvatar,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            width: 2.5,
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildLabel(UserStorage.l10n.characterName),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _nameController,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-              decoration:
-                  _buildInputDecoration(UserStorage.l10n.characterNameHint),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return UserStorage.l10n.pleaseEnterCharacterName;
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 24),
-            _buildLabel(UserStorage.l10n.tagsLabel),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _tagsController,
-              style: const TextStyle(fontSize: 16),
-              decoration: _buildInputDecoration(UserStorage.l10n.tagsHint),
-            ),
-            const SizedBox(height: 24),
-            _buildLabel(UserStorage.l10n.characterPersonaLabel),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7F8FA),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: TextFormField(
-                controller: _personaController,
-                decoration: InputDecoration(
-                  hintText: UserStorage.l10n.characterPersonaHint,
-                  hintStyle: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 14,
-                    height: 1.5,
+                        child: CharacterAvatar(
+                          key: ValueKey(_avatarPreview),
+                          avatar:
+                              _avatarPreview.isEmpty ? null : _avatarPreview,
+                          name: _nameController.text,
+                          size: 82,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.edit,
+                              size: 13, color: AppColors.textTertiary),
+                          const SizedBox(width: 4),
+                          Text(
+                            UserStorage.l10n.chooseAvatar,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.all(20),
                 ),
+              ),
+              const SizedBox(height: 24),
+              _buildLabel(UserStorage.l10n.characterName),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _nameController,
                 style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.6,
-                  color: Color(0xFF334155),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
                 ),
-                maxLines: null,
-                minLines: 15,
-                keyboardType: TextInputType.multiline,
-                textInputAction: TextInputAction.newline,
+                decoration:
+                    _buildInputDecoration(UserStorage.l10n.characterNameHint),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return UserStorage.l10n.pleaseEnterCharacterPersona;
+                    return UserStorage.l10n.pleaseEnterCharacterName;
                   }
                   return null;
                 },
               ),
-            ),
-            const SizedBox(height: 24),
-            _buildLabel(UserStorage.l10n.firstMessageLabel),
-            const SizedBox(height: 8),
-            _buildMultilineField(
-              controller: _firstMessageController,
-              hint: UserStorage.l10n.firstMessageHint,
-              minLines: 3,
-            ),
-            const SizedBox(height: 24),
-            _buildLabel(UserStorage.l10n.systemPromptOverrideLabel),
-            const SizedBox(height: 8),
-            _buildMultilineField(
-              controller: _systemPromptController,
-              hint: UserStorage.l10n.systemPromptOverrideHint,
-              minLines: 4,
-            ),
-            const SizedBox(height: 24),
-            _buildLabel(UserStorage.l10n.postHistoryInstructionsLabel),
-            const SizedBox(height: 8),
-            _buildMultilineField(
-              controller: _postHistoryController,
-              hint: UserStorage.l10n.postHistoryInstructionsHint,
-              minLines: 3,
-            ),
-            const SizedBox(height: 24),
-            _buildLabel(UserStorage.l10n.mesExampleLabel),
-            const SizedBox(height: 8),
-            _buildMultilineField(
-              controller: _mesExampleController,
-              hint: UserStorage.l10n.mesExampleHint,
-              minLines: 4,
-            ),
-            const SizedBox(height: 32),
-            // --- World Book Section ---
-            _buildSectionHeader(
-              title: UserStorage.l10n.worldBookTitle,
-              subtitle: UserStorage.l10n.worldBookSubtitle,
-              onAdd: _addWorldEntry,
-            ),
-            const SizedBox(height: 8),
-            ..._worldEntries
-                .asMap()
-                .entries
-                .map((e) => _buildWorldEntryTile(e.key, e.value)),
-            const SizedBox(height: 24),
-            // --- Character Memory Section ---
-            _buildSectionHeader(
-              title: UserStorage.l10n.characterMemoryTitle,
-              subtitle: UserStorage.l10n.characterMemorySubtitle,
-              onAdd: _addMemoryEntry,
-            ),
-            const SizedBox(height: 8),
-            ..._memoryEntries
-                .asMap()
-                .entries
-                .map((e) => _buildMemoryEntryTile(e.key, e.value)),
-            const SizedBox(height: 32),
-          ],
+              const SizedBox(height: 24),
+              _buildLabel(UserStorage.l10n.tagsLabel),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _tagsController,
+                style: const TextStyle(fontSize: 16),
+                decoration: _buildInputDecoration(UserStorage.l10n.tagsHint),
+              ),
+              const SizedBox(height: 24),
+              _buildLabel(UserStorage.l10n.characterPersonaLabel),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8FA),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: TextFormField(
+                  controller: _personaController,
+                  decoration: InputDecoration(
+                    hintText: UserStorage.l10n.characterPersonaHint,
+                    hintStyle: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.all(20),
+                  ),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    height: 1.6,
+                    color: Color(0xFF334155),
+                  ),
+                  maxLines: null,
+                  minLines: 15,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return UserStorage.l10n.pleaseEnterCharacterPersona;
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildLabel(UserStorage.l10n.firstMessageLabel),
+              const SizedBox(height: 8),
+              _buildMultilineField(
+                controller: _firstMessageController,
+                hint: UserStorage.l10n.firstMessageHint,
+                minLines: 3,
+              ),
+              const SizedBox(height: 24),
+              _buildLabel(UserStorage.l10n.systemPromptOverrideLabel),
+              const SizedBox(height: 8),
+              _buildMultilineField(
+                controller: _systemPromptController,
+                hint: UserStorage.l10n.systemPromptOverrideHint,
+                minLines: 4,
+              ),
+              const SizedBox(height: 24),
+              _buildLabel(UserStorage.l10n.postHistoryInstructionsLabel),
+              const SizedBox(height: 8),
+              _buildMultilineField(
+                controller: _postHistoryController,
+                hint: UserStorage.l10n.postHistoryInstructionsHint,
+                minLines: 3,
+              ),
+              const SizedBox(height: 24),
+              _buildLabel(UserStorage.l10n.mesExampleLabel),
+              const SizedBox(height: 8),
+              _buildMultilineField(
+                controller: _mesExampleController,
+                hint: UserStorage.l10n.mesExampleHint,
+                minLines: 4,
+              ),
+              const SizedBox(height: 32),
+              // --- World Book Section ---
+              _buildSectionHeader(
+                title: UserStorage.l10n.worldBookTitle,
+                subtitle: UserStorage.l10n.worldBookSubtitle,
+                onAdd: _addWorldEntry,
+              ),
+              const SizedBox(height: 8),
+              ..._worldEntries
+                  .asMap()
+                  .entries
+                  .map((e) => _buildWorldEntryTile(e.key, e.value)),
+              const SizedBox(height: 24),
+              // --- Character Memory Section ---
+              _buildSectionHeader(
+                title: UserStorage.l10n.characterMemoryTitle,
+                subtitle: UserStorage.l10n.characterMemorySubtitle,
+                onAdd: _addMemoryEntry,
+              ),
+              const SizedBox(height: 8),
+              ..._memoryEntries
+                  .asMap()
+                  .entries
+                  .map((e) => _buildMemoryEntryTile(e.key, e.value)),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );

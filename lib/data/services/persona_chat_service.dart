@@ -70,6 +70,33 @@ class PersonaChatService {
     return id;
   }
 
+  /// Adds a narrative/action message from the character (e.g. *leans closer*).
+  /// Rendered differently in the UI — no bubble, italic, centered.
+  Future<int> addActionMessage(String characterId, String content,
+      {String? factId, bool isRead = false, DateTime? timestamp}) async {
+    final createdAt = timestamp ?? DateTime.now();
+    final id = await _db.into(_db.personaChatMessages).insert(
+          PersonaChatMessagesCompanion.insert(
+            characterId: characterId,
+            isFromCharacter: true,
+            content: content,
+            factId: Value(factId),
+            isRead: Value(isRead),
+            timestamp: createdAt,
+            messageType: const Value('action'),
+          ),
+        );
+    await _appendTimelineEventIfPossible(
+      characterId: characterId,
+      content: content,
+      timestamp: createdAt,
+      type: CharacterMemoryEventType.characterActionMessage,
+      factId: factId,
+      sourceId: id.toString(),
+    );
+    return id;
+  }
+
   Future<void> _appendTimelineEventIfPossible({
     required String characterId,
     required String content,
