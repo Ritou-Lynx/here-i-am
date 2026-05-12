@@ -245,19 +245,16 @@ Future<void> processAICommentReply({
     }
 
     // 7. Initialize and Run Agent
-    final fullUserContent = existingCommentsContext.isNotEmpty
-        ? '$userContent\n$existingCommentsContext'
-        : userContent;
-
     try {
       await CommentAgent.runWithContent(
-        fullUserContent,
+        userContent,
         client: client,
         modelConfig: modelConfig,
         userId: userId,
         factId: cardId,
         rawInputContent: contentToUse,
         initialInsight: initialInsight,
+        existingCommentsContext: existingCommentsContext,
         characterId: characterId,
         currentTime: inputDateTime ?? DateTime.now(),
         entryTime: entryDateTime,

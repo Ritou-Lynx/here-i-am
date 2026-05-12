@@ -55,7 +55,19 @@ class CommentAgentSkill extends Skill {
       UserStorage.l10n.commentLanguageInstruction,
     );
 
-    final b = StringBuffer(systemPrompt);
+    final b = StringBuffer();
+
+    // systemPromptOverride takes highest priority — prepend before skill prompt.
+    if (character != null &&
+        character.systemPromptOverride != null &&
+        character.systemPromptOverride!.trim().isNotEmpty) {
+      final charName = character.name;
+      b.writeln(TavernMacro.resolve(character.systemPromptOverride!,
+          userName: userName, charName: charName));
+      b.writeln('');
+    }
+
+    b.write(systemPrompt);
 
     if (userProfile.isNotEmpty) {
       b.writeln('');
@@ -67,6 +79,16 @@ class CommentAgentSkill extends Skill {
       b.writeln('');
       b.writeln('## Character Memory Entries');
       b.writeln(characterMemories);
+    }
+
+    if (character != null &&
+        character.mesExample != null &&
+        character.mesExample!.trim().isNotEmpty) {
+      final charName = character.name;
+      b.writeln('');
+      b.writeln('## Style Examples');
+      b.writeln(TavernMacro.resolve(character.mesExample!,
+          userName: userName, charName: charName));
     }
 
     return b.toString();

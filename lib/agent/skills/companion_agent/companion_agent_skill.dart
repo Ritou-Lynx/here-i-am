@@ -52,6 +52,9 @@ class CompanionAgentSkill extends Skill {
 
     b.writeln('# You Are ${character.name}');
     b.writeln('Current time: $now');
+    if (character.tags.isNotEmpty) {
+      b.writeln('Tags: ${character.tags.join(', ')}');
+    }
     b.writeln('');
     b.writeln('## Persona');
     b.writeln(m(character.persona));

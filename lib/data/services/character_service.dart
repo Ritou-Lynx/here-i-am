@@ -29,6 +29,28 @@ class CharacterService {
 
   CharacterService._();
 
+  /// Resolve avatar path: if stored as relative path, convert to absolute.
+  /// Absolute paths (legacy) are returned as-is.
+  CharacterModel _resolveAvatarPath(CharacterModel character) {
+    final avatar = character.avatar;
+    if (avatar == null || avatar.isEmpty) return character;
+    // DiceBear seeds and absolute paths need no resolution
+    if (!isRelativeAvatarPath(avatar)) return character;
+    final absolute = _fileSystem.toAbsolutePath(avatar);
+    return character.copyWith(avatar: absolute);
+  }
+
+  /// Returns true if the avatar value looks like a relative file path
+  /// (not a DiceBear seed, not already absolute).
+  static bool isRelativeAvatarPath(String avatar) {
+    if (avatar.startsWith('/')) return false; // already absolute
+    final lower = avatar.toLowerCase();
+    return lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.webp');
+  }
+
   /// Get the Characters directory path for a user
   String getCharactersPath(String userId) {
     return p.join(_fileSystem.getWorkspacePath(userId), 'Characters');
@@ -184,7 +206,7 @@ class CharacterService {
           data['id'] = charId;
 
           final character = CharacterModel.fromJson(data);
-          characters.add(character);
+          characters.add(_resolveAvatarPath(character));
         } catch (e) {
           _logger.warning("Failed to load character from ${entity.path}: $e");
         }
@@ -227,10 +249,8 @@ class CharacterService {
       final data = jsonDecode(jsonEncode(doc));
       data['id'] = characterId;
 
-      final character = CharacterModel.fromJson(
-          data); // CharacterModel.fromJson defines its own defaults
-
-      return character;
+      final character = CharacterModel.fromJson(data);
+      return _resolveAvatarPath(character);
     } catch (e) {
       _logger.severe("Failed to load character $characterId: $e");
       return null;

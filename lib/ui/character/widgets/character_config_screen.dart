@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:memex/agent/memory/character_memory_service.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/character/view_models/character_viewmodel.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
@@ -533,9 +534,12 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
       final destPath = p.join(charsPath, fileName);
       await File(picked.path).copy(destPath);
 
+      // Store as relative path to dataRoot so it survives iOS container UUID changes.
+      final relativePath = FileSystemService.instance.toRelativePath(destPath);
+
       if (mounted) {
         setState(() {
-          _avatarSeed = destPath;
+          _avatarSeed = relativePath;
           _hasPickedAvatar = true;
         });
       }

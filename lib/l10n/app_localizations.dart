@@ -3866,6 +3866,30 @@ abstract class AppLocalizations {
   /// **'Switch companion'**
   String get switchCompanion;
 
+  /// No description provided for @personaChatInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Type a message...'**
+  String get personaChatInputHint;
+
+  /// No description provided for @personaChatEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Send the first message to begin this companion chat'**
+  String get personaChatEmptyHint;
+
+  /// No description provided for @today.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get today;
+
+  /// No description provided for @yesterday.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get yesterday;
+
   /// No description provided for @showInsightTextTitle.
   ///
   /// In en, this message translates to:

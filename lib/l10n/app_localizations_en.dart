@@ -2116,6 +2116,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get switchCompanion => 'Switch companion';
 
   @override
+  String get personaChatInputHint => 'Type a message...';
+
+  @override
+  String get personaChatEmptyHint =>
+      'Send the first message to begin this companion chat';
+
+  @override
+  String get today => 'Today';
+
+  @override
+  String get yesterday => 'Yesterday';
+
+  @override
   String get showInsightTextTitle => 'Show Memex insight comment';
 
   @override

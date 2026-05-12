@@ -15,6 +15,7 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/file_operation_service.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:logging/logging.dart';
+import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/time_context.dart';
 
 class CommentAgent {
@@ -90,7 +91,7 @@ class CommentAgent {
 
       if (ctx.characterWorld.isNotEmpty) {
         state.systemReminders['character_world'] =
-            '## Triggered Character World Entries\n${ctx.characterWorld}';
+            '## Triggered Character World Entries\n${TavernMacro.resolve(ctx.characterWorld, userName: userId, charName: character.name)}';
       }
       // Combine compaction checkpoints + recent timeline into one reminder.
       {
@@ -159,6 +160,7 @@ class CommentAgent {
     String? pkmContext,
     required String rawInputContent,
     String? initialInsight,
+    String existingCommentsContext = '',
     DateTime? currentTime,
     DateTime? entryTime,
     bool withMemoryManagement = false,
@@ -189,6 +191,7 @@ class CommentAgent {
         pkmContext: pkmContext,
         entryTime: entryTime,
         systemReminder: systemReminder,
+        existingCommentsContext: existingCommentsContext,
         includePostBody:
             state.metadata['comment_task_post_body_injected'] != factId,
       ))
@@ -273,6 +276,7 @@ class CommentAgent {
     DateTime? entryTime,
     required String systemReminder,
     required bool includePostBody,
+    String existingCommentsContext = '',
   }) {
     final b = StringBuffer();
     b.write(systemReminder);
@@ -281,19 +285,13 @@ class CommentAgent {
     b.writeln('Entry Local Time: '
         '${entryTime == null ? 'Unknown' : formatLocalDateTimeWithZone(entryTime)}');
     b.writeln('');
-    b.writeln('## User Request');
-    b.writeln(userContent.trim().isEmpty
-        ? Prompts.commentAgentInitialCommentPrompt
-        : userContent.trim());
 
     if (includePostBody) {
-      b.writeln('');
       b.writeln('## Original Post');
       b.writeln('<user_raw_input>');
       b.writeln(rawInputContent.trim());
       b.writeln('</user_raw_input>');
     } else {
-      b.writeln('');
       b.writeln('## Original Post');
       b.writeln(
           'Already provided earlier in this comment session. Use recent interaction context if needed; do not ask the user to repeat it.');
@@ -320,6 +318,18 @@ class CommentAgent {
       b.writeln(knowledge);
       b.writeln('</related_knowledge>');
     }
+
+    if (existingCommentsContext.isNotEmpty) {
+      b.writeln('');
+      b.writeln('## Existing Comments');
+      b.writeln(existingCommentsContext.trim());
+    }
+
+    b.writeln('');
+    b.writeln('## User Request');
+    b.writeln(userContent.trim().isEmpty
+        ? Prompts.commentAgentInitialCommentPrompt
+        : userContent.trim());
 
     return b.toString().trimRight();
   }

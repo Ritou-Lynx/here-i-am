@@ -2039,6 +2039,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get switchCompanion => '切换角色';
 
   @override
+  String get personaChatInputHint => '输入消息...';
+
+  @override
+  String get personaChatEmptyHint => '发出第一条消息，让这段陪伴开始';
+
+  @override
+  String get today => '今天';
+
+  @override
+  String get yesterday => '昨天';
+
+  @override
   String get showInsightTextTitle => '显示 Memex 洞察评论';
 
   @override

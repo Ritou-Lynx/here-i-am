@@ -948,6 +948,10 @@
   "chatModeLabel": "Agent",
 
   "switchCompanion": "Switch companion",
+  "personaChatInputHint": "Type a message...",
+  "personaChatEmptyHint": "Send the first message to begin this companion chat",
+  "today": "Today",
+  "yesterday": "Yesterday",
 
   "showInsightTextTitle": "Show Memex insight comment",
   "showInsightTextDesc": "Whether to show the Memex insight as a pinned comment in the card detail comment section.",

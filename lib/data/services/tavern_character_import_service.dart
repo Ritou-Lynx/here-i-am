@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:memex/agent/memory/character_memory_service.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/domain/models/character_model.dart';
 
 class TavernCharacterImportService {
@@ -91,7 +92,8 @@ class TavernCharacterImportService {
           'avatar_${DateTime.now().millisecondsSinceEpoch}.png';
       final avatarDest = '$charsPath/$avatarFileName';
       await file.copy(avatarDest);
-      mapped['avatar'] = avatarDest;
+      // Store as relative path to dataRoot so it survives iOS container UUID changes.
+      mapped['avatar'] = FileSystemService.instance.toRelativePath(avatarDest);
     }
 
     final created = await CharacterService.instance.createCharacter(

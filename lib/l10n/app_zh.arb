@@ -926,6 +926,10 @@
   "chatModeLabel": "智能体",
 
   "switchCompanion": "切换角色",
+  "personaChatInputHint": "输入消息...",
+  "personaChatEmptyHint": "发出第一条消息，让这段陪伴开始",
+  "today": "今天",
+  "yesterday": "昨天",
 
   "showInsightTextTitle": "显示 Memex 洞察评论",
   "showInsightTextDesc": "是否在卡片详情的评论区显示 Memex 洞察评论。",
