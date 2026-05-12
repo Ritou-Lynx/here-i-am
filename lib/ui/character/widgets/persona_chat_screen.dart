@@ -126,7 +126,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
 
     try {
       final resources = await UserStorage.getAgentLLMResources(
-        AgentDefinitions.chatAgent,
+        AgentDefinitions.companionAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
 

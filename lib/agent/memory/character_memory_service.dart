@@ -630,6 +630,16 @@ class CharacterMemoryService {
     });
   }
 
+  /// Count the number of lines in the archived timeline file.
+  Future<int> countArchivedTimelineLines(
+      String userId, String characterId) async {
+    final path = _archivedTimelinePath(userId, characterId);
+    final file = File(path);
+    if (!await file.exists()) return 0;
+    final lines = await file.readAsLines();
+    return lines.where((l) => l.trim().isNotEmpty).length;
+  }
+
   Future<void> _rebuildTimelineFts(
     String characterId,
     List<String> lines, {
@@ -810,7 +820,8 @@ class CharacterMemoryService {
     return b.toString().trim();
   }
 
-  Future<void> appendCheckpoint(
+  /// Replace the checkpoint file with a single rolling summary.
+  Future<void> replaceCheckpoint(
     String userId,
     String characterId,
     Map<String, dynamic> checkpoint,
@@ -821,8 +832,7 @@ class CharacterMemoryService {
       final dir = _characterMemoryDir(userId, characterId);
       await _ensureDir(dir);
       final file = File(_checkpointsPath(userId, characterId));
-      await file.writeAsString('${jsonEncode(checkpoint)}\n',
-          mode: FileMode.append);
+      await file.writeAsString('${jsonEncode(checkpoint)}\n');
 
       final indexes = await _loadIndexes(userId, characterId);
       indexes['last_checkpoint_at'] = DateTime.now().toIso8601String();
@@ -830,30 +840,25 @@ class CharacterMemoryService {
     });
   }
 
-  Future<String> loadRecentCheckpointsAsText(
+  /// Load the single rolling checkpoint summary text.
+  /// Returns the summary string directly, or empty if none exists.
+  Future<String> loadCheckpointSummary(
     String userId,
-    String characterId, {
-    int limit = 3,
-  }) async {
+    String characterId,
+  ) async {
     await ensureMigrated(userId, characterId);
     final file = File(_checkpointsPath(userId, characterId));
     if (!await file.exists()) return '';
     final lines = await file.readAsLines();
     if (lines.isEmpty) return '';
-    final start = lines.length > limit ? lines.length - limit : 0;
-    final tail = lines.sublist(start);
-    final b = StringBuffer();
-    for (final line in tail) {
-      try {
-        final obj = jsonDecode(line);
-        if (obj is Map) {
-          final m = Map<String, dynamic>.from(obj);
-          b.writeln('### Checkpoint @ ${m['created_at'] ?? 'unknown'}');
-          b.writeln(m['summary'] ?? '');
-          b.writeln('');
-        }
-      } catch (_) {}
-    }
-    return b.toString().trim();
+    // Take the last line (the most recent / only checkpoint in rolling mode)
+    final lastLine = lines.last;
+    try {
+      final obj = jsonDecode(lastLine);
+      if (obj is Map) {
+        return (obj['summary'] as String?) ?? '';
+      }
+    } catch (_) {}
+    return '';
   }
 }

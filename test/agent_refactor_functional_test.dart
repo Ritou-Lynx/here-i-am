@@ -158,10 +158,9 @@ void main() {
       );
 
       final after = await svc.loadTimelineLines(userId, character.id);
-      final checkpoints = await svc.loadRecentCheckpointsAsText(
+      final checkpoints = await svc.loadCheckpointSummary(
         userId,
         character.id,
-        limit: 3,
       );
       final archivedSearch = await svc.searchTimelineEvents(
         userId: userId,

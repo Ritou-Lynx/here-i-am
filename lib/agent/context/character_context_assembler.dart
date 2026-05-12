@@ -60,11 +60,20 @@ class CharacterContextAssembler {
       excludeThreadId: excludeTimelineThreadId,
       excludeTrailingUserMessage: excludeTrailingUserMessage,
     );
-    final checkpointsRaw = await memoryService.loadRecentCheckpointsAsText(
+    final checkpointsRaw = await memoryService.loadCheckpointSummary(
       userId,
       character.id,
-      limit: 3,
     );
+    final archivedCount =
+        await memoryService.countArchivedTimelineLines(userId, character.id);
+
+    // Prepend archived event count into the checkpoints text
+    String checkpointsText = checkpointsRaw;
+    if (checkpointsRaw.isNotEmpty && archivedCount > 0) {
+      checkpointsText =
+          '($archivedCount archived events available via HistorySearch)\n\n$checkpointsRaw';
+    }
+
     final knowledgeCardsRaw =
         await UserKnowledgeContextService.instance.buildKnowledgeCards(
       userId: userId,
@@ -86,7 +95,7 @@ class CharacterContextAssembler {
       characterMemories: characterMemoriesRaw,
       characterWorld: characterWorld,
       recentTimeline: recentTimelineRaw,
-      checkpoints: checkpointsRaw,
+      checkpoints: checkpointsText,
       knowledgeCards: knowledgeCards,
     );
   }
@@ -143,10 +152,11 @@ class CharacterContextAssembler {
     if (lines.isEmpty) return '';
     final start = lines.length > limit ? lines.length - limit : 0;
     final tail = lines.sublist(start);
-    return _renderTimeline(tail, excludeThreadId: excludeThreadId);
+    return renderTimeline(tail, excludeThreadId: excludeThreadId);
   }
 
-  static String _renderTimeline(
+  /// Render timeline JSON lines into human-readable text for LLM consumption.
+  static String renderTimeline(
     List<String> lines, {
     String? excludeThreadId,
   }) {

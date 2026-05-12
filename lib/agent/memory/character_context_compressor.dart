@@ -1,8 +1,9 @@
 import 'dart:convert';
 
 import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:memex/agent/context/character_context_assembler.dart';
 import 'package:memex/agent/memory/character_memory_service.dart';
-import 'package:memex/agent/memory/character_memory_updater.dart';
+import 'package:memex/agent/memory/memory_management.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -25,7 +26,7 @@ class CharacterContextCompressor {
     double softRatio = 0.80,
     double hardRatio = 0.95,
     Duration failureCooldown = const Duration(minutes: 10),
-    int keepRecent = 40,
+    int keepRecent = 20,
   }) async {
     final softThreshold = (contextWindow * softRatio).toInt();
     final hardThreshold = (contextWindow * hardRatio).toInt();
@@ -52,26 +53,18 @@ class CharacterContextCompressor {
     final oldLines = _preTrim(lines.sublist(0, boundary));
     final keptLines = lines.sublist(boundary);
     try {
-      final summary = await _buildSummaryWithLlm(userId, oldLines);
+      final summary = await _buildRollingSummary(
+        userId: userId,
+        characterId: characterId,
+        newEvents: oldLines,
+      );
       final checkpoint = <String, dynamic>{
         'created_at': DateTime.now().toIso8601String(),
-        'covered_events': oldLines.length,
         'summary': summary,
       };
       await svc.appendArchivedTimelineLines(userId, characterId, oldLines);
-      await svc.appendCheckpoint(userId, characterId, checkpoint);
+      await svc.replaceCheckpoint(userId, characterId, checkpoint);
       await svc.replaceTimelineLines(userId, characterId, keptLines);
-
-      // Extract durable memories from the raw events being compressed.
-      // try {
-      //   await CharacterMemoryUpdater.instance.updateFromCompressedEvents(
-      //     userId: userId,
-      //     characterId: characterId,
-      //     rawEventLines: oldLines,
-      //   );
-      // } catch (e) {
-      //   _logger.warning('Memory extraction after compression failed: $e');
-      // }
 
       final updatedIndexes = await CharacterMemoryService.instance
           .loadIndexes(userId, characterId);
@@ -95,13 +88,9 @@ class CharacterContextCompressor {
     final seen = <String>{};
     final result = <String>[];
     for (final line in lines) {
-      // De-duplicate near-identical lines by hash key.
       final key = line.length > 160 ? line.substring(0, 160) : line;
-      if (!seen.add(key)) {
-        continue;
-      }
+      if (!seen.add(key)) continue;
       var normalized = line;
-      // Truncate overlong JSON snippets while preserving valid JSON if possible.
       try {
         final obj = jsonDecode(line);
         if (obj is Map) {
@@ -127,7 +116,6 @@ class CharacterContextCompressor {
   }
 
   int _findSafeBoundary(List<String> lines, int targetBoundary) {
-    // Keep at least one most-recent user turn in raw tail.
     var boundary = targetBoundary;
     for (var i = lines.length - 1; i >= targetBoundary; i--) {
       try {
@@ -147,115 +135,114 @@ class CharacterContextCompressor {
     return boundary;
   }
 
-  String _buildHeuristicSummary(List<String> oldLines) {
-    var userChat = 0;
-    var characterChat = 0;
-    var posts = 0;
-    var characterComments = 0;
-    var userReplies = 0;
-    final highlights = <String>[];
+  /// Maximum character count for the rolling summary.
+  static const int _summaryCharBudget = 12000;
 
-    for (final line in oldLines) {
-      try {
-        final obj = jsonDecode(line);
-        if (obj is! Map) continue;
-        final m = Map<String, dynamic>.from(obj);
-        final type = (m['event_type'] as String?) ?? '';
-        final content = (m['content'] as String?)?.trim() ?? '';
-        switch (type) {
-          case 'userChatMessage':
-            userChat++;
-            break;
-          case 'characterChatMessage':
-            characterChat++;
-            break;
-          case 'postObserved':
-            posts++;
-            break;
-          case 'characterComment':
-            characterComments++;
-            break;
-          case 'userCommentReply':
-            userReplies++;
-            break;
-        }
-        if (content.isNotEmpty && highlights.length < 8) {
-          final clipped = content.length > 120
-              ? '${content.substring(0, 120)}...'
-              : content;
-          final thread = (m['thread_id'] as String?) ?? '';
-          highlights
-              .add('- [$type${thread.isEmpty ? '' : ' · $thread'}] $clipped');
-        }
-      } catch (_) {}
+  /// Build a rolling summary by merging the existing summary with new events.
+  /// Provides user memories and character memories as context so the model
+  /// knows what's already captured and can focus on storyline progression.
+  Future<String> _buildRollingSummary({
+    required String userId,
+    required String characterId,
+    required List<String> newEvents,
+  }) async {
+    final svc = CharacterMemoryService.instance;
+
+    // Load existing summary
+    final existingSummary =
+        await svc.loadCheckpointSummary(userId, characterId);
+
+    // Load user-level memories
+    String userMemories = '';
+    try {
+      final mm = await MemoryManagement.createDefault(
+        userId: userId,
+        sourceAgent: 'compressor',
+      );
+      userMemories = await mm.buildMemoryPrompt();
+    } catch (_) {}
+
+    // Load character-level memories
+    final characterMemories = await svc.buildAllMemoriesText(
+      userId: userId,
+      characterId: characterId,
+    );
+
+    // Format events using the same renderer used for context injection
+    final formattedEvents = CharacterContextAssembler.renderTimeline(newEvents);
+
+    final prompt = StringBuffer();
+    prompt.writeln(
+        'You maintain a rolling storyline summary for a role-play character\'s interaction history with the user.');
+    prompt.writeln('');
+    prompt.writeln('## Task');
+    prompt.writeln(
+        'Merge the existing summary with the new events below into ONE updated summary.');
+    prompt.writeln('Focus on **storyline and plot progression**:');
+    prompt.writeln('- Ongoing narrative arcs and unresolved threads');
+    prompt.writeln('- Emotional trajectory and relationship dynamics');
+    prompt.writeln('- Promises, plans, or commitments made');
+    prompt.writeln('- Context needed to continue conversations naturally');
+    prompt.writeln('');
+    prompt.writeln('## What NOT to include');
+    prompt.writeln(
+        'The following facts are already stored in structured memory. Do NOT repeat them in the summary:');
+
+    if (userMemories.isNotEmpty) {
+      prompt.writeln('');
+      prompt.writeln('### User Memories (already stored)');
+      prompt.writeln(userMemories);
+    }
+    if (characterMemories.isNotEmpty) {
+      prompt.writeln('');
+      prompt.writeln('### Character Memories (already stored)');
+      prompt.writeln(characterMemories);
     }
 
-    final b = StringBuffer();
-    b.writeln('Event counts:');
-    b.writeln('- user chat messages: $userChat');
-    b.writeln('- character chat messages: $characterChat');
-    b.writeln('- observed posts: $posts');
-    b.writeln('- character comments: $characterComments');
-    b.writeln('- user comment replies: $userReplies');
-    if (highlights.isNotEmpty) {
-      b.writeln('');
-      b.writeln('Representative highlights:');
-      for (final h in highlights) {
-        b.writeln(h);
-      }
+    prompt.writeln('');
+    prompt.writeln('## Requirements');
+    prompt.writeln('- Output markdown only, no JSON, no preamble.');
+    prompt
+        .writeln('- MUST be under $_summaryCharBudget characters. Be concise.');
+    prompt.writeln(
+        '- Drop details already covered by the memories listed above.');
+    prompt.writeln(
+        '- When the existing summary grows stale or contradicts new events, update it rather than appending.');
+    prompt.writeln(
+        '- Preserve open threads and recent emotional context with higher priority than old resolved topics.');
+
+    if (existingSummary.isNotEmpty) {
+      prompt.writeln('');
+      prompt.writeln('## Existing Summary');
+      prompt.writeln(existingSummary);
     }
-    return b.toString().trim();
-  }
 
-  /// Maximum recommended character count for a single checkpoint summary.
-  /// ~3000 tokens ≈ 12000 characters for mixed CJK/English content.
-  static const int _checkpointCharBudget = 12000;
+    prompt.writeln('');
+    prompt.writeln('## New Events to Incorporate');
+    prompt.writeln(formattedEvents);
 
-  Future<String> _buildSummaryWithLlm(
-      String userId, List<String> oldLines) async {
-    final fallback = _buildHeuristicSummary(oldLines);
-    if (oldLines.isEmpty) return fallback;
-    final raw = oldLines.join('\n');
-    final prompt =
-        '''You summarize cross-scene relationship history for a role-play character.
-
-Summarize the following events into concise markdown with sections:
-- Topic Continuity
-- Stable Facts about the user
-- Relationship Changes
-- Emotional Trajectory
-- Open Threads
-
-Requirements:
-- Keep it factual and compact.
-- Preserve important names/preferences.
-- No JSON, markdown only.
-- CRITICAL: Output MUST be under $_checkpointCharBudget characters total. Be ruthlessly concise. Drop low-value details to stay within budget.
-
-Events:
-$raw
-''';
     try {
       final resources = await UserStorage.getAgentLLMResources(
-        AgentDefinitions.chatAgent,
+        AgentDefinitions.profileAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
       final res = await resources.client.generate(
         [
-          UserMessage([TextPart(prompt)])
+          UserMessage([TextPart(prompt.toString())])
         ],
         modelConfig: resources.modelConfig,
       );
       var out = res.textOutput?.trim() ?? '';
-      if (out.isEmpty) return fallback;
+      if (out.isEmpty) return existingSummary.isNotEmpty ? existingSummary : '';
 
       // If output exceeds budget, ask for a tighter version.
-      if (out.length > _checkpointCharBudget) {
+      if (out.length > _summaryCharBudget) {
         _logger.info(
-            'Checkpoint summary too long (${out.length} chars), requesting condensed version');
+            'Rolling summary too long (${out.length} chars), requesting condensed version');
         final condensePrompt =
-            'The following summary is ${out.length} characters but must be under $_checkpointCharBudget characters. '
-            'Condense it aggressively while preserving the most important facts and open threads. '
+            'The following summary is ${out.length} characters but must be under $_summaryCharBudget characters. '
+            'Condense it aggressively. Keep open threads and recent emotional context. '
+            'Drop resolved topics and facts already in structured memory. '
             'Output markdown only, no preamble.\n\n$out';
         try {
           final res2 = await resources.client.generate(
@@ -271,16 +258,17 @@ $raw
         } catch (_) {
           // Use the original (over-budget) summary rather than failing.
         }
-        // If still over budget after retry, hard truncate.
-        if (out.length > _checkpointCharBudget) {
+        // Hard truncate as last resort.
+        if (out.length > _summaryCharBudget) {
           _logger.warning(
-              'Checkpoint still over budget after retry (${out.length} chars), truncating');
-          out = '${out.substring(0, _checkpointCharBudget)}...';
+              'Summary still over budget after retry (${out.length} chars), truncating');
+          out = '${out.substring(0, _summaryCharBudget)}...';
         }
       }
       return out;
-    } catch (_) {
-      return fallback;
+    } catch (e) {
+      _logger.warning('LLM summary generation failed: $e');
+      return existingSummary.isNotEmpty ? existingSummary : '';
     }
   }
 }

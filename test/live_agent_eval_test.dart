@@ -106,7 +106,7 @@ Natural, concise, empathetic. Avoid lecturing.
       );
 
       final chatResources = await UserStorage.getAgentLLMResources(
-        AgentDefinitions.chatAgent,
+        AgentDefinitions.companionAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
 

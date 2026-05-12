@@ -29,7 +29,7 @@ class CharacterMemoryUpdater {
 
     try {
       final resources = await UserStorage.getAgentLLMResources(
-        AgentDefinitions.chatAgent,
+        AgentDefinitions.profileAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
       await _extractAndSaveMemories(
