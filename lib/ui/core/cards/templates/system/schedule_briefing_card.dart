@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:memex/ui/core/cards/ui/glass_card.dart';
+import 'package:memex/utils/date_util.dart';
 import 'package:memex/utils/user_storage.dart';
 
 class ScheduleBriefingCard extends StatelessWidget {
@@ -166,7 +167,7 @@ class ScheduleBriefingCard extends StatelessWidget {
 
   Widget _buildItemRow(Map<String, dynamic> item) {
     final title = item['title'] as String? ?? '';
-    final startTime = DateTime.tryParse(item['start_time'] as String? ?? '');
+    final startTime = parseLocalDateTime(item['start_time']);
     final timeLabel = startTime == null
         ? null
         : DateFormat.Md(UserStorage.l10n.localeName).add_Hm().format(startTime);
@@ -234,8 +235,7 @@ class ScheduleBriefingCard extends StatelessWidget {
   }
 
   String _buildGeneratedText() {
-    final generatedAt =
-        DateTime.tryParse(data['generated_at'] as String? ?? '');
+    final generatedAt = parseLocalDateTime(data['generated_at']);
     if (generatedAt == null) return UserStorage.l10n.scheduleBriefingNoData;
     return UserStorage.l10n.scheduleBriefingUpdated(
       DateFormat.Md(UserStorage.l10n.localeName).add_Hm().format(generatedAt),
