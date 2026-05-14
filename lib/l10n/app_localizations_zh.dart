@@ -1365,6 +1365,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get defaultLabel => '默认';
 
   @override
+  String get setAsDefault => '设为默认';
+
+  @override
   String get missingApiKey => '缺少 API Key';
 
   @override
@@ -1387,6 +1390,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get editConfiguration => '编辑配置';
+
+  @override
+  String get duplicateConfiguration => '复制配置';
+
+  @override
+  String get duplicate => '复制';
 
   @override
   String get keyIdLabel => 'Key (ID)';
@@ -1527,10 +1536,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get discardChangesTitle => '放弃未保存的修改？';
+  String get discardChangesTitle => '离开此页面？';
 
   @override
-  String get discardChangesMessage => '您有未保存的修改。确定要放弃修改并离开吗？';
+  String get discardChangesMessage => '如果您做了更改，请先保存后再离开。';
 
   @override
   String get discardButton => '放弃';
@@ -2118,6 +2127,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get switchCompanion => '切换角色';
 
   @override
+  String get personaChatInputHint => '输入消息...';
+
+  @override
+  String get personaChatEmptyHint => '发出第一条消息，让这段陪伴开始';
+
+  @override
+  String get today => '今天';
+
+  @override
+  String get yesterday => '昨天';
+
+  @override
   String get showInsightTextTitle => '显示 Memex 洞察评论';
 
   @override
@@ -2157,4 +2178,171 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsSearchEmpty => '未找到匹配的设置项';
+
+  @override
+  String get importCharacterCard => '导入角色卡';
+
+  @override
+  String get firstMessageLabel => '首条消息';
+
+  @override
+  String get firstMessageHint => '角色首次对话时发送的问候语（可选）';
+
+  @override
+  String get systemPromptOverrideLabel => '系统提示词覆盖';
+
+  @override
+  String get systemPromptOverrideHint => '覆盖默认系统提示词（高级，可选）';
+
+  @override
+  String get postHistoryInstructionsLabel => '历史后指令';
+
+  @override
+  String get postHistoryInstructionsHint => '在对话历史之后、回复之前注入的指令（可选）';
+
+  @override
+  String get mesExampleLabel => '对话示例';
+
+  @override
+  String get mesExampleHint => '角色对话风格示例（可选）';
+
+  @override
+  String get worldBookTitle => '世界书';
+
+  @override
+  String get worldBookSubtitle => '触发关键词时注入的背景知识';
+
+  @override
+  String get characterMemoryTitle => '角色记忆';
+
+  @override
+  String get characterMemorySubtitle => '角色与用户之间的关系动态和互动记忆';
+
+  @override
+  String get addTooltip => '添加';
+
+  @override
+  String get constantBadge => '常驻';
+
+  @override
+  String worldEntryFallbackName(Object index) {
+    return '条目 $index';
+  }
+
+  @override
+  String keywordsPrefix(Object keys) {
+    return '关键词: $keys';
+  }
+
+  @override
+  String memoryFallbackName(Object index) {
+    return '记忆 $index';
+  }
+
+  @override
+  String get addWorldEntry => '添加世界书条目';
+
+  @override
+  String get editWorldEntry => '编辑世界书条目';
+
+  @override
+  String get commentTitleLabel => '备注/标题';
+
+  @override
+  String get entryDescriptionHint => '条目说明（可选）';
+
+  @override
+  String get triggerKeywordsLabel => '触发关键词';
+
+  @override
+  String get triggerKeywordsHint => '逗号分隔，如: 魔法, 咒语';
+
+  @override
+  String get contentLabel => '内容';
+
+  @override
+  String get worldEntryContentHint => '当关键词触发时注入的背景知识';
+
+  @override
+  String get enabledCheckbox => '启用';
+
+  @override
+  String get addMemory => '添加记忆';
+
+  @override
+  String get editMemory => '编辑记忆';
+
+  @override
+  String get memoryLabelField => '标签';
+
+  @override
+  String get memoryLabelHint => '记忆的唯一标识，如: 称呼偏好';
+
+  @override
+  String get memoryContentHint => '记忆内容';
+
+  @override
+  String get salienceLabel => '重要性: ';
+
+  @override
+  String get labelCannotBeEmpty => '标签不能为空';
+
+  @override
+  String importSuccess(Object name) {
+    return '$name 导入成功';
+  }
+
+  @override
+  String importFailed(Object error) {
+    return '导入失败: $error';
+  }
+
+  @override
+  String get supportedFormats => '支持的格式';
+
+  @override
+  String get tavernImportDescription =>
+      '• SillyTavern V2 角色卡 (.json)\n• 内嵌角色卡的 PNG 图片 (.png)\n\n导入后会自动映射角色设定、世界书等字段到 Memex 角色格式。';
+
+  @override
+  String get pickCharacterFile => '选择角色卡文件';
+
+  @override
+  String get repickFile => '重新选择文件';
+
+  @override
+  String get personaSettingSection => '角色设定';
+
+  @override
+  String get systemPromptSection => '系统提示词';
+
+  @override
+  String worldEntriesCount(Object count) {
+    return '世界书: $count 条';
+  }
+
+  @override
+  String fileLabel(Object filename) {
+    return '文件: $filename';
+  }
+
+  @override
+  String conflictWarning(Object names) {
+    return '已存在同名角色: $names。继续导入将创建新角色，不会覆盖已有角色。';
+  }
+
+  @override
+  String get setPrimaryCompanionTitle => '设为主要陪伴角色';
+
+  @override
+  String get setPrimaryCompanionSubtitle => '导入后自动设为你的主要陪伴角色';
+
+  @override
+  String get confirmImport => '确认导入';
+
+  @override
+  String get chatBackground => '聊天背景';
+
+  @override
+  String get chooseChatBackgroundImage => '选择聊天背景图';
 }
