@@ -10,6 +10,7 @@ enum EventBusMessageType {
   attachmentsChanged('attachments_changed'),
   invalidModelConfig('invalid_model_config'),
   errorNotification('error_notification'),
+  personaChatMessageAdded('persona_chat_message_added'),
   unknown('unknown');
 
   final String value;
@@ -53,6 +54,8 @@ abstract class EventBusMessage {
         return InvalidModelConfigMessage.fromJson(json);
       case EventBusMessageType.errorNotification:
         return ErrorNotificationMessage.fromJson(json);
+      case EventBusMessageType.personaChatMessageAdded:
+        return PersonaChatMessageAddedMessage.fromJson(json);
       default:
         return UnknownMessage.fromJson(json);
     }
@@ -337,6 +340,25 @@ class AttachmentsChangedMessage extends EventBusMessage {
     final data = json['data'] as Map<String, dynamic>? ?? {};
     return AttachmentsChangedMessage(
       factId: data['fact_id'] as String?,
+    );
+  }
+}
+
+/// Notifies persona chat screen that a new message was added mid-turn
+/// (e.g. an action message written by a tool during agent execution).
+class PersonaChatMessageAddedMessage extends EventBusMessage {
+  final String characterId;
+
+  PersonaChatMessageAddedMessage({required this.characterId})
+      : super(
+          type: EventBusMessageType.personaChatMessageAdded,
+          data: {'character_id': characterId},
+        );
+
+  factory PersonaChatMessageAddedMessage.fromJson(Map<String, dynamic> json) {
+    final data = json['data'] as Map<String, dynamic>? ?? {};
+    return PersonaChatMessageAddedMessage(
+      characterId: data['character_id'] as String? ?? '',
     );
   }
 }

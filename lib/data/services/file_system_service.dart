@@ -1038,6 +1038,42 @@ class FileSystemService {
     return path.join(getUserSettingsPath(userId), 'profile.md');
   }
 
+  String getProfileMetaPath(String userId) {
+    return path.join(getUserSettingsPath(userId), 'profile.json');
+  }
+
+  Future<Map<String, dynamic>> readProfileMeta(String userId) async {
+    try {
+      final filePath = getProfileMetaPath(userId);
+      if (!await _baseService.exists(filePath)) {
+        return {};
+      }
+
+      final content = await _baseService.readFile(filePath);
+      final decoded = jsonDecode(content);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map) {
+        return decoded.map(
+          (key, value) => MapEntry(key.toString(), value),
+        );
+      }
+    } catch (e) {
+      _logger.warning('Failed to read profile meta: $e');
+    }
+    return {};
+  }
+
+  Future<void> writeProfileMeta(
+      String userId, Map<String, dynamic> profileMeta) async {
+    final settingsPath = getUserSettingsPath(userId);
+    await ensureDirectory(settingsPath);
+    final filePath = getProfileMetaPath(userId);
+    const encoder = JsonEncoder.withIndent('  ');
+    await _baseService.writeFile(filePath, encoder.convert(profileMeta));
+  }
+
   /// Comment settings file path
   String getCommentSettingsPath(String userId) {
     return path.join(getUserSettingsPath(userId), 'comment_settings.yaml');
@@ -1253,6 +1289,12 @@ class FileSystemService {
   /// Get_Systemdirectory path
   String getSystemPath(String userId) {
     return path.join(getWorkspacePath(userId), '_System');
+  }
+
+  /// Unified media pool directory — all user-uploaded images/audio/etc.
+  /// land here with a canonical filename (see [MediaService]).
+  String getMediaPath(String userId) {
+    return path.join(getSystemPath(userId), 'media');
   }
 
   /// Drafts directory path (input draft files)

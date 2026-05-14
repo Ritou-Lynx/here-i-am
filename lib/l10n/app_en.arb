@@ -631,6 +631,7 @@
   },
   "confirmDeleteConfigMessage": "Are you sure you want to delete \"{key}\"?",
   "defaultLabel": "Default",
+  "setAsDefault": "Set as default",
   "missingApiKey": "Missing API Key",
   "invalidJsonInExtraField": "Invalid JSON in Extra field",
   "keyAlreadyExists": "Key already exists",
@@ -639,6 +640,8 @@
   "configurationResetPressSave": "Configuration reset. Press Save to apply.",
   "addConfiguration": "Add Configuration",
   "editConfiguration": "Edit Configuration",
+  "duplicateConfiguration": "Duplicate Configuration",
+  "duplicate": "Duplicate",
   "keyIdLabel": "Key (ID)",
   "keyIdHelper": "Unique identifier for this configuration",
   "required": "Required",
@@ -684,8 +687,8 @@
   "warning": "Incomplete Setup",
   "invalidConfigurationWarning": "The configuration is not complete yet (e.g., API Key or Model ID is missing). You can still save and configure it later. Continue?",
   "invalidModelConfigDetailed": "AI Agent \"{agentId}\" needs a valid model configuration (key: \"{configKey}\") to operate. Please check the model settings.",
-  "discardChangesTitle": "Discard unsaved changes?",
-  "discardChangesMessage": "You have unsaved changes. Are you sure you want to leave without saving?",
+  "discardChangesTitle": "Leave this page?",
+  "discardChangesMessage": "If you made any changes, please save them before leaving.",
   "discardButton": "Discard",
   "chooseLanguage": "Choose Language",
   "chooseAvatar": "Choose Avatar",
@@ -945,6 +948,10 @@
   "chatModeLabel": "Agent",
 
   "switchCompanion": "Switch companion",
+  "personaChatInputHint": "Type a message...",
+  "personaChatEmptyHint": "Send the first message to begin this companion chat",
+  "today": "Today",
+  "yesterday": "Yesterday",
 
   "showInsightTextTitle": "Show Memex insight comment",
   "showInsightTextDesc": "Whether to show the Memex insight as a pinned comment in the card detail comment section.",
@@ -1002,5 +1009,96 @@
   },
 
   "settingsSearchPlaceholder": "Search settings...",
-  "settingsSearchEmpty": "No matching settings found"
+  "settingsSearchEmpty": "No matching settings found",
+
+  "importCharacterCard": "Import Character Card",
+  "firstMessageLabel": "First Message",
+  "firstMessageHint": "Greeting sent on first conversation (optional)",
+  "systemPromptOverrideLabel": "System Prompt Override",
+  "systemPromptOverrideHint": "Override default system prompt (advanced, optional)",
+  "postHistoryInstructionsLabel": "Post-History Instructions",
+  "postHistoryInstructionsHint": "Instructions injected after chat history, before reply (optional)",
+  "mesExampleLabel": "Message Examples",
+  "mesExampleHint": "Example dialogues showing character style (optional)",
+  "worldBookTitle": "World Book",
+  "worldBookSubtitle": "Background knowledge injected when keywords are triggered",
+  "characterMemoryTitle": "Character Memory",
+  "characterMemorySubtitle": "Relationship dynamics and interaction memories between character and user",
+  "addTooltip": "Add",
+  "constantBadge": "Constant",
+  "@worldEntryFallbackName": {
+    "placeholders": {
+      "index": {}
+    }
+  },
+  "worldEntryFallbackName": "Entry {index}",
+  "@keywordsPrefix": {
+    "placeholders": {
+      "keys": {}
+    }
+  },
+  "keywordsPrefix": "Keywords: {keys}",
+  "@memoryFallbackName": {
+    "placeholders": {
+      "index": {}
+    }
+  },
+  "memoryFallbackName": "Memory {index}",
+  "addWorldEntry": "Add World Book Entry",
+  "editWorldEntry": "Edit World Book Entry",
+  "commentTitleLabel": "Comment / Title",
+  "entryDescriptionHint": "Entry description (optional)",
+  "triggerKeywordsLabel": "Trigger Keywords",
+  "triggerKeywordsHint": "Comma-separated, e.g.: magic, spell",
+  "contentLabel": "Content",
+  "worldEntryContentHint": "Background knowledge injected when keywords trigger",
+  "enabledCheckbox": "Enabled",
+  "addMemory": "Add Memory",
+  "editMemory": "Edit Memory",
+  "memoryLabelField": "Label",
+  "memoryLabelHint": "Unique identifier, e.g.: name preference",
+  "memoryContentHint": "Memory content",
+  "salienceLabel": "Salience: ",
+  "labelCannotBeEmpty": "Label cannot be empty",
+  "@importSuccess": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "importSuccess": "{name} imported successfully",
+  "@importFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "importFailed": "Import failed: {error}",
+  "supportedFormats": "Supported Formats",
+  "tavernImportDescription": "• SillyTavern V2 character cards (.json)\n• PNG images with embedded cards (.png)\n\nFields like persona, world book, etc. will be automatically mapped to Memex character format.",
+  "pickCharacterFile": "Pick Character File",
+  "repickFile": "Pick Another File",
+  "personaSettingSection": "Persona",
+  "systemPromptSection": "System Prompt",
+  "@worldEntriesCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "worldEntriesCount": "World Book: {count} entries",
+  "@fileLabel": {
+    "placeholders": {
+      "filename": {}
+    }
+  },
+  "fileLabel": "File: {filename}",
+  "@conflictWarning": {
+    "placeholders": {
+      "names": {}
+    }
+  },
+  "conflictWarning": "Character with same name already exists: {names}. Importing will create a new character without overwriting existing ones.",
+  "setPrimaryCompanionTitle": "Set as Primary Companion",
+  "setPrimaryCompanionSubtitle": "Automatically set as your primary companion after import",
+  "confirmImport": "Confirm Import",
+  "chatBackground": "Chat Background",
+  "chooseChatBackgroundImage": "Choose background image"
 }

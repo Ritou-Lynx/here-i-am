@@ -17,6 +17,7 @@ class ModelConfigListPage extends StatefulWidget {
 
 class _ModelConfigListPageState extends State<ModelConfigListPage> {
   List<LLMConfig> _configs = [];
+  String _defaultConfigKey = LLMConfig.defaultClientKey;
   bool _isLoading = true;
 
   String _providerDisplayName(String type) {
@@ -68,16 +69,20 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
 
   Future<void> _loadConfigs() async {
     setState(() => _isLoading = true);
-    final configs = await MemexRouter().getLLMConfigs();
+    final router = MemexRouter();
+    final configs = await router.getLLMConfigs();
+    final defaultConfigKey = await router.getDefaultLLMConfigKey();
+    if (!mounted) return;
     setState(() {
       _configs = configs;
+      _defaultConfigKey = defaultConfigKey;
       _isLoading = false;
     });
   }
 
   Future<List<String>> _getAgentsUsingConfig(String configKey) async {
     final usedByagents = <String>[];
-    for (var agentId in AgentDefinitions.displayNames.keys) {
+    for (var agentId in AgentDefinitions.configurableAgentIds) {
       final config = await MemexRouter().getAgentConfig(agentId);
       if (config.llmConfigKey == configKey) {
         usedByagents.add(AgentDefinitions.displayNames[agentId] ?? agentId);
@@ -86,20 +91,21 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
     return usedByagents;
   }
 
-  Future<void> _deleteConfig(int index) async {
-    final config = _configs[index];
+  bool _isDefaultConfig(LLMConfig config) => config.key == _defaultConfigKey;
+
+  Future<bool> _confirmDeleteConfig(LLMConfig config) async {
     final l10n = UserStorage.l10n;
-    if (config.isDefault) {
+    if (_isDefaultConfig(config) || config.isDefault) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.cannotDeleteDefaultConfiguration)),
       );
-      return;
+      return false;
     }
 
     final usingAgents = await _getAgentsUsingConfig(config.key);
     if (usingAgents.isNotEmpty) {
-      if (!mounted) return;
-      showDialog(
+      if (!mounted) return false;
+      await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: Colors.white,
@@ -113,49 +119,83 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
           ],
         ),
       );
-      return;
+      return false;
     }
 
-    if (!mounted) return;
+    if (!mounted) return false;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: Text(l10n.deleteConfigurationTitle),
-        content: Text(l10n.confirmDeleteConfigMessage(config.key)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancel),
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: Colors.white,
+            title: Text(l10n.deleteConfigurationTitle),
+            content: Text(l10n.confirmDeleteConfigMessage(config.key)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(l10n.cancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(
+                  l10n.delete,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
+        ) ??
+        false;
+  }
 
-    if (confirmed == true) {
+  Future<void> _deleteConfig(LLMConfig config) async {
+    if (await _confirmDeleteConfig(config)) {
       setState(() {
-        _configs.removeAt(index);
+        _configs.removeWhere((item) => item.key == config.key);
       });
       await MemexRouter().saveLLMConfigs(_configs);
     }
   }
 
-  void _editConfig(LLMConfig? config) async {
+  Future<void> _setDefaultConfig(LLMConfig config) async {
+    final l10n = UserStorage.l10n;
+    try {
+      await MemexRouter().setDefaultLLMConfigKey(config.key);
+      await _loadConfigs();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.modelSetAsDefault(config.modelId))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.saveConfigFailed(e.toString()))),
+      );
+    }
+  }
+
+  void _editConfig(LLMConfig? config, {LLMConfig? duplicateSource}) async {
     final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (context) => ModelConfigEditPage(config: config),
+        builder: (context) => ModelConfigEditPage(
+          config: config,
+          duplicateSource: duplicateSource,
+          isDefaultConfig: config != null && _isDefaultConfig(config),
+        ),
       ),
     );
 
     if (result == true) {
       _loadConfigs();
     }
+  }
+
+  void _duplicateConfig(LLMConfig config) {
+    final duplicated = config.duplicate(
+      existingKeys: _configs.map((c) => c.key).toList(),
+    );
+    _editConfig(null, duplicateSource: duplicated);
   }
 
   @override
@@ -233,12 +273,14 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                     itemCount: _configs.length,
                     itemBuilder: (context, index) {
                       final config = _configs[index];
+                      final isDefaultConfig = _isDefaultConfig(config);
+                      final canDelete = !isDefaultConfig && !config.isDefault;
 
                       return Dismissible(
                         key: Key(config.key),
-                        direction: config.isDefault
-                            ? DismissDirection.none
-                            : DismissDirection.endToStart,
+                        direction: canDelete
+                            ? DismissDirection.endToStart
+                            : DismissDirection.none,
                         background: Container(
                           color: Colors.red,
                           alignment: Alignment.centerRight,
@@ -246,65 +288,13 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         confirmDismiss: (direction) async {
-                          if (config.isDefault) return false;
-
-                          final usingAgents = await _getAgentsUsingConfig(
-                            config.key,
-                          );
-                          if (usingAgents.isNotEmpty) {
-                            if (!context.mounted) return false;
-                            final l10n = UserStorage.l10n;
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                backgroundColor: Colors.white,
-                                title: Text(
-                                  l10n.cannotDeleteConfigurationTitle,
-                                ),
-                                content: Text(
-                                  l10n.configUsedByAgentsMessage(
-                                    usingAgents.join('\n'),
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: Text(l10n.ok),
-                                  ),
-                                ],
-                              ),
-                            );
-                            return false;
-                          }
-
-                          if (!context.mounted) return false;
-
-                          final l10n = UserStorage.l10n;
-                          return await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              backgroundColor: Colors.white,
-                              title: Text(l10n.deleteConfigurationTitle),
-                              content: Text(
-                                l10n.confirmDeleteConfigMessage(config.key),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
-                                  child: Text(l10n.cancel),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context, true),
-                                  child: Text(l10n.delete),
-                                ),
-                              ],
-                            ),
-                          );
+                          return _confirmDeleteConfig(config);
                         },
                         onDismissed: (direction) async {
                           setState(() {
-                            _configs.removeAt(index);
+                            _configs.removeWhere(
+                              (item) => item.key == config.key,
+                            );
                           });
                           await MemexRouter().saveLLMConfigs(_configs);
                         },
@@ -322,7 +312,7 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                                   maxLines: 1,
                                 ),
                               ),
-                              if (config.isDefault)
+                              if (isDefaultConfig)
                                 Container(
                                   margin: const EdgeInsets.only(left: 8),
                                   padding: const EdgeInsets.symmetric(
@@ -355,8 +345,9 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                                     color: Colors.green.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(
-                                      color:
-                                          Colors.green.withValues(alpha: 0.5),
+                                      color: Colors.green.withValues(
+                                        alpha: 0.5,
+                                      ),
                                     ),
                                   ),
                                   child: Text(
@@ -408,19 +399,69 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                               ),
                             ],
                           ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (!config.isDefault)
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.grey,
+                          trailing: PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert),
+                            tooltip: MaterialLocalizations.of(
+                              context,
+                            ).moreButtonTooltip,
+                            onSelected: (value) {
+                              if (value == 'duplicate') {
+                                _duplicateConfig(config);
+                              } else if (value == 'set_default') {
+                                _setDefaultConfig(config);
+                              } else if (value == 'delete') {
+                                _deleteConfig(config);
+                              }
+                            },
+                            itemBuilder: (context) {
+                              final l10n = UserStorage.l10n;
+                              return [
+                                PopupMenuItem<String>(
+                                  value: 'duplicate',
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.copy_outlined, size: 20),
+                                      const SizedBox(width: 8),
+                                      Text(l10n.duplicate),
+                                    ],
                                   ),
-                                  onPressed: () => _deleteConfig(index),
                                 ),
-                              const Icon(Icons.chevron_right),
-                            ],
+                                if (!isDefaultConfig)
+                                  PopupMenuItem<String>(
+                                    value: 'set_default',
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.star_outline,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(l10n.setAsDefault),
+                                      ],
+                                    ),
+                                  ),
+                                if (canDelete)
+                                  PopupMenuItem<String>(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.delete_outline,
+                                          size: 20,
+                                          color: Colors.red,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          l10n.delete,
+                                          style: const TextStyle(
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ];
+                            },
                           ),
                           onTap: () => _editConfig(config),
                         ),
