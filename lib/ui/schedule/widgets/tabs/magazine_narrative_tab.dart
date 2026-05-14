@@ -8,7 +8,7 @@ import '../../models/schedule_item.dart';
 import '../../../core/cards/ui/glass_card.dart';
 
 /// Magazine Narrative Tab renders the AI-curated schedule aggregation.
-class MagazineNarrativeTab extends StatelessWidget {
+class MagazineNarrativeTab extends StatefulWidget {
   final ScheduleAggregationModel aggregation;
   final void Function(String cardId)? onTapCardId;
   final Map<String, ScheduleItemStatus> itemStatuses;
@@ -23,8 +23,32 @@ class MagazineNarrativeTab extends StatelessWidget {
   });
 
   @override
+  State<MagazineNarrativeTab> createState() => _MagazineNarrativeTabState();
+}
+
+class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
+  final _conflictsKey = GlobalKey();
+  final _completedKey = GlobalKey();
+  final Map<int, GlobalKey> _dayKeys = {};
+
+  GlobalKey _dayKey(int index) {
+    return _dayKeys.putIfAbsent(index, GlobalKey.new);
+  }
+
+  void _scrollToKey(GlobalKey key) {
+    final context = key.currentContext;
+    if (context == null) return;
+    Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      alignment: 0.08,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return _buildAgentMode(aggregation);
+    return _buildAgentMode(widget.aggregation);
   }
 
   // ===========================================================================
@@ -32,98 +56,222 @@ class MagazineNarrativeTab extends StatelessWidget {
   // ===========================================================================
 
   Widget _buildAgentMode(ScheduleAggregationModel agg) {
-    return ListView(
+    return SingleChildScrollView(
+      key: const ValueKey('schedule_magazine_list'),
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 220),
-      children: [
-        // Magazine header
-        _buildMagazineHeader(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Magazine header
+          _buildMagazineHeader(),
 
-        // Hero card
-        if (agg.heroItem != null) ...[
-          _buildAgentHeroCard(agg.heroItem!),
-          const SizedBox(height: 28),
-        ],
+          _buildOverviewLens(agg),
+          const SizedBox(height: 24),
 
-        // Editorial intro
-        if (agg.editorialIntro.isNotEmpty) ...[
-          _buildAgentEditorialIntro(agg.editorialIntro),
-          const SizedBox(height: 28),
-        ],
-
-        // Quote blocks
-        if (agg.quoteBlocks.isNotEmpty) ...[
-          ...agg.quoteBlocks.map(_buildAgentQuoteBlock),
-          const SizedBox(height: 28),
-        ],
-
-        // Conflicts
-        if (agg.conflicts.isNotEmpty) ...[
-          ...agg.conflicts.map(_buildAgentConflict),
-          const SizedBox(height: 28),
-        ],
-
-        // Timeline
-        if (agg.timeline.isNotEmpty) ...[
-          for (final day in agg.timeline) ...[
-            _buildSectionTitle(day.dayLabel.toUpperCase()),
-            const SizedBox(height: 16),
-            ...day.items.map(_buildAgentTimelineCard),
+          // Hero card
+          if (agg.heroItem != null) ...[
+            _buildAgentHeroCard(agg.heroItem!),
             const SizedBox(height: 28),
           ],
-        ],
 
-        // Completed
-        if (agg.completed.isNotEmpty) ...[
-          _buildSectionTitle(UserStorage.l10n.scheduleDone.toUpperCase()),
-          const SizedBox(height: 16),
-          ...agg.completed.map(_buildAgentDoneCard),
+          // Editorial intro
+          if (agg.editorialIntro.isNotEmpty) ...[
+            _buildAgentEditorialIntro(agg.editorialIntro),
+            const SizedBox(height: 28),
+          ],
+
+          // Quote blocks
+          if (agg.quoteBlocks.isNotEmpty) ...[
+            ...agg.quoteBlocks.map(_buildAgentQuoteBlock),
+            const SizedBox(height: 28),
+          ],
+
+          // Conflicts
+          if (agg.conflicts.isNotEmpty) ...[
+            KeyedSubtree(
+              key: _conflictsKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: agg.conflicts.map(_buildAgentConflict).toList(),
+              ),
+            ),
+            const SizedBox(height: 28),
+          ],
+
+          // Timeline
+          if (agg.timeline.isNotEmpty)
+            for (final entry in agg.timeline.indexed) ...[
+              KeyedSubtree(
+                key: _dayKey(entry.$1),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionTitle(entry.$2.dayLabel.toUpperCase()),
+                    const SizedBox(height: 16),
+                    ...entry.$2.items.map(_buildAgentTimelineCard),
+                    const SizedBox(height: 28),
+                  ],
+                ),
+              ),
+            ],
+
+          if (agg.completed.isNotEmpty) ...[
+            KeyedSubtree(
+              key: _completedKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitle(
+                    UserStorage.l10n.scheduleDone.toUpperCase(),
+                  ),
+                  const SizedBox(height: 16),
+                  ...agg.completed.map(_buildAgentDoneCard),
+                ],
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
+  }
+
+  Widget _buildOverviewLens(ScheduleAggregationModel agg) {
+    final chips = <Widget>[
+      _buildLensChip(
+        key: const ValueKey('schedule_lens_updated'),
+        icon: Icons.auto_awesome,
+        label: UserStorage.l10n.scheduleBriefingUpdated(
+          DateFormat.Md(UserStorage.l10n.localeName).add_Hm().format(
+                agg.generatedAt,
+              ),
+        ),
+      ),
+      for (final entry in agg.timeline.indexed)
+        _buildLensChip(
+          key: ValueKey('schedule_lens_day_${entry.$1}'),
+          icon: Icons.view_agenda_outlined,
+          label: '${_dayChipLabel(entry.$2)} · ${entry.$2.items.length}',
+          onTap: () => _scrollToKey(_dayKey(entry.$1)),
+        ),
+      if (agg.conflicts.isNotEmpty)
+        _buildLensChip(
+          key: const ValueKey('schedule_lens_conflicts'),
+          icon: Icons.warning_amber_rounded,
+          label: UserStorage.l10n.scheduleBriefingConflictCount(
+            agg.conflicts.length,
+          ),
+          onTap: () => _scrollToKey(_conflictsKey),
+          accentColor: const Color(0xFFB45309),
+          backgroundColor: const Color(0xFFFFF7ED),
+        ),
+      if (agg.completed.isNotEmpty)
+        _buildLensChip(
+          key: const ValueKey('schedule_lens_done'),
+          icon: Icons.check_circle_outline,
+          label: UserStorage.l10n.scheduleBriefingDoneCount(
+            agg.completed.length,
+          ),
+          onTap: () => _scrollToKey(_completedKey),
+          accentColor: const Color(0xFF047857),
+          backgroundColor: const Color(0xFFECFDF5),
+        ),
+    ];
+
+    return SingleChildScrollView(
+      key: const ValueKey('schedule_overview_lens'),
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: [
+          for (final entry in chips.indexed) ...[
+            if (entry.$1 > 0) const SizedBox(width: 8),
+            entry.$2,
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLensChip({
+    required Key key,
+    required IconData icon,
+    required String label,
+    VoidCallback? onTap,
+    Color accentColor = const Color(0xFF334155),
+    Color backgroundColor = const Color(0xFFF8FAFC),
+  }) {
+    return Material(
+      key: key,
+      color: backgroundColor,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: accentColor.withValues(alpha: 0.12)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: accentColor),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: accentColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _dayChipLabel(TimelineDay day) {
+    if (day.dayLabel.trim().isNotEmpty) {
+      return day.dayLabel.trim();
+    }
+    if (day.dayDate != null) {
+      return DateFormat.E(UserStorage.l10n.localeName).format(day.dayDate!);
+    }
+    return UserStorage.l10n.scheduleThisWeek;
   }
 
   Widget _buildAgentHeroCard(HeroItem item) {
     return GestureDetector(
-      onTap: () => onTapCardId?.call(item.cardId),
+      onTap: () => widget.onTapCardId?.call(item.cardId),
       child: Container(
         height: 280,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           gradient: const LinearGradient(
-            colors: [Color(0xFF1E1B4B), Color(0xFF4C1D95)],
+            colors: [Color(0xFF172554), Color(0xFF0F766E)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
         ),
         child: Stack(
           children: [
-            // Decorative circles
-            Positioned(
-              top: -40,
-              right: -40,
-              child: Container(
-                width: 160,
-                height: 160,
+            Positioned.fill(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
                 ),
               ),
             ),
-            Positioned(
-              bottom: -60,
-              left: -30,
-              child: Container(
-                width: 180,
-                height: 180,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.03),
-                ),
-              ),
-            ),
-            // Content
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -335,14 +483,15 @@ class MagazineNarrativeTab extends StatelessWidget {
   }
 
   Widget _buildAgentTimelineCard(TimelineItem item) {
-    final status = itemStatuses[item.cardId] ?? _parseStatus(item.status);
+    final status =
+        widget.itemStatuses[item.cardId] ?? _parseStatus(item.status);
     final isCompleted = status == ScheduleItemStatus.completed;
     final isTask = _isTaskItem(item);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: GestureDetector(
-        onTap: () => onTapCardId?.call(item.cardId),
+        onTap: () => widget.onTapCardId?.call(item.cardId),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -464,7 +613,7 @@ class MagazineNarrativeTab extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: GestureDetector(
-        onTap: () => onTapCardId?.call(item.cardId),
+        onTap: () => widget.onTapCardId?.call(item.cardId),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -554,7 +703,7 @@ class MagazineNarrativeTab extends StatelessWidget {
   Widget _buildTaskCompletionCircle(String cardId, bool isCompleted) {
     return GestureDetector(
       key: ValueKey('schedule_task_toggle_$cardId'),
-      onTap: () => onToggleTask?.call(cardId),
+      onTap: () => widget.onToggleTask?.call(cardId),
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: 22,
