@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:memex/config/app_flavor.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
+import 'package:memex/ui/settings/widgets/early_update_settings_card.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
@@ -171,8 +173,11 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             child: SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              secondary:
-                  Icon(Icons.graphic_eq, color: AppColors.primary, size: 22),
+              secondary: Icon(
+                Icons.graphic_eq,
+                color: AppColors.primary,
+                size: 22,
+              ),
               title: Text(
                 UserStorage.l10n.useLocalSpeechToTextTitle,
                 style: const TextStyle(
@@ -197,6 +202,10 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          if (Platform.isAndroid && AppFlavor.isEarly) ...[
+            EarlyUpdateSettingsCard(),
+            const SizedBox(height: 16),
+          ],
           // Show Insight Text toggle
           Container(
             padding: const EdgeInsets.all(20),
@@ -213,8 +222,11 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             child: SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              secondary: Icon(Icons.lightbulb_outline,
-                  color: AppColors.primary, size: 22),
+              secondary: Icon(
+                Icons.lightbulb_outline,
+                color: AppColors.primary,
+                size: 22,
+              ),
               title: Text(
                 UserStorage.l10n.showInsightTextTitle,
                 style: const TextStyle(
@@ -255,8 +267,11 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             child: SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              secondary: Icon(Icons.chat_bubble_outline,
-                  color: AppColors.primary, size: 22),
+              secondary: Icon(
+                Icons.chat_bubble_outline,
+                color: AppColors.primary,
+                size: 22,
+              ),
               title: Text(
                 UserStorage.l10n.enableCharacterCommentTitle,
                 style: const TextStyle(
@@ -301,8 +316,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.groups_outlined,
-                          color: AppColors.primary, size: 22),
+                      Icon(
+                        Icons.groups_outlined,
+                        color: AppColors.primary,
+                        size: 22,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -330,7 +348,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4),
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
@@ -389,8 +409,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.folder_outlined,
-                          color: AppColors.primary, size: 22),
+                      Icon(
+                        Icons.folder_outlined,
+                        color: AppColors.primary,
+                        size: 22,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -518,8 +541,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.backup_outlined,
-                        color: AppColors.primary, size: 22),
+                    Icon(
+                      Icons.backup_outlined,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -560,7 +586,8 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () {
                 launchUrl(
                   Uri.parse(
-                      'https://github.com/memex-lab/memex/blob/main/PRIVACY_POLICY.md'),
+                    'https://github.com/memex-lab/memex/blob/main/PRIVACY_POLICY.md',
+                  ),
                   mode: LaunchMode.externalApplication,
                 );
               },
@@ -580,8 +607,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.privacy_tip_outlined,
-                        color: AppColors.primary, size: 22),
+                    Icon(
+                      Icons.privacy_tip_outlined,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -608,8 +638,11 @@ class _SettingsPageState extends State<SettingsPage> {
                         ],
                       ),
                     ),
-                    const Icon(Icons.open_in_new,
-                        color: Color(0xFFCBD5E1), size: 20),
+                    const Icon(
+                      Icons.open_in_new,
+                      color: Color(0xFFCBD5E1),
+                      size: 20,
+                    ),
                   ],
                 ),
               ),
@@ -637,8 +670,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.delete_forever_outlined,
-                        color: Colors.red, size: 22),
+                    const Icon(
+                      Icons.delete_forever_outlined,
+                      color: Colors.red,
+                      size: 22,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -697,8 +733,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(l10n.deleteAccountConfirmMessage),
                   const SizedBox(height: 16),
-                  Text(l10n.deleteAccountTypeName(userId),
-                      style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                  Text(
+                    l10n.deleteAccountTypeName(userId),
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: controller,
@@ -721,9 +759,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 TextButton(
                   onPressed:
                       isMatch ? () => Navigator.pop(context, true) : null,
-                  child: Text(l10n.deleteAccount,
-                      style:
-                          TextStyle(color: isMatch ? Colors.red : Colors.grey)),
+                  child: Text(
+                    l10n.deleteAccount,
+                    style: TextStyle(color: isMatch ? Colors.red : Colors.grey),
+                  ),
                 ),
               ],
             );

@@ -455,9 +455,7 @@ Future<AssetAnalysisResult?> _analyzeSingleAsset({
         if (ocrText.isNotEmpty) {
           final assetFilename = path.basename(assetPath);
           final ocrFilename = '$assetFilename.ocr.txt';
-          final ocrFile = File(
-            path.join(path.dirname(assetPath), ocrFilename),
-          );
+          final ocrFile = File(path.join(path.dirname(assetPath), ocrFilename));
           await ocrFile.writeAsString(ocrText);
           _logger.info('Saved OCR result to: ${ocrFile.path}');
         }

@@ -54,8 +54,9 @@ Future<void> processWithPkmAgent({
     // Build asset info string
     // Build asset info string
     final assetInfo = formatAssetAnalysis(assetAnalyses);
-    final locationReminder =
-        _formatLocationContextReminder(locationContextReminder);
+    final locationReminder = _formatLocationContextReminder(
+      locationContextReminder,
+    );
     final contentWithLocation = locationReminder.isEmpty
         ? contentText
         : '$locationReminder$contentText';
@@ -122,9 +123,12 @@ Future<void> handlePkmAgentImpl(
         combinedText: combinedText,
       );
       try {
-        final analysisResult = await LocalTaskExecutor.instance
-            .getTaskResultByBizId(
-                userId, 'handle_analyze_assets', context.bizId!);
+        final analysisResult =
+            await LocalTaskExecutor.instance.getTaskResultByBizId(
+          userId,
+          'handle_analyze_assets',
+          context.bizId!,
+        );
 
         if (analysisResult != null &&
             analysisResult.containsKey('asset_analyses')) {

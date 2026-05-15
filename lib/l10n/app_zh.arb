@@ -81,6 +81,7 @@
   "autoRefresh": "自动刷新",
   "lineCount": "行数: ",
   "all": "全部",
+  "schedule": "日程",
   "@loadStatsFailed": {
     "placeholders": {
       "error": {}
@@ -89,10 +90,43 @@
   "loadStatsFailed": "加载统计数据失败: {error}",
   "overview": "概览",
   "daily": "每日",
+  "modelStatsByAgent": "分模型统计",
   "detail": "详情",
   "date": "日期",
+  "agent": "Agent",
   "noData": "暂无数据",
   "totalCalls": "总调用次数",
+  "calls": "调用",
+  "@callsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "callsCount": "{count} 次调用",
+  "selectDateRange": "选择日期范围",
+  "totalTokens": "总 Token",
+  "cacheRate": "缓存命中率",
+  "promptTokens": "Prompt Token",
+  "completionTokens": "Completion Token",
+  "cachedTokens": "Cached Token",
+  "thoughtTokens": "Thought Token",
+  "prompt": "Prompt",
+  "completion": "Completion",
+  "cached": "Cached",
+  "thought": "Thought",
+  "model": "模型",
+  "scene": "场景",
+  "sceneId": "场景 ID",
+  "tokenUsage": "Token 用量",
+  "handler": "处理器",
+  "modelBreakdown": "模型拆分",
+  "callDetails": "调用详情",
+  "@recordDetailsTitle": {
+    "placeholders": {
+      "scene": {}
+    }
+  },
+  "recordDetailsTitle": "记录详情: {scene}",
   "@saveLlmConfigFailed": {
     "placeholders": {
       "error": {}
@@ -464,6 +498,41 @@
   "knowledgeInsight": "知识洞察",
   "completeSort": "完成排序",
   "noKnowledgeInsight": "暂无知识洞察",
+  "scheduleAggregation": "日程聚合",
+  "noScheduleAggregation": "暂无日程聚合",
+  "scheduleAggregationEmptyHint": "点击更新，从真实时间卡片里整理日程和待办。",
+  "scheduleAggregationDirtyReason": "有新的日程相关内容，点击更新后重新整理。",
+  "scheduleAggregationLoadFailed": "加载日程数据失败",
+  "scheduleAggregationRefreshFailed": "刷新日程数据失败",
+  "scheduleTaskUpdateFailed": "更新待办失败",
+  "scheduleFeatured": "重点",
+  "scheduleThisWeek": "本周",
+  "scheduleDone": "已完成",
+  "scheduleTbd": "待定",
+  "scheduleWeekOverview": "本周概览",
+  "scheduleImportant": "重要",
+  "scheduleBriefingTitle": "日程简报",
+  "scheduleBriefingNeedsUpdate": "待更新",
+  "scheduleBriefingOpen": "查看",
+  "scheduleBriefingNoData": "暂无日程简报",
+  "@scheduleBriefingUpdated": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "scheduleBriefingUpdated": "{time} 更新",
+  "@scheduleBriefingDoneCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "scheduleBriefingDoneCount": "完成 {count}",
+  "@scheduleBriefingConflictCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "scheduleBriefingConflictCount": "冲突 {count}",
   "updating": "更新中...",
   "update": "更新",
   "enabled": "已启用",
@@ -564,6 +633,7 @@
   "relatedMemories": "相关回忆",
   "viewMore": "查看更多",
   "relatedRecords": "相关记录",
+  "reply": "回复",
   "replySent": "回复已发送",
   "insightTemplateGalleryTitle": "洞察卡片模板展示",
   "timelineTemplateGalleryTitle": "Timeline 卡片模板展示",
@@ -1078,5 +1148,48 @@
   "setPrimaryCompanionSubtitle": "导入后自动设为你的主要陪伴角色",
   "confirmImport": "确认导入",
   "chatBackground": "聊天背景",
-  "chooseChatBackgroundImage": "选择聊天背景图"
+  "chooseChatBackgroundImage": "选择聊天背景图",
+  "earlyUpdateSettingsTitle": "Early 体验版更新",
+  "earlyUpdateSettingsDesc": "从 GitHub 预发布版本中检测匹配当前 Early 渠道的 APK，下载后交给 Android 系统安装器安装。",
+  "earlyUpdateUnsupported": "Early 更新仅支持 Android Early 包。",
+  "earlyUpdateAutoCheckTitle": "自动检测更新",
+  "earlyUpdateAutoCheckDesc": "启动时检测，每 12 小时最多一次。",
+  "earlyUpdateWifiOnlyTitle": "仅在 Wi-Fi 下载",
+  "earlyUpdateWifiOnlyDesc": "使用移动数据时跳过更新下载。",
+  "earlyUpdateAutoInstallTitle": "自动下载并安装",
+  "earlyUpdateAutoInstallDesc": "发现新版本后自动下载，并打开 Android 系统安装器。",
+  "earlyUpdateCheckNow": "立即检查",
+  "earlyUpdateChecking": "正在检查 GitHub 预发布版本...",
+  "earlyUpdateSkippedMobile": "已跳过：当前开启了仅 Wi-Fi 下载。",
+  "earlyUpdateNoUpdate": "当前已经是最新 Early 版本。",
+  "@earlyUpdateFound": {
+    "placeholders": {
+      "version": {},
+      "build": {}
+    }
+  },
+  "earlyUpdateFound": "发现 Early 版本 {version}+{build}。",
+  "earlyUpdateDownloadAndInstall": "下载并安装",
+  "@earlyUpdateDownloadingPercent": {
+    "placeholders": {
+      "percent": {}
+    }
+  },
+  "earlyUpdateDownloadingPercent": "正在下载更新：{percent}%",
+  "earlyUpdateInstallStarted": "已打开 Android 系统安装器。",
+  "earlyUpdateInstallPermissionRequired": "请允许 Memex 安装未知来源应用，然后再次点击下载并安装。",
+  "@earlyUpdateLastChecked": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "earlyUpdateLastChecked": "上次检查：{time}",
+  "@earlyUpdateCheckFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "earlyUpdateCheckFailed": "检查更新失败：{error}",
+  "earlyUpdateDialogTitle": "发现 Early 更新",
+  "earlyUpdateReleaseNotes": "更新说明"
 }

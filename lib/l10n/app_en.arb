@@ -81,6 +81,7 @@
   "autoRefresh": "Auto refresh",
   "lineCount": "Line count: ",
   "all": "All",
+  "schedule": "Schedule",
   "@loadStatsFailed": {
     "placeholders": {
       "error": {}
@@ -89,10 +90,43 @@
   "loadStatsFailed": "Failed to load stats: {error}",
   "overview": "Overview",
   "daily": "Daily",
+  "modelStatsByAgent": "By agent",
   "detail": "Detail",
   "date": "Date",
+  "agent": "Agent",
   "noData": "No data",
   "totalCalls": "Total calls",
+  "calls": "Calls",
+  "@callsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "callsCount": "{count} calls",
+  "selectDateRange": "Select date range",
+  "totalTokens": "Total tokens",
+  "cacheRate": "Cache rate",
+  "promptTokens": "Prompt tokens",
+  "completionTokens": "Completion tokens",
+  "cachedTokens": "Cached tokens",
+  "thoughtTokens": "Thought tokens",
+  "prompt": "Prompt",
+  "completion": "Completion",
+  "cached": "Cached",
+  "thought": "Thought",
+  "model": "Model",
+  "scene": "Scene",
+  "sceneId": "Scene ID",
+  "tokenUsage": "Token usage",
+  "handler": "Handler",
+  "modelBreakdown": "Model breakdown",
+  "callDetails": "Call details",
+  "@recordDetailsTitle": {
+    "placeholders": {
+      "scene": {}
+    }
+  },
+  "recordDetailsTitle": "Record details: {scene}",
   "@saveLlmConfigFailed": {
     "placeholders": {
       "error": {}
@@ -464,6 +498,41 @@
   "knowledgeInsight": "Knowledge insight",
   "completeSort": "Complete sort",
   "noKnowledgeInsight": "No knowledge insight",
+  "scheduleAggregation": "Schedule aggregation",
+  "noScheduleAggregation": "No schedule aggregation",
+  "scheduleAggregationEmptyHint": "Tap Update to organize schedules and todos from real temporal cards.",
+  "scheduleAggregationDirtyReason": "New schedule-related content is available. Tap Update to reorganize.",
+  "scheduleAggregationLoadFailed": "Failed to load schedule data",
+  "scheduleAggregationRefreshFailed": "Failed to refresh schedule data",
+  "scheduleTaskUpdateFailed": "Failed to update task",
+  "scheduleFeatured": "Featured",
+  "scheduleThisWeek": "This week",
+  "scheduleDone": "Done",
+  "scheduleTbd": "TBD",
+  "scheduleWeekOverview": "This week",
+  "scheduleImportant": "Important",
+  "scheduleBriefingTitle": "Schedule briefing",
+  "scheduleBriefingNeedsUpdate": "Needs update",
+  "scheduleBriefingOpen": "Open",
+  "scheduleBriefingNoData": "No schedule briefing yet",
+  "@scheduleBriefingUpdated": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "scheduleBriefingUpdated": "Updated {time}",
+  "@scheduleBriefingDoneCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "scheduleBriefingDoneCount": "{count} done",
+  "@scheduleBriefingConflictCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "scheduleBriefingConflictCount": "{count} conflicts",
   "updating": "Updating...",
   "update": "Update",
   "enabled": "Enabled",
@@ -564,6 +633,7 @@
   "relatedMemories": "Related memories",
   "viewMore": "View more",
   "relatedRecords": "Related records",
+  "reply": "Reply",
   "replySent": "Reply sent",
   "insightTemplateGalleryTitle": "Insight card templates",
   "timelineTemplateGalleryTitle": "Timeline card templates",
@@ -1100,5 +1170,48 @@
   "setPrimaryCompanionSubtitle": "Automatically set as your primary companion after import",
   "confirmImport": "Confirm Import",
   "chatBackground": "Chat Background",
-  "chooseChatBackgroundImage": "Choose background image"
+  "chooseChatBackgroundImage": "Choose background image",
+  "earlyUpdateSettingsTitle": "Early access updates",
+  "earlyUpdateSettingsDesc": "Check GitHub pre-releases for the matching Early APK, download it, and hand it to Android's installer.",
+  "earlyUpdateUnsupported": "Early updates are only available in the Android Early build.",
+  "earlyUpdateAutoCheckTitle": "Auto check for updates",
+  "earlyUpdateAutoCheckDesc": "Check at startup at most once every 12 hours.",
+  "earlyUpdateWifiOnlyTitle": "Download on Wi-Fi only",
+  "earlyUpdateWifiOnlyDesc": "Skip update downloads while using mobile data.",
+  "earlyUpdateAutoInstallTitle": "Auto download and install",
+  "earlyUpdateAutoInstallDesc": "When a new build is found, download it and open the Android installer automatically.",
+  "earlyUpdateCheckNow": "Check now",
+  "earlyUpdateChecking": "Checking GitHub pre-releases...",
+  "earlyUpdateSkippedMobile": "Skipped because Wi-Fi-only downloads are enabled.",
+  "earlyUpdateNoUpdate": "You are already on the latest Early build.",
+  "@earlyUpdateFound": {
+    "placeholders": {
+      "version": {},
+      "build": {}
+    }
+  },
+  "earlyUpdateFound": "Early build {version}+{build} is available.",
+  "earlyUpdateDownloadAndInstall": "Download and install",
+  "@earlyUpdateDownloadingPercent": {
+    "placeholders": {
+      "percent": {}
+    }
+  },
+  "earlyUpdateDownloadingPercent": "Downloading update: {percent}%",
+  "earlyUpdateInstallStarted": "Android installer opened.",
+  "earlyUpdateInstallPermissionRequired": "Allow Memex to install unknown apps, then tap download and install again.",
+  "@earlyUpdateLastChecked": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "earlyUpdateLastChecked": "Last checked: {time}",
+  "@earlyUpdateCheckFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "earlyUpdateCheckFailed": "Update check failed: {error}",
+  "earlyUpdateDialogTitle": "Early update available",
+  "earlyUpdateReleaseNotes": "Release notes"
 }

@@ -1,15 +1,6 @@
-enum GeocodingProvider {
-  openStreetMap,
-  amap,
-}
+enum GeocodingProvider { openStreetMap, amap }
 
-enum LocationContextGranularity {
-  city,
-  district,
-  neighborhood,
-  street,
-  full,
-}
+enum LocationContextGranularity { city, district, neighborhood, street, full }
 
 class LocationContextConfig {
   final bool enabled;
@@ -19,7 +10,7 @@ class LocationContextConfig {
   final int ttlMinutes;
 
   const LocationContextConfig({
-    this.enabled = true,
+    this.enabled = false,
     this.provider = GeocodingProvider.openStreetMap,
     this.amapApiKey = '',
     this.granularity = LocationContextGranularity.neighborhood,
@@ -28,7 +19,7 @@ class LocationContextConfig {
 
   factory LocationContextConfig.fromJson(Map<String, dynamic> json) {
     return LocationContextConfig(
-      enabled: json['enabled'] as bool? ?? true,
+      enabled: json['enabled'] as bool? ?? false,
       provider: GeocodingProvider.values.firstWhere(
         (e) => e.name == json['provider'],
         orElse: () => GeocodingProvider.openStreetMap,

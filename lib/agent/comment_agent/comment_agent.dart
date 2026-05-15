@@ -28,6 +28,7 @@ class CommentAgent {
     required String factId,
     String? characterId,
     required String rawInputContent,
+    String? forcedReplyToId,
     bool withMemoryManagement = false,
   }) async {
     final fileService = FileSystemService.instance;
@@ -71,8 +72,8 @@ class CommentAgent {
     );
     if (withMemoryManagement) {
       tools.addAll(memoryManagement.buildMemoryManagementTools());
-      memoryManagementPrompt = await memoryManagement
-          .buildMemoryManagementPrompt();
+      memoryManagementPrompt =
+          await memoryManagement.buildMemoryManagementPrompt();
     }
 
     // Build character context — userProfile and characterMemories go into skill
@@ -126,6 +127,7 @@ class CommentAgent {
       userName: userId,
       userProfile: userProfile,
       characterMemories: characterMemories,
+      forcedReplyToId: forcedReplyToId,
       forceActivate: true,
     );
     final skills = [skill];
@@ -165,6 +167,7 @@ class CommentAgent {
     required String rawInputContent,
     String? initialInsight,
     String existingCommentsContext = '',
+    String? forcedReplyToId,
     DateTime? currentTime,
     DateTime? entryTime,
     String? locationContextReminder,
@@ -178,6 +181,7 @@ class CommentAgent {
       factId: factId,
       characterId: characterId,
       rawInputContent: rawInputContent,
+      forcedReplyToId: forcedReplyToId,
       withMemoryManagement: withMemoryManagement,
     );
     final state = agent.state;
@@ -201,6 +205,7 @@ class CommentAgent {
           entryTime: entryTime,
           systemReminder: systemReminder,
           existingCommentsContext: existingCommentsContext,
+          forcedReplyToId: forcedReplyToId,
           includePostBody:
               state.metadata['comment_task_post_body_injected'] != factId,
         ),
@@ -299,6 +304,7 @@ class CommentAgent {
     required String systemReminder,
     required bool includePostBody,
     String existingCommentsContext = '',
+    String? forcedReplyToId,
   }) {
     final b = StringBuffer();
     b.write(systemReminder);
@@ -350,6 +356,18 @@ class CommentAgent {
       b.writeln('');
       b.writeln('## Existing Comments');
       b.writeln(existingCommentsContext.trim());
+    }
+
+    final fixedReplyTarget = forcedReplyToId?.trim();
+    if (fixedReplyTarget != null && fixedReplyTarget.isNotEmpty) {
+      b.writeln('');
+      b.writeln('## Reply Routing');
+      b.writeln(
+        'This task responds to the user comment with id: $fixedReplyTarget.',
+      );
+      b.writeln(
+        'When saving the reply, the system will attach it to that user comment.',
+      );
     }
 
     b.writeln('');

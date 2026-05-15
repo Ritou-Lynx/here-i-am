@@ -64,8 +64,9 @@ Future<void> processWithCardAgent({
 
     // 2. Prepare Fact Content (merge assets info if needed)
     var enhancedFactContent = contentText;
-    final locationReminder =
-        _formatLocationContextReminder(locationContextReminder);
+    final locationReminder = _formatLocationContextReminder(
+      locationContextReminder,
+    );
     if (locationReminder.isNotEmpty) {
       enhancedFactContent = '$locationReminder$enhancedFactContent';
     }
@@ -79,8 +80,9 @@ Future<void> processWithCardAgent({
     // 3. (Client initialized above)
     final client = resources.client;
 
-    final publishTime =
-        formatLocalDateTimeWithZone(inputDateTime ?? DateTime.now());
+    final publishTime = formatLocalDateTimeWithZone(
+      inputDateTime ?? DateTime.now(),
+    );
 
     final userMessageContent =
         Prompts.cardAgentUserMessagePromptForPublishNewContent(

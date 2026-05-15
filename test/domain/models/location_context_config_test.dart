@@ -2,6 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/domain/models/location_context_config.dart';
 
 void main() {
+  group('LocationContextConfig', () {
+    test('defaults to disabled until the user opts in', () {
+      expect(const LocationContextConfig().enabled, isFalse);
+      expect(LocationContextConfig.fromJson(const {}).enabled, isFalse);
+    });
+  });
+
   group('GeocodedAddress', () {
     test('summary respects configured granularity', () {
       final address = GeocodedAddress(
@@ -15,10 +22,7 @@ void main() {
         updatedAt: DateTime(2026),
       );
 
-      expect(
-        address.summary(LocationContextGranularity.city),
-        '上海市',
-      );
+      expect(address.summary(LocationContextGranularity.city), '上海市');
       expect(
         address.summary(LocationContextGranularity.neighborhood),
         '上海市 · 徐汇区 · 衡复风貌区',
@@ -27,10 +31,7 @@ void main() {
         address.summary(LocationContextGranularity.street),
         '上海市 · 徐汇区 · 衡复风貌区 · 武康路',
       );
-      expect(
-        address.summary(LocationContextGranularity.full),
-        '上海市徐汇区武康路',
-      );
+      expect(address.summary(LocationContextGranularity.full), '上海市徐汇区武康路');
     });
   });
 

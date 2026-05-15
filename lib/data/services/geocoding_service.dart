@@ -177,18 +177,19 @@ class GeocodingService {
     Duration timeout,
   ) async {
     try {
-      final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse')
-          .replace(queryParameters: {
-        'lat': latitude.toString(),
-        'lon': longitude.toString(),
-        'format': 'json',
-        'accept-language': 'zh',
-        'addressdetails': '1',
-      });
+      final uri =
+          Uri.parse('https://nominatim.openstreetmap.org/reverse').replace(
+        queryParameters: {
+          'lat': latitude.toString(),
+          'lon': longitude.toString(),
+          'format': 'json',
+          'accept-language': 'zh',
+          'addressdetails': '1',
+        },
+      );
 
-      final response = await http.get(uri, headers: {
-        'User-Agent': 'memex_app',
-      }).timeout(timeout);
+      final response = await http
+          .get(uri, headers: {'User-Agent': 'memex_app'}).timeout(timeout);
 
       if (response.statusCode != 200) {
         final reason = 'OSM reverse geocode failed: ${response.statusCode}';
@@ -224,8 +225,13 @@ class GeocodingService {
           country: pick(['country']),
           province: pick(['state', 'province', 'region']),
           city: city ?? county,
-          district: pick(
-              ['city_district', 'district', 'county', 'borough', 'suburb']),
+          district: pick([
+            'city_district',
+            'district',
+            'county',
+            'borough',
+            'suburb',
+          ]),
           neighborhood: pick(['neighbourhood', 'quarter', 'residential']),
           street: pick(['road', 'pedestrian', 'footway']),
           fullAddress: _stringOrNull(data['display_name']),
@@ -256,15 +262,17 @@ class GeocodingService {
   ) async {
     try {
       final gcj = _wgs84ToGcj02(latitude, longitude);
-      final uri = Uri.parse('https://restapi.amap.com/v3/geocode/regeo')
-          .replace(queryParameters: {
-        'key': apiKey,
-        'location': '${gcj.longitude},${gcj.latitude}',
-        'extensions': 'base',
-        'output': 'json',
-        'radius': '1000',
-        'roadlevel': '1',
-      });
+      final uri =
+          Uri.parse('https://restapi.amap.com/v3/geocode/regeo').replace(
+        queryParameters: {
+          'key': apiKey,
+          'location': '${gcj.longitude},${gcj.latitude}',
+          'extensions': 'base',
+          'output': 'json',
+          'radius': '1000',
+          'roadlevel': '1',
+        },
+      );
 
       final response = await http.get(uri).timeout(timeout);
       if (response.statusCode != 200) {
@@ -360,9 +368,7 @@ class GeocodingService {
     final raw = cache[key];
     if (raw is! Map) return null;
     try {
-      final address = GeocodedAddress.fromJson(
-        Map<String, dynamic>.from(raw),
-      );
+      final address = GeocodedAddress.fromJson(Map<String, dynamic>.from(raw));
       _memoryCache[key] = address;
       return address;
     } catch (_) {

@@ -434,6 +434,12 @@ abstract class AppLocalizations {
   /// **'All'**
   String get all;
 
+  /// No description provided for @schedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule'**
+  String get schedule;
+
   /// No description provided for @loadStatsFailed.
   ///
   /// In en, this message translates to:
@@ -452,6 +458,12 @@ abstract class AppLocalizations {
   /// **'Daily'**
   String get daily;
 
+  /// No description provided for @modelStatsByAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'By agent'**
+  String get modelStatsByAgent;
+
   /// No description provided for @detail.
   ///
   /// In en, this message translates to:
@@ -464,6 +476,12 @@ abstract class AppLocalizations {
   /// **'Date'**
   String get date;
 
+  /// No description provided for @agent.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent'**
+  String get agent;
+
   /// No description provided for @noData.
   ///
   /// In en, this message translates to:
@@ -475,6 +493,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Total calls'**
   String get totalCalls;
+
+  /// No description provided for @calls.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls'**
+  String get calls;
+
+  /// No description provided for @callsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} calls'**
+  String callsCount(Object count);
+
+  /// No description provided for @selectDateRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Select date range'**
+  String get selectDateRange;
+
+  /// No description provided for @totalTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Total tokens'**
+  String get totalTokens;
+
+  /// No description provided for @cacheRate.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache rate'**
+  String get cacheRate;
+
+  /// No description provided for @promptTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt tokens'**
+  String get promptTokens;
+
+  /// No description provided for @completionTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Completion tokens'**
+  String get completionTokens;
+
+  /// No description provided for @cachedTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Cached tokens'**
+  String get cachedTokens;
+
+  /// No description provided for @thoughtTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Thought tokens'**
+  String get thoughtTokens;
+
+  /// No description provided for @prompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt'**
+  String get prompt;
+
+  /// No description provided for @completion.
+  ///
+  /// In en, this message translates to:
+  /// **'Completion'**
+  String get completion;
+
+  /// No description provided for @cached.
+  ///
+  /// In en, this message translates to:
+  /// **'Cached'**
+  String get cached;
+
+  /// No description provided for @thought.
+  ///
+  /// In en, this message translates to:
+  /// **'Thought'**
+  String get thought;
+
+  /// No description provided for @model.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get model;
+
+  /// No description provided for @scene.
+  ///
+  /// In en, this message translates to:
+  /// **'Scene'**
+  String get scene;
+
+  /// No description provided for @sceneId.
+  ///
+  /// In en, this message translates to:
+  /// **'Scene ID'**
+  String get sceneId;
+
+  /// No description provided for @tokenUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Token usage'**
+  String get tokenUsage;
+
+  /// No description provided for @handler.
+  ///
+  /// In en, this message translates to:
+  /// **'Handler'**
+  String get handler;
+
+  /// No description provided for @modelBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Model breakdown'**
+  String get modelBreakdown;
+
+  /// No description provided for @callDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Call details'**
+  String get callDetails;
+
+  /// No description provided for @recordDetailsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Record details: {scene}'**
+  String recordDetailsTitle(Object scene);
 
   /// No description provided for @saveLlmConfigFailed.
   ///
@@ -1754,6 +1898,126 @@ abstract class AppLocalizations {
   /// **'No knowledge insight'**
   String get noKnowledgeInsight;
 
+  /// No description provided for @scheduleAggregation.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule aggregation'**
+  String get scheduleAggregation;
+
+  /// No description provided for @noScheduleAggregation.
+  ///
+  /// In en, this message translates to:
+  /// **'No schedule aggregation'**
+  String get noScheduleAggregation;
+
+  /// No description provided for @scheduleAggregationEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Update to organize schedules and todos from real temporal cards.'**
+  String get scheduleAggregationEmptyHint;
+
+  /// No description provided for @scheduleAggregationDirtyReason.
+  ///
+  /// In en, this message translates to:
+  /// **'New schedule-related content is available. Tap Update to reorganize.'**
+  String get scheduleAggregationDirtyReason;
+
+  /// No description provided for @scheduleAggregationLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load schedule data'**
+  String get scheduleAggregationLoadFailed;
+
+  /// No description provided for @scheduleAggregationRefreshFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to refresh schedule data'**
+  String get scheduleAggregationRefreshFailed;
+
+  /// No description provided for @scheduleTaskUpdateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to update task'**
+  String get scheduleTaskUpdateFailed;
+
+  /// No description provided for @scheduleFeatured.
+  ///
+  /// In en, this message translates to:
+  /// **'Featured'**
+  String get scheduleFeatured;
+
+  /// No description provided for @scheduleThisWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'This week'**
+  String get scheduleThisWeek;
+
+  /// No description provided for @scheduleDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get scheduleDone;
+
+  /// No description provided for @scheduleTbd.
+  ///
+  /// In en, this message translates to:
+  /// **'TBD'**
+  String get scheduleTbd;
+
+  /// No description provided for @scheduleWeekOverview.
+  ///
+  /// In en, this message translates to:
+  /// **'This week'**
+  String get scheduleWeekOverview;
+
+  /// No description provided for @scheduleImportant.
+  ///
+  /// In en, this message translates to:
+  /// **'Important'**
+  String get scheduleImportant;
+
+  /// No description provided for @scheduleBriefingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule briefing'**
+  String get scheduleBriefingTitle;
+
+  /// No description provided for @scheduleBriefingNeedsUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs update'**
+  String get scheduleBriefingNeedsUpdate;
+
+  /// No description provided for @scheduleBriefingOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get scheduleBriefingOpen;
+
+  /// No description provided for @scheduleBriefingNoData.
+  ///
+  /// In en, this message translates to:
+  /// **'No schedule briefing yet'**
+  String get scheduleBriefingNoData;
+
+  /// No description provided for @scheduleBriefingUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated {time}'**
+  String scheduleBriefingUpdated(Object time);
+
+  /// No description provided for @scheduleBriefingDoneCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} done'**
+  String scheduleBriefingDoneCount(Object count);
+
+  /// No description provided for @scheduleBriefingConflictCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} conflicts'**
+  String scheduleBriefingConflictCount(Object count);
+
   /// No description provided for @updating.
   ///
   /// In en, this message translates to:
@@ -2203,6 +2467,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Related records'**
   String get relatedRecords;
+
+  /// No description provided for @reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get reply;
 
   /// No description provided for @replySent.
   ///
@@ -4387,6 +4657,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose background image'**
   String get chooseChatBackgroundImage;
+
+  /// No description provided for @earlyUpdateSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Early access updates'**
+  String get earlyUpdateSettingsTitle;
+
+  /// No description provided for @earlyUpdateSettingsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Check GitHub pre-releases for the matching Early APK, download it, and hand it to Android\'s installer.'**
+  String get earlyUpdateSettingsDesc;
+
+  /// No description provided for @earlyUpdateUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Early updates are only available in the Android Early build.'**
+  String get earlyUpdateUnsupported;
+
+  /// No description provided for @earlyUpdateAutoCheckTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto check for updates'**
+  String get earlyUpdateAutoCheckTitle;
+
+  /// No description provided for @earlyUpdateAutoCheckDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Check at startup at most once every 12 hours.'**
+  String get earlyUpdateAutoCheckDesc;
+
+  /// No description provided for @earlyUpdateWifiOnlyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download on Wi-Fi only'**
+  String get earlyUpdateWifiOnlyTitle;
+
+  /// No description provided for @earlyUpdateWifiOnlyDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip update downloads while using mobile data.'**
+  String get earlyUpdateWifiOnlyDesc;
+
+  /// No description provided for @earlyUpdateAutoInstallTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto download and install'**
+  String get earlyUpdateAutoInstallTitle;
+
+  /// No description provided for @earlyUpdateAutoInstallDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'When a new build is found, download it and open the Android installer automatically.'**
+  String get earlyUpdateAutoInstallDesc;
+
+  /// No description provided for @earlyUpdateCheckNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Check now'**
+  String get earlyUpdateCheckNow;
+
+  /// No description provided for @earlyUpdateChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking GitHub pre-releases...'**
+  String get earlyUpdateChecking;
+
+  /// No description provided for @earlyUpdateSkippedMobile.
+  ///
+  /// In en, this message translates to:
+  /// **'Skipped because Wi-Fi-only downloads are enabled.'**
+  String get earlyUpdateSkippedMobile;
+
+  /// No description provided for @earlyUpdateNoUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'You are already on the latest Early build.'**
+  String get earlyUpdateNoUpdate;
+
+  /// No description provided for @earlyUpdateFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Early build {version}+{build} is available.'**
+  String earlyUpdateFound(Object version, Object build);
+
+  /// No description provided for @earlyUpdateDownloadAndInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Download and install'**
+  String get earlyUpdateDownloadAndInstall;
+
+  /// No description provided for @earlyUpdateDownloadingPercent.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading update: {percent}%'**
+  String earlyUpdateDownloadingPercent(Object percent);
+
+  /// No description provided for @earlyUpdateInstallStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Android installer opened.'**
+  String get earlyUpdateInstallStarted;
+
+  /// No description provided for @earlyUpdateInstallPermissionRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow Memex to install unknown apps, then tap download and install again.'**
+  String get earlyUpdateInstallPermissionRequired;
+
+  /// No description provided for @earlyUpdateLastChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Last checked: {time}'**
+  String earlyUpdateLastChecked(Object time);
+
+  /// No description provided for @earlyUpdateCheckFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Update check failed: {error}'**
+  String earlyUpdateCheckFailed(Object error);
+
+  /// No description provided for @earlyUpdateDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Early update available'**
+  String get earlyUpdateDialogTitle;
+
+  /// No description provided for @earlyUpdateReleaseNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Release notes'**
+  String get earlyUpdateReleaseNotes;
 }
 
 class _AppLocalizationsDelegate

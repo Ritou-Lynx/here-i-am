@@ -4,8 +4,8 @@ import 'package:memex/domain/models/location_context_config.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 
-typedef CurrentLocationContextLoader =
-    Future<CurrentLocationContext> Function({bool forceRefresh});
+typedef CurrentLocationContextLoader = Future<CurrentLocationContext> Function(
+    {bool forceRefresh});
 
 class LocationContextSettingsPage extends StatefulWidget {
   const LocationContextSettingsPage({super.key, this.loadCurrentContext});
@@ -60,8 +60,7 @@ class _LocationContextSettingsPageState
       _testResult = null;
     });
     try {
-      final loader =
-          widget.loadCurrentContext ??
+      final loader = widget.loadCurrentContext ??
           LocationContextService.instance.getCurrentContext;
       final context = await loader(forceRefresh: true);
       final summary = context.address?.summary(context.granularity);

@@ -193,6 +193,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get all => 'All';
 
   @override
+  String get schedule => 'Schedule';
+
+  @override
   String loadStatsFailed(Object error) {
     return 'Failed to load stats: $error';
   }
@@ -204,16 +207,89 @@ class AppLocalizationsEn extends AppLocalizations {
   String get daily => 'Daily';
 
   @override
+  String get modelStatsByAgent => 'By agent';
+
+  @override
   String get detail => 'Detail';
 
   @override
   String get date => 'Date';
 
   @override
+  String get agent => 'Agent';
+
+  @override
   String get noData => 'No data';
 
   @override
   String get totalCalls => 'Total calls';
+
+  @override
+  String get calls => 'Calls';
+
+  @override
+  String callsCount(Object count) {
+    return '$count calls';
+  }
+
+  @override
+  String get selectDateRange => 'Select date range';
+
+  @override
+  String get totalTokens => 'Total tokens';
+
+  @override
+  String get cacheRate => 'Cache rate';
+
+  @override
+  String get promptTokens => 'Prompt tokens';
+
+  @override
+  String get completionTokens => 'Completion tokens';
+
+  @override
+  String get cachedTokens => 'Cached tokens';
+
+  @override
+  String get thoughtTokens => 'Thought tokens';
+
+  @override
+  String get prompt => 'Prompt';
+
+  @override
+  String get completion => 'Completion';
+
+  @override
+  String get cached => 'Cached';
+
+  @override
+  String get thought => 'Thought';
+
+  @override
+  String get model => 'Model';
+
+  @override
+  String get scene => 'Scene';
+
+  @override
+  String get sceneId => 'Scene ID';
+
+  @override
+  String get tokenUsage => 'Token usage';
+
+  @override
+  String get handler => 'Handler';
+
+  @override
+  String get modelBreakdown => 'Model breakdown';
+
+  @override
+  String get callDetails => 'Call details';
+
+  @override
+  String recordDetailsTitle(Object scene) {
+    return 'Record details: $scene';
+  }
 
   @override
   String saveLlmConfigFailed(Object error) {
@@ -941,6 +1017,75 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noKnowledgeInsight => 'No knowledge insight';
 
   @override
+  String get scheduleAggregation => 'Schedule aggregation';
+
+  @override
+  String get noScheduleAggregation => 'No schedule aggregation';
+
+  @override
+  String get scheduleAggregationEmptyHint =>
+      'Tap Update to organize schedules and todos from real temporal cards.';
+
+  @override
+  String get scheduleAggregationDirtyReason =>
+      'New schedule-related content is available. Tap Update to reorganize.';
+
+  @override
+  String get scheduleAggregationLoadFailed => 'Failed to load schedule data';
+
+  @override
+  String get scheduleAggregationRefreshFailed =>
+      'Failed to refresh schedule data';
+
+  @override
+  String get scheduleTaskUpdateFailed => 'Failed to update task';
+
+  @override
+  String get scheduleFeatured => 'Featured';
+
+  @override
+  String get scheduleThisWeek => 'This week';
+
+  @override
+  String get scheduleDone => 'Done';
+
+  @override
+  String get scheduleTbd => 'TBD';
+
+  @override
+  String get scheduleWeekOverview => 'This week';
+
+  @override
+  String get scheduleImportant => 'Important';
+
+  @override
+  String get scheduleBriefingTitle => 'Schedule briefing';
+
+  @override
+  String get scheduleBriefingNeedsUpdate => 'Needs update';
+
+  @override
+  String get scheduleBriefingOpen => 'Open';
+
+  @override
+  String get scheduleBriefingNoData => 'No schedule briefing yet';
+
+  @override
+  String scheduleBriefingUpdated(Object time) {
+    return 'Updated $time';
+  }
+
+  @override
+  String scheduleBriefingDoneCount(Object count) {
+    return '$count done';
+  }
+
+  @override
+  String scheduleBriefingConflictCount(Object count) {
+    return '$count conflicts';
+  }
+
+  @override
   String get updating => 'Updating...';
 
   @override
@@ -1189,6 +1334,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get relatedRecords => 'Related records';
+
+  @override
+  String get reply => 'Reply';
 
   @override
   String get replySent => 'Reply sent';
@@ -2413,4 +2561,86 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chooseChatBackgroundImage => 'Choose background image';
+
+  @override
+  String get earlyUpdateSettingsTitle => 'Early access updates';
+
+  @override
+  String get earlyUpdateSettingsDesc =>
+      'Check GitHub pre-releases for the matching Early APK, download it, and hand it to Android\'s installer.';
+
+  @override
+  String get earlyUpdateUnsupported =>
+      'Early updates are only available in the Android Early build.';
+
+  @override
+  String get earlyUpdateAutoCheckTitle => 'Auto check for updates';
+
+  @override
+  String get earlyUpdateAutoCheckDesc =>
+      'Check at startup at most once every 12 hours.';
+
+  @override
+  String get earlyUpdateWifiOnlyTitle => 'Download on Wi-Fi only';
+
+  @override
+  String get earlyUpdateWifiOnlyDesc =>
+      'Skip update downloads while using mobile data.';
+
+  @override
+  String get earlyUpdateAutoInstallTitle => 'Auto download and install';
+
+  @override
+  String get earlyUpdateAutoInstallDesc =>
+      'When a new build is found, download it and open the Android installer automatically.';
+
+  @override
+  String get earlyUpdateCheckNow => 'Check now';
+
+  @override
+  String get earlyUpdateChecking => 'Checking GitHub pre-releases...';
+
+  @override
+  String get earlyUpdateSkippedMobile =>
+      'Skipped because Wi-Fi-only downloads are enabled.';
+
+  @override
+  String get earlyUpdateNoUpdate =>
+      'You are already on the latest Early build.';
+
+  @override
+  String earlyUpdateFound(Object version, Object build) {
+    return 'Early build $version+$build is available.';
+  }
+
+  @override
+  String get earlyUpdateDownloadAndInstall => 'Download and install';
+
+  @override
+  String earlyUpdateDownloadingPercent(Object percent) {
+    return 'Downloading update: $percent%';
+  }
+
+  @override
+  String get earlyUpdateInstallStarted => 'Android installer opened.';
+
+  @override
+  String get earlyUpdateInstallPermissionRequired =>
+      'Allow Memex to install unknown apps, then tap download and install again.';
+
+  @override
+  String earlyUpdateLastChecked(Object time) {
+    return 'Last checked: $time';
+  }
+
+  @override
+  String earlyUpdateCheckFailed(Object error) {
+    return 'Update check failed: $error';
+  }
+
+  @override
+  String get earlyUpdateDialogTitle => 'Early update available';
+
+  @override
+  String get earlyUpdateReleaseNotes => 'Release notes';
 }

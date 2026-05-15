@@ -14,15 +14,19 @@ import 'package:memex/utils/time_context.dart';
 final _logger = Logger('CommentAgentHandler');
 
 Future<void> handleCommentAgentImpl(
-    String userId, Map<String, dynamic> payload, TaskContext context) async {
+  String userId,
+  Map<String, dynamic> payload,
+  TaskContext context,
+) async {
   final factId = payload['fact_id'] as String;
   final combinedText = payload['combined_text'] as String;
   final inputDateTime = tryParseUnixSeconds(payload['created_at_ts']);
   final locationContextReminder =
       payload['location_context_reminder'] as String?;
 
-  _logger
-      .info("Running Comment Agent selection for fact $factId, user $userId");
+  _logger.info(
+    "Running Comment Agent selection for fact $factId, user $userId",
+  );
 
   try {
     // Load per-user comment settings
@@ -31,7 +35,8 @@ Future<void> handleCommentAgentImpl(
     // Check if character comments are enabled
     if (!settings.enableCharacterComment) {
       _logger.info(
-          'Character comments disabled — skipping comment agent for $factId');
+        'Character comments disabled — skipping comment agent for $factId',
+      );
       return;
     }
 
@@ -85,7 +90,8 @@ Future<void> handleCommentAgentImpl(
       }
 
       _logger.info(
-          "Selected character ${selectedChar.name} (${selectedChar.id}) for comment");
+        "Selected character ${selectedChar.name} (${selectedChar.id}) for comment",
+      );
       await processAICommentReply(
         cardId: factId,
         userId: userId,
@@ -120,7 +126,8 @@ Future<void> handleCommentAgentImpl(
       // Process characters sequentially so later characters can see earlier comments
       for (final char in selectedChars) {
         _logger.info(
-            "Processing comment from character ${char.name} (${char.id})");
+          "Processing comment from character ${char.name} (${char.id})",
+        );
         await processAICommentReply(
           cardId: factId,
           userId: userId,
@@ -140,7 +147,10 @@ Future<void> handleCommentAgentImpl(
 
 /// Handler for process_ai_reply task
 Future<void> handleProcessAiReplyImpl(
-    String userId, Map<String, dynamic> payload, TaskContext context) async {
+  String userId,
+  Map<String, dynamic> payload,
+  TaskContext context,
+) async {
   final cardId = payload['card_id'] as String;
   final content = payload['content'] as String;
   final commentId = payload['comment_id'] as String?;
@@ -150,20 +160,24 @@ Future<void> handleProcessAiReplyImpl(
       payload['location_context_reminder'] as String?;
 
   _logger.info(
-      'HandleProcessAiReply: Processing AI reply for card $cardId, user $userId');
+    'HandleProcessAiReply: Processing AI reply for card $cardId, user $userId',
+  );
 
   // If the user replied to a specific comment, resolve the target character
   String? targetCharacterId;
   if (replyToId != null) {
     try {
-      final cardData =
-          await FileSystemService.instance.readCardFile(userId, cardId);
+      final cardData = await FileSystemService.instance.readCardFile(
+        userId,
+        cardId,
+      );
       if (cardData != null) {
         for (final c in cardData.comments) {
           if (c.id == replyToId && c.isAi && c.characterId != null) {
             targetCharacterId = c.characterId;
             _logger.info(
-                'User replied to comment $replyToId, routing to character $targetCharacterId');
+              'User replied to comment $replyToId, routing to character $targetCharacterId',
+            );
             break;
           }
         }

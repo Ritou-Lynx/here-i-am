@@ -167,9 +167,7 @@ Future<Map<String, dynamic>> submitInput(
 
     // 4. Create Placeholder Card (Processing state)
     // Build data object with proper field separation for placeholder card
-    final placeholderData = <String, dynamic>{
-      'content': pureTextContent,
-    };
+    final placeholderData = <String, dynamic>{'content': pureTextContent};
 
     // Add images if any
     if (imageUrls.isNotEmpty) {
@@ -187,23 +185,22 @@ Future<Map<String, dynamic>> submitInput(
       timestamp: now.millisecondsSinceEpoch ~/ 1000,
       status: 'processing',
       tags: const [],
-      uiConfigs: [
-        UiConfig(
-          templateId: 'classic_card',
-          data: placeholderData,
-        ),
-      ],
+      uiConfigs: [UiConfig(templateId: 'classic_card', data: placeholderData)],
     );
 
     final cardPath = _fileSystem.getCardPath(userId, factId);
     try {
-      final success =
-          await _fileSystem.safeWriteCardFile(userId, factId, placeholderCard);
+      final success = await _fileSystem.safeWriteCardFile(
+        userId,
+        factId,
+        placeholderCard,
+      );
       if (success) {
         _logger.info('Created placeholder card: $cardPath');
       } else {
         _logger.warning(
-            'Failed to create placeholder card (safeWriteCardFile returned false)');
+          'Failed to create placeholder card (safeWriteCardFile returned false)',
+        );
       }
     } catch (e) {
       _logger.warning('Failed to create placeholder card: $e');
@@ -219,8 +216,9 @@ Future<Map<String, dynamic>> submitInput(
       locationContextReminder = locationContext.toAgentSystemReminderContent();
       locationContextStatus = locationContext.status;
     } catch (e) {
-      _logger
-          .warning('Failed to decorate user input with location context: $e');
+      _logger.warning(
+        'Failed to decorate user input with location context: $e',
+      );
     }
 
     // 5. Publish domain event.
@@ -267,7 +265,7 @@ Future<Map<String, dynamic>> submitInput(
         'title': "",
         'ui_configs': renderResult.uiConfigs.map((e) => e.toJson()).toList(),
         'tags': [],
-      }
+      },
     };
   });
 }
