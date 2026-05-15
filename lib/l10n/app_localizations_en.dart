@@ -1785,6 +1785,77 @@ class AppLocalizationsEn extends AppLocalizations {
       'Invalid backup file. Please select a .memex file.';
 
   @override
+  String get automaticBackup => 'Automatic Backup';
+
+  @override
+  String get autoBackupDescription =>
+      'When enabled, Memex creates at most one local snapshot per day after startup or when returning to the foreground.';
+
+  @override
+  String get backupSensitiveSettingsHint =>
+      'Backups include settings and model provider keys. Keep backup files somewhere you trust.';
+
+  @override
+  String get backupLocation => 'Location';
+
+  @override
+  String get autoBackupStatus => 'Status';
+
+  @override
+  String get noAutoBackupYet => 'No automatic backup yet';
+
+  @override
+  String lastBackupAt(Object time) {
+    return 'Last backup: $time';
+  }
+
+  @override
+  String get createSnapshotNow => 'Back up now';
+
+  @override
+  String get backupLocationMenu => 'Location';
+
+  @override
+  String get defaultBackupLocation => 'Default backup folder';
+
+  @override
+  String get defaultBackupLocationAndroidDesc =>
+      'Use Memex\'s app-specific external files folder. No storage permission needed.';
+
+  @override
+  String get chooseBackupLocation => 'Choose backup folder';
+
+  @override
+  String get chooseBackupLocationAndroidDesc =>
+      'Pick a folder with Android\'s system picker and grant Memex persistent access.';
+
+  @override
+  String get storedBackups => 'Stored Backups';
+
+  @override
+  String get noStoredBackups =>
+      'Automatic backups will appear here after the first snapshot.';
+
+  @override
+  String get refresh => 'Refresh';
+
+  @override
+  String get restoreThisBackup => 'Restore this backup';
+
+  @override
+  String get creatingSafetySnapshot => 'Creating safety snapshot...';
+
+  @override
+  String autoBackupCreated(Object fileName) {
+    return 'Snapshot created: $fileName';
+  }
+
+  @override
+  String backupLocationFailed(Object error) {
+    return 'Could not update backup location: $error';
+  }
+
+  @override
   String get dataStorage => 'Data Storage';
 
   @override

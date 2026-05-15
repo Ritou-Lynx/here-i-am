@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:memex/data/repositories/get_schedule_briefing_timeline_card.dart'
@@ -5,6 +6,7 @@ import 'package:memex/data/repositories/get_schedule_briefing_timeline_card.dart
 import 'package:memex/data/repositories/update_card_ui_config.dart'
     as update_config_endpoint;
 import 'package:memex/data/services/search_service.dart';
+import 'package:memex/data/services/backup_service.dart';
 import 'package:memex/domain/models/calendar_model.dart';
 import 'package:memex/data/repositories/hydrate_card.dart';
 import 'package:memex/data/services/task_handlers/knowledge_insight_handler.dart';
@@ -211,6 +213,8 @@ class MemexRouter {
       // Also triggers a one-time full rebuild when FTS tables were just created
       // via migration (existing users upgrading to schema v10).
       SearchService.instance.init(userId);
+
+      scheduleAutoBackupCheck(trigger: 'app_start');
     } catch (e) {
       _logger.severe('Failed to initialize MemexRouter: $e');
       // Reset future to allow retry if needed, or keep failed state
@@ -416,6 +420,24 @@ class MemexRouter {
         _logger.warning('Failed to rebuild cache after storage switch: $e');
       }
     }
+  }
+
+  Future<BackupSnapshot?> maybeRunAutoBackup({
+    required String trigger,
+    bool force = false,
+  }) async {
+    await _ensureInitialized();
+    return BackupService.maybeCreateAutoBackup(trigger: trigger, force: force);
+  }
+
+  void scheduleAutoBackupCheck({required String trigger}) {
+    unawaited(
+      maybeRunAutoBackup(trigger: trigger)
+          .catchError((Object e, StackTrace st) {
+        _logger.warning('Automatic backup check failed: $e', e, st);
+        return null;
+      }),
+    );
   }
 
   /// Clear init state and stop executor on logout so next login re-inits for new user.
