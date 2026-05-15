@@ -3278,6 +3278,126 @@ abstract class AppLocalizations {
   /// **'Invalid backup file. Please select a .memex file.'**
   String get invalidBackupFile;
 
+  /// No description provided for @automaticBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic Backup'**
+  String get automaticBackup;
+
+  /// No description provided for @autoBackupDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, Memex creates at most one local snapshot per day after startup or when returning to the foreground.'**
+  String get autoBackupDescription;
+
+  /// No description provided for @backupSensitiveSettingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Backups include settings and model provider keys. Keep backup files somewhere you trust.'**
+  String get backupSensitiveSettingsHint;
+
+  /// No description provided for @backupLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get backupLocation;
+
+  /// No description provided for @autoBackupStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get autoBackupStatus;
+
+  /// No description provided for @noAutoBackupYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No automatic backup yet'**
+  String get noAutoBackupYet;
+
+  /// No description provided for @lastBackupAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Last backup: {time}'**
+  String lastBackupAt(Object time);
+
+  /// No description provided for @createSnapshotNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Back up now'**
+  String get createSnapshotNow;
+
+  /// No description provided for @backupLocationMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get backupLocationMenu;
+
+  /// No description provided for @defaultBackupLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Default backup folder'**
+  String get defaultBackupLocation;
+
+  /// No description provided for @defaultBackupLocationAndroidDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Memex\'s app-specific external files folder. No storage permission needed.'**
+  String get defaultBackupLocationAndroidDesc;
+
+  /// No description provided for @chooseBackupLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose backup folder'**
+  String get chooseBackupLocation;
+
+  /// No description provided for @chooseBackupLocationAndroidDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a folder with Android\'s system picker and grant Memex persistent access.'**
+  String get chooseBackupLocationAndroidDesc;
+
+  /// No description provided for @storedBackups.
+  ///
+  /// In en, this message translates to:
+  /// **'Stored Backups'**
+  String get storedBackups;
+
+  /// No description provided for @noStoredBackups.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic backups will appear here after the first snapshot.'**
+  String get noStoredBackups;
+
+  /// No description provided for @refresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get refresh;
+
+  /// No description provided for @restoreThisBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore this backup'**
+  String get restoreThisBackup;
+
+  /// No description provided for @creatingSafetySnapshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Creating safety snapshot...'**
+  String get creatingSafetySnapshot;
+
+  /// No description provided for @autoBackupCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Snapshot created: {fileName}'**
+  String autoBackupCreated(Object fileName);
+
+  /// No description provided for @backupLocationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update backup location: {error}'**
+  String backupLocationFailed(Object error);
+
   /// No description provided for @dataStorage.
   ///
   /// In en, this message translates to:

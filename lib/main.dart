@@ -314,6 +314,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
       _checkLockSettingsBeforeLocking();
     } else if (state == AppLifecycleState.resumed) {
       unawaited(LocalTaskExecutor.instance.clearGracefulShutdownMarker());
+      MemexRouter().scheduleAutoBackupCheck(trigger: 'foreground');
       _checkGracePeriod();
     } else if (state == AppLifecycleState.detached) {
       unawaited(LocalTaskExecutor.instance

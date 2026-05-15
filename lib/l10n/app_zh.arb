@@ -818,6 +818,41 @@
   },
   "restoreFailed": "恢复失败: {error}",
   "invalidBackupFile": "无效的备份文件，请选择 .memex 文件。",
+  "automaticBackup": "自动备份",
+  "autoBackupDescription": "开启后，Memex 会在启动或回到前台时检查，每天最多创建一次本地时间点快照。",
+  "backupSensitiveSettingsHint": "备份包含设置和模型服务商密钥，请只保存到你信任的位置。",
+  "backupLocation": "位置",
+  "autoBackupStatus": "状态",
+  "noAutoBackupYet": "还没有自动备份",
+  "@lastBackupAt": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "lastBackupAt": "上次备份：{time}",
+  "createSnapshotNow": "立即备份",
+  "backupLocationMenu": "位置",
+  "defaultBackupLocation": "默认备份文件夹",
+  "defaultBackupLocationAndroidDesc": "使用 Memex 的应用专属外部目录，不需要存储权限。",
+  "chooseBackupLocation": "选择备份文件夹",
+  "chooseBackupLocationAndroidDesc": "使用 Android 系统选择器选择文件夹，并授予 Memex 持久访问权限。",
+  "storedBackups": "已保存备份",
+  "noStoredBackups": "创建第一个自动快照后会显示在这里。",
+  "refresh": "刷新",
+  "restoreThisBackup": "恢复此备份",
+  "creatingSafetySnapshot": "正在创建安全快照...",
+  "@autoBackupCreated": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "autoBackupCreated": "快照已创建：{fileName}",
+  "@backupLocationFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "backupLocationFailed": "无法更新备份位置：{error}",
   "dataStorage": "数据存储",
   "dataStorageDescription": "选择 Memex 存储数据的位置。自定义文件夹或 iCloud 可在卸载重装后保留数据。",
   "dataStorageDescriptionAndroid": "选择自定义文件夹存放工作区数据，卸载重装后仍可保留。",

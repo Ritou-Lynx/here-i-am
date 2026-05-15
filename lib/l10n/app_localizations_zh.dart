@@ -1726,6 +1726,73 @@ class AppLocalizationsZh extends AppLocalizations {
   String get invalidBackupFile => '无效的备份文件，请选择 .memex 文件。';
 
   @override
+  String get automaticBackup => '自动备份';
+
+  @override
+  String get autoBackupDescription => '开启后，Memex 会在启动或回到前台时检查，每天最多创建一次本地时间点快照。';
+
+  @override
+  String get backupSensitiveSettingsHint => '备份包含设置和模型服务商密钥，请只保存到你信任的位置。';
+
+  @override
+  String get backupLocation => '位置';
+
+  @override
+  String get autoBackupStatus => '状态';
+
+  @override
+  String get noAutoBackupYet => '还没有自动备份';
+
+  @override
+  String lastBackupAt(Object time) {
+    return '上次备份：$time';
+  }
+
+  @override
+  String get createSnapshotNow => '立即备份';
+
+  @override
+  String get backupLocationMenu => '位置';
+
+  @override
+  String get defaultBackupLocation => '默认备份文件夹';
+
+  @override
+  String get defaultBackupLocationAndroidDesc => '使用 Memex 的应用专属外部目录，不需要存储权限。';
+
+  @override
+  String get chooseBackupLocation => '选择备份文件夹';
+
+  @override
+  String get chooseBackupLocationAndroidDesc =>
+      '使用 Android 系统选择器选择文件夹，并授予 Memex 持久访问权限。';
+
+  @override
+  String get storedBackups => '已保存备份';
+
+  @override
+  String get noStoredBackups => '创建第一个自动快照后会显示在这里。';
+
+  @override
+  String get refresh => '刷新';
+
+  @override
+  String get restoreThisBackup => '恢复此备份';
+
+  @override
+  String get creatingSafetySnapshot => '正在创建安全快照...';
+
+  @override
+  String autoBackupCreated(Object fileName) {
+    return '快照已创建：$fileName';
+  }
+
+  @override
+  String backupLocationFailed(Object error) {
+    return '无法更新备份位置：$error';
+  }
+
+  @override
   String get dataStorage => '数据存储';
 
   @override
