@@ -67,7 +67,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       });
 
       // Share the file so user can save it anywhere
-      final xFile = XFile(backupPath);
+      final xFile = XFile(backupPath, mimeType: BackupService.backupMimeType);
       final box = context.findRenderObject() as RenderBox?;
       await Share.shareXFiles(
         [xFile],
@@ -101,12 +101,22 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     if (filePath == null) return;
 
     // Validate extension
-    if (!filePath.endsWith('.memex') && !filePath.endsWith('.zip')) {
+    if (!BackupService.isSelectableBackupFile(filePath)) {
       if (mounted) {
         ToastHelper.showError(context, UserStorage.l10n.invalidBackupFile);
       }
       return;
     }
+
+    try {
+      await BackupService.inspectBackup(filePath);
+    } catch (e) {
+      if (mounted) {
+        ToastHelper.showError(context, UserStorage.l10n.restoreFailed(e));
+      }
+      return;
+    }
+    if (!mounted) return;
 
     // Confirm
     final confirmed = await showDialog<bool>(

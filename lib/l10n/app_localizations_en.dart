@@ -1776,6 +1776,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Invalid backup file. Please select a .memex file.';
 
   @override
+  String get backupImportCreatedAt => 'Created';
+
+  @override
+  String get backupImportSourceVersion => 'Source version';
+
+  @override
+  String get backupImportFlavor => 'Build';
+
+  @override
+  String get backupLegacyFormat => 'Legacy backup (no manifest)';
+
+  @override
+  String get restoreInProgress => 'Restoring backup...';
+
+  @override
   String get dataStorage => 'Data Storage';
 
   @override

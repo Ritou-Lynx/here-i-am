@@ -26,6 +26,12 @@ class AppFlavor {
   static bool get isCN => _current == AppFlavorType.cn;
   static bool get isStable => _channel == AppChannelType.stable;
   static bool get isEarly => _channel == AppChannelType.early;
+  static String get name => switch ((_current, _channel)) {
+    (AppFlavorType.cn, AppChannelType.early) => 'cnEarly',
+    (AppFlavorType.global, AppChannelType.early) => 'globalEarly',
+    (AppFlavorType.cn, AppChannelType.stable) => 'cn',
+    _ => 'global',
+  };
 
   /// Call once at app startup with the flavor string from `appFlavor`.
   static void init(String? flavor) {

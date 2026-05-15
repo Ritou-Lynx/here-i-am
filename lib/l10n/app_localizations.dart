@@ -3266,6 +3266,36 @@ abstract class AppLocalizations {
   /// **'Invalid backup file. Please select a .memex file.'**
   String get invalidBackupFile;
 
+  /// No description provided for @backupImportCreatedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Created'**
+  String get backupImportCreatedAt;
+
+  /// No description provided for @backupImportSourceVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Source version'**
+  String get backupImportSourceVersion;
+
+  /// No description provided for @backupImportFlavor.
+  ///
+  /// In en, this message translates to:
+  /// **'Build'**
+  String get backupImportFlavor;
+
+  /// No description provided for @backupLegacyFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy backup (no manifest)'**
+  String get backupLegacyFormat;
+
+  /// No description provided for @restoreInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Restoring backup...'**
+  String get restoreInProgress;
+
   /// No description provided for @dataStorage.
   ///
   /// In en, this message translates to:

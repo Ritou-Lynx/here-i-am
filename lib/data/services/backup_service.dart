@@ -1,23 +1,120 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:archive/archive.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logging/logging.dart';
+import 'package:memex/config/app_flavor.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/db/app_database.dart';
 
 /// Keys to exclude from backup (Flutter internals, not user data).
-const _excludePrefKeys = <String>{
-  'flutter.',
-};
+const _excludePrefKeys = <String>{'flutter.'};
+
+const _backupManifestFileName = 'manifest.json';
+const _backupFormat = 'memex.backup';
+const _currentBackupSchemaVersion = 1;
+
+class BackupManifest {
+  final String format;
+  final int backupSchemaVersion;
+  final DateTime createdAt;
+  final String appVersion;
+  final String buildNumber;
+  final String flavor;
+  final String platform;
+
+  const BackupManifest({
+    required this.format,
+    required this.backupSchemaVersion,
+    required this.createdAt,
+    required this.appVersion,
+    required this.buildNumber,
+    required this.flavor,
+    required this.platform,
+  });
+
+  factory BackupManifest.fromJson(Map<String, dynamic> json) {
+    return BackupManifest(
+      format: json['format'] as String? ?? '',
+      backupSchemaVersion: (json['backupSchemaVersion'] as num?)?.toInt() ?? 0,
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      appVersion: json['appVersion'] as String? ?? '',
+      buildNumber: json['buildNumber']?.toString() ?? '',
+      flavor: json['flavor'] as String? ?? '',
+      platform: json['platform'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'format': format,
+        'backupSchemaVersion': backupSchemaVersion,
+        'createdAt': createdAt.toUtc().toIso8601String(),
+        'appVersion': appVersion,
+        'buildNumber': buildNumber,
+        'flavor': flavor,
+        'platform': platform,
+      };
+}
+
+class BackupFileInfo {
+  final String path;
+  final int sizeBytes;
+  final BackupManifest? manifest;
+
+  const BackupFileInfo({
+    required this.path,
+    required this.sizeBytes,
+    required this.manifest,
+  });
+
+  bool get isLegacy => manifest == null;
+}
+
+class InvalidBackupFileException implements Exception {
+  final String message;
+
+  const InvalidBackupFileException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+class UnsupportedBackupVersionException implements Exception {
+  final int backupSchemaVersion;
+  final int supportedSchemaVersion;
+
+  const UnsupportedBackupVersionException({
+    required this.backupSchemaVersion,
+    required this.supportedSchemaVersion,
+  });
+
+  @override
+  String toString() {
+    return 'Backup schema $backupSchemaVersion is newer than supported schema '
+        '$supportedSchemaVersion. Please update Memex before restoring.';
+  }
+}
 
 /// Service for creating and restoring full app backups as .memex (zip) files.
 class BackupService {
   static final Logger _logger = getLogger('BackupService');
+  static const backupMimeType = 'application/x-memex-backup';
+  static const currentBackupSchemaVersion = _currentBackupSchemaVersion;
+
+  static bool isSelectableBackupFile(String filePath) {
+    final lowerPath = _normalizeFilePath(filePath).toLowerCase();
+    return lowerPath.endsWith('.memex') || lowerPath.endsWith('.zip');
+  }
+
+  static bool isMemexBackupFile(String filePath) {
+    return _normalizeFilePath(filePath).toLowerCase().endsWith('.memex');
+  }
 
   /// Create a backup zip containing:
   /// - workspace/ directory (Facts, Cards, PKM, KnowledgeInsights, etc.)
@@ -42,6 +139,13 @@ class BackupService {
     final outputPath = path.join(tempDir.path, 'memex_backup_$timestamp.memex');
 
     final archive = Archive();
+
+    // 0. Add backup manifest for cross-version compatibility checks.
+    final manifest = await _createManifest();
+    final manifestJson = utf8.encode(jsonEncode(manifest.toJson()));
+    archive.addFile(
+      ArchiveFile(_backupManifestFileName, manifestJson.length, manifestJson),
+    );
 
     // 1. Add workspace files
     onProgress?.call('Packing workspace...');
@@ -79,7 +183,8 @@ class BackupService {
     }
     final settingsJson = utf8.encode(jsonEncode(settings));
     archive.addFile(
-        ArchiveFile('settings.json', settingsJson.length, settingsJson));
+      ArchiveFile('settings.json', settingsJson.length, settingsJson),
+    );
 
     // 4. Write zip
     onProgress?.call('Compressing...');
@@ -101,8 +206,12 @@ class BackupService {
     if (currentUserId == null) throw Exception('No user logged in');
 
     try {
+      await inspectBackup(backupFilePath);
+
       onProgress?.call('Reading backup...');
-      final bytes = await File(backupFilePath).readAsBytes();
+      final bytes = await File(
+        _normalizeFilePath(backupFilePath),
+      ).readAsBytes();
       final archive = ZipDecoder().decodeBytes(bytes);
 
       // 1. Restore settings FIRST to get the correct userId from backup
@@ -234,8 +343,10 @@ class BackupService {
 
     final dir = Directory(workspacePath);
     if (await dir.exists()) {
-      await for (final entity
-          in dir.list(recursive: true, followLinks: false)) {
+      await for (final entity in dir.list(
+        recursive: true,
+        followLinks: false,
+      )) {
         if (entity is File) {
           try {
             totalSize += await entity.length();
@@ -245,5 +356,116 @@ class BackupService {
     }
 
     return totalSize;
+  }
+
+  static Future<BackupFileInfo> inspectBackup(String backupFilePath) async {
+    final normalizedPath = _normalizeFilePath(backupFilePath);
+    if (!isSelectableBackupFile(normalizedPath)) {
+      throw const InvalidBackupFileException(
+        'Invalid backup file. Please select a .memex file.',
+      );
+    }
+
+    final file = File(normalizedPath);
+    if (!await file.exists()) {
+      throw InvalidBackupFileException(
+        'Backup file does not exist: $normalizedPath',
+      );
+    }
+
+    final bytes = await file.readAsBytes();
+    final archive = _decodeBackup(bytes);
+    ArchiveFile? manifestFile;
+    for (final file in archive.files) {
+      if (file.isFile && file.name == _backupManifestFileName) {
+        manifestFile = file;
+        break;
+      }
+    }
+
+    if (manifestFile == null) {
+      if (!_looksLikeLegacyBackup(archive)) {
+        throw const InvalidBackupFileException(
+          'Invalid backup file. Please select a .memex file.',
+        );
+      }
+      return BackupFileInfo(
+        path: normalizedPath,
+        sizeBytes: bytes.length,
+        manifest: null,
+      );
+    }
+
+    final manifest = _readManifest(manifestFile);
+    if (manifest.format != _backupFormat) {
+      throw InvalidBackupFileException(
+        'Unsupported backup format: ${manifest.format}',
+      );
+    }
+    if (manifest.backupSchemaVersion > _currentBackupSchemaVersion) {
+      throw UnsupportedBackupVersionException(
+        backupSchemaVersion: manifest.backupSchemaVersion,
+        supportedSchemaVersion: _currentBackupSchemaVersion,
+      );
+    }
+
+    return BackupFileInfo(
+      path: normalizedPath,
+      sizeBytes: bytes.length,
+      manifest: manifest,
+    );
+  }
+
+  static bool _looksLikeLegacyBackup(Archive archive) {
+    return archive.files.any(
+      (file) =>
+          file.name == 'settings.json' ||
+          file.name.startsWith('workspace/') ||
+          file.name.startsWith('db/'),
+    );
+  }
+
+  static Future<BackupManifest> _createManifest() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    return BackupManifest(
+      format: _backupFormat,
+      backupSchemaVersion: _currentBackupSchemaVersion,
+      createdAt: DateTime.now().toUtc(),
+      appVersion: packageInfo.version,
+      buildNumber: packageInfo.buildNumber,
+      flavor: AppFlavor.name,
+      platform: Platform.operatingSystem,
+    );
+  }
+
+  static Archive _decodeBackup(List<int> bytes) {
+    try {
+      return ZipDecoder().decodeBytes(bytes);
+    } catch (_) {
+      throw const InvalidBackupFileException(
+        'Invalid backup file. Please select a .memex file.',
+      );
+    }
+  }
+
+  static BackupManifest _readManifest(ArchiveFile manifestFile) {
+    try {
+      final jsonStr = utf8.decode(manifestFile.content as List<int>);
+      final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+      return BackupManifest.fromJson(json);
+    } catch (_) {
+      throw const InvalidBackupFileException('Invalid backup manifest.');
+    }
+  }
+
+  static String _normalizeFilePath(String filePath) {
+    if (filePath.startsWith('file://')) {
+      try {
+        return Uri.parse(filePath).toFilePath();
+      } catch (_) {
+        return filePath.replaceFirst('file://', '');
+      }
+    }
+    return filePath;
   }
 }
