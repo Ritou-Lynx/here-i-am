@@ -312,10 +312,10 @@ Usage:
 
 Usage:
 - Always use Grep for search tasks. The Grep tool is optimized for correct permissions and access.
-- Supports full regular expression syntax (e.g., "log.*Error", "function\\s+\\w+")
+- Uses ripgrep regex syntax when the `rg` executable is available; on platforms without `rg`, falls back to Dart RegExp with common leading ripgrep-style inline flags such as `(?i)`, `(?m)`, `(?s)`, and combinations like `(?im)`
 - Use the glob parameter to filter files (e.g., "*.md", "**/*.md") or use the type parameter (e.g., "md", "py", "txt")
 - Output modes: "content" shows matching lines, "files_with_matches" shows only file paths (default), "count" shows match counts
-- Pattern syntax: Uses ripgrep (not grep) - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)
+- Pattern syntax: Prefer ripgrep/Rust regex syntax. Literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code). If a platform cannot run `rg`, advanced ripgrep-only syntax may be unavailable, but common leading inline flags are still supported by the fallback engine.
 - Multiline matching: By default, patterns match within single lines only. For cross-line patterns such as `struct \\{[\\s\\S]*?field`, use `multiline: true`
 - Use the path parameter to reduce the search range, and do not directly use the root directory as the default path.
 ''';
