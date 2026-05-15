@@ -1191,6 +1191,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get relatedRecords => 'Related records';
 
   @override
+  String get reply => 'Reply';
+
+  @override
   String get replySent => 'Reply sent';
 
   @override

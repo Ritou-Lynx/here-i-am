@@ -1693,7 +1693,21 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
               else
                 Text(content, style: AppTextStyles.commentContent),
               const SizedBox(height: 6),
-              Text(time, style: AppTextStyles.commentDate),
+              Row(
+                children: [
+                  Text(time, style: AppTextStyles.commentDate),
+                  if (!isAuthor) ...[
+                    const SizedBox(width: 12),
+                    Text(
+                      UserStorage.l10n.reply,
+                      style: AppTextStyles.commentDate.copyWith(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
         ),

@@ -2204,6 +2204,12 @@ abstract class AppLocalizations {
   /// **'Related records'**
   String get relatedRecords;
 
+  /// No description provided for @reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get reply;
+
   /// No description provided for @replySent.
   ///
   /// In en, this message translates to:
