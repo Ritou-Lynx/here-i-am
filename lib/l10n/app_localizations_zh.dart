@@ -1152,6 +1152,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get relatedRecords => '相关记录';
 
   @override
+  String get reply => '回复';
+
+  @override
   String get replySent => '回复已发送';
 
   @override
