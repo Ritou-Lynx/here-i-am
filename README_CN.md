@@ -23,6 +23,16 @@
   <a href="https://play.google.com/store/apps/details?id=com.memexlab.memex">Google Play</a>
 </p>
 
+## 个人迭代 Fork 说明
+
+这个仓库是基于上游开源项目 [memex-lab/memex](https://github.com/memex-lab/memex) 的个人迭代 fork。原版 Memex 的产品方向、本地优先日记体验、多 Agent 卡片生成、知识库、备份系统和 App 基础能力归属于上游项目及原作者。
+
+为了方便简历评审者快速区分归属，我把内容拆开标注：
+
+- **原作者/上游功能**：见下方 Memex 原始产品介绍。
+- **我的个人迭代**：见 [ROADMAP.md](ROADMAP.md) 的功能地图和 [DEVLOG.md](DEVLOG.md) 的实现日志。
+- **当前重点方向**：外部数据接入、MCP/COROS 集成、Companion 主动 check-in、Android 前台服务送达、ASR/TTS 语音交互、Companion 稳定性修复。
+
 
 ## Memex 是什么？
 

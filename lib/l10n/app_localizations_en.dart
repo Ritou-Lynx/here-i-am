@@ -616,7 +616,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get agentProcessing => 'AI is processing...';
 
   @override
-  String get keepAppOpen => 'Don\'t close the app';
+  String get keepAppOpen => 'Processing continues in background';
 
   @override
   String get activityDetail => 'Activity Detail';

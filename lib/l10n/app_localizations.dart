@@ -1193,7 +1193,7 @@ abstract class AppLocalizations {
   /// No description provided for @keepAppOpen.
   ///
   /// In en, this message translates to:
-  /// **'Don\'t close the app'**
+  /// **'Processing continues in background'**
   String get keepAppOpen;
 
   /// No description provided for @activityDetail.

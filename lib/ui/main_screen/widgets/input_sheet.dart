@@ -1257,16 +1257,363 @@ class _InputSheetState extends State<InputSheet>
     );
   }
 
+  bool get _hasAttachmentContent =>
+      _detectedTags.isNotEmpty ||
+      _selectedImages.isNotEmpty ||
+      _audioPath != null;
+
+  Widget _buildAttachmentScroller() {
+    if (!_hasAttachmentContent) return const SizedBox.shrink();
+
+    return Flexible(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_detectedTags.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _detectedTags.map((tag) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.iconBgLight,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          '#',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          tag,
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+            if (_selectedImages.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 100,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _selectedImages.length,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: GestureDetector(
+                              onTap: () => _showImagePreview(index),
+                              child: _assetsMap.containsKey(
+                                _selectedImages[index].path,
+                              )
+                                  ? AssetEntityImage(
+                                      _assetsMap[
+                                          _selectedImages[index].path]!,
+                                      width: 100,
+                                      height: 100,
+                                      fit: BoxFit.cover,
+                                      isOriginal: false,
+                                      thumbnailSize:
+                                          const ThumbnailSize.square(200),
+                                      thumbnailFormat: ThumbnailFormat.jpeg,
+                                    )
+                                  : Image.file(
+                                      File(_selectedImages[index].path),
+                                      width: 100,
+                                      height: 100,
+                                      fit: BoxFit.cover,
+                                    ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: GestureDetector(
+                              onTap: () => _removeImage(index),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+            if (_audioPath != null && !_isRecording) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: _toggleAudioPlayback,
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Icon(
+                          _isPlaying ? Icons.pause : Icons.play_arrow,
+                          size: 20,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            UserStorage.l10n.recordedAudio,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _isPlaying
+                                ? UserStorage.l10n.playing
+                                : _formatDuration(_audioDuration),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _removeAudio,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          size: 16,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComposerActions() {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: _isTranscribing
+              ? null
+              : (_isRecording ? _stopRecording : _startRecording),
+          onLongPress:
+              (_isRecording || _isTranscribing) ? null : _pickAudioFile,
+          child: AnimatedBuilder(
+            animation: _pulseController,
+            builder: (context, child) {
+              return SizedBox(
+                width: 48,
+                height: 48,
+                child: Stack(
+                  alignment: Alignment.center,
+                  clipBehavior: Clip.none,
+                  children: [
+                    if (_isRecording) ...[
+                      _buildRipple(_pulseController.value, 0.0),
+                      _buildRipple(_pulseController.value, 0.33),
+                      _buildRipple(_pulseController.value, 0.66),
+                    ],
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: _isRecording
+                            ? AppColors.primary
+                            : _isTranscribing
+                                ? AppColors.primary.withValues(alpha: 0.08)
+                                : const Color(0xFFF7F8FA),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Icon(
+                            Icons.mic,
+                            size: 22,
+                            color: _isRecording
+                                ? Colors.white
+                                : _isTranscribing
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary,
+                          ),
+                          if (_isTranscribing)
+                            const SizedBox(
+                              width: 36,
+                              height: 36,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        GestureDetector(
+          onTap: () => _pickImage(ImageSource.camera),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F8FA),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: const Icon(
+              Icons.camera_alt,
+              size: 22,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        GestureDetector(
+          onTap: () => _pickImage(ImageSource.gallery),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F8FA),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: const Icon(
+              Icons.photo_library,
+              size: 22,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        const Spacer(),
+        GestureDetector(
+          key: DemoService.instance.isActive
+              ? DemoService.instance.sendButtonKey
+              : null,
+          onTap: _handleSubmit,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  UserStorage.l10n.recordLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.arrow_upward,
+                  size: 18,
+                  color: Colors.white,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.isOpen) return const SizedBox.shrink();
 
-    final viewInsets = MediaQuery.of(context).viewInsets;
-    final screenHeight = MediaQuery.of(context).size.height;
+    final mediaQuery = MediaQuery.of(context);
+    final viewInsets = mediaQuery.viewInsets;
+    final screenHeight = mediaQuery.size.height;
+    final topSafeArea = mediaQuery.padding.top;
     // Calculate available height excluding keyboard
-    final availableHeight = screenHeight - viewInsets.bottom;
+    final availableHeight = (screenHeight - viewInsets.bottom - topSafeArea)
+        .clamp(0.0, screenHeight)
+        .toDouble();
     // Account for AutoRow (~84px) and card margins
-    final cardMaxHeight = availableHeight - 110;
+    final maxCardHeightLimit = screenHeight * 0.7;
+    final minCardHeight =
+        maxCardHeightLimit < 160.0 ? maxCardHeightLimit : 160.0;
+    final cardMaxHeight = (availableHeight - 110)
+        .clamp(minCardHeight, maxCardHeightLimit)
+        .toDouble();
 
     return Stack(
       children: [
@@ -1304,10 +1651,7 @@ class _InputSheetState extends State<InputSheet>
                         child: Container(
                           margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                           constraints: BoxConstraints(
-                            maxHeight: cardMaxHeight.clamp(
-                              160.0,
-                              screenHeight * 0.7,
-                            ),
+                            maxHeight: cardMaxHeight,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.white,
@@ -1331,477 +1675,36 @@ class _InputSheetState extends State<InputSheet>
                                 if (_isRestoredDraft &&
                                     _textController.text.trim().isNotEmpty)
                                   _buildDraftHeader(),
-                                Flexible(
-                                  child: SingleChildScrollView(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      24,
-                                      0,
-                                      24,
-                                      24,
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 24),
+                                  child: TextField(
+                                    controller: _textController,
+                                    scrollController: _textScrollController,
+                                    autofocus: false,
+                                    maxLines: 5,
+                                    decoration: InputDecoration(
+                                      hintText:
+                                          UserStorage.l10n.tellAiWhatHappened,
+                                      hintStyle: const TextStyle(
+                                        color: AppColors.textTertiary,
+                                        fontSize: 18,
+                                      ),
+                                      border: InputBorder.none,
                                     ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        TextField(
-                                          controller: _textController,
-                                          scrollController:
-                                              _textScrollController,
-                                          autofocus: false,
-                                          maxLines: 5,
-                                          decoration: InputDecoration(
-                                            hintText: UserStorage
-                                                .l10n.tellAiWhatHappened,
-                                            hintStyle: const TextStyle(
-                                              color: AppColors.textTertiary,
-                                              fontSize: 18,
-                                            ),
-                                            border: InputBorder.none,
-                                          ),
-                                          style: const TextStyle(
-                                            fontSize: 18,
-                                            color: AppColors.textPrimary,
-                                            fontWeight: FontWeight.w500,
-                                            height: 1.5,
-                                          ),
-                                        ),
-                                        if (_detectedTags.isNotEmpty) ...[
-                                          const SizedBox(height: 12),
-                                          Wrap(
-                                            spacing: 8,
-                                            runSpacing: 8,
-                                            children: _detectedTags.map((tag) {
-                                              return Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 12,
-                                                  vertical: 6,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.iconBgLight,
-                                                  borderRadius:
-                                                      BorderRadius.circular(16),
-                                                  border: Border.all(
-                                                    color: AppColors.primary
-                                                        .withValues(alpha: 0.3),
-                                                    width: 1,
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    const Text(
-                                                      '#',
-                                                      style: TextStyle(
-                                                        color:
-                                                            AppColors.primary,
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 2),
-                                                    Text(
-                                                      tag,
-                                                      style: const TextStyle(
-                                                        color:
-                                                            AppColors.primary,
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                            }).toList(),
-                                          ),
-                                        ],
-                                        if (_selectedImages.isNotEmpty) ...[
-                                          const SizedBox(height: 16),
-                                          SizedBox(
-                                            height: 100,
-                                            child: ListView.builder(
-                                              scrollDirection: Axis.horizontal,
-                                              itemCount: _selectedImages.length,
-                                              itemBuilder: (context, index) {
-                                                return Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                    right: 8,
-                                                  ),
-                                                  child: Stack(
-                                                    children: [
-                                                      ClipRRect(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(
-                                                          12,
-                                                        ),
-                                                        child: GestureDetector(
-                                                          onTap: () =>
-                                                              _showImagePreview(
-                                                            index,
-                                                          ),
-                                                          child: _assetsMap
-                                                                  .containsKey(
-                                                            _selectedImages[
-                                                                    index]
-                                                                .path,
-                                                          )
-                                                              ? AssetEntityImage(
-                                                                  _assetsMap[
-                                                                      _selectedImages[
-                                                                              index]
-                                                                          .path]!,
-                                                                  width: 100,
-                                                                  height: 100,
-                                                                  fit: BoxFit
-                                                                      .cover,
-                                                                  isOriginal:
-                                                                      false,
-                                                                  thumbnailSize:
-                                                                      const ThumbnailSize
-                                                                          .square(
-                                                                    200,
-                                                                  ),
-                                                                  thumbnailFormat:
-                                                                      ThumbnailFormat
-                                                                          .jpeg,
-                                                                )
-                                                              : Image.file(
-                                                                  File(
-                                                                    _selectedImages[
-                                                                            index]
-                                                                        .path,
-                                                                  ),
-                                                                  width: 100,
-                                                                  height: 100,
-                                                                  fit: BoxFit
-                                                                      .cover,
-                                                                ),
-                                                        ),
-                                                      ),
-                                                      Positioned(
-                                                        top: 4,
-                                                        right: 4,
-                                                        child: GestureDetector(
-                                                          onTap: () =>
-                                                              _removeImage(
-                                                                  index),
-                                                          child: Container(
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .all(
-                                                              4,
-                                                            ),
-                                                            decoration:
-                                                                const BoxDecoration(
-                                                              color: Colors
-                                                                  .black54,
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                            ),
-                                                            child: const Icon(
-                                                              Icons.close,
-                                                              size: 16,
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        ],
-                                        if (_audioPath != null &&
-                                            !_isRecording) ...[
-                                          const SizedBox(height: 16),
-                                          Container(
-                                            padding: const EdgeInsets.all(12),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF8FAFC),
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                12,
-                                              ),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                GestureDetector(
-                                                  onTap: _toggleAudioPlayback,
-                                                  child: Container(
-                                                    width: 36,
-                                                    height: 36,
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.white,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                        18,
-                                                      ),
-                                                    ),
-                                                    child: Icon(
-                                                      _isPlaying
-                                                          ? Icons.pause
-                                                          : Icons.play_arrow,
-                                                      size: 20,
-                                                      color:
-                                                          AppColors.textPrimary,
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                        UserStorage
-                                                            .l10n.recordedAudio,
-                                                        style: const TextStyle(
-                                                          fontSize: 14,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: AppColors
-                                                              .textPrimary,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 2),
-                                                      Text(
-                                                        _isPlaying
-                                                            ? UserStorage
-                                                                .l10n.playing
-                                                            : _formatDuration(
-                                                                _audioDuration,
-                                                              ),
-                                                        style: const TextStyle(
-                                                          fontSize: 13,
-                                                          color: AppColors
-                                                              .textSecondary,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                GestureDetector(
-                                                  onTap: _removeAudio,
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                      4,
-                                                    ),
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                      color: Colors.white,
-                                                      shape: BoxShape.circle,
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.close,
-                                                      size: 16,
-                                                      color: AppColors
-                                                          .textSecondary,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                        const SizedBox(height: 24),
-                                        Row(
-                                          children: [
-                                            GestureDetector(
-                                              onTap: _isTranscribing
-                                                  ? null
-                                                  : (_isRecording
-                                                      ? _stopRecording
-                                                      : _startRecording),
-                                              onLongPress: (_isRecording ||
-                                                      _isTranscribing)
-                                                  ? null
-                                                  : _pickAudioFile,
-                                              child: AnimatedBuilder(
-                                                animation: _pulseController,
-                                                builder: (context, child) {
-                                                  return SizedBox(
-                                                    width: 48,
-                                                    height: 48,
-                                                    child: Stack(
-                                                      alignment:
-                                                          Alignment.center,
-                                                      clipBehavior: Clip.none,
-                                                      children: [
-                                                        if (_isRecording) ...[
-                                                          _buildRipple(
-                                                            _pulseController
-                                                                .value,
-                                                            0.0,
-                                                          ),
-                                                          _buildRipple(
-                                                            _pulseController
-                                                                .value,
-                                                            0.33,
-                                                          ),
-                                                          _buildRipple(
-                                                            _pulseController
-                                                                .value,
-                                                            0.66,
-                                                          ),
-                                                        ],
-                                                        Container(
-                                                          width: 48,
-                                                          height: 48,
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: _isRecording
-                                                                ? AppColors
-                                                                    .primary
-                                                                : _isTranscribing
-                                                                    ? AppColors
-                                                                        .primary
-                                                                        .withValues(
-                                                                        alpha:
-                                                                            0.08,
-                                                                      )
-                                                                    : const Color(
-                                                                        0xFFF7F8FA,
-                                                                      ),
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                              24,
-                                                            ),
-                                                          ),
-                                                          child: Stack(
-                                                            alignment: Alignment
-                                                                .center,
-                                                            children: [
-                                                              Icon(
-                                                                Icons.mic,
-                                                                size: 22,
-                                                                color: _isRecording
-                                                                    ? Colors.white
-                                                                    : _isTranscribing
-                                                                        ? AppColors.primary
-                                                                        : AppColors.textSecondary,
-                                                              ),
-                                                              if (_isTranscribing)
-                                                                const SizedBox(
-                                                                  width: 36,
-                                                                  height: 36,
-                                                                  child:
-                                                                      CircularProgressIndicator(
-                                                                    strokeWidth:
-                                                                        2,
-                                                                    color: AppColors
-                                                                        .primary,
-                                                                  ),
-                                                                ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ),
-                                            const SizedBox(width: 16),
-                                            GestureDetector(
-                                              onTap: () => _pickImage(
-                                                ImageSource.camera,
-                                              ),
-                                              child: Container(
-                                                width: 48,
-                                                height: 48,
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      const Color(0xFFF7F8FA),
-                                                  borderRadius:
-                                                      BorderRadius.circular(24),
-                                                ),
-                                                child: const Icon(
-                                                  Icons.camera_alt,
-                                                  size: 22,
-                                                  color:
-                                                      AppColors.textSecondary,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 16),
-                                            GestureDetector(
-                                              onTap: () => _pickImage(
-                                                ImageSource.gallery,
-                                              ),
-                                              child: Container(
-                                                width: 48,
-                                                height: 48,
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      const Color(0xFFF7F8FA),
-                                                  borderRadius:
-                                                      BorderRadius.circular(24),
-                                                ),
-                                                child: const Icon(
-                                                  Icons.photo_library,
-                                                  size: 22,
-                                                  color:
-                                                      AppColors.textSecondary,
-                                                ),
-                                              ),
-                                            ),
-                                            const Spacer(),
-                                            GestureDetector(
-                                              key: DemoService.instance.isActive
-                                                  ? DemoService
-                                                      .instance.sendButtonKey
-                                                  : null,
-                                              onTap: _handleSubmit,
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 24,
-                                                  vertical: 12,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black,
-                                                  borderRadius:
-                                                      BorderRadius.circular(24),
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    Text(
-                                                      UserStorage
-                                                          .l10n.recordLabel,
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 16,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    const Icon(
-                                                      Icons.arrow_upward,
-                                                      size: 18,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.5,
                                     ),
                                   ),
+                                ),
+                                _buildAttachmentScroller(),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                                  child: _buildComposerActions(),
                                 ),
                               ],
                             ),

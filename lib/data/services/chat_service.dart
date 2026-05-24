@@ -12,6 +12,7 @@ import 'package:memex/data/services/location_context_service.dart';
 import 'package:memex/domain/models/custom_agent_config.dart';
 import 'package:memex/domain/models/location_context_config.dart';
 import 'package:memex/domain/models/llm_config.dart';
+import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/time_context.dart';
@@ -120,19 +121,21 @@ class ChatService {
     SkillSyncResult? skillSync;
 
     try {
-      // Check if this session belongs to a custom agent by reading session metadata,
-      // then load the latest config from CustomAgentConfigService.
-      CustomAgentConfig? customAgentCfg;
-      if (sessionId != null && sessionId.isNotEmpty) {
-        final isCustom = await _isCustomAgentSession(userId, finalSessionId);
-        if (isCustom && agentName != null && agentName.isNotEmpty) {
-          final configs = await CustomAgentConfigService.instance.loadAll(
-            userId,
-          );
-          customAgentCfg =
-              configs.where((c) => c.agentName == agentName).firstOrNull;
-        }
-      }
+      // Load all custom agent configs once; used for agent detection and
+      // capability injection into memex_agent's system prompt.
+      final allCustomConfigs =
+          await CustomAgentConfigService.instance.loadAll(userId);
+
+      // Resolve custom agent config by agentName — works for both new sessions
+      // (no sessionId yet) and existing sessions.  Built-in agent names like
+      // 'memex_agent' or 'knowledge_insight_agent' won't match any custom
+      // config, so customAgentCfg stays null and we fall through to SuperAgent.
+      CustomAgentConfig? customAgentCfg =
+          (agentName != null && agentName.isNotEmpty)
+              ? allCustomConfigs
+                  .where((c) => c.agentName == agentName)
+                  .firstOrNull
+              : null;
 
       final agentIdForLLM =
           customAgentCfg?.llmConfigKey ?? AgentDefinitions.chatAgent;
@@ -218,6 +221,30 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
 ## Important
 - **Language**: ${UserStorage.l10n.chatLanguageInstruction}
 """;
+
+        // Inject WeRead capability if the user has configured the WeRead agent.
+        // This lets memex_agent answer reading/book questions directly via http_fetch.
+        final wereadCfg =
+            allCustomConfigs.where((c) => c.agentName == 'weread').firstOrNull;
+        if (wereadCfg != null) {
+          final sp = wereadCfg.systemPrompt ?? '';
+          final keyMatch = RegExp(r'wrk-[A-Za-z0-9]+').firstMatch(sp);
+          if (keyMatch != null) {
+            final apiKey = keyMatch.group(0)!;
+            additionalSystemPrompt += """
+
+## 微信读书 (WeRead) 集成
+用户已配置微信读书。当用户询问阅读记录、书架、在读书籍、读书笔记、阅读时长等问题时，使用 http_fetch 工具直接查询微信读书 API，无需用户再次确认：
+- URL: https://i.weread.qq.com/api/agent/gateway
+- Method: POST
+- Headers: {"Authorization": "Bearer $apiKey", "Content-Type": "application/json"}
+- 书架列表：{"api_name": "/shelf/sync", "skill_version": "1.0.3"}
+- 搜索书籍：{"api_name": "/store/search", "keyword": "关键词", "scope": 10, "skill_version": "1.0.3"}
+- 书籍信息：{"api_name": "/book/info", "bookId": "书籍ID", "skill_version": "1.0.3"}
+- 阅读进度：{"api_name": "/book/getprogress", "bookId": "书籍ID", "skill_version": "1.0.3"}
+""";
+          }
+        }
 
         final forceActiveSkills = <String>[];
         if (scene == 'assistant_timeline_card_detail') {
@@ -334,6 +361,19 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
       ]);
     }
 
+    // Drain pending system checkin triggers and reminders
+    final checkinContext = await _drainPendingSystemTriggers();
+    if (checkinContext.isNotEmpty) {
+      userMessages.addAll([
+        UserMessage.text(checkinContext),
+        ModelMessage(
+          model: "mocked",
+          textOutput:
+              "I'll process these system triggers and decide what to do.",
+        ),
+      ]);
+    }
+
     userMessages.add(
       UserMessage([
         TextPart(buildCurrentTimeReminder(DateTime.now())),
@@ -351,9 +391,12 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
           _logger.warning('Failed to sync skills back: $e');
         }
       }
-    }).catchError((e) {
+    }).catchError((e) async {
+      // Reset stuck processing triggers so they don't get lost
+      try {
+        await _recoverStuckProcessingTriggers();
+      } catch (_) {}
       // This catchError is for synchronous errors during startup or unhandled async errors
-      // causing the run future to fail before AgentStoppedEvent might be emitted (though AgentStoppedEvent is in finally block)
       _logger.severe('Agent run failed (catchError)', e);
       if (!streamController.isClosed) {
         streamController.add(ChatErrorEvent(e.toString()));
@@ -363,6 +406,56 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
     });
 
     yield* streamController.stream;
+  }
+
+  /// Resets any processing triggers back to pending so they are not lost.
+  Future<void> _recoverStuckProcessingTriggers() async {
+    try {
+      await CheckinService.instance.recoverStuckProcessing();
+    } catch (e) {
+      _logger.warning('Failed to recover stuck triggers: $e');
+    }
+  }
+
+  /// Drains pending system triggers (checkins and due reminders) and formats
+  /// them as a <system-reminder type="checkin"> block for the agent.
+  Future<String> _drainPendingSystemTriggers() async {
+    try {
+      _logger.info('_drainPendingSystemTriggers: querying...');
+      final pending = await CheckinService.instance.drainPending();
+      _logger.info('_drainPendingSystemTriggers: found ${pending.length} pending');
+      if (pending.isEmpty) return '';
+
+      // Mark all as processing (turn gate)
+      for (final row in pending) {
+        await CheckinService.instance.markStatus(row.id, 'processing');
+      }
+
+      final buf = StringBuffer();
+      buf.writeln('<system-reminder type="checkin">');
+      buf.writeln('SYSTEM ACTION MODE: internal triggers are pending.');
+      buf.writeln('You have ${pending.length} system trigger(s).');
+      buf.writeln(
+          'Review each trigger, then call system_checkin to process and decide:');
+      buf.writeln('  silent, notify, or remind.');
+      buf.writeln('After processing all triggers, call set_system_message_status.');
+      buf.writeln();
+
+      for (final row in pending) {
+        buf.writeln(
+            '[${row.triggerType.toUpperCase()}] (id: ${row.id}) ${row.body}');
+        if (row.context != null) {
+          buf.writeln('  Context: ${row.context}');
+        }
+        buf.writeln();
+      }
+      buf.writeln('</system-reminder>');
+
+      return buf.toString();
+    } catch (e) {
+      _logger.warning('Failed to drain system triggers: $e');
+      return '';
+    }
   }
 
   void _setupControllerListeners(
@@ -434,6 +527,8 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
       }
 
       if (event.error != null) {
+        // Reset stuck processing triggers so they can be retried next turn
+        _recoverStuckProcessingTriggers();
         if (!stream.isClosed) {
           stream.add(ChatAgentStoppedEvent());
           stream.add(ChatErrorEvent(event.error.toString()));
@@ -590,21 +685,6 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
   }
 
   // --- Session Helpers (Recreated from chat.dart to be independent) ---
-
-  /// Check whether a session file has `is_custom_agent: true`.
-  Future<bool> _isCustomAgentSession(String userId, String sessionId) async {
-    try {
-      final sessionFile = _getSessionFilePath(userId, sessionId);
-      if (!await sessionFile.exists()) return false;
-      final content = await sessionFile.readAsString();
-      final doc = loadYaml(content);
-      final data = jsonDecode(jsonEncode(doc)) as Map<String, dynamic>;
-      return data['is_custom_agent'] == true;
-    } catch (e) {
-      _logger.warning('Failed to read session metadata: $e');
-    }
-    return false;
-  }
 
   Future<String> _createSession(
     String userId,

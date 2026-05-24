@@ -31,6 +31,8 @@ import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/character/widgets/persona_avatar_button.dart';
 import 'package:memex/ui/schedule/widgets/schedule_aggregator_screen.dart';
+import 'package:memex/data/services/custom_agent_config_service.dart';
+import 'package:memex/domain/models/custom_agent_config.dart' show CustomAgentConfig;
 
 /// Timeline screen - main memory view. Receives [viewModel] and [insightViewModel] from parent (Compass-style).
 class TimelineScreen extends StatefulWidget {
@@ -116,6 +118,143 @@ class TimelineScreenState extends State<TimelineScreen> {
           title: UserStorage.l10n.aiAssistant,
           inputHint: UserStorage.l10n.aiInputHint,
           scene: 'assistant_home',
+        );
+      },
+    );
+  }
+
+  /// Long-press on chat button: show a bottom sheet to pick an agent directly.
+  Future<void> _showAgentSelector(BuildContext ctx) async {
+    final userId = await UserStorage.getUserId();
+    if (userId == null || !mounted) return;
+
+    final List<CustomAgentConfig> configs =
+        await CustomAgentConfigService.instance.loadAll(userId);
+    final List<CustomAgentConfig> customAgents =
+        configs.where((c) => c.isCustom && c.enabled).toList();
+    if (!mounted) return;
+
+    // ignore: use_build_context_synchronously
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '选择助手',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0A0A0A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Default AI assistant
+              _buildAgentTile(
+                icon: Icons.auto_awesome,
+                title: UserStorage.l10n.aiAssistant,
+                subtitle: '全能助手',
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _showChatDialog(widget.viewModel);
+                },
+              ),
+              // Custom agents
+              ...customAgents.map((cfg) => _buildAgentTile(
+                    icon: Icons.extension_outlined,
+                    title: _displayNameForAgent(cfg.agentName),
+                    subtitle: cfg.agentName,
+                    onTap: () {
+                      Navigator.pop(sheetCtx);
+                      _openDirectAgentChat(
+                        cfg.agentName,
+                        _displayNameForAgent(cfg.agentName),
+                      );
+                    },
+                  )),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAgentTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEF2FF),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, size: 20, color: const Color(0xFF6366F1)),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF0A0A0A),
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+      ),
+      onTap: onTap,
+    );
+  }
+
+  /// Human-readable display name for a custom agent.
+  String _displayNameForAgent(String agentName) {
+    const names = <String, String>{
+      'weread': '微信读书',
+      'coros': 'COROS 运动数据',
+    };
+    return names[agentName] ?? agentName;
+  }
+
+  /// Open a direct chat dialog for the given custom agent.
+  void _openDirectAgentChat(String agentName, String title) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 500),
+      pageBuilder: (ctx, animation, secondaryAnimation) {
+        return AgentChatDialog(
+          agentName: agentName,
+          title: title,
+          inputHint: UserStorage.l10n.aiInputHint,
+          scene: 'custom_agent_$agentName',
         );
       },
     );
@@ -371,9 +510,10 @@ class TimelineScreenState extends State<TimelineScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Chat button
+                        // Chat button (tap=AI助手, long-press=select agent)
                         GestureDetector(
                           onTap: () => _showChatDialog(vm),
+                          onLongPress: () => _showAgentSelector(context),
                           child: SizedBox(
                             width: 36,
                             height: 36,

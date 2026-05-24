@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:memex/agent/memory/character_memory_service.dart';
+import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -36,6 +37,7 @@ class PersonaChatService {
             timestamp: createdAt,
           ),
         );
+    _notifyMessageAdded(characterId);
     await _appendTimelineEventIfPossible(
       characterId: characterId,
       content: content,
@@ -59,6 +61,7 @@ class PersonaChatService {
             timestamp: createdAt,
           ),
         );
+    _notifyMessageAdded(characterId);
     await _appendTimelineEventIfPossible(
       characterId: characterId,
       content: content,
@@ -86,6 +89,7 @@ class PersonaChatService {
             messageType: const Value('action'),
           ),
         );
+    _notifyMessageAdded(characterId);
     await _appendTimelineEventIfPossible(
       characterId: characterId,
       content: content,
@@ -171,5 +175,11 @@ class PersonaChatService {
     return (_db.delete(_db.personaChatMessages)
           ..where((t) => t.characterId.equals(characterId)))
         .go();
+  }
+
+  void _notifyMessageAdded(String characterId) {
+    EventBusService.instance.emitEvent(
+      PersonaChatMessageAddedMessage(characterId: characterId),
+    );
   }
 }

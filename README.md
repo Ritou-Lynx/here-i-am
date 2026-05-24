@@ -23,6 +23,16 @@
   <a href="https://play.google.com/store/apps/details?id=com.memexlab.memex">Google Play</a>
 </p>
 
+## Portfolio fork notice
+
+This repository is a personal iteration fork of the upstream open-source project [memex-lab/memex](https://github.com/memex-lab/memex). The original Memex product, core local-first journal experience, multi-agent card generation, knowledge base, backup system, and app foundations belong to the upstream project and its authors.
+
+My work is highlighted separately so reviewers can quickly distinguish attribution:
+
+- **Original upstream capabilities:** see the main product overview below.
+- **My personal iterations:** see [ROADMAP.md](ROADMAP.md) for the feature map and [DEVLOG.md](DEVLOG.md) for the implementation log.
+- **Current focus areas:** external data ingestion, MCP/COROS integrations, proactive companion check-ins, Android foreground-service delivery, ASR/TTS voice interaction, and companion reliability fixes.
+
 
 ## What is Memex?
 

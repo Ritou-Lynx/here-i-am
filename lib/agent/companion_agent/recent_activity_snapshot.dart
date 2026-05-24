@@ -1,0 +1,280 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:drift/drift.dart';
+import 'package:logging/logging.dart';
+import 'package:yaml/yaml.dart';
+
+import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/db/app_database.dart';
+import 'package:memex/utils/logger.dart';
+
+/// Builds a "what's going on in the user's life right now" snapshot for the
+/// background companion agent.
+///
+/// Three streams of context:
+/// 1. Recent timeline cards (raw YAML, last N hours) — bypasses comment pipeline
+/// 2. Last user activity (chat + record) — when did the user last appear
+/// 3. Last proactive push from this character — what did you already say
+class RecentActivitySnapshot {
+  RecentActivitySnapshot._();
+
+  static final Logger _logger = getLogger('RecentActivitySnapshot');
+
+  static const String kvBucket = 'companion_push';
+  static String kvKey(String characterId) => 'last_push_$characterId';
+
+  /// Compose the full snapshot as a single string to inject into the
+  /// background SYSTEM DIRECTIVE.
+  static Future<String> build({
+    required String userId,
+    required String characterId,
+    Duration window = const Duration(hours: 12),
+  }) async {
+    final now = DateTime.now();
+    final parts = <String>[];
+
+    parts.add('## Current Moment');
+    parts.add('Time now: ${_fmtTime(now)}');
+
+    // --- Recent records ---
+    try {
+      final records = await _loadRecentRecords(userId, now, window);
+      parts.add('');
+      parts.add('## User Records (last ${window.inHours}h)');
+      if (records.isEmpty) {
+        parts.add('No records in this window.');
+      } else {
+        parts.addAll(records);
+      }
+    } catch (e) {
+      _logger.warning('Failed to load recent records: $e');
+    }
+
+    // --- Last chat activity ---
+    try {
+      final chatInfo = await _loadLastChatInfo(characterId, now);
+      parts.add('');
+      parts.add('## Recent Chat With You');
+      parts.add(chatInfo);
+    } catch (e) {
+      _logger.warning('Failed to load chat info: $e');
+    }
+
+    // --- Last proactive push ---
+    try {
+      final pushInfo = await _loadLastPushInfo(characterId, now);
+      parts.add('');
+      parts.add('## Your Last Proactive Push');
+      parts.add(pushInfo);
+    } catch (e) {
+      _logger.warning('Failed to load last push info: $e');
+    }
+
+    return parts.join('\n');
+  }
+
+  /// Record that a proactive push just happened. Called from the checkin tool
+  /// after a successful notify action.
+  static Future<void> recordPush({
+    required String characterId,
+    required String body,
+  }) async {
+    if (!AppDatabase.isInitialized) return;
+    final db = AppDatabase.instance;
+    final payload = jsonEncode({
+      'ts': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      'body': body,
+    });
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    await db.into(db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: kvKey(characterId),
+            bucket: const Value(kvBucket),
+            value: Value(payload),
+            updatedAt: Value(now),
+          ),
+        );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Recent records (raw YAML cards)
+  // ---------------------------------------------------------------------------
+
+  static Future<List<String>> _loadRecentRecords(
+    String userId,
+    DateTime now,
+    Duration window,
+  ) async {
+    final cutoff = now.subtract(window);
+    final fs = FileSystemService.instance;
+
+    // Card files for the day range touched by the window.
+    final files = await fs.getCardFilesInDateRange(
+      userId,
+      DateTime(cutoff.year, cutoff.month, cutoff.day),
+      DateTime(now.year, now.month, now.day),
+    );
+
+    final entries = <_RecordEntry>[];
+    for (final filePath in files) {
+      try {
+        final file = File(filePath);
+        if (!await file.exists()) continue;
+        final content = await file.readAsString();
+        final doc = loadYaml(content);
+        final data = jsonDecode(jsonEncode(doc)) as Map<String, dynamic>;
+
+        final tsRaw = data['timestamp'];
+        if (tsRaw is! int) continue;
+        final ts = DateTime.fromMillisecondsSinceEpoch(tsRaw * 1000);
+        if (ts.isBefore(cutoff)) continue;
+
+        final summary = _extractCardSummary(data);
+        if (summary.isEmpty) continue;
+        entries.add(_RecordEntry(time: ts, summary: summary));
+      } catch (e) {
+        _logger.fine('Skip card $filePath: $e');
+      }
+    }
+
+    entries.sort((a, b) => a.time.compareTo(b.time));
+    return entries
+        .map((e) => '- ${_fmtTime(e.time)}  ${e.summary}')
+        .toList(growable: false);
+  }
+
+  /// Pull the most user-meaningful text out of a card YAML.
+  /// Priority: title → insight summary → first text-bearing ui_config data.
+  static String _extractCardSummary(Map<String, dynamic> data) {
+    final title = (data['title'] as String?)?.trim();
+    if (title != null && title.isNotEmpty) {
+      return _trunc(title, 80);
+    }
+
+    if (data['insight'] is Map) {
+      final insight = data['insight'] as Map;
+      final s = (insight['summary'] as String?)?.trim();
+      if (s != null && s.isNotEmpty) return _trunc(s, 120);
+      final t = (insight['text'] as String?)?.trim();
+      if (t != null && t.isNotEmpty) return _trunc(t, 120);
+    }
+
+    final uiConfigs = data['ui_configs'];
+    if (uiConfigs is List) {
+      for (final cfg in uiConfigs) {
+        if (cfg is! Map) continue;
+        final cfgData = cfg['data'];
+        if (cfgData is! Map) continue;
+        for (final key in ['text', 'content', 'body', 'note', 'title']) {
+          final v = cfgData[key];
+          if (v is String && v.trim().isNotEmpty) {
+            return _trunc(v.trim(), 120);
+          }
+        }
+      }
+    }
+
+    final tags = data['tags'];
+    if (tags is List && tags.isNotEmpty) {
+      return '[${tags.take(3).join(', ')}]';
+    }
+    return '';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chat history
+  // ---------------------------------------------------------------------------
+
+  static Future<String> _loadLastChatInfo(
+      String characterId, DateTime now) async {
+    if (!AppDatabase.isInitialized) return 'Database not available.';
+    final db = AppDatabase.instance;
+
+    final lastUser = await (db.select(db.personaChatMessages)
+          ..where((t) =>
+              t.characterId.equals(characterId) &
+              t.isFromCharacter.equals(false))
+          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..limit(1))
+        .getSingleOrNull();
+
+    final lastChar = await (db.select(db.personaChatMessages)
+          ..where((t) =>
+              t.characterId.equals(characterId) &
+              t.isFromCharacter.equals(true))
+          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..limit(1))
+        .getSingleOrNull();
+
+    final lines = <String>[];
+    if (lastUser != null) {
+      lines.add(
+          'User last messaged: ${_fmtAgo(lastUser.timestamp, now)} — "${_trunc(lastUser.content, 80)}"');
+    } else {
+      lines.add('User has never messaged you in chat.');
+    }
+    if (lastChar != null) {
+      lines.add(
+          'You last replied: ${_fmtAgo(lastChar.timestamp, now)} — "${_trunc(lastChar.content, 80)}"');
+    }
+    return lines.join('\n');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Last proactive push
+  // ---------------------------------------------------------------------------
+
+  static Future<String> _loadLastPushInfo(
+      String characterId, DateTime now) async {
+    if (!AppDatabase.isInitialized) return 'No record.';
+    final db = AppDatabase.instance;
+    final row = await (db.select(db.kvStore)
+          ..where((t) => t.key.equals(kvKey(characterId))))
+        .getSingleOrNull();
+    if (row == null || row.value == null) {
+      return 'You have never sent a proactive push to this user.';
+    }
+    try {
+      final m = jsonDecode(row.value!) as Map<String, dynamic>;
+      final tsSec = m['ts'] as int?;
+      final body = (m['body'] as String?) ?? '';
+      if (tsSec == null) return 'No record.';
+      final t = DateTime.fromMillisecondsSinceEpoch(tsSec * 1000);
+      return '${_fmtAgo(t, now)} — "${_trunc(body, 100)}"';
+    } catch (_) {
+      return 'No record.';
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Formatters
+  // ---------------------------------------------------------------------------
+
+  static String _fmtTime(DateTime t) {
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} $hh:$mm';
+  }
+
+  static String _fmtAgo(DateTime past, DateTime now) {
+    final diff = now.difference(past);
+    if (diff.isNegative) return 'just now';
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  static String _trunc(String s, int n) {
+    final clean = s.replaceAll('\n', ' ').trim();
+    if (clean.length <= n) return clean;
+    return '${clean.substring(0, n)}…';
+  }
+}
+
+class _RecordEntry {
+  final DateTime time;
+  final String summary;
+  _RecordEntry({required this.time, required this.summary});
+}

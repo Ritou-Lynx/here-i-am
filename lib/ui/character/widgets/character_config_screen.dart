@@ -365,6 +365,7 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
   final _systemPromptController = TextEditingController();
   final _postHistoryController = TextEditingController();
   final _mesExampleController = TextEditingController();
+  final _ttsVoiceIdController = TextEditingController();
   bool _isSaving = false;
   bool _allowImmediatePop = false;
 
@@ -397,6 +398,7 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
           widget.character!.avatar!.isNotEmpty;
       _chatBackgroundValue = widget.character!.chatBackground;
       _chatBackgroundPreview = widget.character!.chatBackground;
+      _ttsVoiceIdController.text = widget.character!.ttsVoiceId ?? '';
       _loadCharacterData();
     }
     if (_avatarValueForSave.isEmpty) {
@@ -444,6 +446,7 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
     _systemPromptController.dispose();
     _postHistoryController.dispose();
     _mesExampleController.dispose();
+    _ttsVoiceIdController.dispose();
     super.dispose();
   }
 
@@ -626,6 +629,9 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
             ? null
             : _mesExampleController.text.trim(),
         'chat_background': _chatBackgroundValue,
+        'tts_voice_id': _ttsVoiceIdController.text.trim().isEmpty
+            ? null
+            : _ttsVoiceIdController.text.trim(),
       };
 
       if (widget.character == null) {
@@ -849,6 +855,20 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
               const SizedBox(height: 8),
               _buildChatBackgroundPicker(),
               const SizedBox(height: 24),
+              // TTS voice ID
+              _buildLabel('ElevenLabs 语音 ID'),
+              const SizedBox(height: 4),
+              Text(
+                '在 ElevenLabs 创建声音后，将 Voice ID 粘贴到此处',
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _ttsVoiceIdController,
+                style: const TextStyle(fontSize: 16),
+                decoration: _buildInputDecoration('例如: 21m00Tcm4TlvDq8ikWAM'),
+              ),
+              const SizedBox(height: 24),
               _buildLabel(UserStorage.l10n.characterPersonaLabel),
               const SizedBox(height: 8),
               Container(
@@ -878,12 +898,6 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
                   minLines: 15,
                   keyboardType: TextInputType.multiline,
                   textInputAction: TextInputAction.newline,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return UserStorage.l10n.pleaseEnterCharacterPersona;
-                    }
-                    return null;
-                  },
                 ),
               ),
               const SizedBox(height: 24),

@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_asset_server.dart';
 import 'package:memex/l10n/app_localizations.dart';
@@ -29,7 +31,7 @@ void main() {
     }
   });
 
-  Widget buildHost() {
+  Widget buildHost({InputData? initialData}) {
     var isOpen = true;
     var closeCount = 0;
 
@@ -44,7 +46,7 @@ void main() {
                 const Center(child: Text('Home content')),
                 InputSheet(
                   isOpen: isOpen,
-                  initialData: InputData(text: 'started note'),
+                  initialData: initialData ?? InputData(text: 'started note'),
                   onClose: () {
                     setState(() {
                       isOpen = false;
@@ -81,5 +83,35 @@ void main() {
     expect(find.text('Home content'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
     expect(find.text('close count: 1'), findsOneWidget);
+  });
+
+  testWidgets('keeps the input and send controls visible with media attached', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final imageFile = File('${testDataRoot.path}/input_sheet_preview.png');
+    await imageFile.writeAsBytes(
+      base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lDRT2wAAAABJRU5ErkJggg==',
+      ),
+    );
+
+    await tester.pumpWidget(
+      buildHost(
+        initialData: InputData(
+          text: '#tag started note',
+          images: [XFile(imageFile.path)],
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text(UserStorage.l10n.recordLabel), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_upward), findsOneWidget);
   });
 }

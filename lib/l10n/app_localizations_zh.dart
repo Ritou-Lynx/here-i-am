@@ -596,7 +596,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get agentProcessing => 'AI 处理中...';
 
   @override
-  String get keepAppOpen => '请不要关闭应用';
+  String get keepAppOpen => '后台处理中，完成后自动结束';
 
   @override
   String get activityDetail => '活动详情';

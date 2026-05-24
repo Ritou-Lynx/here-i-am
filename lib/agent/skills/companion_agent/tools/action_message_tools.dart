@@ -1,5 +1,4 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
-import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 
 /// Factory for the SendActionMessage tool used by the companion agent.
@@ -47,11 +46,6 @@ Do NOT put dialogue or spoken words in this tool.''',
             characterId,
             wrapped,
             isRead: true,
-          );
-          // Notify the chat screen to reload immediately so the action message
-          // appears before the spoken reply arrives.
-          EventBusService.instance.emitEvent(
-            PersonaChatMessageAddedMessage(characterId: characterId),
           );
           return 'Action message sent.';
         } catch (e) {

@@ -78,6 +78,11 @@ Important: All user files are under the working directory /. Use this parent pat
 5. **Cards**: `/Cards` (Managed)
    - **Purpose**: Stores generated beautiful cards.
 
+6. **External Data**: `/_UserSettings/external_data/` (Read-Only)
+   - **Purpose**: Contains auto-synced data from external services (WeRead, etc.).
+   - **WeRead**: `/_UserSettings/external_data/weread/reading_summary.md` — reading activity summary refreshed before each insight run. Use this to correlate reading habits with other life patterns.
+   - **COROS**: `/_UserSettings/external_data/coros/README.md` — health & fitness data summary (profile, daily health, sleep, workouts, recovery). Refreshed before each insight run. Use this to correlate physical activity, sleep, and health metrics with other life patterns.
+
 ### Full Directory Tree Example
 ```
 .

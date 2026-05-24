@@ -9,10 +9,6 @@ import 'package:memex/data/services/search_service.dart';
 import 'package:memex/data/services/backup_service.dart';
 import 'package:memex/domain/models/calendar_model.dart';
 import 'package:memex/data/repositories/hydrate_card.dart';
-import 'package:memex/data/services/task_handlers/knowledge_insight_handler.dart';
-import 'package:memex/data/services/task_handlers/schedule_aggregator_handler.dart';
-import 'package:memex/data/services/task_handlers/schedule_refresh_router_handler.dart';
-import 'package:memex/data/services/task_handlers/clarification_resolution_handler.dart';
 import 'package:memex/data/services/table_change_notifier.dart';
 import 'package:memex/data/services/card_attachment_service.dart';
 import 'package:memex/data/services/card_detail_notifier.dart';
@@ -39,20 +35,11 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/data/services/chat_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
+import 'package:memex/data/services/local_task_registry.dart';
 import 'package:memex/data/services/global_event_bus.dart';
 import 'package:memex/data/repositories/submit_input.dart'
     as submit_input_endpoint;
 import 'package:memex/data/repositories/reprocess_pending_cards.dart';
-import 'package:memex/data/services/task_handlers/analyze_assets_handler.dart';
-import 'package:memex/data/services/task_handlers/card_agent_handler.dart';
-import 'package:memex/data/services/task_handlers/pkm_agent_handler.dart';
-import 'package:memex/data/services/task_handlers/fts_index_handler.dart';
-import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
-import 'package:memex/data/services/task_handlers/comment_agent_handler.dart';
-import 'package:memex/data/services/task_handlers/reprocess_cards_handler.dart';
-import 'package:memex/data/services/task_handlers/reprocess_comments_handler.dart';
-import 'package:memex/data/services/task_handlers/reprocess_knowledge_base_handler.dart';
-import 'package:memex/data/services/task_handlers/custom_agent_task_handler.dart';
 import 'package:memex/data/services/custom_agent_config_service.dart';
 import 'package:memex/data/repositories/get_tags.dart';
 import 'package:memex/data/repositories/get_timeline_cards.dart';
@@ -121,91 +108,13 @@ class MemexRouter {
       // Register clarification request table watcher (creates timeline cards for global Ask)
       ClarificationRequestService.instance.init();
 
-      // Register Task Handlers - idempotent registration or check if registered?
-      // LocalTaskExecutor handles this map, re-registering overwrites which is fine.
-      LocalTaskExecutor.instance.registerHandler(
-        'handle_analyze_assets',
-        handleAnalyzeAssetsImpl,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'card_agent_task',
-        handleCardAgentImpl,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'pkm_agent_task',
-        handlePkmAgentImpl,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'fts_index_update',
-        handleFtsIndexUpdateImpl,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'reprocess_cards_task',
-        handleReprocessCardsImpl,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'comment_agent_task',
-        handleCommentAgentImpl,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'reprocess_comments_task',
-        handleReprocessCommentsImpl,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'reprocess_knowledge_base_task',
-        handleReprocessKnowledgeBaseImpl,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'process_ai_reply',
-        handleProcessAiReplyImpl,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'knowledge_insight_task',
-        handleKnowledgeInsight,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'schedule_aggregator_task',
-        handleScheduleAggregation,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'schedule_refresh_router_task',
-        handleScheduleRefreshRouter,
-      );
-      LocalTaskExecutor.instance.registerHandler(
-        'clarification_resolution_task',
-        handleClarificationResolution,
-      );
-
-      // Register Failure Handlers
-      LocalTaskExecutor.instance.registerFailureHandler(
-        'card_agent_task',
-        handleCardAgentFailureImpl,
-      );
+      registerLocalTaskHandlers();
       // Generic failure handler for all other agent tasks — emits ErrorNotificationMessage
-      for (final taskType in [
-        'pkm_agent_task',
-        'comment_agent_task',
-        'knowledge_insight_task',
-        'schedule_aggregator_task',
-        'schedule_refresh_router_task',
-        'clarification_resolution_task',
-        'reprocess_cards_task',
-        'reprocess_comments_task',
-        'reprocess_knowledge_base_task',
-        'process_ai_reply',
-        'handle_analyze_assets',
-      ]) {
-        LocalTaskExecutor.instance.registerFailureHandler(
-          taskType,
-          handleGenericAgentFailure,
-        );
-      }
 
       // Register event subscriptions after task handlers are ready.
       _registerEventSubscriptions();
 
       // Initialize custom agent handler and register user-defined agents.
-      initCustomAgentHandler();
       registerBuiltInEventSerializers();
       await CustomAgentConfigService.instance.registerAll(userId);
 

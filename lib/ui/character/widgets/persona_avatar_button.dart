@@ -5,7 +5,7 @@ import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
+import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -68,11 +68,7 @@ class _PersonaAvatarButtonState extends State<PersonaAvatarButton> {
 
   void _openChat() {
     if (_character == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PersonaChatScreen(characterId: _character!.id),
-      ),
-    );
+    openPersonaChat(context, characterId: _character!.id);
   }
 
   @override

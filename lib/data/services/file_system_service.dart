@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'dart:math' as math;
 import 'package:logging/logging.dart';
 import 'package:yaml/yaml.dart';
@@ -66,6 +67,11 @@ class FileSystemService {
       throw StateError('FileSystemService not initialized. Call init() first.');
     }
     return _instance!;
+  }
+
+  /// Returns the platform's application support directory.
+  static Future<Directory> getAppSupportDir() async {
+    return getApplicationSupportDirectory();
   }
 
   /// Initialize filesystem service with data root.

@@ -15,7 +15,15 @@ Future<AgentState> loadOrCreateAgentState(
   final stateDir = Directory(stateDirPath);
   final storage = FileStateStorage(stateDir);
   final state = await storage.loadOrCreate(sessionId, initialMetadata);
-  if (_repairLegacyAssistantContentBlocks(state)) {
+  var stateChanged = false;
+  if (_repairLegacyAssistantContentBlocks(state)) stateChanged = true;
+  if (_flattenPersistedToolCallTurns(state)) stateChanged = true;
+  // Run orphan-strip BEFORE tool-only strip: a previous buggy run may have
+  // already removed the ModelMessages, leaving FunctionExecutionResultMessages
+  // with no corresponding tool_use block.
+  if (_stripOrphanedToolResults(state)) stateChanged = true;
+  if (_stripToolOnlyModelMessages(state)) stateChanged = true;
+  if (stateChanged) {
     await storage.save(state);
   }
   return state;
@@ -63,6 +71,139 @@ bool _repairLegacyAssistantContentBlocks(AgentState state) {
   return changed;
 }
 
+/// Persisted tool-call turns are risky across providers/proxies: a later API
+/// call must preserve the exact assistant tool_calls -> tool result adjacency.
+/// If an interrupted run or older sanitizer leaves that sequence malformed, the
+/// next request fails before the model can answer. Keep any visible assistant
+/// text, but drop protocol-level tool calls and their following results.
+bool _flattenPersistedToolCallTurns(AgentState state) {
+  final messages = state.history.messages;
+  final repairedMessages = <LLMMessage>[];
+  var changed = false;
+  var skipFollowingToolResults = false;
+
+  for (final message in messages) {
+    if (skipFollowingToolResults && message is FunctionExecutionResultMessage) {
+      changed = true;
+      continue;
+    }
+    skipFollowingToolResults = false;
+
+    if (message is ModelMessage && message.functionCalls.isNotEmpty) {
+      changed = true;
+      skipFollowingToolResults = true;
+
+      final text = message.textOutput;
+      if (text != null && text.trim().isNotEmpty) {
+        repairedMessages.add(
+          _copyModelMessage(
+            message,
+            contentBlocks: _contentBlocksWithoutToolUse(message),
+            functionCalls: const [],
+          ),
+        );
+      }
+      continue;
+    }
+
+    repairedMessages.add(message);
+  }
+
+  if (changed) {
+    state.history.messages = repairedMessages;
+  }
+  return changed;
+}
+
+/// Strip FunctionExecutionResultMessages that have no preceding ModelMessage
+/// with tool calls — i.e. they are "orphaned" because the ModelMessage that
+/// generated them was previously stripped (e.g. by an earlier buggy run of
+/// _stripToolOnlyModelMessages that used the wrong class check).
+///
+/// A result message is orphaned when the nearest preceding non-result message
+/// is NOT a ModelMessage. We walk backwards through consecutive result blocks;
+/// if the block is not anchored by a ModelMessage, the whole block is stripped.
+bool _stripOrphanedToolResults(AgentState state) {
+  final messages = state.history.messages;
+  final toRemove = <int>{};
+
+  for (int i = 0; i < messages.length; i++) {
+    final msg = messages[i];
+    if (msg is! FunctionExecutionResultMessage) continue;
+
+    // Walk backwards past any consecutive FunctionExecutionResultMessages.
+    int j = i - 1;
+    while (j >= 0 && messages[j] is FunctionExecutionResultMessage) {
+      j--;
+    }
+
+    // If nothing precedes this block, or the anchor is not a ModelMessage with
+    // tool calls, the result block is orphaned from the API protocol's point
+    // of view. A plain assistant text before a tool result is still invalid.
+    if (j < 0 ||
+        messages[j] is! ModelMessage ||
+        (messages[j] as ModelMessage).functionCalls.isEmpty) {
+      toRemove.add(i);
+    }
+  }
+
+  if (toRemove.isEmpty) return false;
+
+  state.history.messages = [
+    for (int i = 0; i < messages.length; i++)
+      if (!toRemove.contains(i)) messages[i],
+  ];
+  return true;
+}
+
+/// Remove ModelMessage turns that have tool calls but zero text output,
+/// together with all immediately-following FunctionExecutionResultMessages.
+///
+/// When the LLM produces tool-only turns (no spoken text) and those turns get
+/// persisted, the next run sees them as examples and repeats the pattern.
+/// Stripping them on load prevents the "call tool → empty → loopDetection" cycle.
+///
+/// The FunctionExecutionResultMessage(s) MUST also be removed: leaving them
+/// orphaned causes an Anthropic API validation error (tool_result with no
+/// matching tool_use_id in context).
+///
+/// We keep turns that have BOTH tool calls AND text — those are legitimate
+/// agentic turns (e.g. "Let me check your memories *calls MemoryRead*").
+bool _stripToolOnlyModelMessages(AgentState state) {
+  final messages = state.history.messages;
+  final toRemove = <int>{};
+
+  for (int i = 0; i < messages.length; i++) {
+    final msg = messages[i];
+    if (msg is! ModelMessage) continue;
+
+    final hasText = msg.textOutput != null && msg.textOutput!.trim().isNotEmpty;
+    final hasToolCalls = msg.functionCalls.isNotEmpty;
+
+    // A tool-only turn: tool calls with no spoken text output.
+    if (hasToolCalls && !hasText) {
+      toRemove.add(i);
+      // Also strip all immediately-following FunctionExecutionResultMessages
+      // (tool results for this turn). Multiple results may be stored as
+      // separate messages. Leaving any of them orphaned causes an API 400.
+      int j = i + 1;
+      while (j < messages.length &&
+          messages[j] is FunctionExecutionResultMessage) {
+        toRemove.add(j);
+        j++;
+      }
+    }
+  }
+
+  if (toRemove.isEmpty) return false;
+
+  state.history.messages = [
+    for (int i = 0; i < messages.length; i++)
+      if (!toRemove.contains(i)) messages[i],
+  ];
+  return true;
+}
+
 bool _needsLegacyReasoningContentPlaceholder(ModelMessage message) {
   if (message.thought != null) return false;
   if (message.functionCalls.isEmpty) return false;
@@ -105,16 +246,31 @@ ModelMessage _withSynthesizedContentBlocks(ModelMessage message) {
   return _copyModelMessage(message, contentBlocks: contentBlocks);
 }
 
+List<Map<String, dynamic>> _contentBlocksWithoutToolUse(ModelMessage message) {
+  final blocks = [
+    for (final block in message.contentBlocks)
+      if (block['type'] != 'tool_use') Map<String, dynamic>.from(block),
+  ];
+  final hasTextBlock = blocks.any((block) => block['type'] == 'text');
+  if (!hasTextBlock &&
+      message.textOutput != null &&
+      message.textOutput!.trim().isNotEmpty) {
+    blocks.add({'type': 'text', 'text': message.textOutput});
+  }
+  return blocks;
+}
+
 ModelMessage _copyModelMessage(
   ModelMessage message, {
   String? thought,
   List<Map<String, dynamic>>? contentBlocks,
+  List<FunctionCall>? functionCalls,
 }) {
   return ModelMessage(
     thought: thought ?? message.thought,
     thoughtSignature: message.thoughtSignature,
     contentBlocks: contentBlocks ?? message.contentBlocks,
-    functionCalls: message.functionCalls,
+    functionCalls: functionCalls ?? message.functionCalls,
     textOutput: message.textOutput,
     imageOutputs: message.imageOutputs,
     videoOutputs: message.videoOutputs,

@@ -64,6 +64,9 @@ dependencies:
   health: ^13.2.1
   pedometer: ^4.0.0
   workmanager: ^0.9.0
+  android_alarm_manager_plus: ^4.0.7
+  flutter_foreground_task: ^8.17.0
+  flutter_local_notifications: ^18.0.1
   dart_agent_core: ^1.0.9
   flutter_js: ^0.8.7
   drift: ^2.30.0

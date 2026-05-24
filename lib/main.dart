@@ -41,7 +41,13 @@ import 'package:memex/data/services/health_strategies.dart';
 import 'package:memex/data/services/whisper_service.dart';
 import 'package:memex/data/services/streaming_transcriber.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/services/notification_service.dart';
+import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:memex/data/services/companion_foreground_task.dart';
 import 'package:health/health.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/utils/logger.dart';
@@ -62,6 +68,7 @@ import 'package:memex/ui/settings/widgets/backup_restore_confirm_dialog.dart';
 import 'package:quick_actions/quick_actions.dart';
 import 'package:memex/data/services/quick_action_service.dart';
 import 'package:memex/data/services/speech_transcription_service.dart';
+import 'package:memex/data/services/background_task_drain_service.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
@@ -84,6 +91,31 @@ void main() async {
     callbackDispatcher,
     isInDebugMode: false,
   );
+
+  // Initialize AndroidAlarmManager (exact-time wakeups that bypass Doze)
+  if (Platform.isAndroid) {
+    await AndroidAlarmManager.initialize();
+  }
+
+  // Initialize foreground service (bypasses Samsung Freecess)
+  if (Platform.isAndroid) {
+    await CompanionForegroundService.initialize();
+  }
+
+  // Initialize notification service for agent checkins
+  await NotificationService.instance.initialize();
+
+  // Navigate to the character's chat screen when a companion notification is tapped.
+  NotificationService.instance.setTapHandler((String? payload) {
+    if (payload == null || payload.isEmpty) return;
+    final context = rootNavigatorKey.currentContext;
+    if (context == null) return;
+    openPersonaChat(
+      context,
+      characterId: payload,
+      rootNavigator: true,
+    );
+  });
 
   // Cancel any previously registered pedometer background tasks on iOS
   // (iOS now uses HealthKit only, not CMPedometer)
@@ -161,6 +193,15 @@ class RootShellState extends State<RootShell> {
       }
     }
 
+    // Store for WorkManager background isolate access
+    if (hasUser) {
+      final userId = await UserStorage.getUserId();
+      if (userId != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('current_user_id', userId);
+      }
+    }
+
     if (mounted) {
       setState(() {
         _hasUser = hasUser;
@@ -175,6 +216,9 @@ class RootShellState extends State<RootShell> {
     final userId = await UserStorage.getUserId();
     bool isICloud = false;
     if (userId != null) {
+      // Store for WorkManager background isolate access
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('current_user_id', userId);
       final loc = await UserStorage.getWorkspaceStorageLocation(userId);
       isICloud = loc == StorageLocation.icloud;
     }
@@ -278,6 +322,9 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   bool _isLocked = true; // Default to locked on start
   bool _requiresAuth = true; // Whether actual authentication is required
   DateTime? _lastPausedTime; // Track when app was paused
+  StreamSubscription<bool>? _taskKeepAliveSubscription;
+  bool _hasActiveTasks = false;
+  AppLifecycleState? _lastLifecycleState;
 
   @override
   void initState() {
@@ -304,14 +351,18 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _taskKeepAliveSubscription?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lastLifecycleState = state;
     if (state == AppLifecycleState.paused) {
       unawaited(LocalTaskExecutor.instance
           .recordGracefulShutdown(reason: 'app_lifecycle_paused'));
+      _ensureTaskKeepAliveSubscription();
+      unawaited(_syncTaskKeepAliveForLifecycle());
       _lastPausedTime = DateTime.now();
       _checkLockSettingsBeforeLocking();
     } else if (state == AppLifecycleState.resumed) {
@@ -322,6 +373,42 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
       unawaited(LocalTaskExecutor.instance
           .recordGracefulShutdown(reason: 'app_lifecycle_detached'));
     }
+  }
+
+  bool get _isBackgrounded =>
+      _lastLifecycleState == AppLifecycleState.paused ||
+      _lastLifecycleState == AppLifecycleState.hidden;
+
+  void _ensureTaskKeepAliveSubscription() {
+    if (_taskKeepAliveSubscription != null || !AppDatabase.isInitialized) {
+      return;
+    }
+
+    try {
+      _taskKeepAliveSubscription =
+          LocalTaskExecutor.instance.hasActiveTasksStream.listen((hasTasks) {
+        _hasActiveTasks = hasTasks;
+        if (hasTasks && _isBackgrounded) {
+          unawaited(BackgroundTaskDrainService.scheduleDrain());
+        }
+      });
+    } catch (_) {
+      // The local DB can still be initializing during early app startup.
+      // Lifecycle events retry this before background keep-alive is needed.
+    }
+  }
+
+  Future<void> _syncTaskKeepAliveForLifecycle() async {
+    if (!AppDatabase.isInitialized) return;
+
+    try {
+      final snapshot =
+          await LocalTaskExecutor.instance.getTaskActivitySnapshot();
+      _hasActiveTasks = snapshot.hasActiveTasks;
+      if (_isBackgrounded && _hasActiveTasks) {
+        await BackgroundTaskDrainService.scheduleDrain();
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkLockSettingsBeforeLocking() async {
@@ -371,6 +458,9 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
       setState(() {
         _hasUser = hasUser;
       });
+    }
+    if (hasUser) {
+      _ensureTaskKeepAliveSubscription();
     }
   }
 
@@ -484,6 +574,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     _checkAndReportHealthData().catchError((error, stackTrace) {
       _logger.severe(
           '❌ Error in _checkAndReportHealthData: $error', error, stackTrace);
+    });
+
+    // Register stochastic checkin pulse task (if enabled)
+    CheckinService.instance.ensureCheckinTaskRegistered().catchError((e) {
+      _logger.severe('Failed to register checkin task: $e');
     });
 
     // Start auto input collection and quantity check

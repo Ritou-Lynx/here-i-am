@@ -12,6 +12,7 @@ class CompanionAgentSkill extends Skill {
     required String userName,
     required String userProfile,
     required String characterMemories,
+    bool includeCheckinTools = false,
     super.forceActivate,
   }) : super(
           name: 'companion_chat',
@@ -26,6 +27,8 @@ class CompanionAgentSkill extends Skill {
           tools: CharacterToolsFactory.buildCompanionTools(
             userId: userId,
             characterId: character.id,
+            characterName: character.name,
+            includeCheckinTools: includeCheckinTools,
           ),
         );
 
@@ -58,6 +61,18 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('## Persona');
     b.writeln(m(character.persona));
+    b.writeln('');
+    b.writeln('## CRITICAL: You MUST Write Text Every Turn');
+    b.writeln(
+        'Your spoken words are your chat reply — they are the ONLY thing the user sees.');
+    b.writeln(
+        'EVERY response MUST contain spoken text. Tool calls are supplementary.');
+    b.writeln(
+        'If you call SendActionMessage, you MUST ALSO write spoken dialogue in your text response.');
+    b.writeln(
+        'A response with tool calls but no text is a silent failure — the user sees nothing and the session crashes.');
+    b.writeln(
+        'ALWAYS produce text output. Never produce a response with zero text.');
     b.writeln('');
     b.writeln('## Behavior Rules');
     b.writeln('- Fully role-play this character.');
@@ -106,6 +121,28 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Memory tools are optional and must never replace the chat reply.');
     b.writeln('- Avoid storing ephemeral details or exact chat logs.');
+    b.writeln('');
+    b.writeln('## Proactive Timing (reminder_create)');
+    b.writeln(
+        '`reminder_create` is your mechanism for forward-looking decisions. '
+        'Any time you judge that NOW is not the right moment to reach out, '
+        'but a future moment might be, you MUST anchor that future moment with a reminder. '
+        'Without a reminder, you have no way to follow up — the system has no memory between triggers.');
+    b.writeln('');
+    b.writeln('**During regular chat — create a reminder when the user mentions:**');
+    b.writeln('- Going to sleep / rest → remind yourself at a natural wake-up time (e.g. 8 AM)');
+    b.writeln('- Being busy / in a meeting / traveling → remind yourself for after it ends');
+    b.writeln('- A future event ("interview tomorrow", "flight at 6") → remind yourself just before or after');
+    b.writeln('- Anything you want to follow up on later');
+    b.writeln('');
+    b.writeln('**During a background checkin (system_checkin) — always leave a next anchor:**');
+    b.writeln('- If you choose `notify`: the interaction itself is the anchor, no reminder needed.');
+    b.writeln('- If you choose `silent`: you MUST call `reminder_create` immediately after, '
+        'scheduling the next moment you want to reassess. '
+        'Pick a delay based on context — middle of the night → until morning; '
+        'user recently active → 1–2 hours; no special context → 30–60 minutes. '
+        'Never choose silent and leave no reminder: that cuts off all future initiative.');
+    b.writeln('- If you choose `remind`: same as silent — the remind action IS the anchor.');
     return b.toString();
   }
 }

@@ -4054,6 +4054,449 @@ class UserNotificationsCompanion extends UpdateCompanion<UserNotification> {
   }
 }
 
+class $SystemMessageQueueTable extends SystemMessageQueue
+    with TableInfo<$SystemMessageQueueTable, SystemMessageQueueData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SystemMessageQueueTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _triggerTypeMeta =
+      const VerificationMeta('triggerType');
+  @override
+  late final GeneratedColumn<String> triggerType = GeneratedColumn<String>(
+      'trigger_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+      'body', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('pending'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _scheduledForMeta =
+      const VerificationMeta('scheduledFor');
+  @override
+  late final GeneratedColumn<int> scheduledFor = GeneratedColumn<int>(
+      'scheduled_for', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _processedAtMeta =
+      const VerificationMeta('processedAt');
+  @override
+  late final GeneratedColumn<int> processedAt = GeneratedColumn<int>(
+      'processed_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _contextMeta =
+      const VerificationMeta('context');
+  @override
+  late final GeneratedColumn<String> context = GeneratedColumn<String>(
+      'context', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        triggerType,
+        body,
+        status,
+        createdAt,
+        scheduledFor,
+        processedAt,
+        context
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'system_message_queue';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<SystemMessageQueueData> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('trigger_type')) {
+      context.handle(
+          _triggerTypeMeta,
+          triggerType.isAcceptableOrUnknown(
+              data['trigger_type']!, _triggerTypeMeta));
+    } else if (isInserting) {
+      context.missing(_triggerTypeMeta);
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+          _bodyMeta, body.isAcceptableOrUnknown(data['body']!, _bodyMeta));
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('scheduled_for')) {
+      context.handle(
+          _scheduledForMeta,
+          scheduledFor.isAcceptableOrUnknown(
+              data['scheduled_for']!, _scheduledForMeta));
+    }
+    if (data.containsKey('processed_at')) {
+      context.handle(
+          _processedAtMeta,
+          processedAt.isAcceptableOrUnknown(
+              data['processed_at']!, _processedAtMeta));
+    }
+    if (data.containsKey('context')) {
+      context.handle(_contextMeta,
+          this.context.isAcceptableOrUnknown(data['context']!, _contextMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SystemMessageQueueData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SystemMessageQueueData(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      triggerType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}trigger_type'])!,
+      body: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}body'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      scheduledFor: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}scheduled_for']),
+      processedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}processed_at']),
+      context: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}context']),
+    );
+  }
+
+  @override
+  $SystemMessageQueueTable createAlias(String alias) {
+    return $SystemMessageQueueTable(attachedDatabase, alias);
+  }
+}
+
+class SystemMessageQueueData extends DataClass
+    implements Insertable<SystemMessageQueueData> {
+  final String id;
+  final String triggerType;
+  final String body;
+  final String status;
+  final int createdAt;
+  final int? scheduledFor;
+  final int? processedAt;
+  final String? context;
+  const SystemMessageQueueData(
+      {required this.id,
+      required this.triggerType,
+      required this.body,
+      required this.status,
+      required this.createdAt,
+      this.scheduledFor,
+      this.processedAt,
+      this.context});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['trigger_type'] = Variable<String>(triggerType);
+    map['body'] = Variable<String>(body);
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || scheduledFor != null) {
+      map['scheduled_for'] = Variable<int>(scheduledFor);
+    }
+    if (!nullToAbsent || processedAt != null) {
+      map['processed_at'] = Variable<int>(processedAt);
+    }
+    if (!nullToAbsent || context != null) {
+      map['context'] = Variable<String>(context);
+    }
+    return map;
+  }
+
+  SystemMessageQueueCompanion toCompanion(bool nullToAbsent) {
+    return SystemMessageQueueCompanion(
+      id: Value(id),
+      triggerType: Value(triggerType),
+      body: Value(body),
+      status: Value(status),
+      createdAt: Value(createdAt),
+      scheduledFor: scheduledFor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scheduledFor),
+      processedAt: processedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(processedAt),
+      context: context == null && nullToAbsent
+          ? const Value.absent()
+          : Value(context),
+    );
+  }
+
+  factory SystemMessageQueueData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SystemMessageQueueData(
+      id: serializer.fromJson<String>(json['id']),
+      triggerType: serializer.fromJson<String>(json['triggerType']),
+      body: serializer.fromJson<String>(json['body']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      scheduledFor: serializer.fromJson<int?>(json['scheduledFor']),
+      processedAt: serializer.fromJson<int?>(json['processedAt']),
+      context: serializer.fromJson<String?>(json['context']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'triggerType': serializer.toJson<String>(triggerType),
+      'body': serializer.toJson<String>(body),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'scheduledFor': serializer.toJson<int?>(scheduledFor),
+      'processedAt': serializer.toJson<int?>(processedAt),
+      'context': serializer.toJson<String?>(context),
+    };
+  }
+
+  SystemMessageQueueData copyWith(
+          {String? id,
+          String? triggerType,
+          String? body,
+          String? status,
+          int? createdAt,
+          Value<int?> scheduledFor = const Value.absent(),
+          Value<int?> processedAt = const Value.absent(),
+          Value<String?> context = const Value.absent()}) =>
+      SystemMessageQueueData(
+        id: id ?? this.id,
+        triggerType: triggerType ?? this.triggerType,
+        body: body ?? this.body,
+        status: status ?? this.status,
+        createdAt: createdAt ?? this.createdAt,
+        scheduledFor:
+            scheduledFor.present ? scheduledFor.value : this.scheduledFor,
+        processedAt: processedAt.present ? processedAt.value : this.processedAt,
+        context: context.present ? context.value : this.context,
+      );
+  SystemMessageQueueData copyWithCompanion(SystemMessageQueueCompanion data) {
+    return SystemMessageQueueData(
+      id: data.id.present ? data.id.value : this.id,
+      triggerType:
+          data.triggerType.present ? data.triggerType.value : this.triggerType,
+      body: data.body.present ? data.body.value : this.body,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      scheduledFor: data.scheduledFor.present
+          ? data.scheduledFor.value
+          : this.scheduledFor,
+      processedAt:
+          data.processedAt.present ? data.processedAt.value : this.processedAt,
+      context: data.context.present ? data.context.value : this.context,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SystemMessageQueueData(')
+          ..write('id: $id, ')
+          ..write('triggerType: $triggerType, ')
+          ..write('body: $body, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('scheduledFor: $scheduledFor, ')
+          ..write('processedAt: $processedAt, ')
+          ..write('context: $context')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, triggerType, body, status, createdAt,
+      scheduledFor, processedAt, context);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SystemMessageQueueData &&
+          other.id == this.id &&
+          other.triggerType == this.triggerType &&
+          other.body == this.body &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt &&
+          other.scheduledFor == this.scheduledFor &&
+          other.processedAt == this.processedAt &&
+          other.context == this.context);
+}
+
+class SystemMessageQueueCompanion
+    extends UpdateCompanion<SystemMessageQueueData> {
+  final Value<String> id;
+  final Value<String> triggerType;
+  final Value<String> body;
+  final Value<String> status;
+  final Value<int> createdAt;
+  final Value<int?> scheduledFor;
+  final Value<int?> processedAt;
+  final Value<String?> context;
+  final Value<int> rowid;
+  const SystemMessageQueueCompanion({
+    this.id = const Value.absent(),
+    this.triggerType = const Value.absent(),
+    this.body = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.scheduledFor = const Value.absent(),
+    this.processedAt = const Value.absent(),
+    this.context = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SystemMessageQueueCompanion.insert({
+    required String id,
+    required String triggerType,
+    required String body,
+    this.status = const Value.absent(),
+    required int createdAt,
+    this.scheduledFor = const Value.absent(),
+    this.processedAt = const Value.absent(),
+    this.context = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        triggerType = Value(triggerType),
+        body = Value(body),
+        createdAt = Value(createdAt);
+  static Insertable<SystemMessageQueueData> custom({
+    Expression<String>? id,
+    Expression<String>? triggerType,
+    Expression<String>? body,
+    Expression<String>? status,
+    Expression<int>? createdAt,
+    Expression<int>? scheduledFor,
+    Expression<int>? processedAt,
+    Expression<String>? context,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (triggerType != null) 'trigger_type': triggerType,
+      if (body != null) 'body': body,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (scheduledFor != null) 'scheduled_for': scheduledFor,
+      if (processedAt != null) 'processed_at': processedAt,
+      if (context != null) 'context': context,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SystemMessageQueueCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? triggerType,
+      Value<String>? body,
+      Value<String>? status,
+      Value<int>? createdAt,
+      Value<int?>? scheduledFor,
+      Value<int?>? processedAt,
+      Value<String?>? context,
+      Value<int>? rowid}) {
+    return SystemMessageQueueCompanion(
+      id: id ?? this.id,
+      triggerType: triggerType ?? this.triggerType,
+      body: body ?? this.body,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      scheduledFor: scheduledFor ?? this.scheduledFor,
+      processedAt: processedAt ?? this.processedAt,
+      context: context ?? this.context,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (triggerType.present) {
+      map['trigger_type'] = Variable<String>(triggerType.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (scheduledFor.present) {
+      map['scheduled_for'] = Variable<int>(scheduledFor.value);
+    }
+    if (processedAt.present) {
+      map['processed_at'] = Variable<int>(processedAt.value);
+    }
+    if (context.present) {
+      map['context'] = Variable<String>(context.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SystemMessageQueueCompanion(')
+          ..write('id: $id, ')
+          ..write('triggerType: $triggerType, ')
+          ..write('body: $body, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('scheduledFor: $scheduledFor, ')
+          ..write('processedAt: $processedAt, ')
+          ..write('context: $context, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4069,6 +4512,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $PersonaChatMessagesTable(this);
   late final $UserNotificationsTable userNotifications =
       $UserNotificationsTable(this);
+  late final $SystemMessageQueueTable systemMessageQueue =
+      $SystemMessageQueueTable(this);
   late final CardDao cardDao = CardDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -4082,7 +4527,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         systemActions,
         clarificationRequests,
         personaChatMessages,
-        userNotifications
+        userNotifications,
+        systemMessageQueue
       ];
 }
 
@@ -6042,6 +6488,229 @@ typedef $$UserNotificationsTableProcessedTableManager = ProcessedTableManager<
     ),
     UserNotification,
     PrefetchHooks Function()>;
+typedef $$SystemMessageQueueTableCreateCompanionBuilder
+    = SystemMessageQueueCompanion Function({
+  required String id,
+  required String triggerType,
+  required String body,
+  Value<String> status,
+  required int createdAt,
+  Value<int?> scheduledFor,
+  Value<int?> processedAt,
+  Value<String?> context,
+  Value<int> rowid,
+});
+typedef $$SystemMessageQueueTableUpdateCompanionBuilder
+    = SystemMessageQueueCompanion Function({
+  Value<String> id,
+  Value<String> triggerType,
+  Value<String> body,
+  Value<String> status,
+  Value<int> createdAt,
+  Value<int?> scheduledFor,
+  Value<int?> processedAt,
+  Value<String?> context,
+  Value<int> rowid,
+});
+
+class $$SystemMessageQueueTableFilterComposer
+    extends Composer<_$AppDatabase, $SystemMessageQueueTable> {
+  $$SystemMessageQueueTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get triggerType => $composableBuilder(
+      column: $table.triggerType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get body => $composableBuilder(
+      column: $table.body, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get scheduledFor => $composableBuilder(
+      column: $table.scheduledFor, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get processedAt => $composableBuilder(
+      column: $table.processedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get context => $composableBuilder(
+      column: $table.context, builder: (column) => ColumnFilters(column));
+}
+
+class $$SystemMessageQueueTableOrderingComposer
+    extends Composer<_$AppDatabase, $SystemMessageQueueTable> {
+  $$SystemMessageQueueTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get triggerType => $composableBuilder(
+      column: $table.triggerType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get body => $composableBuilder(
+      column: $table.body, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get scheduledFor => $composableBuilder(
+      column: $table.scheduledFor,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get processedAt => $composableBuilder(
+      column: $table.processedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get context => $composableBuilder(
+      column: $table.context, builder: (column) => ColumnOrderings(column));
+}
+
+class $$SystemMessageQueueTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SystemMessageQueueTable> {
+  $$SystemMessageQueueTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get triggerType => $composableBuilder(
+      column: $table.triggerType, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get scheduledFor => $composableBuilder(
+      column: $table.scheduledFor, builder: (column) => column);
+
+  GeneratedColumn<int> get processedAt => $composableBuilder(
+      column: $table.processedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get context =>
+      $composableBuilder(column: $table.context, builder: (column) => column);
+}
+
+class $$SystemMessageQueueTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $SystemMessageQueueTable,
+    SystemMessageQueueData,
+    $$SystemMessageQueueTableFilterComposer,
+    $$SystemMessageQueueTableOrderingComposer,
+    $$SystemMessageQueueTableAnnotationComposer,
+    $$SystemMessageQueueTableCreateCompanionBuilder,
+    $$SystemMessageQueueTableUpdateCompanionBuilder,
+    (
+      SystemMessageQueueData,
+      BaseReferences<_$AppDatabase, $SystemMessageQueueTable,
+          SystemMessageQueueData>
+    ),
+    SystemMessageQueueData,
+    PrefetchHooks Function()> {
+  $$SystemMessageQueueTableTableManager(
+      _$AppDatabase db, $SystemMessageQueueTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SystemMessageQueueTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SystemMessageQueueTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SystemMessageQueueTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> triggerType = const Value.absent(),
+            Value<String> body = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int?> scheduledFor = const Value.absent(),
+            Value<int?> processedAt = const Value.absent(),
+            Value<String?> context = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SystemMessageQueueCompanion(
+            id: id,
+            triggerType: triggerType,
+            body: body,
+            status: status,
+            createdAt: createdAt,
+            scheduledFor: scheduledFor,
+            processedAt: processedAt,
+            context: context,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String triggerType,
+            required String body,
+            Value<String> status = const Value.absent(),
+            required int createdAt,
+            Value<int?> scheduledFor = const Value.absent(),
+            Value<int?> processedAt = const Value.absent(),
+            Value<String?> context = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SystemMessageQueueCompanion.insert(
+            id: id,
+            triggerType: triggerType,
+            body: body,
+            status: status,
+            createdAt: createdAt,
+            scheduledFor: scheduledFor,
+            processedAt: processedAt,
+            context: context,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$SystemMessageQueueTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $SystemMessageQueueTable,
+    SystemMessageQueueData,
+    $$SystemMessageQueueTableFilterComposer,
+    $$SystemMessageQueueTableOrderingComposer,
+    $$SystemMessageQueueTableAnnotationComposer,
+    $$SystemMessageQueueTableCreateCompanionBuilder,
+    $$SystemMessageQueueTableUpdateCompanionBuilder,
+    (
+      SystemMessageQueueData,
+      BaseReferences<_$AppDatabase, $SystemMessageQueueTable,
+          SystemMessageQueueData>
+    ),
+    SystemMessageQueueData,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6062,4 +6731,6 @@ class $AppDatabaseManager {
       $$PersonaChatMessagesTableTableManager(_db, _db.personaChatMessages);
   $$UserNotificationsTableTableManager get userNotifications =>
       $$UserNotificationsTableTableManager(_db, _db.userNotifications);
+  $$SystemMessageQueueTableTableManager get systemMessageQueue =>
+      $$SystemMessageQueueTableTableManager(_db, _db.systemMessageQueue);
 }

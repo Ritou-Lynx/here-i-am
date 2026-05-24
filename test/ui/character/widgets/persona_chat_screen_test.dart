@@ -64,6 +64,33 @@ void main() {
     expect(sends, 0);
   });
 
+  testWidgets('auto read toggle persists as a mode switch', (tester) async {
+    var enabled = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            return Scaffold(
+              body: PersonaAutoReadToggle(
+                enabled: enabled,
+                onChanged: (value) => setState(() => enabled = value),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    expect(find.bySemanticsLabel('开启自动朗读'), findsOneWidget);
+
+    await tester.tap(find.byType(PersonaAutoReadToggle));
+    await tester.pump();
+
+    expect(enabled, isTrue);
+    expect(find.bySemanticsLabel('关闭自动朗读'), findsOneWidget);
+  });
+
   test('reversed chat list reserves index zero for streaming content', () {
     expect(
       personaChatMessageIndexForReversedList(

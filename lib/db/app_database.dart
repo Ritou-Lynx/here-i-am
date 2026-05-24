@@ -21,6 +21,7 @@ part 'app_database.g.dart';
     ClarificationRequests,
     PersonaChatMessages,
     UserNotifications,
+    SystemMessageQueue,
   ],
   daos: [CardDao],
 )
@@ -76,7 +77,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -187,6 +188,15 @@ class AppDatabase extends _$AppDatabase {
               _logger
                   .info('message_type column may already exist, skipping: $e');
             }
+          }
+          if (from < 15) {
+            await m.createTable(systemMessageQueue);
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_system_message_queue_status '
+                'ON system_message_queue(status)');
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_system_message_queue_scheduled '
+                'ON system_message_queue(scheduled_for)');
           }
         },
       );

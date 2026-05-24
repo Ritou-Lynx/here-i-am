@@ -20,6 +20,7 @@ class CharacterModel {
       postHistoryInstructions; // injected after history, before response
   final String? mesExample; // example dialogues for style reference
   final String? chatBackground; // custom chat background image path
+  final String? ttsVoiceId; // ElevenLabs voice ID for TTS
 
   CharacterModel({
     required this.id,
@@ -36,6 +37,7 @@ class CharacterModel {
     this.postHistoryInstructions,
     this.mesExample,
     this.chatBackground,
+    this.ttsVoiceId,
   });
 
   factory CharacterModel.fromJson(Map<String, dynamic> json) {
@@ -60,6 +62,7 @@ class CharacterModel {
       postHistoryInstructions: json['post_history_instructions'] as String?,
       mesExample: json['mes_example'] as String?,
       chatBackground: json['chat_background'] as String?,
+      ttsVoiceId: json['tts_voice_id'] as String?,
     );
   }
 
@@ -81,6 +84,7 @@ class CharacterModel {
         'post_history_instructions': postHistoryInstructions,
       if (mesExample != null) 'mes_example': mesExample,
       if (chatBackground != null) 'chat_background': chatBackground,
+      if (ttsVoiceId != null) 'tts_voice_id': ttsVoiceId,
     };
   }
 
@@ -99,6 +103,7 @@ class CharacterModel {
     String? postHistoryInstructions,
     String? mesExample,
     String? chatBackground,
+    String? ttsVoiceId,
   }) {
     return CharacterModel(
       id: id ?? this.id,
@@ -116,6 +121,7 @@ class CharacterModel {
           postHistoryInstructions ?? this.postHistoryInstructions,
       mesExample: mesExample ?? this.mesExample,
       chatBackground: chatBackground ?? this.chatBackground,
+      ttsVoiceId: ttsVoiceId ?? this.ttsVoiceId,
     );
   }
 }

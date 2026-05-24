@@ -4,7 +4,12 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:memex/ui/settings/widgets/asr_config_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
+import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
+import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/services/companion_foreground_task.dart';
+import 'package:memex/data/services/mcp_token_storage.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
 import 'package:memex/ui/settings/widgets/early_update_settings_card.dart';
@@ -28,6 +33,9 @@ class _SettingsPageState extends State<SettingsPage> {
   String _currentLang = 'en';
   bool _useLocalSpeechToText = true;
   CommentSettings _commentSettings = const CommentSettings();
+  bool _corosConnected = false;
+  bool _checkinEnabled = false;
+  final _elevenLabsApiKeyController = TextEditingController();
 
   @override
   void initState() {
@@ -39,13 +47,35 @@ class _SettingsPageState extends State<SettingsPage> {
     final locale = await UserStorage.getLocale();
     final useLocalSpeechToText = await UserStorage.getUseLocalSpeechToText();
     final commentSettings = await MemexRouter().getCommentSettings();
+    final userId = await UserStorage.getUserId();
+    var corosConnected = false;
+    if (userId != null) {
+      corosConnected = await McpTokenStorage(userId: userId).hasToken();
+      _checkinEnabled = await CheckinService.instance.isEnabled();
+      final apiKey = await UserStorage.getElevenLabsApiKey();
+      if (apiKey != null) {
+        _elevenLabsApiKeyController.text = apiKey;
+      }
+    }
     if (mounted) {
       setState(() {
         _currentLang = locale.languageCode == 'zh' ? 'zh' : 'en';
         _useLocalSpeechToText = useLocalSpeechToText;
         _commentSettings = commentSettings;
+        _corosConnected = corosConnected;
       });
     }
+  }
+
+  Future<bool> _refreshCorosConnectionStatus() async {
+    final userId = await UserStorage.getUserId();
+    final connected = userId != null
+        ? await McpTokenStorage(userId: userId).hasToken()
+        : false;
+    if (mounted) {
+      setState(() => _corosConnected = connected);
+    }
+    return connected;
   }
 
   Future<void> _changeLanguage(String langCode) async {
@@ -87,6 +117,17 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) {
       setState(() => _commentSettings = updated);
     }
+  }
+
+  Future<void> _saveElevenLabsApiKey() async {
+    final key = _elevenLabsApiKeyController.text.trim();
+    await UserStorage.setElevenLabsApiKey(key);
+  }
+
+  @override
+  void dispose() {
+    _elevenLabsApiKeyController.dispose();
+    super.dispose();
   }
 
   @override
@@ -199,6 +240,72 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               value: _useLocalSpeechToText,
               onChanged: _updateUseLocalSpeechToText,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // ElevenLabs TTS
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.textSecondary.withValues(alpha: 0.08),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.record_voice_over_outlined,
+                        color: AppColors.primary, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'ElevenLabs TTS',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '输入 API Key 为角色对话启用语音播放',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _elevenLabsApiKeyController,
+                  obscureText: true,
+                  onChanged: (_) => _saveElevenLabsApiKey(),
+                  decoration: InputDecoration(
+                    hintText: 'ElevenLabs API Key',
+                    hintStyle: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
@@ -579,6 +686,212 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          // COROS Connect
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () async {
+                final connected = await _refreshCorosConnectionStatus();
+                if (!context.mounted) return;
+                await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CorosConnectPage(
+                      initiallyConnected: connected,
+                    ),
+                  ),
+                );
+                if (mounted) {
+                  await _refreshCorosConnectionStatus();
+                }
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.watch_outlined,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'COROS 高驰',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _corosConnected ? '已连接' : '连接手表获取运动数据',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  _corosConnected ? Colors.green : Colors.grey,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_corosConnected)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: Icon(Icons.check_circle,
+                            color: Colors.green, size: 20),
+                      ),
+                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Voice input (ASR) config
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AsrConfigPage(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.mic_none,
+                        color: AppColors.primary, size: 22),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '语音输入',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            '配置阿里 NLS 凭证，在 companion 聊天中按麦克风/翻页器说话',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Agent Check-in Toggle
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.textSecondary.withValues(alpha: 0.08),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.notifications_active_outlined,
+                              color: AppColors.primary, size: 22),
+                          const SizedBox(width: 12),
+                          const Text(
+                            '主动推送',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _checkinEnabled ? '已开启' : 'AI 会在合适时机主动推送消息',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _checkinEnabled ? Colors.green : Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: _checkinEnabled,
+                  onChanged: (v) async {
+                    await CheckinService.instance.setEnabled(v);
+                    if (v) {
+                      await CheckinService.instance
+                          .ensureCheckinTaskRegistered();
+                    } else {
+                      await CheckinService.instance.cancelCheckinTask();
+                    }
+                    setState(() => _checkinEnabled = v);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           // Privacy Policy
           Material(
             color: Colors.transparent,
@@ -649,6 +962,69 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 32),
+          // Debug: schedule background checkin test
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () async {
+                await CompanionForegroundService.triggerCheckin();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          '✅ Foreground Service 已启动，AI 立即开始思考\n顶部会有"正在思考"小图标，决策完会自动消失'),
+                      duration: Duration(seconds: 4),
+                    ),
+                  );
+                }
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.science_outlined,
+                        color: Colors.deepPurple, size: 22),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '安排后台推送测试',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            '1分钟后在独立后台 isolate 运行，AI 自主决定是否推送',
+                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           // Delete Account
           Material(
             color: Colors.transparent,

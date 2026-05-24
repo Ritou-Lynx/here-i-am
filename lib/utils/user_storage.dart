@@ -224,11 +224,12 @@ class UserStorage {
         return storedKey;
       }
 
-      final fallbackKey = configs.any((c) => c.key == LLMConfig.defaultClientKey)
-          ? LLMConfig.defaultClientKey
-          : configs.isNotEmpty
-              ? configs.first.key
-              : LLMConfig.defaultClientKey;
+      final fallbackKey =
+          configs.any((c) => c.key == LLMConfig.defaultClientKey)
+              ? LLMConfig.defaultClientKey
+              : configs.isNotEmpty
+                  ? configs.first.key
+                  : LLMConfig.defaultClientKey;
 
       if (configs.any((c) => c.key == fallbackKey)) {
         await prefs.setString(_keyDefaultLLMConfigKey, fallbackKey);
@@ -344,6 +345,9 @@ class UserStorage {
 
   static const String _keyAgentConfigs = 'agent_configs';
   static const String _keyUseLocalSpeechToText = 'use_local_speech_to_text';
+  static const String _keyElevenLabsApiKey = 'elevenlabs_api_key';
+  static const String _keyCompanionAutoReadEnabled =
+      'companion_auto_read_enabled';
 
   /// Get specified agent config
   static Future<AgentConfig> getAgentConfig(String agentId) async {
@@ -412,6 +416,42 @@ class UserStorage {
       await prefs.remove(_keyUseLocalSpeechToText);
     } catch (e) {
       throw Exception('Failed to reset speech preference: $e');
+    }
+  }
+
+  static Future<String?> getElevenLabsApiKey() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyElevenLabsApiKey);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<void> setElevenLabsApiKey(String apiKey) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyElevenLabsApiKey, apiKey);
+    } catch (e) {
+      throw Exception('Failed to save ElevenLabs API key: $e');
+    }
+  }
+
+  static Future<bool> getCompanionAutoReadEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_keyCompanionAutoReadEnabled) ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<void> setCompanionAutoReadEnabled(bool enabled) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyCompanionAutoReadEnabled, enabled);
+    } catch (e) {
+      throw Exception('Failed to save companion auto read preference: $e');
     }
   }
 
@@ -876,8 +916,7 @@ class UserStorage {
     return prefs.getBool(_keyAutoBackupEnabledPrefix + userId) ?? false;
   }
 
-  static Future<void> setAutoBackupEnabled(
-      String userId, bool enabled) async {
+  static Future<void> setAutoBackupEnabled(String userId, bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyAutoBackupEnabledPrefix + userId, enabled);
   }
@@ -923,7 +962,8 @@ class UserStorage {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyAndroidBackupTreeUriPrefix + userId, treeUri);
-    await prefs.setString(_keyAndroidBackupTreeNamePrefix + userId, displayName);
+    await prefs.setString(
+        _keyAndroidBackupTreeNamePrefix + userId, displayName);
   }
 
   static Future<void> clearAndroidBackupTree(String userId) async {

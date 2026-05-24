@@ -284,7 +284,7 @@
   "nothingHere": "还没有任何内容",
   "nothingHereHint": "点击下方按钮创建你的第一张卡片",
   "agentProcessing": "AI 处理中...",
-  "keepAppOpen": "请不要关闭应用",
+  "keepAppOpen": "后台处理中，完成后自动结束",
   "activityDetail": "活动详情",
   "noAgentActivityYet": "暂无 Agent 活动",
   "processingEllipsis": "处理中...",

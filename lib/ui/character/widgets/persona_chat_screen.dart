@@ -1,20 +1,28 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/repositories/memex_router.dart';
+import 'package:memex/data/services/asr/asr_config.dart';
+import 'package:memex/data/services/asr/media_button_service.dart';
+import 'package:memex/data/services/asr/voice_input_controller.dart';
+import 'package:memex/data/services/elevenlabs_tts_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/ui/character/widgets/voice_input_button.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
+import 'package:memex/data/services/notification_service.dart';
 import 'package:intl/intl.dart';
 
 const _personaStageInk = Color(0xFF080B12);
@@ -38,10 +46,12 @@ class PersonaChatScreen extends StatefulWidget {
   State<PersonaChatScreen> createState() => _PersonaChatScreenState();
 }
 
-class _PersonaChatScreenState extends State<PersonaChatScreen> {
+class _PersonaChatScreenState extends State<PersonaChatScreen>
+    with WidgetsBindingObserver {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   final _chatService = PersonaChatService.instance;
+  final _voiceController = VoiceInputController();
 
   late String _currentCharacterId = widget.characterId;
   CharacterModel? _character;
@@ -51,6 +61,22 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
   bool _isLoading = true;
   bool _isStreaming = false;
   String _streamingText = '';
+
+  // TTS playback state
+  final _audioPlayer = AudioPlayer();
+  StreamSubscription<void>? _audioCompleteSub;
+  Timer? _messageRefreshTimer;
+  String? _playingMessageId;
+  String? _lastAutoReadMessageId;
+  DateTime? _autoReadWatermarkAt;
+  int? _autoReadWatermarkId;
+  bool _isTtsLoading = false;
+  bool _autoReadEnabled = false;
+
+  bool _isAppInBackground = false;
+  bool _mediaButtonsActive = false;
+  bool _mediaButtonsActivating = false;
+  bool _refreshingMessages = false;
 
   // Pagination state — WeChat/WhatsApp style: load older messages on scroll-up
   static const int _pageSize = 30;
@@ -83,13 +109,124 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
   );
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isAppInBackground =
+        state == AppLifecycleState.paused || state == AppLifecycleState.hidden;
+    if (_isAppInBackground) {
+      unawaited(_stopTtsPlayback());
+      _releaseMediaButtons();
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(_initMediaButtons());
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    HardwareKeyboard.instance.addHandler(_handleHardwareKey);
+    unawaited(_initMediaButtons());
     _init();
+    _startMessageRefreshTimer();
     _scrollController.addListener(_onScroll);
     EventBusService.instance.addHandler(
       EventBusMessageType.personaChatMessageAdded,
       _onPersonaChatMessageAdded,
+    );
+  }
+
+  /// Hardware key handler for Bluetooth page-turner.
+  ///
+  /// "Down" keys (PageDown / ArrowDown / DPadDown / MediaNext) = toggle recording.
+  /// "Up" keys (PageUp / ArrowUp / DPadUp / MediaPrevious) = cancel.
+  ///
+  /// Returns true to consume so the event doesn't reach scrollables.
+  bool _handleHardwareKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+
+    // Diagnostic: log every key down so we can see what the page-turner sends.
+    // Look at logcat for "VoiceInputKey" to confirm key codes.
+    debugPrint('VoiceInputKey: logical=${event.logicalKey.debugName} '
+        'physical=${event.physicalKey.debugName} '
+        'char=${event.character}');
+
+    // Volume keys deliberately excluded — they conflict with TTS volume control.
+    final key = event.logicalKey;
+    final isDown = key == LogicalKeyboardKey.pageDown ||
+        key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.mediaTrackNext;
+    final isUp = key == LogicalKeyboardKey.pageUp ||
+        key == LogicalKeyboardKey.arrowUp ||
+        key == LogicalKeyboardKey.mediaTrackPrevious;
+
+    if (isDown) {
+      _onVoiceToggle();
+      return true;
+    }
+    if (isUp) {
+      _voiceController.cancel();
+      return true;
+    }
+    return false;
+  }
+
+  /// Toggle voice recording. If we just stopped a recording and got text back,
+  /// fill the input and auto-send.
+  Future<void> _onVoiceToggle() async {
+    final result = await _voiceController.toggle();
+    if (!mounted) return;
+    if (result != null && result.isNotEmpty) {
+      _textController.text = result;
+      await _sendMessage();
+    } else if (_voiceController.lastError != null) {
+      final err = _voiceController.lastError!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(err), duration: const Duration(seconds: 3)),
+      );
+    }
+  }
+
+  Future<void> _initMediaButtons() async {
+    if (_mediaButtonsActive || _mediaButtonsActivating || _isAppInBackground) {
+      return;
+    }
+
+    _mediaButtonsActivating = true;
+    final enabled = await AsrConfig.getUseMediaKeys();
+    if (!mounted || !enabled || _isAppInBackground) {
+      _mediaButtonsActivating = false;
+      return;
+    }
+
+    final mediaButtons = MediaButtonService.instance;
+    mediaButtons.setOnToggle(() => unawaited(_onVoiceToggle()));
+    mediaButtons.setOnCancel(() => unawaited(_voiceController.cancel()));
+    try {
+      await mediaButtons.activate();
+      if (!mounted || _isAppInBackground) {
+        await mediaButtons.deactivate();
+        mediaButtons.clearCallbacks();
+        return;
+      }
+      _mediaButtonsActive = true;
+    } catch (e) {
+      debugPrint('MediaButtonService activate failed: $e');
+      mediaButtons.clearCallbacks();
+    } finally {
+      _mediaButtonsActivating = false;
+    }
+  }
+
+  void _releaseMediaButtons() {
+    final mediaButtons = MediaButtonService.instance;
+    mediaButtons.clearCallbacks();
+    if (!_mediaButtonsActive) return;
+
+    _mediaButtonsActive = false;
+    unawaited(
+      mediaButtons.deactivate().catchError(
+            (e) => debugPrint('MediaButtonService deactivate failed: $e'),
+          ),
     );
   }
 
@@ -100,6 +237,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
 
     final character = await CharacterService.instance
         .getCharacter(userId, _currentCharacterId);
+    final autoReadEnabled = await UserStorage.getCompanionAutoReadEnabled();
 
     final messages = await _chatService.getMessages(
       _currentCharacterId,
@@ -128,11 +266,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
         limit: _pageSize,
       );
       if (mounted) {
+        _advanceAutoReadWatermark(updatedMessages);
         setState(() {
           _character = character;
           _userId = userId;
           _userAvatar = userAvatar;
           _messages = updatedMessages;
+          _autoReadEnabled = autoReadEnabled;
           _hasMoreHistory = updatedMessages.length >= _pageSize;
           _isLoading = false;
         });
@@ -142,11 +282,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
     }
 
     if (mounted) {
+      _advanceAutoReadWatermark(messages);
       setState(() {
         _character = character;
         _userId = userId;
         _userAvatar = userAvatar;
         _messages = messages;
+        _autoReadEnabled = autoReadEnabled;
         _hasMoreHistory = messages.length >= _pageSize;
         _isLoading = false;
       });
@@ -156,6 +298,9 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
+    _releaseMediaButtons();
     EventBusService.instance.removeHandler(
       EventBusMessageType.personaChatMessageAdded,
       _onPersonaChatMessageAdded,
@@ -163,6 +308,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
     _scrollController.removeListener(_onScroll);
     _textController.dispose();
     _scrollController.dispose();
+    _audioCompleteSub?.cancel();
+    _messageRefreshTimer?.cancel();
+    _audioPlayer.dispose();
+    _voiceController.dispose();
     super.dispose();
   }
 
@@ -200,6 +349,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
     if (message is! PersonaChatMessageAddedMessage) return;
     if (message.characterId != _currentCharacterId) return;
     if (!mounted) return;
+    if (_refreshPersonaChatMessageAdded()) return;
+    final previousMessages = List<PersonaChatMessage>.of(_messages);
     // New message arrived — reload the latest page and keep any older
     // messages that were already loaded via pagination.
     _chatService
@@ -207,8 +358,89 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
         .then((updated) {
       if (!mounted) return;
       setState(() => _messages = updated);
+      _autoReadNewestCharacterMessage(
+        previousMessages: previousMessages,
+        updatedMessages: updated,
+      );
       _scrollToBottom();
     });
+  }
+
+  bool _refreshPersonaChatMessageAdded() {
+    unawaited(_refreshMessagesFromStore(autoRead: true, scrollToBottom: true));
+    return true;
+  }
+
+  void _startMessageRefreshTimer() {
+    _messageRefreshTimer?.cancel();
+    _messageRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (_isLoading || _isStreaming || _isAppInBackground) return;
+      unawaited(
+        _refreshMessagesFromStore(autoRead: true, scrollToBottom: false),
+      );
+    });
+  }
+
+  Future<void> _refreshMessagesFromStore({
+    required bool autoRead,
+    required bool scrollToBottom,
+  }) async {
+    if (_refreshingMessages || !mounted) return;
+    _refreshingMessages = true;
+
+    final previousMessages = List<PersonaChatMessage>.of(_messages);
+    // Use current depth as the query limit. New messages are always at the
+    // front of the DESC-ordered result so they are included automatically.
+    // Adding +5 here caused the limit to grow by 5 every 2-second tick,
+    // which silently loaded all history into memory. History pagination is
+    // handled explicitly by _loadMoreHistory() on scroll.
+    final limit =
+        _messages.length < _pageSize ? _pageSize : _messages.length;
+
+    try {
+      final updated = await _chatService.getMessages(
+        _currentCharacterId,
+        limit: limit,
+      );
+      if (!mounted) return;
+
+      if (_sameMessages(previousMessages, updated)) {
+        _advanceAutoReadWatermark(updated);
+        return;
+      }
+
+      setState(() => _messages = updated);
+      unawaited(_chatService.markAllRead(_currentCharacterId));
+
+      if (autoRead) {
+        _autoReadNewestCharacterMessage(
+          previousMessages: previousMessages,
+          updatedMessages: updated,
+        );
+      } else {
+        _advanceAutoReadWatermark(updated);
+      }
+      if (scrollToBottom) {
+        _scrollToBottom();
+      }
+    } finally {
+      _refreshingMessages = false;
+    }
+  }
+
+  bool _sameMessages(
+    List<PersonaChatMessage> previous,
+    List<PersonaChatMessage> updated,
+  ) {
+    if (previous.length != updated.length) return false;
+    for (var i = 0; i < previous.length; i++) {
+      if (previous[i].id != updated[i].id ||
+          previous[i].content != updated[i].content ||
+          previous[i].messageType != updated[i].messageType) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<void> _sendMessage() async {
@@ -216,6 +448,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
     if (text.isEmpty || _isStreaming) return;
 
     _textController.clear();
+    await _stopTtsPlayback();
 
     final userMessageTime = DateTime.now();
 
@@ -239,13 +472,15 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
     final userId = await UserStorage.getUserId();
     if (userId == null) return;
 
+    final buffer = StringBuffer();
+    var responsePersisted = false;
+
     try {
       final resources = await UserStorage.getAgentLLMResources(
         AgentDefinitions.companionAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
 
-      final buffer = StringBuffer();
       await for (final chunk in CompanionAgent.chat(
         client: resources.client,
         modelConfig: resources.modelConfig,
@@ -267,9 +502,21 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
         await _chatService.addCharacterMessage(
           _currentCharacterId,
           fullResponse,
-          isRead: true, // User is looking at it
+          isRead: !_isAppInBackground,
           timestamp: DateTime.now(),
         );
+        responsePersisted = true;
+
+        if (_isAppInBackground && _character != null) {
+          final preview = fullResponse.length > 100
+              ? '${fullResponse.substring(0, 100)}…'
+              : fullResponse;
+          await NotificationService.instance.showAgentNotification(
+            title: _character!.name,
+            body: preview,
+            payload: _currentCharacterId,
+          );
+        }
       }
 
       // Reload messages
@@ -283,17 +530,44 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
           _isStreaming = false;
           _streamingText = '';
         });
+        _autoReadNewestCharacterMessage(
+          previousMessages: messages,
+          updatedMessages: updated,
+        );
         _scrollToBottom();
       }
     } catch (e) {
+      final partialResponse = buffer.toString().trim();
+      if (partialResponse.isNotEmpty && !responsePersisted) {
+        await _chatService.addCharacterMessage(
+          _currentCharacterId,
+          partialResponse,
+          isRead: !_isAppInBackground,
+          timestamp: DateTime.now(),
+        );
+      }
+
+      final updated = await _chatService.getMessages(
+        _currentCharacterId,
+        limit: _messages.length + 1,
+      );
       if (mounted) {
         setState(() {
+          _messages = updated;
           _isStreaming = false;
           _streamingText = '';
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to get response: $e')),
-        );
+        if (partialResponse.isNotEmpty) {
+          _autoReadNewestCharacterMessage(
+            previousMessages: messages,
+            updatedMessages: updated,
+          );
+          _scrollToBottom();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to get response: $e')),
+          );
+        }
       }
     }
   }
@@ -314,6 +588,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
 
   Future<void> _switchCharacter() async {
     if (_isStreaming) return;
+    await _stopTtsPlayback();
 
     final userId = await UserStorage.getUserId();
     if (userId == null) return;
@@ -338,8 +613,173 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
         _isLoading = true;
         _hasMoreHistory = true;
         _isLoadingMore = false;
+        _lastAutoReadMessageId = null;
+        _autoReadWatermarkAt = null;
+        _autoReadWatermarkId = null;
       });
       await _init();
+    }
+  }
+
+  bool get _shouldAutoReadCurrentReply =>
+      mounted && _autoReadEnabled && !_isAppInBackground && !_isStreaming;
+
+  void _autoReadNewestCharacterMessage({
+    required List<PersonaChatMessage> previousMessages,
+    required List<PersonaChatMessage> updatedMessages,
+  }) {
+    if (!_shouldAutoReadCurrentReply) {
+      if (!_isStreaming) {
+        _advanceAutoReadWatermark(updatedMessages);
+      }
+      return;
+    }
+
+    final previousIds = previousMessages.map((message) => message.id).toSet();
+    final candidates = updatedMessages.where((message) {
+      if (previousIds.contains(message.id)) return false;
+      if (!_isUnreadableAutoReadCandidate(message)) return false;
+      return _isAfterAutoReadWatermark(message);
+    }).toList();
+
+    if (candidates.isEmpty) {
+      _advanceAutoReadWatermark(updatedMessages);
+      return;
+    }
+
+    candidates.sort((a, b) {
+      final byTime = b.timestamp.compareTo(a.timestamp);
+      return byTime != 0 ? byTime : b.id.compareTo(a.id);
+    });
+
+    final message = candidates.first;
+    final messageId = message.id.toString();
+    _advanceAutoReadWatermark(updatedMessages);
+    if (_lastAutoReadMessageId == messageId) return;
+    _lastAutoReadMessageId = messageId;
+    unawaited(_handleTtsPlay(messageId, message.content));
+  }
+
+  bool _isUnreadableAutoReadCandidate(PersonaChatMessage message) {
+    return message.isFromCharacter &&
+        message.messageType == 'chat' &&
+        message.content.trim().isNotEmpty;
+  }
+
+  bool _isAfterAutoReadWatermark(PersonaChatMessage message) {
+    final watermarkAt = _autoReadWatermarkAt;
+    if (watermarkAt == null) return true;
+    if (message.timestamp.isAfter(watermarkAt)) return true;
+    return message.timestamp.isAtSameMomentAs(watermarkAt) &&
+        message.id > (_autoReadWatermarkId ?? -1);
+  }
+
+  void _advanceAutoReadWatermark(List<PersonaChatMessage> messages) {
+    PersonaChatMessage? newest;
+    for (final message in messages) {
+      if (!_isUnreadableAutoReadCandidate(message)) continue;
+      if (newest == null ||
+          message.timestamp.isAfter(newest.timestamp) ||
+          (message.timestamp.isAtSameMomentAs(newest.timestamp) &&
+              message.id > newest.id)) {
+        newest = message;
+      }
+    }
+    if (newest == null) return;
+    _autoReadWatermarkAt = newest.timestamp;
+    _autoReadWatermarkId = newest.id;
+  }
+
+  Future<void> _setAutoReadEnabled(bool enabled) async {
+    if (enabled) {
+      _advanceAutoReadWatermark(_messages);
+    }
+    setState(() => _autoReadEnabled = enabled);
+    try {
+      await UserStorage.setCompanionAutoReadEnabled(enabled);
+      if (!enabled) {
+        await _stopTtsPlayback();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _autoReadEnabled = !enabled);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save auto read setting: $e')),
+      );
+    }
+  }
+
+  Future<void> _stopTtsPlayback() async {
+    await _audioPlayer.stop();
+    if (mounted) {
+      setState(() {
+        _playingMessageId = null;
+        _isTtsLoading = false;
+      });
+    } else {
+      _playingMessageId = null;
+      _isTtsLoading = false;
+    }
+  }
+
+  Future<void> _handleTtsPlay(String messageId, String text) async {
+    if (_isTtsLoading && _playingMessageId == messageId) return;
+
+    if (_playingMessageId == messageId) {
+      await _audioPlayer.stop();
+      if (mounted) setState(() => _playingMessageId = null);
+      return;
+    }
+
+    await _audioPlayer.stop();
+
+    final voiceId = _character?.ttsVoiceId;
+    if (voiceId == null || voiceId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请先在角色设置中配置 ElevenLabs 语音 ID')),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _playingMessageId = messageId;
+        _isTtsLoading = true;
+      });
+    }
+
+    try {
+      final audioPath = await ElevenLabsTtsService.textToSpeech(
+        text: text,
+        voiceId: voiceId,
+      );
+
+      if (mounted) {
+        setState(() => _isTtsLoading = false);
+        if (_isAppInBackground) {
+          await _stopTtsPlayback();
+          return;
+        }
+        await _audioCompleteSub?.cancel();
+        await _audioPlayer.play(DeviceFileSource(audioPath));
+        _audioCompleteSub = _audioPlayer.onPlayerComplete.listen((_) {
+          if (mounted) setState(() => _playingMessageId = null);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _playingMessageId = null;
+          _isTtsLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
     }
   }
 
@@ -443,6 +883,11 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
                 ),
               ),
             ),
+            const SizedBox(width: 8),
+            PersonaAutoReadToggle(
+              enabled: _autoReadEnabled,
+              onChanged: _setAutoReadEnabled,
+            ),
           ],
         ],
       ),
@@ -504,6 +949,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
               _buildBubble(
                 text: msg.content,
                 isCharacter: msg.isFromCharacter,
+                messageId: msg.id.toString(),
               ),
           ],
         );
@@ -715,9 +1161,11 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
     required String text,
     required bool isCharacter,
     bool isStreaming = false,
+    String? messageId,
   }) {
     if (isCharacter) {
-      return _buildCharacterBubble(text: text, isStreaming: isStreaming);
+      return _buildCharacterBubble(
+          text: text, isStreaming: isStreaming, messageId: messageId);
     }
 
     return Padding(
@@ -784,7 +1232,11 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
   Widget _buildCharacterBubble({
     required String text,
     required bool isStreaming,
+    String? messageId,
   }) {
+    final isPlaying = messageId != null && _playingMessageId == messageId;
+    final showSpeaker = !isStreaming && messageId != null;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 22),
       child: Row(
@@ -805,25 +1257,61 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
             child: Align(
               alignment: Alignment.topLeft,
               child: _CharacterMessageFrame(
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Flexible(
-                      child: MarkdownBody(
-                        data: text,
-                        softLineBreak: true,
-                        styleSheet: _cachedMarkdownStyle,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Flexible(
+                          child: MarkdownBody(
+                            data: text,
+                            softLineBreak: true,
+                            styleSheet: _cachedMarkdownStyle,
+                          ),
+                        ),
+                        if (isStreaming) ...[
+                          const SizedBox(width: 8),
+                          const SizedBox(
+                            width: 8,
+                            height: 8,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: _personaAccent,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    if (isStreaming) ...[
-                      const SizedBox(width: 8),
-                      const SizedBox(
-                        width: 8,
-                        height: 8,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          color: _personaAccent,
+                    if (showSpeaker) ...[
+                      const SizedBox(height: 10),
+                      GestureDetector(
+                        onTap: () => _handleTtsPlay(messageId, text),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isPlaying
+                                  ? Icons.volume_up
+                                  : Icons.volume_up_outlined,
+                              size: 16,
+                              color: isPlaying
+                                  ? _personaAccent
+                                  : _personaTextMuted,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              isPlaying ? '播放中...' : '朗读',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isPlaying
+                                    ? _personaAccent
+                                    : _personaTextMuted,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -890,6 +1378,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen> {
       isStreaming: _isStreaming,
       onSend: _sendMessage,
       hintText: UserStorage.l10n.personaChatInputHint,
+      voiceController: _voiceController,
+      onVoiceTap: _onVoiceToggle,
     );
   }
 
@@ -1195,6 +1685,74 @@ class _FrostedCircleButton extends StatelessWidget {
   }
 }
 
+@visibleForTesting
+class PersonaAutoReadToggle extends StatelessWidget {
+  const PersonaAutoReadToggle({
+    super.key,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      toggled: enabled,
+      label: enabled ? '关闭自动朗读' : '开启自动朗读',
+      child: GestureDetector(
+        onTap: () => onChanged(!enabled),
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(19),
+            color: enabled
+                ? _personaAccent.withValues(alpha: 0.18)
+                : _personaPanel.withValues(alpha: 0.62),
+            border: Border.all(
+              color: enabled
+                  ? _personaAccent.withValues(alpha: 0.46)
+                  : _personaAccent.withValues(alpha: 0.2),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.34),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                enabled
+                    ? Icons.record_voice_over_rounded
+                    : Icons.record_voice_over_outlined,
+                color: enabled ? _personaAccent : _personaTextMuted,
+                size: 17,
+              ),
+              const SizedBox.shrink(),
+              Text(
+                '自动朗读',
+                style: TextStyle(
+                  color: enabled ? _personaAccent : _personaTextMuted,
+                  fontSize: 0,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _UserAvatar extends StatelessWidget {
   const _UserAvatar({
     required this.avatar,
@@ -1226,12 +1784,19 @@ class PersonaChatInputBar extends StatelessWidget {
     required this.isStreaming,
     required this.onSend,
     required this.hintText,
+    this.voiceController,
+    this.onVoiceTap,
   });
 
   final TextEditingController controller;
   final bool isStreaming;
   final VoidCallback onSend;
   final String hintText;
+
+  /// Optional: when provided together with [onVoiceTap], renders a mic button
+  /// before the send button.
+  final VoiceInputController? voiceController;
+  final VoidCallback? onVoiceTap;
 
   bool _canSend(String value) => !isStreaming && value.trim().isNotEmpty;
 
@@ -1296,6 +1861,16 @@ class PersonaChatInputBar extends StatelessWidget {
                     enabled: !isStreaming,
                   ),
                 ),
+                if (voiceController != null && onVoiceTap != null) ...[
+                  const SizedBox(width: 8),
+                  VoiceInputButton(
+                    controller: voiceController!,
+                    onTap: onVoiceTap!,
+                    iconColor: _personaAccent,
+                    bgColor: _personaPanelSoft,
+                    enabled: !isStreaming,
+                  ),
+                ],
                 const SizedBox(width: 8),
                 _SendButton(
                   enabled: canSend,

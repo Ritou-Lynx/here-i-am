@@ -30,7 +30,7 @@ import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/cards/style/timeline_theme.dart';
 import 'package:memex/ui/core/themes/design_system.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
-import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
+import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
 import 'package:memex/utils/share_service.dart';
 import 'package:memex/ui/core/cards/native_card_factory.dart';
 import 'package:memex/utils/token_usage_utils.dart';
@@ -1623,12 +1623,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
     final tappableAvatar = isCharacterAvatar
         ? GestureDetector(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PersonaChatScreen(characterId: characterId),
-                ),
-              );
+              openPersonaChat(context, characterId: characterId);
             },
             child: avatarWidget,
           )

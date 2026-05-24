@@ -11,6 +11,9 @@ import 'package:memex/agent/skills/manage_system_action/system_action_skill.dart
 import 'package:memex/agent/skills/knowledge_insight/knowledge_insight_skill.dart';
 import 'package:memex/agent/skills/ask_clarification/ask_clarification_skill.dart';
 import 'package:memex/agent/common_tools.dart';
+import 'package:memex/agent/built_in_tools/http_fetch_tool.dart';
+import 'package:memex/agent/built_in_tools/checkin_tool.dart';
+import 'package:memex/agent/built_in_tools/coros_mcp_tool.dart';
 import 'package:memex/agent/state_util.dart';
 import 'package:memex/agent/super_agent/prompts.dart';
 import 'package:memex/data/services/file_system_service.dart';
@@ -27,6 +30,7 @@ const _readOnlyToolNames = {
   'search_event_logs',
   'getCurrentTime',
   'get_pkm_overview',
+  'coros_query',
 };
 
 /// Skills excluded in Quick Query mode (those that create/modify data).
@@ -82,7 +86,12 @@ class SuperAgent {
       fileToolFactory.buildEditTool(),
       buildSearchEventLogsTool(),
       getCurrentTimeTool,
-      getPkmOverviewTool
+      getPkmOverviewTool,
+      buildHttpFetchTool(),
+      buildCorosMcpTool(),
+      buildSystemCheckinTool(),
+      buildReminderTool(),
+      buildSetSystemMessageStatusTool(),
     ];
 
     // Filter tools in Quick Query mode — only keep read-only tools

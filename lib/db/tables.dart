@@ -148,6 +148,24 @@ class UserNotifications extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// System Message Queue Table
+/// Stores AI-initiated system triggers (checkin pulses, AI-created reminders).
+/// Processed by the agent in foreground turns, one at a time.
+class SystemMessageQueue extends Table {
+  TextColumn get id => text()();
+  TextColumn get triggerType => text()();
+  TextColumn get body => text()();
+  TextColumn get status =>
+      text().withDefault(const Constant('pending'))();
+  IntColumn get createdAt => integer()();
+  IntColumn get scheduledFor => integer().nullable()();
+  IntColumn get processedAt => integer().nullable()();
+  TextColumn get context => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Persona Chat Messages Table
 /// Stores chat messages between user and their AI companion character.
 class PersonaChatMessages extends Table {

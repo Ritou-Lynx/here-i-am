@@ -284,7 +284,7 @@
   "nothingHere": "Nothing here yet",
   "nothingHereHint": "Tap the button below to create your first card",
   "agentProcessing": "AI is processing...",
-  "keepAppOpen": "Don't close the app",
+  "keepAppOpen": "Processing continues in background",
   "activityDetail": "Activity Detail",
   "noAgentActivityYet": "No agent activity yet",
   "processingEllipsis": "Processing...",

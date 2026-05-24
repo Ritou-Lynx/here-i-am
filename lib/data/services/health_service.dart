@@ -7,8 +7,13 @@ import 'package:workmanager/workmanager.dart'; // Added for Workmanager
 import 'dart:isolate'; // Added for Isolate
 import 'package:flutter/foundation.dart'; // Added for debugPrint
 import 'package:memex/data/services/file_logger_service.dart'; // Added
+import 'package:memex/db/app_database.dart'; // Added for checkin
 import 'health_strategies.dart';
+import 'checkin_service.dart';
 import 'package:memex/utils/logger.dart';
+import 'package:memex/data/services/background_task_drain_service.dart';
+import 'package:memex/data/services/companion_foreground_task.dart';
+import 'package:memex/utils/user_storage.dart';
 
 /// Configuration for handling a specific Health Data Type
 class HealthStrategyConfig {
@@ -308,6 +313,46 @@ void callbackDispatcher() {
     }
 
     try {
+      if (task == BackgroundTaskDrainService.taskName) {
+        return Future.value(
+          await BackgroundTaskDrainService.runFromWorkmanager(),
+        );
+      }
+
+      if (task == CheckinService.checkinTaskName) {
+        // ---------- Checkin pulse ----------
+        final prefs = await SharedPreferences.getInstance();
+        final userId = prefs.getString('current_user_id');
+        if (userId == null) {
+          debugPrint('Checkin: no user ID stored, skipping');
+          return Future.value(false);
+        }
+        if (!AppDatabase.isInitialized) {
+          await AppDatabase.init(userId);
+        }
+        await UserStorage.initL10n();
+        final enqueued = await CheckinService.instance.maybeEnqueueCheckin();
+        debugPrint('Checkin pulse: ${enqueued ? "enqueued" : "skipped"}');
+        // Also run if there's any pending work (existing checkin or due reminder).
+        final hasPendingWork = await CheckinService.instance.hasPendingWork();
+        if (!enqueued && !hasPendingWork) return Future.value(false);
+        debugPrint('Checkin: proceeding via ForegroundService (enqueued=$enqueued, hasPendingWork=$hasPendingWork)');
+
+        // Start foreground service to run the agent.
+        // The foreground service is immune to Samsung Freecess — the WorkManager
+        // isolate only needs to survive long enough to fire startService(), then
+        // the OS-managed foreground service takes over independently.
+        try {
+          await CompanionForegroundService.initialize();
+          await CompanionForegroundService.triggerCheckin();
+          debugPrint('Checkin: foreground service triggered successfully');
+        } catch (e) {
+          debugPrint('Checkin: failed to start foreground service: $e');
+        }
+        return Future.value(true);
+      }
+
+      // ---------- Original pedometer logic ----------
       logger.severe('Background task triggered (1h periodic)');
       await PedometerFetcher.backgroundCallbackLogic();
       logger.severe('Background task completed successfully');

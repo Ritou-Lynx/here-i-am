@@ -4,6 +4,8 @@ import 'package:memex/utils/logger.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/agent/insight_agent/knowledge_insight_agent.dart';
 import 'package:memex/data/services/event_bus_service.dart';
+import 'package:memex/data/services/weread_sync_service.dart';
+import 'package:memex/data/services/coros_sync_service.dart';
 
 final Logger _logger = getLogger('LocalTaskHandlers');
 
@@ -15,6 +17,13 @@ Future<void> handleKnowledgeInsight(
 ) async {
   _logger.info(
       'Executing handleKnowledgeInsight for task ${context.taskId}, bizId: ${context.bizId}');
+
+  // Sync external data (WeRead, COROS) to local files before insight generation.
+  // Failure is logged but does not block the insight run.
+  await Future.wait([
+    WereadSyncService.syncIfConfigured(userId),
+    CorosSyncService.syncIfConfigured(userId),
+  ]);
 
   try {
     await KnowledgeInsightAgent.updateKnowledgeInsight();

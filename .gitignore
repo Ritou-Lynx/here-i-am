@@ -99,3 +99,11 @@ android/app/*.jks
 # Local deploy scripts
 deploy_ios.sh
 deploy_android.sh
+
+# Local-only workspace files
+.env
+.env.*
+!.env.example
+.claude/
+/*_check.db
+/test_mcp.dart

@@ -342,6 +342,8 @@ class CharacterService {
         "mes_example": characterData['mes_example'],
       if (characterData['chat_background'] != null)
         "chat_background": characterData['chat_background'],
+      if (characterData['tts_voice_id'] != null)
+        "tts_voice_id": characterData['tts_voice_id'],
     };
 
     try {
@@ -434,6 +436,13 @@ class CharacterService {
           charData.remove('chat_background');
         } else {
           charData['chat_background'] = updates['chat_background'];
+        }
+      }
+      if (updates.containsKey('tts_voice_id')) {
+        if (updates['tts_voice_id'] == null) {
+          charData.remove('tts_voice_id');
+        } else {
+          charData['tts_voice_id'] = updates['tts_voice_id'];
         }
       }
 

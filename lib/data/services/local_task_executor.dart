@@ -189,6 +189,35 @@ class LocalTaskExecutor {
     }
   }
 
+  Future<void> prepareForBackgroundDrain({required String userId}) async {
+    _currentUserId = userId;
+    await _handlePreviousExecutionMarkers();
+  }
+
+  Future<void> _resetProcessingTasksOlderThan(Duration age) async {
+    try {
+      final cutoff =
+          DateTime.now().subtract(age).millisecondsSinceEpoch ~/ 1000;
+      final count = await (_db.update(_db.tasks)
+            ..where(
+              (t) =>
+                  t.status.equals('processing') &
+                  (t.updatedAt.isNull() |
+                      t.updatedAt.isSmallerOrEqualValue(cutoff)),
+            ))
+          .write(TasksCompanion(
+        status: const Value('pending'),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+      ));
+
+      if (count > 0) {
+        _logger.info('Reset $count old processing tasks to pending');
+      }
+    } catch (e) {
+      _logger.severe('Failed to reset old processing tasks: $e');
+    }
+  }
+
   /// Stop the worker loop
   void stop() {
     _isRunning = false;
@@ -404,16 +433,30 @@ class LocalTaskExecutor {
   }
 
   Future<void> _executeTask(Task task) async {
+    var taskClaimed = false;
     try {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
       // Mark as processing
-      await (_db.update(_db.tasks)..where((t) => t.id.equals(task.id))).write(
+      final claimed = await (_db.update(_db.tasks)
+            ..where(
+              (t) =>
+                  t.id.equals(task.id) &
+                  t.status.isIn(['pending', 'retrying']),
+            ))
+          .write(
         TasksCompanion(
           status: const Value('processing'),
           updatedAt: Value(now),
         ),
       );
+      if (claimed == 0) {
+        _logger.fine(
+          'Skipping task ${task.id}; it was already claimed by another worker',
+        );
+        return;
+      }
+      taskClaimed = true;
       await _markTaskExecutionStarted(task);
 
       final handler = _handlers[task.type];
@@ -515,13 +558,46 @@ class LocalTaskExecutor {
         _logger.severe('Task ${task.id} permanently failed');
       }
     } finally {
-      await _clearTaskExecutionMarker(task.id);
+      if (taskClaimed) {
+        await _clearTaskExecutionMarker(task.id);
+      }
 
       // Trigger poll to pick up next tasks immediately upon completion of one
-      if (_isRunning) {
+      if (_isRunning && taskClaimed) {
         _scheduleNextPoll(immediate: true);
       }
     }
+  }
+
+  Future<TaskActivitySnapshot> drainUntilIdle({
+    required String userId,
+    Duration maxDuration = const Duration(minutes: 9),
+  }) async {
+    await prepareForBackgroundDrain(userId: userId);
+
+    final deadline = DateTime.now().add(maxDuration);
+    while (DateTime.now().isBefore(deadline)) {
+      await _resetProcessingTasksOlderThan(const Duration(seconds: 10));
+
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final tasksToRun = await _findRunnableTasks(
+        slotsAvailable: _maxConcurrency,
+        now: now,
+      );
+
+      if (tasksToRun.isEmpty) {
+        final snapshot = await getTaskActivitySnapshot();
+        if (!snapshot.hasActiveTasks) {
+          return snapshot;
+        }
+        await Future.delayed(_pollInterval);
+        continue;
+      }
+
+      await Future.wait(tasksToRun.map(_executeTask));
+    }
+
+    return getTaskActivitySnapshot();
   }
 
   Future<void> _handlePreviousExecutionMarkers() async {
