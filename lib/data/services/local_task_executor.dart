@@ -104,6 +104,7 @@ class LocalTaskExecutor {
   static const String _gracefulExitMarkerKey = 'graceful_exit_marker';
   static const int crashLoopFailureThreshold = 2;
   static const Duration crashLikeExitWindow = Duration(minutes: 10);
+  static const Duration _taskLeaseHeartbeatInterval = Duration(seconds: 5);
 
   /// Stream that emits true if there are any active (pending, processing, retrying) tasks in the DB.
   /// Useful for global UI loading indicators.
@@ -172,7 +173,7 @@ class LocalTaskExecutor {
   }
 
   /// Reset tasks that are stuck in 'processing' state to 'pending'
-  Future<void> _resetStaleTasks() async {
+  Future<int> _resetStaleTasks() async {
     try {
       final count = await (_db.update(_db.tasks)
             ..where((t) => t.status.equals('processing')))
@@ -184,17 +185,30 @@ class LocalTaskExecutor {
       if (count > 0) {
         _logger.info('Reset $count stale processing tasks to pending');
       }
+      return count;
     } catch (e) {
       _logger.severe('Failed to reset stale tasks: $e');
+      return 0;
     }
+  }
+
+  Future<int> resetProcessingTasksForBackgroundHandoff({
+    required Duration minAge,
+  }) async {
+    final count = await _resetProcessingTasksOlderThan(minAge);
+    if (count > 0) {
+      _logger.info(
+        'Background handoff reset $count processing tasks older than $minAge',
+      );
+    }
+    return count;
   }
 
   Future<void> prepareForBackgroundDrain({required String userId}) async {
     _currentUserId = userId;
-    await _handlePreviousExecutionMarkers();
   }
 
-  Future<void> _resetProcessingTasksOlderThan(Duration age) async {
+  Future<int> _resetProcessingTasksOlderThan(Duration age) async {
     try {
       final cutoff =
           DateTime.now().subtract(age).millisecondsSinceEpoch ~/ 1000;
@@ -213,8 +227,10 @@ class LocalTaskExecutor {
       if (count > 0) {
         _logger.info('Reset $count old processing tasks to pending');
       }
+      return count;
     } catch (e) {
       _logger.severe('Failed to reset old processing tasks: $e');
+      return 0;
     }
   }
 
@@ -319,17 +335,12 @@ class LocalTaskExecutor {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
       // 1. Check current active tasks count
-      final activeCountQuery = _db.select(_db.tasks)
-        ..where((t) => t.status.isIn(['processing']));
-      final activeTasks = await activeCountQuery.get();
-
-      if (activeTasks.length >= _maxConcurrency) {
+      final slotsAvailable = await _getAvailableTaskSlots();
+      if (slotsAvailable == 0) {
         _isProcessing = false;
         _scheduleNextPoll(); // Wait for next slot
         return;
       }
-
-      final slotsAvailable = _maxConcurrency - activeTasks.length;
 
       // 2. Fetch runnable tasks. Dependency-blocked tasks at the front of the
       // queue should not starve later tasks that can safely run now.
@@ -434,6 +445,7 @@ class LocalTaskExecutor {
 
   Future<void> _executeTask(Task task) async {
     var taskClaimed = false;
+    Timer? leaseHeartbeat;
     try {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
@@ -441,8 +453,7 @@ class LocalTaskExecutor {
       final claimed = await (_db.update(_db.tasks)
             ..where(
               (t) =>
-                  t.id.equals(task.id) &
-                  t.status.isIn(['pending', 'retrying']),
+                  t.id.equals(task.id) & t.status.isIn(['pending', 'retrying']),
             ))
           .write(
         TasksCompanion(
@@ -458,6 +469,10 @@ class LocalTaskExecutor {
       }
       taskClaimed = true;
       await _markTaskExecutionStarted(task);
+      leaseHeartbeat = Timer.periodic(
+        _taskLeaseHeartbeatInterval,
+        (_) => unawaited(_refreshTaskExecutionLease(task.id)),
+      );
 
       final handler = _handlers[task.type];
       if (handler == null) {
@@ -558,6 +573,7 @@ class LocalTaskExecutor {
         _logger.severe('Task ${task.id} permanently failed');
       }
     } finally {
+      leaseHeartbeat?.cancel();
       if (taskClaimed) {
         await _clearTaskExecutionMarker(task.id);
       }
@@ -569,21 +585,49 @@ class LocalTaskExecutor {
     }
   }
 
+  Future<void> _refreshTaskExecutionLease(String taskId) async {
+    try {
+      await (_db.update(_db.tasks)
+            ..where(
+              (t) => t.id.equals(taskId) & t.status.equals('processing'),
+            ))
+          .write(
+        TasksCompanion(
+          updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+        ),
+      );
+    } catch (e) {
+      _logger.warning('Failed to refresh task lease for $taskId: $e');
+    }
+  }
+
+  Future<int> _getAvailableTaskSlots() async {
+    final query = _db.select(_db.tasks)
+      ..where((t) => t.status.equals('processing'));
+    final activeTaskCount = (await query.get()).length;
+    final slotsAvailable = _maxConcurrency - activeTaskCount;
+    return slotsAvailable > 0 ? slotsAvailable : 0;
+  }
+
   Future<TaskActivitySnapshot> drainUntilIdle({
     required String userId,
     Duration maxDuration = const Duration(minutes: 9),
+    Duration processingResetAge = const Duration(seconds: 10),
   }) async {
     await prepareForBackgroundDrain(userId: userId);
 
     final deadline = DateTime.now().add(maxDuration);
     while (DateTime.now().isBefore(deadline)) {
-      await _resetProcessingTasksOlderThan(const Duration(seconds: 10));
+      await _resetProcessingTasksOlderThan(processingResetAge);
 
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final tasksToRun = await _findRunnableTasks(
-        slotsAvailable: _maxConcurrency,
-        now: now,
-      );
+      final slotsAvailable = await _getAvailableTaskSlots();
+      final tasksToRun = slotsAvailable == 0
+          ? const <Task>[]
+          : await _findRunnableTasks(
+              slotsAvailable: slotsAvailable,
+              now: now,
+            );
 
       if (tasksToRun.isEmpty) {
         final snapshot = await getTaskActivitySnapshot();

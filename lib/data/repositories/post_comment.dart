@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:logging/logging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:memex/agent/memory/character_memory_service.dart';
 import 'package:memex/agent/comment_agent/comment_agent.dart';
 import 'package:memex/domain/models/llm_config.dart';
@@ -16,6 +19,8 @@ import 'package:memex/utils/time_context.dart';
 
 final _logger = Logger('PostCommentEndpoint');
 final _fileSystemService = FileSystemService.instance;
+const _commentAgentStopGracePeriod = Duration(seconds: 15);
+const _commentAgentMaxRunDuration = Duration(minutes: 10);
 
 /// Post comment (AI reply handled async)
 ///
@@ -175,6 +180,7 @@ Future<void> processAICommentReply({
   String? rawInputContent,
   String? locationContextReminder,
   bool sendEventBus = true,
+  bool skipIfCharacterAlreadyCommented = false,
   DateTime? inputDateTime,
   bool withMemoryManagement = false,
 }) async {
@@ -190,6 +196,7 @@ Future<void> processAICommentReply({
       return;
     }
 
+    final existingCommentIds = cardData.comments.map((c) => c.id).toSet();
     final initialInsight = cardData.insight?.text;
 
     // 2. Character ID Fallback
@@ -210,6 +217,19 @@ Future<void> processAICommentReply({
           _logger.info('Using character_id $characterId from insight data');
         }
       }
+    }
+
+    if (_hasMatchingExistingAiComment(
+      comments: cardData.comments,
+      characterId: characterId,
+      replyToId: userCommentId,
+      matchAnyReplyTarget: skipIfCharacterAlreadyCommented,
+    )) {
+      _logger.info(
+        'Skipping duplicate AI comment for card $cardId, '
+        'character=$characterId, replyTo=$userCommentId',
+      );
+      return;
     }
 
     // 3. Raw Input Content
@@ -264,31 +284,58 @@ Future<void> processAICommentReply({
       existingCommentsContext = buf.toString();
     }
 
-    // 7. Initialize and Run Agent
-    try {
-      await CommentAgent.runWithContent(
-        userContent,
-        client: client,
-        modelConfig: modelConfig,
-        userId: userId,
-        factId: cardId,
-        rawInputContent: contentToUse,
-        initialInsight: initialInsight,
-        existingCommentsContext: existingCommentsContext,
-        characterId: characterId,
-        forcedReplyToId: userCommentId,
-        currentTime: inputDateTime ?? DateTime.now(),
-        entryTime: entryDateTime,
-        locationContextReminder: locationContextReminder,
-        withMemoryManagement: withMemoryManagement,
-      );
-    } catch (e) {
-      _logger.severe('Error running comment agent: $e');
+    // 7. Initialize and Run Agent. SaveComment is the durable completion
+    // signal: a text-only model response must not mark the task as successful.
+    final commentSaved = Completer<void>();
+    final agentRun = CommentAgent.runWithContent(
+      userContent,
+      client: client,
+      modelConfig: modelConfig,
+      userId: userId,
+      factId: cardId,
+      rawInputContent: contentToUse,
+      initialInsight: initialInsight,
+      existingCommentsContext: existingCommentsContext,
+      characterId: characterId,
+      forcedReplyToId: userCommentId,
+      onCommentSaved: () {
+        if (!commentSaved.isCompleted) {
+          commentSaved.complete();
+        }
+      },
+      currentTime: inputDateTime ?? DateTime.now(),
+      entryTime: entryDateTime,
+      locationContextReminder: locationContextReminder,
+      withMemoryManagement: withMemoryManagement,
+    );
+    await waitForCommentAgentCompletion(
+      agentRun: agentRun.then<void>((_) {}),
+      commentSaved: commentSaved.future,
+    );
+
+    final updatedCard = await _fileSystemService.readCardFile(userId, cardId);
+    if (updatedCard == null) {
+      _logger.warning('Card disappeared while saving AI reply: $cardId');
+      return;
     }
 
-    // 7. Save Reply to Card - REMOVED
-    // The Agent now uses the SaveComment tool to save the reply directly.
-    // If the agent fails, no comment is posted (unless we add fallback logic here, but keeping it simple for now).
+    final savedComment = hasNewMatchingAiComment(
+      comments: updatedCard.comments,
+      previousCommentIds: existingCommentIds,
+      characterId: characterId,
+      replyToId: userCommentId,
+    );
+    final completedByConcurrentWorker = _hasMatchingExistingAiComment(
+      comments: updatedCard.comments,
+      characterId: characterId,
+      replyToId: userCommentId,
+      matchAnyReplyTarget: skipIfCharacterAlreadyCommented,
+    );
+    if (!savedComment && !completedByConcurrentWorker) {
+      throw StateError(
+        'Comment agent completed without saving a comment for card $cardId',
+      );
+    }
 
     // 8. EventBus Update
     if (sendEventBus) {
@@ -300,4 +347,75 @@ Future<void> processAICommentReply({
     _logger.severe('Failed to process AI comment reply for card $cardId: $e');
     rethrow;
   }
+}
+
+@visibleForTesting
+Future<void> waitForCommentAgentCompletion({
+  required Future<void> agentRun,
+  required Future<void> commentSaved,
+  Duration stopGracePeriod = _commentAgentStopGracePeriod,
+  Duration maxRunDuration = _commentAgentMaxRunDuration,
+}) async {
+  var durableSaveObserved = false;
+
+  Future<void> waitForSavedCommentGracePeriod() async {
+    await commentSaved;
+    durableSaveObserved = true;
+    try {
+      await agentRun.timeout(stopGracePeriod);
+    } on TimeoutException {
+      _logger.warning(
+        'Comment was saved, but the agent did not stop within '
+        '$stopGracePeriod. Completing the task from the durable save signal.',
+      );
+    } catch (e) {
+      _logger.warning(
+        'Comment was saved before the agent reported a stop error: $e',
+      );
+    }
+  }
+
+  try {
+    await Future.any<void>([
+      agentRun,
+      waitForSavedCommentGracePeriod(),
+    ]).timeout(maxRunDuration);
+  } catch (e) {
+    if (!durableSaveObserved) rethrow;
+    _logger.warning(
+      'Ignoring comment agent stop failure because SaveComment completed: $e',
+    );
+  }
+}
+
+@visibleForTesting
+bool hasNewMatchingAiComment({
+  required List<CardComment> comments,
+  required Set<String> previousCommentIds,
+  String? characterId,
+  String? replyToId,
+}) {
+  return comments.any(
+    (comment) =>
+        comment.isAi &&
+        !previousCommentIds.contains(comment.id) &&
+        (characterId == null || comment.characterId == characterId) &&
+        (replyToId == null || comment.replyToId == replyToId),
+  );
+}
+
+bool _hasMatchingExistingAiComment({
+  required List<CardComment> comments,
+  required String? characterId,
+  required String? replyToId,
+  required bool matchAnyReplyTarget,
+}) {
+  if (replyToId == null && !matchAnyReplyTarget) return false;
+
+  return comments.any(
+    (comment) =>
+        comment.isAi &&
+        (characterId == null || comment.characterId == characterId) &&
+        (matchAnyReplyTarget || comment.replyToId == replyToId),
+  );
 }

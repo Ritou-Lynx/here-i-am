@@ -12,6 +12,7 @@ import 'health_strategies.dart';
 import 'checkin_service.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/data/services/background_task_drain_service.dart';
+import 'package:memex/data/services/background_task_foreground_service.dart';
 import 'package:memex/data/services/companion_foreground_task.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -314,6 +315,15 @@ void callbackDispatcher() {
 
     try {
       if (task == BackgroundTaskDrainService.taskName) {
+        try {
+          final started = await BackgroundTaskForegroundService.triggerDrain();
+          if (started) {
+            return Future.value(true);
+          }
+        } catch (e) {
+          debugPrint(
+              'Background task drain: failed to start foreground service: $e');
+        }
         return Future.value(
           await BackgroundTaskDrainService.runFromWorkmanager(),
         );
@@ -331,12 +341,20 @@ void callbackDispatcher() {
           await AppDatabase.init(userId);
         }
         await UserStorage.initL10n();
+        // Hard foreground gate: if the app is active, skip entirely.
+        // maybeEnqueueCheckin has its own gate, but hasPendingWork does not —
+        // this single check covers both before we trigger the visible notification.
+        if (await CheckinService.instance.isAppInForeground()) {
+          debugPrint('Checkin: app in foreground, skipping WorkManager trigger');
+          return Future.value(false);
+        }
         final enqueued = await CheckinService.instance.maybeEnqueueCheckin();
         debugPrint('Checkin pulse: ${enqueued ? "enqueued" : "skipped"}');
         // Also run if there's any pending work (existing checkin or due reminder).
         final hasPendingWork = await CheckinService.instance.hasPendingWork();
         if (!enqueued && !hasPendingWork) return Future.value(false);
-        debugPrint('Checkin: proceeding via ForegroundService (enqueued=$enqueued, hasPendingWork=$hasPendingWork)');
+        debugPrint(
+            'Checkin: proceeding via ForegroundService (enqueued=$enqueued, hasPendingWork=$hasPendingWork)');
 
         // Start foreground service to run the agent.
         // The foreground service is immune to Samsung Freecess — the WorkManager

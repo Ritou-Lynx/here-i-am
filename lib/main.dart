@@ -43,8 +43,10 @@ import 'package:memex/data/services/streaming_transcriber.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/notification_service.dart';
+import 'package:memex/data/services/callkit_service.dart';
+import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:memex/ui/character/widgets/voice_call_screen.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:memex/data/services/companion_foreground_task.dart';
@@ -69,6 +71,8 @@ import 'package:quick_actions/quick_actions.dart';
 import 'package:memex/data/services/quick_action_service.dart';
 import 'package:memex/data/services/speech_transcription_service.dart';
 import 'package:memex/data/services/background_task_drain_service.dart';
+import 'package:memex/data/services/background_task_foreground_service.dart';
+import 'package:memex/ui/companion/widgets/companion_first_shell.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
@@ -97,25 +101,57 @@ void main() async {
     await AndroidAlarmManager.initialize();
   }
 
+  // Mark foreground immediately so any sticky ForegroundService restart
+  // (START_STICKY behavior after being killed by Freecess/Doze) sees the app
+  // is active and exits early before showing the "thinking" notification.
+  if (Platform.isAndroid) {
+    await CheckinService.instance.markForeground();
+  }
+
   // Initialize foreground service (bypasses Samsung Freecess)
   if (Platform.isAndroid) {
     await CompanionForegroundService.initialize();
+    await BackgroundTaskForegroundService.initialize();
   }
 
   // Initialize notification service for agent checkins
   await NotificationService.instance.initialize();
 
-  // Navigate to the character's chat screen when a companion notification is tapped.
+  // Route notification taps: call notifications open VoiceCallScreen,
+  // all others open the character's chat screen.
   NotificationService.instance.setTapHandler((String? payload) {
     if (payload == null || payload.isEmpty) return;
     final context = rootNavigatorKey.currentContext;
     if (context == null) return;
-    openPersonaChat(
-      context,
-      characterId: payload,
-      rootNavigator: true,
-    );
+
+    if (payload.startsWith('call:')) {
+      final characterId = payload.substring(5);
+      openVoiceCall(context, characterId: characterId, rootNavigator: true);
+    } else {
+      openPersonaChat(context, characterId: payload, rootNavigator: true);
+    }
   });
+
+  // System-level incoming-call (CallKit) wiring.
+  CallkitService.instance.init();
+  CallkitService.instance.onAccept = (String characterId) async {
+    // CallKit holds the call audio session while a call is "ongoing", which
+    // mutes our own TTS. Once the user accepts, immediately end the CallKit
+    // session so audio focus returns to the app, then open our in-app call UI.
+    await CallkitService.instance.endAll();
+    final context = rootNavigatorKey.currentContext;
+    if (context == null) return;
+    openVoiceCall(context, characterId: characterId, rootNavigator: true);
+  };
+  CallkitService.instance.onDecline = (String characterId) {
+    // Record a missed/declined-call memory so the companion remembers.
+    PersonaChatService.instance.addCharacterMessage(
+      characterId,
+      '（📞 你拒接了一通来电）',
+      timestamp: DateTime.now(),
+      isRead: true,
+    );
+  };
 
   // Cancel any previously registered pedometer background tasks on iOS
   // (iOS now uses HealthKit only, not CMPedometer)
@@ -325,6 +361,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   StreamSubscription<bool>? _taskKeepAliveSubscription;
   bool _hasActiveTasks = false;
   AppLifecycleState? _lastLifecycleState;
+  Timer? _foregroundHeartbeatTimer;
 
   @override
   void initState() {
@@ -332,6 +369,28 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _checkUser();
     _checkLockSettings();
+    // App starts in the foreground — begin the heartbeat so background checkins
+    // stay silent while the user is actively using the app.
+    _startForegroundHeartbeat();
+  }
+
+  /// Writes a foreground heartbeat now and every 60s so background checkin
+  /// isolates can detect the app is in active use and skip proactive pushes.
+  void _startForegroundHeartbeat() {
+    unawaited(CheckinService.instance.markForeground());
+    _foregroundHeartbeatTimer?.cancel();
+    _foregroundHeartbeatTimer = Timer.periodic(
+      const Duration(seconds: 60),
+      (_) => unawaited(CheckinService.instance.markForeground()),
+    );
+  }
+
+  /// Stops the heartbeat and expires it immediately so background checkins can
+  /// resume the moment the app is backgrounded.
+  void _stopForegroundHeartbeat() {
+    _foregroundHeartbeatTimer?.cancel();
+    _foregroundHeartbeatTimer = null;
+    unawaited(CheckinService.instance.markBackground());
   }
 
   Future<void> _checkLockSettings() async {
@@ -352,6 +411,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _taskKeepAliveSubscription?.cancel();
+    _foregroundHeartbeatTimer?.cancel();
     super.dispose();
   }
 
@@ -365,13 +425,16 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
       unawaited(_syncTaskKeepAliveForLifecycle());
       _lastPausedTime = DateTime.now();
       _checkLockSettingsBeforeLocking();
+      _stopForegroundHeartbeat();
     } else if (state == AppLifecycleState.resumed) {
       unawaited(LocalTaskExecutor.instance.clearGracefulShutdownMarker());
       MemexRouter().scheduleAutoBackupCheck(trigger: 'foreground');
       _checkGracePeriod();
+      _startForegroundHeartbeat();
     } else if (state == AppLifecycleState.detached) {
       unawaited(LocalTaskExecutor.instance
           .recordGracefulShutdown(reason: 'app_lifecycle_detached'));
+      _stopForegroundHeartbeat();
     }
   }
 
@@ -511,6 +574,8 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
+  bool get _useCompanionFirstShell => AppFlavor.isHereIAm;
+
   int _currentTab = 0;
   bool _isInputOpen = false;
   final GlobalKey<TimelineScreenState> _timelineKey =
@@ -576,10 +641,24 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           '❌ Error in _checkAndReportHealthData: $error', error, stackTrace);
     });
 
-    // Register stochastic checkin pulse task (if enabled)
+    // Register stochastic checkin pulse task (WorkManager, best-effort)
     CheckinService.instance.ensureCheckinTaskRegistered().catchError((e) {
       _logger.severe('Failed to register checkin task: $e');
     });
+    // Schedule reliable AlarmManager alarm (bypasses Doze + Samsung Freecess).
+    // This self-reschedules after each fire so it survives without WorkManager.
+    // NOTE: on Android 14+/Samsung this alarm fires but often fails to spawn its
+    // background Dart isolate, so it's now only a FALLBACK.
+    if (Platform.isAndroid) {
+      CheckinService.instance.scheduleProductionAlarm().catchError((e) {
+        _logger.severe('Failed to schedule production alarm: $e');
+      });
+      // PRIMARY driver: persistent foreground service ticks the checkin loop.
+      // Immune to background-start limits that break the alarm isolate.
+      CompanionForegroundService.startPersistent().catchError((e) {
+        _logger.severe('Failed to start persistent foreground service: $e');
+      });
+    }
 
     // Start auto input collection and quantity check
     _logger.info('initState: Starting Auto Input collection check...');
@@ -1595,6 +1674,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (_useCompanionFirstShell) {
+      return const CompanionFirstShell();
+    }
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
         value: const SystemUiOverlayStyle(
           systemNavigationBarColor: Colors.transparent,

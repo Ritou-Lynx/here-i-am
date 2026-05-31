@@ -48,6 +48,11 @@ void addAgentLogger(AgentController controller) {
 }
 
 void addAgentActivityCollector(AgentController controller) {
+  // Background isolates (alarm/foreground-service checkin) never initialize
+  // AgentActivityService, so skip collector registration entirely there —
+  // otherwise every agent event throws an unhandled "not initialized" exception.
+  if (!AgentActivityService.isInitialized) return;
+
   // Helper to extract agent info safely
   ({String? userId, String? scene, String? sceneId, String name, String id})
       getAgentInfo(StatefulAgent agent) {

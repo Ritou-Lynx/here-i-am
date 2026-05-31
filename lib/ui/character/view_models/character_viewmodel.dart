@@ -40,6 +40,24 @@ class CharacterViewModel extends ChangeNotifier {
     );
   }
 
+  /// Sets [character] as the primary companion (who sends proactive pushes).
+  /// Clears the flag on all others; primary is force-enabled.
+  Future<void> setPrimaryCompanion(CharacterModel character) async {
+    final result = await _router.setCharacterPrimary(character.id);
+    result.when(
+      onOk: (_) {
+        characters = characters
+            .map((c) => c.copyWith(
+                  isPrimaryCompanion: c.id == character.id,
+                  enabled: c.id == character.id ? true : c.enabled,
+                ))
+            .toList();
+        notifyListeners();
+      },
+      onError: (_, __) {},
+    );
+  }
+
   Future<void> deleteCharacter(CharacterModel character) async {
     await _router.deleteCharacter(character.id);
     characters.removeWhere((c) => c.id == character.id);

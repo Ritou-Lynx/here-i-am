@@ -31,6 +31,8 @@
     <!-- Foreground Service (bypasses Samsung Freecess) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Full-screen intent for incoming call-style notifications -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- Health Connect permissions removed to comply with Google Play policy.
          On Android, step counting uses ACTIVITY_RECOGNITION + pedometer package.
          Full health data (HealthKit) is only available on iOS. -->
@@ -47,6 +49,17 @@
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+        <!-- android_alarm_manager_plus: explicitly declare RebootBroadcastReceiver
+             so rescheduleOnReboot=true works under the flavor's applicationId
+             (the plugin's aar auto-injects AlarmService + AlarmBroadcastReceiver,
+             but the reboot receiver must exist in the app package to be enabled). -->
+        <receiver
+            android:name="dev.fluttercommunity.plus.androidalarmmanager.RebootBroadcastReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
         <receiver
             android:name=".MediaButtonReceiver"
             android:exported="true">

@@ -5,21 +5,28 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/asr/asr_config.dart';
 import 'package:memex/data/services/asr/media_button_service.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
-import 'package:memex/data/services/elevenlabs_tts_service.dart';
+import 'package:memex/data/services/tts_service.dart';
+import 'package:memex/data/services/buttplug_toy_controller.dart';
+import 'package:memex/data/services/toy_control_service.dart'
+    show ToyController, ToyControlService;
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/ui/character/widgets/voice_call_screen.dart';
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
+import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/utils/tavern_macro.dart';
+import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/data/services/notification_service.dart';
@@ -40,7 +47,17 @@ const _personaUserBorder = Color(0xFFEFE4CD);
 /// 1-on-1 chat screen with an AI companion character.
 class PersonaChatScreen extends StatefulWidget {
   final String characterId;
-  const PersonaChatScreen({super.key, required this.characterId});
+  final bool embedded;
+  final bool enableRichCapture;
+  final VoidCallback? onOpenSpaces;
+
+  const PersonaChatScreen({
+    super.key,
+    required this.characterId,
+    this.embedded = false,
+    this.enableRichCapture = false,
+    this.onOpenSpaces,
+  });
 
   @override
   State<PersonaChatScreen> createState() => _PersonaChatScreenState();
@@ -61,6 +78,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _isLoading = true;
   bool _isStreaming = false;
   String _streamingText = '';
+  bool _isMediaTrayOpen = false;
 
   // TTS playback state
   final _audioPlayer = AudioPlayer();
@@ -77,6 +95,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _mediaButtonsActive = false;
   bool _mediaButtonsActivating = false;
   bool _refreshingMessages = false;
+
+  ToyController? _toyControlService;
 
   // Pagination state — WeChat/WhatsApp style: load older messages on scroll-up
   static const int _pageSize = 30;
@@ -233,6 +253,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   Future<void> _init() async {
     final userId = await UserStorage.getUserId();
     if (userId == null) return;
+    await UserStorage.setLastActiveCompanionCharacterId(
+      userId,
+      _currentCharacterId,
+    );
     final userAvatar = await MemexRouter().getUserAvatar();
 
     final character = await CharacterService.instance
@@ -281,6 +305,16 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       return;
     }
 
+    final toyService = await ToyControlService.fromPrefs();
+    // Buttplug needs an explicit WebSocket handshake before first use.
+    if (toyService is ButtplugToyController) {
+      try {
+        await toyService.connect();
+      } catch (e) {
+        // Non-fatal — toy control just won't work until Intiface is running.
+      }
+    }
+
     if (mounted) {
       _advanceAutoReadWatermark(messages);
       setState(() {
@@ -291,6 +325,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         _autoReadEnabled = autoReadEnabled;
         _hasMoreHistory = messages.length >= _pageSize;
         _isLoading = false;
+        _toyControlService = toyService;
       });
       _scrollToBottom();
     }
@@ -312,6 +347,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _messageRefreshTimer?.cancel();
     _audioPlayer.dispose();
     _voiceController.dispose();
+    _toyControlService?.dispose();
     super.dispose();
   }
 
@@ -394,8 +430,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     // Adding +5 here caused the limit to grow by 5 every 2-second tick,
     // which silently loaded all history into memory. History pagination is
     // handled explicitly by _loadMoreHistory() on scroll.
-    final limit =
-        _messages.length < _pageSize ? _pageSize : _messages.length;
+    final limit = _messages.length < _pageSize ? _pageSize : _messages.length;
 
     try {
       final updated = await _chatService.getMessages(
@@ -488,6 +523,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         characterId: _currentCharacterId,
         userMessage: text,
         userMessageTime: userMessageTime,
+        debugErrorOutput: true,
+        toyControlService: _toyControlService,
       )) {
         buffer.write(chunk);
         if (mounted) {
@@ -572,6 +609,24 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     }
   }
 
+  Future<bool> _submitMedia(List<XFile> images) async {
+    try {
+      await MemexRouter().submitInput(
+        images: images,
+      );
+      if (!mounted) return true;
+      setState(() => _isMediaTrayOpen = false);
+      ToastHelper.showSuccess(
+        context,
+        UserStorage.l10n.recordSubmittedAiProcessing,
+      );
+      return true;
+    } catch (e) {
+      if (mounted) ToastHelper.showError(context, e);
+      return false;
+    }
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future<void>.delayed(const Duration(milliseconds: 16));
@@ -604,9 +659,9 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     );
 
     if (selected != null && selected.id != _currentCharacterId && mounted) {
-      // Set as primary companion
-      await CharacterService.instance.setPrimaryCompanion(userId, selected.id);
-
+      // NOTE: switching the active chat target must NOT change the primary
+      // companion. The primary companion (who sends proactive check-in pushes)
+      // is set explicitly via the dedicated action in the switcher sheet.
       // Switch to new character
       setState(() {
         _currentCharacterId = selected.id;
@@ -737,7 +792,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     if (voiceId == null || voiceId.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请先在角色设置中配置 ElevenLabs 语音 ID')),
+          const SnackBar(content: Text('请先在角色设置中配置 TTS 语音 ID')),
         );
       }
       return;
@@ -751,7 +806,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     }
 
     try {
-      final audioPath = await ElevenLabsTtsService.textToSpeech(
+      final audioPath = await TtsService.textToSpeech(
         text: text,
         voiceId: voiceId,
       );
@@ -801,6 +856,11 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
                     SizedBox(height: MediaQuery.of(context).padding.top),
                     _buildHeader(),
                     Expanded(child: _buildMessageList()),
+                    if (widget.enableRichCapture)
+                      CompanionMediaTray(
+                        isOpen: _isMediaTrayOpen,
+                        onSubmit: _submitMedia,
+                      ),
                     _buildInputBar(),
                   ],
                 ),
@@ -816,16 +876,18 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: const _FrostedCircleButton(
-              child: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: _personaText,
-                size: 17,
+          if (!widget.embedded) ...[
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: const _FrostedCircleButton(
+                child: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: _personaText,
+                  size: 17,
+                ),
               ),
             ),
-          ),
+          ],
           if (character != null) ...[
             const SizedBox(width: 10),
             Expanded(
@@ -883,11 +945,38 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
                 ),
               ),
             ),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => openVoiceCall(
+                context,
+                characterId: _currentCharacterId,
+              ),
+              child: const _FrostedCircleButton(
+                child: Icon(
+                  Icons.phone_rounded,
+                  color: _personaAccent,
+                  size: 17,
+                ),
+              ),
+            ),
             const SizedBox(width: 8),
             PersonaAutoReadToggle(
               enabled: _autoReadEnabled,
               onChanged: _setAutoReadEnabled,
             ),
+            if (widget.onOpenSpaces != null) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: widget.onOpenSpaces,
+                child: const _FrostedCircleButton(
+                  child: Icon(
+                    Icons.grid_view_rounded,
+                    color: _personaAccent,
+                    size: 17,
+                  ),
+                ),
+              ),
+            ],
           ],
         ],
       ),
@@ -1380,6 +1469,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       hintText: UserStorage.l10n.personaChatInputHint,
       voiceController: _voiceController,
       onVoiceTap: _onVoiceToggle,
+      onAddTap: widget.enableRichCapture
+          ? () => setState(() => _isMediaTrayOpen = !_isMediaTrayOpen)
+          : null,
+      isAddActive: _isMediaTrayOpen,
     );
   }
 
@@ -1786,6 +1879,8 @@ class PersonaChatInputBar extends StatelessWidget {
     required this.hintText,
     this.voiceController,
     this.onVoiceTap,
+    this.onAddTap,
+    this.isAddActive = false,
   });
 
   final TextEditingController controller;
@@ -1797,6 +1892,8 @@ class PersonaChatInputBar extends StatelessWidget {
   /// before the send button.
   final VoiceInputController? voiceController;
   final VoidCallback? onVoiceTap;
+  final VoidCallback? onAddTap;
+  final bool isAddActive;
 
   bool _canSend(String value) => !isStreaming && value.trim().isNotEmpty;
 
@@ -1831,6 +1928,14 @@ class PersonaChatInputBar extends StatelessWidget {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                if (onAddTap != null) ...[
+                  _AddButton(
+                    enabled: !isStreaming,
+                    onTap: onAddTap!,
+                    active: isAddActive,
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 Expanded(
                   child: TextField(
                     controller: controller,
@@ -1879,6 +1984,50 @@ class PersonaChatInputBar extends StatelessWidget {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _AddButton extends StatelessWidget {
+  const _AddButton({
+    required this.enabled,
+    required this.onTap,
+    required this.active,
+  });
+
+  final bool enabled;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: 'Add attachment',
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: active
+                ? _personaAccent.withValues(alpha: 0.18)
+                : Colors.white.withValues(alpha: 0.07),
+            border: Border.all(
+              color: active
+                  ? _personaAccent.withValues(alpha: 0.52)
+                  : Colors.white.withValues(alpha: 0.1),
+            ),
+          ),
+          child: Icon(
+            active ? Icons.close_rounded : Icons.add_rounded,
+            color: enabled ? _personaAccent : _personaTextMuted,
+            size: 24,
+          ),
         ),
       ),
     );
@@ -2004,7 +2153,7 @@ class _TypingDotsState extends State<_TypingDots>
 }
 
 /// Bottom sheet for switching companion characters.
-class _CharacterSwitcherSheet extends StatelessWidget {
+class _CharacterSwitcherSheet extends StatefulWidget {
   final List<CharacterModel> characters;
   final String? currentId;
 
@@ -2026,6 +2175,20 @@ class _CharacterSwitcherSheet extends StatelessWidget {
         currentId: currentId,
       ),
     );
+  }
+
+  @override
+  State<_CharacterSwitcherSheet> createState() =>
+      _CharacterSwitcherSheetState();
+}
+
+class _CharacterSwitcherSheetState extends State<_CharacterSwitcherSheet> {
+  late List<CharacterModel> _chars;
+
+  @override
+  void initState() {
+    super.initState();
+    _chars = List<CharacterModel>.from(widget.characters);
   }
 
   @override
@@ -2069,10 +2232,10 @@ class _CharacterSwitcherSheet extends StatelessWidget {
               child: ListView.builder(
                 shrinkWrap: true,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: characters.length,
+                itemCount: _chars.length,
                 itemBuilder: (context, index) {
-                  final char = characters[index];
-                  final isCurrent = char.id == currentId;
+                  final char = _chars[index];
+                  final isCurrent = char.id == widget.currentId;
                   return ListTile(
                     leading: CharacterAvatar(
                       avatar: char.avatar,
@@ -2080,14 +2243,21 @@ class _CharacterSwitcherSheet extends StatelessWidget {
                       size: 40,
                       backgroundColor: _personaAccent.withValues(alpha: 0.18),
                     ),
-                    title: Text(
-                      char.name,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight:
-                            isCurrent ? FontWeight.w600 : FontWeight.w400,
-                        color: _personaText,
-                      ),
+                    title: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            char.name,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight:
+                                  isCurrent ? FontWeight.w600 : FontWeight.w400,
+                              color: _personaText,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                     subtitle: char.tags.isNotEmpty
                         ? Text(

@@ -16,6 +16,7 @@ class CommentAgentSkill extends Skill {
     String userProfile = '',
     String characterMemories = '',
     String? forcedReplyToId,
+    void Function()? onCommentSaved,
     super.forceActivate,
   }) : super(
           name: "persona_comment",
@@ -32,6 +33,7 @@ class CommentAgentSkill extends Skill {
             factId: factId,
             characterId: character?.id,
             forcedReplyToId: forcedReplyToId,
+            onCommentSaved: onCommentSaved,
           ),
         );
 
@@ -112,6 +114,7 @@ class CommentAgentSkill extends Skill {
     required String factId,
     String? characterId,
     String? forcedReplyToId,
+    void Function()? onCommentSaved,
   }) {
     return CharacterToolsFactory.buildCommentTools(
       userId: userId,
@@ -119,6 +122,7 @@ class CommentAgentSkill extends Skill {
       factId: factId,
       characterId: characterId,
       forcedReplyToId: forcedReplyToId,
+      onCommentSaved: onCommentSaved,
     );
   }
 }

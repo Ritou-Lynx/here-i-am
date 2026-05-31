@@ -4497,6 +4497,2088 @@ class SystemMessageQueueCompanion
   }
 }
 
+class $AiFinanceLedgerTable extends AiFinanceLedger
+    with TableInfo<$AiFinanceLedgerTable, AiFinanceLedgerData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AiFinanceLedgerTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _characterIdMeta =
+      const VerificationMeta('characterId');
+  @override
+  late final GeneratedColumn<String> characterId = GeneratedColumn<String>(
+      'character_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _entryTypeMeta =
+      const VerificationMeta('entryType');
+  @override
+  late final GeneratedColumn<String> entryType = GeneratedColumn<String>(
+      'entry_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _totalAmountMeta =
+      const VerificationMeta('totalAmount');
+  @override
+  late final GeneratedColumn<double> totalAmount = GeneratedColumn<double>(
+      'total_amount', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _aiAmountMeta =
+      const VerificationMeta('aiAmount');
+  @override
+  late final GeneratedColumn<double> aiAmount = GeneratedColumn<double>(
+      'ai_amount', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _contributionRatioMeta =
+      const VerificationMeta('contributionRatio');
+  @override
+  late final GeneratedColumn<double> contributionRatio =
+      GeneratedColumn<double>('contribution_ratio', aliasedName, true,
+          type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _myContributionDescMeta =
+      const VerificationMeta('myContributionDesc');
+  @override
+  late final GeneratedColumn<String> myContributionDesc =
+      GeneratedColumn<String>('my_contribution_desc', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _aiContributionDescMeta =
+      const VerificationMeta('aiContributionDesc');
+  @override
+  late final GeneratedColumn<String> aiContributionDesc =
+      GeneratedColumn<String>('ai_contribution_desc', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _purposeMeta =
+      const VerificationMeta('purpose');
+  @override
+  late final GeneratedColumn<String> purpose = GeneratedColumn<String>(
+      'purpose', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _linkedFactIdMeta =
+      const VerificationMeta('linkedFactId');
+  @override
+  late final GeneratedColumn<String> linkedFactId = GeneratedColumn<String>(
+      'linked_fact_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _recordedAtMeta =
+      const VerificationMeta('recordedAt');
+  @override
+  late final GeneratedColumn<int> recordedAt = GeneratedColumn<int>(
+      'recorded_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+      'notes', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        characterId,
+        entryType,
+        totalAmount,
+        aiAmount,
+        contributionRatio,
+        myContributionDesc,
+        aiContributionDesc,
+        purpose,
+        linkedFactId,
+        recordedAt,
+        notes
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ai_finance_ledger';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<AiFinanceLedgerData> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('character_id')) {
+      context.handle(
+          _characterIdMeta,
+          characterId.isAcceptableOrUnknown(
+              data['character_id']!, _characterIdMeta));
+    } else if (isInserting) {
+      context.missing(_characterIdMeta);
+    }
+    if (data.containsKey('entry_type')) {
+      context.handle(_entryTypeMeta,
+          entryType.isAcceptableOrUnknown(data['entry_type']!, _entryTypeMeta));
+    } else if (isInserting) {
+      context.missing(_entryTypeMeta);
+    }
+    if (data.containsKey('total_amount')) {
+      context.handle(
+          _totalAmountMeta,
+          totalAmount.isAcceptableOrUnknown(
+              data['total_amount']!, _totalAmountMeta));
+    } else if (isInserting) {
+      context.missing(_totalAmountMeta);
+    }
+    if (data.containsKey('ai_amount')) {
+      context.handle(_aiAmountMeta,
+          aiAmount.isAcceptableOrUnknown(data['ai_amount']!, _aiAmountMeta));
+    } else if (isInserting) {
+      context.missing(_aiAmountMeta);
+    }
+    if (data.containsKey('contribution_ratio')) {
+      context.handle(
+          _contributionRatioMeta,
+          contributionRatio.isAcceptableOrUnknown(
+              data['contribution_ratio']!, _contributionRatioMeta));
+    }
+    if (data.containsKey('my_contribution_desc')) {
+      context.handle(
+          _myContributionDescMeta,
+          myContributionDesc.isAcceptableOrUnknown(
+              data['my_contribution_desc']!, _myContributionDescMeta));
+    }
+    if (data.containsKey('ai_contribution_desc')) {
+      context.handle(
+          _aiContributionDescMeta,
+          aiContributionDesc.isAcceptableOrUnknown(
+              data['ai_contribution_desc']!, _aiContributionDescMeta));
+    }
+    if (data.containsKey('purpose')) {
+      context.handle(_purposeMeta,
+          purpose.isAcceptableOrUnknown(data['purpose']!, _purposeMeta));
+    }
+    if (data.containsKey('linked_fact_id')) {
+      context.handle(
+          _linkedFactIdMeta,
+          linkedFactId.isAcceptableOrUnknown(
+              data['linked_fact_id']!, _linkedFactIdMeta));
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+          _recordedAtMeta,
+          recordedAt.isAcceptableOrUnknown(
+              data['recorded_at']!, _recordedAtMeta));
+    } else if (isInserting) {
+      context.missing(_recordedAtMeta);
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+          _notesMeta, notes.isAcceptableOrUnknown(data['notes']!, _notesMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AiFinanceLedgerData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AiFinanceLedgerData(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      characterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
+      entryType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}entry_type'])!,
+      totalAmount: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}total_amount'])!,
+      aiAmount: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}ai_amount'])!,
+      contributionRatio: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}contribution_ratio']),
+      myContributionDesc: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}my_contribution_desc']),
+      aiContributionDesc: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}ai_contribution_desc']),
+      purpose: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}purpose']),
+      linkedFactId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}linked_fact_id']),
+      recordedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}recorded_at'])!,
+      notes: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}notes']),
+    );
+  }
+
+  @override
+  $AiFinanceLedgerTable createAlias(String alias) {
+    return $AiFinanceLedgerTable(attachedDatabase, alias);
+  }
+}
+
+class AiFinanceLedgerData extends DataClass
+    implements Insertable<AiFinanceLedgerData> {
+  final String id;
+
+  /// The character this ledger entry belongs to.
+  final String characterId;
+
+  /// Entry type: 'income' | 'cost' | 'loan' | 'repayment'
+  /// - income: AI earned a share of a real income event
+  /// - cost: an expense tagged as AI-related (e.g. Claude subscription)
+  /// - loan: AI's costs exceeded its balance; user covered the gap
+  /// - repayment: AI repaid a previous loan from its balance
+  final String entryType;
+
+  /// Full amount of the original event (e.g. total income before split).
+  /// For cost/loan/repayment entries this equals aiAmount.
+  final double totalAmount;
+
+  /// The portion that belongs to the AI (after contribution split, if applicable).
+  final double aiAmount;
+
+  /// AI's contribution ratio for income splits (0.0–1.0). Null for cost/loan/repayment.
+  final double? contributionRatio;
+
+  /// Free-text description of what the user contributed.
+  final String? myContributionDesc;
+
+  /// Free-text description of what the AI contributed.
+  final String? aiContributionDesc;
+
+  /// Purpose or label (e.g. "Claude Pro 月费", "写作项目分成").
+  final String? purpose;
+
+  /// Soft reference to the corresponding transaction card's factId.
+  /// Nullable — manual entries may not have a linked card.
+  final String? linkedFactId;
+
+  /// Seconds since epoch when this entry was recorded.
+  final int recordedAt;
+
+  /// Any extra notes from the conversation.
+  final String? notes;
+  const AiFinanceLedgerData(
+      {required this.id,
+      required this.characterId,
+      required this.entryType,
+      required this.totalAmount,
+      required this.aiAmount,
+      this.contributionRatio,
+      this.myContributionDesc,
+      this.aiContributionDesc,
+      this.purpose,
+      this.linkedFactId,
+      required this.recordedAt,
+      this.notes});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['character_id'] = Variable<String>(characterId);
+    map['entry_type'] = Variable<String>(entryType);
+    map['total_amount'] = Variable<double>(totalAmount);
+    map['ai_amount'] = Variable<double>(aiAmount);
+    if (!nullToAbsent || contributionRatio != null) {
+      map['contribution_ratio'] = Variable<double>(contributionRatio);
+    }
+    if (!nullToAbsent || myContributionDesc != null) {
+      map['my_contribution_desc'] = Variable<String>(myContributionDesc);
+    }
+    if (!nullToAbsent || aiContributionDesc != null) {
+      map['ai_contribution_desc'] = Variable<String>(aiContributionDesc);
+    }
+    if (!nullToAbsent || purpose != null) {
+      map['purpose'] = Variable<String>(purpose);
+    }
+    if (!nullToAbsent || linkedFactId != null) {
+      map['linked_fact_id'] = Variable<String>(linkedFactId);
+    }
+    map['recorded_at'] = Variable<int>(recordedAt);
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    return map;
+  }
+
+  AiFinanceLedgerCompanion toCompanion(bool nullToAbsent) {
+    return AiFinanceLedgerCompanion(
+      id: Value(id),
+      characterId: Value(characterId),
+      entryType: Value(entryType),
+      totalAmount: Value(totalAmount),
+      aiAmount: Value(aiAmount),
+      contributionRatio: contributionRatio == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contributionRatio),
+      myContributionDesc: myContributionDesc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(myContributionDesc),
+      aiContributionDesc: aiContributionDesc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiContributionDesc),
+      purpose: purpose == null && nullToAbsent
+          ? const Value.absent()
+          : Value(purpose),
+      linkedFactId: linkedFactId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedFactId),
+      recordedAt: Value(recordedAt),
+      notes:
+          notes == null && nullToAbsent ? const Value.absent() : Value(notes),
+    );
+  }
+
+  factory AiFinanceLedgerData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AiFinanceLedgerData(
+      id: serializer.fromJson<String>(json['id']),
+      characterId: serializer.fromJson<String>(json['characterId']),
+      entryType: serializer.fromJson<String>(json['entryType']),
+      totalAmount: serializer.fromJson<double>(json['totalAmount']),
+      aiAmount: serializer.fromJson<double>(json['aiAmount']),
+      contributionRatio:
+          serializer.fromJson<double?>(json['contributionRatio']),
+      myContributionDesc:
+          serializer.fromJson<String?>(json['myContributionDesc']),
+      aiContributionDesc:
+          serializer.fromJson<String?>(json['aiContributionDesc']),
+      purpose: serializer.fromJson<String?>(json['purpose']),
+      linkedFactId: serializer.fromJson<String?>(json['linkedFactId']),
+      recordedAt: serializer.fromJson<int>(json['recordedAt']),
+      notes: serializer.fromJson<String?>(json['notes']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'characterId': serializer.toJson<String>(characterId),
+      'entryType': serializer.toJson<String>(entryType),
+      'totalAmount': serializer.toJson<double>(totalAmount),
+      'aiAmount': serializer.toJson<double>(aiAmount),
+      'contributionRatio': serializer.toJson<double?>(contributionRatio),
+      'myContributionDesc': serializer.toJson<String?>(myContributionDesc),
+      'aiContributionDesc': serializer.toJson<String?>(aiContributionDesc),
+      'purpose': serializer.toJson<String?>(purpose),
+      'linkedFactId': serializer.toJson<String?>(linkedFactId),
+      'recordedAt': serializer.toJson<int>(recordedAt),
+      'notes': serializer.toJson<String?>(notes),
+    };
+  }
+
+  AiFinanceLedgerData copyWith(
+          {String? id,
+          String? characterId,
+          String? entryType,
+          double? totalAmount,
+          double? aiAmount,
+          Value<double?> contributionRatio = const Value.absent(),
+          Value<String?> myContributionDesc = const Value.absent(),
+          Value<String?> aiContributionDesc = const Value.absent(),
+          Value<String?> purpose = const Value.absent(),
+          Value<String?> linkedFactId = const Value.absent(),
+          int? recordedAt,
+          Value<String?> notes = const Value.absent()}) =>
+      AiFinanceLedgerData(
+        id: id ?? this.id,
+        characterId: characterId ?? this.characterId,
+        entryType: entryType ?? this.entryType,
+        totalAmount: totalAmount ?? this.totalAmount,
+        aiAmount: aiAmount ?? this.aiAmount,
+        contributionRatio: contributionRatio.present
+            ? contributionRatio.value
+            : this.contributionRatio,
+        myContributionDesc: myContributionDesc.present
+            ? myContributionDesc.value
+            : this.myContributionDesc,
+        aiContributionDesc: aiContributionDesc.present
+            ? aiContributionDesc.value
+            : this.aiContributionDesc,
+        purpose: purpose.present ? purpose.value : this.purpose,
+        linkedFactId:
+            linkedFactId.present ? linkedFactId.value : this.linkedFactId,
+        recordedAt: recordedAt ?? this.recordedAt,
+        notes: notes.present ? notes.value : this.notes,
+      );
+  AiFinanceLedgerData copyWithCompanion(AiFinanceLedgerCompanion data) {
+    return AiFinanceLedgerData(
+      id: data.id.present ? data.id.value : this.id,
+      characterId:
+          data.characterId.present ? data.characterId.value : this.characterId,
+      entryType: data.entryType.present ? data.entryType.value : this.entryType,
+      totalAmount:
+          data.totalAmount.present ? data.totalAmount.value : this.totalAmount,
+      aiAmount: data.aiAmount.present ? data.aiAmount.value : this.aiAmount,
+      contributionRatio: data.contributionRatio.present
+          ? data.contributionRatio.value
+          : this.contributionRatio,
+      myContributionDesc: data.myContributionDesc.present
+          ? data.myContributionDesc.value
+          : this.myContributionDesc,
+      aiContributionDesc: data.aiContributionDesc.present
+          ? data.aiContributionDesc.value
+          : this.aiContributionDesc,
+      purpose: data.purpose.present ? data.purpose.value : this.purpose,
+      linkedFactId: data.linkedFactId.present
+          ? data.linkedFactId.value
+          : this.linkedFactId,
+      recordedAt:
+          data.recordedAt.present ? data.recordedAt.value : this.recordedAt,
+      notes: data.notes.present ? data.notes.value : this.notes,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiFinanceLedgerData(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('entryType: $entryType, ')
+          ..write('totalAmount: $totalAmount, ')
+          ..write('aiAmount: $aiAmount, ')
+          ..write('contributionRatio: $contributionRatio, ')
+          ..write('myContributionDesc: $myContributionDesc, ')
+          ..write('aiContributionDesc: $aiContributionDesc, ')
+          ..write('purpose: $purpose, ')
+          ..write('linkedFactId: $linkedFactId, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('notes: $notes')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      characterId,
+      entryType,
+      totalAmount,
+      aiAmount,
+      contributionRatio,
+      myContributionDesc,
+      aiContributionDesc,
+      purpose,
+      linkedFactId,
+      recordedAt,
+      notes);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AiFinanceLedgerData &&
+          other.id == this.id &&
+          other.characterId == this.characterId &&
+          other.entryType == this.entryType &&
+          other.totalAmount == this.totalAmount &&
+          other.aiAmount == this.aiAmount &&
+          other.contributionRatio == this.contributionRatio &&
+          other.myContributionDesc == this.myContributionDesc &&
+          other.aiContributionDesc == this.aiContributionDesc &&
+          other.purpose == this.purpose &&
+          other.linkedFactId == this.linkedFactId &&
+          other.recordedAt == this.recordedAt &&
+          other.notes == this.notes);
+}
+
+class AiFinanceLedgerCompanion extends UpdateCompanion<AiFinanceLedgerData> {
+  final Value<String> id;
+  final Value<String> characterId;
+  final Value<String> entryType;
+  final Value<double> totalAmount;
+  final Value<double> aiAmount;
+  final Value<double?> contributionRatio;
+  final Value<String?> myContributionDesc;
+  final Value<String?> aiContributionDesc;
+  final Value<String?> purpose;
+  final Value<String?> linkedFactId;
+  final Value<int> recordedAt;
+  final Value<String?> notes;
+  final Value<int> rowid;
+  const AiFinanceLedgerCompanion({
+    this.id = const Value.absent(),
+    this.characterId = const Value.absent(),
+    this.entryType = const Value.absent(),
+    this.totalAmount = const Value.absent(),
+    this.aiAmount = const Value.absent(),
+    this.contributionRatio = const Value.absent(),
+    this.myContributionDesc = const Value.absent(),
+    this.aiContributionDesc = const Value.absent(),
+    this.purpose = const Value.absent(),
+    this.linkedFactId = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AiFinanceLedgerCompanion.insert({
+    required String id,
+    required String characterId,
+    required String entryType,
+    required double totalAmount,
+    required double aiAmount,
+    this.contributionRatio = const Value.absent(),
+    this.myContributionDesc = const Value.absent(),
+    this.aiContributionDesc = const Value.absent(),
+    this.purpose = const Value.absent(),
+    this.linkedFactId = const Value.absent(),
+    required int recordedAt,
+    this.notes = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        characterId = Value(characterId),
+        entryType = Value(entryType),
+        totalAmount = Value(totalAmount),
+        aiAmount = Value(aiAmount),
+        recordedAt = Value(recordedAt);
+  static Insertable<AiFinanceLedgerData> custom({
+    Expression<String>? id,
+    Expression<String>? characterId,
+    Expression<String>? entryType,
+    Expression<double>? totalAmount,
+    Expression<double>? aiAmount,
+    Expression<double>? contributionRatio,
+    Expression<String>? myContributionDesc,
+    Expression<String>? aiContributionDesc,
+    Expression<String>? purpose,
+    Expression<String>? linkedFactId,
+    Expression<int>? recordedAt,
+    Expression<String>? notes,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (characterId != null) 'character_id': characterId,
+      if (entryType != null) 'entry_type': entryType,
+      if (totalAmount != null) 'total_amount': totalAmount,
+      if (aiAmount != null) 'ai_amount': aiAmount,
+      if (contributionRatio != null) 'contribution_ratio': contributionRatio,
+      if (myContributionDesc != null)
+        'my_contribution_desc': myContributionDesc,
+      if (aiContributionDesc != null)
+        'ai_contribution_desc': aiContributionDesc,
+      if (purpose != null) 'purpose': purpose,
+      if (linkedFactId != null) 'linked_fact_id': linkedFactId,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+      if (notes != null) 'notes': notes,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AiFinanceLedgerCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? characterId,
+      Value<String>? entryType,
+      Value<double>? totalAmount,
+      Value<double>? aiAmount,
+      Value<double?>? contributionRatio,
+      Value<String?>? myContributionDesc,
+      Value<String?>? aiContributionDesc,
+      Value<String?>? purpose,
+      Value<String?>? linkedFactId,
+      Value<int>? recordedAt,
+      Value<String?>? notes,
+      Value<int>? rowid}) {
+    return AiFinanceLedgerCompanion(
+      id: id ?? this.id,
+      characterId: characterId ?? this.characterId,
+      entryType: entryType ?? this.entryType,
+      totalAmount: totalAmount ?? this.totalAmount,
+      aiAmount: aiAmount ?? this.aiAmount,
+      contributionRatio: contributionRatio ?? this.contributionRatio,
+      myContributionDesc: myContributionDesc ?? this.myContributionDesc,
+      aiContributionDesc: aiContributionDesc ?? this.aiContributionDesc,
+      purpose: purpose ?? this.purpose,
+      linkedFactId: linkedFactId ?? this.linkedFactId,
+      recordedAt: recordedAt ?? this.recordedAt,
+      notes: notes ?? this.notes,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (characterId.present) {
+      map['character_id'] = Variable<String>(characterId.value);
+    }
+    if (entryType.present) {
+      map['entry_type'] = Variable<String>(entryType.value);
+    }
+    if (totalAmount.present) {
+      map['total_amount'] = Variable<double>(totalAmount.value);
+    }
+    if (aiAmount.present) {
+      map['ai_amount'] = Variable<double>(aiAmount.value);
+    }
+    if (contributionRatio.present) {
+      map['contribution_ratio'] = Variable<double>(contributionRatio.value);
+    }
+    if (myContributionDesc.present) {
+      map['my_contribution_desc'] = Variable<String>(myContributionDesc.value);
+    }
+    if (aiContributionDesc.present) {
+      map['ai_contribution_desc'] = Variable<String>(aiContributionDesc.value);
+    }
+    if (purpose.present) {
+      map['purpose'] = Variable<String>(purpose.value);
+    }
+    if (linkedFactId.present) {
+      map['linked_fact_id'] = Variable<String>(linkedFactId.value);
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<int>(recordedAt.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiFinanceLedgerCompanion(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('entryType: $entryType, ')
+          ..write('totalAmount: $totalAmount, ')
+          ..write('aiAmount: $aiAmount, ')
+          ..write('contributionRatio: $contributionRatio, ')
+          ..write('myContributionDesc: $myContributionDesc, ')
+          ..write('aiContributionDesc: $aiContributionDesc, ')
+          ..write('purpose: $purpose, ')
+          ..write('linkedFactId: $linkedFactId, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('notes: $notes, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AiPurchaseLogTable extends AiPurchaseLog
+    with TableInfo<$AiPurchaseLogTable, AiPurchaseLogData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AiPurchaseLogTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _characterIdMeta =
+      const VerificationMeta('characterId');
+  @override
+  late final GeneratedColumn<String> characterId = GeneratedColumn<String>(
+      'character_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _paymentModeMeta =
+      const VerificationMeta('paymentMode');
+  @override
+  late final GeneratedColumn<String> paymentMode = GeneratedColumn<String>(
+      'payment_mode', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _userInstructionMeta =
+      const VerificationMeta('userInstruction');
+  @override
+  late final GeneratedColumn<String> userInstruction = GeneratedColumn<String>(
+      'user_instruction', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _productPlatformMeta =
+      const VerificationMeta('productPlatform');
+  @override
+  late final GeneratedColumn<String> productPlatform = GeneratedColumn<String>(
+      'product_platform', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('taobao'));
+  static const VerificationMeta _productIdMeta =
+      const VerificationMeta('productId');
+  @override
+  late final GeneratedColumn<String> productId = GeneratedColumn<String>(
+      'product_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _productTitleMeta =
+      const VerificationMeta('productTitle');
+  @override
+  late final GeneratedColumn<String> productTitle = GeneratedColumn<String>(
+      'product_title', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _productUrlMeta =
+      const VerificationMeta('productUrl');
+  @override
+  late final GeneratedColumn<String> productUrl = GeneratedColumn<String>(
+      'product_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _priceCnyMeta =
+      const VerificationMeta('priceCny');
+  @override
+  late final GeneratedColumn<double> priceCny = GeneratedColumn<double>(
+      'price_cny', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _cashierUrlMeta =
+      const VerificationMeta('cashierUrl');
+  @override
+  late final GeneratedColumn<String> cashierUrl = GeneratedColumn<String>(
+      'cashier_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _failureReasonMeta =
+      const VerificationMeta('failureReason');
+  @override
+  late final GeneratedColumn<String> failureReason = GeneratedColumn<String>(
+      'failure_reason', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _linkedLedgerIdMeta =
+      const VerificationMeta('linkedLedgerId');
+  @override
+  late final GeneratedColumn<String> linkedLedgerId = GeneratedColumn<String>(
+      'linked_ledger_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        characterId,
+        paymentMode,
+        status,
+        userInstruction,
+        productPlatform,
+        productId,
+        productTitle,
+        productUrl,
+        priceCny,
+        cashierUrl,
+        failureReason,
+        linkedLedgerId,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ai_purchase_log';
+  @override
+  VerificationContext validateIntegrity(Insertable<AiPurchaseLogData> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('character_id')) {
+      context.handle(
+          _characterIdMeta,
+          characterId.isAcceptableOrUnknown(
+              data['character_id']!, _characterIdMeta));
+    } else if (isInserting) {
+      context.missing(_characterIdMeta);
+    }
+    if (data.containsKey('payment_mode')) {
+      context.handle(
+          _paymentModeMeta,
+          paymentMode.isAcceptableOrUnknown(
+              data['payment_mode']!, _paymentModeMeta));
+    } else if (isInserting) {
+      context.missing(_paymentModeMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('user_instruction')) {
+      context.handle(
+          _userInstructionMeta,
+          userInstruction.isAcceptableOrUnknown(
+              data['user_instruction']!, _userInstructionMeta));
+    } else if (isInserting) {
+      context.missing(_userInstructionMeta);
+    }
+    if (data.containsKey('product_platform')) {
+      context.handle(
+          _productPlatformMeta,
+          productPlatform.isAcceptableOrUnknown(
+              data['product_platform']!, _productPlatformMeta));
+    }
+    if (data.containsKey('product_id')) {
+      context.handle(_productIdMeta,
+          productId.isAcceptableOrUnknown(data['product_id']!, _productIdMeta));
+    }
+    if (data.containsKey('product_title')) {
+      context.handle(
+          _productTitleMeta,
+          productTitle.isAcceptableOrUnknown(
+              data['product_title']!, _productTitleMeta));
+    }
+    if (data.containsKey('product_url')) {
+      context.handle(
+          _productUrlMeta,
+          productUrl.isAcceptableOrUnknown(
+              data['product_url']!, _productUrlMeta));
+    }
+    if (data.containsKey('price_cny')) {
+      context.handle(_priceCnyMeta,
+          priceCny.isAcceptableOrUnknown(data['price_cny']!, _priceCnyMeta));
+    }
+    if (data.containsKey('cashier_url')) {
+      context.handle(
+          _cashierUrlMeta,
+          cashierUrl.isAcceptableOrUnknown(
+              data['cashier_url']!, _cashierUrlMeta));
+    }
+    if (data.containsKey('failure_reason')) {
+      context.handle(
+          _failureReasonMeta,
+          failureReason.isAcceptableOrUnknown(
+              data['failure_reason']!, _failureReasonMeta));
+    }
+    if (data.containsKey('linked_ledger_id')) {
+      context.handle(
+          _linkedLedgerIdMeta,
+          linkedLedgerId.isAcceptableOrUnknown(
+              data['linked_ledger_id']!, _linkedLedgerIdMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AiPurchaseLogData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AiPurchaseLogData(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      characterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
+      paymentMode: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}payment_mode'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      userInstruction: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}user_instruction'])!,
+      productPlatform: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}product_platform'])!,
+      productId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}product_id']),
+      productTitle: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}product_title']),
+      productUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}product_url']),
+      priceCny: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}price_cny']),
+      cashierUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}cashier_url']),
+      failureReason: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}failure_reason']),
+      linkedLedgerId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}linked_ledger_id']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $AiPurchaseLogTable createAlias(String alias) {
+    return $AiPurchaseLogTable(attachedDatabase, alias);
+  }
+}
+
+class AiPurchaseLogData extends DataClass
+    implements Insertable<AiPurchaseLogData> {
+  final String id;
+  final String characterId;
+
+  /// 'manual_approval' | 'auto_silent' (future)
+  final String paymentMode;
+
+  /// 'searching' | 'selected' | 'ordering' | 'payment_pushed' | 'completed' | 'failed' | 'aborted'
+  final String status;
+
+  /// The user's original purchase instruction verbatim.
+  final String userInstruction;
+  final String productPlatform;
+  final String? productId;
+  final String? productTitle;
+  final String? productUrl;
+
+  /// Estimated or confirmed price in CNY.
+  final double? priceCny;
+
+  /// Alipay cashier URL (cashier*.alipay.com or *excashier*.alipay.com).
+  final String? cashierUrl;
+
+  /// Reason for failure or abort (budget exceeded, whitelist violation, etc.).
+  final String? failureReason;
+
+  /// Soft link to AiFinanceLedger id — reserved for future finance integration.
+  final String? linkedLedgerId;
+  final int createdAt;
+  final int updatedAt;
+  const AiPurchaseLogData(
+      {required this.id,
+      required this.characterId,
+      required this.paymentMode,
+      required this.status,
+      required this.userInstruction,
+      required this.productPlatform,
+      this.productId,
+      this.productTitle,
+      this.productUrl,
+      this.priceCny,
+      this.cashierUrl,
+      this.failureReason,
+      this.linkedLedgerId,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['character_id'] = Variable<String>(characterId);
+    map['payment_mode'] = Variable<String>(paymentMode);
+    map['status'] = Variable<String>(status);
+    map['user_instruction'] = Variable<String>(userInstruction);
+    map['product_platform'] = Variable<String>(productPlatform);
+    if (!nullToAbsent || productId != null) {
+      map['product_id'] = Variable<String>(productId);
+    }
+    if (!nullToAbsent || productTitle != null) {
+      map['product_title'] = Variable<String>(productTitle);
+    }
+    if (!nullToAbsent || productUrl != null) {
+      map['product_url'] = Variable<String>(productUrl);
+    }
+    if (!nullToAbsent || priceCny != null) {
+      map['price_cny'] = Variable<double>(priceCny);
+    }
+    if (!nullToAbsent || cashierUrl != null) {
+      map['cashier_url'] = Variable<String>(cashierUrl);
+    }
+    if (!nullToAbsent || failureReason != null) {
+      map['failure_reason'] = Variable<String>(failureReason);
+    }
+    if (!nullToAbsent || linkedLedgerId != null) {
+      map['linked_ledger_id'] = Variable<String>(linkedLedgerId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  AiPurchaseLogCompanion toCompanion(bool nullToAbsent) {
+    return AiPurchaseLogCompanion(
+      id: Value(id),
+      characterId: Value(characterId),
+      paymentMode: Value(paymentMode),
+      status: Value(status),
+      userInstruction: Value(userInstruction),
+      productPlatform: Value(productPlatform),
+      productId: productId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(productId),
+      productTitle: productTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(productTitle),
+      productUrl: productUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(productUrl),
+      priceCny: priceCny == null && nullToAbsent
+          ? const Value.absent()
+          : Value(priceCny),
+      cashierUrl: cashierUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cashierUrl),
+      failureReason: failureReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(failureReason),
+      linkedLedgerId: linkedLedgerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedLedgerId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AiPurchaseLogData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AiPurchaseLogData(
+      id: serializer.fromJson<String>(json['id']),
+      characterId: serializer.fromJson<String>(json['characterId']),
+      paymentMode: serializer.fromJson<String>(json['paymentMode']),
+      status: serializer.fromJson<String>(json['status']),
+      userInstruction: serializer.fromJson<String>(json['userInstruction']),
+      productPlatform: serializer.fromJson<String>(json['productPlatform']),
+      productId: serializer.fromJson<String?>(json['productId']),
+      productTitle: serializer.fromJson<String?>(json['productTitle']),
+      productUrl: serializer.fromJson<String?>(json['productUrl']),
+      priceCny: serializer.fromJson<double?>(json['priceCny']),
+      cashierUrl: serializer.fromJson<String?>(json['cashierUrl']),
+      failureReason: serializer.fromJson<String?>(json['failureReason']),
+      linkedLedgerId: serializer.fromJson<String?>(json['linkedLedgerId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'characterId': serializer.toJson<String>(characterId),
+      'paymentMode': serializer.toJson<String>(paymentMode),
+      'status': serializer.toJson<String>(status),
+      'userInstruction': serializer.toJson<String>(userInstruction),
+      'productPlatform': serializer.toJson<String>(productPlatform),
+      'productId': serializer.toJson<String?>(productId),
+      'productTitle': serializer.toJson<String?>(productTitle),
+      'productUrl': serializer.toJson<String?>(productUrl),
+      'priceCny': serializer.toJson<double?>(priceCny),
+      'cashierUrl': serializer.toJson<String?>(cashierUrl),
+      'failureReason': serializer.toJson<String?>(failureReason),
+      'linkedLedgerId': serializer.toJson<String?>(linkedLedgerId),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  AiPurchaseLogData copyWith(
+          {String? id,
+          String? characterId,
+          String? paymentMode,
+          String? status,
+          String? userInstruction,
+          String? productPlatform,
+          Value<String?> productId = const Value.absent(),
+          Value<String?> productTitle = const Value.absent(),
+          Value<String?> productUrl = const Value.absent(),
+          Value<double?> priceCny = const Value.absent(),
+          Value<String?> cashierUrl = const Value.absent(),
+          Value<String?> failureReason = const Value.absent(),
+          Value<String?> linkedLedgerId = const Value.absent(),
+          int? createdAt,
+          int? updatedAt}) =>
+      AiPurchaseLogData(
+        id: id ?? this.id,
+        characterId: characterId ?? this.characterId,
+        paymentMode: paymentMode ?? this.paymentMode,
+        status: status ?? this.status,
+        userInstruction: userInstruction ?? this.userInstruction,
+        productPlatform: productPlatform ?? this.productPlatform,
+        productId: productId.present ? productId.value : this.productId,
+        productTitle:
+            productTitle.present ? productTitle.value : this.productTitle,
+        productUrl: productUrl.present ? productUrl.value : this.productUrl,
+        priceCny: priceCny.present ? priceCny.value : this.priceCny,
+        cashierUrl: cashierUrl.present ? cashierUrl.value : this.cashierUrl,
+        failureReason:
+            failureReason.present ? failureReason.value : this.failureReason,
+        linkedLedgerId:
+            linkedLedgerId.present ? linkedLedgerId.value : this.linkedLedgerId,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  AiPurchaseLogData copyWithCompanion(AiPurchaseLogCompanion data) {
+    return AiPurchaseLogData(
+      id: data.id.present ? data.id.value : this.id,
+      characterId:
+          data.characterId.present ? data.characterId.value : this.characterId,
+      paymentMode:
+          data.paymentMode.present ? data.paymentMode.value : this.paymentMode,
+      status: data.status.present ? data.status.value : this.status,
+      userInstruction: data.userInstruction.present
+          ? data.userInstruction.value
+          : this.userInstruction,
+      productPlatform: data.productPlatform.present
+          ? data.productPlatform.value
+          : this.productPlatform,
+      productId: data.productId.present ? data.productId.value : this.productId,
+      productTitle: data.productTitle.present
+          ? data.productTitle.value
+          : this.productTitle,
+      productUrl:
+          data.productUrl.present ? data.productUrl.value : this.productUrl,
+      priceCny: data.priceCny.present ? data.priceCny.value : this.priceCny,
+      cashierUrl:
+          data.cashierUrl.present ? data.cashierUrl.value : this.cashierUrl,
+      failureReason: data.failureReason.present
+          ? data.failureReason.value
+          : this.failureReason,
+      linkedLedgerId: data.linkedLedgerId.present
+          ? data.linkedLedgerId.value
+          : this.linkedLedgerId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiPurchaseLogData(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('paymentMode: $paymentMode, ')
+          ..write('status: $status, ')
+          ..write('userInstruction: $userInstruction, ')
+          ..write('productPlatform: $productPlatform, ')
+          ..write('productId: $productId, ')
+          ..write('productTitle: $productTitle, ')
+          ..write('productUrl: $productUrl, ')
+          ..write('priceCny: $priceCny, ')
+          ..write('cashierUrl: $cashierUrl, ')
+          ..write('failureReason: $failureReason, ')
+          ..write('linkedLedgerId: $linkedLedgerId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      characterId,
+      paymentMode,
+      status,
+      userInstruction,
+      productPlatform,
+      productId,
+      productTitle,
+      productUrl,
+      priceCny,
+      cashierUrl,
+      failureReason,
+      linkedLedgerId,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AiPurchaseLogData &&
+          other.id == this.id &&
+          other.characterId == this.characterId &&
+          other.paymentMode == this.paymentMode &&
+          other.status == this.status &&
+          other.userInstruction == this.userInstruction &&
+          other.productPlatform == this.productPlatform &&
+          other.productId == this.productId &&
+          other.productTitle == this.productTitle &&
+          other.productUrl == this.productUrl &&
+          other.priceCny == this.priceCny &&
+          other.cashierUrl == this.cashierUrl &&
+          other.failureReason == this.failureReason &&
+          other.linkedLedgerId == this.linkedLedgerId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AiPurchaseLogCompanion extends UpdateCompanion<AiPurchaseLogData> {
+  final Value<String> id;
+  final Value<String> characterId;
+  final Value<String> paymentMode;
+  final Value<String> status;
+  final Value<String> userInstruction;
+  final Value<String> productPlatform;
+  final Value<String?> productId;
+  final Value<String?> productTitle;
+  final Value<String?> productUrl;
+  final Value<double?> priceCny;
+  final Value<String?> cashierUrl;
+  final Value<String?> failureReason;
+  final Value<String?> linkedLedgerId;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const AiPurchaseLogCompanion({
+    this.id = const Value.absent(),
+    this.characterId = const Value.absent(),
+    this.paymentMode = const Value.absent(),
+    this.status = const Value.absent(),
+    this.userInstruction = const Value.absent(),
+    this.productPlatform = const Value.absent(),
+    this.productId = const Value.absent(),
+    this.productTitle = const Value.absent(),
+    this.productUrl = const Value.absent(),
+    this.priceCny = const Value.absent(),
+    this.cashierUrl = const Value.absent(),
+    this.failureReason = const Value.absent(),
+    this.linkedLedgerId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AiPurchaseLogCompanion.insert({
+    required String id,
+    required String characterId,
+    required String paymentMode,
+    required String status,
+    required String userInstruction,
+    this.productPlatform = const Value.absent(),
+    this.productId = const Value.absent(),
+    this.productTitle = const Value.absent(),
+    this.productUrl = const Value.absent(),
+    this.priceCny = const Value.absent(),
+    this.cashierUrl = const Value.absent(),
+    this.failureReason = const Value.absent(),
+    this.linkedLedgerId = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        characterId = Value(characterId),
+        paymentMode = Value(paymentMode),
+        status = Value(status),
+        userInstruction = Value(userInstruction),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<AiPurchaseLogData> custom({
+    Expression<String>? id,
+    Expression<String>? characterId,
+    Expression<String>? paymentMode,
+    Expression<String>? status,
+    Expression<String>? userInstruction,
+    Expression<String>? productPlatform,
+    Expression<String>? productId,
+    Expression<String>? productTitle,
+    Expression<String>? productUrl,
+    Expression<double>? priceCny,
+    Expression<String>? cashierUrl,
+    Expression<String>? failureReason,
+    Expression<String>? linkedLedgerId,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (characterId != null) 'character_id': characterId,
+      if (paymentMode != null) 'payment_mode': paymentMode,
+      if (status != null) 'status': status,
+      if (userInstruction != null) 'user_instruction': userInstruction,
+      if (productPlatform != null) 'product_platform': productPlatform,
+      if (productId != null) 'product_id': productId,
+      if (productTitle != null) 'product_title': productTitle,
+      if (productUrl != null) 'product_url': productUrl,
+      if (priceCny != null) 'price_cny': priceCny,
+      if (cashierUrl != null) 'cashier_url': cashierUrl,
+      if (failureReason != null) 'failure_reason': failureReason,
+      if (linkedLedgerId != null) 'linked_ledger_id': linkedLedgerId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AiPurchaseLogCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? characterId,
+      Value<String>? paymentMode,
+      Value<String>? status,
+      Value<String>? userInstruction,
+      Value<String>? productPlatform,
+      Value<String?>? productId,
+      Value<String?>? productTitle,
+      Value<String?>? productUrl,
+      Value<double?>? priceCny,
+      Value<String?>? cashierUrl,
+      Value<String?>? failureReason,
+      Value<String?>? linkedLedgerId,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return AiPurchaseLogCompanion(
+      id: id ?? this.id,
+      characterId: characterId ?? this.characterId,
+      paymentMode: paymentMode ?? this.paymentMode,
+      status: status ?? this.status,
+      userInstruction: userInstruction ?? this.userInstruction,
+      productPlatform: productPlatform ?? this.productPlatform,
+      productId: productId ?? this.productId,
+      productTitle: productTitle ?? this.productTitle,
+      productUrl: productUrl ?? this.productUrl,
+      priceCny: priceCny ?? this.priceCny,
+      cashierUrl: cashierUrl ?? this.cashierUrl,
+      failureReason: failureReason ?? this.failureReason,
+      linkedLedgerId: linkedLedgerId ?? this.linkedLedgerId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (characterId.present) {
+      map['character_id'] = Variable<String>(characterId.value);
+    }
+    if (paymentMode.present) {
+      map['payment_mode'] = Variable<String>(paymentMode.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (userInstruction.present) {
+      map['user_instruction'] = Variable<String>(userInstruction.value);
+    }
+    if (productPlatform.present) {
+      map['product_platform'] = Variable<String>(productPlatform.value);
+    }
+    if (productId.present) {
+      map['product_id'] = Variable<String>(productId.value);
+    }
+    if (productTitle.present) {
+      map['product_title'] = Variable<String>(productTitle.value);
+    }
+    if (productUrl.present) {
+      map['product_url'] = Variable<String>(productUrl.value);
+    }
+    if (priceCny.present) {
+      map['price_cny'] = Variable<double>(priceCny.value);
+    }
+    if (cashierUrl.present) {
+      map['cashier_url'] = Variable<String>(cashierUrl.value);
+    }
+    if (failureReason.present) {
+      map['failure_reason'] = Variable<String>(failureReason.value);
+    }
+    if (linkedLedgerId.present) {
+      map['linked_ledger_id'] = Variable<String>(linkedLedgerId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiPurchaseLogCompanion(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('paymentMode: $paymentMode, ')
+          ..write('status: $status, ')
+          ..write('userInstruction: $userInstruction, ')
+          ..write('productPlatform: $productPlatform, ')
+          ..write('productId: $productId, ')
+          ..write('productTitle: $productTitle, ')
+          ..write('productUrl: $productUrl, ')
+          ..write('priceCny: $priceCny, ')
+          ..write('cashierUrl: $cashierUrl, ')
+          ..write('failureReason: $failureReason, ')
+          ..write('linkedLedgerId: $linkedLedgerId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $VoiceCallSessionsTable extends VoiceCallSessions
+    with TableInfo<$VoiceCallSessionsTable, VoiceCallSession> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $VoiceCallSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _characterIdMeta =
+      const VerificationMeta('characterId');
+  @override
+  late final GeneratedColumn<String> characterId = GeneratedColumn<String>(
+      'character_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+      'user_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _startedAtMeta =
+      const VerificationMeta('startedAt');
+  @override
+  late final GeneratedColumn<int> startedAt = GeneratedColumn<int>(
+      'started_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _endedAtMeta =
+      const VerificationMeta('endedAt');
+  @override
+  late final GeneratedColumn<int> endedAt = GeneratedColumn<int>(
+      'ended_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _summaryMeta =
+      const VerificationMeta('summary');
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+      'summary', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, characterId, userId, startedAt, endedAt, summary];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'voice_call_sessions';
+  @override
+  VerificationContext validateIntegrity(Insertable<VoiceCallSession> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('character_id')) {
+      context.handle(
+          _characterIdMeta,
+          characterId.isAcceptableOrUnknown(
+              data['character_id']!, _characterIdMeta));
+    } else if (isInserting) {
+      context.missing(_characterIdMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(_userIdMeta,
+          userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta));
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(_startedAtMeta,
+          startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta));
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('ended_at')) {
+      context.handle(_endedAtMeta,
+          endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta));
+    }
+    if (data.containsKey('summary')) {
+      context.handle(_summaryMeta,
+          summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  VoiceCallSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return VoiceCallSession(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      characterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
+      userId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}user_id'])!,
+      startedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}started_at'])!,
+      endedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}ended_at']),
+      summary: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}summary']),
+    );
+  }
+
+  @override
+  $VoiceCallSessionsTable createAlias(String alias) {
+    return $VoiceCallSessionsTable(attachedDatabase, alias);
+  }
+}
+
+class VoiceCallSession extends DataClass
+    implements Insertable<VoiceCallSession> {
+  final String id;
+  final String characterId;
+  final String userId;
+  final int startedAt;
+  final int? endedAt;
+
+  /// Key-facts summary written by post-call LLM pass (B plan).
+  final String? summary;
+  const VoiceCallSession(
+      {required this.id,
+      required this.characterId,
+      required this.userId,
+      required this.startedAt,
+      this.endedAt,
+      this.summary});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['character_id'] = Variable<String>(characterId);
+    map['user_id'] = Variable<String>(userId);
+    map['started_at'] = Variable<int>(startedAt);
+    if (!nullToAbsent || endedAt != null) {
+      map['ended_at'] = Variable<int>(endedAt);
+    }
+    if (!nullToAbsent || summary != null) {
+      map['summary'] = Variable<String>(summary);
+    }
+    return map;
+  }
+
+  VoiceCallSessionsCompanion toCompanion(bool nullToAbsent) {
+    return VoiceCallSessionsCompanion(
+      id: Value(id),
+      characterId: Value(characterId),
+      userId: Value(userId),
+      startedAt: Value(startedAt),
+      endedAt: endedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endedAt),
+      summary: summary == null && nullToAbsent
+          ? const Value.absent()
+          : Value(summary),
+    );
+  }
+
+  factory VoiceCallSession.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return VoiceCallSession(
+      id: serializer.fromJson<String>(json['id']),
+      characterId: serializer.fromJson<String>(json['characterId']),
+      userId: serializer.fromJson<String>(json['userId']),
+      startedAt: serializer.fromJson<int>(json['startedAt']),
+      endedAt: serializer.fromJson<int?>(json['endedAt']),
+      summary: serializer.fromJson<String?>(json['summary']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'characterId': serializer.toJson<String>(characterId),
+      'userId': serializer.toJson<String>(userId),
+      'startedAt': serializer.toJson<int>(startedAt),
+      'endedAt': serializer.toJson<int?>(endedAt),
+      'summary': serializer.toJson<String?>(summary),
+    };
+  }
+
+  VoiceCallSession copyWith(
+          {String? id,
+          String? characterId,
+          String? userId,
+          int? startedAt,
+          Value<int?> endedAt = const Value.absent(),
+          Value<String?> summary = const Value.absent()}) =>
+      VoiceCallSession(
+        id: id ?? this.id,
+        characterId: characterId ?? this.characterId,
+        userId: userId ?? this.userId,
+        startedAt: startedAt ?? this.startedAt,
+        endedAt: endedAt.present ? endedAt.value : this.endedAt,
+        summary: summary.present ? summary.value : this.summary,
+      );
+  VoiceCallSession copyWithCompanion(VoiceCallSessionsCompanion data) {
+    return VoiceCallSession(
+      id: data.id.present ? data.id.value : this.id,
+      characterId:
+          data.characterId.present ? data.characterId.value : this.characterId,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
+      summary: data.summary.present ? data.summary.value : this.summary,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VoiceCallSession(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('userId: $userId, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('summary: $summary')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, characterId, userId, startedAt, endedAt, summary);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is VoiceCallSession &&
+          other.id == this.id &&
+          other.characterId == this.characterId &&
+          other.userId == this.userId &&
+          other.startedAt == this.startedAt &&
+          other.endedAt == this.endedAt &&
+          other.summary == this.summary);
+}
+
+class VoiceCallSessionsCompanion extends UpdateCompanion<VoiceCallSession> {
+  final Value<String> id;
+  final Value<String> characterId;
+  final Value<String> userId;
+  final Value<int> startedAt;
+  final Value<int?> endedAt;
+  final Value<String?> summary;
+  final Value<int> rowid;
+  const VoiceCallSessionsCompanion({
+    this.id = const Value.absent(),
+    this.characterId = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.endedAt = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  VoiceCallSessionsCompanion.insert({
+    required String id,
+    required String characterId,
+    required String userId,
+    required int startedAt,
+    this.endedAt = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        characterId = Value(characterId),
+        userId = Value(userId),
+        startedAt = Value(startedAt);
+  static Insertable<VoiceCallSession> custom({
+    Expression<String>? id,
+    Expression<String>? characterId,
+    Expression<String>? userId,
+    Expression<int>? startedAt,
+    Expression<int>? endedAt,
+    Expression<String>? summary,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (characterId != null) 'character_id': characterId,
+      if (userId != null) 'user_id': userId,
+      if (startedAt != null) 'started_at': startedAt,
+      if (endedAt != null) 'ended_at': endedAt,
+      if (summary != null) 'summary': summary,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  VoiceCallSessionsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? characterId,
+      Value<String>? userId,
+      Value<int>? startedAt,
+      Value<int?>? endedAt,
+      Value<String?>? summary,
+      Value<int>? rowid}) {
+    return VoiceCallSessionsCompanion(
+      id: id ?? this.id,
+      characterId: characterId ?? this.characterId,
+      userId: userId ?? this.userId,
+      startedAt: startedAt ?? this.startedAt,
+      endedAt: endedAt ?? this.endedAt,
+      summary: summary ?? this.summary,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (characterId.present) {
+      map['character_id'] = Variable<String>(characterId.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<int>(startedAt.value);
+    }
+    if (endedAt.present) {
+      map['ended_at'] = Variable<int>(endedAt.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VoiceCallSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('userId: $userId, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('summary: $summary, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $VoiceCallMessagesTable extends VoiceCallMessages
+    with TableInfo<$VoiceCallMessagesTable, VoiceCallMessage> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $VoiceCallMessagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _sessionIdMeta =
+      const VerificationMeta('sessionId');
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+      'session_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+      'role', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, sessionId, role, content, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'voice_call_messages';
+  @override
+  VerificationContext validateIntegrity(Insertable<VoiceCallMessage> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(_sessionIdMeta,
+          sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta));
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+          _roleMeta, role.isAcceptableOrUnknown(data['role']!, _roleMeta));
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  VoiceCallMessage map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return VoiceCallMessage(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      sessionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}session_id'])!,
+      role: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}role'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $VoiceCallMessagesTable createAlias(String alias) {
+    return $VoiceCallMessagesTable(attachedDatabase, alias);
+  }
+}
+
+class VoiceCallMessage extends DataClass
+    implements Insertable<VoiceCallMessage> {
+  final int id;
+  final String sessionId;
+
+  /// 'user' or 'companion'
+  final String role;
+  final String content;
+  final int createdAt;
+  const VoiceCallMessage(
+      {required this.id,
+      required this.sessionId,
+      required this.role,
+      required this.content,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['session_id'] = Variable<String>(sessionId);
+    map['role'] = Variable<String>(role);
+    map['content'] = Variable<String>(content);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  VoiceCallMessagesCompanion toCompanion(bool nullToAbsent) {
+    return VoiceCallMessagesCompanion(
+      id: Value(id),
+      sessionId: Value(sessionId),
+      role: Value(role),
+      content: Value(content),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory VoiceCallMessage.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return VoiceCallMessage(
+      id: serializer.fromJson<int>(json['id']),
+      sessionId: serializer.fromJson<String>(json['sessionId']),
+      role: serializer.fromJson<String>(json['role']),
+      content: serializer.fromJson<String>(json['content']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'sessionId': serializer.toJson<String>(sessionId),
+      'role': serializer.toJson<String>(role),
+      'content': serializer.toJson<String>(content),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  VoiceCallMessage copyWith(
+          {int? id,
+          String? sessionId,
+          String? role,
+          String? content,
+          int? createdAt}) =>
+      VoiceCallMessage(
+        id: id ?? this.id,
+        sessionId: sessionId ?? this.sessionId,
+        role: role ?? this.role,
+        content: content ?? this.content,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  VoiceCallMessage copyWithCompanion(VoiceCallMessagesCompanion data) {
+    return VoiceCallMessage(
+      id: data.id.present ? data.id.value : this.id,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      role: data.role.present ? data.role.value : this.role,
+      content: data.content.present ? data.content.value : this.content,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VoiceCallMessage(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, sessionId, role, content, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is VoiceCallMessage &&
+          other.id == this.id &&
+          other.sessionId == this.sessionId &&
+          other.role == this.role &&
+          other.content == this.content &&
+          other.createdAt == this.createdAt);
+}
+
+class VoiceCallMessagesCompanion extends UpdateCompanion<VoiceCallMessage> {
+  final Value<int> id;
+  final Value<String> sessionId;
+  final Value<String> role;
+  final Value<String> content;
+  final Value<int> createdAt;
+  const VoiceCallMessagesCompanion({
+    this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.role = const Value.absent(),
+    this.content = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  VoiceCallMessagesCompanion.insert({
+    this.id = const Value.absent(),
+    required String sessionId,
+    required String role,
+    required String content,
+    required int createdAt,
+  })  : sessionId = Value(sessionId),
+        role = Value(role),
+        content = Value(content),
+        createdAt = Value(createdAt);
+  static Insertable<VoiceCallMessage> custom({
+    Expression<int>? id,
+    Expression<String>? sessionId,
+    Expression<String>? role,
+    Expression<String>? content,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sessionId != null) 'session_id': sessionId,
+      if (role != null) 'role': role,
+      if (content != null) 'content': content,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  VoiceCallMessagesCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? sessionId,
+      Value<String>? role,
+      Value<String>? content,
+      Value<int>? createdAt}) {
+    return VoiceCallMessagesCompanion(
+      id: id ?? this.id,
+      sessionId: sessionId ?? this.sessionId,
+      role: role ?? this.role,
+      content: content ?? this.content,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VoiceCallMessagesCompanion(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4514,7 +6596,17 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $UserNotificationsTable(this);
   late final $SystemMessageQueueTable systemMessageQueue =
       $SystemMessageQueueTable(this);
+  late final $AiFinanceLedgerTable aiFinanceLedger =
+      $AiFinanceLedgerTable(this);
+  late final $AiPurchaseLogTable aiPurchaseLog = $AiPurchaseLogTable(this);
+  late final $VoiceCallSessionsTable voiceCallSessions =
+      $VoiceCallSessionsTable(this);
+  late final $VoiceCallMessagesTable voiceCallMessages =
+      $VoiceCallMessagesTable(this);
   late final CardDao cardDao = CardDao(this as AppDatabase);
+  late final AiFinanceDao aiFinanceDao = AiFinanceDao(this as AppDatabase);
+  late final AiPurchaseDao aiPurchaseDao = AiPurchaseDao(this as AppDatabase);
+  late final VoiceCallDao voiceCallDao = VoiceCallDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4528,7 +6620,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         clarificationRequests,
         personaChatMessages,
         userNotifications,
-        systemMessageQueue
+        systemMessageQueue,
+        aiFinanceLedger,
+        aiPurchaseLog,
+        voiceCallSessions,
+        voiceCallMessages
       ];
 }
 
@@ -6711,6 +8807,982 @@ typedef $$SystemMessageQueueTableProcessedTableManager = ProcessedTableManager<
     ),
     SystemMessageQueueData,
     PrefetchHooks Function()>;
+typedef $$AiFinanceLedgerTableCreateCompanionBuilder = AiFinanceLedgerCompanion
+    Function({
+  required String id,
+  required String characterId,
+  required String entryType,
+  required double totalAmount,
+  required double aiAmount,
+  Value<double?> contributionRatio,
+  Value<String?> myContributionDesc,
+  Value<String?> aiContributionDesc,
+  Value<String?> purpose,
+  Value<String?> linkedFactId,
+  required int recordedAt,
+  Value<String?> notes,
+  Value<int> rowid,
+});
+typedef $$AiFinanceLedgerTableUpdateCompanionBuilder = AiFinanceLedgerCompanion
+    Function({
+  Value<String> id,
+  Value<String> characterId,
+  Value<String> entryType,
+  Value<double> totalAmount,
+  Value<double> aiAmount,
+  Value<double?> contributionRatio,
+  Value<String?> myContributionDesc,
+  Value<String?> aiContributionDesc,
+  Value<String?> purpose,
+  Value<String?> linkedFactId,
+  Value<int> recordedAt,
+  Value<String?> notes,
+  Value<int> rowid,
+});
+
+class $$AiFinanceLedgerTableFilterComposer
+    extends Composer<_$AppDatabase, $AiFinanceLedgerTable> {
+  $$AiFinanceLedgerTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get entryType => $composableBuilder(
+      column: $table.entryType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get totalAmount => $composableBuilder(
+      column: $table.totalAmount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get aiAmount => $composableBuilder(
+      column: $table.aiAmount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get contributionRatio => $composableBuilder(
+      column: $table.contributionRatio,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get myContributionDesc => $composableBuilder(
+      column: $table.myContributionDesc,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get aiContributionDesc => $composableBuilder(
+      column: $table.aiContributionDesc,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get purpose => $composableBuilder(
+      column: $table.purpose, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get linkedFactId => $composableBuilder(
+      column: $table.linkedFactId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get recordedAt => $composableBuilder(
+      column: $table.recordedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get notes => $composableBuilder(
+      column: $table.notes, builder: (column) => ColumnFilters(column));
+}
+
+class $$AiFinanceLedgerTableOrderingComposer
+    extends Composer<_$AppDatabase, $AiFinanceLedgerTable> {
+  $$AiFinanceLedgerTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get entryType => $composableBuilder(
+      column: $table.entryType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get totalAmount => $composableBuilder(
+      column: $table.totalAmount, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get aiAmount => $composableBuilder(
+      column: $table.aiAmount, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get contributionRatio => $composableBuilder(
+      column: $table.contributionRatio,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get myContributionDesc => $composableBuilder(
+      column: $table.myContributionDesc,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get aiContributionDesc => $composableBuilder(
+      column: $table.aiContributionDesc,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get purpose => $composableBuilder(
+      column: $table.purpose, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get linkedFactId => $composableBuilder(
+      column: $table.linkedFactId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get recordedAt => $composableBuilder(
+      column: $table.recordedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+      column: $table.notes, builder: (column) => ColumnOrderings(column));
+}
+
+class $$AiFinanceLedgerTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AiFinanceLedgerTable> {
+  $$AiFinanceLedgerTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => column);
+
+  GeneratedColumn<String> get entryType =>
+      $composableBuilder(column: $table.entryType, builder: (column) => column);
+
+  GeneratedColumn<double> get totalAmount => $composableBuilder(
+      column: $table.totalAmount, builder: (column) => column);
+
+  GeneratedColumn<double> get aiAmount =>
+      $composableBuilder(column: $table.aiAmount, builder: (column) => column);
+
+  GeneratedColumn<double> get contributionRatio => $composableBuilder(
+      column: $table.contributionRatio, builder: (column) => column);
+
+  GeneratedColumn<String> get myContributionDesc => $composableBuilder(
+      column: $table.myContributionDesc, builder: (column) => column);
+
+  GeneratedColumn<String> get aiContributionDesc => $composableBuilder(
+      column: $table.aiContributionDesc, builder: (column) => column);
+
+  GeneratedColumn<String> get purpose =>
+      $composableBuilder(column: $table.purpose, builder: (column) => column);
+
+  GeneratedColumn<String> get linkedFactId => $composableBuilder(
+      column: $table.linkedFactId, builder: (column) => column);
+
+  GeneratedColumn<int> get recordedAt => $composableBuilder(
+      column: $table.recordedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+}
+
+class $$AiFinanceLedgerTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $AiFinanceLedgerTable,
+    AiFinanceLedgerData,
+    $$AiFinanceLedgerTableFilterComposer,
+    $$AiFinanceLedgerTableOrderingComposer,
+    $$AiFinanceLedgerTableAnnotationComposer,
+    $$AiFinanceLedgerTableCreateCompanionBuilder,
+    $$AiFinanceLedgerTableUpdateCompanionBuilder,
+    (
+      AiFinanceLedgerData,
+      BaseReferences<_$AppDatabase, $AiFinanceLedgerTable, AiFinanceLedgerData>
+    ),
+    AiFinanceLedgerData,
+    PrefetchHooks Function()> {
+  $$AiFinanceLedgerTableTableManager(
+      _$AppDatabase db, $AiFinanceLedgerTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AiFinanceLedgerTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AiFinanceLedgerTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AiFinanceLedgerTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> characterId = const Value.absent(),
+            Value<String> entryType = const Value.absent(),
+            Value<double> totalAmount = const Value.absent(),
+            Value<double> aiAmount = const Value.absent(),
+            Value<double?> contributionRatio = const Value.absent(),
+            Value<String?> myContributionDesc = const Value.absent(),
+            Value<String?> aiContributionDesc = const Value.absent(),
+            Value<String?> purpose = const Value.absent(),
+            Value<String?> linkedFactId = const Value.absent(),
+            Value<int> recordedAt = const Value.absent(),
+            Value<String?> notes = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AiFinanceLedgerCompanion(
+            id: id,
+            characterId: characterId,
+            entryType: entryType,
+            totalAmount: totalAmount,
+            aiAmount: aiAmount,
+            contributionRatio: contributionRatio,
+            myContributionDesc: myContributionDesc,
+            aiContributionDesc: aiContributionDesc,
+            purpose: purpose,
+            linkedFactId: linkedFactId,
+            recordedAt: recordedAt,
+            notes: notes,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String characterId,
+            required String entryType,
+            required double totalAmount,
+            required double aiAmount,
+            Value<double?> contributionRatio = const Value.absent(),
+            Value<String?> myContributionDesc = const Value.absent(),
+            Value<String?> aiContributionDesc = const Value.absent(),
+            Value<String?> purpose = const Value.absent(),
+            Value<String?> linkedFactId = const Value.absent(),
+            required int recordedAt,
+            Value<String?> notes = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AiFinanceLedgerCompanion.insert(
+            id: id,
+            characterId: characterId,
+            entryType: entryType,
+            totalAmount: totalAmount,
+            aiAmount: aiAmount,
+            contributionRatio: contributionRatio,
+            myContributionDesc: myContributionDesc,
+            aiContributionDesc: aiContributionDesc,
+            purpose: purpose,
+            linkedFactId: linkedFactId,
+            recordedAt: recordedAt,
+            notes: notes,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$AiFinanceLedgerTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $AiFinanceLedgerTable,
+    AiFinanceLedgerData,
+    $$AiFinanceLedgerTableFilterComposer,
+    $$AiFinanceLedgerTableOrderingComposer,
+    $$AiFinanceLedgerTableAnnotationComposer,
+    $$AiFinanceLedgerTableCreateCompanionBuilder,
+    $$AiFinanceLedgerTableUpdateCompanionBuilder,
+    (
+      AiFinanceLedgerData,
+      BaseReferences<_$AppDatabase, $AiFinanceLedgerTable, AiFinanceLedgerData>
+    ),
+    AiFinanceLedgerData,
+    PrefetchHooks Function()>;
+typedef $$AiPurchaseLogTableCreateCompanionBuilder = AiPurchaseLogCompanion
+    Function({
+  required String id,
+  required String characterId,
+  required String paymentMode,
+  required String status,
+  required String userInstruction,
+  Value<String> productPlatform,
+  Value<String?> productId,
+  Value<String?> productTitle,
+  Value<String?> productUrl,
+  Value<double?> priceCny,
+  Value<String?> cashierUrl,
+  Value<String?> failureReason,
+  Value<String?> linkedLedgerId,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$AiPurchaseLogTableUpdateCompanionBuilder = AiPurchaseLogCompanion
+    Function({
+  Value<String> id,
+  Value<String> characterId,
+  Value<String> paymentMode,
+  Value<String> status,
+  Value<String> userInstruction,
+  Value<String> productPlatform,
+  Value<String?> productId,
+  Value<String?> productTitle,
+  Value<String?> productUrl,
+  Value<double?> priceCny,
+  Value<String?> cashierUrl,
+  Value<String?> failureReason,
+  Value<String?> linkedLedgerId,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$AiPurchaseLogTableFilterComposer
+    extends Composer<_$AppDatabase, $AiPurchaseLogTable> {
+  $$AiPurchaseLogTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get paymentMode => $composableBuilder(
+      column: $table.paymentMode, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get userInstruction => $composableBuilder(
+      column: $table.userInstruction,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get productPlatform => $composableBuilder(
+      column: $table.productPlatform,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get productId => $composableBuilder(
+      column: $table.productId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get productTitle => $composableBuilder(
+      column: $table.productTitle, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get productUrl => $composableBuilder(
+      column: $table.productUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get priceCny => $composableBuilder(
+      column: $table.priceCny, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cashierUrl => $composableBuilder(
+      column: $table.cashierUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get failureReason => $composableBuilder(
+      column: $table.failureReason, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get linkedLedgerId => $composableBuilder(
+      column: $table.linkedLedgerId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$AiPurchaseLogTableOrderingComposer
+    extends Composer<_$AppDatabase, $AiPurchaseLogTable> {
+  $$AiPurchaseLogTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get paymentMode => $composableBuilder(
+      column: $table.paymentMode, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get userInstruction => $composableBuilder(
+      column: $table.userInstruction,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get productPlatform => $composableBuilder(
+      column: $table.productPlatform,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get productId => $composableBuilder(
+      column: $table.productId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get productTitle => $composableBuilder(
+      column: $table.productTitle,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get productUrl => $composableBuilder(
+      column: $table.productUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get priceCny => $composableBuilder(
+      column: $table.priceCny, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cashierUrl => $composableBuilder(
+      column: $table.cashierUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get failureReason => $composableBuilder(
+      column: $table.failureReason,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get linkedLedgerId => $composableBuilder(
+      column: $table.linkedLedgerId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$AiPurchaseLogTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AiPurchaseLogTable> {
+  $$AiPurchaseLogTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => column);
+
+  GeneratedColumn<String> get paymentMode => $composableBuilder(
+      column: $table.paymentMode, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get userInstruction => $composableBuilder(
+      column: $table.userInstruction, builder: (column) => column);
+
+  GeneratedColumn<String> get productPlatform => $composableBuilder(
+      column: $table.productPlatform, builder: (column) => column);
+
+  GeneratedColumn<String> get productId =>
+      $composableBuilder(column: $table.productId, builder: (column) => column);
+
+  GeneratedColumn<String> get productTitle => $composableBuilder(
+      column: $table.productTitle, builder: (column) => column);
+
+  GeneratedColumn<String> get productUrl => $composableBuilder(
+      column: $table.productUrl, builder: (column) => column);
+
+  GeneratedColumn<double> get priceCny =>
+      $composableBuilder(column: $table.priceCny, builder: (column) => column);
+
+  GeneratedColumn<String> get cashierUrl => $composableBuilder(
+      column: $table.cashierUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get failureReason => $composableBuilder(
+      column: $table.failureReason, builder: (column) => column);
+
+  GeneratedColumn<String> get linkedLedgerId => $composableBuilder(
+      column: $table.linkedLedgerId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AiPurchaseLogTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $AiPurchaseLogTable,
+    AiPurchaseLogData,
+    $$AiPurchaseLogTableFilterComposer,
+    $$AiPurchaseLogTableOrderingComposer,
+    $$AiPurchaseLogTableAnnotationComposer,
+    $$AiPurchaseLogTableCreateCompanionBuilder,
+    $$AiPurchaseLogTableUpdateCompanionBuilder,
+    (
+      AiPurchaseLogData,
+      BaseReferences<_$AppDatabase, $AiPurchaseLogTable, AiPurchaseLogData>
+    ),
+    AiPurchaseLogData,
+    PrefetchHooks Function()> {
+  $$AiPurchaseLogTableTableManager(_$AppDatabase db, $AiPurchaseLogTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AiPurchaseLogTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AiPurchaseLogTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AiPurchaseLogTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> characterId = const Value.absent(),
+            Value<String> paymentMode = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String> userInstruction = const Value.absent(),
+            Value<String> productPlatform = const Value.absent(),
+            Value<String?> productId = const Value.absent(),
+            Value<String?> productTitle = const Value.absent(),
+            Value<String?> productUrl = const Value.absent(),
+            Value<double?> priceCny = const Value.absent(),
+            Value<String?> cashierUrl = const Value.absent(),
+            Value<String?> failureReason = const Value.absent(),
+            Value<String?> linkedLedgerId = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AiPurchaseLogCompanion(
+            id: id,
+            characterId: characterId,
+            paymentMode: paymentMode,
+            status: status,
+            userInstruction: userInstruction,
+            productPlatform: productPlatform,
+            productId: productId,
+            productTitle: productTitle,
+            productUrl: productUrl,
+            priceCny: priceCny,
+            cashierUrl: cashierUrl,
+            failureReason: failureReason,
+            linkedLedgerId: linkedLedgerId,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String characterId,
+            required String paymentMode,
+            required String status,
+            required String userInstruction,
+            Value<String> productPlatform = const Value.absent(),
+            Value<String?> productId = const Value.absent(),
+            Value<String?> productTitle = const Value.absent(),
+            Value<String?> productUrl = const Value.absent(),
+            Value<double?> priceCny = const Value.absent(),
+            Value<String?> cashierUrl = const Value.absent(),
+            Value<String?> failureReason = const Value.absent(),
+            Value<String?> linkedLedgerId = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AiPurchaseLogCompanion.insert(
+            id: id,
+            characterId: characterId,
+            paymentMode: paymentMode,
+            status: status,
+            userInstruction: userInstruction,
+            productPlatform: productPlatform,
+            productId: productId,
+            productTitle: productTitle,
+            productUrl: productUrl,
+            priceCny: priceCny,
+            cashierUrl: cashierUrl,
+            failureReason: failureReason,
+            linkedLedgerId: linkedLedgerId,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$AiPurchaseLogTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $AiPurchaseLogTable,
+    AiPurchaseLogData,
+    $$AiPurchaseLogTableFilterComposer,
+    $$AiPurchaseLogTableOrderingComposer,
+    $$AiPurchaseLogTableAnnotationComposer,
+    $$AiPurchaseLogTableCreateCompanionBuilder,
+    $$AiPurchaseLogTableUpdateCompanionBuilder,
+    (
+      AiPurchaseLogData,
+      BaseReferences<_$AppDatabase, $AiPurchaseLogTable, AiPurchaseLogData>
+    ),
+    AiPurchaseLogData,
+    PrefetchHooks Function()>;
+typedef $$VoiceCallSessionsTableCreateCompanionBuilder
+    = VoiceCallSessionsCompanion Function({
+  required String id,
+  required String characterId,
+  required String userId,
+  required int startedAt,
+  Value<int?> endedAt,
+  Value<String?> summary,
+  Value<int> rowid,
+});
+typedef $$VoiceCallSessionsTableUpdateCompanionBuilder
+    = VoiceCallSessionsCompanion Function({
+  Value<String> id,
+  Value<String> characterId,
+  Value<String> userId,
+  Value<int> startedAt,
+  Value<int?> endedAt,
+  Value<String?> summary,
+  Value<int> rowid,
+});
+
+class $$VoiceCallSessionsTableFilterComposer
+    extends Composer<_$AppDatabase, $VoiceCallSessionsTable> {
+  $$VoiceCallSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get userId => $composableBuilder(
+      column: $table.userId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get startedAt => $composableBuilder(
+      column: $table.startedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get endedAt => $composableBuilder(
+      column: $table.endedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get summary => $composableBuilder(
+      column: $table.summary, builder: (column) => ColumnFilters(column));
+}
+
+class $$VoiceCallSessionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $VoiceCallSessionsTable> {
+  $$VoiceCallSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+      column: $table.userId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get startedAt => $composableBuilder(
+      column: $table.startedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get endedAt => $composableBuilder(
+      column: $table.endedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+      column: $table.summary, builder: (column) => ColumnOrderings(column));
+}
+
+class $$VoiceCallSessionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $VoiceCallSessionsTable> {
+  $$VoiceCallSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<int> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get endedAt =>
+      $composableBuilder(column: $table.endedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+}
+
+class $$VoiceCallSessionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $VoiceCallSessionsTable,
+    VoiceCallSession,
+    $$VoiceCallSessionsTableFilterComposer,
+    $$VoiceCallSessionsTableOrderingComposer,
+    $$VoiceCallSessionsTableAnnotationComposer,
+    $$VoiceCallSessionsTableCreateCompanionBuilder,
+    $$VoiceCallSessionsTableUpdateCompanionBuilder,
+    (
+      VoiceCallSession,
+      BaseReferences<_$AppDatabase, $VoiceCallSessionsTable, VoiceCallSession>
+    ),
+    VoiceCallSession,
+    PrefetchHooks Function()> {
+  $$VoiceCallSessionsTableTableManager(
+      _$AppDatabase db, $VoiceCallSessionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$VoiceCallSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$VoiceCallSessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$VoiceCallSessionsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> characterId = const Value.absent(),
+            Value<String> userId = const Value.absent(),
+            Value<int> startedAt = const Value.absent(),
+            Value<int?> endedAt = const Value.absent(),
+            Value<String?> summary = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              VoiceCallSessionsCompanion(
+            id: id,
+            characterId: characterId,
+            userId: userId,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            summary: summary,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String characterId,
+            required String userId,
+            required int startedAt,
+            Value<int?> endedAt = const Value.absent(),
+            Value<String?> summary = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              VoiceCallSessionsCompanion.insert(
+            id: id,
+            characterId: characterId,
+            userId: userId,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            summary: summary,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$VoiceCallSessionsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $VoiceCallSessionsTable,
+    VoiceCallSession,
+    $$VoiceCallSessionsTableFilterComposer,
+    $$VoiceCallSessionsTableOrderingComposer,
+    $$VoiceCallSessionsTableAnnotationComposer,
+    $$VoiceCallSessionsTableCreateCompanionBuilder,
+    $$VoiceCallSessionsTableUpdateCompanionBuilder,
+    (
+      VoiceCallSession,
+      BaseReferences<_$AppDatabase, $VoiceCallSessionsTable, VoiceCallSession>
+    ),
+    VoiceCallSession,
+    PrefetchHooks Function()>;
+typedef $$VoiceCallMessagesTableCreateCompanionBuilder
+    = VoiceCallMessagesCompanion Function({
+  Value<int> id,
+  required String sessionId,
+  required String role,
+  required String content,
+  required int createdAt,
+});
+typedef $$VoiceCallMessagesTableUpdateCompanionBuilder
+    = VoiceCallMessagesCompanion Function({
+  Value<int> id,
+  Value<String> sessionId,
+  Value<String> role,
+  Value<String> content,
+  Value<int> createdAt,
+});
+
+class $$VoiceCallMessagesTableFilterComposer
+    extends Composer<_$AppDatabase, $VoiceCallMessagesTable> {
+  $$VoiceCallMessagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get role => $composableBuilder(
+      column: $table.role, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$VoiceCallMessagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $VoiceCallMessagesTable> {
+  $$VoiceCallMessagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get role => $composableBuilder(
+      column: $table.role, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$VoiceCallMessagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $VoiceCallMessagesTable> {
+  $$VoiceCallMessagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$VoiceCallMessagesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $VoiceCallMessagesTable,
+    VoiceCallMessage,
+    $$VoiceCallMessagesTableFilterComposer,
+    $$VoiceCallMessagesTableOrderingComposer,
+    $$VoiceCallMessagesTableAnnotationComposer,
+    $$VoiceCallMessagesTableCreateCompanionBuilder,
+    $$VoiceCallMessagesTableUpdateCompanionBuilder,
+    (
+      VoiceCallMessage,
+      BaseReferences<_$AppDatabase, $VoiceCallMessagesTable, VoiceCallMessage>
+    ),
+    VoiceCallMessage,
+    PrefetchHooks Function()> {
+  $$VoiceCallMessagesTableTableManager(
+      _$AppDatabase db, $VoiceCallMessagesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$VoiceCallMessagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$VoiceCallMessagesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$VoiceCallMessagesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> sessionId = const Value.absent(),
+            Value<String> role = const Value.absent(),
+            Value<String> content = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+          }) =>
+              VoiceCallMessagesCompanion(
+            id: id,
+            sessionId: sessionId,
+            role: role,
+            content: content,
+            createdAt: createdAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String sessionId,
+            required String role,
+            required String content,
+            required int createdAt,
+          }) =>
+              VoiceCallMessagesCompanion.insert(
+            id: id,
+            sessionId: sessionId,
+            role: role,
+            content: content,
+            createdAt: createdAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$VoiceCallMessagesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $VoiceCallMessagesTable,
+    VoiceCallMessage,
+    $$VoiceCallMessagesTableFilterComposer,
+    $$VoiceCallMessagesTableOrderingComposer,
+    $$VoiceCallMessagesTableAnnotationComposer,
+    $$VoiceCallMessagesTableCreateCompanionBuilder,
+    $$VoiceCallMessagesTableUpdateCompanionBuilder,
+    (
+      VoiceCallMessage,
+      BaseReferences<_$AppDatabase, $VoiceCallMessagesTable, VoiceCallMessage>
+    ),
+    VoiceCallMessage,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6733,4 +9805,12 @@ class $AppDatabaseManager {
       $$UserNotificationsTableTableManager(_db, _db.userNotifications);
   $$SystemMessageQueueTableTableManager get systemMessageQueue =>
       $$SystemMessageQueueTableTableManager(_db, _db.systemMessageQueue);
+  $$AiFinanceLedgerTableTableManager get aiFinanceLedger =>
+      $$AiFinanceLedgerTableTableManager(_db, _db.aiFinanceLedger);
+  $$AiPurchaseLogTableTableManager get aiPurchaseLog =>
+      $$AiPurchaseLogTableTableManager(_db, _db.aiPurchaseLog);
+  $$VoiceCallSessionsTableTableManager get voiceCallSessions =>
+      $$VoiceCallSessionsTableTableManager(_db, _db.voiceCallSessions);
+  $$VoiceCallMessagesTableTableManager get voiceCallMessages =>
+      $$VoiceCallMessagesTableTableManager(_db, _db.voiceCallMessages);
 }

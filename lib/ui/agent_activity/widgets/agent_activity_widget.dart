@@ -4,7 +4,32 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 import 'package:memex/data/services/agent_activity_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
+import 'package:memex/ui/settings/widgets/async_task_list_page.dart';
 import 'package:memex/utils/user_storage.dart';
+
+const agentActivityStaleAfter = Duration(minutes: 5);
+
+@visibleForTesting
+bool isAgentActivityMessageRunning({
+  required AgentActivityMessageModel? message,
+  required bool hasActiveTasks,
+  DateTime? now,
+  Duration staleAfter = agentActivityStaleAfter,
+}) {
+  if (message == null ||
+      message.type == AgentActivityType.agent_stop ||
+      message.type == AgentActivityType.error) {
+    return false;
+  }
+
+  // Comment agents run as persistent tasks. If that task has completed, a
+  // missing terminal activity event must not leave the global indicator open.
+  if (message.agentName == 'comment_agent' && !hasActiveTasks) {
+    return false;
+  }
+
+  return !(now ?? DateTime.now()).isAfter(message.timestamp.add(staleAfter));
+}
 
 class AgentActivityWidget extends StatefulWidget {
   final GlobalKey<NavigatorState>? navigatorKey;
@@ -22,14 +47,16 @@ class _AgentActivityWidgetState extends State<AgentActivityWidget>
   LocalTaskExecutor? _executor;
   StreamSubscription<AgentActivityMessageModel>? _subscription;
   StreamSubscription<bool>? _taskSubscription;
+  Timer? _activityExpiryTimer;
   bool _hasActiveTasks = false;
 
   late AnimationController _bounceController;
 
   bool get _hasRunningAgent {
-    if (_latestMessage == null) return false;
-    final t = _latestMessage!.type;
-    return t != AgentActivityType.agent_stop && t != AgentActivityType.error;
+    return isAgentActivityMessageRunning(
+      message: _latestMessage,
+      hasActiveTasks: _hasActiveTasks,
+    );
   }
 
   bool get _isActive {
@@ -43,6 +70,12 @@ class _AgentActivityWidgetState extends State<AgentActivityWidget>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     )..repeat(reverse: true);
+    _activityExpiryTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        if (mounted) setState(() {});
+      },
+    );
 
     try {
       _service = AgentActivityService.instance;
@@ -99,6 +132,7 @@ class _AgentActivityWidgetState extends State<AgentActivityWidget>
   void dispose() {
     _subscription?.cancel();
     _taskSubscription?.cancel();
+    _activityExpiryTimer?.cancel();
     _bounceController.dispose();
     super.dispose();
   }
@@ -121,12 +155,23 @@ class _AgentActivityWidgetState extends State<AgentActivityWidget>
     }
   }
 
+  Future<void> _showTaskList(BuildContext context) async {
+    final targetContext = widget.navigatorKey?.currentContext ?? context;
+    await Navigator.of(targetContext).push(
+      MaterialPageRoute(builder: (_) => const AsyncTaskListPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_isActive) return const SizedBox.shrink();
 
     return GestureDetector(
-      onTap: _hasRunningAgent ? () => _showDetail(context) : null,
+      onTap: _hasRunningAgent
+          ? () => _showDetail(context)
+          : _hasActiveTasks
+              ? () => _showTaskList(context)
+              : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -190,7 +235,7 @@ class _AgentActivityWidgetState extends State<AgentActivityWidget>
                 ],
               ),
             ),
-            if (_hasRunningAgent) ...[
+            if (_isActive) ...[
               const SizedBox(width: 6),
               const Icon(
                 Icons.chevron_right_rounded,
@@ -217,7 +262,11 @@ class _DetailSheetState extends State<_DetailSheet>
     with SingleTickerProviderStateMixin {
   AgentActivityMessageModel? _message;
   StreamSubscription? _subscription;
+  StreamSubscription<bool>? _taskSubscription;
   AgentActivityService? _service;
+  LocalTaskExecutor? _executor;
+  Timer? _activityExpiryTimer;
+  bool _hasActiveTasks = false;
 
   late AnimationController _pulseController;
 
@@ -231,9 +280,21 @@ class _DetailSheetState extends State<_DetailSheet>
     _message = widget.initialMessage;
     try {
       _service = AgentActivityService.instance;
+      _executor = LocalTaskExecutor.instance;
     } catch (_) {}
     _loadHistory();
     _subscription = _service?.messageStream.listen(_handleNewMessage);
+    try {
+      _taskSubscription = _executor?.hasActiveTasksStream.listen((hasTasks) {
+        if (mounted) setState(() => _hasActiveTasks = hasTasks);
+      });
+    } catch (_) {}
+    _activityExpiryTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   Future<void> _loadHistory() async {
@@ -253,6 +314,8 @@ class _DetailSheetState extends State<_DetailSheet>
   @override
   void dispose() {
     _subscription?.cancel();
+    _taskSubscription?.cancel();
+    _activityExpiryTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
@@ -393,8 +456,10 @@ class _DetailSheetState extends State<_DetailSheet>
                               ),
                             ),
                           ),
-                        if (_message!.type != AgentActivityType.agent_stop &&
-                            _message!.type != AgentActivityType.error)
+                        if (isAgentActivityMessageRunning(
+                          message: _message,
+                          hasActiveTasks: _hasActiveTasks,
+                        ))
                           Padding(
                             padding: const EdgeInsets.only(top: 24),
                             child: Row(

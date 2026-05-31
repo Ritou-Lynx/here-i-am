@@ -180,3 +180,119 @@ class PersonaChatMessages extends Table {
   /// Message type: 'chat' (default) or 'action' (narrative/action description).
   TextColumn get messageType => text().withDefault(const Constant('chat'))();
 }
+
+/// AI Finance Ledger Table
+/// Records every income/cost/loan/repayment event that belongs to the AI companion.
+/// This is a derived view of the user's finances — each entry is either linked to
+/// a real transaction card (via soft nullable factId) or entered manually via chat.
+/// The user's primary account is never modified; this table is additive only.
+class AiFinanceLedger extends Table {
+  TextColumn get id => text()(); // UUID v4
+
+  /// The character this ledger entry belongs to.
+  TextColumn get characterId => text()();
+
+  /// Entry type: 'income' | 'cost' | 'loan' | 'repayment'
+  /// - income: AI earned a share of a real income event
+  /// - cost: an expense tagged as AI-related (e.g. Claude subscription)
+  /// - loan: AI's costs exceeded its balance; user covered the gap
+  /// - repayment: AI repaid a previous loan from its balance
+  TextColumn get entryType => text()();
+
+  /// Full amount of the original event (e.g. total income before split).
+  /// For cost/loan/repayment entries this equals aiAmount.
+  RealColumn get totalAmount => real()();
+
+  /// The portion that belongs to the AI (after contribution split, if applicable).
+  RealColumn get aiAmount => real()();
+
+  /// AI's contribution ratio for income splits (0.0–1.0). Null for cost/loan/repayment.
+  RealColumn get contributionRatio => real().nullable()();
+
+  /// Free-text description of what the user contributed.
+  TextColumn get myContributionDesc => text().nullable()();
+
+  /// Free-text description of what the AI contributed.
+  TextColumn get aiContributionDesc => text().nullable()();
+
+  /// Purpose or label (e.g. "Claude Pro 月费", "写作项目分成").
+  TextColumn get purpose => text().nullable()();
+
+  /// Soft reference to the corresponding transaction card's factId.
+  /// Nullable — manual entries may not have a linked card.
+  TextColumn get linkedFactId => text().nullable()();
+
+  /// Seconds since epoch when this entry was recorded.
+  IntColumn get recordedAt => integer()();
+
+  /// Any extra notes from the conversation.
+  TextColumn get notes => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// AI Purchase Log Table
+/// Records every purchase attempt made by the AI companion, from search to payment.
+/// Status flow: searching → selected → ordering → payment_pushed → completed | failed | aborted
+class AiPurchaseLog extends Table {
+  TextColumn get id => text()(); // UUID v4
+  TextColumn get characterId => text()();
+
+  /// 'manual_approval' | 'auto_silent' (future)
+  TextColumn get paymentMode => text()();
+
+  /// 'searching' | 'selected' | 'ordering' | 'payment_pushed' | 'completed' | 'failed' | 'aborted'
+  TextColumn get status => text()();
+
+  /// The user's original purchase instruction verbatim.
+  TextColumn get userInstruction => text()();
+
+  TextColumn get productPlatform =>
+      text().withDefault(const Constant('taobao'))();
+  TextColumn get productId => text().nullable()();
+  TextColumn get productTitle => text().nullable()();
+  TextColumn get productUrl => text().nullable()();
+
+  /// Estimated or confirmed price in CNY.
+  RealColumn get priceCny => real().nullable()();
+
+  /// Alipay cashier URL (cashier*.alipay.com or *excashier*.alipay.com).
+  TextColumn get cashierUrl => text().nullable()();
+
+  /// Reason for failure or abort (budget exceeded, whitelist violation, etc.).
+  TextColumn get failureReason => text().nullable()();
+
+  /// Soft link to AiFinanceLedger id — reserved for future finance integration.
+  TextColumn get linkedLedgerId => text().nullable()();
+
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Voice Call Sessions — one row per call.
+class VoiceCallSessions extends Table {
+  TextColumn get id => text()(); // UUID
+  TextColumn get characterId => text()();
+  TextColumn get userId => text()();
+  IntColumn get startedAt => integer()(); // epoch seconds
+  IntColumn get endedAt => integer().nullable()();
+  /// Key-facts summary written by post-call LLM pass (B plan).
+  TextColumn get summary => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Voice Call Messages — each spoken turn within a session.
+class VoiceCallMessages extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get sessionId => text()();
+  /// 'user' or 'companion'
+  TextColumn get role => text()();
+  TextColumn get content => text()();
+  IntColumn get createdAt => integer()(); // epoch seconds
+}

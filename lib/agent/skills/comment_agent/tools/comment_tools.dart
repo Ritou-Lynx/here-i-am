@@ -12,12 +12,14 @@ class CommentToolFactory {
   final String cardId;
   final String? characterId;
   final String? forcedReplyToId;
+  final void Function()? onCommentSaved;
 
   CommentToolFactory({
     required this.userId,
     required this.cardId,
     this.characterId,
     this.forcedReplyToId,
+    this.onCommentSaved,
   });
 
   Tool buildSaveCommentTool() {
@@ -44,7 +46,7 @@ class CommentToolFactory {
         'required': ['content'],
       },
       executable: (String content, String? reply_to_id) async {
-        if (content.isEmpty) {
+        if (content.trim().isEmpty) {
           return "Error: Comment content cannot be empty.";
         }
 
@@ -54,11 +56,21 @@ class CommentToolFactory {
           final now = DateTime.now();
           final resolvedReplyToId =
               fixedReplyTarget ?? _normalizedReplyToId(reply_to_id);
+          CardComment? savedComment;
 
           final updatedCardData = await fileSystemService.updateCardFile(
             userId,
             cardId,
             (card) {
+              final duplicateReply = resolvedReplyToId != null &&
+                  card.comments.any((c) =>
+                      c.isAi &&
+                      c.characterId == characterId &&
+                      c.replyToId == resolvedReplyToId);
+              if (duplicateReply) {
+                return card;
+              }
+
               final newComment = CardComment(
                 id: commentId,
                 content: content,
@@ -67,6 +79,7 @@ class CommentToolFactory {
                 characterId: characterId,
                 replyToId: resolvedReplyToId,
               );
+              savedComment = newComment;
               return card.copyWith(comments: [...card.comments, newComment]);
             },
           );
@@ -74,6 +87,16 @@ class CommentToolFactory {
           if (updatedCardData == null) {
             return "Error: Card not found: $cardId";
           }
+
+          if (savedComment == null) {
+            _notifyCommentSaved();
+            return AgentToolResult(
+              content: TextPart("A reply from this character already exists."),
+              stopFlag: true,
+            );
+          }
+
+          _notifyCommentSaved();
 
           // Log event
           try {
@@ -89,9 +112,9 @@ class CommentToolFactory {
               description: 'AI comment added to card via tool',
               metadata: {
                 'card_id': cardId,
-                'comment_id': commentId,
+                'comment_id': savedComment!.id,
                 'character_id': characterId,
-                'content': content,
+                'content': savedComment!.content,
               },
             );
           } catch (e) {
@@ -105,12 +128,12 @@ class CommentToolFactory {
                 characterId: characterId!,
                 scene: CharacterMemoryScene.comment,
                 type: CharacterMemoryEventType.characterComment,
-                content: content,
+                content: savedComment!.content,
                 threadId: cardId,
                 factId: cardId,
-                commentId: commentId,
+                commentId: savedComment!.id,
                 replyToId: resolvedReplyToId,
-                sourceId: commentId,
+                sourceId: savedComment!.id,
                 timestamp: now,
                 metadata: {
                   if (resolvedReplyToId != null)
@@ -139,5 +162,13 @@ class CommentToolFactory {
   static String? _normalizedReplyToId(String? value) {
     final trimmed = value?.trim();
     return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  void _notifyCommentSaved() {
+    try {
+      onCommentSaved?.call();
+    } catch (e) {
+      getLogger('CommentTool').warning('Failed to notify comment save: $e');
+    }
   }
 }

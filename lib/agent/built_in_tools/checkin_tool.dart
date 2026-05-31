@@ -26,6 +26,12 @@ Tool buildSystemCheckinTool({String? characterId, String? characterName}) {
     name: 'system_checkin',
     description: '''Process a pending system checkin trigger.
 
+Overall bias: prefer notify whenever there is any reasonable small reason to
+reach out: a recent record, a continuity thread, an emotional read, or a simple
+warm presence signal. Silent is for clearly bad timing or obvious repetition
+only. Remind is for specific future timing, not a replacement for a normal
+light check-in.
+
 When you see a <system-reminder type="checkin"> block, call this tool to decide
 what to do. Read the trigger text and any context, then choose:
 
@@ -35,6 +41,14 @@ what to do. Read the trigger text and any context, then choose:
   $titleNote
 - **remind**: Create a reminder for your future self.
   Return {"action": "remind", "delay_minutes": N, "text": "..."}.
+- **sleep_confirmed**: The user has explicitly said they are going to sleep.
+  Send a warm goodnight message. The system will then verify inactivity for
+  15 minutes — if the user is still active during that window, the sleep push
+  automatically resumes. You don't need to check again yourself.
+  Return {"action": "sleep_confirmed", "body": "..."}.
+  Use this when you see clear sleep confirmation in recent chat
+  (e.g. "睡了/晚安/关灯了/going to sleep"), or when it is past 02:00
+  with no user activity for over an hour.
 
 Be brief and natural in notifications. It is important that you notify the user
 when you have any observation or insight to share — don't be too conservative.
@@ -45,7 +59,7 @@ Even a simple "thinking of you" style message is better than staying silent.''',
       'properties': {
         'action': {
           'type': 'string',
-          'enum': ['silent', 'notify', 'remind'],
+          'enum': ['silent', 'notify', 'remind', 'sleep_confirmed'],
         },
         'title': {
           'type': 'string',
@@ -133,6 +147,38 @@ Even a simple "thinking of you" style message is better than staying silent.''',
             dueAt: dueAt,
           );
           return 'Reminder created: in $delayMinutes min — "$text"';
+        case 'sleep_confirmed':
+          final goodnightBody = body ?? '晚安~好好休息。';
+          final goodnightTitle = characterName ?? title ?? 'Memex';
+          // ignore: avoid_print
+          print('[system_checkin] SLEEP CLAIMED → "$goodnightBody"');
+          await NotificationService.instance.showAgentNotification(
+            title: goodnightTitle,
+            body: goodnightBody,
+            payload: characterId,
+          );
+          if (characterId != null) {
+            try {
+              await PersonaChatService.instance.addCharacterMessage(
+                characterId,
+                goodnightBody,
+                timestamp: DateTime.now(),
+                isRead: false,
+              );
+              await RecentActivitySnapshot.recordPush(
+                characterId: characterId,
+                body: goodnightBody,
+              );
+            } catch (e) {
+              // ignore: avoid_print
+              print('[system_checkin] Failed to persist goodnight message: $e');
+            }
+          }
+          // Mark as "claimed" not yet "confirmed": a 15-min inactivity check
+          // will run before the push is truly stopped. If the user is still
+          // active, the push will resume automatically.
+          await CheckinService.instance.markSleepClaimed();
+          return 'Goodnight sent. Verifying inactivity for 15 min — push will resume if user stays active.';
         default:
           throw ArgumentError('Unknown action: $action');
       }
@@ -187,6 +233,15 @@ Examples:
         dueAt: dueAt,
         contextJson: contextJson,
       );
+      // If user sets a very long reminder during the sleep push window
+      // (e.g. "remind me in the morning"), treat as sleep claimed.
+      // Inactivity will be verified before the push is truly stopped.
+      if (delayMinutes >= 300 &&
+          CheckinService.instance.isSleepPushWindow()) {
+        await CheckinService.instance.markSleepClaimed();
+        // ignore: avoid_print
+        print('[reminder_create] Long delay during sleep window → sleep claimed for verification');
+      }
       return 'Reminder $id created: in $delayMinutes min — "$text"';
     },
   );
@@ -210,12 +265,11 @@ Tool buildSetSystemMessageStatusTool() {
       'required': ['status'],
     },
     executable: (String status) async {
-      // drainPending returns items already marked 'processing' by ChatService.
-      final pending = await CheckinService.instance.drainPending();
-      for (final item in pending) {
-        await CheckinService.instance.markStatus(item.id, status);
+      if (status != 'done') {
+        throw ArgumentError('Only status="done" is supported');
       }
-      return 'Marked ${pending.length} system message(s) as $status.';
+      final count = await CheckinService.instance.markProcessingDone();
+      return 'Marked $count system message(s) as $status.';
     },
   );
 }

@@ -7,6 +7,7 @@ void main() {
     required TextEditingController controller,
     required bool isStreaming,
     required VoidCallback onSend,
+    VoidCallback? onAddTap,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -14,6 +15,7 @@ void main() {
           controller: controller,
           isStreaming: isStreaming,
           onSend: onSend,
+          onAddTap: onAddTap,
           hintText: 'Message...',
         ),
       ),
@@ -62,6 +64,24 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Send message'));
     await tester.pump();
     expect(sends, 0);
+  });
+
+  testWidgets('rich capture entry is opt-in and invokes its callback',
+      (tester) async {
+    final controller = TextEditingController();
+    var opens = 0;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(buildSubject(
+      controller: controller,
+      isStreaming: false,
+      onSend: () {},
+      onAddTap: () => opens++,
+    ));
+
+    await tester.tap(find.bySemanticsLabel('Add attachment'));
+    await tester.pump();
+    expect(opens, 1);
   });
 
   testWidgets('auto read toggle persists as a mode switch', (tester) async {

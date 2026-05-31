@@ -338,6 +338,9 @@ class FileSystemService {
       }
 
       final updatedData = updateFn(currentData);
+      if (identical(updatedData, currentData)) {
+        return currentData;
+      }
       final success = await _safeWriteCardFileInternal(
           userId, cardId, updatedData,
           beforeSnapshot: beforeMap, op: op);
@@ -673,7 +676,6 @@ class FileSystemService {
         getLogger('FileSystemService')
             .warning('Access token unavailable, cannot generate secure URL');
         return 'http://127.0.0.1:$port/assets/$encodedUserId/$encodedFilename?token=$token';
-        ;
       }
       return 'http://127.0.0.1:$port/assets/$encodedUserId/$encodedFilename?token=$token';
     } catch (e) {

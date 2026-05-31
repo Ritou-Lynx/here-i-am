@@ -113,6 +113,47 @@ void main() {
       expect(latest.replyToId, 'user-comment');
     });
 
+    test('forcedReplyToId is idempotent for the same character', () async {
+      final tool = CommentToolFactory(
+        userId: userId,
+        cardId: cardId,
+        characterId: characterId,
+        forcedReplyToId: 'user-comment',
+      ).buildSaveCommentTool();
+
+      await Function.apply(tool.executable!, [
+        'First character answer.',
+        '',
+      ]);
+      await Function.apply(tool.executable!, [
+        'Duplicate character answer.',
+        '',
+      ]);
+
+      final card = await FileSystemService.instance.readCardFile(
+        userId,
+        cardId,
+      );
+      expect(card, isNotNull);
+      final aiReplies = card!.comments
+          .where((c) =>
+              c.isAi &&
+              c.characterId == characterId &&
+              c.replyToId == 'user-comment')
+          .toList();
+      expect(aiReplies, hasLength(1));
+      expect(aiReplies.single.content, 'First character answer.');
+
+      final timeline = await CharacterMemoryService.instance.loadTimelineLines(
+        userId,
+        characterId,
+      );
+      expect(
+        timeline.where((line) => line.contains('"reply_to_id":"user-comment"')),
+        hasLength(1),
+      );
+    });
+
     test(
       'without forcedReplyToId, SaveComment preserves a valid model-supplied '
       'reply target for character-to-character interactions',
@@ -147,6 +188,48 @@ void main() {
 
       final latest = await _latestComment(userId, cardId);
       expect(latest.replyToId, isNull);
+    });
+
+    test('whitespace-only comments are rejected', () async {
+      final tool = CommentToolFactory(
+        userId: userId,
+        cardId: cardId,
+        characterId: characterId,
+      ).buildSaveCommentTool();
+
+      final result = await Function.apply(tool.executable!, [
+        '   ',
+        '',
+      ]);
+
+      expect(result, 'Error: Comment content cannot be empty.');
+      final card = await FileSystemService.instance.readCardFile(
+        userId,
+        cardId,
+      );
+      expect(card, isNotNull);
+      expect(card!.comments, hasLength(2));
+    });
+
+    test('notifies the caller after a comment is durably saved', () async {
+      var notified = false;
+      final tool = CommentToolFactory(
+        userId: userId,
+        cardId: cardId,
+        characterId: characterId,
+        onCommentSaved: () => notified = true,
+      ).buildSaveCommentTool();
+
+      await Function.apply(tool.executable!, [
+        'Comment with durable completion signal.',
+        '',
+      ]);
+
+      expect(notified, isTrue);
+      expect(
+        (await _latestComment(userId, cardId)).content,
+        'Comment with durable completion signal.',
+      );
     });
   });
 }

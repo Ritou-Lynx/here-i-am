@@ -195,6 +195,72 @@ void main() {
       expect(snapshot.total, 3);
       expect(snapshot.hasActiveTasks, isTrue);
     });
+
+    test('background handoff only requeues expired processing leases',
+        () async {
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      await db.into(db.tasks).insert(TasksCompanion.insert(
+            id: 'fresh-processing',
+            type: 'task',
+            payload: const Value('{}'),
+            status: 'processing',
+            createdAt: Value(now),
+            updatedAt: Value(now),
+          ));
+      await db.into(db.tasks).insert(TasksCompanion.insert(
+            id: 'expired-processing',
+            type: 'task',
+            payload: const Value('{}'),
+            status: 'processing',
+            createdAt: Value(now - 600),
+            updatedAt: Value(now - 600),
+          ));
+
+      final resetCount =
+          await executor.resetProcessingTasksForBackgroundHandoff(
+        minAge: const Duration(minutes: 2),
+      );
+
+      expect(resetCount, 1);
+      expect((await _getTask(db, 'fresh-processing')).status, 'processing');
+      expect((await _getTask(db, 'expired-processing')).status, 'pending');
+    });
+
+    test('background drain respects processing tasks owned by another worker',
+        () async {
+      var startedCount = 0;
+      executor.registerHandler('queued-task', (_, __, ___) async {
+        startedCount++;
+      });
+
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      for (var i = 0; i < 5; i++) {
+        await db.into(db.tasks).insert(TasksCompanion.insert(
+              id: 'active-$i',
+              type: 'active-task',
+              payload: const Value('{}'),
+              status: 'processing',
+              createdAt: Value(now),
+              updatedAt: Value(now),
+            ));
+      }
+      await db.into(db.tasks).insert(TasksCompanion.insert(
+            id: 'queued',
+            type: 'queued-task',
+            payload: const Value('{}'),
+            status: 'pending',
+            createdAt: Value(now),
+          ));
+
+      await executor.drainUntilIdle(
+        userId: 'user-a',
+        maxDuration: const Duration(milliseconds: 50),
+        processingResetAge: const Duration(hours: 1),
+      );
+
+      expect(startedCount, 0);
+      expect((await _getTask(db, 'queued')).status, 'pending');
+    });
   });
 
   group('LocalTaskExecutor crash loop guard', () {

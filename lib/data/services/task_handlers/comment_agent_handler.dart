@@ -70,6 +70,7 @@ Future<void> handleCommentAgentImpl(
         rawInputContent: combinedText,
         inputDateTime: inputDateTime,
         locationContextReminder: locationContextReminder,
+        skipIfCharacterAlreadyCommented: true,
       );
       return;
     }
@@ -100,6 +101,7 @@ Future<void> handleCommentAgentImpl(
         rawInputContent: combinedText,
         inputDateTime: inputDateTime,
         locationContextReminder: locationContextReminder,
+        skipIfCharacterAlreadyCommented: true,
       );
     } else {
       // Multi-character mode: LLM-based selection
@@ -136,6 +138,7 @@ Future<void> handleCommentAgentImpl(
           rawInputContent: combinedText,
           inputDateTime: inputDateTime,
           locationContextReminder: locationContextReminder,
+          skipIfCharacterAlreadyCommented: true,
         );
       }
     }
@@ -187,14 +190,52 @@ Future<void> handleProcessAiReplyImpl(
     }
   }
 
-  await processAICommentReply(
-    cardId: cardId,
-    userId: userId,
-    userContent: content,
-    userCommentId: commentId,
-    characterId: targetCharacterId,
-    inputDateTime: inputDateTime,
-    locationContextReminder: locationContextReminder,
-    withMemoryManagement: true,
+  if (commentId != null &&
+      targetCharacterId != null &&
+      await _hasExistingAiReply(
+        userId: userId,
+        cardId: cardId,
+        userCommentId: commentId,
+        characterId: targetCharacterId,
+      )) {
+    _logger.info(
+      'AI reply already exists for user comment $commentId from character '
+      '$targetCharacterId; skipping duplicate task ${context.taskId}',
+    );
+    return;
+  }
+
+  try {
+    await processAICommentReply(
+      cardId: cardId,
+      userId: userId,
+      userContent: content,
+      userCommentId: commentId,
+      characterId: targetCharacterId,
+      inputDateTime: inputDateTime,
+      locationContextReminder: locationContextReminder,
+      withMemoryManagement: true,
+    );
+  } catch (e, stack) {
+    _logger.severe('HandleProcessAiReply failed: $e', e, stack);
+    rethrowIfNonRetryable(e);
+  }
+}
+
+Future<bool> _hasExistingAiReply({
+  required String userId,
+  required String cardId,
+  required String userCommentId,
+  required String characterId,
+}) async {
+  final cardData = await FileSystemService.instance.readCardFile(
+    userId,
+    cardId,
+  );
+  if (cardData == null) return false;
+
+  return cardData.comments.any(
+    (c) =>
+        c.isAi && c.characterId == characterId && c.replyToId == userCommentId,
   );
 }

@@ -5,11 +5,21 @@ import 'package:memex/config/app_flavor.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/settings/widgets/asr_config_page.dart';
+import 'package:memex/ui/settings/widgets/shopping_config_page.dart';
+import 'package:memex/ui/settings/widgets/toy_config_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/companion_foreground_task.dart';
+import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/callkit_service.dart';
+import 'package:memex/data/services/notification_service.dart';
+import 'package:memex/ui/core/widgets/character_avatar.dart' show isImageAvatar;
 import 'package:memex/data/services/mcp_token_storage.dart';
+import 'package:memex/agent/companion_agent/companion_agent.dart';
+import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
+import 'package:memex/domain/models/agent_definitions.dart';
+import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
 import 'package:memex/ui/settings/widgets/early_update_settings_card.dart';
@@ -36,11 +46,115 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _corosConnected = false;
   bool _checkinEnabled = false;
   final _elevenLabsApiKeyController = TextEditingController();
+  final _miniMaxApiKeyController = TextEditingController();
+  final _miniMaxGroupIdController = TextEditingController();
+  String _ttsProvider = 'elevenlabs';
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+  }
+
+  /// Test: force the companion to initiate a voice call now, then fire the
+  /// incoming-call notification. Tap the notification to pick up.
+  Future<void> _triggerTestCall() async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('正在让角色生成来电...')),
+    );
+    try {
+      final userId = await UserStorage.getUserId() ?? '';
+      final character =
+          await CharacterService.instance.getPrimaryCompanion(userId);
+      if (character == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('没有找到主要角色')),
+        );
+        return;
+      }
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.checkinAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+      await CompanionAgent.runTestCall(
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+        userId: userId,
+        characterId: character.id,
+      );
+      final pending = await readPendingCall();
+      if (pending == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('角色这次没有发起通话，可再点一次试试')),
+        );
+        return;
+      }
+      await CallkitService.instance.showIncomingCall(
+        characterId: character.id,
+        nameCaller: character.name,
+        avatarUrl: character.avatar,
+      );
+      await markPendingCallNotified();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('✅ 系统来电已触发，接听即可'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('测试失败: $e')),
+      );
+    }
+  }
+
+  /// Verification spike: fire a system-level (CallKit) incoming call UI directly,
+  /// without involving the AI. Tests full-screen ringing, lock-screen behavior,
+  /// and accept/decline routing.
+  Future<void> _triggerSystemCallTest() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final userId = await UserStorage.getUserId() ?? '';
+      final character =
+          await CharacterService.instance.getPrimaryCompanion(userId);
+      if (character == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('没有找到主要角色')),
+        );
+        return;
+      }
+      // Android 14+: ensure full-screen intent permission, else ringing is a banner.
+      final canFullScreen =
+          await CallkitService.instance.canUseFullScreenIntent();
+      if (!canFullScreen) {
+        await CallkitService.instance.requestFullScreenIntentPermission();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('请在系统设置里允许「全屏通知」后再点一次'),
+            duration: Duration(seconds: 5),
+          ),
+        );
+        return;
+      }
+      // Pure UI verification — accept → VoiceCallScreen lets the AI greet live.
+      final avatar = isImageAvatar(character.avatar) ? character.avatar : null;
+      await CallkitService.instance.showIncomingCall(
+        characterId: character.id,
+        nameCaller: character.name,
+        avatarUrl: avatar,
+      );
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('📞 系统来电已触发。可锁屏测试全屏+响铃'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('测试失败: $e')),
+      );
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -56,6 +170,14 @@ class _SettingsPageState extends State<SettingsPage> {
       if (apiKey != null) {
         _elevenLabsApiKeyController.text = apiKey;
       }
+      final ttsProvider = await UserStorage.getTtsProvider();
+      final miniMaxApiKey = await UserStorage.getMiniMaxApiKey();
+      final miniMaxGroupId = await UserStorage.getMiniMaxGroupId();
+      if (miniMaxApiKey != null) _miniMaxApiKeyController.text = miniMaxApiKey;
+      if (miniMaxGroupId != null) {
+        _miniMaxGroupIdController.text = miniMaxGroupId;
+      }
+      if (mounted) setState(() => _ttsProvider = ttsProvider);
     }
     if (mounted) {
       setState(() {
@@ -124,9 +246,24 @@ class _SettingsPageState extends State<SettingsPage> {
     await UserStorage.setElevenLabsApiKey(key);
   }
 
+  Future<void> _setTtsProvider(String provider) async {
+    setState(() => _ttsProvider = provider);
+    await UserStorage.setTtsProvider(provider);
+  }
+
+  Future<void> _saveMiniMaxApiKey() async {
+    await UserStorage.setMiniMaxApiKey(_miniMaxApiKeyController.text.trim());
+  }
+
+  Future<void> _saveMiniMaxGroupId() async {
+    await UserStorage.setMiniMaxGroupId(_miniMaxGroupIdController.text.trim());
+  }
+
   @override
   void dispose() {
     _elevenLabsApiKeyController.dispose();
+    _miniMaxApiKeyController.dispose();
+    _miniMaxGroupIdController.dispose();
     super.dispose();
   }
 
@@ -243,7 +380,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
-          // ElevenLabs TTS
+          // TTS 语音
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -270,7 +407,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'ElevenLabs TTS',
+                            'TTS 语音',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -279,7 +416,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '输入 API Key 为角色对话启用语音播放',
+                            '为角色对话启用语音播放，在角色设置中填写 Voice ID',
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey[500],
@@ -290,21 +427,64 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _elevenLabsApiKeyController,
-                  obscureText: true,
-                  onChanged: (_) => _saveElevenLabsApiKey(),
-                  decoration: InputDecoration(
-                    hintText: 'ElevenLabs API Key',
-                    hintStyle: TextStyle(fontSize: 14, color: Colors.grey[400]),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                  ),
+                const SizedBox(height: 16),
+                // Provider selector
+                Row(
+                  children: [
+                    _ttsProviderChip('ElevenLabs', 'elevenlabs'),
+                    const SizedBox(width: 8),
+                    _ttsProviderChip('MiniMax', 'minimax'),
+                  ],
                 ),
+                const SizedBox(height: 16),
+                if (_ttsProvider == 'elevenlabs') ...[
+                  TextField(
+                    controller: _elevenLabsApiKeyController,
+                    obscureText: true,
+                    onChanged: (_) => _saveElevenLabsApiKey(),
+                    decoration: InputDecoration(
+                      hintText: 'ElevenLabs API Key',
+                      hintStyle:
+                          TextStyle(fontSize: 14, color: Colors.grey[400]),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ] else ...[
+                  TextField(
+                    controller: _miniMaxApiKeyController,
+                    obscureText: true,
+                    onChanged: (_) => _saveMiniMaxApiKey(),
+                    decoration: InputDecoration(
+                      hintText: 'MiniMax API Key',
+                      hintStyle:
+                          TextStyle(fontSize: 14, color: Colors.grey[400]),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _miniMaxGroupIdController,
+                    onChanged: (_) => _saveMiniMaxGroupId(),
+                    decoration: InputDecoration(
+                      hintText: 'MiniMax Group ID',
+                      hintStyle:
+                          TextStyle(fontSize: 14, color: Colors.grey[400]),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -829,6 +1009,125 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          // Shopping assistant config
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ShoppingConfigPage(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.shopping_bag_outlined,
+                        color: AppColors.primary, size: 22),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '购物助手',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            '让 AI 伴侣自主在淘宝选购商品，配置预算与安全边界',
+                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Toy control config
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ToyConfigPage(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.vibration, color: AppColors.primary, size: 22),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '玩具控制',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            '接入 Lovense，让 AI 角色在对话中直接控制玩具',
+                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           // Agent Check-in Toggle
           Container(
             padding: const EdgeInsets.all(20),
@@ -967,12 +1266,15 @@ class _SettingsPageState extends State<SettingsPage> {
             color: Colors.transparent,
             child: InkWell(
               onTap: () async {
-                await CompanionForegroundService.triggerCheckin();
+                // New path: ensure the persistent foreground service is running,
+                // then force the next tick (≤60s) to be due so a checkin fires.
+                await CompanionForegroundService.startPersistent();
+                await CheckinService.instance.forceCheckinDueNow();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                          '✅ Foreground Service 已启动，AI 立即开始思考\n顶部会有"正在思考"小图标，决策完会自动消失'),
+                          '✅ 已触发前台服务 checkin\n现在锁屏/切后台，约 60 秒内 AI 会在后台思考并推送'),
                       duration: Duration(seconds: 4),
                     ),
                   );
@@ -1011,6 +1313,110 @@ class _SettingsPageState extends State<SettingsPage> {
                           SizedBox(height: 2),
                           Text(
                             '1分钟后在独立后台 isolate 运行，AI 自主决定是否推送',
+                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Debug: test AI-initiated voice call
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _triggerTestCall,
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.phone_in_talk_outlined,
+                        color: Colors.teal, size: 22),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '测试 AI 主动来电',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            '角色立刻生成开场白并发来电通知，点通知即可接听',
+                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Debug: test system-level (CallKit) incoming call — verification spike
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _triggerSystemCallTest,
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.ring_volume,
+                        color: Colors.indigo, size: 22),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '测试系统级来电 (B)',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            '直接弹系统来电界面，可锁屏验证全屏+持续响铃',
                             style: TextStyle(fontSize: 13, color: Colors.grey),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -1188,6 +1594,32 @@ class _SettingsPageState extends State<SettingsPage> {
         );
       }
     }
+  }
+
+  Widget _ttsProviderChip(String label, String provider) {
+    final isSelected = _ttsProvider == provider;
+    return GestureDetector(
+      onTap: () => _setTtsProvider(provider),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : Colors.grey[300]!,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isSelected ? Colors.white : Colors.grey[600],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildLangChip(String label, String langCode) {

@@ -78,6 +78,11 @@ abstract class AgentActivityService {
     return _instance!;
   }
 
+  /// Whether the service has been initialized (via MemexRouter on the UI
+  /// isolate). Background isolates (alarm/foreground-service checkin) never
+  /// initialize it, so callers must guard against pushing activity there.
+  static bool get isInitialized => _instance != null;
+
   static void setInstance(AgentActivityService service) {
     _instance = service;
   }

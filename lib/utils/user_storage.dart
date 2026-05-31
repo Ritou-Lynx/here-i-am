@@ -66,6 +66,8 @@ class UserStorage {
   static const String _keyUserId = 'user_id';
   static const String _keyPhotoSuggestionCache = 'photo_suggestion_cache';
   static const String _keyUserAvatar = 'user_avatar';
+  static const String _keyLastActiveCompanionPrefix =
+      'last_active_companion_character_';
   static const String _keyLocationContextConfig = 'location_context_config';
   static const String _keyGeocodingCache = 'geocoding_cache';
 
@@ -348,6 +350,9 @@ class UserStorage {
   static const String _keyElevenLabsApiKey = 'elevenlabs_api_key';
   static const String _keyCompanionAutoReadEnabled =
       'companion_auto_read_enabled';
+  static const String _keyTtsProvider = 'tts_provider';
+  static const String _keyMiniMaxApiKey = 'minimax_api_key';
+  static const String _keyMiniMaxGroupId = 'minimax_group_id';
 
   /// Get specified agent config
   static Future<AgentConfig> getAgentConfig(String agentId) async {
@@ -437,6 +442,60 @@ class UserStorage {
     }
   }
 
+  static Future<String> getTtsProvider() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyTtsProvider) ?? 'elevenlabs';
+    } catch (e) {
+      return 'elevenlabs';
+    }
+  }
+
+  static Future<void> setTtsProvider(String provider) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyTtsProvider, provider);
+    } catch (e) {
+      throw Exception('Failed to save TTS provider: $e');
+    }
+  }
+
+  static Future<String?> getMiniMaxApiKey() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyMiniMaxApiKey);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<void> setMiniMaxApiKey(String apiKey) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyMiniMaxApiKey, apiKey);
+    } catch (e) {
+      throw Exception('Failed to save MiniMax API key: $e');
+    }
+  }
+
+  static Future<String?> getMiniMaxGroupId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyMiniMaxGroupId);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<void> setMiniMaxGroupId(String groupId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyMiniMaxGroupId, groupId);
+    } catch (e) {
+      throw Exception('Failed to save MiniMax Group ID: $e');
+    }
+  }
+
   static Future<bool> getCompanionAutoReadEnabled() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -452,6 +511,35 @@ class UserStorage {
       await prefs.setBool(_keyCompanionAutoReadEnabled, enabled);
     } catch (e) {
       throw Exception('Failed to save companion auto read preference: $e');
+    }
+  }
+
+  /// Returns the character that should be shown when the companion-first home
+  /// screen opens. This is deliberately separate from the legacy primary
+  /// companion flag, which is only used for proactive notifications.
+  static Future<String?> getLastActiveCompanionCharacterId(
+      String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('$_keyLastActiveCompanionPrefix$userId');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Persists the most recently opened character conversation for [userId].
+  static Future<void> setLastActiveCompanionCharacterId(
+    String userId,
+    String characterId,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        '$_keyLastActiveCompanionPrefix$userId',
+        characterId,
+      );
+    } catch (e) {
+      throw Exception('Failed to save last active companion: $e');
     }
   }
 

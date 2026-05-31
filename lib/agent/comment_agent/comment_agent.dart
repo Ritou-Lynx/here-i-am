@@ -29,6 +29,7 @@ class CommentAgent {
     String? characterId,
     required String rawInputContent,
     String? forcedReplyToId,
+    void Function()? onCommentSaved,
     bool withMemoryManagement = false,
   }) async {
     final fileService = FileSystemService.instance;
@@ -128,6 +129,7 @@ class CommentAgent {
       userProfile: userProfile,
       characterMemories: characterMemories,
       forcedReplyToId: forcedReplyToId,
+      onCommentSaved: onCommentSaved,
       forceActivate: true,
     );
     final skills = [skill];
@@ -168,6 +170,7 @@ class CommentAgent {
     String? initialInsight,
     String existingCommentsContext = '',
     String? forcedReplyToId,
+    void Function()? onCommentSaved,
     DateTime? currentTime,
     DateTime? entryTime,
     String? locationContextReminder,
@@ -182,6 +185,7 @@ class CommentAgent {
       characterId: characterId,
       rawInputContent: rawInputContent,
       forcedReplyToId: forcedReplyToId,
+      onCommentSaved: onCommentSaved,
       withMemoryManagement: withMemoryManagement,
     );
     final state = agent.state;

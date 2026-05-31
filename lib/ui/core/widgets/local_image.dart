@@ -98,6 +98,11 @@ class LocalImage extends StatefulWidget {
     this.colorBlendMode,
   });
 
+  /// Public wrapper around [_parseLocalFilePath] for callers that need the
+  /// absolute on-disk path of a local-server image URL (e.g. CallKit avatar,
+  /// which loads via Glide and cannot use the tokenized 127.0.0.1 URL).
+  static String? resolveLocalFilePath(String url) => _parseLocalFilePath(url);
+
   /// Parse file path from local server URL
   /// URL format: http://127.0.0.1:port/assets/{userId}/{filename}?token=xxx
   /// file path format: {dataRoot}/workspace/_{userId}/Facts/assets/{filename}

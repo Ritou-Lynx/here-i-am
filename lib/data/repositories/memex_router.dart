@@ -1100,6 +1100,16 @@ class MemexRouter {
     });
   }
 
+  Future<Result<bool>> setCharacterPrimary(String characterId) async {
+    return runResult(() async {
+      await _ensureInitialized();
+      _logger.info(
+        'LocalMode: setCharacterPrimary called: characterId=$characterId',
+      );
+      return await setCharacterPrimaryEndpoint(characterId);
+    });
+  }
+
   Stream<ChatEvent> sendMessage(
     String message, {
     String? sessionId,

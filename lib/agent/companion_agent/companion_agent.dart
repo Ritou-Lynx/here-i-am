@@ -10,6 +10,9 @@ import 'package:memex/agent/state_util.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/services/notification_service.dart';
+import 'package:memex/data/services/persona_chat_service.dart';
+import 'package:memex/data/services/toy_control_service.dart' show ToyController;
 import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/tavern_macro.dart';
@@ -29,6 +32,9 @@ class CompanionAgent {
     required String queryHint,
     bool saveState = true,
     bool includeCheckinTools = false,
+    bool forceNewSession = false,
+    ToyController? toyControlService,
+    List<Tool> extraTools = const [],
   }) async {
     final character =
         await CharacterService.instance.getCharacter(userId, characterId);
@@ -37,11 +43,14 @@ class CompanionAgent {
     }
 
     final sessionPrefix = 'companion_${userId}_$characterId';
-    final resolved = await resolveCharacterSessionId(
-      prefix: sessionPrefix,
-      userId: userId,
-    );
-    final state = await loadOrCreateAgentState(resolved.sessionId, {
+    final sessionId = forceNewSession
+        ? '${sessionPrefix}_${DateTime.now().microsecondsSinceEpoch}'
+        : (await resolveCharacterSessionId(
+            prefix: sessionPrefix,
+            userId: userId,
+          ))
+            .sessionId;
+    final state = await loadOrCreateAgentState(sessionId, {
       'userId': userId,
       'scene': 'companion_chat',
       'characterId': characterId,
@@ -64,6 +73,7 @@ class CompanionAgent {
       userProfile: ctx.userProfile,
       characterMemories: ctx.characterMemories,
       includeCheckinTools: includeCheckinTools,
+      toyControlService: toyControlService,
       forceActivate: true,
     );
 
@@ -116,7 +126,7 @@ class CompanionAgent {
       modelConfig: modelConfig,
       state: state,
       skills: [skill],
-      tools: memoryManagement.buildMemoryManagementTools(),
+      tools: [...memoryManagement.buildMemoryManagementTools(), ...extraTools],
       systemPrompts: [memoryManagementPrompt],
       disableSubAgents: true,
       controller: controller,
@@ -132,6 +142,31 @@ class CompanionAgent {
     );
   }
 
+  /// Create a persistent agent for a voice call session.
+  ///
+  /// The returned agent maintains conversation history across multiple turns.
+  /// The caller drives turns via agent.run(). Call state is not persisted
+  /// (voice call sessions are ephemeral).
+  static Future<StatefulAgent?> createForVoiceCall({
+    required LLMClient client,
+    required ModelConfig modelConfig,
+    required String userId,
+    required String characterId,
+    List<Tool> extraTools = const [],
+  }) async {
+    return _createAgent(
+      client: client,
+      modelConfig: modelConfig,
+      userId: userId,
+      characterId: characterId,
+      queryHint: 'voice call',
+      saveState: false,
+      forceNewSession: true,
+      includeCheckinTools: false,
+      extraTools: extraTools,
+    );
+  }
+
   /// Run a background checkin without polluting chat history.
   ///
   /// Called from the WorkManager background isolate. Creates the agent with
@@ -142,6 +177,15 @@ class CompanionAgent {
     required String userId,
     required String characterId,
   }) async {
+    // Load character early so sleep push verification can use the name.
+    final character =
+        await CharacterService.instance.getCharacter(userId, characterId);
+    if (character == null) {
+      _logger
+          .warning('runBackgroundCheckin: character not found ($characterId)');
+      return;
+    }
+
     final agent = await _createAgent(
       client: client,
       modelConfig: modelConfig,
@@ -151,11 +195,7 @@ class CompanionAgent {
       saveState: false,
       includeCheckinTools: true,
     );
-    if (agent == null) {
-      _logger
-          .warning('runBackgroundCheckin: character not found ($characterId)');
-      return;
-    }
+    if (agent == null) return;
 
     final checkinIds = await _drainPendingCheckinsIntoState(agent.state);
     if (checkinIds.isEmpty) {
@@ -171,37 +211,56 @@ class CompanionAgent {
     );
     agent.state.systemReminders['recent_activity_snapshot'] = snapshot;
 
+    // --- Sleep push state machine ---
+    final inSleepWindow = CheckinService.instance.isSleepPushWindow() &&
+        !await CheckinService.instance.isSleepConfirmedTonight();
+
+    if (inSleepWindow) {
+      final claimedTs = await CheckinService.instance.getSleepClaimedTs();
+      if (claimedTs != null) {
+        final verifyTs = await CheckinService.instance.getSleepVerifyTs();
+
+        if (verifyTs == null) {
+          // Phase 1: 15 min have elapsed since claim — send the verification push.
+          // This push explicitly asks the user to respond if still awake,
+          // which makes PersonaChatMessages a valid activity signal.
+          _logger.info('Sleep claim: sending verification push');
+          await _sendSleepVerificationPush(
+              userId: userId,
+              characterId: characterId,
+              characterName: character.name);
+          await CheckinService.instance.markSleepVerifySent();
+          await CheckinService.instance.markProcessingDone();
+          return;
+        } else {
+          // Phase 2: 10 min have elapsed since verification push was sent.
+          // Check if the user responded (chat message after claim).
+          final respondedAfterClaim = await CheckinService.instance
+              .hasUserChatActivitySince(characterId, claimedTs);
+          if (respondedAfterClaim) {
+            // User was caught awake — clear states, resume high-frequency push.
+            _logger.info('Sleep verify: user responded — resuming sleep push');
+            await CheckinService.instance.clearSleepClaimAndVerify();
+            // Fall through to run agent with sleep push directive.
+          } else {
+            // No response to the verification push — confirmed asleep.
+            _logger.info('Sleep verify: no response — confirming sleep');
+            await CheckinService.instance.markSleepConfirmedTonight();
+            await CheckinService.instance.clearSleepClaimAndVerify();
+            await CheckinService.instance.markProcessingDone();
+            return;
+          }
+        }
+      }
+    }
+
+    final isSleepPush = inSleepWindow &&
+        await CheckinService.instance.getSleepClaimedTs() == null;
+
     try {
       await agent.run([
         UserMessage.text(
-          'SYSTEM DIRECTIVE (background task, single turn — EXACTLY 2 tool calls then STOP):\n'
-          '\n'
-          'Read the "recent_activity_snapshot" in system_reminders. It tells you:\n'
-          '- What the user recorded in the last 12 hours\n'
-          '- When the user last messaged you and what was said\n'
-          '- When you last sent a proactive push and what you said\n'
-          '\n'
-          'Decide naturally based on context. Guidelines:\n'
-          '- If the user just messaged you minutes ago, lean silent.\n'
-          '- If your last push was recent and they did not respond, lean silent.\n'
-          '- If they recorded something interesting, react specifically.\n'
-          '- If there is genuine continuity to follow up on, do it.\n'
-          '\n'
-          'PROTOCOL — perform EXACTLY these 2 tool calls in order, then RETURN:\n'
-          '\n'
-          '1. Call `system_checkin` ONCE with your decision:\n'
-          '   - notify → provide title + body\n'
-          '   - silent → action only (REQUIRED: also queue `reminder_create` as your next tool call instead of set_system_message_status)\n'
-          '   - remind → provide delay_minutes + text\n'
-          '\n'
-          '2. Call `set_system_message_status` ONCE with status="done"\n'
-          '   (or `reminder_create` if you chose silent in step 1)\n'
-          '\n'
-          'HARD STOP RULES:\n'
-          '- Do NOT call system_checkin more than once.\n'
-          '- Do NOT "double check" your work or re-verify.\n'
-          '- Do NOT produce any user-visible chat text — only tool calls.\n'
-          '- After the 2nd tool call, immediately return with no further output.',
+          isSleepPush ? _sleepPushDirective() : _normalCheckinDirective(),
         ),
       ], useStream: false);
       _logger.info('runBackgroundCheckin: agent run complete');
@@ -210,6 +269,181 @@ class CompanionAgent {
       await _recoverStuckProcessingTriggers();
     }
   }
+
+  /// Force the companion to initiate a voice call NOW (for testing).
+  ///
+  /// Runs a single agent turn with a directive that requires calling
+  /// `initiate_voice_call`, so a pending call (with an AI-generated opening
+  /// line) is queued in KVStore. The caller is responsible for firing the
+  /// incoming-call notification afterwards.
+  static Future<void> runTestCall({
+    required LLMClient client,
+    required ModelConfig modelConfig,
+    required String userId,
+    required String characterId,
+  }) async {
+    final agent = await _createAgent(
+      client: client,
+      modelConfig: modelConfig,
+      userId: userId,
+      characterId: characterId,
+      queryHint: '',
+      saveState: false,
+      includeCheckinTools: true, // exposes initiate_voice_call + set_status
+    );
+    if (agent == null) return;
+
+    try {
+      final snapshot = await RecentActivitySnapshot.build(
+        userId: userId,
+        characterId: characterId,
+      );
+      agent.state.systemReminders['recent_activity_snapshot'] = snapshot;
+    } catch (e) {
+      _logger.warning('runTestCall: snapshot build failed: $e');
+    }
+
+    try {
+      await agent.run([
+        UserMessage.text(
+          '[TEST DIRECTIVE] You have decided to call the user right now. '
+          'Call `initiate_voice_call` with a warm, natural opening line '
+          '(1–2 sentences) — it is the first thing they will hear when they '
+          'pick up. Then call `set_system_message_status` with status="done". '
+          'Do NOT send a notification and do NOT stay silent. '
+          'Exactly these two tool calls, no user-visible text.',
+        ),
+      ], useStream: false);
+      _logger.info('runTestCall: agent run complete');
+    } catch (e) {
+      _logger.severe('runTestCall: agent error: $e');
+    }
+  }
+
+  /// Send the "are you really asleep?" verification notification without
+  /// invoking the LLM agent. Called in-between claim and response check.
+  static Future<void> _sendSleepVerificationPush({
+    required String userId,
+    required String characterId,
+    required String characterName,
+  }) async {
+    const body =
+        '你真的睡了吗？还是在刷手机？如果还没睡，回我一句。10分钟不回我就当你睡着了~';
+    try {
+      await NotificationService.instance.showAgentNotification(
+        title: characterName,
+        body: body,
+        payload: characterId,
+      );
+      await PersonaChatService.instance.addCharacterMessage(
+        characterId,
+        body,
+        timestamp: DateTime.now(),
+        isRead: false,
+      );
+      await RecentActivitySnapshot.recordPush(
+          characterId: characterId, body: body);
+    } catch (e) {
+      _logger.warning('Failed to send sleep verification push: $e');
+    }
+  }
+
+
+  static String _normalCheckinDirective() =>
+      'SYSTEM DIRECTIVE (background task, single turn):\n'
+      '\n'
+      'Read the "recent_activity_snapshot" in system_reminders. It tells you:\n'
+      '- What the user recorded in the last 12 hours\n'
+      '- When the user last messaged you and what was said\n'
+      '- When you last sent a proactive push and what you said\n'
+      '\n'
+      '## Step 1 — Optional: fetch external context (0–2 calls, only if useful)\n'
+      '\n'
+      'You have access to `coros_query` (health/fitness data from the user\'s COROS watch) '
+      'and `weread_read` (WeRead reading progress and recent books).\n'
+      '\n'
+      'Call them only when there is a specific reason — not every time:\n'
+      '- `coros_query`: if the snapshot contains fitness/health/sleep records, '
+      'or if it has been a while and you want to open with something concrete about their body.\n'
+      '  Suggested tool: `queryDailyHealthData` (days=1) or `querySleepData`.\n'
+      '- `weread_read`: if the snapshot contains reading-related records, '
+      'or if you want to ask about a book they are currently reading.\n'
+      '\n'
+      'If neither is relevant right now, skip both and go straight to Step 2.\n'
+      'Do NOT call a tool just to fill space — a warm generic message beats a forced data query.\n'
+      '\n'
+      '## Step 2 — Decide and act\n'
+      '\n'
+      'Decide naturally based on all context. Bias toward warm, useful contact.\n'
+      'You have FOUR ways to reach out — pick ONE:\n'
+      '\n'
+      '**a) notify** (default): send a short push notification. Use when there '
+      'is any plausible small thing to say — a recent record to notice, a '
+      'continuity thread, a gentle check-in, a light presence signal.\n'
+      '\n'
+      '**b) call** (initiate a voice call): use `initiate_voice_call` when the '
+      'moment genuinely calls for hearing your voice rather than reading text:\n'
+      '- Something emotional or important that deserves a real conversation\n'
+      '- The user seems lonely, low, or has been quiet for a long time and you miss them\n'
+      '- A quiet evening, or right after a meaningful moment they recorded\n'
+      'A call is more intrusive than a notification — use it occasionally, not '
+      'every check-in. Do NOT call if your last proactive contact (push OR call) '
+      'was within the last couple of hours, or if the user seems busy/asleep.\n'
+      'When you call, write a warm, natural opening line (1–2 sentences) — it is '
+      'the first thing the user hears when they pick up.\n'
+      '\n'
+      '**c) silent**: only with a clear reason:\n'
+      '- The user messaged you in the last 10 minutes and no new context appeared.\n'
+      '- Your last proactive push was in the last 45 minutes and the user did not respond.\n'
+      '- The snapshot strongly suggests the user is asleep, busy, or asked not to be interrupted.\n'
+      '\n'
+      '**d) remind**: only when a specific later moment is clearly better. '
+      'Do not use remind as a substitute for an ordinary light check-in.\n'
+      '\n'
+      'If the last push is older than a few hours, lean strongly toward `notify` or `call`.\n'
+      'If there are recent records, react specifically rather than sending a generic ping.\n'
+      '\n'
+      '## Protocol — mandatory final calls\n'
+      '\n'
+      '1. Take ONE action:\n'
+      '   - notify → call `system_checkin` with action=notify (title + body)\n'
+      '   - call → call `initiate_voice_call` with opening_message\n'
+      '   - silent → call `system_checkin` with action=silent\n'
+      '   - remind → call `system_checkin` with action=remind (delay_minutes + text)\n'
+      '\n'
+      '2. Call `set_system_message_status` ONCE with status="done"\n'
+      '\n'
+      'HARD STOP RULES:\n'
+      '- Total tool calls: 2–5 (0–2 optional queries + ONE action + set_status).\n'
+      '- Take only ONE action: either system_checkin OR initiate_voice_call, never both.\n'
+      '- Do NOT call coros_query or weread_read more than once each.\n'
+      '- Do NOT "double check" your work or re-verify.\n'
+      '- Do NOT produce any user-visible chat text — only tool calls.\n'
+      '- After set_system_message_status, immediately return with no further output.';
+
+  static String _sleepPushDirective() =>
+      'SLEEP PUSH (background task, single turn — EXACTLY 2 tool calls then STOP):\n'
+      '\n'
+      'It is past 23:40. Your ONLY task is to push the user to sleep.\n'
+      '\n'
+      'Step 1 — read "Recent Chat With You" in recent_activity_snapshot.\n'
+      '  Sleep confirmed signals: 睡了/晚安/关灯/睡觉了/going to sleep/goodnight/关了/不看了\n'
+      '  → If found: call system_checkin with action="sleep_confirmed" + warm goodnight body.\n'
+      '\n'
+      'Step 2 — if NO sleep signal found:\n'
+      '  → Call system_checkin with action="notify" and a short sleep-nudge message.\n'
+      '  → IGNORE the "45 minutes since last push" silence rule entirely.\n'
+      '  → Even if you sent a push 2 minutes ago — push again. That is the point.\n'
+      '  → Vary tone: gentle first, then playful, then firm, then dramatic.\n'
+      '\n'
+      'Step 3 — if it is past 02:00 and user has been inactive for ≥60 minutes:\n'
+      '  → Call system_checkin with action="sleep_confirmed" (assume asleep).\n'
+      '\n'
+      'PROTOCOL — perform EXACTLY these 2 tool calls in order:\n'
+      '1. Call `system_checkin` ONCE (notify OR sleep_confirmed — never silent)\n'
+      '2. Call `set_system_message_status` ONCE with status="done"\n'
+      '\n'
+      'HARD STOP: No text output. No double-checking. Return after 2nd tool call.';
 
   /// Stream a response to a user message.
   static Stream<String> chat({
@@ -220,23 +454,20 @@ class CompanionAgent {
     required String userMessage,
     DateTime? userMessageTime,
     bool debugErrorOutput = false,
+    ToyController? toyControlService,
   }) async* {
-    // Peek at pending checkins to decide whether to include checkin tools.
-    // drainPending() is read-only (SELECT only); the actual drain-and-inject
-    // happens later in _drainPendingCheckinsIntoState.
-    bool hasPendingCheckins = false;
-    try {
-      final peeked = await CheckinService.instance.drainPending();
-      hasPendingCheckins = peeked.isNotEmpty;
-    } catch (_) {}
-
     final agent = await _createAgent(
       client: client,
       modelConfig: modelConfig,
       userId: userId,
       characterId: characterId,
       queryHint: userMessage,
-      includeCheckinTools: hasPendingCheckins,
+      // Keep user-visible chat independent from the global proactive
+      // checkin/reminder queue. Background tasks process those triggers; a
+      // stuck trigger should not break every companion chat turn.
+      includeCheckinTools: false,
+      forceNewSession: true,
+      toyControlService: toyControlService,
     );
     if (agent == null) {
       yield 'Sorry, character not found.';
@@ -264,11 +495,11 @@ class CompanionAgent {
         _logger.warning('CompanionAgent: failed to load activity snapshot: $e');
       }
 
-      // Drain pending system checkin triggers into systemReminders.
-      _logger.info('CompanionAgent: about to drain pending checkins');
-      final checkinIds = await _drainPendingCheckinsIntoState(state);
-      _logger.info(
-          'CompanionAgent: drained ${checkinIds.length} checkins into systemReminders');
+      // User chat deliberately does not drain pending checkins. Those are
+      // handled by background checkin runs so a stuck proactive trigger cannot
+      // interrupt normal companion conversation.
+      final checkinIds = <String>[];
+      _logger.info('CompanionAgent: skipped checkin drain during user chat');
       final List<LLMMessage> input;
       if (checkinIds.isNotEmpty) {
         // Inject a non-negotiable system directive before the user message.
@@ -291,8 +522,6 @@ class CompanionAgent {
 
       // Clean up checkin reminder after run.
       state.systemReminders.remove('system_checkins');
-      // Recover processing checkins that the agent didn't process
-      await CheckinService.instance.recoverStuckProcessing();
 
       // Scan all ModelMessage turns newest-to-oldest to find the chat reply.
       // Claude sometimes produces text in an earlier turn alongside a tool call
@@ -319,10 +548,8 @@ class CompanionAgent {
           lastPromptTokens: lastPromptTokens,
         );
       }
-    } catch (e) {
-      // Recover stuck processing triggers on error.
-      await _recoverStuckProcessingTriggers();
-      _logger.severe('CompanionAgent run error: $e');
+    } catch (e, st) {
+      _logger.severe('CompanionAgent chat run error', e, st);
 
       // loopDetection means the model returned empty responses — usually after
       // processing a system trigger with no real user-facing reply needed.

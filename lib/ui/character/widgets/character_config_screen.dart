@@ -60,6 +60,23 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
     }
   }
 
+  Future<void> _setPrimaryCharacter(
+      CharacterViewModel vm, CharacterModel character) async {
+    if (character.isPrimaryCompanion) return;
+    try {
+      await vm.setPrimaryCompanion(character);
+      if (mounted) {
+        ToastHelper.showSuccess(
+            context, '已将 ${character.name} 设为主要角色，主动推送将由 TA 发起');
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastHelper.showError(
+            context, UserStorage.l10n.operationFailed(e.toString()));
+      }
+    }
+  }
+
   Future<void> _deleteCharacter(
       CharacterViewModel vm, CharacterModel character) async {
     final confirmed = await showDialog<bool>(
@@ -259,14 +276,39 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          character.name,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                character.name,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (character.isPrimaryCompanion) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  '主要',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Color(0xFFB8860B),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -305,7 +347,25 @@ class _CharacterConfigScreenState extends State<CharacterConfigScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    if (!character.isPrimaryCompanion) ...[
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        onTap: () => _setPrimaryCharacter(vm, character),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          child: Text(
+                            '设为主要角色',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
                     GestureDetector(
                       onTap: () => _deleteCharacter(vm, character),
                       child: Container(
@@ -856,17 +916,17 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
               _buildChatBackgroundPicker(),
               const SizedBox(height: 24),
               // TTS voice ID
-              _buildLabel('ElevenLabs 语音 ID'),
+              _buildLabel('TTS 语音 ID'),
               const SizedBox(height: 4),
               Text(
-                '在 ElevenLabs 创建声音后，将 Voice ID 粘贴到此处',
+                '将所选 TTS 服务的 Voice ID 粘贴到此处（在 Settings → TTS 语音 中设置服务商）',
                 style: TextStyle(fontSize: 12, color: Colors.grey[500]),
               ),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _ttsVoiceIdController,
                 style: const TextStyle(fontSize: 16),
-                decoration: _buildInputDecoration('例如: 21m00Tcm4TlvDq8ikWAM'),
+                decoration: _buildInputDecoration('Voice ID'),
               ),
               const SizedBox(height: 24),
               _buildLabel(UserStorage.l10n.characterPersonaLabel),
@@ -956,12 +1016,40 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
                   .asMap()
                   .entries
                   .map((e) => _buildMemoryEntryTile(e.key, e.value)),
+              // "Set as primary" — only shown for existing, non-primary characters
+              if (widget.character != null &&
+                  !widget.character!.isPrimaryCompanion) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _setAsPrimary,
+                  icon: const Icon(Icons.star_outline, size: 18),
+                  label: const Text('设为主要角色'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(
+                        color: AppColors.primary.withValues(alpha: 0.4)),
+                    minimumSize: const Size(double.infinity, 44),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
               const SizedBox(height: 32),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _setAsPrimary() async {
+    final userId = await UserStorage.getUserId();
+    if (userId == null || widget.character == null || !mounted) return;
+    await CharacterService.instance
+        .setPrimaryCompanion(userId, widget.character!.id);
+    if (!mounted) return;
+    ToastHelper.showSuccess(
+        context, '已将 ${widget.character!.name} 设为主要角色，主动推送将由 TA 发起');
   }
 
   // ---------------------------------------------------------------------------

@@ -253,3 +253,29 @@ Future<bool> setCharacterEnabledEndpoint(
   }
 }
 
+Future<bool> setCharacterPrimaryEndpoint(String characterId) async {
+  _logger.info('setCharacterPrimary called: characterId=$characterId');
+
+  try {
+    final userId = await UserStorage.getUserId();
+    if (userId == null) {
+      throw ApiException('User not logged in, cannot set primary companion');
+    }
+
+    if (characterId.isEmpty) {
+      throw ApiException('Character ID cannot be empty');
+    }
+
+    final success =
+        await _characterService.setPrimaryCompanion(userId, characterId);
+    if (!success) {
+      throw ApiException('Character not found: $characterId');
+    }
+
+    return true;
+  } catch (e) {
+    _logger.severe('Failed to set primary companion $characterId: $e');
+    rethrow;
+  }
+}
+
