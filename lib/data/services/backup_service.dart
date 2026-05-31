@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/data/services/file_system_service.dart';
@@ -15,6 +16,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:synchronized/synchronized.dart';
+import 'package:yaml/yaml.dart';
 
 /// Keys to exclude from backup (Flutter internals, not user data).
 const _excludePrefKeys = <String>{'flutter.'};
@@ -240,6 +242,12 @@ class BackupService {
         if (outputDirectory != null) outputDirectory,
       ],
     );
+    await _makeCharacterMediaPortable(
+      archive: archive,
+      fs: fs,
+      userId: userId,
+      manifestEntries: manifestEntries,
+    );
 
     // 2. Add Drift DB file
     onProgress?.call('Packing database...');
@@ -386,6 +394,7 @@ class BackupService {
         }
         await File(targetPath).writeAsBytes(_archiveFileBytes(file));
       }
+      await normalizeRestoredCharacterMediaPaths(fs, restoredUserId);
 
       // 3. Restore DB
       onProgress?.call('Restoring database...');
@@ -710,7 +719,8 @@ class BackupService {
       }
 
       final relativePath = path.relative(entity.path, from: dirPath);
-      final archivePath = '$archivePrefix/$relativePath';
+      final archivePath =
+          '$archivePrefix/${relativePath.replaceAll('\\', '/')}';
       try {
         final bytes = await entity.readAsBytes();
         _addBytesToArchive(
@@ -737,6 +747,195 @@ class BackupService {
       'size': bytes.length,
       'sha256': sha256.convert(bytes).toString(),
     });
+  }
+
+  /// Include legacy character media referenced by absolute paths and rewrite
+  /// archived character YAML to portable data-root-relative paths.
+  static Future<void> _makeCharacterMediaPortable({
+    required Archive archive,
+    required FileSystemService fs,
+    required String userId,
+    required List<Map<String, dynamic>> manifestEntries,
+  }) async {
+    final workspacePath = fs.getWorkspacePath(userId);
+    final charactersDir = Directory(path.join(workspacePath, 'Characters'));
+    if (!await charactersDir.exists()) return;
+
+    await for (final entity in charactersDir.list()) {
+      if (entity is! File || !entity.path.endsWith('.yaml')) continue;
+
+      final data = await _readYamlMap(entity);
+      if (data == null) continue;
+      var changed = false;
+
+      for (final field in const ['avatar', 'chat_background']) {
+        final rawValue = data[field];
+        if (rawValue is! String ||
+            rawValue.isEmpty ||
+            !path.isAbsolute(rawValue)) {
+          continue;
+        }
+
+        final sourceFile = File(rawValue);
+        if (!await sourceFile.exists()) continue;
+
+        final targetRelativeToWorkspace =
+            _isPathWithin(workspacePath, sourceFile.path)
+                ? path.relative(sourceFile.path, from: workspacePath)
+                : path.join(
+                    '_System',
+                    'media',
+                    'character_media',
+                    _portableCharacterMediaFileName(
+                      characterId: path.basenameWithoutExtension(entity.path),
+                      field: field,
+                      sourcePath: sourceFile.path,
+                    ),
+                  );
+        final archiveMediaPath = _workspaceArchivePath(
+          targetRelativeToWorkspace,
+        );
+
+        if (!_isPathWithin(workspacePath, sourceFile.path)) {
+          _replaceArchiveBytes(
+            archive,
+            archiveMediaPath,
+            await sourceFile.readAsBytes(),
+            manifestEntries: manifestEntries,
+          );
+        }
+
+        data[field] = fs.toRelativePath(
+          path.join(workspacePath, targetRelativeToWorkspace),
+        );
+        changed = true;
+      }
+
+      if (!changed) continue;
+      _replaceArchiveBytes(
+        archive,
+        _workspaceArchivePath(
+          path.relative(entity.path, from: workspacePath),
+        ),
+        utf8.encode(jsonEncode(data)),
+        manifestEntries: manifestEntries,
+      );
+    }
+  }
+
+  /// Rewrite absolute character media paths left by older backups.
+  ///
+  /// New backups are normalized by [_makeCharacterMediaPortable]. This restore
+  /// pass also repairs legacy paths when the referenced file was already inside
+  /// the archived workspace.
+  @visibleForTesting
+  static Future<void> normalizeRestoredCharacterMediaPaths(
+    FileSystemService fs,
+    String userId,
+  ) async {
+    final workspacePath = fs.getWorkspacePath(userId);
+    final charactersDir = Directory(path.join(workspacePath, 'Characters'));
+    if (!await charactersDir.exists()) return;
+
+    await for (final entity in charactersDir.list()) {
+      if (entity is! File || !entity.path.endsWith('.yaml')) continue;
+
+      final data = await _readYamlMap(entity);
+      if (data == null) continue;
+      var changed = false;
+
+      for (final field in const ['avatar', 'chat_background']) {
+        final rawValue = data[field];
+        if (rawValue is! String ||
+            rawValue.isEmpty ||
+            !path.isAbsolute(rawValue)) {
+          continue;
+        }
+
+        final restoredPath = await _findRestoredCharacterMediaPath(
+          fs: fs,
+          userId: userId,
+          legacyAbsolutePath: rawValue,
+        );
+        if (restoredPath == null) continue;
+
+        data[field] = fs.toRelativePath(restoredPath);
+        changed = true;
+      }
+
+      if (changed) {
+        await fs.writeYamlFile(entity.path, data);
+      }
+    }
+  }
+
+  static Future<String?> _findRestoredCharacterMediaPath({
+    required FileSystemService fs,
+    required String userId,
+    required String legacyAbsolutePath,
+  }) async {
+    final directFile = File(legacyAbsolutePath);
+    if (await directFile.exists() &&
+        _isPathWithin(fs.dataRoot, directFile.path)) {
+      return directFile.path;
+    }
+
+    final normalized = path.normalize(legacyAbsolutePath);
+    final workspaceMarker = path.join('workspace', '_$userId') + path.separator;
+    final markerIndex = normalized.indexOf(workspaceMarker);
+    if (markerIndex >= 0) {
+      final relativeToWorkspace =
+          normalized.substring(markerIndex + workspaceMarker.length);
+      final restoredPath =
+          path.join(fs.getWorkspacePath(userId), relativeToWorkspace);
+      if (await File(restoredPath).exists()) return restoredPath;
+    }
+
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> _readYamlMap(File file) async {
+    try {
+      final yaml = loadYaml(await file.readAsString());
+      if (yaml is! Map) return null;
+      return Map<String, dynamic>.from(
+        jsonDecode(jsonEncode(yaml)) as Map,
+      );
+    } catch (e) {
+      _logger.warning('Skipping invalid character config ${file.path}: $e');
+      return null;
+    }
+  }
+
+  static String _portableCharacterMediaFileName({
+    required String characterId,
+    required String field,
+    required String sourcePath,
+  }) {
+    final digest = sha256.convert(utf8.encode(sourcePath)).toString();
+    final extension = path.extension(sourcePath).toLowerCase();
+    return '${characterId}_${field}_${digest.substring(0, 12)}$extension';
+  }
+
+  static String _workspaceArchivePath(String relativeToWorkspace) {
+    final normalized = relativeToWorkspace.replaceAll('\\', '/');
+    return 'workspace/$normalized';
+  }
+
+  static void _replaceArchiveBytes(
+    Archive archive,
+    String archivePath,
+    List<int> bytes, {
+    required List<Map<String, dynamic>> manifestEntries,
+  }) {
+    archive.files.removeWhere((file) => file.name == archivePath);
+    manifestEntries.removeWhere((entry) => entry['path'] == archivePath);
+    _addBytesToArchive(
+      archive,
+      archivePath,
+      bytes,
+      manifestEntries: manifestEntries,
+    );
   }
 
   static void _validateManifest(Archive archive) {

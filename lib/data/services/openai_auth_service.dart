@@ -258,9 +258,6 @@ class OpenAiAuthService {
       // 8. Securely Store Tokens
       _logger.info('--- OpenAI Auth Success Info ---');
       _logger.info('Account ID: $accountId');
-      _logger.info('Access Token: $accessToken');
-      _logger.info('Refresh Token: $refreshToken');
-      _logger.info('ID Token: $idToken');
       _logger.info(
           'Expires At: ${DateTime.fromMillisecondsSinceEpoch(expiresAt)}');
       _logger.info('--------------------------------');

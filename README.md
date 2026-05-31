@@ -1,309 +1,112 @@
-<p align="center">
-    <picture>
-          <img src="brand.png" />
-    </picture>
-</p>
-<p align="center">
-  An open-source, local-first AI journal. Not for writing daily entries — for capturing life in fragments and letting AI organize them.
-</p>
+# Here I am / 故我在
 
-<p align="center">
-  <a href="README.md">English</a> | <a href="README_CN.md">简体中文</a>
-</p>
+[简体中文](README_CN.md)
 
-<p align="center">
-  <a href="https://github.com/memex-lab/memex/releases"><img src="https://img.shields.io/github/v/release/memex-lab/memex?style=flat-square&label=release" alt="Release"></a>
-  <a href="https://discord.gg/TJGpXwn85F"><img src="https://img.shields.io/badge/discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License"></a>
-</p>
+**Here I am** is an early-stage, local-first personal AI companion for iOS and
+Android.
 
-<p align="center">
-  <a href="https://www.memexlab.ai/">Website</a> ·
-  <a href="https://apps.apple.com/app/memexai/id6760325170">App Store</a> ·
-  <a href="https://play.google.com/store/apps/details?id=com.memexlab.memex">Google Play</a>
-</p>
+The long-term idea is simple: a companion should not feel like a chat window
+attached to a database. It should feel like a continuous presence that knows
+your life, remembers carefully, and can eventually move with you across phones,
+cars, homes, and future embodied devices. The mobile app is only its first
+home.
 
-## Portfolio fork notice
+## Status
 
-This repository is a personal iteration fork of the upstream open-source project [memex-lab/memex](https://github.com/memex-lab/memex). The original Memex product, core local-first journal experience, multi-agent card generation, knowledge base, backup system, and app foundations belong to the upstream project and its authors.
+This repository is currently an MVP and an active product exploration. It is
+not a production release.
 
-My work is highlighted separately so reviewers can quickly distinguish attribution:
+The local MVP already contains the first interaction loop. These slices are
+being curated into readable public commits:
 
-- **Original upstream capabilities:** see the main product overview below.
-- **My personal iterations:** see [ROADMAP.md](ROADMAP.md) for the feature map and [DEVLOG.md](DEVLOG.md) for the implementation log.
-- **Current focus areas:** external data ingestion, MCP/COROS integrations, proactive companion check-ins, Android foreground-service delivery, ASR/TTS voice interaction, and companion reliability fixes.
+- The app opens directly into the most recently used character conversation.
+- Every character has equal access to shared system capabilities.
+- Character switching changes the relationship and private memory, not the
+  user's underlying life data.
+- Text, voice, photos, album selection, and camera capture converge in the chat
+  composer.
+- Review, schedule, and personal settings remain available as secondary
+  spaces, rather than dominating the home screen.
+- A separate Android `hereIAmDev` flavor can coexist with Memex during
+  migration.
 
+## Product Direction
 
-## What is Memex?
+The companion-first design separates memory into two layers:
 
-Memex is an open-source, local-first AI journal for iOS and Android. It takes a different approach from traditional journaling apps — instead of asking you to sit down and write polished entries, Memex lets you capture life in fragments (text, photos, voice) and uses a multi-agent AI system to organize them into structured timeline cards, extract knowledge, and surface insights across your records.
+| Layer | Purpose | Shared across characters |
+| --- | --- | --- |
+| Shared life memory | Objective events, plans, schedules, progress, and user facts | Yes |
+| Character-private memory | Relationship history, private conversations, and character-specific emotional context | No |
 
-Under the hood, Memex's multi-agent intelligence is powered by a fully open Custom Agent System — you can use the same engine to orchestrate and run your own agents. If you're curious about building autonomous workflows on your phone, [jump straight to the details](#-custom-agent-system).
+Conversation should remain natural. Background agents can quietly organize
+useful information, while visible cards, charts, and summaries appear mainly
+when the user asks for them. For reversible actions, the preferred interaction
+is a lightweight undo affordance instead of repeated confirmation prompts.
 
-**What "local-first" means here:** Your records, cards, and knowledge all stay on your device. There is no Memex account and no Memex server storing your journal. You bring your own LLM provider (OpenAI, Claude, Gemini, etc.), and your prompts go directly from your phone to that provider — we never see your data.
+The fuller product document lives in
+[docs/companion-first/PRD.md](docs/companion-first/PRD.md).
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/2a1c1c29-9925-4b9d-aea4-863b5666d5c5" width="300" />
-</div>
+## Why Build on Memex?
 
-## Features
+Here I am is a derivative of the open-source
+[memex-lab/memex](https://github.com/memex-lab/memex) project. Memex already
+provides a strong local-first foundation:
 
-### 🎙️ Multi-Modal Recording
-- Capture text, images, and voice in a single input flow
-- Long-press to record audio, release to send
-- Automatic EXIF extraction (timestamp, GPS location) from photos
-- On-device OCR and image labeling via Google ML Kit
+- On-device workspace storage with per-user isolation.
+- Multi-agent event processing and persistent background tasks.
+- Timeline cards, facts, knowledge extraction, schedules, and insights.
+- Configurable LLM providers.
+- Character conversations and long-term memory infrastructure.
+- Multimodal capture, backup, and restore.
 
-### 🤖 AI-Powered Organization
-- Multi-agent architecture: each agent handles a specific domain (recording organization, card generation, insights, comments, memory summarization, media analysis)
-- Automatically generates the most fitting card for each type of record:
-  - Life & productivity (task, routine, event, duration, progress) — record todos, habits, schedules and goals
-  - Knowledge & media (article, snippet, quote, link, conversation) — capture notes, references and dialogues
-  - People & places (person, place) — record contacts and locations with map preview
-  - Data & metrics (metric, rating, transaction, spec sheet) — record measurements, reviews and expenses
-  - Visual (gallery) — preserve moments through photos
-- Auto-tagging, entity extraction, and cross-reference linking
-- Conversational AI assistant for discussing any card or topic
+This project keeps those foundations and changes the center of gravity: the
+primary product is the companion relationship, while records and cards become
+inspectable supporting surfaces.
 
-### 💡 Knowledge & Insights
-- P.A.R.A-based knowledge organization (Projects, Areas, Resources, Archives)
-- Insight cards that surface connections across records:
-  - Charts (trend, bar, radar, bubble, composition, progress ring) — visualize patterns, distributions and goal progress over time
-  - Narrative (highlight, contrast, summary) — surface key conclusions, before/after comparisons, and periodic reviews
-  - Spatial & temporal (map, route, timeline) — reconstruct where and when things happened
-  - Gallery — visual memory from your photos
+## Personal Contribution Areas
 
-### 📝 Pure Text & Data Freedom
-- **Effortless Archiving**: After AI organization, all your records naturally settle into a series of interconnected Markdown files, making one-click diary and document archiving a breeze.
-- **Evolve Alongside AI**: Why Markdown? Because as AI capabilities rapidly advance, only the purest text records can bridge the gap of time and truly keep pace with its evolution. As LLM models strengthen, these simple records will reliably unlock entirely new interactive experiences and profound insights for you in the future.
-- **Absolute Freedom to Leave**: Zero vendor lock-in. If you ever feel our product no longer meets your expectations, you can one-click export all your records as standard Markdown files and migrate seamlessly to any note-taking app at zero cost.
+The current iteration focuses on:
 
-### 🔒 Privacy & Local-First
-- All data stored locally (filesystem + SQLite)
-- App lock with biometric authentication
-- No cloud dependency — your data never leaves your device
+- Companion-first navigation and a chat-native capture flow.
+- Equal system capabilities for every character.
+- Shared life memory versus character-private relationship memory.
+- Lightweight media suggestions, album selection, and camera capture in chat.
+- Inspectable review cards with restrained foreground presentation.
+- Data migration fixes and independent development flavors.
+- Voice interaction, proactive check-ins, external data ingestion, and
+  companion reliability work.
 
-### 📂 Storage & Backup
-- Supports iCloud Drive, Device storage (custom folder) and App storage
-- One-tap full backup / restore
+Implementation notes and decisions are recorded in:
 
-### 🔗 Multi-LLM Provider Support
-
-| Provider | API Type | Notes |
-|----------|----------|-------|
-| Google Gemini | Gemini API | gemini-3.1-pro-preview, gemini-3-flash-preview, etc. |
-| Google Gemini | OAuth (no API key required) | Sign in with Google account. Unofficial — use at your own risk |
-| OpenAI | Chat Completions / Responses API | GPT-5.4, etc. |
-| OpenAI | OAuth (no API key required) | Sign in with OpenAI account. Unofficial — use at your own risk |
-| Anthropic Claude | Claude API | Direct API access |
-| AWS Bedrock | Bedrock Claude | For AWS users |
-| Kimi (Moonshot) | OpenAI-compatible | kimi-k2.5, kimi-k2, etc. |
-| Aliyun (Qwen) | OpenAI-compatible | qwen3.5-plus, qwen-max, etc. |
-| Volcengine (Doubao) | OpenAI-compatible | doubao-seed-1-8, doubao-1.5-pro, etc. |
-| Zhipu GLM | OpenAI-compatible | GLM-4.7, GLM-4-Plus |
-| MiniMax | Anthropic-compatible | MiniMax-M2.5, MiniMax-M1 |
-| Xiaomi MIMO | Anthropic-compatible | MiMo-7B-RL |
-| OpenRouter | OpenAI-compatible | Access multiple providers via one API |
-| Ollama | OpenAI-compatible (local) | Run models locally on your device |
-
-## Install
-- **iOS**: Download on the [App Store](https://apps.apple.com/app/memexai/id6760325170)
-- **iOS (China)**: Download on the [App Store](https://apps.apple.com/cn/app/memexai%E5%A6%99%E8%AE%B0/id6761462644)
-- **Android**: Download on [Google Play](https://play.google.com/store/apps/details?id=com.memexlab.memex)
-- **Early Access (Android APK)**: You can also download the latest APK directly from [GitHub Releases](https://github.com/memex-lab/memex/releases).
-- **Build from Source**: [Compile and install from source](#development).
-
-### Configure LLM
-
-Memex requires an LLM API key to power its AI features. On first launch:
-
-1. Tap the avatar icon → Model Configuration
-2. Select your provider (Gemini / OpenAI / Claude / etc.)
-3. Enter your API key and base URL
-4. Each agent can be configured with a different model independently
-
-### Configure Location Context
-
-Memex can optionally attach your current city, district, and neighborhood context to agent conversations. This uses device GPS only; IP-based location is not used.
-
-1. Open Personal center → Settings → Location.
-2. Turn on "Attach current location to chat".
-3. Choose a reverse geocoding provider:
-   - OpenStreetMap / Nominatim works without an API key.
-   - Amap requires an API key.
-4. To use Amap, create an application in the [Amap Open Platform](https://lbs.amap.com/), enable the Web Service API, copy the key, and paste it into the Amap API Key field.
-5. Choose the context granularity and freshness window.
-
-For local live tests of Amap reverse geocoding, pass the key through an environment variable instead of committing it:
-
-```bash
-AMAP_GEOCODING_TEST_KEY=your_key flutter test test/data/services/geocoding_service_test.dart
-```
-
-## 🧩 Custom Agent System
-
-Memex isn't just a recording app — it's a platform that lets you build your own AI agents on your phone.
-
-Every built-in agent in Memex (knowledge extraction, card generation, insight discovery…) runs on the same custom agent infrastructure, and that infrastructure is fully open to you. That means you can create agents with the same capabilities as the built-in ones.
-
-### What You Can Build
-
-- 🎯 **Create agents freely** — Give it a name, pick a host type (Pure mode), and a new agent is ready to go.
-- ⚡ **Event-driven triggers** — Choose when your agent activates: on user input, after knowledge extraction, on card creation, on insight generation, or any system event.
-- 🧠 **Per-agent LLM configuration** — Each agent can use a different model.
-- 📝 **Custom system prompts** — Shape your agent's personality, expertise, and output format with a custom system prompt.
-- 📂 **Skill** — Memex adopts the open [Agent Skills](https://agentskills.io) standard. Each agent reads its behavior from a `SKILL.md` file — a folder of instructions, scripts, and resources that agents discover and use on demand.
-- 🗂️ **Working directory** — Each agent can be configured with its own workspace. File reads, writes, and listings are scoped to that directory.
-- 🚀 **JavaScript execution** — Skills can run JavaScript code, including `fetch()` for HTTP requests. Call external APIs, transform data, scrape web content — all running locally on your device.
-- 🔗 **Inter-agent dependency chains** — Define execution order with `dependsOn` to build complex workflows. Agent B waits for Agent A to finish before it starts.
-- 🔄 **Sync & async execution modes** — Run agents synchronously (inline, blocking) or asynchronously (queued as background tasks) depending on your workflow needs.
-- 🔁 **Auto-retry with configurable limits** — Async agents automatically retry on failure, with a configurable max retry count.
-
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/66fc612f-dfd9-472c-b447-8eef4bcebfb8" width="300" />
-  <p><em>Agent configuration UI</em></p>
-</div>
-
-### How It Works
-
-```
-System Event (user input, card created, insight generated, ...)
-    ↓
-Event Bus dispatches to subscribed agents
-    ↓
-Agent loads SKILL.md + system prompt
-    ↓
-LLM processes the event with available tools
-    ↓
-Agent executes actions (file I/O, JavaScript, fetch, ...)
-    ↓
-Continues to downstream dependent agents and presents results to the user
-```
-
-Every agent you create is a first-class citizen — it plugs into the same event bus, uses the same tool system, and has the same capabilities as the built-in agents. The only limit is your imagination.
-
-> 💡 **Learn more about the Skill format**: [Agent Skills](https://agentskills.io) is an open standard originally developed by Anthropic for packaging agent capabilities. Visit the site to understand how to write SKILL.md files and design agent behaviors.
-
-## Community
-
-Memex welcomes bug reports, feature ideas, docs improvements, localization, provider adapters, and focused code contributions. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a large PR.
-
-Opening an issue helps us understand demand, but it does not guarantee implementation.
-
-## Roadmap
-
-- [ ] Video and file attachments
-- [ ] Editable Memory — manually curate and refine memory entries
-- [ ] Scheduled insight refresh — periodically re-analyze records for new patterns
-- [ ] Agent Soul — personalize agent behavior and personality
-- [ ] Customization — choose your own knowledge methodology, tagging rules, chat personas, and card styles
-- [ ] Extensible data sources & triggers — freely extend input sources and trigger conditions
-- [ ] Extension Market & Plugin Architecture — a cloud registry for agents, UI card templates, and persona configs with one-tap install and hot-reload
+- [Product document](docs/companion-first/PRD.md)
+- [Development strategy](docs/companion-first/DEVELOPMENT_STRATEGY.md)
+- [Iteration roadmap](ROADMAP.md)
+- [Development log](DEVLOG.md)
 
 ## Development
 
-<details>
-<summary>Build from source</summary>
-
-### Prerequisites
-
-- Flutter SDK ≥ 3.6.0
-- Xcode (for iOS)
-- Android Studio (for Android)
-
-### Setup
-
 ```bash
-git clone https://github.com/memex-lab/memex.git
-cd memex
 flutter pub get
+flutter run --flavor hereIAmDev
 ```
 
-For iOS:
+Build an independent Android development APK:
 
 ```bash
-cd ios && pod install && cd ..
+flutter build apk --flavor hereIAmDev --debug
 ```
 
-### Run
+The `hereIAmDev` package is intentionally isolated from the legacy Memex
+development package so both apps can remain installed during migration checks.
 
-```bash
-flutter run --flavor globalDev
-```
+## Upstream and License
 
-For Android local development, prefer `globalDev` / `cnDev`; they use isolated package IDs and app data. `global` / `cn` are Stable builds, and `globalEarly` / `cnEarly` are Android Early builds.
+Here I am is based on [memex-lab/memex](https://github.com/memex-lab/memex)
+and preserves its Git history for transparent attribution. The original Memex
+foundation belongs to its upstream authors. Product direction and additions in
+this repository are documented separately so reviewers can distinguish the
+work clearly.
 
-</details>
-
-<details>
-<summary>Architecture</summary>
-
-### Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Framework | Flutter (Dart ≥ 3.6) |
-| Platforms | iOS, Android |
-| Database | Drift (SQLite) |
-| State Management | Provider + MVVM |
-| LLM Providers | Gemini, OpenAI, Claude, Bedrock, Kimi, Qwen, Doubao, GLM, MiniMax, MIMO, OpenRouter, Ollama |
-| Agent Framework | dart_agent_core |
-
-### Project Structure
-
-```
-lib/
-├── agent/          # Multi-agent system
-│   ├── pkm_agent/        # Personal knowledge management
-│   ├── card_agent/       # Timeline card generation
-│   ├── insight_agent/    # Cross-record insight discovery
-│   ├── comment_agent/    # AI commentary
-│   ├── memory_agent/     # Memory summarization
-│   ├── persona_agent/    # User profile modeling
-│   ├── super_agent/      # Orchestrator agent
-│   └── skills/           # Composable agent skills
-├── data/           # Repositories & services
-├── db/             # Drift database schema
-├── domain/         # Domain models
-├── l10n/           # i18n (English, Chinese)
-├── llm_client/     # LLM client abstraction layer
-├── ui/             # Presentation layer (MVVM)
-└── utils/          # Shared utilities
-```
-
-### Data Flow
-
-```
-User Input (text/image/voice)
-    ↓
-Input Processing & Asset Analysis (ML Kit)
-    ↓
-PKM Agent → Knowledge extraction & linking
-    ↓
-Card Agent → Structured timeline card
-    ↓
-Insight Agent → Cross-record pattern discovery
-    ↓
-Local Storage (filesystem + SQLite)
-```
-
-</details>
-
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/78f49de7-0f0d-44a8-9710-40bf7da970d1" width="800" />
-  <p><em>Architecture Overview</em></p>
-</div>
-
-## Contributing
-
-Contributions are welcome. Please open an issue first to discuss what you would like to change.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the GPL-3.0 License — see the [LICENSE](LICENSE) file for details.
+This derivative project remains licensed under
+[GNU GPL v3](LICENSE).

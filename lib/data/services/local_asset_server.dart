@@ -75,8 +75,7 @@ class LocalAssetServer {
             'Local asset server started, port: $_serverPort\n'
             'Performance: streaming/compression disabled (local access)',
           );
-          _logger.fine(
-              'Access URL: http://127.0.0.1:$_serverPort, token: $_accessToken');
+          _logger.fine('Access URL ready on localhost');
 
           // starthandlerequest
           server.listen(
@@ -172,9 +171,7 @@ class LocalAssetServer {
       // Security: validate access token (ensure request from our app)
       final requestToken = request.uri.queryParameters['token'];
       if (_accessToken == null || requestToken != _accessToken) {
-        _logger.warning(
-          'Unauthorized: token mismatch or missing (request token: $requestToken)',
-        );
+        _logger.warning('Unauthorized: token mismatch or missing');
         request.response
           ..statusCode = HttpStatus.forbidden
           ..write('Access denied: Invalid or missing token')

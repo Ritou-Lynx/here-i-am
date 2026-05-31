@@ -13,6 +13,7 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:yaml/yaml.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -77,6 +78,110 @@ void main() {
 
     expect(manifestJson['formatVersion'], 1);
     expect(manifestJson['entries'], isNotEmpty);
+  });
+
+  test('createBackup includes legacy absolute character media', () async {
+    final workspace =
+        FileSystemService.instance.getWorkspacePath('backup-service-user');
+    final charactersDir = Directory(p.join(workspace, 'Characters'));
+    await charactersDir.create(recursive: true);
+
+    final legacyAvatar = File(p.join(tempDir.path, 'legacy_avatar.png'));
+    final legacyBackground = File(p.join(tempDir.path, 'legacy_bg.jpg'));
+    await legacyAvatar.writeAsBytes([1, 2, 3]);
+    await legacyBackground.writeAsBytes([4, 5, 6]);
+    await File(p.join(charactersDir.path, '7.yaml')).writeAsString(
+      jsonEncode({
+        'name': 'Legacy companion',
+        'tags': <String>[],
+        'persona': '',
+        'enabled': true,
+        'avatar': legacyAvatar.path,
+        'chat_background': legacyBackground.path,
+      }),
+    );
+
+    final backupPath = await BackupService.createBackup(
+      outputDirectory: p.join(tempDir.path, 'Backups'),
+    );
+    final archive = ZipDecoder().decodeBytes(
+      await File(backupPath).readAsBytes(),
+    );
+    final names = archive.files.map((file) => file.name).toList();
+    final characterFile = archive.files.firstWhere(
+      (file) => file.name == 'workspace/Characters/7.yaml',
+    );
+    final characterData = jsonDecode(utf8.decode(characterFile.content));
+
+    expect(characterData['avatar'], isNot(legacyAvatar.path));
+    expect(characterData['chat_background'], isNot(legacyBackground.path));
+    expect(
+      names.where(
+        (name) => name.startsWith(
+          'workspace/_System/media/character_media/7_avatar_',
+        ),
+      ),
+      hasLength(1),
+    );
+    expect(
+      names.where(
+        (name) => name.startsWith(
+          'workspace/_System/media/character_media/7_chat_background_',
+        ),
+      ),
+      hasLength(1),
+    );
+  });
+
+  test('restore path normalization repairs legacy character media paths',
+      () async {
+    final fs = FileSystemService.instance;
+    const userId = 'backup-service-user';
+    final workspace = fs.getWorkspacePath(userId);
+    final charactersDir = Directory(p.join(workspace, 'Characters'));
+    final mediaDir = Directory(p.join(workspace, '_System', 'media'));
+    await charactersDir.create(recursive: true);
+    await mediaDir.create(recursive: true);
+
+    final avatar = File(p.join(mediaDir.path, 'avatar.png'));
+    final background = File(p.join(mediaDir.path, 'background.jpg'));
+    await avatar.writeAsBytes([1]);
+    await background.writeAsBytes([2]);
+
+    final legacyRoot = p.join(tempDir.path, 'old-package-data');
+    await File(p.join(charactersDir.path, '8.yaml')).writeAsString(
+      jsonEncode({
+        'name': 'Restored companion',
+        'tags': <String>[],
+        'persona': '',
+        'enabled': true,
+        'avatar': p.join(
+          legacyRoot,
+          'workspace',
+          '_$userId',
+          '_System',
+          'media',
+          'avatar.png',
+        ),
+        'chat_background': p.join(
+          legacyRoot,
+          'workspace',
+          '_$userId',
+          '_System',
+          'media',
+          'background.jpg',
+        ),
+      }),
+    );
+
+    await BackupService.normalizeRestoredCharacterMediaPaths(fs, userId);
+
+    final yaml = loadYaml(
+      await File(p.join(charactersDir.path, '8.yaml')).readAsString(),
+    );
+    final data = jsonDecode(jsonEncode(yaml));
+    expect(data['avatar'], fs.toRelativePath(avatar.path));
+    expect(data['chat_background'], fs.toRelativePath(background.path));
   });
 
   test(

@@ -90,6 +90,15 @@ coverage/
 android/key-*.properties
 android/app/*.keystore
 android/app/*.jks
+android/local.properties
+
+# Private credentials and provisioning files
+*.key
+*.pem
+*.p8
+*.p12
+*.pfx
+*.mobileprovision
 
 # Exceptions to above rules.
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
