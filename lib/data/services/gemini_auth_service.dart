@@ -11,10 +11,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'local_server_service.dart';
 import 'package:memex/utils/user_storage.dart';
 
-/// Google OAuth constants (from Gemini CLI)
-const _clientId =
-    'REDACTED_OAUTH_CLIENT_ID';
-const _clientSecret = 'REDACTED';
+/// Google OAuth constants — set via build config or env; these are placeholders.
+/// The real values must be supplied through a .env file or CI secrets.
+const _clientId = String.fromEnvironment('GOOGLE_OAUTH_CLIENT_ID');
+const _clientSecret = String.fromEnvironment('GOOGLE_OAUTH_CLIENT_SECRET');
 const _redirectUri = 'http://localhost:8085/oauth2callback';
 const _scopes = [
   'https://www.googleapis.com/auth/cloud-platform',
