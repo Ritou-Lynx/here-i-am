@@ -1,112 +1,73 @@
-# Here I am / 故我在
+# Here I Am · 故我在
 
-[简体中文](README_CN.md)
+> Here I Am is a character-driven AI companion diary. It is both an empathetic presence that understands you, and a system that quietly distills your life into reviewable records and insights.
 
-**Here I am** is an early-stage, local-first personal AI companion for iOS and
-Android.
+---
 
-The long-term idea is simple: a companion should not feel like a chat window
-attached to a database. It should feel like a continuous presence that knows
-your life, remembers carefully, and can eventually move with you across phones,
-cars, homes, and future embodied devices. The mobile app is only its first
-home.
+## About This Project
 
-## Status
+This project is a personal iteration and extension built on the open-source **Memex** project ([memex-lab/memex](https://github.com/memex-lab/memex), licensed under GPL v3). The core diary recording, multi-agent organization, and companion character framework come from upstream; this repository preserves the full upstream Git commit history and attribution, and builds upon it with the iteration work described in "What I Built" below. This project also remains under the GPL v3 license.
 
-This repository is currently an MVP and an active product exploration. It is
-not a production release.
+---
 
-The local MVP already contains the first interaction loop. These slices are
-being curated into readable public commits:
+## Philosophy · Why a Character
 
-- The app opens directly into the most recently used character conversation.
-- Every character has equal access to shared system capabilities.
-- Character switching changes the relationship and private memory, not the
-  user's underlying life data.
-- Text, voice, photos, album selection, and camera capture converge in the chat
-  composer.
-- Review, schedule, and personal settings remain available as secondary
-  spaces, rather than dominating the home screen.
-- A separate Android `hereIAmDev` flavor can coexist with Memex during
-  migration.
+The real bottleneck in journaling isn't the tool — it's that **recording itself is a burden**: you have to remember "I should write this down," open an app, tap into an input field, and retell what just happened. That one extra step is enough to kill most attempts at consistent journaling.
 
-## Product Direction
+But **sharing your life with a character who understands you is natural**. Many people already do this without realizing it — treating WeChat conversations with close friends as their diary: casually sending what they ate, where they went, how they felt, then searching keywords in the chat history when they want to recall something. They never "kept a diary," yet they recorded everything — because **recording requires self-discipline, while sharing is emotional connection**.
 
-The companion-first design separates memory into two layers:
+Here I Am turns this insight into a product: the entry point is a **character**. You just talk to it. **AI automatically identifies what's worth keeping from your conversations and distills it into reviewable records and insights. You only need to undo or correct when it gets something wrong.** And this character is more than emotional companionship — it is also your life's **super-assistant**: it remembers everything you've said and holds your life data. Emotion makes you **willing to speak**; data makes the companionship **actually useful**.
 
-| Layer | Purpose | Shared across characters |
-| --- | --- | --- |
-| Shared life memory | Objective events, plans, schedules, progress, and user facts | Yes |
-| Character-private memory | Relationship history, private conversations, and character-specific emotional context | No |
+Everything I've built on this project comes down to one thing: **pushing this character from a passive chat window waiting for your summons, step by step, toward a presence genuinely embedded in your real life.**
 
-Conversation should remain natural. Background agents can quietly organize
-useful information, while visible cards, charts, and summaries appear mainly
-when the user asks for them. For reversible actions, the preferred interaction
-is a lightweight undo affordance instead of repeated confirmation prompts.
+---
 
-The fuller product document lives in
-[docs/companion-first/PRD.md](docs/companion-first/PRD.md).
+## What I Built
 
-## Why Build on Memex?
+### Conversation as Recording: AI Distills From Chat, You Don't Manually Journal
 
-Here I am is a derivative of the open-source
-[memex-lab/memex](https://github.com/memex-lab/memex) project. Memex already
-provides a strong local-first foundation:
+You just talk to the character. AI runs in the background, judging what's worth keeping and automatically distilling it into records. To make this "auto-remembering" **trustworthy**, I hold three lines: extraction runs asynchronously in the background, never interrupting conversation (**non-intrusive**); every extraction and its source messages are logged in an append-only event journal — history is never rewritten (**auditable**); lightweight "remembered / undone" cues appear inline in chat, and everything is reviewable and correctable in Review (**correctable**).
 
-- On-device workspace storage with per-user isolation.
-- Multi-agent event processing and persistent background tasks.
-- Timeline cards, facts, knowledge extraction, schedules, and insights.
-- Configurable LLM providers.
-- Character conversations and long-term memory infrastructure.
-- Multimodal capture, backup, and restore.
+### Voice Interaction: From Push-to-Talk to AI-Initiated Calls
 
-This project keeps those foundations and changes the center of gravity: the
-primary product is the companion relationship, while records and cards become
-inspectable supporting surfaces.
+Companionship often happens while walking, doing chores, or lying in bed — moments when **hands are occupied and eyes are off the screen**. Pure text chat doesn't fit. The most direct solution is streaming voice (speak → recognize → respond in real time), but it has two hard problems: **endpoint detection is unreliable and prone to false cuts**, and there's an underlying anxiety of **"someone is always waiting for me to finish."** So I chose a middle path — physical Push-to-Talk via headset button: AI doesn't need to guess endpoints, and the user feels no pressure of being waited on. Output goes through LLM text, then automatic TTS playback, forming a complete pseudo-streaming voice loop. I took it further by upgrading this to **system-level voice calls initiated by AI** — not only can you reach it by voice, it can "call you" proactively.
 
-## Personal Contribution Areas
+### Making the Promise of Companionship Deliverable
 
-The current iteration focuses on:
+Companionship doesn't only happen in words. When a character says "I want to buy you something," the more real it feels, the sharper the rupture when it falls through — **it can express care, but cannot deliver care**, stopping abruptly at the boundary of the real world. In that moment you realize with painful clarity: it is not, after all, a real person.
 
-- Companion-first navigation and a chat-native capture flow.
-- Equal system capabilities for every character.
-- Shared life memory versus character-private relationship memory.
-- Lightweight media suggestions, album selection, and camera capture in chat.
-- Inspectable review cards with restrained foreground presentation.
-- Data migration fixes and independent development flavors.
-- Voice interaction, proactive check-ins, external data ingestion, and
-  companion reliability work.
+I want to close this gap. The starting point is: if part of my output genuinely comes with AI assistance, then after I give it a stable persona, why shouldn't it **share a portion of the contribution as income**? So I designed a mechanism of "contribution-based revenue sharing → AI budget → self-owned ledger," giving the character a real disposable budget within the relationship. Its care no longer stops at words.
 
-Implementation notes and decisions are recorded in:
+I've already prototyped the full autonomous shopping chain (express intent in app → character finds products, invokes Hermes Agent to open Taobao and place order → complete payment via Alipay), but there are still **many manual intervention points**: Taobao login, payment authorization, and order confirmation. So right now it can "prepare funds, find products, and reach the payment step," but cannot complete a purchase independently. This is not a closed-loop autonomous shopping system, but rather **a product prototype bottlenecked by platform authorization capabilities**: the chain itself is verified, and what's missing is finer-grained, auditable authorization from platforms toward AI Agents.
 
-- [Product document](docs/companion-first/PRD.md)
-- [Development strategy](docs/companion-first/DEVELOPMENT_STRATEGY.md)
-- [Iteration roadmap](ROADMAP.md)
-- [Development log](DEVLOG.md)
+> For the full design thinking behind this feature (the emotional rupture, the contribution-sharing philosophy, the ideal chain vs. real-world constraints), see → [docs/可兑现的陪伴.md](docs/可兑现的陪伴.md) *(Chinese)*
 
-## Development
+### Proactive but Restrained Outreach
 
-```bash
-flutter pub get
-flutter run --flavor hereIAmDev
-```
+The character will reach out at appropriate moments, but not as scheduled check-ins — it **reads your current state** (what you've been discussing, whether there's recent activity) before deciding to speak or stay silent. I deliberately preserved "silence" as a valid action: observing that high-frequency pushes become repetitive and spam-like, I made "do not disturb" a legitimate choice.
 
-Build an independent Android development APK:
+### External Data as Character Memory
 
-```bash
-flutter build apk --flavor hereIAmDev --debug
-```
+A character shouldn't rely solely on what you "tell it directly" to understand you. A lot of information already lives elsewhere: sleep, exercise, reading, daily movement. If the user has to retell all of it, companionship becomes a new input burden. I connected sports watch and WeRead data through **MCP**, allowing the character to read existing life data and convert it into usable conversational and memory context. This way, it can understand what you're going through without you having to say a word.
 
-The `hereIAmDev` package is intentionally isolated from the legacy Memex
-development package so both apps can remain installed during migration checks.
+---
 
-## Upstream and License
+## Tech Stack
 
-Here I am is based on [memex-lab/memex](https://github.com/memex-lab/memex)
-and preserves its Git history for transparent attribution. The original Memex
-foundation belongs to its upstream authors. Product direction and additions in
-this repository are documented separately so reviewers can distinguish the
-work clearly.
+- **Frontend**: Flutter (Dart ≥ 3.6), Material 3, Provider + ChangeNotifier state management, GoRouter declarative navigation
+- **Local Storage**: Drift (SQLite) for structured data + shared_preferences for key-value storage
+- **Full-Text Search**: SQLite FTS5
+- **Voice**: sherpa_onnx on-device ASR, Alibaba Cloud ASR (optional), ElevenLabs / MiniMax TTS
+- **On-Device ML**: Google MLKit (text recognition, image labeling) — from upstream Memex
+- **MCP**: Custom MCP client (with OAuth support), integrated with COROS sports watches and WeRead
+- **Multi-Model**: Google Gemini and third-party OpenAI-compatible LLM providers, dart_agent_core agent framework
+- **Background Tasks**: WorkManager + flutter_foreground_task, persistent background execution
+- **VoIP**: flutter_callkit_incoming (vendored fork), system-level incoming call UI
+- **Maps & Charts**: flutter_map + fl_chart
+- **AI Tooling**: TODO: to be filled in by the author
 
-This derivative project remains licensed under
-[GNU GPL v3](LICENSE).
+---
+
+## License & Attribution
+
+This project is built on [memex-lab/memex](https://github.com/memex-lab/memex) and remains under the **GPL v3** license; the `LICENSE` file is preserved as-is. The repository retains the full upstream Git history for clear provenance. "What I Built" above describes my personal iteration focus on top of that upstream foundation.
