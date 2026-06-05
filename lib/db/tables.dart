@@ -155,8 +155,7 @@ class SystemMessageQueue extends Table {
   TextColumn get id => text()();
   TextColumn get triggerType => text()();
   TextColumn get body => text()();
-  TextColumn get status =>
-      text().withDefault(const Constant('pending'))();
+  TextColumn get status => text().withDefault(const Constant('pending'))();
   IntColumn get createdAt => integer()();
   IntColumn get scheduledFor => integer().nullable()();
   IntColumn get processedAt => integer().nullable()();
@@ -179,6 +178,64 @@ class PersonaChatMessages extends Table {
 
   /// Message type: 'chat' (default) or 'action' (narrative/action description).
   TextColumn get messageType => text().withDefault(const Constant('chat'))();
+
+  /// JSON-encoded list of attachment objects, e.g.
+  /// [{"mimeType": "image/webp", "base64": "..."}]
+  /// Null for text-only messages.
+  TextColumn get attachmentsJson => text().nullable()();
+}
+
+/// Per-character extraction cursor for asynchronous conversation capture.
+///
+/// Queued and extracted IDs are separate so a failed background task can be
+/// retried without losing messages that arrived while it was running.
+class ConversationCaptureCursors extends Table {
+  TextColumn get characterId => text()();
+  IntColumn get lastExtractedMessageId =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get lastQueuedMessageId =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {characterId};
+}
+
+/// Append-only operation log extracted from companion conversations.
+///
+/// Undo is represented by an additional `undo` row that points at the original
+/// operation. Existing evidence rows are never rewritten or deleted.
+class SharedLifeEventOperations extends Table {
+  TextColumn get id => text()(); // UUID v4
+  TextColumn get entityId => text()(); // UUID v4
+  TextColumn get operationType => text()();
+  TextColumn get entityType => text()();
+  TextColumn get title => text()();
+  TextColumn get patchJson => text()();
+  TextColumn get sourceMessageIds => text()(); // JSON list<int>
+  TextColumn get sourceCharacterId => text()();
+  TextColumn get captureTaskId => text().nullable()();
+  TextColumn get revertsOperationId => text().nullable()();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Current-state projection rebuilt from [SharedLifeEventOperations].
+class SharedLifeEntities extends Table {
+  TextColumn get id => text()(); // UUID v4
+  TextColumn get entityType => text()();
+  TextColumn get title => text()();
+  TextColumn get stateJson => text()();
+  TextColumn get status => text().withDefault(const Constant('active'))();
+  TextColumn get sourceCharacterId => text()();
+  TextColumn get lastOperationId => text()();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
 }
 
 /// AI Finance Ledger Table
@@ -280,6 +337,7 @@ class VoiceCallSessions extends Table {
   TextColumn get userId => text()();
   IntColumn get startedAt => integer()(); // epoch seconds
   IntColumn get endedAt => integer().nullable()();
+
   /// Key-facts summary written by post-call LLM pass (B plan).
   TextColumn get summary => text().nullable()();
 
@@ -291,6 +349,7 @@ class VoiceCallSessions extends Table {
 class VoiceCallMessages extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get sessionId => text()();
+
   /// 'user' or 'companion'
   TextColumn get role => text()();
   TextColumn get content => text()();

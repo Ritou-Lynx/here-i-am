@@ -11,12 +11,11 @@ import 'package:memex/ui/settings/widgets/model_config_list_page.dart';
 import 'package:memex/ui/settings/widgets/system_authorization_page.dart';
 import 'package:memex/ui/settings/widgets/debug_settings_page.dart';
 import 'package:memex/ui/settings/widgets/settings_page.dart';
-import 'package:memex/ui/settings/widgets/settings_search_screen.dart';
-import 'package:memex/ui/settings/view_models/settings_search_viewmodel.dart';
 import 'package:memex/utils/permission_utils.dart';
 import 'package:memex/ui/core/widgets/avatar_picker.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/data/services/media_service.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 /// Personal center screen
 class PersonalCenterScreen extends StatefulWidget {
@@ -736,278 +735,177 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
 
+  Future<T?> _pushThemed<T>(Widget page) {
+    return Navigator.push<T>(
+      context,
+      MaterialPageRoute(builder: (_) => page),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ScaffoldMessenger(
       key: _scaffoldMessengerKey,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: DraggableScrollableSheet(
-          initialChildSize: 0.9,
-          minChildSize: 0.5,
-          maxChildSize: 0.95,
-          builder: (context, scrollController) {
-            return Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFFF7F8FA),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
+        body: ListView(
+          key: const ValueKey('personal_center_settings_list'),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          children: [
+            _buildProfileTile(),
+            const SizedBox(height: 16),
+            _buildFunctionTab(
+              icon: Icons.security_outlined,
+              title: UserStorage.l10n.systemAuthorization,
+              showBadge: _showAuthBadge,
+              onTap: () {
+                _pushThemed(const SystemAuthorizationPage())
+                    .then((_) => _checkPermissionBadge());
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildFunctionTab(
+              icon: Icons.settings_input_component_outlined,
+              title: UserStorage.l10n.modelConfig,
+              onTap: () => _pushThemed(const ModelConfigListPage()),
+            ),
+            const SizedBox(height: 12),
+            _buildFunctionTab(
+              icon: Icons.people_outline,
+              title: UserStorage.l10n.agentConfig,
+              onTap: () => _pushThemed(const AgentConfigListPage()),
+            ),
+            const SizedBox(height: 12),
+            _buildFunctionTab(
+              icon: Icons.memory,
+              title: UserStorage.l10n.memoryTitle,
+              onTap: () => context.push(AppRoutes.memory),
+            ),
+            const SizedBox(height: 12),
+            _buildFunctionTab(
+              icon: Icons.psychology,
+              title: UserStorage.l10n.aiCharacterConfig,
+              onTap: () => context.push(AppRoutes.characterConfig),
+              isLoading: false,
+            ),
+            const SizedBox(height: 12),
+            _buildFunctionTab(
+              icon: Icons.settings_outlined,
+              title: UserStorage.l10n.settings,
+              onTap: () {
+                _pushThemed(const SettingsPage()).then((_) {
+                  if (mounted) setState(() {});
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildFunctionTab(
+              icon: Icons.bug_report_outlined,
+              title: 'Debugging',
+              onTap: () {
+                _pushThemed(DebugSettingsPage(
+                  onClearToken: () async => _clearToken(),
+                  onClearData: () async => _clearData(),
+                  onReprocessCards: () async => _reprocessCards(),
+                  onReprocessComments: () async => _reprocessComments(),
+                  onReprocessKnowledgeBase: () async =>
+                      _reprocessKnowledgeBase(),
+                  onRebuildSearchIndex: () async =>
+                      _rebuildSearchIndex(),
+                  isClearingData: _isClearingData,
+                  isReprocessingCards: _isReprocessingCards,
+                  isReprocessingComments: _isReprocessingComments,
+                  isReprocessingKnowledgeBase:
+                      _isReprocessingKnowledgeBase,
+                  isRebuildingSearchIndex: _isRebuildingSearchIndex,
+                ));
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileTile() {
+    return GestureDetector(
+      onTap: _changeAvatar,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textTertiary.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Stack(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: CharacterAvatar(
+                    avatar: _userAvatar ?? UserStorage.defaultAvatarSeed,
+                    name: _userId ?? '',
+                    size: 52,
+                  ),
                 ),
-              ),
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => SettingsSearchScreen(
-                                    viewModel: SettingsSearchViewModel(
-                                      router: _memexRouter,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.search,
-                                      color: Color(0xFF94A3B8), size: 16),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    UserStorage.l10n.settingsSearchPlaceholder,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.of(context).pop(),
-                            color: const Color(0xFF64748B),
-                          ),
-                        ],
-                      ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
                     ),
-
-                    const SizedBox(height: 24),
-
-                    // User Profile Section
-                    Column(
-                      children: [
-                        // Avatar (tappable to change)
-                        GestureDetector(
-                          onTap: _changeAvatar,
-                          child: Stack(
-                            children: [
-                              Container(
-                                width: 80,
-                                height: 80,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFEEF2FF),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: CharacterAvatar(
-                                  avatar: _userAvatar ??
-                                      UserStorage.defaultAvatarSeed,
-                                  name: _userId ?? '',
-                                  size: 80,
-                                ),
-                              ),
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: Container(
-                                  width: 26,
-                                  height: 26,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF6366F1),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: const Color(0xFFF7F8FA),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.edit,
-                                    size: 13,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // User Name
-                        Text(
-                          _userId ?? UserStorage.l10n.notSet,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-
-                        const SizedBox(height: 4),
-
-                        // User Email
-                        if (_userEmail != null)
-                          Text(
-                            _userEmail!,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                      ],
+                    child: const Icon(Icons.edit, size: 10, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _userId ?? UserStorage.l10n.notSet,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
                     ),
-
-                    const SizedBox(height: 32),
-
-                    // Functional Tabs
-                    Expanded(
-                      child: ListView(
-                        controller: scrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        children: [
-                          _buildFunctionTab(
-                            icon: Icons.security_outlined,
-                            title: UserStorage.l10n.systemAuthorization,
-                            showBadge: _showAuthBadge,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const SystemAuthorizationPage(),
-                                ),
-                              ).then((_) => _checkPermissionBadge());
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          const SizedBox(height: 12),
-                          _buildFunctionTab(
-                            icon: Icons.settings_input_component_outlined,
-                            title: UserStorage.l10n.modelConfig,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const ModelConfigListPage(),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          _buildFunctionTab(
-                            icon: Icons.people_outline,
-                            title: UserStorage.l10n.agentConfig,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const AgentConfigListPage(),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          _buildFunctionTab(
-                            icon: Icons.memory,
-                            title: UserStorage.l10n.memoryTitle,
-                            onTap: () => context.push(AppRoutes.memory),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildFunctionTab(
-                            icon: Icons.psychology,
-                            title: UserStorage.l10n.aiCharacterConfig,
-                            onTap: () =>
-                                context.push(AppRoutes.characterConfig),
-                            isLoading: false,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildFunctionTab(
-                            icon: Icons.settings_outlined,
-                            title: UserStorage.l10n.settings,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const SettingsPage(),
-                                ),
-                              ).then((_) {
-                                if (mounted) setState(() {});
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          _buildFunctionTab(
-                            icon: Icons.bug_report_outlined,
-                            title: 'Debugging',
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => DebugSettingsPage(
-                                    onClearToken: () async => _clearToken(),
-                                    onClearData: () async => _clearData(),
-                                    onReprocessCards: () async =>
-                                        _reprocessCards(),
-                                    onReprocessComments: () async =>
-                                        _reprocessComments(),
-                                    onReprocessKnowledgeBase: () async =>
-                                        _reprocessKnowledgeBase(),
-                                    onRebuildSearchIndex: () async =>
-                                        _rebuildSearchIndex(),
-                                    isClearingData: _isClearingData,
-                                    isReprocessingCards: _isReprocessingCards,
-                                    isReprocessingComments:
-                                        _isReprocessingComments,
-                                    isReprocessingKnowledgeBase:
-                                        _isReprocessingKnowledgeBase,
-                                    isRebuildingSearchIndex:
-                                        _isRebuildingSearchIndex,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          const SizedBox(height: 24),
-                        ],
+                  ),
+                  if (_userEmail != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      _userEmail!,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textTertiary,
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-            );
-          },
+            ),
+            const Icon(Icons.chevron_right,
+                color: AppColors.textTertiary, size: 20),
+          ],
         ),
       ),
     );
@@ -1030,10 +928,9 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF64748B).withValues(alpha: 0.08),
+                color: AppColors.textTertiary.withValues(alpha: 0.08),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -1044,7 +941,7 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Icon(icon, color: const Color(0xFF6366F1), size: 24),
+                  Icon(icon, color: AppColors.primary, size: 24),
                   if (showBadge)
                     Positioned(
                       right: -2,
@@ -1066,9 +963,7 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
                   title,
                   style: TextStyle(
                     fontSize: 16,
-                    color: isLoading
-                        ? const Color(0xFF94A3B8)
-                        : const Color(0xFF0F172A),
+                    color: isLoading ? AppColors.textTertiary : AppColors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1080,7 +975,7 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               else
-                const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                const Icon(Icons.chevron_right, color: AppColors.textTertiary),
             ],
           ),
         ),

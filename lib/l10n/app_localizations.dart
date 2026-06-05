@@ -2912,6 +2912,12 @@ abstract class AppLocalizations {
   /// **'Zhipu GLM'**
   String get providerZhipu;
 
+  /// No description provided for @providerDeepSeek.
+  ///
+  /// In en, this message translates to:
+  /// **'DeepSeek'**
+  String get providerDeepSeek;
+
   /// No description provided for @providerMinimax.
   ///
   /// In en, this message translates to:
@@ -2983,6 +2989,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Advanced Settings'**
   String get advancedSettings;
+
+  /// No description provided for @testConnectionSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection Successful'**
+  String get testConnectionSuccess;
+
+  /// No description provided for @testConnectionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection Failed'**
+  String get testConnectionFailed;
+
+  /// No description provided for @testTypeText.
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get testTypeText;
+
+  /// No description provided for @testTypeVision.
+  ///
+  /// In en, this message translates to:
+  /// **'Vision'**
+  String get testTypeVision;
+
+  /// No description provided for @testButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Test'**
+  String get testButton;
+
+  /// No description provided for @testing.
+  ///
+  /// In en, this message translates to:
+  /// **'Testing...'**
+  String get testing;
 
   /// No description provided for @proxyUrlOptional.
   ///
@@ -3379,6 +3421,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Restore this backup'**
   String get restoreThisBackup;
+
+  /// No description provided for @deleteThisBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this backup'**
+  String get deleteThisBackup;
+
+  /// No description provided for @confirmDeleteBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete backup?'**
+  String get confirmDeleteBackup;
+
+  /// No description provided for @confirmDeleteBackupMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {fileName}? This removes the stored backup file and cannot be undone.'**
+  String confirmDeleteBackupMessage(Object fileName);
+
+  /// No description provided for @backupDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup deleted: {fileName}'**
+  String backupDeleted(Object fileName);
+
+  /// No description provided for @backupDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete backup: {error}'**
+  String backupDeleteFailed(Object error);
 
   /// No description provided for @creatingSafetySnapshot.
   ///
@@ -5035,6 +5107,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Release notes'**
   String get earlyUpdateReleaseNotes;
+
+  /// No description provided for @companionRemembered.
+  ///
+  /// In en, this message translates to:
+  /// **'Remembered'**
+  String get companionRemembered;
+
+  /// No description provided for @companionSharedLifeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remembered from chat'**
+  String get companionSharedLifeTitle;
+
+  /// No description provided for @undo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get undo;
+
+  /// No description provided for @companionLifeEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Event'**
+  String get companionLifeEvent;
+
+  /// No description provided for @companionLifeTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Task'**
+  String get companionLifeTask;
+
+  /// No description provided for @companionLifePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan'**
+  String get companionLifePlan;
+
+  /// No description provided for @companionLifeSchedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule'**
+  String get companionLifeSchedule;
+
+  /// No description provided for @companionLifeFact.
+  ///
+  /// In en, this message translates to:
+  /// **'Fact'**
+  String get companionLifeFact;
+
+  /// No description provided for @companionLifeActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get companionLifeActive;
+
+  /// No description provided for @companionLifeCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get companionLifeCompleted;
+
+  /// No description provided for @companionLifeCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get companionLifeCancelled;
+
+  /// No description provided for @companionSharedLifeDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Life record'**
+  String get companionSharedLifeDetail;
+
+  /// No description provided for @companionSharedLifeCurrentState.
+  ///
+  /// In en, this message translates to:
+  /// **'Current state'**
+  String get companionSharedLifeCurrentState;
+
+  /// No description provided for @companionSharedLifeRelated.
+  ///
+  /// In en, this message translates to:
+  /// **'Related memories'**
+  String get companionSharedLifeRelated;
+
+  /// No description provided for @companionSharedLifeEvidence.
+  ///
+  /// In en, this message translates to:
+  /// **'Original conversation'**
+  String get companionSharedLifeEvidence;
+
+  /// No description provided for @companionSharedLifeHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Update history'**
+  String get companionSharedLifeHistory;
+
+  /// No description provided for @companionSharedLifeUserMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get companionSharedLifeUserMessage;
+
+  /// No description provided for @companionSharedLifeCharacterMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Companion'**
+  String get companionSharedLifeCharacterMessage;
 }
 
 class _AppLocalizationsDelegate

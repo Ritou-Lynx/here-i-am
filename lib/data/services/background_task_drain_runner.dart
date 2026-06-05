@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:memex/data/services/custom_agent_config_service.dart';
+import 'package:memex/data/services/conversation_capture_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/local_task_registry.dart';
@@ -31,6 +32,7 @@ class BackgroundTaskDrainRunner {
     if (!AppDatabase.isInitialized) {
       await AppDatabase.init(userId);
     }
+    ConversationCaptureService.init(AppDatabase.instance, userId);
 
     registerLocalTaskHandlers();
     await CustomAgentConfigService.instance.registerAll(userId);

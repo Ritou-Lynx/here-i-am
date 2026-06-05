@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/utils/result.dart';
+import 'package:provider/provider.dart';
 
 import 'companion_life_space_screen.dart';
 
@@ -67,8 +69,8 @@ class _CompanionFirstShellState extends State<CompanionFirstShell> {
   void _openLifeSpace() {
     Navigator.push(
       context,
-      MaterialPageRoute<void>(
-        builder: (_) => const CompanionLifeSpaceScreen(),
+      companionLifeSpaceRoute(
+        timelineViewModel: context.read<TimelineViewModel>(),
       ),
     );
   }
@@ -90,6 +92,17 @@ class _CompanionFirstShellState extends State<CompanionFirstShell> {
       onOpenSpaces: _openLifeSpace,
     );
   }
+}
+
+@visibleForTesting
+Route<void> companionLifeSpaceRoute({
+  required TimelineViewModel timelineViewModel,
+}) {
+  return MaterialPageRoute<void>(
+    builder: (_) => CompanionLifeSpaceScreen(
+      timelineViewModel: timelineViewModel,
+    ),
+  );
 }
 
 /// Picks the last active enabled character, falling back to the first enabled

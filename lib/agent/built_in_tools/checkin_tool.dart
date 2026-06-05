@@ -7,6 +7,24 @@ import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/reminder_service.dart';
 
+Future<String> _createReminderWithAlarm({
+  required String text,
+  required DateTime dueAt,
+  String? contextJson,
+  String? characterId,
+}) async {
+  final id = await ReminderService.instance.createReminder(
+    text: text,
+    dueAt: dueAt,
+    contextJson: contextJson,
+  );
+  await CheckinService.instance.scheduleReminderAlarm(
+    reminderId: id,
+    dueAt: dueAt,
+  );
+  return id;
+}
+
 /// Agent tool for processing system checkin triggers.
 ///
 /// Called when the agent receives a `<system-reminder type="checkin">` block.
@@ -142,9 +160,10 @@ Even a simple "thinking of you" style message is better than staying silent.''',
           final dueAt = DateTime.now().add(Duration(minutes: delayMinutes));
           // ignore: avoid_print
           print('[system_checkin] REMIND → in ${delayMinutes}min: "$text"');
-          await ReminderService.instance.createReminder(
+          await _createReminderWithAlarm(
             text: text,
             dueAt: dueAt,
+            characterId: characterId,
           );
           return 'Reminder created: in $delayMinutes min — "$text"';
         case 'sleep_confirmed':
@@ -188,61 +207,100 @@ Even a simple "thinking of you" style message is better than staying silent.''',
 
 /// Agent tool for proactively creating reminders.
 ///
-/// Not a user-facing alarm clock. The agent creates reminders for ITSELF as
-/// breadcrumbs. When the reminder fires, it is injected back as a system trigger.
-Tool buildReminderTool() {
+/// Exact-time wake-up for proactive breadcrumbs and explicit user commitments.
+/// When the reminder fires, it is injected back as a system trigger.
+Tool buildReminderTool({String? characterId, String? characterName}) {
   return Tool(
     name: 'reminder_create',
-    description: '''Create a reminder that you (the agent) will process later.
+    description:
+        '''Create an exact-time reminder that you (the agent) will process later.
 
-This is NOT a user alarm. You create reminders for YOURSELF — breadcrumbs that
-your future self will see as a system trigger when the time comes.
+Use this for proactive breadcrumbs and explicit user commitments. Your future
+self will receive a system trigger when the requested time comes.
 
 Examples:
 - User says "I'm eating lunch now" → remind yourself in 20 min to check in
 - User mentions a meeting at 3pm → remind yourself at 2:55pm to note it
 - You notice a pattern but want to verify with more data → remind yourself
-  to check again after the next insight run''',
+  to check again after the next insight run
+- User says "call me in 30 minutes" -> set action="call" so you call on time
+
+Use delay_minutes for relative requests. Use due_at for an explicit clock time,
+including the local timezone offset when possible.''',
     parameters: {
       'type': 'object',
       'properties': {
         'delay_minutes': {
           'type': 'integer',
-          'description': 'Minutes from now to fire this reminder',
+          'description':
+              'Minutes from now to fire this reminder. Required unless due_at is set.',
         },
         'text': {
           'type': 'string',
           'description': 'Reminder text that your future self will see',
+        },
+        'due_at': {
+          'type': 'string',
+          'description':
+              'Exact ISO 8601 local date-time for explicit clock-time requests, '
+                  'for example 2026-06-02T23:40:00+08:00. Required unless '
+                  'delay_minutes is set.',
+        },
+        'action': {
+          'type': 'string',
+          'enum': ['call'],
+          'description':
+              'Set to "call" when the user explicitly asks for a voice call '
+                  'at the requested time',
         },
         'context': {
           'type': 'object',
           'description': 'Optional related context (e.g. {"fact_id": "..."})',
         },
       },
-      'required': ['delay_minutes', 'text'],
+      'required': ['text'],
     },
     executable: (
-      int delayMinutes,
+      int? delayMinutes,
       String text,
+      String? dueAtIso,
+      String? action,
       Map<String, dynamic>? context,
     ) async {
-      final dueAt = DateTime.now().add(Duration(minutes: delayMinutes));
-      final contextJson = context != null ? jsonEncode(context) : null;
-      final id = await ReminderService.instance.createReminder(
+      final now = DateTime.now();
+      final dueAt = dueAtIso == null
+          ? delayMinutes == null
+              ? throw ArgumentError('delay_minutes or due_at is required')
+              : now.add(Duration(minutes: delayMinutes))
+          : DateTime.tryParse(dueAtIso) ??
+              (throw ArgumentError('Invalid due_at ISO 8601 value: $dueAtIso'));
+      if (!dueAt.isAfter(now)) {
+        throw ArgumentError('Reminder due_at must be in the future: $dueAt');
+      }
+      final isCall = action == 'call';
+      final reminderContext = <String, dynamic>{
+        ...?context,
+        if (isCall) 'action': 'call',
+      };
+      final contextJson =
+          reminderContext.isEmpty ? null : jsonEncode(reminderContext);
+      final id = await _createReminderWithAlarm(
         text: text,
         dueAt: dueAt,
         contextJson: contextJson,
+        characterId: characterId,
       );
       // If user sets a very long reminder during the sleep push window
       // (e.g. "remind me in the morning"), treat as sleep claimed.
       // Inactivity will be verified before the push is truly stopped.
-      if (delayMinutes >= 300 &&
+      if (dueAt.difference(now).inMinutes >= 300 &&
           CheckinService.instance.isSleepPushWindow()) {
         await CheckinService.instance.markSleepClaimed();
         // ignore: avoid_print
-        print('[reminder_create] Long delay during sleep window → sleep claimed for verification');
+        print(
+            '[reminder_create] Long delay during sleep window → sleep claimed for verification');
       }
-      return 'Reminder $id created: in $delayMinutes min — "$text"';
+      return 'Reminder $id created: due at $dueAt — "$text"';
     },
   );
 }

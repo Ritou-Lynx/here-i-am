@@ -3282,6 +3282,12 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant('chat'));
+  static const VerificationMeta _attachmentsJsonMeta =
+      const VerificationMeta('attachmentsJson');
+  @override
+  late final GeneratedColumn<String> attachmentsJson = GeneratedColumn<String>(
+      'attachments_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -3291,7 +3297,8 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
         factId,
         isRead,
         timestamp,
-        messageType
+        messageType,
+        attachmentsJson
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3348,6 +3355,12 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
           messageType.isAcceptableOrUnknown(
               data['message_type']!, _messageTypeMeta));
     }
+    if (data.containsKey('attachments_json')) {
+      context.handle(
+          _attachmentsJsonMeta,
+          attachmentsJson.isAcceptableOrUnknown(
+              data['attachments_json']!, _attachmentsJsonMeta));
+    }
     return context;
   }
 
@@ -3373,6 +3386,8 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
           .read(DriftSqlType.dateTime, data['${effectivePrefix}timestamp'])!,
       messageType: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}message_type'])!,
+      attachmentsJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}attachments_json']),
     );
   }
 
@@ -3394,6 +3409,11 @@ class PersonaChatMessage extends DataClass
 
   /// Message type: 'chat' (default) or 'action' (narrative/action description).
   final String messageType;
+
+  /// JSON-encoded list of attachment objects, e.g.
+  /// [{"mimeType": "image/webp", "base64": "..."}]
+  /// Null for text-only messages.
+  final String? attachmentsJson;
   const PersonaChatMessage(
       {required this.id,
       required this.characterId,
@@ -3402,7 +3422,8 @@ class PersonaChatMessage extends DataClass
       this.factId,
       required this.isRead,
       required this.timestamp,
-      required this.messageType});
+      required this.messageType,
+      this.attachmentsJson});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3416,6 +3437,9 @@ class PersonaChatMessage extends DataClass
     map['is_read'] = Variable<bool>(isRead);
     map['timestamp'] = Variable<DateTime>(timestamp);
     map['message_type'] = Variable<String>(messageType);
+    if (!nullToAbsent || attachmentsJson != null) {
+      map['attachments_json'] = Variable<String>(attachmentsJson);
+    }
     return map;
   }
 
@@ -3430,6 +3454,9 @@ class PersonaChatMessage extends DataClass
       isRead: Value(isRead),
       timestamp: Value(timestamp),
       messageType: Value(messageType),
+      attachmentsJson: attachmentsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentsJson),
     );
   }
 
@@ -3445,6 +3472,7 @@ class PersonaChatMessage extends DataClass
       isRead: serializer.fromJson<bool>(json['isRead']),
       timestamp: serializer.fromJson<DateTime>(json['timestamp']),
       messageType: serializer.fromJson<String>(json['messageType']),
+      attachmentsJson: serializer.fromJson<String?>(json['attachmentsJson']),
     );
   }
   @override
@@ -3459,6 +3487,7 @@ class PersonaChatMessage extends DataClass
       'isRead': serializer.toJson<bool>(isRead),
       'timestamp': serializer.toJson<DateTime>(timestamp),
       'messageType': serializer.toJson<String>(messageType),
+      'attachmentsJson': serializer.toJson<String?>(attachmentsJson),
     };
   }
 
@@ -3470,7 +3499,8 @@ class PersonaChatMessage extends DataClass
           Value<String?> factId = const Value.absent(),
           bool? isRead,
           DateTime? timestamp,
-          String? messageType}) =>
+          String? messageType,
+          Value<String?> attachmentsJson = const Value.absent()}) =>
       PersonaChatMessage(
         id: id ?? this.id,
         characterId: characterId ?? this.characterId,
@@ -3480,6 +3510,9 @@ class PersonaChatMessage extends DataClass
         isRead: isRead ?? this.isRead,
         timestamp: timestamp ?? this.timestamp,
         messageType: messageType ?? this.messageType,
+        attachmentsJson: attachmentsJson.present
+            ? attachmentsJson.value
+            : this.attachmentsJson,
       );
   PersonaChatMessage copyWithCompanion(PersonaChatMessagesCompanion data) {
     return PersonaChatMessage(
@@ -3495,6 +3528,9 @@ class PersonaChatMessage extends DataClass
       timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
       messageType:
           data.messageType.present ? data.messageType.value : this.messageType,
+      attachmentsJson: data.attachmentsJson.present
+          ? data.attachmentsJson.value
+          : this.attachmentsJson,
     );
   }
 
@@ -3508,14 +3544,15 @@ class PersonaChatMessage extends DataClass
           ..write('factId: $factId, ')
           ..write('isRead: $isRead, ')
           ..write('timestamp: $timestamp, ')
-          ..write('messageType: $messageType')
+          ..write('messageType: $messageType, ')
+          ..write('attachmentsJson: $attachmentsJson')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(id, characterId, isFromCharacter, content,
-      factId, isRead, timestamp, messageType);
+      factId, isRead, timestamp, messageType, attachmentsJson);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3527,7 +3564,8 @@ class PersonaChatMessage extends DataClass
           other.factId == this.factId &&
           other.isRead == this.isRead &&
           other.timestamp == this.timestamp &&
-          other.messageType == this.messageType);
+          other.messageType == this.messageType &&
+          other.attachmentsJson == this.attachmentsJson);
 }
 
 class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
@@ -3539,6 +3577,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
   final Value<bool> isRead;
   final Value<DateTime> timestamp;
   final Value<String> messageType;
+  final Value<String?> attachmentsJson;
   const PersonaChatMessagesCompanion({
     this.id = const Value.absent(),
     this.characterId = const Value.absent(),
@@ -3548,6 +3587,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     this.isRead = const Value.absent(),
     this.timestamp = const Value.absent(),
     this.messageType = const Value.absent(),
+    this.attachmentsJson = const Value.absent(),
   });
   PersonaChatMessagesCompanion.insert({
     this.id = const Value.absent(),
@@ -3558,6 +3598,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     this.isRead = const Value.absent(),
     required DateTime timestamp,
     this.messageType = const Value.absent(),
+    this.attachmentsJson = const Value.absent(),
   })  : characterId = Value(characterId),
         isFromCharacter = Value(isFromCharacter),
         content = Value(content),
@@ -3571,6 +3612,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     Expression<bool>? isRead,
     Expression<DateTime>? timestamp,
     Expression<String>? messageType,
+    Expression<String>? attachmentsJson,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3581,6 +3623,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
       if (isRead != null) 'is_read': isRead,
       if (timestamp != null) 'timestamp': timestamp,
       if (messageType != null) 'message_type': messageType,
+      if (attachmentsJson != null) 'attachments_json': attachmentsJson,
     });
   }
 
@@ -3592,7 +3635,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
       Value<String?>? factId,
       Value<bool>? isRead,
       Value<DateTime>? timestamp,
-      Value<String>? messageType}) {
+      Value<String>? messageType,
+      Value<String?>? attachmentsJson}) {
     return PersonaChatMessagesCompanion(
       id: id ?? this.id,
       characterId: characterId ?? this.characterId,
@@ -3602,6 +3646,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
       isRead: isRead ?? this.isRead,
       timestamp: timestamp ?? this.timestamp,
       messageType: messageType ?? this.messageType,
+      attachmentsJson: attachmentsJson ?? this.attachmentsJson,
     );
   }
 
@@ -3632,6 +3677,9 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     if (messageType.present) {
       map['message_type'] = Variable<String>(messageType.value);
     }
+    if (attachmentsJson.present) {
+      map['attachments_json'] = Variable<String>(attachmentsJson.value);
+    }
     return map;
   }
 
@@ -3645,7 +3693,1369 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
           ..write('factId: $factId, ')
           ..write('isRead: $isRead, ')
           ..write('timestamp: $timestamp, ')
-          ..write('messageType: $messageType')
+          ..write('messageType: $messageType, ')
+          ..write('attachmentsJson: $attachmentsJson')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ConversationCaptureCursorsTable extends ConversationCaptureCursors
+    with
+        TableInfo<$ConversationCaptureCursorsTable, ConversationCaptureCursor> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ConversationCaptureCursorsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _characterIdMeta =
+      const VerificationMeta('characterId');
+  @override
+  late final GeneratedColumn<String> characterId = GeneratedColumn<String>(
+      'character_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _lastExtractedMessageIdMeta =
+      const VerificationMeta('lastExtractedMessageId');
+  @override
+  late final GeneratedColumn<int> lastExtractedMessageId = GeneratedColumn<int>(
+      'last_extracted_message_id', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _lastQueuedMessageIdMeta =
+      const VerificationMeta('lastQueuedMessageId');
+  @override
+  late final GeneratedColumn<int> lastQueuedMessageId = GeneratedColumn<int>(
+      'last_queued_message_id', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [characterId, lastExtractedMessageId, lastQueuedMessageId, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'conversation_capture_cursors';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<ConversationCaptureCursor> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('character_id')) {
+      context.handle(
+          _characterIdMeta,
+          characterId.isAcceptableOrUnknown(
+              data['character_id']!, _characterIdMeta));
+    } else if (isInserting) {
+      context.missing(_characterIdMeta);
+    }
+    if (data.containsKey('last_extracted_message_id')) {
+      context.handle(
+          _lastExtractedMessageIdMeta,
+          lastExtractedMessageId.isAcceptableOrUnknown(
+              data['last_extracted_message_id']!, _lastExtractedMessageIdMeta));
+    }
+    if (data.containsKey('last_queued_message_id')) {
+      context.handle(
+          _lastQueuedMessageIdMeta,
+          lastQueuedMessageId.isAcceptableOrUnknown(
+              data['last_queued_message_id']!, _lastQueuedMessageIdMeta));
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {characterId};
+  @override
+  ConversationCaptureCursor map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ConversationCaptureCursor(
+      characterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
+      lastExtractedMessageId: attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}last_extracted_message_id'])!,
+      lastQueuedMessageId: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}last_queued_message_id'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $ConversationCaptureCursorsTable createAlias(String alias) {
+    return $ConversationCaptureCursorsTable(attachedDatabase, alias);
+  }
+}
+
+class ConversationCaptureCursor extends DataClass
+    implements Insertable<ConversationCaptureCursor> {
+  final String characterId;
+  final int lastExtractedMessageId;
+  final int lastQueuedMessageId;
+  final int updatedAt;
+  const ConversationCaptureCursor(
+      {required this.characterId,
+      required this.lastExtractedMessageId,
+      required this.lastQueuedMessageId,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['character_id'] = Variable<String>(characterId);
+    map['last_extracted_message_id'] = Variable<int>(lastExtractedMessageId);
+    map['last_queued_message_id'] = Variable<int>(lastQueuedMessageId);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  ConversationCaptureCursorsCompanion toCompanion(bool nullToAbsent) {
+    return ConversationCaptureCursorsCompanion(
+      characterId: Value(characterId),
+      lastExtractedMessageId: Value(lastExtractedMessageId),
+      lastQueuedMessageId: Value(lastQueuedMessageId),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ConversationCaptureCursor.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ConversationCaptureCursor(
+      characterId: serializer.fromJson<String>(json['characterId']),
+      lastExtractedMessageId:
+          serializer.fromJson<int>(json['lastExtractedMessageId']),
+      lastQueuedMessageId:
+          serializer.fromJson<int>(json['lastQueuedMessageId']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'characterId': serializer.toJson<String>(characterId),
+      'lastExtractedMessageId': serializer.toJson<int>(lastExtractedMessageId),
+      'lastQueuedMessageId': serializer.toJson<int>(lastQueuedMessageId),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  ConversationCaptureCursor copyWith(
+          {String? characterId,
+          int? lastExtractedMessageId,
+          int? lastQueuedMessageId,
+          int? updatedAt}) =>
+      ConversationCaptureCursor(
+        characterId: characterId ?? this.characterId,
+        lastExtractedMessageId:
+            lastExtractedMessageId ?? this.lastExtractedMessageId,
+        lastQueuedMessageId: lastQueuedMessageId ?? this.lastQueuedMessageId,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  ConversationCaptureCursor copyWithCompanion(
+      ConversationCaptureCursorsCompanion data) {
+    return ConversationCaptureCursor(
+      characterId:
+          data.characterId.present ? data.characterId.value : this.characterId,
+      lastExtractedMessageId: data.lastExtractedMessageId.present
+          ? data.lastExtractedMessageId.value
+          : this.lastExtractedMessageId,
+      lastQueuedMessageId: data.lastQueuedMessageId.present
+          ? data.lastQueuedMessageId.value
+          : this.lastQueuedMessageId,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConversationCaptureCursor(')
+          ..write('characterId: $characterId, ')
+          ..write('lastExtractedMessageId: $lastExtractedMessageId, ')
+          ..write('lastQueuedMessageId: $lastQueuedMessageId, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      characterId, lastExtractedMessageId, lastQueuedMessageId, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ConversationCaptureCursor &&
+          other.characterId == this.characterId &&
+          other.lastExtractedMessageId == this.lastExtractedMessageId &&
+          other.lastQueuedMessageId == this.lastQueuedMessageId &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ConversationCaptureCursorsCompanion
+    extends UpdateCompanion<ConversationCaptureCursor> {
+  final Value<String> characterId;
+  final Value<int> lastExtractedMessageId;
+  final Value<int> lastQueuedMessageId;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const ConversationCaptureCursorsCompanion({
+    this.characterId = const Value.absent(),
+    this.lastExtractedMessageId = const Value.absent(),
+    this.lastQueuedMessageId = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ConversationCaptureCursorsCompanion.insert({
+    required String characterId,
+    this.lastExtractedMessageId = const Value.absent(),
+    this.lastQueuedMessageId = const Value.absent(),
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : characterId = Value(characterId),
+        updatedAt = Value(updatedAt);
+  static Insertable<ConversationCaptureCursor> custom({
+    Expression<String>? characterId,
+    Expression<int>? lastExtractedMessageId,
+    Expression<int>? lastQueuedMessageId,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (characterId != null) 'character_id': characterId,
+      if (lastExtractedMessageId != null)
+        'last_extracted_message_id': lastExtractedMessageId,
+      if (lastQueuedMessageId != null)
+        'last_queued_message_id': lastQueuedMessageId,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ConversationCaptureCursorsCompanion copyWith(
+      {Value<String>? characterId,
+      Value<int>? lastExtractedMessageId,
+      Value<int>? lastQueuedMessageId,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return ConversationCaptureCursorsCompanion(
+      characterId: characterId ?? this.characterId,
+      lastExtractedMessageId:
+          lastExtractedMessageId ?? this.lastExtractedMessageId,
+      lastQueuedMessageId: lastQueuedMessageId ?? this.lastQueuedMessageId,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (characterId.present) {
+      map['character_id'] = Variable<String>(characterId.value);
+    }
+    if (lastExtractedMessageId.present) {
+      map['last_extracted_message_id'] =
+          Variable<int>(lastExtractedMessageId.value);
+    }
+    if (lastQueuedMessageId.present) {
+      map['last_queued_message_id'] = Variable<int>(lastQueuedMessageId.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConversationCaptureCursorsCompanion(')
+          ..write('characterId: $characterId, ')
+          ..write('lastExtractedMessageId: $lastExtractedMessageId, ')
+          ..write('lastQueuedMessageId: $lastQueuedMessageId, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SharedLifeEventOperationsTable extends SharedLifeEventOperations
+    with TableInfo<$SharedLifeEventOperationsTable, SharedLifeEventOperation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SharedLifeEventOperationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _entityIdMeta =
+      const VerificationMeta('entityId');
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+      'entity_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _operationTypeMeta =
+      const VerificationMeta('operationType');
+  @override
+  late final GeneratedColumn<String> operationType = GeneratedColumn<String>(
+      'operation_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _entityTypeMeta =
+      const VerificationMeta('entityType');
+  @override
+  late final GeneratedColumn<String> entityType = GeneratedColumn<String>(
+      'entity_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _patchJsonMeta =
+      const VerificationMeta('patchJson');
+  @override
+  late final GeneratedColumn<String> patchJson = GeneratedColumn<String>(
+      'patch_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceMessageIdsMeta =
+      const VerificationMeta('sourceMessageIds');
+  @override
+  late final GeneratedColumn<String> sourceMessageIds = GeneratedColumn<String>(
+      'source_message_ids', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceCharacterIdMeta =
+      const VerificationMeta('sourceCharacterId');
+  @override
+  late final GeneratedColumn<String> sourceCharacterId =
+      GeneratedColumn<String>('source_character_id', aliasedName, false,
+          type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _captureTaskIdMeta =
+      const VerificationMeta('captureTaskId');
+  @override
+  late final GeneratedColumn<String> captureTaskId = GeneratedColumn<String>(
+      'capture_task_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _revertsOperationIdMeta =
+      const VerificationMeta('revertsOperationId');
+  @override
+  late final GeneratedColumn<String> revertsOperationId =
+      GeneratedColumn<String>('reverts_operation_id', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        entityId,
+        operationType,
+        entityType,
+        title,
+        patchJson,
+        sourceMessageIds,
+        sourceCharacterId,
+        captureTaskId,
+        revertsOperationId,
+        createdAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'shared_life_event_operations';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<SharedLifeEventOperation> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(_entityIdMeta,
+          entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta));
+    } else if (isInserting) {
+      context.missing(_entityIdMeta);
+    }
+    if (data.containsKey('operation_type')) {
+      context.handle(
+          _operationTypeMeta,
+          operationType.isAcceptableOrUnknown(
+              data['operation_type']!, _operationTypeMeta));
+    } else if (isInserting) {
+      context.missing(_operationTypeMeta);
+    }
+    if (data.containsKey('entity_type')) {
+      context.handle(
+          _entityTypeMeta,
+          entityType.isAcceptableOrUnknown(
+              data['entity_type']!, _entityTypeMeta));
+    } else if (isInserting) {
+      context.missing(_entityTypeMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('patch_json')) {
+      context.handle(_patchJsonMeta,
+          patchJson.isAcceptableOrUnknown(data['patch_json']!, _patchJsonMeta));
+    } else if (isInserting) {
+      context.missing(_patchJsonMeta);
+    }
+    if (data.containsKey('source_message_ids')) {
+      context.handle(
+          _sourceMessageIdsMeta,
+          sourceMessageIds.isAcceptableOrUnknown(
+              data['source_message_ids']!, _sourceMessageIdsMeta));
+    } else if (isInserting) {
+      context.missing(_sourceMessageIdsMeta);
+    }
+    if (data.containsKey('source_character_id')) {
+      context.handle(
+          _sourceCharacterIdMeta,
+          sourceCharacterId.isAcceptableOrUnknown(
+              data['source_character_id']!, _sourceCharacterIdMeta));
+    } else if (isInserting) {
+      context.missing(_sourceCharacterIdMeta);
+    }
+    if (data.containsKey('capture_task_id')) {
+      context.handle(
+          _captureTaskIdMeta,
+          captureTaskId.isAcceptableOrUnknown(
+              data['capture_task_id']!, _captureTaskIdMeta));
+    }
+    if (data.containsKey('reverts_operation_id')) {
+      context.handle(
+          _revertsOperationIdMeta,
+          revertsOperationId.isAcceptableOrUnknown(
+              data['reverts_operation_id']!, _revertsOperationIdMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SharedLifeEventOperation map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SharedLifeEventOperation(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      entityId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}entity_id'])!,
+      operationType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}operation_type'])!,
+      entityType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}entity_type'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      patchJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}patch_json'])!,
+      sourceMessageIds: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_message_ids'])!,
+      sourceCharacterId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_character_id'])!,
+      captureTaskId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}capture_task_id']),
+      revertsOperationId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}reverts_operation_id']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $SharedLifeEventOperationsTable createAlias(String alias) {
+    return $SharedLifeEventOperationsTable(attachedDatabase, alias);
+  }
+}
+
+class SharedLifeEventOperation extends DataClass
+    implements Insertable<SharedLifeEventOperation> {
+  final String id;
+  final String entityId;
+  final String operationType;
+  final String entityType;
+  final String title;
+  final String patchJson;
+  final String sourceMessageIds;
+  final String sourceCharacterId;
+  final String? captureTaskId;
+  final String? revertsOperationId;
+  final int createdAt;
+  const SharedLifeEventOperation(
+      {required this.id,
+      required this.entityId,
+      required this.operationType,
+      required this.entityType,
+      required this.title,
+      required this.patchJson,
+      required this.sourceMessageIds,
+      required this.sourceCharacterId,
+      this.captureTaskId,
+      this.revertsOperationId,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['entity_id'] = Variable<String>(entityId);
+    map['operation_type'] = Variable<String>(operationType);
+    map['entity_type'] = Variable<String>(entityType);
+    map['title'] = Variable<String>(title);
+    map['patch_json'] = Variable<String>(patchJson);
+    map['source_message_ids'] = Variable<String>(sourceMessageIds);
+    map['source_character_id'] = Variable<String>(sourceCharacterId);
+    if (!nullToAbsent || captureTaskId != null) {
+      map['capture_task_id'] = Variable<String>(captureTaskId);
+    }
+    if (!nullToAbsent || revertsOperationId != null) {
+      map['reverts_operation_id'] = Variable<String>(revertsOperationId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  SharedLifeEventOperationsCompanion toCompanion(bool nullToAbsent) {
+    return SharedLifeEventOperationsCompanion(
+      id: Value(id),
+      entityId: Value(entityId),
+      operationType: Value(operationType),
+      entityType: Value(entityType),
+      title: Value(title),
+      patchJson: Value(patchJson),
+      sourceMessageIds: Value(sourceMessageIds),
+      sourceCharacterId: Value(sourceCharacterId),
+      captureTaskId: captureTaskId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(captureTaskId),
+      revertsOperationId: revertsOperationId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(revertsOperationId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory SharedLifeEventOperation.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SharedLifeEventOperation(
+      id: serializer.fromJson<String>(json['id']),
+      entityId: serializer.fromJson<String>(json['entityId']),
+      operationType: serializer.fromJson<String>(json['operationType']),
+      entityType: serializer.fromJson<String>(json['entityType']),
+      title: serializer.fromJson<String>(json['title']),
+      patchJson: serializer.fromJson<String>(json['patchJson']),
+      sourceMessageIds: serializer.fromJson<String>(json['sourceMessageIds']),
+      sourceCharacterId: serializer.fromJson<String>(json['sourceCharacterId']),
+      captureTaskId: serializer.fromJson<String?>(json['captureTaskId']),
+      revertsOperationId:
+          serializer.fromJson<String?>(json['revertsOperationId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'entityId': serializer.toJson<String>(entityId),
+      'operationType': serializer.toJson<String>(operationType),
+      'entityType': serializer.toJson<String>(entityType),
+      'title': serializer.toJson<String>(title),
+      'patchJson': serializer.toJson<String>(patchJson),
+      'sourceMessageIds': serializer.toJson<String>(sourceMessageIds),
+      'sourceCharacterId': serializer.toJson<String>(sourceCharacterId),
+      'captureTaskId': serializer.toJson<String?>(captureTaskId),
+      'revertsOperationId': serializer.toJson<String?>(revertsOperationId),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  SharedLifeEventOperation copyWith(
+          {String? id,
+          String? entityId,
+          String? operationType,
+          String? entityType,
+          String? title,
+          String? patchJson,
+          String? sourceMessageIds,
+          String? sourceCharacterId,
+          Value<String?> captureTaskId = const Value.absent(),
+          Value<String?> revertsOperationId = const Value.absent(),
+          int? createdAt}) =>
+      SharedLifeEventOperation(
+        id: id ?? this.id,
+        entityId: entityId ?? this.entityId,
+        operationType: operationType ?? this.operationType,
+        entityType: entityType ?? this.entityType,
+        title: title ?? this.title,
+        patchJson: patchJson ?? this.patchJson,
+        sourceMessageIds: sourceMessageIds ?? this.sourceMessageIds,
+        sourceCharacterId: sourceCharacterId ?? this.sourceCharacterId,
+        captureTaskId:
+            captureTaskId.present ? captureTaskId.value : this.captureTaskId,
+        revertsOperationId: revertsOperationId.present
+            ? revertsOperationId.value
+            : this.revertsOperationId,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  SharedLifeEventOperation copyWithCompanion(
+      SharedLifeEventOperationsCompanion data) {
+    return SharedLifeEventOperation(
+      id: data.id.present ? data.id.value : this.id,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      operationType: data.operationType.present
+          ? data.operationType.value
+          : this.operationType,
+      entityType:
+          data.entityType.present ? data.entityType.value : this.entityType,
+      title: data.title.present ? data.title.value : this.title,
+      patchJson: data.patchJson.present ? data.patchJson.value : this.patchJson,
+      sourceMessageIds: data.sourceMessageIds.present
+          ? data.sourceMessageIds.value
+          : this.sourceMessageIds,
+      sourceCharacterId: data.sourceCharacterId.present
+          ? data.sourceCharacterId.value
+          : this.sourceCharacterId,
+      captureTaskId: data.captureTaskId.present
+          ? data.captureTaskId.value
+          : this.captureTaskId,
+      revertsOperationId: data.revertsOperationId.present
+          ? data.revertsOperationId.value
+          : this.revertsOperationId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedLifeEventOperation(')
+          ..write('id: $id, ')
+          ..write('entityId: $entityId, ')
+          ..write('operationType: $operationType, ')
+          ..write('entityType: $entityType, ')
+          ..write('title: $title, ')
+          ..write('patchJson: $patchJson, ')
+          ..write('sourceMessageIds: $sourceMessageIds, ')
+          ..write('sourceCharacterId: $sourceCharacterId, ')
+          ..write('captureTaskId: $captureTaskId, ')
+          ..write('revertsOperationId: $revertsOperationId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      entityId,
+      operationType,
+      entityType,
+      title,
+      patchJson,
+      sourceMessageIds,
+      sourceCharacterId,
+      captureTaskId,
+      revertsOperationId,
+      createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SharedLifeEventOperation &&
+          other.id == this.id &&
+          other.entityId == this.entityId &&
+          other.operationType == this.operationType &&
+          other.entityType == this.entityType &&
+          other.title == this.title &&
+          other.patchJson == this.patchJson &&
+          other.sourceMessageIds == this.sourceMessageIds &&
+          other.sourceCharacterId == this.sourceCharacterId &&
+          other.captureTaskId == this.captureTaskId &&
+          other.revertsOperationId == this.revertsOperationId &&
+          other.createdAt == this.createdAt);
+}
+
+class SharedLifeEventOperationsCompanion
+    extends UpdateCompanion<SharedLifeEventOperation> {
+  final Value<String> id;
+  final Value<String> entityId;
+  final Value<String> operationType;
+  final Value<String> entityType;
+  final Value<String> title;
+  final Value<String> patchJson;
+  final Value<String> sourceMessageIds;
+  final Value<String> sourceCharacterId;
+  final Value<String?> captureTaskId;
+  final Value<String?> revertsOperationId;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const SharedLifeEventOperationsCompanion({
+    this.id = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.operationType = const Value.absent(),
+    this.entityType = const Value.absent(),
+    this.title = const Value.absent(),
+    this.patchJson = const Value.absent(),
+    this.sourceMessageIds = const Value.absent(),
+    this.sourceCharacterId = const Value.absent(),
+    this.captureTaskId = const Value.absent(),
+    this.revertsOperationId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SharedLifeEventOperationsCompanion.insert({
+    required String id,
+    required String entityId,
+    required String operationType,
+    required String entityType,
+    required String title,
+    required String patchJson,
+    required String sourceMessageIds,
+    required String sourceCharacterId,
+    this.captureTaskId = const Value.absent(),
+    this.revertsOperationId = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        entityId = Value(entityId),
+        operationType = Value(operationType),
+        entityType = Value(entityType),
+        title = Value(title),
+        patchJson = Value(patchJson),
+        sourceMessageIds = Value(sourceMessageIds),
+        sourceCharacterId = Value(sourceCharacterId),
+        createdAt = Value(createdAt);
+  static Insertable<SharedLifeEventOperation> custom({
+    Expression<String>? id,
+    Expression<String>? entityId,
+    Expression<String>? operationType,
+    Expression<String>? entityType,
+    Expression<String>? title,
+    Expression<String>? patchJson,
+    Expression<String>? sourceMessageIds,
+    Expression<String>? sourceCharacterId,
+    Expression<String>? captureTaskId,
+    Expression<String>? revertsOperationId,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (entityId != null) 'entity_id': entityId,
+      if (operationType != null) 'operation_type': operationType,
+      if (entityType != null) 'entity_type': entityType,
+      if (title != null) 'title': title,
+      if (patchJson != null) 'patch_json': patchJson,
+      if (sourceMessageIds != null) 'source_message_ids': sourceMessageIds,
+      if (sourceCharacterId != null) 'source_character_id': sourceCharacterId,
+      if (captureTaskId != null) 'capture_task_id': captureTaskId,
+      if (revertsOperationId != null)
+        'reverts_operation_id': revertsOperationId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SharedLifeEventOperationsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? entityId,
+      Value<String>? operationType,
+      Value<String>? entityType,
+      Value<String>? title,
+      Value<String>? patchJson,
+      Value<String>? sourceMessageIds,
+      Value<String>? sourceCharacterId,
+      Value<String?>? captureTaskId,
+      Value<String?>? revertsOperationId,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return SharedLifeEventOperationsCompanion(
+      id: id ?? this.id,
+      entityId: entityId ?? this.entityId,
+      operationType: operationType ?? this.operationType,
+      entityType: entityType ?? this.entityType,
+      title: title ?? this.title,
+      patchJson: patchJson ?? this.patchJson,
+      sourceMessageIds: sourceMessageIds ?? this.sourceMessageIds,
+      sourceCharacterId: sourceCharacterId ?? this.sourceCharacterId,
+      captureTaskId: captureTaskId ?? this.captureTaskId,
+      revertsOperationId: revertsOperationId ?? this.revertsOperationId,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (operationType.present) {
+      map['operation_type'] = Variable<String>(operationType.value);
+    }
+    if (entityType.present) {
+      map['entity_type'] = Variable<String>(entityType.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (patchJson.present) {
+      map['patch_json'] = Variable<String>(patchJson.value);
+    }
+    if (sourceMessageIds.present) {
+      map['source_message_ids'] = Variable<String>(sourceMessageIds.value);
+    }
+    if (sourceCharacterId.present) {
+      map['source_character_id'] = Variable<String>(sourceCharacterId.value);
+    }
+    if (captureTaskId.present) {
+      map['capture_task_id'] = Variable<String>(captureTaskId.value);
+    }
+    if (revertsOperationId.present) {
+      map['reverts_operation_id'] = Variable<String>(revertsOperationId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedLifeEventOperationsCompanion(')
+          ..write('id: $id, ')
+          ..write('entityId: $entityId, ')
+          ..write('operationType: $operationType, ')
+          ..write('entityType: $entityType, ')
+          ..write('title: $title, ')
+          ..write('patchJson: $patchJson, ')
+          ..write('sourceMessageIds: $sourceMessageIds, ')
+          ..write('sourceCharacterId: $sourceCharacterId, ')
+          ..write('captureTaskId: $captureTaskId, ')
+          ..write('revertsOperationId: $revertsOperationId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SharedLifeEntitiesTable extends SharedLifeEntities
+    with TableInfo<$SharedLifeEntitiesTable, SharedLifeEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SharedLifeEntitiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _entityTypeMeta =
+      const VerificationMeta('entityType');
+  @override
+  late final GeneratedColumn<String> entityType = GeneratedColumn<String>(
+      'entity_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _stateJsonMeta =
+      const VerificationMeta('stateJson');
+  @override
+  late final GeneratedColumn<String> stateJson = GeneratedColumn<String>(
+      'state_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _sourceCharacterIdMeta =
+      const VerificationMeta('sourceCharacterId');
+  @override
+  late final GeneratedColumn<String> sourceCharacterId =
+      GeneratedColumn<String>('source_character_id', aliasedName, false,
+          type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _lastOperationIdMeta =
+      const VerificationMeta('lastOperationId');
+  @override
+  late final GeneratedColumn<String> lastOperationId = GeneratedColumn<String>(
+      'last_operation_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        entityType,
+        title,
+        stateJson,
+        status,
+        sourceCharacterId,
+        lastOperationId,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'shared_life_entities';
+  @override
+  VerificationContext validateIntegrity(Insertable<SharedLifeEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('entity_type')) {
+      context.handle(
+          _entityTypeMeta,
+          entityType.isAcceptableOrUnknown(
+              data['entity_type']!, _entityTypeMeta));
+    } else if (isInserting) {
+      context.missing(_entityTypeMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('state_json')) {
+      context.handle(_stateJsonMeta,
+          stateJson.isAcceptableOrUnknown(data['state_json']!, _stateJsonMeta));
+    } else if (isInserting) {
+      context.missing(_stateJsonMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('source_character_id')) {
+      context.handle(
+          _sourceCharacterIdMeta,
+          sourceCharacterId.isAcceptableOrUnknown(
+              data['source_character_id']!, _sourceCharacterIdMeta));
+    } else if (isInserting) {
+      context.missing(_sourceCharacterIdMeta);
+    }
+    if (data.containsKey('last_operation_id')) {
+      context.handle(
+          _lastOperationIdMeta,
+          lastOperationId.isAcceptableOrUnknown(
+              data['last_operation_id']!, _lastOperationIdMeta));
+    } else if (isInserting) {
+      context.missing(_lastOperationIdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SharedLifeEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SharedLifeEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      entityType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}entity_type'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      stateJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}state_json'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      sourceCharacterId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_character_id'])!,
+      lastOperationId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}last_operation_id'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $SharedLifeEntitiesTable createAlias(String alias) {
+    return $SharedLifeEntitiesTable(attachedDatabase, alias);
+  }
+}
+
+class SharedLifeEntity extends DataClass
+    implements Insertable<SharedLifeEntity> {
+  final String id;
+  final String entityType;
+  final String title;
+  final String stateJson;
+  final String status;
+  final String sourceCharacterId;
+  final String lastOperationId;
+  final int createdAt;
+  final int updatedAt;
+  const SharedLifeEntity(
+      {required this.id,
+      required this.entityType,
+      required this.title,
+      required this.stateJson,
+      required this.status,
+      required this.sourceCharacterId,
+      required this.lastOperationId,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['entity_type'] = Variable<String>(entityType);
+    map['title'] = Variable<String>(title);
+    map['state_json'] = Variable<String>(stateJson);
+    map['status'] = Variable<String>(status);
+    map['source_character_id'] = Variable<String>(sourceCharacterId);
+    map['last_operation_id'] = Variable<String>(lastOperationId);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  SharedLifeEntitiesCompanion toCompanion(bool nullToAbsent) {
+    return SharedLifeEntitiesCompanion(
+      id: Value(id),
+      entityType: Value(entityType),
+      title: Value(title),
+      stateJson: Value(stateJson),
+      status: Value(status),
+      sourceCharacterId: Value(sourceCharacterId),
+      lastOperationId: Value(lastOperationId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory SharedLifeEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SharedLifeEntity(
+      id: serializer.fromJson<String>(json['id']),
+      entityType: serializer.fromJson<String>(json['entityType']),
+      title: serializer.fromJson<String>(json['title']),
+      stateJson: serializer.fromJson<String>(json['stateJson']),
+      status: serializer.fromJson<String>(json['status']),
+      sourceCharacterId: serializer.fromJson<String>(json['sourceCharacterId']),
+      lastOperationId: serializer.fromJson<String>(json['lastOperationId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'entityType': serializer.toJson<String>(entityType),
+      'title': serializer.toJson<String>(title),
+      'stateJson': serializer.toJson<String>(stateJson),
+      'status': serializer.toJson<String>(status),
+      'sourceCharacterId': serializer.toJson<String>(sourceCharacterId),
+      'lastOperationId': serializer.toJson<String>(lastOperationId),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  SharedLifeEntity copyWith(
+          {String? id,
+          String? entityType,
+          String? title,
+          String? stateJson,
+          String? status,
+          String? sourceCharacterId,
+          String? lastOperationId,
+          int? createdAt,
+          int? updatedAt}) =>
+      SharedLifeEntity(
+        id: id ?? this.id,
+        entityType: entityType ?? this.entityType,
+        title: title ?? this.title,
+        stateJson: stateJson ?? this.stateJson,
+        status: status ?? this.status,
+        sourceCharacterId: sourceCharacterId ?? this.sourceCharacterId,
+        lastOperationId: lastOperationId ?? this.lastOperationId,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  SharedLifeEntity copyWithCompanion(SharedLifeEntitiesCompanion data) {
+    return SharedLifeEntity(
+      id: data.id.present ? data.id.value : this.id,
+      entityType:
+          data.entityType.present ? data.entityType.value : this.entityType,
+      title: data.title.present ? data.title.value : this.title,
+      stateJson: data.stateJson.present ? data.stateJson.value : this.stateJson,
+      status: data.status.present ? data.status.value : this.status,
+      sourceCharacterId: data.sourceCharacterId.present
+          ? data.sourceCharacterId.value
+          : this.sourceCharacterId,
+      lastOperationId: data.lastOperationId.present
+          ? data.lastOperationId.value
+          : this.lastOperationId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedLifeEntity(')
+          ..write('id: $id, ')
+          ..write('entityType: $entityType, ')
+          ..write('title: $title, ')
+          ..write('stateJson: $stateJson, ')
+          ..write('status: $status, ')
+          ..write('sourceCharacterId: $sourceCharacterId, ')
+          ..write('lastOperationId: $lastOperationId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, entityType, title, stateJson, status,
+      sourceCharacterId, lastOperationId, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SharedLifeEntity &&
+          other.id == this.id &&
+          other.entityType == this.entityType &&
+          other.title == this.title &&
+          other.stateJson == this.stateJson &&
+          other.status == this.status &&
+          other.sourceCharacterId == this.sourceCharacterId &&
+          other.lastOperationId == this.lastOperationId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
+  final Value<String> id;
+  final Value<String> entityType;
+  final Value<String> title;
+  final Value<String> stateJson;
+  final Value<String> status;
+  final Value<String> sourceCharacterId;
+  final Value<String> lastOperationId;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const SharedLifeEntitiesCompanion({
+    this.id = const Value.absent(),
+    this.entityType = const Value.absent(),
+    this.title = const Value.absent(),
+    this.stateJson = const Value.absent(),
+    this.status = const Value.absent(),
+    this.sourceCharacterId = const Value.absent(),
+    this.lastOperationId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SharedLifeEntitiesCompanion.insert({
+    required String id,
+    required String entityType,
+    required String title,
+    required String stateJson,
+    this.status = const Value.absent(),
+    required String sourceCharacterId,
+    required String lastOperationId,
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        entityType = Value(entityType),
+        title = Value(title),
+        stateJson = Value(stateJson),
+        sourceCharacterId = Value(sourceCharacterId),
+        lastOperationId = Value(lastOperationId),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<SharedLifeEntity> custom({
+    Expression<String>? id,
+    Expression<String>? entityType,
+    Expression<String>? title,
+    Expression<String>? stateJson,
+    Expression<String>? status,
+    Expression<String>? sourceCharacterId,
+    Expression<String>? lastOperationId,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (entityType != null) 'entity_type': entityType,
+      if (title != null) 'title': title,
+      if (stateJson != null) 'state_json': stateJson,
+      if (status != null) 'status': status,
+      if (sourceCharacterId != null) 'source_character_id': sourceCharacterId,
+      if (lastOperationId != null) 'last_operation_id': lastOperationId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SharedLifeEntitiesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? entityType,
+      Value<String>? title,
+      Value<String>? stateJson,
+      Value<String>? status,
+      Value<String>? sourceCharacterId,
+      Value<String>? lastOperationId,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return SharedLifeEntitiesCompanion(
+      id: id ?? this.id,
+      entityType: entityType ?? this.entityType,
+      title: title ?? this.title,
+      stateJson: stateJson ?? this.stateJson,
+      status: status ?? this.status,
+      sourceCharacterId: sourceCharacterId ?? this.sourceCharacterId,
+      lastOperationId: lastOperationId ?? this.lastOperationId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (entityType.present) {
+      map['entity_type'] = Variable<String>(entityType.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (stateJson.present) {
+      map['state_json'] = Variable<String>(stateJson.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (sourceCharacterId.present) {
+      map['source_character_id'] = Variable<String>(sourceCharacterId.value);
+    }
+    if (lastOperationId.present) {
+      map['last_operation_id'] = Variable<String>(lastOperationId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedLifeEntitiesCompanion(')
+          ..write('id: $id, ')
+          ..write('entityType: $entityType, ')
+          ..write('title: $title, ')
+          ..write('stateJson: $stateJson, ')
+          ..write('status: $status, ')
+          ..write('sourceCharacterId: $sourceCharacterId, ')
+          ..write('lastOperationId: $lastOperationId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -6592,6 +8002,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ClarificationRequestsTable(this);
   late final $PersonaChatMessagesTable personaChatMessages =
       $PersonaChatMessagesTable(this);
+  late final $ConversationCaptureCursorsTable conversationCaptureCursors =
+      $ConversationCaptureCursorsTable(this);
+  late final $SharedLifeEventOperationsTable sharedLifeEventOperations =
+      $SharedLifeEventOperationsTable(this);
+  late final $SharedLifeEntitiesTable sharedLifeEntities =
+      $SharedLifeEntitiesTable(this);
   late final $UserNotificationsTable userNotifications =
       $UserNotificationsTable(this);
   late final $SystemMessageQueueTable systemMessageQueue =
@@ -6619,6 +8035,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         systemActions,
         clarificationRequests,
         personaChatMessages,
+        conversationCaptureCursors,
+        sharedLifeEventOperations,
+        sharedLifeEntities,
         userNotifications,
         systemMessageQueue,
         aiFinanceLedger,
@@ -8168,6 +9587,7 @@ typedef $$PersonaChatMessagesTableCreateCompanionBuilder
   Value<bool> isRead,
   required DateTime timestamp,
   Value<String> messageType,
+  Value<String?> attachmentsJson,
 });
 typedef $$PersonaChatMessagesTableUpdateCompanionBuilder
     = PersonaChatMessagesCompanion Function({
@@ -8179,6 +9599,7 @@ typedef $$PersonaChatMessagesTableUpdateCompanionBuilder
   Value<bool> isRead,
   Value<DateTime> timestamp,
   Value<String> messageType,
+  Value<String?> attachmentsJson,
 });
 
 class $$PersonaChatMessagesTableFilterComposer
@@ -8214,6 +9635,10 @@ class $$PersonaChatMessagesTableFilterComposer
 
   ColumnFilters<String> get messageType => $composableBuilder(
       column: $table.messageType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get attachmentsJson => $composableBuilder(
+      column: $table.attachmentsJson,
+      builder: (column) => ColumnFilters(column));
 }
 
 class $$PersonaChatMessagesTableOrderingComposer
@@ -8249,6 +9674,10 @@ class $$PersonaChatMessagesTableOrderingComposer
 
   ColumnOrderings<String> get messageType => $composableBuilder(
       column: $table.messageType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get attachmentsJson => $composableBuilder(
+      column: $table.attachmentsJson,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$PersonaChatMessagesTableAnnotationComposer
@@ -8283,6 +9712,9 @@ class $$PersonaChatMessagesTableAnnotationComposer
 
   GeneratedColumn<String> get messageType => $composableBuilder(
       column: $table.messageType, builder: (column) => column);
+
+  GeneratedColumn<String> get attachmentsJson => $composableBuilder(
+      column: $table.attachmentsJson, builder: (column) => column);
 }
 
 class $$PersonaChatMessagesTableTableManager extends RootTableManager<
@@ -8323,6 +9755,7 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             Value<bool> isRead = const Value.absent(),
             Value<DateTime> timestamp = const Value.absent(),
             Value<String> messageType = const Value.absent(),
+            Value<String?> attachmentsJson = const Value.absent(),
           }) =>
               PersonaChatMessagesCompanion(
             id: id,
@@ -8333,6 +9766,7 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             isRead: isRead,
             timestamp: timestamp,
             messageType: messageType,
+            attachmentsJson: attachmentsJson,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -8343,6 +9777,7 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             Value<bool> isRead = const Value.absent(),
             required DateTime timestamp,
             Value<String> messageType = const Value.absent(),
+            Value<String?> attachmentsJson = const Value.absent(),
           }) =>
               PersonaChatMessagesCompanion.insert(
             id: id,
@@ -8353,6 +9788,7 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             isRead: isRead,
             timestamp: timestamp,
             messageType: messageType,
+            attachmentsJson: attachmentsJson,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -8376,6 +9812,692 @@ typedef $$PersonaChatMessagesTableProcessedTableManager = ProcessedTableManager<
           PersonaChatMessage>
     ),
     PersonaChatMessage,
+    PrefetchHooks Function()>;
+typedef $$ConversationCaptureCursorsTableCreateCompanionBuilder
+    = ConversationCaptureCursorsCompanion Function({
+  required String characterId,
+  Value<int> lastExtractedMessageId,
+  Value<int> lastQueuedMessageId,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$ConversationCaptureCursorsTableUpdateCompanionBuilder
+    = ConversationCaptureCursorsCompanion Function({
+  Value<String> characterId,
+  Value<int> lastExtractedMessageId,
+  Value<int> lastQueuedMessageId,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$ConversationCaptureCursorsTableFilterComposer
+    extends Composer<_$AppDatabase, $ConversationCaptureCursorsTable> {
+  $$ConversationCaptureCursorsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get lastExtractedMessageId => $composableBuilder(
+      column: $table.lastExtractedMessageId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get lastQueuedMessageId => $composableBuilder(
+      column: $table.lastQueuedMessageId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$ConversationCaptureCursorsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ConversationCaptureCursorsTable> {
+  $$ConversationCaptureCursorsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get lastExtractedMessageId => $composableBuilder(
+      column: $table.lastExtractedMessageId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get lastQueuedMessageId => $composableBuilder(
+      column: $table.lastQueuedMessageId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ConversationCaptureCursorsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ConversationCaptureCursorsTable> {
+  $$ConversationCaptureCursorsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => column);
+
+  GeneratedColumn<int> get lastExtractedMessageId => $composableBuilder(
+      column: $table.lastExtractedMessageId, builder: (column) => column);
+
+  GeneratedColumn<int> get lastQueuedMessageId => $composableBuilder(
+      column: $table.lastQueuedMessageId, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ConversationCaptureCursorsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ConversationCaptureCursorsTable,
+    ConversationCaptureCursor,
+    $$ConversationCaptureCursorsTableFilterComposer,
+    $$ConversationCaptureCursorsTableOrderingComposer,
+    $$ConversationCaptureCursorsTableAnnotationComposer,
+    $$ConversationCaptureCursorsTableCreateCompanionBuilder,
+    $$ConversationCaptureCursorsTableUpdateCompanionBuilder,
+    (
+      ConversationCaptureCursor,
+      BaseReferences<_$AppDatabase, $ConversationCaptureCursorsTable,
+          ConversationCaptureCursor>
+    ),
+    ConversationCaptureCursor,
+    PrefetchHooks Function()> {
+  $$ConversationCaptureCursorsTableTableManager(
+      _$AppDatabase db, $ConversationCaptureCursorsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ConversationCaptureCursorsTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ConversationCaptureCursorsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ConversationCaptureCursorsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> characterId = const Value.absent(),
+            Value<int> lastExtractedMessageId = const Value.absent(),
+            Value<int> lastQueuedMessageId = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ConversationCaptureCursorsCompanion(
+            characterId: characterId,
+            lastExtractedMessageId: lastExtractedMessageId,
+            lastQueuedMessageId: lastQueuedMessageId,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String characterId,
+            Value<int> lastExtractedMessageId = const Value.absent(),
+            Value<int> lastQueuedMessageId = const Value.absent(),
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ConversationCaptureCursorsCompanion.insert(
+            characterId: characterId,
+            lastExtractedMessageId: lastExtractedMessageId,
+            lastQueuedMessageId: lastQueuedMessageId,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ConversationCaptureCursorsTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $ConversationCaptureCursorsTable,
+        ConversationCaptureCursor,
+        $$ConversationCaptureCursorsTableFilterComposer,
+        $$ConversationCaptureCursorsTableOrderingComposer,
+        $$ConversationCaptureCursorsTableAnnotationComposer,
+        $$ConversationCaptureCursorsTableCreateCompanionBuilder,
+        $$ConversationCaptureCursorsTableUpdateCompanionBuilder,
+        (
+          ConversationCaptureCursor,
+          BaseReferences<_$AppDatabase, $ConversationCaptureCursorsTable,
+              ConversationCaptureCursor>
+        ),
+        ConversationCaptureCursor,
+        PrefetchHooks Function()>;
+typedef $$SharedLifeEventOperationsTableCreateCompanionBuilder
+    = SharedLifeEventOperationsCompanion Function({
+  required String id,
+  required String entityId,
+  required String operationType,
+  required String entityType,
+  required String title,
+  required String patchJson,
+  required String sourceMessageIds,
+  required String sourceCharacterId,
+  Value<String?> captureTaskId,
+  Value<String?> revertsOperationId,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$SharedLifeEventOperationsTableUpdateCompanionBuilder
+    = SharedLifeEventOperationsCompanion Function({
+  Value<String> id,
+  Value<String> entityId,
+  Value<String> operationType,
+  Value<String> entityType,
+  Value<String> title,
+  Value<String> patchJson,
+  Value<String> sourceMessageIds,
+  Value<String> sourceCharacterId,
+  Value<String?> captureTaskId,
+  Value<String?> revertsOperationId,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$SharedLifeEventOperationsTableFilterComposer
+    extends Composer<_$AppDatabase, $SharedLifeEventOperationsTable> {
+  $$SharedLifeEventOperationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+      column: $table.entityId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get operationType => $composableBuilder(
+      column: $table.operationType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get entityType => $composableBuilder(
+      column: $table.entityType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get patchJson => $composableBuilder(
+      column: $table.patchJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceMessageIds => $composableBuilder(
+      column: $table.sourceMessageIds,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceCharacterId => $composableBuilder(
+      column: $table.sourceCharacterId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get captureTaskId => $composableBuilder(
+      column: $table.captureTaskId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get revertsOperationId => $composableBuilder(
+      column: $table.revertsOperationId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$SharedLifeEventOperationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SharedLifeEventOperationsTable> {
+  $$SharedLifeEventOperationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+      column: $table.entityId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get operationType => $composableBuilder(
+      column: $table.operationType,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get entityType => $composableBuilder(
+      column: $table.entityType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get patchJson => $composableBuilder(
+      column: $table.patchJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceMessageIds => $composableBuilder(
+      column: $table.sourceMessageIds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceCharacterId => $composableBuilder(
+      column: $table.sourceCharacterId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get captureTaskId => $composableBuilder(
+      column: $table.captureTaskId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get revertsOperationId => $composableBuilder(
+      column: $table.revertsOperationId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$SharedLifeEventOperationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SharedLifeEventOperationsTable> {
+  $$SharedLifeEventOperationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<String> get operationType => $composableBuilder(
+      column: $table.operationType, builder: (column) => column);
+
+  GeneratedColumn<String> get entityType => $composableBuilder(
+      column: $table.entityType, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get patchJson =>
+      $composableBuilder(column: $table.patchJson, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceMessageIds => $composableBuilder(
+      column: $table.sourceMessageIds, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceCharacterId => $composableBuilder(
+      column: $table.sourceCharacterId, builder: (column) => column);
+
+  GeneratedColumn<String> get captureTaskId => $composableBuilder(
+      column: $table.captureTaskId, builder: (column) => column);
+
+  GeneratedColumn<String> get revertsOperationId => $composableBuilder(
+      column: $table.revertsOperationId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$SharedLifeEventOperationsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $SharedLifeEventOperationsTable,
+    SharedLifeEventOperation,
+    $$SharedLifeEventOperationsTableFilterComposer,
+    $$SharedLifeEventOperationsTableOrderingComposer,
+    $$SharedLifeEventOperationsTableAnnotationComposer,
+    $$SharedLifeEventOperationsTableCreateCompanionBuilder,
+    $$SharedLifeEventOperationsTableUpdateCompanionBuilder,
+    (
+      SharedLifeEventOperation,
+      BaseReferences<_$AppDatabase, $SharedLifeEventOperationsTable,
+          SharedLifeEventOperation>
+    ),
+    SharedLifeEventOperation,
+    PrefetchHooks Function()> {
+  $$SharedLifeEventOperationsTableTableManager(
+      _$AppDatabase db, $SharedLifeEventOperationsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SharedLifeEventOperationsTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SharedLifeEventOperationsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SharedLifeEventOperationsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> entityId = const Value.absent(),
+            Value<String> operationType = const Value.absent(),
+            Value<String> entityType = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> patchJson = const Value.absent(),
+            Value<String> sourceMessageIds = const Value.absent(),
+            Value<String> sourceCharacterId = const Value.absent(),
+            Value<String?> captureTaskId = const Value.absent(),
+            Value<String?> revertsOperationId = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SharedLifeEventOperationsCompanion(
+            id: id,
+            entityId: entityId,
+            operationType: operationType,
+            entityType: entityType,
+            title: title,
+            patchJson: patchJson,
+            sourceMessageIds: sourceMessageIds,
+            sourceCharacterId: sourceCharacterId,
+            captureTaskId: captureTaskId,
+            revertsOperationId: revertsOperationId,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String entityId,
+            required String operationType,
+            required String entityType,
+            required String title,
+            required String patchJson,
+            required String sourceMessageIds,
+            required String sourceCharacterId,
+            Value<String?> captureTaskId = const Value.absent(),
+            Value<String?> revertsOperationId = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SharedLifeEventOperationsCompanion.insert(
+            id: id,
+            entityId: entityId,
+            operationType: operationType,
+            entityType: entityType,
+            title: title,
+            patchJson: patchJson,
+            sourceMessageIds: sourceMessageIds,
+            sourceCharacterId: sourceCharacterId,
+            captureTaskId: captureTaskId,
+            revertsOperationId: revertsOperationId,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$SharedLifeEventOperationsTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $SharedLifeEventOperationsTable,
+        SharedLifeEventOperation,
+        $$SharedLifeEventOperationsTableFilterComposer,
+        $$SharedLifeEventOperationsTableOrderingComposer,
+        $$SharedLifeEventOperationsTableAnnotationComposer,
+        $$SharedLifeEventOperationsTableCreateCompanionBuilder,
+        $$SharedLifeEventOperationsTableUpdateCompanionBuilder,
+        (
+          SharedLifeEventOperation,
+          BaseReferences<_$AppDatabase, $SharedLifeEventOperationsTable,
+              SharedLifeEventOperation>
+        ),
+        SharedLifeEventOperation,
+        PrefetchHooks Function()>;
+typedef $$SharedLifeEntitiesTableCreateCompanionBuilder
+    = SharedLifeEntitiesCompanion Function({
+  required String id,
+  required String entityType,
+  required String title,
+  required String stateJson,
+  Value<String> status,
+  required String sourceCharacterId,
+  required String lastOperationId,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$SharedLifeEntitiesTableUpdateCompanionBuilder
+    = SharedLifeEntitiesCompanion Function({
+  Value<String> id,
+  Value<String> entityType,
+  Value<String> title,
+  Value<String> stateJson,
+  Value<String> status,
+  Value<String> sourceCharacterId,
+  Value<String> lastOperationId,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$SharedLifeEntitiesTableFilterComposer
+    extends Composer<_$AppDatabase, $SharedLifeEntitiesTable> {
+  $$SharedLifeEntitiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get entityType => $composableBuilder(
+      column: $table.entityType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get stateJson => $composableBuilder(
+      column: $table.stateJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceCharacterId => $composableBuilder(
+      column: $table.sourceCharacterId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get lastOperationId => $composableBuilder(
+      column: $table.lastOperationId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$SharedLifeEntitiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SharedLifeEntitiesTable> {
+  $$SharedLifeEntitiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get entityType => $composableBuilder(
+      column: $table.entityType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get stateJson => $composableBuilder(
+      column: $table.stateJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceCharacterId => $composableBuilder(
+      column: $table.sourceCharacterId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get lastOperationId => $composableBuilder(
+      column: $table.lastOperationId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$SharedLifeEntitiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SharedLifeEntitiesTable> {
+  $$SharedLifeEntitiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get entityType => $composableBuilder(
+      column: $table.entityType, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get stateJson =>
+      $composableBuilder(column: $table.stateJson, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceCharacterId => $composableBuilder(
+      column: $table.sourceCharacterId, builder: (column) => column);
+
+  GeneratedColumn<String> get lastOperationId => $composableBuilder(
+      column: $table.lastOperationId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $SharedLifeEntitiesTable,
+    SharedLifeEntity,
+    $$SharedLifeEntitiesTableFilterComposer,
+    $$SharedLifeEntitiesTableOrderingComposer,
+    $$SharedLifeEntitiesTableAnnotationComposer,
+    $$SharedLifeEntitiesTableCreateCompanionBuilder,
+    $$SharedLifeEntitiesTableUpdateCompanionBuilder,
+    (
+      SharedLifeEntity,
+      BaseReferences<_$AppDatabase, $SharedLifeEntitiesTable, SharedLifeEntity>
+    ),
+    SharedLifeEntity,
+    PrefetchHooks Function()> {
+  $$SharedLifeEntitiesTableTableManager(
+      _$AppDatabase db, $SharedLifeEntitiesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SharedLifeEntitiesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SharedLifeEntitiesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SharedLifeEntitiesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> entityType = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> stateJson = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String> sourceCharacterId = const Value.absent(),
+            Value<String> lastOperationId = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SharedLifeEntitiesCompanion(
+            id: id,
+            entityType: entityType,
+            title: title,
+            stateJson: stateJson,
+            status: status,
+            sourceCharacterId: sourceCharacterId,
+            lastOperationId: lastOperationId,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String entityType,
+            required String title,
+            required String stateJson,
+            Value<String> status = const Value.absent(),
+            required String sourceCharacterId,
+            required String lastOperationId,
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SharedLifeEntitiesCompanion.insert(
+            id: id,
+            entityType: entityType,
+            title: title,
+            stateJson: stateJson,
+            status: status,
+            sourceCharacterId: sourceCharacterId,
+            lastOperationId: lastOperationId,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$SharedLifeEntitiesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $SharedLifeEntitiesTable,
+    SharedLifeEntity,
+    $$SharedLifeEntitiesTableFilterComposer,
+    $$SharedLifeEntitiesTableOrderingComposer,
+    $$SharedLifeEntitiesTableAnnotationComposer,
+    $$SharedLifeEntitiesTableCreateCompanionBuilder,
+    $$SharedLifeEntitiesTableUpdateCompanionBuilder,
+    (
+      SharedLifeEntity,
+      BaseReferences<_$AppDatabase, $SharedLifeEntitiesTable, SharedLifeEntity>
+    ),
+    SharedLifeEntity,
     PrefetchHooks Function()>;
 typedef $$UserNotificationsTableCreateCompanionBuilder
     = UserNotificationsCompanion Function({
@@ -9801,6 +11923,15 @@ class $AppDatabaseManager {
       $$ClarificationRequestsTableTableManager(_db, _db.clarificationRequests);
   $$PersonaChatMessagesTableTableManager get personaChatMessages =>
       $$PersonaChatMessagesTableTableManager(_db, _db.personaChatMessages);
+  $$ConversationCaptureCursorsTableTableManager
+      get conversationCaptureCursors =>
+          $$ConversationCaptureCursorsTableTableManager(
+              _db, _db.conversationCaptureCursors);
+  $$SharedLifeEventOperationsTableTableManager get sharedLifeEventOperations =>
+      $$SharedLifeEventOperationsTableTableManager(
+          _db, _db.sharedLifeEventOperations);
+  $$SharedLifeEntitiesTableTableManager get sharedLifeEntities =>
+      $$SharedLifeEntitiesTableTableManager(_db, _db.sharedLifeEntities);
   $$UserNotificationsTableTableManager get userNotifications =>
       $$UserNotificationsTableTableManager(_db, _db.userNotifications);
   $$SystemMessageQueueTableTableManager get systemMessageQueue =>

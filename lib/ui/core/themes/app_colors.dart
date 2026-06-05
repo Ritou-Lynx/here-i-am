@@ -32,6 +32,13 @@ class AppColors {
   static const Color shadowLight = Color(0x0D000000); // 5% black
   static const Color shadowCard = Color(0x0D111827); // card shadow
 
+  // Companion dark theme (matches PersonaChatScreen persona palette)
+  static const Color companionBg = Color(0xFF0D0D0D);
+  static const Color companionSurface = Color(0xFF1B1D24);
+  static const Color companionText = Color(0xFFF2ECE0);
+  static const Color companionTextMuted = Color(0xFF9E9A94);
+  static const Color companionAccent = Color(0xFFE4D6BD);
+
   // Avatar gradient
   static const List<Color> avatarGradient = [
     Color(0xFF5B6CFF),

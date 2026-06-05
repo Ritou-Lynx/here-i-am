@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
@@ -18,8 +19,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:synchronized/synchronized.dart';
 import 'package:yaml/yaml.dart';
 
-/// Keys to exclude from backup (Flutter internals, not user data).
-const _excludePrefKeys = <String>{'flutter.'};
+/// Keys to exclude from backup.
+///
+/// Android SAF tree URIs are installation-scoped capabilities. Copying them to
+/// another package or installation preserves the URI string but not Android's
+/// persisted permission grant.
+const _excludePrefKeys = <String>{
+  'flutter.',
+  'memex_android_backup_tree_uri_',
+  'memex_android_backup_tree_name_',
+};
 
 const _backupExtension = '.memex';
 const _autoBackupPrefix = 'memex_auto';
@@ -193,6 +202,11 @@ class BackupService {
     return _normalizeFilePath(filePath).toLowerCase().endsWith('.memex');
   }
 
+  @visibleForTesting
+  static bool isPortablePreference(String key) {
+    return !_excludePrefKeys.any((prefix) => key.startsWith(prefix));
+  }
+
   /// Create a backup zip containing:
   /// - workspace/ directory (Facts, Cards, PKM, KnowledgeInsights, etc.)
   /// - Drift SQLite DB file
@@ -227,89 +241,63 @@ class BackupService {
         ? outputPath
         : path.join(targetDir.path, '.$fileName.tmp');
 
-    final archive = Archive();
-    final manifestEntries = <Map<String, dynamic>>[];
-
-    // 1. Add workspace files
+    // Prepare source metadata on the main isolate. File reads, portable media
+    // rewriting, and compression run below in a background isolate.
     onProgress?.call('Packing workspace...');
-    await _addDirectoryToArchive(
-      archive,
-      workspacePath,
-      'workspace',
-      manifestEntries: manifestEntries,
-      excludedRootPaths: [
-        path.join(workspacePath, 'Backups'),
-        if (outputDirectory != null) outputDirectory,
-      ],
-    );
-    await _makeCharacterMediaPortable(
-      archive: archive,
-      fs: fs,
-      userId: userId,
-      manifestEntries: manifestEntries,
-    );
-
-    // 2. Add Drift DB file
-    onProgress?.call('Packing database...');
     final dbName = 'memex_local_$userId.sqlite';
     // drift_flutter stores DB in app support directory on iOS, app documents on Android
     final possibleDbPaths = [
       path.join(appDir.path, dbName),
       path.join((await getApplicationSupportDirectory()).path, dbName),
     ];
-    for (final dbPath in possibleDbPaths) {
-      final dbFile = File(dbPath);
-      if (await dbFile.exists()) {
-        final bytes = await dbFile.readAsBytes();
-        _addBytesToArchive(
-          archive,
-          'db/$dbName',
-          bytes,
-          manifestEntries: manifestEntries,
-        );
-        _logger.info('Added DB file: $dbPath (${bytes.length} bytes)');
-        break;
-      }
-    }
+    // SharedPreferences are plugin-backed, so collect them before hopping
+    // isolates.
 
     // 3. Add SharedPreferences settings — backup ALL non-internal keys
     onProgress?.call('Packing settings...');
     final prefs = await SharedPreferences.getInstance();
     final settings = <String, dynamic>{};
     for (final key in prefs.getKeys()) {
-      // Skip Flutter internal keys
-      if (_excludePrefKeys.any((prefix) => key.startsWith(prefix))) continue;
+      if (!isPortablePreference(key)) continue;
       final value = prefs.get(key);
       if (value != null) {
         settings[key] = value;
       }
     }
-    _addBytesToArchive(
-      archive,
-      'settings.json',
-      utf8.encode(jsonEncode(settings)),
-      manifestEntries: manifestEntries,
-    );
+    var appVersion = 'unknown';
+    var buildNumber = '';
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      appVersion = packageInfo.version;
+      buildNumber = packageInfo.buildNumber;
+    } catch (_) {}
 
-    // 4. Add manifest last so it covers every payload entry.
-    final manifest = await _createManifest(
-      createdAt: createdAt,
-      userId: userId,
-      entries: manifestEntries,
-    );
-    _addBytesToArchive(
-      archive,
-      _backupManifestFileName,
-      utf8.encode(jsonEncode(manifest.toJson())),
-    );
-
-    // 5. Write zip. Automatic path writes use temp + rename in the same dir.
+    // Automatic path writes use temp + rename in the same directory to avoid
+    // exposing partial files.
     onProgress?.call('Compressing...');
-    final zipData = ZipEncoder().encode(archive);
-    final tempFile = File(tempOutputPath);
-    await tempFile.writeAsBytes(zipData, flush: true);
+    final archiveResult = await Isolate.run(
+      () => _writeBackupArchive(
+        workspacePath: workspacePath,
+        dataRoot: fs.dataRoot,
+        excludedWorkspaceRootPaths: [
+          path.join(workspacePath, 'Backups'),
+          if (outputDirectory != null) outputDirectory,
+        ],
+        dbPaths: possibleDbPaths,
+        dbName: dbName,
+        settingsBytes: utf8.encode(jsonEncode(settings)),
+        tempOutputPath: tempOutputPath,
+        createdAt: createdAt,
+        userId: userId,
+        appVersion: appVersion,
+        buildNumber: buildNumber,
+        flavor: AppFlavor.name,
+        platform: Platform.operatingSystem,
+      ),
+    );
 
     if (outputDirectory != null) {
+      final tempFile = File(tempOutputPath);
       final outputFile = File(outputPath);
       if (await outputFile.exists()) {
         await outputFile.delete();
@@ -317,7 +305,10 @@ class BackupService {
       await tempFile.rename(outputPath);
     }
 
-    _logger.info('Backup created: $outputPath (${zipData.length} bytes)');
+    _logger.info(
+      'Backup created: $outputPath '
+      '(${archiveResult.sizeBytes} bytes, ${archiveResult.fileCount} files)',
+    );
     return outputPath;
   }
 
@@ -350,6 +341,7 @@ class BackupService {
           final settings = jsonDecode(jsonStr) as Map<String, dynamic>;
           final prefs = await SharedPreferences.getInstance();
           for (final entry in settings.entries) {
+            if (!isPortablePreference(entry.key)) continue;
             final value = entry.value;
             if (value is String) {
               await prefs.setString(entry.key, value);
@@ -521,26 +513,37 @@ class BackupService {
     if (Platform.isAndroid) {
       final treeUri = await UserStorage.getAndroidBackupTreeUri(userId);
       if (treeUri != null && treeUri.isNotEmpty) {
-        final tempPath = await createBackup(
-          onProgress: onProgress,
-          filePrefix: filePrefix,
-        );
         try {
-          final fileName = path.basename(tempPath);
-          final info = await _writeFileToAndroidTree(
-            treeUri: treeUri,
-            sourcePath: tempPath,
-            fileName: fileName,
+          final tempPath = await createBackup(
+            onProgress: onProgress,
+            filePrefix: filePrefix,
           );
-          final snapshot = _snapshotFromAndroidInfo(info);
-          if (pruneAutoBackups) {
-            await _pruneAndroidTreeBackups(treeUri);
+          try {
+            final fileName = path.basename(tempPath);
+            final info = await _writeFileToAndroidTree(
+              treeUri: treeUri,
+              sourcePath: tempPath,
+              fileName: fileName,
+            );
+            final snapshot = _snapshotFromAndroidInfo(info);
+            if (pruneAutoBackups) {
+              await _pruneAndroidTreeBackups(treeUri);
+            }
+            return snapshot;
+          } finally {
+            final tempFile = File(tempPath);
+            if (await tempFile.exists()) {
+              await tempFile.delete();
+            }
           }
-          return snapshot;
-        } finally {
-          final tempFile = File(tempPath);
-          if (await tempFile.exists()) {
-            await tempFile.delete();
+        } catch (e, st) {
+          final permissionExpired = await _clearAndroidBackupTreeIfExpired(
+            userId: userId,
+            error: e,
+            stackTrace: st,
+          );
+          if (!permissionExpired) {
+            rethrow;
           }
         }
       }
@@ -600,6 +603,31 @@ class BackupService {
     }
   }
 
+  /// Delete a stored automatic or safety snapshot.
+  static Future<void> deleteStoredBackup(BackupSnapshot snapshot) async {
+    if (snapshot.isAndroidDocument) {
+      await _deleteAndroidDocument(snapshot.documentUri!);
+      return;
+    }
+
+    final filePath = snapshot.filePath;
+    if (filePath == null || filePath.isEmpty) {
+      throw Exception('Backup snapshot has no deletable source');
+    }
+
+    final normalizedPath = _normalizeFilePath(filePath);
+    if (!isMemexBackupFile(normalizedPath)) {
+      throw const InvalidBackupFileException(
+        'Invalid backup file. Please select a .memex file.',
+      );
+    }
+
+    final file = File(normalizedPath);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
   /// List automatic/safety backups from both the platform default directory and
   /// the user's Android SAF directory, if configured.
   static Future<List<BackupSnapshot>> listStoredBackups() async {
@@ -619,7 +647,14 @@ class BackupService {
         try {
           snapshots.addAll(await _listAndroidTreeBackups(treeUri));
         } catch (e, st) {
-          _logger.warning('Failed to list Android SAF backups: $e', e, st);
+          final permissionExpired = await _clearAndroidBackupTreeIfExpired(
+            userId: userId,
+            error: e,
+            stackTrace: st,
+          );
+          if (!permissionExpired) {
+            _logger.warning('Failed to list Android SAF backups: $e', e, st);
+          }
         }
       }
     }
@@ -753,11 +788,10 @@ class BackupService {
   /// archived character YAML to portable data-root-relative paths.
   static Future<void> _makeCharacterMediaPortable({
     required Archive archive,
-    required FileSystemService fs,
-    required String userId,
+    required String workspacePath,
+    required String dataRoot,
     required List<Map<String, dynamic>> manifestEntries,
   }) async {
-    final workspacePath = fs.getWorkspacePath(userId);
     final charactersDir = Directory(path.join(workspacePath, 'Characters'));
     if (!await charactersDir.exists()) return;
 
@@ -805,8 +839,9 @@ class BackupService {
           );
         }
 
-        data[field] = fs.toRelativePath(
+        data[field] = path.relative(
           path.join(workspacePath, targetRelativeToWorkspace),
+          from: dataRoot,
         );
         changed = true;
       }
@@ -928,7 +963,10 @@ class BackupService {
     List<int> bytes, {
     required List<Map<String, dynamic>> manifestEntries,
   }) {
-    archive.files.removeWhere((file) => file.name == archivePath);
+    for (final file
+        in archive.files.where((file) => file.name == archivePath).toList()) {
+      archive.removeFile(file);
+    }
     manifestEntries.removeWhere((entry) => entry['path'] == archivePath);
     _addBytesToArchive(
       archive,
@@ -1124,6 +1162,27 @@ class BackupService {
     return result;
   }
 
+  static bool _isAndroidTreePermissionDenied(Object error) {
+    return error is PlatformException && error.code == 'PERMISSION_DENIED';
+  }
+
+  static Future<bool> _clearAndroidBackupTreeIfExpired({
+    required String userId,
+    required Object error,
+    required StackTrace stackTrace,
+  }) async {
+    if (!_isAndroidTreePermissionDenied(error)) return false;
+
+    _logger.warning(
+      'Android backup folder permission expired; using the app-managed '
+      'backup directory until the user selects a folder again.',
+      error,
+      stackTrace,
+    );
+    await UserStorage.clearAndroidBackupTree(userId);
+    return true;
+  }
+
   static Future<String> _copyAndroidDocumentToTempFile({
     required String documentUri,
     required String fileName,
@@ -1188,13 +1247,17 @@ class BackupService {
       final documentUri = snapshot.documentUri;
       if (documentUri == null) continue;
       try {
-        await _backupStorageChannel.invokeMethod<void>('deleteDocument', {
-          'documentUri': documentUri,
-        });
+        await _deleteAndroidDocument(documentUri);
       } catch (e) {
         _logger.warning('Failed to delete old Android backup $documentUri: $e');
       }
     }
+  }
+
+  static Future<void> _deleteAndroidDocument(String documentUri) async {
+    await _backupStorageChannel.invokeMethod<void>('deleteDocument', {
+      'documentUri': documentUri,
+    });
   }
 
   static Future<BackupFileInfo> inspectBackup(String backupFilePath) async {
@@ -1264,33 +1327,6 @@ class BackupService {
     );
   }
 
-  static Future<BackupManifest> _createManifest({
-    required DateTime createdAt,
-    required String userId,
-    required List<Map<String, dynamic>> entries,
-  }) async {
-    var appVersion = 'unknown';
-    var buildNumber = '';
-    try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      appVersion = packageInfo.version;
-      buildNumber = packageInfo.buildNumber;
-    } catch (_) {}
-
-    return BackupManifest(
-      format: _backupFormat,
-      formatVersion: 1,
-      backupSchemaVersion: _currentBackupSchemaVersion,
-      createdAt: createdAt.toUtc(),
-      userId: userId,
-      appVersion: appVersion,
-      buildNumber: buildNumber,
-      flavor: AppFlavor.name,
-      platform: Platform.operatingSystem,
-      entries: List<Map<String, dynamic>>.unmodifiable(entries),
-    );
-  }
-
   static Archive _decodeBackup(List<int> bytes) {
     try {
       return ZipDecoder().decodeBytes(bytes);
@@ -1321,6 +1357,93 @@ class BackupService {
     }
     return filePath;
   }
+}
+
+Future<_BackupArchiveResult> _writeBackupArchive({
+  required String workspacePath,
+  required String dataRoot,
+  required List<String> excludedWorkspaceRootPaths,
+  required List<String> dbPaths,
+  required String dbName,
+  required List<int> settingsBytes,
+  required String tempOutputPath,
+  required DateTime createdAt,
+  required String userId,
+  required String appVersion,
+  required String buildNumber,
+  required String flavor,
+  required String platform,
+}) async {
+  final archive = Archive();
+  final manifestEntries = <Map<String, dynamic>>[];
+
+  await BackupService._addDirectoryToArchive(
+    archive,
+    workspacePath,
+    'workspace',
+    manifestEntries: manifestEntries,
+    excludedRootPaths: excludedWorkspaceRootPaths,
+  );
+  await BackupService._makeCharacterMediaPortable(
+    archive: archive,
+    workspacePath: workspacePath,
+    dataRoot: dataRoot,
+    manifestEntries: manifestEntries,
+  );
+
+  for (final dbPath in dbPaths) {
+    final dbFile = File(dbPath);
+    if (!await dbFile.exists()) continue;
+    final bytes = await dbFile.readAsBytes();
+    BackupService._addBytesToArchive(
+      archive,
+      'db/$dbName',
+      bytes,
+      manifestEntries: manifestEntries,
+    );
+    break;
+  }
+
+  BackupService._addBytesToArchive(
+    archive,
+    'settings.json',
+    settingsBytes,
+    manifestEntries: manifestEntries,
+  );
+  final manifest = BackupManifest(
+    format: _backupFormat,
+    formatVersion: 1,
+    backupSchemaVersion: _currentBackupSchemaVersion,
+    createdAt: createdAt.toUtc(),
+    userId: userId,
+    appVersion: appVersion,
+    buildNumber: buildNumber,
+    flavor: flavor,
+    platform: platform,
+    entries: List<Map<String, dynamic>>.unmodifiable(manifestEntries),
+  );
+  BackupService._addBytesToArchive(
+    archive,
+    _backupManifestFileName,
+    utf8.encode(jsonEncode(manifest.toJson())),
+  );
+
+  final zipData = ZipEncoder().encode(archive);
+  await File(tempOutputPath).writeAsBytes(zipData, flush: true);
+  return _BackupArchiveResult(
+    sizeBytes: zipData.length,
+    fileCount: archive.files.length,
+  );
+}
+
+class _BackupArchiveResult {
+  final int sizeBytes;
+  final int fileCount;
+
+  const _BackupArchiveResult({
+    required this.sizeBytes,
+    required this.fileCount,
+  });
 }
 
 class _BackupSourceStats {

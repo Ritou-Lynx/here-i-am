@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:memex/agent/memory/character_memory_service.dart';
 import 'package:memex/data/services/event_bus_service.dart';
@@ -26,8 +28,11 @@ class PersonaChatService {
   }
 
   Future<int> addUserMessage(String characterId, String content,
-      {DateTime? timestamp}) async {
+      {DateTime? timestamp, List<Map<String, String>>? attachments}) async {
     final createdAt = timestamp ?? DateTime.now();
+    final attachmentsJson = attachments != null && attachments.isNotEmpty
+        ? jsonEncode(attachments)
+        : null;
     final id = await _db.into(_db.personaChatMessages).insert(
           PersonaChatMessagesCompanion.insert(
             characterId: characterId,
@@ -35,6 +40,7 @@ class PersonaChatService {
             content: content,
             isRead: const Value(true),
             timestamp: createdAt,
+            attachmentsJson: Value(attachmentsJson),
           ),
         );
     _notifyMessageAdded(characterId);

@@ -7,12 +7,14 @@ import 'package:memex/data/repositories/update_card_ui_config.dart'
     as update_config_endpoint;
 import 'package:memex/data/services/search_service.dart';
 import 'package:memex/data/services/backup_service.dart';
+import 'package:memex/config/app_flavor.dart';
 import 'package:memex/domain/models/calendar_model.dart';
 import 'package:memex/data/repositories/hydrate_card.dart';
 import 'package:memex/data/services/table_change_notifier.dart';
 import 'package:memex/data/services/card_attachment_service.dart';
 import 'package:memex/data/services/card_detail_notifier.dart';
 import 'package:memex/data/services/clarification_request_service.dart';
+import 'package:memex/data/services/conversation_capture_service.dart';
 import 'package:memex/data/services/app_update_service.dart';
 import 'package:memex/data/services/user_notification_service.dart';
 import 'package:path/path.dart' as path;
@@ -95,6 +97,26 @@ class MemexRouter {
       // Use userId to init DB (drift_flutter handles path isolation via name)
       _logger.info('Initializing Local DB for user: $userId');
       await AppDatabase.init(userId);
+      if (AppFlavor.isHereIAm) {
+        ConversationCaptureService.init(AppDatabase.instance, userId);
+        final captureService = ConversationCaptureService.instance;
+        if (await captureService.needsHistoricalBackfillReset()) {
+          await captureService.resetHistoricalBackfill();
+        }
+        await captureService.initializeCaptureBaselines();
+        await captureService.releaseStaleQueuedSlices();
+        await captureService.repairEphemeralBackgroundRecords();
+        await captureService.sharedLifeMemory.repairOrphanedEntities();
+        await FileSystemService.instance.ensureTagsFileInitialized(userId);
+        final tagDefinitions =
+            await FileSystemService.instance.readTagsFile(userId);
+        await captureService.sharedLifeMemory.repairTagsAgainstKnownTags(
+          tagDefinitions
+              .map((tag) => tag['name']?.toString().trim() ?? '')
+              .where((tag) => tag.isNotEmpty)
+              .toList(growable: false),
+        );
+      }
       await LocalTaskExecutor.instance.start(userId: userId);
 
       // Start table change notifier (binlog-style listener for Drift tables)
@@ -195,23 +217,9 @@ class MemexRouter {
       ),
     );
 
-    eventBus.subscribe(
-      eventType: SystemEventTypes.userInputSubmitted,
-      subscription: EventTaskSubscription(
-        subscriptionId: 'comment_agent',
-        taskType: 'comment_agent_task',
-        dependsOn: const ['pkm_agent'],
-        payloadBuilder: (_, event) {
-          final p = event.payload as UserInputSubmittedPayload;
-          return Future.value({
-            'fact_id': p.factId,
-            'combined_text': p.combinedText,
-            'created_at_ts': p.createdAtTs,
-            'location_context_reminder': p.locationContextReminder,
-          });
-        },
-      ),
-    );
+    // Removed: comment_agent_task subscription. Card comments are being
+    // migrated to the upcoming Moments feature. The comment_agent code and
+    // handler are preserved for reuse there.
 
     eventBus.subscribe(
       eventType: SystemEventTypes.userInputSubmitted,

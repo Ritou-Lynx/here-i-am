@@ -1580,6 +1580,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerZhipu => 'Zhipu GLM';
 
   @override
+  String get providerDeepSeek => 'DeepSeek';
+
+  @override
   String get providerMinimax => 'MiniMax';
 
   @override
@@ -1614,6 +1617,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get advancedSettings => 'Advanced Settings';
+
+  @override
+  String get testConnectionSuccess => 'Connection Successful';
+
+  @override
+  String get testConnectionFailed => 'Connection Failed';
+
+  @override
+  String get testTypeText => 'Text';
+
+  @override
+  String get testTypeVision => 'Vision';
+
+  @override
+  String get testButton => 'Test';
+
+  @override
+  String get testing => 'Testing...';
 
   @override
   String get proxyUrlOptional => 'Proxy URL (Optional)';
@@ -1841,6 +1862,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get restoreThisBackup => 'Restore this backup';
+
+  @override
+  String get deleteThisBackup => 'Delete this backup';
+
+  @override
+  String get confirmDeleteBackup => 'Delete backup?';
+
+  @override
+  String confirmDeleteBackupMessage(Object fileName) {
+    return 'Delete $fileName? This removes the stored backup file and cannot be undone.';
+  }
+
+  @override
+  String backupDeleted(Object fileName) {
+    return 'Backup deleted: $fileName';
+  }
+
+  @override
+  String backupDeleteFailed(Object error) {
+    return 'Could not delete backup: $error';
+  }
 
   @override
   String get creatingSafetySnapshot => 'Creating safety snapshot...';
@@ -2780,4 +2822,58 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get earlyUpdateReleaseNotes => 'Release notes';
+
+  @override
+  String get companionRemembered => 'Remembered';
+
+  @override
+  String get companionSharedLifeTitle => 'Remembered from chat';
+
+  @override
+  String get undo => 'Undo';
+
+  @override
+  String get companionLifeEvent => 'Event';
+
+  @override
+  String get companionLifeTask => 'Task';
+
+  @override
+  String get companionLifePlan => 'Plan';
+
+  @override
+  String get companionLifeSchedule => 'Schedule';
+
+  @override
+  String get companionLifeFact => 'Fact';
+
+  @override
+  String get companionLifeActive => 'Active';
+
+  @override
+  String get companionLifeCompleted => 'Completed';
+
+  @override
+  String get companionLifeCancelled => 'Cancelled';
+
+  @override
+  String get companionSharedLifeDetail => 'Life record';
+
+  @override
+  String get companionSharedLifeCurrentState => 'Current state';
+
+  @override
+  String get companionSharedLifeRelated => 'Related memories';
+
+  @override
+  String get companionSharedLifeEvidence => 'Original conversation';
+
+  @override
+  String get companionSharedLifeHistory => 'Update history';
+
+  @override
+  String get companionSharedLifeUserMessage => 'You';
+
+  @override
+  String get companionSharedLifeCharacterMessage => 'Companion';
 }

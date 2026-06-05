@@ -16,7 +16,7 @@ void main() {
           body: CompanionMediaTray(
             isOpen: true,
             loadSuggestions: () async => [],
-            onSubmit: (_) async => true,
+            onImagesPicked: (_) {},
           ),
         ),
       ),
@@ -35,7 +35,7 @@ void main() {
           body: CompanionMediaTray(
             isOpen: false,
             loadSuggestions: () async => [],
-            onSubmit: (_) async => true,
+            onImagesPicked: (_) {},
           ),
         ),
       ),

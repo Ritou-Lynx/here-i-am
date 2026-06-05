@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
+import 'package:memex/data/services/asr/asr_config.dart';
+import 'package:memex/data/services/asr/media_button_service.dart';
 import 'package:memex/data/services/callkit_service.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/voice_call_foreground_service.dart';
 import 'package:memex/data/services/voice_call_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
@@ -29,7 +32,12 @@ const _callBlue = Color(0xFF5B9FD4);
 
 class VoiceCallScreen extends StatefulWidget {
   final String characterId;
-  const VoiceCallScreen({super.key, required this.characterId});
+  final VoiceCallDirection direction;
+  const VoiceCallScreen({
+    super.key,
+    required this.characterId,
+    this.direction = VoiceCallDirection.userToCompanion,
+  });
 
   @override
   State<VoiceCallScreen> createState() => _VoiceCallScreenState();
@@ -43,6 +51,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   String? _loadError;
   bool _subtitlesOn = true;
   bool _popped = false; // guard against double-pop
+  final Object _mediaButtonOwner = Object();
+  bool _mediaButtonsActive = false;
+  bool _mediaButtonsActivating = false;
 
   late final AnimationController _pulseCtrl = AnimationController(
     vsync: this,
@@ -74,8 +85,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
       // Consume any AI-initiated call opening from KVStore.
       final pending = await readPendingCall();
-      final openingMessage = pending?.opening;
-      await clearPendingCall();
+      final pendingForCharacter =
+          pending?.characterId == widget.characterId ? pending : null;
+      final openingMessage = pendingForCharacter?.opening;
+      if (pendingForCharacter != null) {
+        await clearPendingCall(characterId: widget.characterId);
+      }
 
       final service = VoiceCallService(
         client: resources.client,
@@ -84,6 +99,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         characterId: widget.characterId,
         voiceId: character?.ttsVoiceId,
         callDao: AppDatabase.instance.voiceCallDao,
+        direction: pendingForCharacter != null
+            ? VoiceCallDirection.companionToUser
+            : widget.direction,
       );
 
       if (!mounted) {
@@ -100,9 +118,20 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         _loading = false;
       });
 
+      unawaited(
+        VoiceCallForegroundService.start(
+          characterName: character?.name ?? '语音通话',
+        ),
+      );
+      unawaited(_initMediaButtons());
       unawaited(service.start(openingMessage: openingMessage));
     } catch (e) {
-      if (mounted) setState(() { _loadError = e.toString(); _loading = false; });
+      if (mounted) {
+        setState(() {
+          _loadError = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -111,6 +140,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     // Safety net: ensure no stale CallKit "ongoing call" notification survives
     // after the in-app call screen closes.
     CallkitService.instance.endAll();
+    _releaseMediaButtons();
+    unawaited(VoiceCallForegroundService.stopAndRestoreCompanion());
     _service?.removeListener(_onServiceChanged);
     _service?.dispose();
     _pulseCtrl.dispose();
@@ -119,6 +150,54 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   /// Pops the route when the call ends — covers both the red button and the
   /// companion's own end_call (e.g. after lulling the user to sleep).
+  Future<void> _initMediaButtons() async {
+    if (_mediaButtonsActive || _mediaButtonsActivating) return;
+
+    _mediaButtonsActivating = true;
+    final enabled = await AsrConfig.getUseMediaKeys();
+    if (!mounted || !enabled) {
+      _mediaButtonsActivating = false;
+      return;
+    }
+
+    final mediaButtons = MediaButtonService.instance;
+    mediaButtons.setOnToggle(
+      () => unawaited(_service?.toggleRecording()),
+      owner: _mediaButtonOwner,
+    );
+    mediaButtons.setOnCancel(
+      () => unawaited(_service?.cancelRecording()),
+      owner: _mediaButtonOwner,
+    );
+    try {
+      await mediaButtons.activate(owner: _mediaButtonOwner);
+      if (!mounted) {
+        await mediaButtons.deactivate(owner: _mediaButtonOwner);
+        mediaButtons.clearCallbacks(owner: _mediaButtonOwner);
+        return;
+      }
+      _mediaButtonsActive = true;
+    } catch (e) {
+      debugPrint('MediaButtonService activate failed: $e');
+      mediaButtons.clearCallbacks(owner: _mediaButtonOwner);
+    } finally {
+      _mediaButtonsActivating = false;
+    }
+  }
+
+  void _releaseMediaButtons() {
+    final mediaButtons = MediaButtonService.instance;
+    mediaButtons.clearCallbacks(owner: _mediaButtonOwner);
+    if (!_mediaButtonsActive) return;
+
+    _mediaButtonsActive = false;
+    unawaited(
+      mediaButtons.deactivate(owner: _mediaButtonOwner).catchError(
+            (e) => debugPrint('MediaButtonService deactivate failed: $e'),
+          ),
+    );
+  }
+
   void _onServiceChanged() {
     if (_popped) return;
     if (_service?.state == VoiceCallState.ended) {
@@ -223,7 +302,9 @@ class _CallContent extends StatelessWidget {
                 children: [
                   IconButton(
                     icon: Icon(
-                      subtitlesOn ? Icons.closed_caption : Icons.closed_caption_off,
+                      subtitlesOn
+                          ? Icons.closed_caption
+                          : Icons.closed_caption_off,
                       color: subtitlesOn ? _callAccent : _callMuted,
                     ),
                     tooltip: subtitlesOn ? '关闭字幕' : '开启字幕',
@@ -258,7 +339,12 @@ class _CallContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  _StatusLabel(state: state, characterName: name),
+                  _StatusLabel(
+                    state: state,
+                    characterName: name,
+                    streamingEnabled: service.isStreamingMode,
+                    streamingDraft: service.streamingDraft,
+                  ),
                   if (service.error != null) ...[
                     const SizedBox(height: 8),
                     Text(
@@ -301,8 +387,11 @@ class _CallContent extends StatelessWidget {
             // Controls
             _CallControls(
               state: state,
+              streamingEnabled: service.isStreamingMode,
+              streamingActive: service.isStreamingCaptureActive,
               onHangUp: onHangUp,
               onTogglePtt: () => service.toggleRecording(),
+              onToggleStreaming: () => service.toggleStreamingMode(),
             ),
             const SizedBox(height: 32),
           ],
@@ -328,8 +417,8 @@ class _AvatarPulse extends StatelessWidget {
     final isSpeaking = state == VoiceCallState.companionSpeaking;
     return AnimatedBuilder(
       animation: pulseAnim,
-      builder: (_, child) =>
-          Transform.scale(scale: isSpeaking ? pulseAnim.value : 1.0, child: child),
+      builder: (_, child) => Transform.scale(
+          scale: isSpeaking ? pulseAnim.value : 1.0, child: child),
       child: Container(
         width: 130,
         height: 130,
@@ -337,7 +426,8 @@ class _AvatarPulse extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: _borderColor(state), width: 2.5),
           boxShadow: [
-            BoxShadow(color: _glowColor(state), blurRadius: 30, spreadRadius: 4),
+            BoxShadow(
+                color: _glowColor(state), blurRadius: 30, spreadRadius: 4),
           ],
         ),
         child: ClipOval(
@@ -369,11 +459,29 @@ class _AvatarPulse extends StatelessWidget {
 class _StatusLabel extends StatelessWidget {
   final VoiceCallState state;
   final String characterName;
+  final bool streamingEnabled;
+  final String streamingDraft;
 
-  const _StatusLabel({required this.state, required this.characterName});
+  const _StatusLabel({
+    required this.state,
+    required this.characterName,
+    required this.streamingEnabled,
+    required this.streamingDraft,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (streamingEnabled && state == VoiceCallState.listening) {
+      final draft = streamingDraft.trim();
+      return Text(
+        draft.isEmpty ? '正在听...' : '正在听：$draft',
+        style: const TextStyle(color: _callMuted, fontSize: 14),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+      );
+    }
+
     final label = switch (state) {
       VoiceCallState.connecting => '正在接通...',
       VoiceCallState.companionSpeaking => '$characterName 在说话',
@@ -392,25 +500,32 @@ class _StatusLabel extends StatelessWidget {
 
 class _CallControls extends StatelessWidget {
   final VoiceCallState state;
+  final bool streamingEnabled;
+  final bool streamingActive;
   final VoidCallback onHangUp;
   final VoidCallback onTogglePtt;
+  final VoidCallback onToggleStreaming;
 
   const _CallControls({
     required this.state,
+    required this.streamingEnabled,
+    required this.streamingActive,
     required this.onHangUp,
     required this.onTogglePtt,
+    required this.onToggleStreaming,
   });
 
   @override
   Widget build(BuildContext context) {
     final isRecording = state == VoiceCallState.userRecording;
     final isSpeaking = state == VoiceCallState.companionSpeaking;
-    final pttActive = state == VoiceCallState.listening ||
-        state == VoiceCallState.userRecording ||
-        state == VoiceCallState.companionSpeaking;
+    final pttActive = !streamingEnabled &&
+        (state == VoiceCallState.listening ||
+            state == VoiceCallState.userRecording ||
+            state == VoiceCallState.companionSpeaking);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40),
+      padding: const EdgeInsets.symmetric(horizontal: 28),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
@@ -465,8 +580,47 @@ class _CallControls extends StatelessWidget {
             ),
           ),
 
-          // Spacer for visual balance
-          const SizedBox(width: 68),
+          // Streaming voice mode
+          Tooltip(
+            message: streamingEnabled ? '关闭流式语音' : '开启流式语音',
+            child: GestureDetector(
+              onTap: onToggleStreaming,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: streamingEnabled
+                      ? _callGreen.withValues(alpha: 0.14)
+                      : _callSurface,
+                  border: Border.all(
+                    color: streamingEnabled
+                        ? _callGreen.withValues(
+                            alpha: streamingActive ? 0.95 : 0.6)
+                        : _callMuted.withValues(alpha: 0.3),
+                    width: 2,
+                  ),
+                  boxShadow: streamingActive
+                      ? [
+                          BoxShadow(
+                            color: _callGreen.withValues(alpha: 0.24),
+                            blurRadius: 16,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                      : const [],
+                ),
+                child: Icon(
+                  streamingEnabled
+                      ? Icons.graphic_eq_rounded
+                      : Icons.hearing_rounded,
+                  color: streamingEnabled ? _callGreen : _callMuted,
+                  size: 28,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -542,9 +696,8 @@ class _VoiceCallHistoryScreenState extends State<VoiceCallHistoryScreen> {
         .sessionsForCharacter(widget.characterId);
     return sessions.map((s) {
       final endedAt = s.endedAt;
-      final dur = endedAt != null
-          ? Duration(seconds: endedAt - s.startedAt)
-          : null;
+      final dur =
+          endedAt != null ? Duration(seconds: endedAt - s.startedAt) : null;
       return _SessionWithDuration(session: s, duration: dur);
     }).toList();
   }
@@ -575,7 +728,8 @@ class _VoiceCallHistoryScreenState extends State<VoiceCallHistoryScreen> {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: items.length,
-            separatorBuilder: (_, __) => const Divider(color: Color(0xFF1E2028)),
+            separatorBuilder: (_, __) =>
+                const Divider(color: Color(0xFF1E2028)),
             itemBuilder: (context, i) => _SessionTile(
               item: items[i],
               onTap: () => Navigator.of(context).push(
@@ -610,8 +764,8 @@ class _SessionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = item.session;
-    final date = DateFormat('MM-dd HH:mm').format(
-        DateTime.fromMillisecondsSinceEpoch(s.startedAt * 1000));
+    final date = DateFormat('MM-dd HH:mm')
+        .format(DateTime.fromMillisecondsSinceEpoch(s.startedAt * 1000));
     final durStr = item.duration != null
         ? '${item.duration!.inMinutes}分${item.duration!.inSeconds % 60}秒'
         : '进行中';
@@ -635,7 +789,8 @@ class _SessionTile extends StatelessWidget {
               ),
             )
           : null,
-      trailing: Text(durStr, style: const TextStyle(color: _callMuted, fontSize: 12)),
+      trailing:
+          Text(durStr, style: const TextStyle(color: _callMuted, fontSize: 12)),
     );
   }
 }
@@ -659,15 +814,14 @@ class VoiceCallTranscriptScreen extends StatefulWidget {
       _VoiceCallTranscriptScreenState();
 }
 
-class _VoiceCallTranscriptScreenState
-    extends State<VoiceCallTranscriptScreen> {
+class _VoiceCallTranscriptScreenState extends State<VoiceCallTranscriptScreen> {
   late Future<List<VoiceCallMessage>> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = AppDatabase.instance.voiceCallDao
-        .messagesForSession(widget.sessionId);
+    _future =
+        AppDatabase.instance.voiceCallDao.messagesForSession(widget.sessionId);
   }
 
   @override
@@ -703,9 +857,8 @@ class _VoiceCallTranscriptScreenState
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: isUser
-                      ? MainAxisAlignment.end
-                      : MainAxisAlignment.start,
+                  mainAxisAlignment:
+                      isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
                   children: [
                     if (!isUser) const SizedBox(width: 8),
                     Flexible(
@@ -745,10 +898,14 @@ void openVoiceCall(
   BuildContext context, {
   required String characterId,
   bool rootNavigator = false,
+  VoiceCallDirection direction = VoiceCallDirection.userToCompanion,
 }) {
   Navigator.of(context, rootNavigator: rootNavigator).push(
     MaterialPageRoute<void>(
-      builder: (_) => VoiceCallScreen(characterId: characterId),
+      builder: (_) => VoiceCallScreen(
+        characterId: characterId,
+        direction: direction,
+      ),
     ),
   );
 }

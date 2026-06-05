@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
+import 'package:memex/utils/user_storage.dart';
 
 void main() {
+  setUpAll(UserStorage.initL10n);
+
   Widget buildSubject({
     required TextEditingController controller,
     required bool isStreaming,
@@ -66,6 +69,23 @@ void main() {
     expect(sends, 0);
   });
 
+  testWidgets('input uses newline action instead of keyboard send',
+      (tester) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(buildSubject(
+      controller: controller,
+      isStreaming: false,
+      onSend: () {},
+    ));
+
+    final textField = tester.widget<TextField>(find.byType(TextField));
+    expect(textField.keyboardType, TextInputType.multiline);
+    expect(textField.textInputAction, TextInputAction.newline);
+    expect(textField.onSubmitted, isNull);
+  });
+
   testWidgets('rich capture entry is opt-in and invokes its callback',
       (tester) async {
     final controller = TextEditingController();
@@ -84,8 +104,34 @@ void main() {
     expect(opens, 1);
   });
 
+  testWidgets('remembered notice is a floating capsule with undo action',
+      (tester) async {
+    var undos = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              ConversationCaptureRememberedNotice(onUndo: () => undos++),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text(UserStorage.l10n.companionRemembered), findsOneWidget);
+    expect(find.text(UserStorage.l10n.undo), findsOneWidget);
+
+    await tester.tap(find.text(UserStorage.l10n.undo));
+    await tester.pump();
+    expect(undos, 1);
+  });
+
   testWidgets('auto read toggle persists as a mode switch', (tester) async {
     var enabled = false;
+    final semantics = tester.ensureSemantics();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -102,13 +148,14 @@ void main() {
       ),
     );
 
-    expect(find.bySemanticsLabel('开启自动朗读'), findsOneWidget);
+    expect(_findSemanticsLabel('开启自动朗读'), findsOneWidget);
 
     await tester.tap(find.byType(PersonaAutoReadToggle));
     await tester.pump();
 
     expect(enabled, isTrue);
-    expect(find.bySemanticsLabel('关闭自动朗读'), findsOneWidget);
+    expect(_findSemanticsLabel('关闭自动朗读'), findsOneWidget);
+    semantics.dispose();
   });
 
   test('reversed chat list reserves index zero for streaming content', () {
@@ -127,4 +174,10 @@ void main() {
       0,
     );
   });
+}
+
+Finder _findSemanticsLabel(String label) {
+  return find.byWidgetPredicate(
+    (widget) => widget is Semantics && widget.properties.label == label,
+  );
 }

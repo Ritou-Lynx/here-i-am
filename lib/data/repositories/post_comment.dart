@@ -18,7 +18,7 @@ import 'package:memex/domain/models/system_event.dart';
 import 'package:memex/utils/time_context.dart';
 
 final _logger = Logger('PostCommentEndpoint');
-final _fileSystemService = FileSystemService.instance;
+FileSystemService get _fileSystemService => FileSystemService.instance;
 const _commentAgentStopGracePeriod = Duration(seconds: 15);
 const _commentAgentMaxRunDuration = Duration(minutes: 10);
 

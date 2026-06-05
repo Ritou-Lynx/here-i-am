@@ -38,6 +38,15 @@ class SearchDao {
         tokenize='unicode61'
       )
     ''');
+    await _db.customStatement('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS shared_life_fts USING fts5(
+        entity_id UNINDEXED,
+        title,
+        tags,
+        summary,
+        tokenize='unicode61'
+      )
+    ''');
     await createCharacterFtsTables();
   }
 
@@ -360,6 +369,64 @@ class SearchDao {
         .map((row) => {
               'event_id': row.read<String>('event_id'),
               'source': row.read<String>('source'),
+              'rank': row.read<double>('rank'),
+            })
+        .toList();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Shared Life FTS
+  // ---------------------------------------------------------------------------
+
+  Future<void> upsertSharedLifeFts({
+    required String entityId,
+    required String title,
+    required String tags,
+    required String summary,
+  }) async {
+    await deleteSharedLifeFts(entityId);
+    await _db.customStatement(
+      'INSERT INTO shared_life_fts(entity_id, title, tags, summary) VALUES (?, ?, ?, ?)',
+      [
+        entityId,
+        await tokenizeForIndex(title),
+        await tokenizeForIndex(tags),
+        await tokenizeForIndex(summary),
+      ],
+    );
+  }
+
+  Future<void> deleteSharedLifeFts(String entityId) async {
+    await _db.customStatement(
+      'DELETE FROM shared_life_fts WHERE entity_id = ?',
+      [entityId],
+    );
+  }
+
+  Future<void> clearSharedLifeFts() async {
+    await _db.customStatement('DELETE FROM shared_life_fts');
+  }
+
+  /// Search SharedLife entities via FTS5.
+  Future<List<Map<String, dynamic>>> searchSharedLifeEntities(
+    String query, {
+    int limit = 30,
+  }) async {
+    final ftsQuery = await tokenizeForQuery(query);
+    if (ftsQuery.isEmpty) return [];
+    final results = await _db.customSelect(
+      '''SELECT entity_id,
+             snippet(shared_life_fts, 0, '<b>', '</b>', '...', 32) AS title_snippet,
+             snippet(shared_life_fts, 2, '<b>', '</b>', '...', 32) AS summary_snippet,
+             rank
+      FROM shared_life_fts WHERE shared_life_fts MATCH ? ORDER BY rank LIMIT ?''',
+      variables: [Variable<String>(ftsQuery), Variable<int>(limit)],
+    ).get();
+    return results
+        .map((row) => {
+              'entity_id': row.read<String>('entity_id'),
+              'title_snippet': row.read<String>('title_snippet'),
+              'summary_snippet': row.read<String>('summary_snippet'),
               'rank': row.read<double>('rank'),
             })
         .toList();

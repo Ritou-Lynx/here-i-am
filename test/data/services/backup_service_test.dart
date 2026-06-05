@@ -80,6 +80,53 @@ void main() {
     expect(manifestJson['entries'], isNotEmpty);
   });
 
+  test('backup settings exclude installation-scoped Android folder grants',
+      () async {
+    const userId = 'backup-service-user';
+    await UserStorage.setAndroidBackupTree(
+      userId: userId,
+      treeUri: 'content://com.android.externalstorage.documents/tree/primary',
+      displayName: 'Memex backups',
+    );
+
+    final backupPath = await BackupService.createBackup(
+      outputDirectory: p.join(tempDir.path, 'Backups'),
+    );
+    final archive = ZipDecoder().decodeBytes(
+      await File(backupPath).readAsBytes(),
+    );
+    final settingsFile = archive.files.firstWhere(
+      (file) => file.name == 'settings.json',
+    );
+    final settings = jsonDecode(utf8.decode(settingsFile.content)) as Map;
+
+    expect(settings['user_id'], userId);
+    expect(
+      settings.keys,
+      isNot(contains('memex_android_backup_tree_uri_$userId')),
+    );
+    expect(
+      settings.keys,
+      isNot(contains('memex_android_backup_tree_name_$userId')),
+    );
+  });
+
+  test('restore preference filter rejects installation-scoped grants', () {
+    expect(
+      BackupService.isPortablePreference(
+        'memex_android_backup_tree_uri_backup-service-user',
+      ),
+      isFalse,
+    );
+    expect(
+      BackupService.isPortablePreference(
+        'memex_android_backup_tree_name_backup-service-user',
+      ),
+      isFalse,
+    );
+    expect(BackupService.isPortablePreference('user_id'), isTrue);
+  });
+
   test('createBackup includes legacy absolute character media', () async {
     final workspace =
         FileSystemService.instance.getWorkspacePath('backup-service-user');
@@ -300,6 +347,23 @@ void main() {
         .toList();
 
     expect(safetyFiles, isNotEmpty);
+  });
+
+  test('deleteStoredBackup removes a local snapshot', () async {
+    final file = File(p.join(tempDir.path, 'delete-me.memex'));
+    await file.writeAsBytes([1, 2, 3]);
+
+    await BackupService.deleteStoredBackup(
+      BackupSnapshot(
+        id: file.path,
+        name: p.basename(file.path),
+        createdAt: DateTime(2026, 5, 15),
+        sizeBytes: 3,
+        filePath: file.path,
+      ),
+    );
+
+    expect(await file.exists(), isFalse);
   });
 
   group('inspectBackup', () {

@@ -1,5 +1,6 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:drift/drift.dart';
+import 'package:memex/data/services/sqlite_retry.dart';
 import 'package:memex/db/app_database.dart';
 
 const _bucket = 'companion_call';
@@ -48,23 +49,65 @@ Future<void> markPendingCallNotified() async {
   if (!AppDatabase.isInitialized) return;
   final db = AppDatabase.instance;
   final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-  await db.into(db.kvStore).insertOnConflictUpdate(
-    KvStoreCompanion.insert(
-      key: _keyNotified,
-      bucket: const Value(_bucket),
-      value: Value(now.toString()),
-      updatedAt: Value(now),
-    ),
-  );
+  await retryOnSqliteLocked(() async {
+    await db.into(db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: _keyNotified,
+            bucket: const Value(_bucket),
+            value: Value(now.toString()),
+            updatedAt: Value(now),
+          ),
+        );
+  });
 }
 
 /// Clear all pending call state (called when VoiceCallScreen opens).
-Future<void> clearPendingCall() async {
+Future<void> clearPendingCall({String? characterId}) async {
   if (!AppDatabase.isInitialized) return;
+  if (characterId != null) {
+    final pending = await readPendingCall();
+    if (pending?.characterId != characterId) return;
+  }
   final db = AppDatabase.instance;
-  await (db.delete(db.kvStore)
-        ..where((kv) => kv.bucket.equals(_bucket)))
-      .go();
+  await retryOnSqliteLocked(() async {
+    await (db.delete(db.kvStore)..where((kv) => kv.bucket.equals(_bucket)))
+        .go();
+  });
+}
+
+Future<void> queuePendingCall({
+  required String characterId,
+  required String openingMessage,
+}) async {
+  final db = AppDatabase.instance;
+  final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+  // A newly queued call must ring even if another call was notified in the
+  // last ten minutes.
+  await retryOnSqliteLocked(() async {
+    await db.transaction(() async {
+      await (db.delete(db.kvStore)
+            ..where((kv) =>
+                kv.bucket.equals(_bucket) & kv.key.equals(_keyNotified)))
+          .go();
+      await db.into(db.kvStore).insertOnConflictUpdate(
+            KvStoreCompanion.insert(
+              key: _keyCharacterId,
+              bucket: const Value(_bucket),
+              value: Value(characterId),
+              updatedAt: Value(now),
+            ),
+          );
+      await db.into(db.kvStore).insertOnConflictUpdate(
+            KvStoreCompanion.insert(
+              key: _keyOpening,
+              bucket: const Value(_bucket),
+              value: Value(openingMessage),
+              updatedAt: Value(now),
+            ),
+          );
+    });
+  });
 }
 
 /// Agent tool: initiate a voice call to the user.
@@ -88,30 +131,15 @@ Keep it natural and open-ended — it is the first thing they hear.''',
           'type': 'string',
           'description':
               'What you say when the user picks up. Start with their name or '
-              'a warm greeting. Conversational, not scripted. 1-2 sentences max.',
+                  'a warm greeting. Conversational, not scripted. 1-2 sentences max.',
         },
       },
       'required': ['opening_message'],
     },
     executable: (String openingMessage) async {
-      final db = AppDatabase.instance;
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-
-      await db.into(db.kvStore).insertOnConflictUpdate(
-        KvStoreCompanion.insert(
-          key: _keyCharacterId,
-          bucket: const Value(_bucket),
-          value: Value(characterId),
-          updatedAt: Value(now),
-        ),
-      );
-      await db.into(db.kvStore).insertOnConflictUpdate(
-        KvStoreCompanion.insert(
-          key: _keyOpening,
-          bucket: const Value(_bucket),
-          value: Value(openingMessage),
-          updatedAt: Value(now),
-        ),
+      await queuePendingCall(
+        characterId: characterId,
+        openingMessage: openingMessage,
       );
 
       // ignore: avoid_print

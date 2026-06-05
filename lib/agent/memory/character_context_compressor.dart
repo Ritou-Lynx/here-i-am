@@ -233,7 +233,12 @@ class CharacterContextCompressor {
         modelConfig: resources.modelConfig,
       );
       var out = res.textOutput?.trim() ?? '';
-      if (out.isEmpty) return existingSummary.isNotEmpty ? existingSummary : '';
+      if (out.isEmpty) {
+        return _buildFallbackSummary(
+          existingSummary: existingSummary,
+          formattedEvents: formattedEvents,
+        );
+      }
 
       // If output exceeds budget, ask for a tighter version.
       if (out.length > _summaryCharBudget) {
@@ -268,7 +273,30 @@ class CharacterContextCompressor {
       return out;
     } catch (e) {
       _logger.warning('LLM summary generation failed: $e');
-      return existingSummary.isNotEmpty ? existingSummary : '';
+      return _buildFallbackSummary(
+        existingSummary: existingSummary,
+        formattedEvents: formattedEvents,
+      );
     }
+  }
+
+  String _buildFallbackSummary({
+    required String existingSummary,
+    required String formattedEvents,
+  }) {
+    const header = '## Archived Interaction Excerpt\n'
+        'Automatic summarization was unavailable. Use HistorySearch when exact '
+        'older wording matters.\n\n';
+    final prefix = existingSummary.trim().isEmpty
+        ? header
+        : '${existingSummary.trim()}\n\n$header';
+    final remaining = _summaryCharBudget - prefix.length;
+    if (remaining <= 0) {
+      return prefix.substring(0, _summaryCharBudget);
+    }
+    final events = formattedEvents.trim();
+    if (events.length <= remaining) return '$prefix$events';
+    if (remaining <= 3) return prefix.substring(0, _summaryCharBudget);
+    return '$prefix...${events.substring(events.length - remaining + 3)}';
   }
 }

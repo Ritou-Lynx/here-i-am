@@ -115,6 +115,47 @@ void main() {
     );
   });
 
+  testWidgets('deletes a stored snapshot after confirmation', (tester) async {
+    const snapshotName = 'memex_auto_2026-05-15T12-00-00.memex';
+    final snapshots = <BackupSnapshot>[
+      BackupSnapshot(
+        id: 'delete-me',
+        name: snapshotName,
+        createdAt: DateTime(2026, 5, 15, 12),
+        sizeBytes: 3,
+        filePath: '/tmp/$snapshotName',
+      ),
+    ];
+    BackupSnapshot? deleted;
+
+    await _pumpBackupPage(
+      tester,
+      listStoredBackups: () async => List<BackupSnapshot>.of(snapshots),
+      deleteStoredBackup: (snapshot) async {
+        deleted = snapshot;
+        snapshots.remove(snapshot);
+      },
+    );
+    await _scrollUntilVisible(tester, find.text(snapshotName));
+
+    await tester.tap(
+      find.byTooltip(UserStorage.l10n.deleteThisBackup),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text(UserStorage.l10n.confirmDeleteBackup), findsOneWidget);
+    expect(
+      find.text(UserStorage.l10n.confirmDeleteBackupMessage(snapshotName)),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text(UserStorage.l10n.delete));
+    await tester.pumpAndSettle();
+
+    expect(deleted?.id, 'delete-me');
+    expect(find.text(snapshotName), findsNothing);
+  });
+
   testWidgets('shows Android backup location picker menu', (tester) async {
     await _pumpBackupPage(tester, isAndroid: true);
 
@@ -137,6 +178,7 @@ Future<void> _pumpBackupPage(
   bool isAndroid = false,
   Future<List<BackupSnapshot>> Function()? listStoredBackups,
   AutoBackupCreator? createAutoBackup,
+  StoredBackupDeleter? deleteStoredBackup,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -148,6 +190,7 @@ Future<void> _pumpBackupPage(
         currentBackupLocationLabel: () async => '/tmp/Backups',
         listStoredBackups: listStoredBackups ?? () async => const [],
         createAutoBackup: createAutoBackup,
+        deleteStoredBackup: deleteStoredBackup,
       ),
     ),
   );

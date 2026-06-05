@@ -190,33 +190,41 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               const SizedBox(height: 16),
             ],
 
-            // Avatar row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: _seeds.map((seed) {
-                final isSelected = _selected == seed;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() => _selected = seed);
-                    Navigator.pop(context, seed);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: isSelected
-                          ? Border.all(color: AppColors.primary, width: 2.5)
-                          : Border.all(color: Colors.transparent, width: 2.5),
+            // Avatar row — wrapped in a horizontal scroll so it never overflows.
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: _seeds.map((seed) {
+                  final isSelected = _selected == seed;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() => _selected = seed);
+                        Navigator.pop(context, seed);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: isSelected
+                              ? Border.all(
+                                  color: AppColors.primary, width: 2.5)
+                              : Border.all(
+                                  color: Colors.transparent, width: 2.5),
+                        ),
+                        child: DiceBearAvatar(
+                          seed: seed,
+                          size: 56,
+                          backgroundColor: Colors.grey[50],
+                        ),
+                      ),
                     ),
-                    child: DiceBearAvatar(
-                      seed: seed,
-                      size: 56,
-                      backgroundColor: Colors.grey[50],
-                    ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
             const SizedBox(height: 16),
 

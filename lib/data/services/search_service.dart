@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:memex/db/app_database.dart';
@@ -183,6 +185,12 @@ class SearchService {
     return await _dao?.searchCards(query, limit: limit) ?? [];
   }
 
+  /// Search SharedLife entities via FTS5. Returns ranked results with snippets.
+  Future<List<Map<String, dynamic>>> searchSharedLifeEntities(String query,
+      {int limit = 30}) async {
+    return await _dao?.searchSharedLifeEntities(query, limit: limit) ?? [];
+  }
+
   /// Find PKM files that reference any of the given fact_ids.
   /// Uses file-system grep because fact_id markers contain special characters
   /// that get broken up by FTS tokenization.
@@ -286,10 +294,11 @@ class SearchService {
   // Full rebuild (manual trigger from debug page)
   // ---------------------------------------------------------------------------
 
-  /// Rebuild all FTS indexes from scratch (cards + PKM files).
+  /// Rebuild all FTS indexes from scratch (cards + PKM files + shared life).
   Future<void> rebuildAll(String userId) async {
     await rebuildCardFtsIndex(userId);
     await rebuildPkmFtsIndex(userId);
+    await rebuildSharedLifeFtsIndex();
   }
 
   /// Rebuild the card FTS index by scanning all card files independently.
@@ -392,6 +401,38 @@ class SearchService {
     _logger.info('PKM FTS rebuild complete. Indexed $count files.');
   }
 
+  /// Rebuild the SharedLife entity FTS index from the current projection table.
+  Future<void> rebuildSharedLifeFtsIndex() async {
+    final dao = _dao;
+    if (dao == null) return;
+    _logger.info('Rebuilding SharedLife FTS index');
+
+    await JiebaSegmenter.instance.ensureLoaded();
+    await dao.clearSharedLifeFts();
+    final db = AppDatabase.instance;
+    final entities = await db.select(db.sharedLifeEntities).get();
+
+    int count = 0;
+    for (final entity in entities) {
+      try {
+        final state = _decodeMapStatic(entity.stateJson);
+        final tags =
+            _stringListStatic(state['tags']).join(' ');
+        final summary = _stringFieldStatic(state, 'summary');
+        await dao.upsertSharedLifeFts(
+          entityId: entity.id,
+          title: entity.title,
+          tags: tags,
+          summary: summary,
+        );
+        count++;
+      } catch (e) {
+        _logger.warning('Error indexing SharedLife entity ${entity.id}: $e');
+      }
+    }
+    _logger.info('SharedLife FTS rebuild complete. Indexed $count entities.');
+  }
+
   // ---------------------------------------------------------------------------
   // Event subscription (consumer side) — uses persistent task queue
   // ---------------------------------------------------------------------------
@@ -407,12 +448,65 @@ class SearchService {
         taskType: 'fts_index_update',
         priority: -1, // Lower priority than agent tasks
         maxRetries: 3,
+        shouldEnqueue: (_, event) async {
+          final record = event.payload as DataChangeRecord;
+          return _shouldEnqueueFtsIndexUpdate(record);
+        },
         payloadBuilder: (_, event) async {
           final record = event.payload as DataChangeRecord;
           return dataChangeRecordToPayload(record);
         },
       ),
     );
+  }
+
+  bool _shouldEnqueueFtsIndexUpdate(DataChangeRecord record) {
+    if (record.ns == DataChangeNs.pkmFile) return true;
+    if (record.ns == DataChangeNs.sharedLifeEntity) return true;
+    if (record.ns != DataChangeNs.card) return false;
+
+    switch (record.op) {
+      case DataChangeOp.insert:
+      case DataChangeOp.delete:
+        return true;
+      case DataChangeOp.update:
+        final before = record.before;
+        final after = record.after;
+        if (before == null || after == null) return true;
+        return _indexedCardFieldChanged(before, after);
+    }
+  }
+
+  bool _indexedCardFieldChanged(
+    Map<String, dynamic> before,
+    Map<String, dynamic> after,
+  ) {
+    return _stringValue(before['title']) != _stringValue(after['title']) ||
+        _stringListValue(before['tags']) != _stringListValue(after['tags']) ||
+        _insightText(before['insight']) != _insightText(after['insight']);
+  }
+
+  @visibleForTesting
+  bool shouldEnqueueFtsIndexUpdateForTesting(DataChangeRecord record) {
+    return _shouldEnqueueFtsIndexUpdate(record);
+  }
+
+  String _stringValue(Object? value) => value is String ? value : '';
+
+  String _stringListValue(Object? value) {
+    if (value is List) return value.whereType<String>().join(' ');
+    return '';
+  }
+
+  String _insightText(Object? value) {
+    if (value is Map<String, dynamic>) {
+      return value['text'] as String? ?? '';
+    }
+    if (value is Map) {
+      final text = value['text'];
+      return text is String ? text : '';
+    }
+    return '';
   }
 
   // ---------------------------------------------------------------------------
@@ -530,5 +624,33 @@ class SearchService {
       'absolute_path': absPath,
       'content': content,
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Static helpers for SharedLife FTS indexing
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> _decodeMapStatic(String value) {
+    try {
+      final decoded = jsonDecode(value);
+      return decoded is Map
+          ? Map<String, dynamic>.from(decoded)
+          : <String, dynamic>{};
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  static String _stringFieldStatic(Map<String, dynamic> map, String key) {
+    final value = map[key];
+    return value is String ? value : '';
+  }
+
+  static List<String> _stringListStatic(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .map((item) => '$item'.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
   }
 }

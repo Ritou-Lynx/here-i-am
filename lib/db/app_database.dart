@@ -23,6 +23,9 @@ part 'app_database.g.dart';
     SystemActions,
     ClarificationRequests,
     PersonaChatMessages,
+    ConversationCaptureCursors,
+    SharedLifeEventOperations,
+    SharedLifeEntities,
     UserNotifications,
     SystemMessageQueue,
     AiFinanceLedger,
@@ -70,6 +73,7 @@ class AppDatabase extends _$AppDatabase {
     }
 
     _instance = AppDatabase._(userId);
+    await _instance!._configureConnection();
   }
 
   /// Private constructor
@@ -84,7 +88,12 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 22;
+
+  Future<void> _configureConnection() async {
+    await customStatement('PRAGMA busy_timeout = 5000');
+    await customStatement('PRAGMA journal_mode = WAL');
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -105,6 +114,7 @@ class AppDatabase extends _$AppDatabase {
               'CREATE INDEX IF NOT EXISTS idx_system_actions_status ON system_actions(status)');
           await _createClarificationRequestIndices();
           await _createUserNotificationIndices();
+          await _createSharedLifeMemoryIndices();
           // Create FTS5 virtual tables for full-text search
           await searchDao.createFtsTables();
         },
@@ -233,6 +243,43 @@ class AppDatabase extends _$AppDatabase {
                 'CREATE INDEX IF NOT EXISTS idx_ai_purchase_log_created_at '
                 'ON ai_purchase_log(created_at)');
           }
+          if (from < 19) {
+            await m.createTable(conversationCaptureCursors);
+            await m.createTable(sharedLifeEventOperations);
+            await m.createTable(sharedLifeEntities);
+            await _createSharedLifeMemoryIndices();
+          }
+          if (from < 20) {
+            await customStatement(
+              "INSERT OR REPLACE INTO kv_store(key, value, bucket, updated_at) "
+              "VALUES ('conversation_capture_baseline_reset_v1', 'pending', "
+              "'conversation_capture', CAST(strftime('%s', 'now') AS INTEGER))",
+            );
+          }
+          if (from < 21) {
+            // Add attachmentsJson column to persona_chat_messages.
+            try {
+              await customStatement(
+                  'ALTER TABLE persona_chat_messages ADD COLUMN attachments_json TEXT');
+            } catch (e) {
+              _logger.info(
+                  'attachments_json column may already exist, skipping: $e');
+            }
+          }
+          if (from < 22) {
+            // Create FTS5 virtual table for SharedLife entity search.
+            await customStatement('''
+              CREATE VIRTUAL TABLE IF NOT EXISTS shared_life_fts USING fts5(
+                entity_id UNINDEXED,
+                title,
+                tags,
+                summary,
+                tokenize='unicode61'
+              )
+            ''');
+            // Schedule a rebuild to backfill existing SharedLife entities.
+            _needsFtsRebuild = true;
+          }
         },
       );
 
@@ -266,6 +313,15 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_user_notifications_list '
         'ON user_notifications(user_id, notification_type, updated_at)');
+  }
+
+  Future<void> _createSharedLifeMemoryIndices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_shared_life_operations_entity '
+        'ON shared_life_event_operations(entity_id, created_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_shared_life_entities_updated '
+        'ON shared_life_entities(updated_at)');
   }
 
   bool _isAlreadyExistsError(Object error, String tableName) {

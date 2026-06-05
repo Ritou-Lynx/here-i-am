@@ -18,12 +18,15 @@ typedef AutoBackupCreator = Future<BackupSnapshot?> Function({
   void Function(String status)? onProgress,
 });
 
+typedef StoredBackupDeleter = Future<void> Function(BackupSnapshot snapshot);
+
 class BackupRestorePage extends StatefulWidget {
   final bool? isAndroidOverride;
   final Future<int> Function()? estimateBackupSize;
   final Future<String> Function()? currentBackupLocationLabel;
   final Future<List<BackupSnapshot>> Function()? listStoredBackups;
   final AutoBackupCreator? createAutoBackup;
+  final StoredBackupDeleter? deleteStoredBackup;
   final Future<void> Function()? useDefaultBackupDirectory;
   final Future<AndroidBackupDirectory?> Function()? pickAndroidBackupDirectory;
 
@@ -34,6 +37,7 @@ class BackupRestorePage extends StatefulWidget {
     this.currentBackupLocationLabel,
     this.listStoredBackups,
     this.createAutoBackup,
+    this.deleteStoredBackup,
     this.useDefaultBackupDirectory,
     this.pickAndroidBackupDirectory,
   });
@@ -50,6 +54,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
   bool _isRestoring = false;
   bool _isCreatingSnapshot = false;
   bool _isPickingLocation = false;
+  String? _deletingBackupId;
   bool _autoBackupEnabled = false;
   String _statusText = '';
   String _estimatedSize = '';
@@ -67,10 +72,10 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     final userId = await UserStorage.getUserId();
     final size =
         await (widget.estimateBackupSize ?? BackupService.estimateBackupSize)();
-    final location = await (widget.currentBackupLocationLabel ??
-        BackupService.currentBackupLocationLabel)();
     final snapshots =
         await (widget.listStoredBackups ?? BackupService.listStoredBackups)();
+    final location = await (widget.currentBackupLocationLabel ??
+        BackupService.currentBackupLocationLabel)();
     final autoEnabled = userId != null && userId.isNotEmpty
         ? await UserStorage.isAutoBackupEnabled(userId)
         : false;
@@ -307,6 +312,62 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     );
   }
 
+  Future<void> _deleteStoredBackup(BackupSnapshot snapshot) async {
+    if (_deletingBackupId != null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: Text(UserStorage.l10n.confirmDeleteBackup),
+        content: Text(
+          UserStorage.l10n.confirmDeleteBackupMessage(snapshot.name),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(UserStorage.l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text(UserStorage.l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _deletingBackupId = snapshot.id;
+      _statusText = '';
+    });
+
+    try {
+      await (widget.deleteStoredBackup ?? BackupService.deleteStoredBackup)(
+        snapshot,
+      );
+      await _loadPageData();
+      if (!mounted) return;
+      setState(() {
+        _deletingBackupId = null;
+        _statusText = UserStorage.l10n.backupDeleted(snapshot.name);
+      });
+    } catch (e, stack) {
+      _logger.warning('Failed to delete backup ${snapshot.name}: $e', e, stack);
+      if (mounted) {
+        setState(() {
+          _deletingBackupId = null;
+          _statusText = '';
+        });
+        ToastHelper.showError(
+          context,
+          UserStorage.l10n.backupDeleteFailed(e.toString()),
+        );
+      }
+    }
+  }
+
   Future<bool?> _confirmRestore({BackupFileInfo? backupInfo}) {
     return showDialog<bool>(
       context: context,
@@ -398,7 +459,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     final isBusy = _isBackingUp ||
         _isRestoring ||
         _isCreatingSnapshot ||
-        _isPickingLocation;
+        _isPickingLocation ||
+        _deletingBackupId != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -619,7 +681,9 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                 snapshot: snapshot,
                 dateText: _formatDateTime(snapshot.createdAt),
                 sizeText: _formatBytes(snapshot.sizeBytes),
+                isDeleting: _deletingBackupId == snapshot.id,
                 onRestore: isBusy ? null : () => _restoreStoredBackup(snapshot),
+                onDelete: isBusy ? null : () => _deleteStoredBackup(snapshot),
               ),
             ),
         ],
@@ -760,13 +824,17 @@ class _StoredBackupTile extends StatelessWidget {
   final BackupSnapshot snapshot;
   final String dateText;
   final String sizeText;
+  final bool isDeleting;
   final VoidCallback? onRestore;
+  final VoidCallback? onDelete;
 
   const _StoredBackupTile({
     required this.snapshot,
     required this.dateText,
     required this.sizeText,
+    required this.isDeleting,
     required this.onRestore,
+    required this.onDelete,
   });
 
   @override
@@ -802,10 +870,29 @@ class _StoredBackupTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 12),
           ),
-          trailing: IconButton(
-            tooltip: l10n.restoreThisBackup,
-            onPressed: onRestore,
-            icon: const Icon(Icons.restore_outlined),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                key: ValueKey('backup-restore-${snapshot.id}'),
+                tooltip: l10n.restoreThisBackup,
+                onPressed: onRestore,
+                icon: const Icon(Icons.restore_outlined),
+              ),
+              IconButton(
+                key: ValueKey('backup-delete-${snapshot.id}'),
+                tooltip: l10n.deleteThisBackup,
+                onPressed: onDelete,
+                color: const Color(0xFFDC2626),
+                icon: isDeleting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline),
+              ),
+            ],
           ),
         ),
       ),

@@ -67,4 +67,34 @@ void main() {
       expect(duplicated.key, 'config-v1.2_test_copy');
     });
   });
+
+  group('DeepSeek preset', () {
+    test('uses the official OpenAI-compatible endpoint and models', () {
+      expect(
+        LLMConfig.underlyingClientType(LLMConfig.typeDeepSeek),
+        LLMConfig.typeChatCompletion,
+      );
+      expect(
+        LLMConfig.defaultBaseUrl(LLMConfig.typeDeepSeek),
+        'https://api.deepseek.com',
+      );
+      expect(
+        LLMConfig.recommendedModels(LLMConfig.typeDeepSeek),
+        ['deepseek-chat', 'deepseek-reasoner'],
+      );
+    });
+
+    test('requires an API key', () {
+      const config = LLMConfig(
+        key: 'deepseek',
+        type: LLMConfig.typeDeepSeek,
+        modelId: 'deepseek-chat',
+        apiKey: '',
+        baseUrl: 'https://api.deepseek.com',
+      );
+
+      expect(config.isValid, isFalse);
+      expect(config.copyWith(apiKey: 'sk-test').isValid, isTrue);
+    });
+  });
 }

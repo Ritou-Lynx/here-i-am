@@ -1252,5 +1252,50 @@
   },
   "earlyUpdateCheckFailed": "检查更新失败：{error}",
   "earlyUpdateDialogTitle": "发现 Early 更新",
-  "earlyUpdateReleaseNotes": "更新说明"
+  "earlyUpdateReleaseNotes": "更新说明",
+  "companionRemembered": "已记住",
+  "companionSharedLifeTitle": "从聊天中记住的事",
+  "undo": "撤销",
+  "companionLifeEvent": "事件",
+  "companionLifeTask": "待办",
+  "companionLifePlan": "计划",
+  "companionLifeSchedule": "日程",
+  "companionLifeFact": "记录",
+  "companionLifeActive": "进行中",
+  "companionLifeCompleted": "已完成",
+  "companionLifeCancelled": "已取消",
+  "companionSharedLifeDetail": "生活记录",
+  "companionSharedLifeCurrentState": "当前状态",
+  "companionSharedLifeRelated": "相关回忆",
+  "companionSharedLifeEvidence": "原始对话",
+  "companionSharedLifeHistory": "更新历史",
+  "companionSharedLifeUserMessage": "我",
+  "companionSharedLifeCharacterMessage": "角色"
+  ,"providerDeepSeek": "DeepSeek"
+  ,"testConnectionSuccess": "\u8fde\u63a5\u6210\u529f"
+  ,"testConnectionFailed": "\u8fde\u63a5\u5931\u8d25"
+  ,"testTypeText": "\u6587\u672c"
+  ,"testTypeVision": "\u89c6\u89c9"
+  ,"testButton": "\u6d4b\u8bd5"
+  ,"testing": "\u6d4b\u8bd5\u4e2d..."
+  ,"deleteThisBackup": "\u5220\u9664\u6b64\u5907\u4efd"
+  ,"confirmDeleteBackup": "\u5220\u9664\u5907\u4efd\uff1f"
+  ,"@confirmDeleteBackupMessage": {
+    "placeholders": {
+      "fileName": {}
+    }
+  }
+  ,"confirmDeleteBackupMessage": "\u5220\u9664 {fileName}\uff1f\u5220\u9664\u540e\u65e0\u6cd5\u6062\u590d\u3002"
+  ,"@backupDeleted": {
+    "placeholders": {
+      "fileName": {}
+    }
+  }
+  ,"backupDeleted": "\u5df2\u5220\u9664\u5907\u4efd\uff1a{fileName}"
+  ,"@backupDeleteFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  }
+  ,"backupDeleteFailed": "\u65e0\u6cd5\u5220\u9664\u5907\u4efd\uff1a{error}"
 }

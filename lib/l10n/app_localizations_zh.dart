@@ -1532,6 +1532,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get providerZhipu => 'Zhipu GLM (智谱)';
 
   @override
+  String get providerDeepSeek => 'DeepSeek';
+
+  @override
   String get providerMinimax => 'MiniMax';
 
   @override
@@ -1566,6 +1569,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get advancedSettings => '高级设置';
+
+  @override
+  String get testConnectionSuccess => '连接成功';
+
+  @override
+  String get testConnectionFailed => '连接失败';
+
+  @override
+  String get testTypeText => '文本';
+
+  @override
+  String get testTypeVision => '视觉';
+
+  @override
+  String get testButton => '测试';
+
+  @override
+  String get testing => '测试中...';
 
   @override
   String get proxyUrlOptional => '代理 URL (可选)';
@@ -1778,6 +1799,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get restoreThisBackup => '恢复此备份';
+
+  @override
+  String get deleteThisBackup => '删除此备份';
+
+  @override
+  String get confirmDeleteBackup => '删除备份？';
+
+  @override
+  String confirmDeleteBackupMessage(Object fileName) {
+    return '删除 $fileName？删除后无法恢复。';
+  }
+
+  @override
+  String backupDeleted(Object fileName) {
+    return '已删除备份：$fileName';
+  }
+
+  @override
+  String backupDeleteFailed(Object error) {
+    return '无法删除备份：$error';
+  }
 
   @override
   String get creatingSafetySnapshot => '正在创建安全快照...';
@@ -2675,4 +2717,58 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get earlyUpdateReleaseNotes => '更新说明';
+
+  @override
+  String get companionRemembered => '已记住';
+
+  @override
+  String get companionSharedLifeTitle => '从聊天中记住的事';
+
+  @override
+  String get undo => '撤销';
+
+  @override
+  String get companionLifeEvent => '事件';
+
+  @override
+  String get companionLifeTask => '待办';
+
+  @override
+  String get companionLifePlan => '计划';
+
+  @override
+  String get companionLifeSchedule => '日程';
+
+  @override
+  String get companionLifeFact => '记录';
+
+  @override
+  String get companionLifeActive => '进行中';
+
+  @override
+  String get companionLifeCompleted => '已完成';
+
+  @override
+  String get companionLifeCancelled => '已取消';
+
+  @override
+  String get companionSharedLifeDetail => '生活记录';
+
+  @override
+  String get companionSharedLifeCurrentState => '当前状态';
+
+  @override
+  String get companionSharedLifeRelated => '相关回忆';
+
+  @override
+  String get companionSharedLifeEvidence => '原始对话';
+
+  @override
+  String get companionSharedLifeHistory => '更新历史';
+
+  @override
+  String get companionSharedLifeUserMessage => '我';
+
+  @override
+  String get companionSharedLifeCharacterMessage => '角色';
 }

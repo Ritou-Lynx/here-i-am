@@ -74,8 +74,14 @@ class CharacterSelectionService {
       }
     }
 
-    // 2. Extract interest keywords from persona's pkm_interest_filter section
-    final interestKeywords = _extractInterestKeywords(char.persona);
+    // 2. Extract interest keywords from the dedicated interest filter.
+    // Legacy characters may still have this embedded in persona, so keep a
+    // fallback for compatibility.
+    final interestKeywords = _extractInterestKeywords(
+      char.interestFilter?.trim().isNotEmpty == true
+          ? char.interestFilter!
+          : char.persona,
+    );
     for (final keyword in interestKeywords) {
       if (lower.contains(keyword.toLowerCase())) {
         score += 2.0;
@@ -88,30 +94,40 @@ class CharacterSelectionService {
     return score;
   }
 
-  /// Extract keywords from the PKM Interest Filter section of persona text.
-  static List<String> _extractInterestKeywords(String persona) {
+  /// Extract keywords from a character interest filter or legacy persona text.
+  static List<String> _extractInterestKeywords(String text) {
     final keywords = <String>[];
 
-    // Look for "PKM Interest Filter" or "Focus on" sections
+    if (!text.contains('\n') && !text.contains('#')) {
+      return _tokenizeInterestKeywords(text);
+    }
+
+    // Look for "PKM Interest Filter" or "Focus on" sections in legacy
+    // personas created before interest_filter was stored separately.
     final filterMatch = RegExp(
       r'(?:PKM Interest Filter|Focus on)[:\s]*(.*?)(?:\n#|\n\n|$)',
       caseSensitive: false,
       dotAll: true,
-    ).firstMatch(persona);
+    ).firstMatch(text);
 
     if (filterMatch != null) {
       final filterText = filterMatch.group(1) ?? '';
-      // Extract meaningful nouns/phrases
-      final words = filterText
-          .replaceAll(RegExp(r'[,;.!?()]'), ' ')
-          .split(RegExp(r'\s+'))
-          .where((w) => w.length > 3) // Skip short words
-          .where((w) => !_stopWords.contains(w.toLowerCase()))
-          .toList();
-      keywords.addAll(words);
+      keywords.addAll(_tokenizeInterestKeywords(filterText));
+    } else {
+      keywords.addAll(_tokenizeInterestKeywords(text));
     }
 
     return keywords;
+  }
+
+  static List<String> _tokenizeInterestKeywords(String text) {
+    return text
+        .replaceAll(RegExp(r'[,;.!?()、，。；：！？（）]'), ' ')
+        .replaceAll('和', ' ')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length > 1)
+        .where((w) => !_stopWords.contains(w.toLowerCase()))
+        .toList();
   }
 
   /// Score emotional affinity between character and content tone.

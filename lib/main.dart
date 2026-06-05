@@ -43,8 +43,11 @@ import 'package:memex/data/services/streaming_transcriber.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/notification_service.dart';
+import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/data/services/callkit_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
+import 'package:memex/data/services/voice_call_service.dart'
+    show VoiceCallDirection;
 import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
 import 'package:memex/ui/character/widgets/voice_call_screen.dart';
 import 'package:workmanager/workmanager.dart';
@@ -71,7 +74,6 @@ import 'package:quick_actions/quick_actions.dart';
 import 'package:memex/data/services/quick_action_service.dart';
 import 'package:memex/data/services/speech_transcription_service.dart';
 import 'package:memex/data/services/background_task_drain_service.dart';
-import 'package:memex/data/services/background_task_foreground_service.dart';
 import 'package:memex/ui/companion/widgets/companion_first_shell.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -111,7 +113,6 @@ void main() async {
   // Initialize foreground service (bypasses Samsung Freecess)
   if (Platform.isAndroid) {
     await CompanionForegroundService.initialize();
-    await BackgroundTaskForegroundService.initialize();
   }
 
   // Initialize notification service for agent checkins
@@ -126,7 +127,12 @@ void main() async {
 
     if (payload.startsWith('call:')) {
       final characterId = payload.substring(5);
-      openVoiceCall(context, characterId: characterId, rootNavigator: true);
+      openVoiceCall(
+        context,
+        characterId: characterId,
+        rootNavigator: true,
+        direction: VoiceCallDirection.companionToUser,
+      );
     } else {
       openPersonaChat(context, characterId: payload, rootNavigator: true);
     }
@@ -139,9 +145,17 @@ void main() async {
     // mutes our own TTS. Once the user accepts, immediately end the CallKit
     // session so audio focus returns to the app, then open our in-app call UI.
     await CallkitService.instance.endAll();
+    // Give Android ~300 ms to return audio focus before VoiceCallService
+    // starts TTS. Without this delay the first greeting is muted.
+    await Future.delayed(const Duration(milliseconds: 300));
     final context = rootNavigatorKey.currentContext;
     if (context == null) return;
-    openVoiceCall(context, characterId: characterId, rootNavigator: true);
+    openVoiceCall(
+      context,
+      characterId: characterId,
+      rootNavigator: true,
+      direction: VoiceCallDirection.companionToUser,
+    );
   };
   CallkitService.instance.onDecline = (String characterId) {
     // Record a missed/declined-call memory so the companion remembers.
@@ -212,6 +226,11 @@ class RootShellState extends State<RootShell> {
   void initState() {
     super.initState();
     _checkUser();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        NotificationService.instance.requestNotificationsPermissionIfNeeded(),
+      );
+    });
   }
 
   Future<void> _checkUser() async {
@@ -431,6 +450,14 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
       MemexRouter().scheduleAutoBackupCheck(trigger: 'foreground');
       _checkGracePeriod();
       _startForegroundHeartbeat();
+      _checkPendingCallOnResume();
+      // Ensure the persistent foreground service is running. If Android killed
+      // it while the app was backgrounded, this restarts it (idempotent).
+      if (Platform.isAndroid) {
+        CompanionForegroundService.startPersistent().catchError((e) {
+          debugPrint('[AppLifecycle] Failed to restart foreground service: $e');
+        });
+      }
     } else if (state == AppLifecycleState.detached) {
       unawaited(LocalTaskExecutor.instance
           .recordGracefulShutdown(reason: 'app_lifecycle_detached'));
@@ -441,6 +468,31 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   bool get _isBackgrounded =>
       _lastLifecycleState == AppLifecycleState.paused ||
       _lastLifecycleState == AppLifecycleState.hidden;
+
+  void _checkPendingCallOnResume() {
+    // When the app comes back to the foreground, check if a companion had
+    // queued a voice call (e.g. from a scheduled reminder) that the system
+    // couldn't deliver via CallKit while the app was backgrounded.
+    Future.microtask(() async {
+      try {
+        final pending = await readPendingCall();
+        if (pending == null) return;
+        // If CallKit already rang (notified flag set), the user accepted via
+        // the system screen and onAccept handles the navigation. Opening a
+        // second VoiceCallScreen here would create a duplicate session with
+        // conflicting audio. Only open directly when CallKit never showed.
+        if (await isPendingCallAlreadyNotified()) return;
+        final context = rootNavigatorKey.currentContext;
+        if (context == null) return;
+        openVoiceCall(
+          context,
+          characterId: pending.characterId,
+          rootNavigator: true,
+          direction: VoiceCallDirection.companionToUser,
+        );
+      } catch (_) {}
+    });
+  }
 
   void _ensureTaskKeepAliveSubscription() {
     if (_taskKeepAliveSubscription != null || !AppDatabase.isInitialized) {

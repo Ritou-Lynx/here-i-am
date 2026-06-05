@@ -207,6 +207,12 @@ class RecentActivitySnapshot {
           ..limit(1))
         .getSingleOrNull();
 
+    final recentMessages = await (db.select(db.personaChatMessages)
+          ..where((t) => t.characterId.equals(characterId))
+          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..limit(8))
+        .get();
+
     final lines = <String>[];
     if (lastUser != null) {
       lines.add(
@@ -217,6 +223,17 @@ class RecentActivitySnapshot {
     if (lastChar != null) {
       lines.add(
           'You last replied: ${_fmtAgo(lastChar.timestamp, now)} — "${_trunc(lastChar.content, 80)}"');
+    }
+    if (recentMessages.isNotEmpty) {
+      lines.add('');
+      lines.add('Recent chat window (oldest to newest):');
+      for (final message in recentMessages.reversed) {
+        final speaker = message.isFromCharacter ? 'You' : 'User';
+        lines.add(
+          '- $speaker (${_fmtAgo(message.timestamp, now)}): '
+          '"${_trunc(message.content, 120)}"',
+        );
+      }
     }
     return lines.join('\n');
   }

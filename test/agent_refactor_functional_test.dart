@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
@@ -346,15 +348,9 @@ void main() {
 
     test('tavern import: json+png preview/import/conflict and invalid format',
         () async {
-      const jsonPath =
-          '/Users/USER/Downloads/main_error-6074f660fee4_spec_v2.json';
-      const pngPath =
-          '/Users/USER/Downloads/main_xin-yan-e02eb8dd63ad_spec_v2.png';
-
-      expect(await File(jsonPath).exists(), isTrue,
-          reason: 'Missing test fixture JSON card file');
-      expect(await File(pngPath).exists(), isTrue,
-          reason: 'Missing test fixture PNG card file');
+      final fixtures = await _writeTavernFixtures(tempRoot);
+      final jsonPath = fixtures.jsonPath;
+      final pngPath = fixtures.pngPath;
 
       final svc = TavernCharacterImportService.instance;
 
@@ -395,4 +391,55 @@ void main() {
       );
     });
   });
+}
+
+Future<({String jsonPath, String pngPath})> _writeTavernFixtures(
+  Directory root,
+) async {
+  final card = {
+    'spec': 'chara_card_v2',
+    'data': {
+      'name': 'Fixture Companion',
+      'description': 'A steady test companion.',
+      'personality': 'Warm and concise.',
+      'scenario': 'A quiet test room.',
+      'first_mes': 'I am here.',
+      'mes_example': 'User: Hello\nFixture Companion: Hey.',
+      'character_book': {
+        'entries': [
+          {
+            'keys': ['test'],
+            'content': 'Fixture world entry.',
+            'enabled': true,
+          },
+        ],
+      },
+    },
+  };
+  final jsonText = jsonEncode(card);
+  final jsonFile = File('${root.path}/fixture_character.json');
+  final pngFile = File('${root.path}/fixture_character.png');
+  await jsonFile.writeAsString(jsonText);
+  await pngFile.writeAsBytes(
+    _pngWithTextChunk('chara', base64Encode(utf8.encode(jsonText))),
+  );
+  return (jsonPath: jsonFile.path, pngPath: pngFile.path);
+}
+
+List<int> _pngWithTextChunk(String key, String value) {
+  final bytes = BytesBuilder();
+  bytes.add(const [137, 80, 78, 71, 13, 10, 26, 10]);
+  _addPngChunk(
+      bytes, 'tEXt', [...latin1.encode(key), 0, ...latin1.encode(value)]);
+  _addPngChunk(bytes, 'IEND', const []);
+  return bytes.takeBytes();
+}
+
+void _addPngChunk(BytesBuilder bytes, String type, List<int> data) {
+  final length = ByteData(4)..setUint32(0, data.length);
+  bytes.add(length.buffer.asUint8List());
+  bytes.add(ascii.encode(type));
+  bytes.add(data);
+  // TavernCharacterImportService does not validate CRC values.
+  bytes.add(const [0, 0, 0, 0]);
 }

@@ -432,7 +432,7 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
           style: GoogleFonts.inter(
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFF0A0A0A),
+            color: AppColors.textPrimary,
           ),
         ),
         const SizedBox(height: 10),
@@ -441,7 +441,7 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
           style: const TextStyle(
             fontSize: 15,
             height: 1.7,
-            color: Color(0xFF4A5565),
+            color: AppColors.textSecondary,
           ),
         ),
       ],
@@ -580,6 +580,7 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
             Expanded(
               child: GlassCard(
                 padding: const EdgeInsets.all(16),
+                backgroundColor: Colors.white,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -658,7 +659,7 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
   }
 
   Widget _buildAgentDoneCard(CompletedItem item) {
-    return Padding(
+        return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: GestureDetector(
         onTap: () => widget.onTapCardId?.call(item.cardId),
@@ -668,8 +669,8 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
             Container(
               width: 12,
               height: 12,
-              decoration: const BoxDecoration(
-                color: Color(0xFF99A1AF),
+              decoration: BoxDecoration(
+                color: AppColors.textTertiary,
                 shape: BoxShape.circle,
               ),
             ),
@@ -679,20 +680,17 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
                 opacity: 0.5,
                 child: GlassCard(
                   padding: const EdgeInsets.all(12),
+                  backgroundColor: Colors.white,
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.check_circle,
-                        size: 16,
-                        color: Color(0xFF99A1AF),
-                      ),
+                      Icon(Icons.check_circle, size: 16, color: AppColors.textTertiary),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           item.title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: Color(0xFF99A1AF),
+                            color: AppColors.textTertiary,
                             decoration: TextDecoration.lineThrough,
                           ),
                         ),
@@ -701,9 +699,9 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
                         Text(
                           DateFormat.MMMd(UserStorage.l10n.localeName)
                               .format(item.completedAt!),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Color(0xFF99A1AF),
+                            color: AppColors.textTertiary,
                           ),
                         ),
                     ],
@@ -718,7 +716,7 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
   }
 
   Widget _buildMagazineHeader() {
-    return Padding(
+        return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -729,7 +727,7 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
               fontSize: 12,
               fontWeight: FontWeight.w500,
               letterSpacing: 1.5,
-              color: const Color(0xFF99A1AF),
+              color: AppColors.textTertiary,
             ),
           ),
           const SizedBox(height: 4),
@@ -740,7 +738,7 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
               fontSize: 32,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
-              color: const Color(0xFF0A0A0A),
+              color: AppColors.textPrimary,
             ),
           ),
         ],
@@ -778,7 +776,7 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Row(
+        return Row(
       children: [
         Text(
           title,
@@ -786,13 +784,13 @@ class _MagazineNarrativeTabState extends State<MagazineNarrativeTab> {
             fontSize: 12,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.5,
-            color: const Color(0xFF99A1AF),
+            color: AppColors.textTertiary,
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: Divider(
-            color: Color(0xFFE2E8F0),
+            color: const Color(0xFFE2E8F0),
             height: 1,
           ),
         ),

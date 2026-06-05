@@ -344,8 +344,11 @@ void callbackDispatcher() {
         // Hard foreground gate: if the app is active, skip entirely.
         // maybeEnqueueCheckin has its own gate, but hasPendingWork does not —
         // this single check covers both before we trigger the visible notification.
-        if (await CheckinService.instance.isAppInForeground()) {
-          debugPrint('Checkin: app in foreground, skipping WorkManager trigger');
+        final hasDueReminder = await CheckinService.instance.hasDueReminders();
+        if (await CheckinService.instance.isAppInForeground() &&
+            !hasDueReminder) {
+          debugPrint(
+              'Checkin: app in foreground, skipping WorkManager trigger');
           return Future.value(false);
         }
         final enqueued = await CheckinService.instance.maybeEnqueueCheckin();

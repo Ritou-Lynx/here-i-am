@@ -121,6 +121,7 @@ enum DataChangeOp { insert, update, delete }
 class DataChangeNs {
   static const String pkmFile = 'pkm_file';
   static const String card = 'card';
+  static const String sharedLifeEntity = 'shared_life_entity';
 }
 
 /// A generic data-change record modeled after database change streams

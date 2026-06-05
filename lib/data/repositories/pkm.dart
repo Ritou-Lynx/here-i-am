@@ -7,7 +7,7 @@ import 'package:memex/data/services/api_exception.dart';
 import 'package:path/path.dart' as p;
 
 final _logger = getLogger('PkmEndpoint');
-final _fileSystemService = FileSystemService.instance;
+FileSystemService get _fileSystemService => FileSystemService.instance;
 
 /// English → Chinese mapping for PARA root categories.
 const _paraCategoryMapping = <String, String>{
@@ -184,8 +184,7 @@ Future<Map<String, dynamic>> listPkmDirectory({String? path}) async {
             if (seenNames.contains(name)) continue;
 
             seenNames.add(name);
-            final isDirectory =
-                await FileSystemEntity.isDirectory(entity.path);
+            final isDirectory = await FileSystemEntity.isDirectory(entity.path);
             final item = <String, dynamic>{
               'name': name,
               'path': p.relative(entity.path, from: pkmRoot),

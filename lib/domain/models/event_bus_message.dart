@@ -13,6 +13,7 @@ enum EventBusMessageType {
   invalidModelConfig('invalid_model_config'),
   errorNotification('error_notification'),
   personaChatMessageAdded('persona_chat_message_added'),
+  conversationCaptureRemembered('conversation_capture_remembered'),
   unknown('unknown');
 
   final String value;
@@ -62,6 +63,8 @@ abstract class EventBusMessage {
         return ErrorNotificationMessage.fromJson(json);
       case EventBusMessageType.personaChatMessageAdded:
         return PersonaChatMessageAddedMessage.fromJson(json);
+      case EventBusMessageType.conversationCaptureRemembered:
+        return ConversationCaptureRememberedMessage.fromJson(json);
       default:
         return UnknownMessage.fromJson(json);
     }
@@ -417,6 +420,40 @@ class PersonaChatMessageAddedMessage extends EventBusMessage {
     final data = json['data'] as Map<String, dynamic>? ?? {};
     return PersonaChatMessageAddedMessage(
       characterId: data['character_id'] as String? ?? '',
+    );
+  }
+}
+
+/// Lightweight foreground notice after background chat extraction succeeds.
+class ConversationCaptureRememberedMessage extends EventBusMessage {
+  ConversationCaptureRememberedMessage({
+    required this.characterId,
+    required this.operationIds,
+    required this.entityTitles,
+  }) : super(
+          type: EventBusMessageType.conversationCaptureRemembered,
+          data: {
+            'character_id': characterId,
+            'operation_ids': operationIds,
+            'entity_titles': entityTitles,
+          },
+        );
+
+  final String characterId;
+  final List<String> operationIds;
+  final List<String> entityTitles;
+
+  factory ConversationCaptureRememberedMessage.fromJson(
+      Map<String, dynamic> json) {
+    final data = json['data'] as Map<String, dynamic>? ?? {};
+    return ConversationCaptureRememberedMessage(
+      characterId: data['character_id'] as String? ?? '',
+      operationIds: (data['operation_ids'] as List<dynamic>? ?? const [])
+          .map((id) => id.toString())
+          .toList(growable: false),
+      entityTitles: (data['entity_titles'] as List<dynamic>? ?? const [])
+          .map((title) => title.toString())
+          .toList(growable: false),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -67,9 +68,95 @@ class CompanionTaskHandler extends TaskHandler {
       }
       await UserStorage.initL10n();
 
-      // Never interrupt while the user is actively using the app.
-      if (await CheckinService.instance.isAppInForeground()) {
+      // Recover stuck 'processing' rows before ANY gate. The alarm callback
+      // (background isolate) can mark a row 'processing' then crash, leaving
+      // it permanently stuck. Without this early recovery, a stuck row
+      // blocks both hasDueReminders() and hasPendingWork(), which gate the
+      // entire tick — a deadlock that can last hours.
+      await CheckinService.instance.recoverStuckProcessing();
+
+      // ── Pending-call check (runs every tick, before any early return) ──
+      //
+      // Due reminders (including scheduled calls) are left by the alarm callback
+      // for the foreground service to process, because this context has a Flutter
+      // engine and can display the CallKit incoming-call screen.
+      //
+      // This check catches calls queued by a previous tick's agent run that may
+      // not have shown CallKit (e.g. the previous tick was killed mid-run).
+      try {
+        final pendingCall = await readPendingCall();
+        if (pendingCall != null) {
+          debugPrint(
+              '[ForegroundTask] pending call: ${pendingCall.characterId}');
+          final callChar =
+              await CharacterService.instance.getPrimaryCompanion(userId);
+          if (callChar != null && callChar.id == pendingCall.characterId) {
+            final showed =
+                await CallkitService.instance.showPendingIncomingCall(
+              characterId: callChar.id,
+              nameCaller: callChar.name,
+              avatarUrl: callChar.avatar,
+            );
+            if (showed) {
+              debugPrint(
+                  '[ForegroundTask] CallKit shown via pending-call check');
+              // Call is now ringing — don't run checkins while the call is
+              // unresolved; the agent could call again and create a duplicate.
+              return;
+            }
+            // showed=false means the call is already ringing (notified within
+            // 10 min) or could not be shown. Don't block the tick — due
+            // reminders still need processing. The notified flag prevents the
+            // checkin agent from creating a duplicate.
+          }
+        }
+      } catch (e) {
+        debugPrint('[ForegroundTask] pending-call check error: $e');
+      }
+
+      final directCalls = await CheckinService.instance.claimDueCallReminders();
+      if (directCalls.isNotEmpty) {
+        final directCall = directCalls.first;
+        final callChar =
+            await CharacterService.instance.getPrimaryCompanion(userId);
+        if (callChar == null) {
+          for (final call in directCalls) {
+            await CheckinService.instance.markStatus(call.id, 'pending');
+          }
+          debugPrint('[ForegroundTask] due call reminder: no character');
+          return;
+        }
+        await queuePendingCall(
+          characterId: callChar.id,
+          openingMessage: _openingForDueCall(directCall.body),
+        );
+        final showed = await CallkitService.instance.showPendingIncomingCall(
+          characterId: callChar.id,
+          nameCaller: callChar.name,
+          avatarUrl: callChar.avatar,
+        );
+        for (final call in directCalls) {
+          await CheckinService.instance.markStatus(call.id, 'done');
+        }
+        debugPrint(
+          '[ForegroundTask] due call reminders handled: '
+          '${directCalls.map((call) => call.id).join(", ")}, showed=$showed',
+        );
         return;
+      }
+
+      // Natural checkins stay quiet while the user is actively chatting.
+      // Use DB (SQLite) instead of SharedPreferences because the foreground
+      // service runs in a separate isolate where SharedPreferences cache may
+      // never see updates from the main isolate — causing isAppInForeground()
+      // to return stale data and permanently block background checkins.
+      final hasDueReminder = await CheckinService.instance.hasDueReminders();
+      if (!hasDueReminder) {
+        final active = await _wasUserRecentlyActive(userId);
+        if (active) {
+          debugPrint('[ForegroundTask] user recently active, skipping checkin');
+          return;
+        }
       }
 
       // Interval gate: only proceed when the random interval has elapsed
@@ -113,8 +200,11 @@ class CompanionTaskHandler extends TaskHandler {
       debugPrint('[ForegroundTask] agent run complete');
 
       // If the agent queued a voice call, fire the CallKit incoming call now.
-      await _maybeFireCallNotification(
-          character.name, character.id, character.avatar);
+      await CallkitService.instance.showPendingIncomingCall(
+        characterId: character.id,
+        nameCaller: character.name,
+        avatarUrl: character.avatar,
+      );
     } catch (e, st) {
       debugPrint('[ForegroundTask] tick error: $e\n$st');
     } finally {
@@ -122,31 +212,32 @@ class CompanionTaskHandler extends TaskHandler {
     }
   }
 
-  static Future<void> _maybeFireCallNotification(
-    String characterName,
-    String characterId,
-    String? characterAvatar,
-  ) async {
+  static String _openingForDueCall(String reminderBody) {
+    final body = reminderBody.trim();
+    if (body.startsWith('宝，') || body.startsWith('宝。')) {
+      return body;
+    }
+    return '宝，到时间了，我打过来了。现在方便说话吗？';
+  }
+
+  /// Check if the user has sent any chat message in the last 10 minutes.
+  /// Uses the database directly — safe across isolates where SharedPreferences
+  /// cache may be stale.
+  static Future<bool> _wasUserRecentlyActive(String userId) async {
+    if (!AppDatabase.isInitialized) return false;
     try {
-      final pending = await readPendingCall();
-      if (pending == null) return;
-
-      final alreadyNotified = await isPendingCallAlreadyNotified();
-      if (alreadyNotified) {
-        debugPrint('[ForegroundTask] call already notified, skipping');
-        return;
-      }
-
-      // System-level CallKit incoming call (full-screen, persistent ring).
-      await CallkitService.instance.showIncomingCall(
-        characterId: characterId,
-        nameCaller: characterName,
-        avatarUrl: characterAvatar,
-      );
-      await markPendingCallNotified();
-      debugPrint('[ForegroundTask] CallKit incoming call shown for $characterId');
+      final recent = DateTime.now().subtract(const Duration(minutes: 10));
+      final db = AppDatabase.instance;
+      final msg = await (db.select(db.personaChatMessages)
+            ..where((t) =>
+                t.isFromCharacter.equals(false) &
+                t.timestamp.isBiggerThanValue(recent))
+            ..limit(1))
+          .getSingleOrNull();
+      return msg != null;
     } catch (e) {
-      debugPrint('[ForegroundTask] callkit error: $e');
+      debugPrint('[ForegroundTask] _wasUserRecentlyActive error: $e');
+      return false;
     }
   }
 
@@ -160,13 +251,22 @@ class CompanionTaskHandler extends TaskHandler {
 class CompanionForegroundService {
   CompanionForegroundService._();
 
-  static const String notificationChannelId = 'companion_foreground';
+  // Channel ID rev'd to v2 to force-recreate with LOW importance.
+  // MIN importance causes Android to deprioritize the foreground service,
+  // leading to suspended ticks and delayed notifications on Samsung devices.
+  static const String notificationChannelId = 'companion_foreground_v2';
   static const String notificationChannelName = 'Companion';
+  static const String _ownerPrefsKey = 'foreground_task_owner';
+  static const String _versionPrefsKey = 'companion_foreground_config_version';
+  static const String _ownerCompanion = 'companion';
+  static const int _configVersion = 2;
 
   // Tick cadence. The interval gate (CheckinService.dueForCheckin) decides when
   // a tick actually performs a checkin, so this only needs to be frequent
   // enough to catch the sleep-push 1–2 min window.
-  static const int _tickIntervalMs = 60 * 1000;
+  // Reduced from 60s to 15s so scheduled calls show CallKit within 15s of the
+  // alarm callback firing (which skips reminders and leaves them for us).
+  static const int _tickIntervalMs = 15 * 1000;
 
   static Future<void> initialize() async {
     FlutterForegroundTask.initCommunicationPort();
@@ -175,8 +275,8 @@ class CompanionForegroundService {
         channelId: notificationChannelId,
         channelName: notificationChannelName,
         channelDescription: 'Keeps your companion present in the background',
-        channelImportance: NotificationChannelImportance.MIN,
-        priority: NotificationPriority.MIN,
+        channelImportance: NotificationChannelImportance.LOW,
+        priority: NotificationPriority.LOW,
         onlyAlertOnce: true,
       ),
       iosNotificationOptions: const IOSNotificationOptions(
@@ -191,16 +291,30 @@ class CompanionForegroundService {
         allowWifiLock: false,
       ),
     );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_ownerPrefsKey, _ownerCompanion);
+    await prefs.setInt(_versionPrefsKey, _configVersion);
   }
 
   /// Start the persistent service (idempotent). Safe to call on every app
   /// launch — if it's already running this is a no-op.
   static Future<void> startPersistent() async {
+    final prefs = await SharedPreferences.getInstance();
     final isRunning = await FlutterForegroundTask.isRunningService;
     if (isRunning) {
-      debugPrint('[ForegroundTask] persistent service already running');
-      return;
+      final owner = prefs.getString(_ownerPrefsKey);
+      final version = prefs.getInt(_versionPrefsKey);
+      if (owner == _ownerCompanion && version == _configVersion) {
+        debugPrint('[ForegroundTask] persistent service already running');
+        return;
+      }
+      debugPrint(
+        '[ForegroundTask] restarting stale foreground service '
+        '(owner=$owner version=$version)',
+      );
+      await FlutterForegroundTask.stopService();
     }
+    await initialize();
     final title = await _buildNotificationTitle();
     await FlutterForegroundTask.startService(
       notificationTitle: title,

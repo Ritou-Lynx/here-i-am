@@ -1,5 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:memex/data/repositories/memex_router.dart';
+import 'package:memex/data/services/conversation_capture_service.dart';
+import 'package:memex/data/services/event_bus_service.dart';
+import 'package:memex/data/services/shared_life_memory_service.dart';
+import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/domain/models/system_card_constants.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/ui/core/cards/native_card_factory.dart';
@@ -8,6 +14,9 @@ import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
 import 'package:memex/ui/timeline/widgets/timeline_card_detail_screen.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
+
+import 'shared_life_entity_detail_screen.dart';
 
 /// Clean chronological review feed for the companion-first app.
 ///
@@ -27,18 +36,92 @@ class CompanionReviewScreen extends StatefulWidget {
 
 class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
   final _scrollController = ScrollController();
+  List<SharedLifeEntitySnapshot> _sharedLifeEntities = const [];
+
+  SharedLifeMemoryService? get _sharedLifeMemory =>
+      ConversationCaptureService.isInitialized
+          ? ConversationCaptureService.instance.sharedLifeMemory
+          : null;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_loadMoreNearBottom);
+    EventBusService.instance.addHandler(
+      EventBusMessageType.conversationCaptureRemembered,
+      _onConversationRemembered,
+    );
+    unawaited(_loadSharedLifeEntities());
   }
 
   @override
   void dispose() {
+    EventBusService.instance.removeHandler(
+      EventBusMessageType.conversationCaptureRemembered,
+      _onConversationRemembered,
+    );
     _scrollController.removeListener(_loadMoreNearBottom);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onConversationRemembered(EventBusMessage _) {
+    unawaited(_loadSharedLifeEntities());
+  }
+
+  Future<void> _loadSharedLifeEntities() async {
+    final service = _sharedLifeMemory;
+    if (service == null) return;
+    final entities = await service.listEntities(limit: 80);
+    if (!mounted) return;
+    setState(() => _sharedLifeEntities = entities);
+  }
+
+  /// Converts a shared-life entity into a standard [TimelineCardModel] so it
+  /// renders through the same [NativeCardFactory] pipeline as every other card.
+  static TimelineCardModel _entityToCard(SharedLifeEntitySnapshot entity) {
+    final summary = entity.state['summary'] as String? ?? '';
+    final content = entity.state['content'] as String? ?? '';
+    final text = [summary, content]
+        .where((s) => s.isNotEmpty)
+        .join('\n\n');
+
+    return TimelineCardModel(
+      id: 'entity:${entity.id}',
+      title: entity.title,
+      timestamp: DateTime.fromMicrosecondsSinceEpoch(entity.updatedAt),
+      tags: entity.tags,
+      // "active" means the entity is a valid record.
+      status: entity.status == 'active' ? 'completed' : entity.status,
+      uiConfigs: [
+        UiConfig(
+          templateId: _entityTemplateId(entity.entityType),
+          data: {
+            if (text.isNotEmpty) 'content': text,
+            if (entity.state['time'] != null) 'time': entity.state['time'],
+            if (entity.state['place'] != null) 'place': entity.state['place'],
+          },
+        ),
+      ],
+      html: null,
+    );
+  }
+
+  static String _entityTemplateId(String entityType) {
+    return switch (entityType) {
+      'event' => 'event',
+      'task' => 'task',
+      'plan' => 'event',
+      'schedule' => 'event',
+      _ => 'compact',
+    };
+  }
+
+  Future<void> _refresh(TimelineViewModel vm) async {
+    await Future.wait([
+      vm.refresh(),
+      _loadSharedLifeEntities(),
+    ]);
   }
 
   void _loadMoreNearBottom() {
@@ -59,18 +142,8 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
       builder: (context, _) {
         final vm = widget.viewModel;
         return Scaffold(
-          backgroundColor: const Color(0xFFF6F5F2),
-          body: SafeArea(
-            child: Column(
-              children: [
-                _ReviewHeader(
-                  onBack: () => Navigator.pop(context),
-                  onRefresh: vm.refresh,
-                ),
-                Expanded(child: _buildBody(vm)),
-              ],
-            ),
-          ),
+          backgroundColor: Colors.transparent,
+          body: _buildBody(vm),
         );
       },
     );
@@ -78,12 +151,13 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
 
   Widget _buildBody(TimelineViewModel vm) {
     final cards = companionReviewCards(vm.cards);
-    if ((vm.isLoading || vm.load.running) && vm.cards.isEmpty) {
+    final items = companionReviewFeedItems(cards, _sharedLifeEntities);
+    if ((vm.isLoading || vm.load.running) && items.isEmpty) {
       return const Center(child: AgentLogoLoading());
     }
-    if (vm.errorMessage != null) {
+    if (vm.errorMessage != null && items.isEmpty) {
       return RefreshIndicator(
-        onRefresh: vm.refresh,
+        onRefresh: () => _refresh(vm),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
@@ -92,7 +166,7 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
               child: Center(
                 child: Text(
                   vm.errorMessage!,
-                  style: const TextStyle(color: Color(0xFF7C8490)),
+                  style: TextStyle(color: AppColors.textTertiary),
                 ),
               ),
             ),
@@ -100,9 +174,9 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
         ),
       );
     }
-    if (cards.isEmpty) {
+    if (items.isEmpty) {
       return RefreshIndicator(
-        onRefresh: vm.refresh,
+        onRefresh: () => _refresh(vm),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
@@ -111,8 +185,8 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
               child: Center(
                 child: Text(
                   UserStorage.l10n.nothingHere,
-                  style: const TextStyle(
-                    color: Color(0xFF7C8490),
+                  style: TextStyle(
+                    color: AppColors.textTertiary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -124,30 +198,50 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
       );
     }
     return RefreshIndicator(
-      onRefresh: vm.refresh,
+      onRefresh: () => _refresh(vm),
       child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
-        itemCount: cards.length + (vm.hasMore ? 1 : 0),
+        itemCount: items.length + (vm.hasMore ? 1 : 0),
         itemBuilder: (context, index) {
-          if (index >= cards.length) {
+          if (index >= items.length) {
             return const Padding(
               padding: EdgeInsets.all(18),
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final card = cards[index];
+          final card = items[index];
+          // Entity-backed cards (prefixed with "entity:") still open the
+          // shared-life entity detail screen so source evidence is visible.
+          final isEntity = card.id.startsWith('entity:');
+          final entityId =
+              isEntity ? card.id.substring('entity:'.length) : null;
           return CompanionReviewCard(
             card: card,
             onTap: () async {
+              if (isEntity && entityId != null) {
+                final service = _sharedLifeMemory;
+                if (service == null) return;
+                if (!context.mounted) return;
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SharedLifeEntityDetailScreen(
+                      entityId: entityId,
+                      service: service,
+                    ),
+                  ),
+                );
+                return;
+              }
               final changed = await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => TimelineCardDetailScreen(cardId: card.id),
                 ),
               );
-              if (changed == true) await vm.refresh();
+              if (changed == true) await _refresh(vm);
             },
           );
         },
@@ -178,8 +272,8 @@ class CompanionReviewCard extends StatelessWidget {
             padding: const EdgeInsets.only(left: 4, bottom: 9),
             child: Text(
               card.displayTime(UserStorage.l10n),
-              style: const TextStyle(
-                color: Color(0xFF8B9098),
+              style: TextStyle(
+                color: AppColors.textTertiary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -256,42 +350,15 @@ List<TimelineCardModel> companionReviewCards(List<TimelineCardModel> cards) {
       .toList(growable: false);
 }
 
-class _ReviewHeader extends StatelessWidget {
-  const _ReviewHeader({
-    required this.onBack,
-    required this.onRefresh,
-  });
-
-  final VoidCallback onBack;
-  final Future<void> Function() onRefresh;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              UserStorage.l10n.bottomNavTimeline,
-              style: const TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: onRefresh,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-    );
-  }
+@visibleForTesting
+List<TimelineCardModel> companionReviewFeedItems(
+  List<TimelineCardModel> cards,
+  List<SharedLifeEntitySnapshot> sharedLifeEntities,
+) {
+  final allCards = [
+    ...cards,
+    ...sharedLifeEntities.map(_CompanionReviewScreenState._entityToCard),
+  ];
+  allCards.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  return allCards;
 }

@@ -12,7 +12,7 @@ class PersonaAgent {
   final Logger _logger = getLogger('PersonaAgent');
   final GeminiClient client;
   final ModelConfig modelConfig;
-  final FileSystemService _fileService = FileSystemService.instance;
+  FileSystemService get _fileService => FileSystemService.instance;
   final CharacterService _characterService = CharacterService.instance;
 
   PersonaAgent({
@@ -263,7 +263,8 @@ Note:
             },
             'character_name': {
               'type': 'string',
-              'description': 'Character name (required only when creating a new character)',
+              'description':
+                  'Character name (required only when creating a new character)',
             },
             'persona': {
               'type': 'string',

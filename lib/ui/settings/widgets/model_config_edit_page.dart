@@ -7,6 +7,7 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/data/services/openai_auth_service.dart';
 import 'package:memex/data/services/gemini_auth_service.dart';
 import 'package:memex/data/services/model_list_service.dart';
+import 'package:memex/data/services/model_test_service.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/ui/core/widgets/searchable_dropdown.dart';
 import 'package:memex/config/app_config.dart';
@@ -59,6 +60,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
 
   List<String> _fetchedModels = [];
   bool _isFetchingModels = false;
+  bool _isTesting = false;
+  ModelTestResult? _testResult;
+  ModelTestType _testType = ModelTestType.text;
 
   @override
   void initState() {
@@ -542,6 +546,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
         _ProviderEntry(LLMConfig.typeQwen, l10n.providerQwen),
         _ProviderEntry(LLMConfig.typeSeed, l10n.providerSeed),
         _ProviderEntry(LLMConfig.typeZhipu, l10n.providerZhipu),
+        _ProviderEntry(LLMConfig.typeDeepSeek, l10n.providerDeepSeek),
         _ProviderEntry(LLMConfig.typeMimo, l10n.providerMimo),
         _ProviderEntry(LLMConfig.typeOpenRouter, l10n.providerOpenRouter),
         _ProviderEntry(LLMConfig.typeOllama, l10n.providerOllama),
@@ -652,6 +657,58 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
       }
     } catch (_) {
       if (mounted) setState(() => _isFetchingModels = false);
+    }
+  }
+
+  Future<void> _testConnection() async {
+    if (_isTesting) return;
+
+    Map<String, dynamic> extraMap = {};
+    try {
+      if (_extraController.text.isNotEmpty) {
+        extraMap = jsonDecode(_extraController.text);
+      }
+    } catch (_) {}
+
+    if (_selectedType == LLMConfig.typeBedrockClaude) {
+      extraMap['accessKeyId'] = _bedrockAccessKeyController.text;
+      extraMap['secretAccessKey'] = _bedrockSecretKeyController.text;
+      extraMap['region'] = _bedrockRegionController.text.isNotEmpty
+          ? _bedrockRegionController.text
+          : 'us-west-2';
+    }
+
+    final testConfig = LLMConfig(
+      key: _keyController.text,
+      type: _selectedType,
+      modelId: _modelIdController.text,
+      apiKey: _selectedType == LLMConfig.typeBedrockClaude
+          ? ''
+          : _apiKeyController.text,
+      baseUrl: _selectedType == LLMConfig.typeBedrockClaude
+          ? ''
+          : _baseUrlController.text,
+      proxyUrl:
+          _proxyUrlController.text.isEmpty ? null : _proxyUrlController.text,
+      extra: extraMap,
+      temperature: double.tryParse(_temperatureController.text),
+      maxTokens: int.tryParse(_maxTokensController.text),
+      topP: double.tryParse(_topPController.text),
+    );
+
+    setState(() {
+      _isTesting = true;
+      _testResult = null;
+    });
+    final result = await ModelTestService.testConfig(
+      testConfig,
+      testType: _testType,
+    );
+    if (mounted) {
+      setState(() {
+        _isTesting = false;
+        _testResult = result;
+      });
     }
   }
 
@@ -918,6 +975,171 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
       ),
     );
     return confirmed ?? false;
+  }
+
+  Widget _buildTestConnectionSection() {
+    final canTest =
+        _selectedType.isNotEmpty && _modelIdController.text.trim().isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _testResult == null
+            ? const Color(0xFFF8FAFC)
+            : _testResult!.success
+                ? const Color(0xFFF0FDF4)
+                : const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: _testResult == null
+              ? Colors.grey.shade200
+              : _testResult!.success
+                  ? const Color(0xFF86EFAC)
+                  : const Color(0xFFFCA5A5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              _buildTestTypeChip(
+                label: UserStorage.l10n.testTypeText,
+                icon: Icons.text_fields_rounded,
+                selected: _testType == ModelTestType.text,
+                onTap: _isTesting
+                    ? null
+                    : () => setState(() {
+                          _testType = ModelTestType.text;
+                          _testResult = null;
+                        }),
+              ),
+              const SizedBox(width: 6),
+              _buildTestTypeChip(
+                label: UserStorage.l10n.testTypeVision,
+                icon: Icons.image_rounded,
+                selected: _testType == ModelTestType.vision,
+                onTap: _isTesting
+                    ? null
+                    : () => setState(() {
+                          _testType = ModelTestType.vision;
+                          _testResult = null;
+                        }),
+              ),
+              const Spacer(),
+              SizedBox(
+                height: 32,
+                child: FilledButton.icon(
+                  onPressed: canTest && !_isTesting ? _testConnection : null,
+                  icon: _isTesting
+                      ? const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.play_arrow_rounded, size: 16),
+                  label: Text(
+                    _isTesting
+                        ? UserStorage.l10n.testing
+                        : UserStorage.l10n.testButton,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_testResult != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  _testResult!.success
+                      ? Icons.check_circle_rounded
+                      : Icons.cancel_rounded,
+                  size: 14,
+                  color: _testResult!.success
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFDC2626),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  _testResult!.success
+                      ? UserStorage.l10n.testConnectionSuccess
+                      : UserStorage.l10n.testConnectionFailed,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _testResult!.success
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFFDC2626),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${_testResult!.responseTime.inMilliseconds}ms',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+            if (_testResult!.responseText != null ||
+                _testResult!.error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _testResult!.responseText ?? _testResult!.error!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _testResult!.success
+                      ? const Color(0xFF166534)
+                      : const Color(0xFF991B1B),
+                ),
+                maxLines: 5,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTestTypeChip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.primary.withValues(alpha: 0.1)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? AppColors.primary.withValues(alpha: 0.4)
+                : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: AppColors.primary),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(fontSize: 12)),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -1386,6 +1608,10 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                     ),
                   ),
                 ),
+              const SizedBox(height: 24),
+
+              // Connection Test
+              _buildTestConnectionSection(),
               const SizedBox(height: 24),
 
               // Advanced Settings

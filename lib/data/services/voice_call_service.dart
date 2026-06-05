@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:dart_agent_core/dart_agent_core.dart';
@@ -13,6 +15,7 @@ import 'package:uuid/uuid.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/services/asr/alibaba_asr_client.dart';
 import 'package:memex/data/services/asr/asr_config.dart';
+import 'package:memex/data/services/conversation_capture_service.dart';
 import 'package:memex/data/services/tts_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/db/app_database.dart';
@@ -27,6 +30,16 @@ enum VoiceCallState {
   userProcessing,
   companionThinking,
   ended,
+}
+
+enum VoiceCallDirection {
+  userToCompanion,
+  companionToUser,
+}
+
+enum VoiceCallInputMode {
+  pushToTalk,
+  streaming,
 }
 
 /// A single spoken turn stored in memory for transcript display and DB write.
@@ -45,6 +58,18 @@ class CallTurn {
 class VoiceCallService extends ChangeNotifier {
   static final Logger _logger = getLogger('VoiceCallService');
   static const _uuid = Uuid();
+  static final AudioContext _playbackAudioContext = AudioContext(
+    android: const AudioContextAndroid(
+      isSpeakerphoneOn: true,
+      contentType: AndroidContentType.speech,
+      usageType: AndroidUsageType.media,
+      audioFocus: AndroidAudioFocus.gain,
+    ),
+    iOS: AudioContextIOS(
+      category: AVAudioSessionCategory.playAndRecord,
+      options: const {AVAudioSessionOptions.defaultToSpeaker},
+    ),
+  );
 
   final LLMClient client;
   final ModelConfig modelConfig;
@@ -52,6 +77,7 @@ class VoiceCallService extends ChangeNotifier {
   final String characterId;
   final String? voiceId;
   final VoiceCallDao callDao;
+  final VoiceCallDirection direction;
 
   VoiceCallState _state = VoiceCallState.connecting;
   String? _error;
@@ -63,7 +89,19 @@ class VoiceCallService extends ChangeNotifier {
   final _player = AudioPlayer();
   final _recorder = AudioRecorder();
   String? _recordingPath;
-  bool _speaking = false; // true while _speakText loop is running
+  bool _speaking = false;
+  VoiceCallInputMode _inputMode = VoiceCallInputMode.pushToTalk;
+  StreamSubscription<Uint8List>? _streamingAudioSub;
+  final List<int> _streamingSpeechBuffer = [];
+  bool _streamingSpeechActive = false;
+  int _streamingSilenceMs = 0;
+  int _streamingSpeechMs = 0;
+  bool _streamingCommitInFlight = false;
+  bool _streamingCaptureStarting = false;
+  static const double _streamingSpeechRmsThreshold = 0.012;
+  static const int _streamingEndSilenceMs = 900;
+  static const int _streamingMinSpeechMs = 450;
+  static const int _streamingMaxSpeechMs = 12000;
 
   // Idle follow-up: when the user stays silent in [listening], the companion
   // proactively speaks again ("怎么不说话了？" / continue the topic / lull to
@@ -75,6 +113,10 @@ class VoiceCallService extends ChangeNotifier {
   static const int _maxFollowUps = 4; // after this many → force graceful end
 
   VoiceCallState get state => _state;
+  VoiceCallInputMode get inputMode => _inputMode;
+  bool get isStreamingMode => _inputMode == VoiceCallInputMode.streaming;
+  bool get isStreamingCaptureActive => _streamingAudioSub != null;
+  String get streamingDraft => _streamingCommitInFlight ? '识别中...' : '';
   String? get error => _error;
   String? get lastLine => _lastLine;
   List<CallTurn> get transcript => List.unmodifiable(_transcript);
@@ -86,6 +128,7 @@ class VoiceCallService extends ChangeNotifier {
     required this.characterId,
     required this.callDao,
     this.voiceId,
+    this.direction = VoiceCallDirection.userToCompanion,
   });
 
   // ---------------------------------------------------------------------------
@@ -133,10 +176,19 @@ class VoiceCallService extends ChangeNotifier {
         '- Call `end_call` whenever the conversation has naturally ended or the\n'
         '  user has clearly left or fallen asleep. Say your farewell in your\n'
         '  spoken reply first, THEN call end_call.';
+    _agent?.state.systemReminders['voice_call_direction'] =
+        direction == VoiceCallDirection.companionToUser
+            ? '## CALL DIRECTION\n'
+                'You initiated this call to the user. The user answered your '
+                'incoming call. Never ask why they called you or imply that '
+                'they initiated the call. Continue naturally from your reason '
+                'for reaching out.'
+            : '## CALL DIRECTION\n'
+                'The user initiated this call to you. You answered their call. '
+                'Greet them naturally and let them lead with why they called.';
 
-    String? greeting = (openingMessage?.trim().isEmpty ?? true)
-        ? null
-        : openingMessage;
+    String? greeting =
+        (openingMessage?.trim().isEmpty ?? true) ? null : openingMessage;
 
     if (greeting == null) {
       _state = VoiceCallState.companionThinking;
@@ -161,7 +213,20 @@ class VoiceCallService extends ChangeNotifier {
     if (_agent == null) return null;
     try {
       final history = await _agent!.run(
-        [UserMessage([TextPart('[通话接通 — 自然地打个招呼，就像真的接了电话一样。一两句话，口语，直接说。]')])],
+        [
+          UserMessage([
+            TextPart(
+              direction == VoiceCallDirection.companionToUser
+                  ? '[The user answered your incoming call. You called them. '
+                      'Open naturally with your reason for reaching out. Never '
+                      'ask why they called you. One or two conversational '
+                      'sentences, spoken words only.]'
+                  : '[You answered the user\'s call. Greet them naturally, as '
+                      'if you just picked up the phone. One or two '
+                      'conversational sentences, spoken words only.]',
+            ),
+          ])
+        ],
         useStream: false,
       );
       for (final msg in history.reversed) {
@@ -181,6 +246,10 @@ class VoiceCallService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   Future<void> toggleRecording() async {
+    if (isStreamingMode) {
+      await toggleStreamingMode();
+      return;
+    }
     if (_state == VoiceCallState.companionSpeaking) {
       await interruptSpeech();
       return;
@@ -192,6 +261,30 @@ class VoiceCallService extends ChangeNotifier {
     }
   }
 
+  Future<void> toggleStreamingMode() async {
+    if (isStreamingMode) {
+      _inputMode = VoiceCallInputMode.pushToTalk;
+      await _stopStreamingCapture(discardDraft: true);
+      if (_state == VoiceCallState.listening) {
+        _startIdleTimer();
+      }
+      notifyListeners();
+      return;
+    }
+
+    _inputMode = VoiceCallInputMode.streaming;
+    _error = null;
+    _consecutiveFollowUps = 0;
+    if (_state == VoiceCallState.userRecording) {
+      await cancelRecording();
+    }
+    if (_state == VoiceCallState.listening) {
+      await _startStreamingCapture();
+    } else {
+      notifyListeners();
+    }
+  }
+
   Future<void> interruptSpeech() async {
     if (!_speaking) return;
     _speaking = false;
@@ -200,8 +293,22 @@ class VoiceCallService extends ChangeNotifier {
     await _startRecording();
   }
 
+  Future<void> cancelRecording() async {
+    if (_state != VoiceCallState.userRecording) return;
+    try {
+      await _recorder.stop();
+    } catch (e) {
+      _logger.warning('cancelRecording: $e');
+    }
+    final path = _recordingPath;
+    _recordingPath = null;
+    if (path != null) _deleteFile(path);
+    _enterListening();
+  }
+
   Future<void> _startRecording() async {
     _error = null;
+    if (isStreamingMode) return;
     _cancelIdleTimer();
     // Any user action resets the unanswered-follow-up counter.
     _consecutiveFollowUps = 0;
@@ -217,7 +324,14 @@ class VoiceCallService extends ChangeNotifier {
     );
     try {
       await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
+          sampleRate: 16000,
+          numChannels: 1,
+          androidConfig: AndroidRecordConfig(
+            audioManagerMode: AudioManagerMode.modeNormal,
+          ),
+        ),
         path: path,
       );
       _recordingPath = path;
@@ -289,6 +403,7 @@ class VoiceCallService extends ChangeNotifier {
 
     _cancelIdleTimer();
     _consecutiveFollowUps = 0; // user spoke — reset silence counter
+    await _stopStreamingCapture(discardDraft: true);
     await _recordTurn('user', userText);
 
     _state = VoiceCallState.companionThinking;
@@ -296,7 +411,9 @@ class VoiceCallService extends ChangeNotifier {
 
     try {
       final history = await _agent!.run(
-        [UserMessage([TextPart(userText)])],
+        [
+          UserMessage([TextPart(userText)])
+        ],
         useStream: false,
       );
       if (_state == VoiceCallState.ended) return;
@@ -324,8 +441,17 @@ class VoiceCallService extends ChangeNotifier {
 
   void _enterListening() {
     if (_state == VoiceCallState.ended) return;
+    // If the user is currently recording (via interruptSpeech), don't override
+    // their recording state. The speech call chain (_speakAndRecord →
+    // _speakText) returns asynchronously after interruption, and its caller
+    // unconditionally calls _enterListening(). Without this guard, the button
+    // flashes red (userRecording) then immediately back to blue (listening).
+    if (_state == VoiceCallState.userRecording) return;
     _state = VoiceCallState.listening;
     notifyListeners();
+    if (isStreamingMode) {
+      unawaited(_startStreamingCapture());
+    }
     _startIdleTimer();
   }
 
@@ -349,6 +475,7 @@ class VoiceCallService extends ChangeNotifier {
   Future<void> _runFollowUpTurn({bool forceClose = false}) async {
     if (_state == VoiceCallState.ended || _agent == null) return;
     _cancelIdleTimer();
+    await _stopStreamingCapture(discardDraft: true);
     _state = VoiceCallState.companionThinking;
     notifyListeners();
 
@@ -358,7 +485,9 @@ class VoiceCallService extends ChangeNotifier {
 
     try {
       final history = await _agent!.run(
-        [UserMessage([TextPart(prompt)])],
+        [
+          UserMessage([TextPart(prompt)])
+        ],
         useStream: false,
       );
       if (_state == VoiceCallState.ended) return;
@@ -412,29 +541,27 @@ class VoiceCallService extends ChangeNotifier {
 
   Future<void> _speakText(String text) async {
     if (voiceId == null || voiceId!.isEmpty) return;
+    final spokenText = _normalizeTtsText(text);
+    if (spokenText.isEmpty) return;
 
+    await _stopStreamingCapture(discardDraft: true);
     _speaking = true;
     try {
-      final sentences = _splitSentences(text);
-      for (final sentence in sentences) {
+      if (!_speaking || _state == VoiceCallState.ended) return;
+
+      _state = VoiceCallState.companionSpeaking;
+      _lastLine = spokenText;
+      notifyListeners();
+
+      try {
+        final path = await TtsService.textToSpeech(
+          text: spokenText,
+          voiceId: voiceId!,
+        );
         if (!_speaking || _state == VoiceCallState.ended) return;
-        if (sentence.trim().isEmpty) continue;
-
-        _state = VoiceCallState.companionSpeaking;
-        _lastLine = sentence.trim();
-        notifyListeners();
-
-        try {
-          final path = await TtsService.textToSpeech(
-            text: sentence,
-            voiceId: voiceId!,
-          );
-          if (!_speaking || _state == VoiceCallState.ended) return;
-          await _player.play(DeviceFileSource(path));
-          await _player.onPlayerComplete.first;
-        } catch (e) {
-          _logger.warning('TTS sentence error: $e');
-        }
+        await _playTtsFile(path, spokenText: spokenText);
+      } catch (e) {
+        _logger.warning('TTS error: $e');
       }
     } finally {
       _speaking = false;
@@ -498,6 +625,7 @@ class VoiceCallService extends ChangeNotifier {
   /// User-initiated hangup (tapping the red button).
   void hangUp() {
     _cancelIdleTimer();
+    unawaited(_stopStreamingCapture(discardDraft: true));
     _speaking = false;
     _state = VoiceCallState.ended;
     notifyListeners();
@@ -511,6 +639,7 @@ class VoiceCallService extends ChangeNotifier {
   Future<void> _autoEndCall() async {
     if (_state == VoiceCallState.ended) return;
     _cancelIdleTimer();
+    await _stopStreamingCapture(discardDraft: true);
     _speaking = false;
     await _player.stop().catchError((_) => null);
     await _recorder.stop().catchError((_) => null);
@@ -524,7 +653,8 @@ class VoiceCallService extends ChangeNotifier {
     final endedAt = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
     // Compute call duration.
-    final startTs = _transcript.isNotEmpty ? _transcript.first.time : DateTime.now();
+    final startTs =
+        _transcript.isNotEmpty ? _transcript.first.time : DateTime.now();
     final durationSec = endedAt - startTs.millisecondsSinceEpoch ~/ 1000;
     final durStr = _formatDuration(durationSec);
 
@@ -552,6 +682,14 @@ class VoiceCallService extends ChangeNotifier {
         timestamp: DateTime.now(),
         isRead: true, // already seen — no unread badge
       );
+      if (ConversationCaptureService.isInitialized) {
+        await ConversationCaptureService.instance.noteConversationActivity(
+          userId: userId,
+          characterId: characterId,
+          force: true,
+          trigger: 'voice_call_end',
+        );
+      }
       _logger.info('Call record written to PersonaChatMessages: $callRecord');
     } catch (e) {
       _logger.warning('write call record: $e');
@@ -619,13 +757,44 @@ class VoiceCallService extends ChangeNotifier {
         .replaceAll(RegExp(r'^#{1,6}\s*', multiLine: true), '')
         .replaceAll(RegExp(r'\[.*?\]'), '')
         .replaceAll(RegExp(r'（[^）]{0,40}）'), '') // 中文括号心理活动
-        .replaceAll(RegExp(r'\([^)]{0,40}\)'), '')  // 英文括号
+        .replaceAll(RegExp(r'\([^)]{0,40}\)'), '') // 英文括号
         .trim();
   }
 
-  static List<String> _splitSentences(String text) {
+  static String _normalizeTtsText(String text) {
     final parts = text.split(RegExp(r'(?<=[。！？!?；;\n])\s*'));
-    return parts.where((s) => s.trim().isNotEmpty).toList();
+    if (parts.isEmpty && text.isNotEmpty) return text.trim();
+    return text.replaceAll(RegExp(r'\s*\n+\s*'), ' ').trim();
+  }
+
+  Future<void> _playTtsFile(
+    String audioPath, {
+    required String spokenText,
+  }) async {
+    await _applyPlaybackAudioContext();
+    if (!_speaking || _state == VoiceCallState.ended) return;
+    try {
+      await _player.play(DeviceFileSource(audioPath));
+      await _player.onPlayerComplete.first.timeout(
+        _playbackTimeout(spokenText),
+      );
+    } on TimeoutException {
+      _logger.warning('TTS playback timed out; recovering call state');
+      await _player.stop().catchError((_) => null);
+    }
+  }
+
+  static Duration _playbackTimeout(String text) {
+    final estimatedSeconds = (text.trim().length / 3.0).ceil() + 12;
+    return Duration(seconds: estimatedSeconds.clamp(20, 180));
+  }
+
+  Future<void> _applyPlaybackAudioContext() async {
+    try {
+      await _player.setAudioContext(_playbackAudioContext);
+    } catch (e) {
+      _logger.fine('Playback audio context skipped: $e');
+    }
   }
 
   void _deleteFile(String path) {
@@ -635,9 +804,225 @@ class VoiceCallService extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> _startStreamingCapture() async {
+    if (!isStreamingMode ||
+        _state != VoiceCallState.listening ||
+        _streamingAudioSub != null ||
+        _streamingCaptureStarting ||
+        _streamingCommitInFlight) {
+      return;
+    }
+
+    _streamingCaptureStarting = true;
+    _error = null;
+    try {
+      final asrConfig = await AsrConfig.load();
+      if (asrConfig == null) {
+        _error = 'ASR 未配置，请在设置 → 语音输入中填写阿里 NLS 凭证';
+        _inputMode = VoiceCallInputMode.pushToTalk;
+        notifyListeners();
+        return;
+      }
+      if (!await _recorder.hasPermission()) {
+        _error = '麦克风权限未授予';
+        _inputMode = VoiceCallInputMode.pushToTalk;
+        notifyListeners();
+        return;
+      }
+
+      _resetStreamingSpeechBuffer();
+      final audioStream = await _recorder.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
+          numChannels: 1,
+          androidConfig: AndroidRecordConfig(
+            audioManagerMode: AudioManagerMode.modeNormal,
+          ),
+        ),
+      );
+      _streamingAudioSub = audioStream.listen(
+        _handleStreamingAudioChunk,
+        onError: (Object e, StackTrace st) {
+          _logger.warning('streaming audio: $e');
+          _error = '流式录音中断: $e';
+          unawaited(_stopStreamingCapture(discardDraft: true));
+          notifyListeners();
+        },
+      );
+      notifyListeners();
+    } catch (e) {
+      _logger.warning('_startStreamingCapture: $e');
+      _error = '启动流式语音失败: $e';
+      _inputMode = VoiceCallInputMode.pushToTalk;
+      await _stopStreamingCapture(discardDraft: true);
+      notifyListeners();
+    } finally {
+      _streamingCaptureStarting = false;
+    }
+  }
+
+  void _handleStreamingAudioChunk(Uint8List chunk) {
+    if (_streamingCommitInFlight ||
+        !isStreamingMode ||
+        _state != VoiceCallState.listening) {
+      return;
+    }
+
+    final durationMs = _pcmChunkDurationMs(chunk.length);
+    final isSpeech = _pcmRms(chunk) >= _streamingSpeechRmsThreshold;
+    if (isSpeech) {
+      _streamingSpeechActive = true;
+      _streamingSilenceMs = 0;
+    }
+    if (!_streamingSpeechActive) return;
+
+    _streamingSpeechBuffer.addAll(chunk);
+    _streamingSpeechMs += durationMs;
+    if (!isSpeech) {
+      _streamingSilenceMs += durationMs;
+    }
+
+    final shouldCommit = (_streamingSpeechMs >= _streamingMinSpeechMs &&
+            _streamingSilenceMs >= _streamingEndSilenceMs) ||
+        _streamingSpeechMs >= _streamingMaxSpeechMs;
+    if (shouldCommit) {
+      unawaited(_commitStreamingSpeechBuffer());
+    }
+  }
+
+  Future<void> _commitStreamingSpeechBuffer() async {
+    if (_streamingCommitInFlight ||
+        !isStreamingMode ||
+        _state != VoiceCallState.listening) {
+      return;
+    }
+
+    if (_streamingSpeechMs < _streamingMinSpeechMs ||
+        _streamingSpeechBuffer.isEmpty) {
+      _resetStreamingSpeechBuffer();
+      return;
+    }
+
+    _streamingCommitInFlight = true;
+    final pcmBytes = Uint8List.fromList(_streamingSpeechBuffer);
+    _resetStreamingSpeechBuffer();
+    notifyListeners();
+    await _stopStreamingCapture(discardDraft: false);
+    try {
+      final text = await _recognizeStreamingPcm(pcmBytes);
+      if (text.trim().isNotEmpty) {
+        await _onUserTurn(text.trim());
+      }
+    } catch (e) {
+      _logger.warning('streaming ASR: $e');
+      _error = '流式语音识别失败: $e';
+      notifyListeners();
+    } finally {
+      _streamingCommitInFlight = false;
+      if (isStreamingMode && _state == VoiceCallState.listening) {
+        unawaited(_startStreamingCapture());
+      }
+    }
+  }
+
+  Future<void> _stopStreamingCapture({required bool discardDraft}) async {
+    final sub = _streamingAudioSub;
+    _streamingAudioSub = null;
+    if (sub != null) {
+      await sub.cancel().catchError((_) {});
+    }
+    await _recorder.stop().catchError((_) => null);
+    if (discardDraft) {
+      _resetStreamingSpeechBuffer();
+    }
+  }
+
+  Future<String> _recognizeStreamingPcm(Uint8List pcmBytes) async {
+    final config = await AsrConfig.load();
+    if (config == null) {
+      throw Exception('ASR 未配置');
+    }
+
+    final dir = await getTemporaryDirectory();
+    final path = p.join(
+      dir.path,
+      'voice_call_stream_\${DateTime.now().millisecondsSinceEpoch}.wav',
+    );
+    final file = File(path);
+    await file.writeAsBytes(_buildPcmWavBytes(pcmBytes));
+    try {
+      return await AlibabaAsrClient(config).recognize(file);
+    } finally {
+      _deleteFile(path);
+    }
+  }
+
+  void _resetStreamingSpeechBuffer() {
+    _streamingSpeechBuffer.clear();
+    _streamingSpeechActive = false;
+    _streamingSilenceMs = 0;
+    _streamingSpeechMs = 0;
+  }
+
+  static int _pcmChunkDurationMs(int byteLength) {
+    return (byteLength * 1000 / 32000).round().clamp(1, 10000);
+  }
+
+  static double _pcmRms(Uint8List pcmBytes) {
+    if (pcmBytes.length < 2) return 0;
+    final aligned = Uint8List.fromList(pcmBytes);
+    final samples = Int16List.view(aligned.buffer);
+    if (samples.isEmpty) return 0;
+
+    var sumSquares = 0.0;
+    for (final sample in samples) {
+      final normalized = sample / 32768.0;
+      sumSquares += normalized * normalized;
+    }
+    return sqrt(sumSquares / samples.length);
+  }
+
+  static Uint8List _buildPcmWavBytes(Uint8List pcmBytes) {
+    const sampleRate = 16000;
+    const channels = 1;
+    const bitsPerSample = 16;
+    const bytesPerSample = bitsPerSample ~/ 8;
+    final dataSize = pcmBytes.length;
+    final bytes = Uint8List(44 + dataSize);
+    final data = ByteData.sublistView(bytes);
+
+    void writeAscii(int offset, String value) {
+      for (var i = 0; i < value.length; i++) {
+        bytes[offset + i] = value.codeUnitAt(i);
+      }
+    }
+
+    writeAscii(0, 'RIFF');
+    data.setUint32(4, 36 + dataSize, Endian.little);
+    writeAscii(8, 'WAVE');
+    writeAscii(12, 'fmt ');
+    data.setUint32(16, 16, Endian.little);
+    data.setUint16(20, 1, Endian.little);
+    data.setUint16(22, channels, Endian.little);
+    data.setUint32(24, sampleRate, Endian.little);
+    data.setUint32(
+      28,
+      sampleRate * channels * bytesPerSample,
+      Endian.little,
+    );
+    data.setUint16(32, channels * bytesPerSample, Endian.little);
+    data.setUint16(34, bitsPerSample, Endian.little);
+    writeAscii(36, 'data');
+    data.setUint32(40, dataSize, Endian.little);
+    bytes.setRange(44, bytes.length, pcmBytes);
+    return bytes;
+  }
+
   @override
   void dispose() {
     _cancelIdleTimer();
+    unawaited(_stopStreamingCapture(discardDraft: true));
     _player.dispose();
     _recorder.dispose();
     super.dispose();

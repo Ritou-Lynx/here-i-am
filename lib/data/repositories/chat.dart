@@ -12,7 +12,7 @@ import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:uuid/uuid.dart';
 
 final _logger = getLogger('ChatEndpoint');
-final _fileSystemService = FileSystemService.instance;
+FileSystemService get _fileSystemService => FileSystemService.instance;
 const _uuid = Uuid();
 
 /// Get chat session list

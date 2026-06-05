@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:memex/data/services/background_task_drain_runner.dart';
+import 'package:memex/data/services/companion_foreground_task.dart';
 import 'package:memex/utils/logger.dart';
 
 @pragma('vm:entry-point')
@@ -40,6 +42,7 @@ class BackgroundTaskForegroundHandler extends TaskHandler {
       debugPrint('[TaskDrainForeground] error: $e\n$st');
     } finally {
       await FlutterForegroundTask.stopService();
+      unawaited(CompanionForegroundService.startPersistent());
     }
   }
 
@@ -57,6 +60,8 @@ class BackgroundTaskForegroundService {
 
   static const String notificationChannelId = 'memex_background_tasks';
   static const String notificationChannelName = 'Memex background tasks';
+  static const String _ownerPrefsKey = 'foreground_task_owner';
+  static const String _ownerTaskDrain = 'task_drain';
 
   static Future<void> initialize() async {
     FlutterForegroundTask.initCommunicationPort();
@@ -81,17 +86,18 @@ class BackgroundTaskForegroundService {
         allowWifiLock: true,
       ),
     );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_ownerPrefsKey, _ownerTaskDrain);
   }
 
   static Future<bool> triggerDrain() async {
-    await initialize();
-
     final isRunning = await FlutterForegroundTask.isRunningService;
     if (isRunning) {
       debugPrint('[TaskDrainForeground] foreground service already running');
       return false;
     }
 
+    await initialize();
     await FlutterForegroundTask.startService(
       notificationTitle: 'Memex is processing',
       notificationText: 'AI tasks are continuing in the background.',

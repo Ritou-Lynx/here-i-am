@@ -654,24 +654,11 @@ class UserStorage {
     }
   }
 
-  /// Get both the LLMClient and ModelConfig for an agent.
-  /// This centralized method handles client creation and model configuration mapping.
-  /// [defaultClientKey] specifies which default config to use if the agent hasn't selected one.
+  /// Build production LLM resources from a configuration.
+  ///
+  /// This is also used by connectivity tests with unsaved form values.
   static Future<({LLMClient client, ModelConfig modelConfig})>
-      getAgentLLMResources(String agentId, {String? defaultClientKey}) async {
-    final llmConfig =
-        await getAgentLLMConfig(agentId, defaultClientKey: defaultClientKey);
-
-    if (!llmConfig.isValid) {
-      EventBusService.instance.emitEvent(InvalidModelConfigMessage(
-        agentId: AgentDefinitions.displayNames[agentId] ?? agentId,
-        configKey: llmConfig.key,
-      ));
-      throw InvalidModelConfigException(
-          'The LLM configuration for $agentId is invalid.');
-    }
-
-    // Use proxy URL from LLM config if set
+      buildLLMResources(LLMConfig llmConfig) async {
     String? proxyUrl = llmConfig.proxyUrl;
 
     LLMClient client;
@@ -679,8 +666,7 @@ class UserStorage {
       case LLMConfig.typeGemini:
         final effectiveApiKey = llmConfig.getEffectiveApiKey();
         if (effectiveApiKey.isEmpty) {
-          throw InvalidModelConfigException(
-              'LLM API Key is empty for agent: $agentId');
+          throw InvalidModelConfigException('LLM API Key is empty');
         }
         client = GeminiClient(
           apiKey: effectiveApiKey,
@@ -699,8 +685,7 @@ class UserStorage {
       case LLMConfig.typeResponses:
         final effectiveApiKey = llmConfig.getEffectiveApiKey();
         if (effectiveApiKey.isEmpty) {
-          throw InvalidModelConfigException(
-              'LLM API Key is empty for agent: $agentId');
+          throw InvalidModelConfigException('LLM API Key is empty');
         }
         client = ResponsesClient(
           apiKey: effectiveApiKey,
@@ -711,8 +696,7 @@ class UserStorage {
       case LLMConfig.typeChatCompletion:
         final effectiveApiKey = llmConfig.getEffectiveApiKey();
         if (effectiveApiKey.isEmpty) {
-          throw InvalidModelConfigException(
-              'LLM API Key is empty for agent: $agentId');
+          throw InvalidModelConfigException('LLM API Key is empty');
         }
         client = OpenAIClient(
           apiKey: effectiveApiKey,
@@ -723,8 +707,7 @@ class UserStorage {
       case LLMConfig.typeClaude:
         final effectiveApiKey = llmConfig.getEffectiveApiKey();
         if (effectiveApiKey.isEmpty) {
-          throw InvalidModelConfigException(
-              'LLM API Key is empty for agent: $agentId');
+          throw InvalidModelConfigException('LLM API Key is empty');
         }
         client = ClaudeClient(
           apiKey: effectiveApiKey,
@@ -771,6 +754,7 @@ class UserStorage {
       case LLMConfig.typeKimi:
       case LLMConfig.typeQwen:
       case LLMConfig.typeZhipu:
+      case LLMConfig.typeDeepSeek:
       case LLMConfig.typeOpenRouter:
       case LLMConfig.typeOllama:
         client = OpenAIClient(
@@ -811,6 +795,26 @@ class UserStorage {
     );
 
     return (client: client, modelConfig: modelConfig);
+  }
+
+  /// Get both the LLMClient and ModelConfig for an agent.
+  /// [defaultClientKey] specifies which default config to use if the agent
+  /// has not selected one.
+  static Future<({LLMClient client, ModelConfig modelConfig})>
+      getAgentLLMResources(String agentId, {String? defaultClientKey}) async {
+    final llmConfig =
+        await getAgentLLMConfig(agentId, defaultClientKey: defaultClientKey);
+
+    if (!llmConfig.isValid) {
+      EventBusService.instance.emitEvent(InvalidModelConfigMessage(
+        agentId: AgentDefinitions.displayNames[agentId] ?? agentId,
+        configKey: llmConfig.key,
+      ));
+      throw InvalidModelConfigException(
+          'The LLM configuration for $agentId is invalid.');
+    }
+
+    return buildLLMResources(llmConfig);
   }
 
   /// Get photo suggestion cache

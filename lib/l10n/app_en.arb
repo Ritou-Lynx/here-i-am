@@ -742,6 +742,7 @@
   "providerQwen": "Aliyun",
   "providerSeed": "Volcengine",
   "providerZhipu": "Zhipu GLM",
+  "providerDeepSeek": "DeepSeek",
   "providerMinimax": "MiniMax",
   "providerOpenRouter": "OpenRouter",
   "providerOllama": "Ollama (Local)",
@@ -754,6 +755,12 @@
   "apiKeyLabel": "API Key",
   "baseUrlLabel": "Base URL",
   "advancedSettings": "Advanced Settings",
+  "testConnectionSuccess": "Connection Successful",
+  "testConnectionFailed": "Connection Failed",
+  "testTypeText": "Text",
+  "testTypeVision": "Vision",
+  "testButton": "Test",
+  "testing": "Testing...",
   "proxyUrlOptional": "Proxy URL (Optional)",
   "proxyUrlHelper": "e.g. http://127.0.0.1:7890",
   "temperatureLabel": "Temperature",
@@ -840,6 +847,26 @@
   "noStoredBackups": "Automatic backups will appear here after the first snapshot.",
   "refresh": "Refresh",
   "restoreThisBackup": "Restore this backup",
+  "deleteThisBackup": "Delete this backup",
+  "confirmDeleteBackup": "Delete backup?",
+  "@confirmDeleteBackupMessage": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "confirmDeleteBackupMessage": "Delete {fileName}? This removes the stored backup file and cannot be undone.",
+  "@backupDeleted": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "backupDeleted": "Backup deleted: {fileName}",
+  "@backupDeleteFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "backupDeleteFailed": "Could not delete backup: {error}",
   "creatingSafetySnapshot": "Creating safety snapshot...",
   "@autoBackupCreated": {
     "placeholders": {
@@ -1274,5 +1301,23 @@
   },
   "earlyUpdateCheckFailed": "Update check failed: {error}",
   "earlyUpdateDialogTitle": "Early update available",
-  "earlyUpdateReleaseNotes": "Release notes"
+  "earlyUpdateReleaseNotes": "Release notes",
+  "companionRemembered": "Remembered",
+  "companionSharedLifeTitle": "Remembered from chat",
+  "undo": "Undo",
+  "companionLifeEvent": "Event",
+  "companionLifeTask": "Task",
+  "companionLifePlan": "Plan",
+  "companionLifeSchedule": "Schedule",
+  "companionLifeFact": "Fact",
+  "companionLifeActive": "Active",
+  "companionLifeCompleted": "Completed",
+  "companionLifeCancelled": "Cancelled",
+  "companionSharedLifeDetail": "Life record",
+  "companionSharedLifeCurrentState": "Current state",
+  "companionSharedLifeRelated": "Related memories",
+  "companionSharedLifeEvidence": "Original conversation",
+  "companionSharedLifeHistory": "Update history",
+  "companionSharedLifeUserMessage": "You",
+  "companionSharedLifeCharacterMessage": "Companion"
 }

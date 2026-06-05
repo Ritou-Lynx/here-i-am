@@ -1,8 +1,8 @@
 # 故我在 / Here I am — Product Development Document
 
-Status: Draft v0.1
+Status: Draft v0.2
 
-Last updated: 2026-05-31
+Last updated: 2026-06-02
 
 ## 1. Product Direction
 
@@ -117,7 +117,71 @@ The media tray must not duplicate the text editor or voice recorder. The
 existing full Memex recording sheet remains an internal source of reusable
 logic, not the target interaction design.
 
-## 4. Memory Model
+## 4. Moments (朋友圈)
+
+Moments is a separate social-feed space where the user can **manually author**
+posts and invite AI characters to comment. It is intentionally decoupled from
+the personal record archive.
+
+### 4.1 What Moments is not
+
+- It is **not** the Review card feed. Review is a private chronological record.
+- It is **not** a write-through from the capture pipeline. Posts are authored by
+  the user, not auto-generated from chat.
+- It is **not** a duplicate of the chat composer. Chat is one-to-one
+  conversation. Moments is a shared social surface.
+
+### 4.2 Composition
+
+The user composes a Moments post freely:
+
+- Text body with optional formatting.
+- One or more images with layout control.
+- Optional location tag, mood, or topic label.
+
+Before publishing, the user sets **max commenters**: the number of AI
+characters who may reply to this post. The system selects which characters
+participate based on topic fit, relationship context, and recent interaction
+frequency.
+
+### 4.3 One-tap sync from Review
+
+Every Review card exposes a **"Sync to Moments"** shortcut. This copies the
+card's summary, images, and metadata into the Moments composer as a draft. The
+user can edit before publishing. Cards do not auto-publish to Moments.
+
+### 4.4 AI character comments
+
+After a post is published, the selected characters generate comments through
+the existing `comment_agent` infrastructure (repurposed from the legacy
+card-comment pipeline). Each character's comment reflects their persona,
+relationship history, and private memory — the same as their chat behavior.
+
+Comments appear under the post in chronological order with character avatars.
+The post author (the user) can reply to any comment inline.
+
+### 4.5 Architecture notes
+
+- `comment_agent` is no longer triggered as a downstream task in the card
+  pipeline (`submitInput → … → comment_agent`). It is invoked only from the
+  Moments post-publish flow.
+- The agent code, handler, skill, and prompt files are preserved and reused.
+- The model configuration entry (`AgentDefinitions.commentAgent`) remains in
+  Settings so users can assign a separate LLM for comment generation.
+- Moment posts are stored independently from `shared_life_entities` and
+  `persona_chat_messages`. They form their own append-only log with a
+  denormalized comment projection.
+
+### 4.6 Scope
+
+- **MVP (Phase 3+)**: Manual post composition, image attachment, publish,
+  character comment generation, inline reply.
+- **Deferred**: Rich layout editor, video posts, external share, analytics,
+  moderation controls beyond max commenters.
+
+---
+
+## 5. Memory Model
 
 The system separates memory by audience and purpose.
 
@@ -133,12 +197,12 @@ The system separates memory by audience and purpose.
 Switching characters changes the relationship context, not the shared system
 brain.
 
-## 5. Conversation Capture
+## 6. Conversation Capture
 
 Conversation capture is asynchronous and incremental. It must not run an
 additional model call after every user message.
 
-### 5.1 Deterministic slice triggers
+### 6.1 Deterministic slice triggers
 
 A background capture slice may be created after any of these:
 
@@ -153,7 +217,12 @@ A background capture slice may be created after any of these:
 Each character conversation tracks a `last_extracted_message_id` so the
 organizer processes only new messages.
 
-### 5.2 Capture output
+Enabling conversation capture establishes the current latest message as the
+initial cursor for each existing character chat. It must not retroactively scan
+old conversation history or regenerate records for facts already recognized by
+the legacy knowledge system.
+
+### 6.2 Capture output
 
 A single model call classifies a slice into multiple destinations:
 
@@ -178,15 +247,34 @@ Supported shared operations:
 | `derive` | Create a new related item from an existing thread. |
 | `ignore` | Do not structure casual or private conversation. |
 
-### 5.3 Preserve evidence
+### 6.3 Preserve evidence
 
 - Raw conversation is append-only.
 - Shared event changes are append-only.
 - Current state is maintained as a projection.
 - Every extracted operation records source message IDs.
 - Undo appends a compensating operation instead of rewriting history.
+- Cards extracted from chat expose the exact source messages in their detail
+  view. A card may cite one user message or several messages from a slice.
 
-### 5.4 Narrow retrieval before merge
+### 6.4 Preserve Memex knowledge compatibility
+
+- Existing `Facts`, `Cards`, PKM files, tags, related facts, and knowledge
+  insights remain valid and readable during the migration.
+- New shared-life entities do not fabricate a duplicate legacy Fact for every
+  chat extraction. Their raw evidence is the cited conversation messages.
+- Review performs a unified read across legacy Timeline cards and shared-life
+  cards. Users should see one chronological feed, not two competing sections.
+- A shared-life entity may hold soft links to legacy `fact_id` values and other
+  shared-life entities. These links support related-memory navigation without
+  foreign-key coupling.
+- Entity type (`event`, `task`, `plan`, `schedule`, `fact`) describes record
+  behavior. It is not the topic taxonomy. Topic tags remain a separate semantic
+  layer and should continue feeding retrieval and future PKM organization.
+- Chat-derived cards do not generate an additional character comment by
+  default. The companion already responded in the source conversation.
+
+### 6.5 Narrow retrieval before merge
 
 The organizer should not load the entire user history into each model call.
 
@@ -196,7 +284,24 @@ The organizer should not load the entire user history into each model call.
    derives from an existing item.
 4. Apply validated patches through a service layer.
 
-## 6. Review Cards
+### 6.6 Foreground companion tools
+
+- Companion replies receive a narrow union of legacy PKM knowledge cards and
+  legacy timeline cards, and relevant shared-life entities.
+- Characters may explicitly query legacy Memex timeline cards and PKM files
+  when the user asks about a previously recorded fact. Legacy cards remain a
+  source of truth even when no corresponding PKM file exists.
+- Characters query the shared-life store before answering exact questions
+  about recorded events, tasks, plans, schedules, or durable facts.
+- An explicit user request may create, update, complete, cancel, or undo a
+  shared-life record during the chat turn. The current raw user message is
+  preserved as evidence for that change.
+- Routine conversation remains asynchronous: the background capture pipeline
+  organizes slices after thresholds, idle time, or conversation exit.
+- Explicit foreground changes are reversible and emit the same lightweight
+  undo affordance as background extraction.
+
+## 7. Review Cards
 
 Cards remain useful, but their meaning changes.
 
@@ -219,11 +324,13 @@ A Review card may span multiple messages and evolve over time. It should expose:
 - Timeline position.
 - Source conversation evidence.
 - Update history.
+- Semantic topic tags, separate from workflow type.
+- Related shared-life entities and soft-linked legacy facts.
 - Edit, undo, merge, privacy, and trash actions.
 
 Cards are not expected to interrupt routine chat.
 
-## 7. Rich Chat Responses
+## 8. Rich Chat Responses
 
 Characters can answer user questions with:
 
@@ -239,9 +346,9 @@ Characters can answer user questions with:
 Rich responses are generally request-driven. Background insights remain in
 Review unless the user explicitly opts into proactive presentation.
 
-## 8. MVP Scope
+## 9. MVP Scope
 
-### 8.1 Included in the first runnable shell
+### 9.1 Included in the first runnable shell
 
 - App entry opens directly into the most recently active character chat.
 - Character switching remains available in the chat header.
@@ -255,7 +362,7 @@ Review unless the user explicitly opts into proactive presentation.
 - Schedule temporarily reuses the existing schedule aggregation view.
 - Me temporarily reuses the existing personal center and settings.
 
-### 8.2 Next implementation slice
+### 9.2 Next implementation slice
 
 - Lightweight photo suggestions, album selection, and camera capture directly
   in the chat composer.
@@ -265,7 +372,7 @@ Review unless the user explicitly opts into proactive presentation.
 - Undo affordances and evidence links in Review.
 - Request-driven rich artifacts inside chat messages.
 
-### 8.3 Deliberately deferred
+### 9.3 Deliberately deferred
 
 - Frequent proactive insight cards in chat.
 - Mandatory confirmation for routine reversible actions.
@@ -273,8 +380,10 @@ Review unless the user explicitly opts into proactive presentation.
 - Removing the legacy Timeline or PKM engine before the replacement Review
   pipeline is proven.
 - Giving one character broader orchestration rights than another.
+- Multi-character group chat before one-to-one companion chat and memory
+  boundaries are stable.
 
-## 9. Development Sequence
+## 10. Development Sequence
 
 The product should advance through thin vertical slices. Do not finish the
 visual system before validating memory behavior, and do not build the memory
@@ -317,7 +426,25 @@ engine without a usable chat interaction to carry it.
 - Unify the visual language across chat and supporting spaces.
 - Revisit onboarding and migration once the core loop is proven.
 
-## 10. Reused Memex Capabilities
+### Phase 5: Multi-character group chat exploration
+
+- Add an explicit group-chat scene alongside one-to-one character
+  conversations. Private chats remain the default companion experience.
+- Route each group-chat turn to zero, one, or a small number of characters
+  based on topic fit, relationship context, recent speaking frequency, and
+  whether each character can add a meaningfully different response.
+- Let characters react to or build on earlier group messages without forcing
+  every enabled character to reply.
+- Keep character-private chat history and private relationship memory isolated.
+  A character must not expose details from another character's private
+  conversation merely because both characters are present in the group.
+- Share only information that belongs to shared life memory or that the user
+  explicitly brings into the group conversation.
+- Revisit the upstream Memex multi-character comment router as a reference for
+  participation selection, while designing group-chat pacing separately from
+  timeline comments.
+
+## 11. Reused Memex Capabilities
 
 The following existing systems remain valuable:
 
@@ -329,7 +456,7 @@ The following existing systems remain valuable:
 - LLM provider configuration.
 - Voice input, TTS, calls, and proactive notification infrastructure.
 
-## 11. Success Criteria
+## 12. Success Criteria
 
 The first product test is behavioral:
 
@@ -339,7 +466,7 @@ The first product test is behavioral:
   those views the center of the experience.
 - Background organization does not make ordinary chat feel like a form.
 
-## 12. Development Mainline
+## 13. Development Mainline
 
 `Here I am` is the only actively developed product line. The original Memex
 project remains the GPL-3.0 upstream foundation and a read-only reference, not a

@@ -10,9 +10,11 @@ import 'package:uuid/uuid.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'package:memex/agent/companion_agent/companion_agent.dart';
+import 'package:memex/data/services/callkit_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/notification_service.dart';
+import 'package:memex/data/services/sqlite_retry.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
@@ -53,6 +55,9 @@ class CheckinService {
 
   static const int defaultMinIntervalMinutes = 3;
   static const int defaultMaxIntervalMinutes = 60;
+  static const int _staleCheckinSeconds = 60 * 60;
+  static const int _staleSleepPushSeconds = 5 * 60;
+  static const int _staleReminderSeconds = 15 * 60;
 
   /// WorkManager task name — public so [callbackDispatcher] can route.
   static const String checkinTaskName = 'stochasticCheckinPulse';
@@ -66,20 +71,22 @@ class CheckinService {
   Future<bool> isEnabled() async {
     if (!AppDatabase.isInitialized) return false;
     final row = await _db.kvStoreLookup(key: _keyEnabled, bucket: _bucket);
-    if (row == null) return true; // Default: enabled unless explicitly turned off
+    if (row == null) {
+      return true; // Default: enabled unless explicitly turned off
+    }
     return row.value == 'true';
   }
 
   Future<void> setEnabled(bool enabled) async {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     await _db.into(_db.kvStore).insertOnConflictUpdate(
-      KvStoreCompanion.insert(
-        key: _keyEnabled,
-        bucket: const Value(_bucket),
-        value: Value(enabled.toString()),
-        updatedAt: Value(now),
-      ),
-    );
+          KvStoreCompanion.insert(
+            key: _keyEnabled,
+            bucket: const Value(_bucket),
+            value: Value(enabled.toString()),
+            updatedAt: Value(now),
+          ),
+        );
   }
 
   Future<int> getMinIntervalMinutes() async {
@@ -130,13 +137,13 @@ class CheckinService {
   Future<void> markSleepConfirmedTonight() async {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     await _db.into(_db.kvStore).insertOnConflictUpdate(
-      KvStoreCompanion.insert(
-        key: _keySleepConfirmedDate,
-        bucket: const Value(_bucket),
-        value: Value(_sleepNightKey()),
-        updatedAt: Value(now),
-      ),
-    );
+          KvStoreCompanion.insert(
+            key: _keySleepConfirmedDate,
+            bucket: const Value(_bucket),
+            value: Value(_sleepNightKey()),
+            updatedAt: Value(now),
+          ),
+        );
     _logger.info('Sleep confirmed tonight (${_sleepNightKey()})');
   }
 
@@ -145,13 +152,13 @@ class CheckinService {
   Future<void> markSleepClaimed() async {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     await _db.into(_db.kvStore).insertOnConflictUpdate(
-      KvStoreCompanion.insert(
-        key: _keySleepClaimedTs,
-        bucket: const Value(_bucket),
-        value: Value(now.toString()),
-        updatedAt: Value(now),
-      ),
-    );
+          KvStoreCompanion.insert(
+            key: _keySleepClaimedTs,
+            bucket: const Value(_bucket),
+            value: Value(now.toString()),
+            updatedAt: Value(now),
+          ),
+        );
     _logger.info('Sleep claimed at epoch $now');
   }
 
@@ -179,13 +186,13 @@ class CheckinService {
   Future<void> markSleepVerifySent() async {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     await _db.into(_db.kvStore).insertOnConflictUpdate(
-      KvStoreCompanion.insert(
-        key: _keySleepVerifyTs,
-        bucket: const Value(_bucket),
-        value: Value(now.toString()),
-        updatedAt: Value(now),
-      ),
-    );
+          KvStoreCompanion.insert(
+            key: _keySleepVerifyTs,
+            bucket: const Value(_bucket),
+            value: Value(now.toString()),
+            updatedAt: Value(now),
+          ),
+        );
     _logger.info('Sleep verify push sent at epoch $now');
   }
 
@@ -233,13 +240,13 @@ class CheckinService {
       (_keyMaxMin, max.toString()),
     ]) {
       await _db.into(_db.kvStore).insertOnConflictUpdate(
-        KvStoreCompanion.insert(
-          key: entry.$1,
-          bucket: const Value(_bucket),
-          value: Value(entry.$2),
-          updatedAt: Value(now),
-        ),
-      );
+            KvStoreCompanion.insert(
+              key: entry.$1,
+              bucket: const Value(_bucket),
+              value: Value(entry.$2),
+              updatedAt: Value(now),
+            ),
+          );
     }
   }
 
@@ -306,7 +313,8 @@ class CheckinService {
     }
     final fireAt = DateTime.now().add(delay);
     // Use seconds-since-epoch as alarm id (truncated to int32 range)
-    final alarmId = (DateTime.now().millisecondsSinceEpoch ~/ 1000) & 0x7fffffff;
+    final alarmId =
+        (DateTime.now().millisecondsSinceEpoch ~/ 1000) & 0x7fffffff;
     await AndroidAlarmManager.oneShotAt(
       fireAt,
       alarmId,
@@ -318,6 +326,49 @@ class CheckinService {
     );
     _logger.info(
         'Alarm checkin scheduled at $fireAt (alarmId=$alarmId, in ${delay.inSeconds}s)');
+  }
+
+  /// Schedule an exact wake-up for a persisted reminder.
+  ///
+  /// The foreground service remains a fallback, but a user-requested future
+  /// action should not wait for the next stochastic production alarm.
+  Future<void> scheduleReminderAlarm({
+    required String reminderId,
+    required DateTime dueAt,
+  }) async {
+    if (!Platform.isAndroid) return;
+    final alarmId = alarmIdForReminder(reminderId);
+    try {
+      await AndroidAlarmManager.oneShotAt(
+        dueAt,
+        alarmId,
+        alarmCheckinCallback,
+        exact: true,
+        wakeup: true,
+        allowWhileIdle: true,
+        alarmClock: true,
+        rescheduleOnReboot: true,
+      );
+      _logger.info(
+        'Reminder alarm scheduled at $dueAt '
+        '(reminderId=$reminderId, alarmId=$alarmId)',
+      );
+    } catch (e) {
+      // Keep the DB reminder: the persistent foreground loop can still pick it
+      // up within its next tick if exact-alarm registration is unavailable.
+      _logger.warning(
+        'Failed to schedule exact reminder alarm for $reminderId: $e',
+      );
+    }
+  }
+
+  int alarmIdForReminder(String reminderId) {
+    var hash = 0x811c9dc5;
+    for (final codeUnit in reminderId.codeUnits) {
+      hash ^= codeUnit;
+      hash = (hash * 0x01000193) & 0x7fffffff;
+    }
+    return 0x40000000 | (hash & 0x3fffffff);
   }
 
   /// Stable alarm ID for the production recurring checkin alarm.
@@ -340,12 +391,14 @@ class CheckinService {
           // Claimed but verification push not yet sent — fire after the claim window.
           minMin = _sleepClaimVerifyMinutes;
           maxMin = _sleepClaimVerifyMinutes;
-          _logger.info('Sleep claimed — sending verify push in ${_sleepClaimVerifyMinutes}min');
+          _logger.info(
+              'Sleep claimed — sending verify push in ${_sleepClaimVerifyMinutes}min');
         } else {
           // Verification push sent — wait for the user's response window.
           minMin = _sleepVerifyResponseMinutes;
           maxMin = _sleepVerifyResponseMinutes;
-          _logger.info('Sleep verify sent — checking response in ${_sleepVerifyResponseMinutes}min');
+          _logger.info(
+              'Sleep verify sent — checking response in ${_sleepVerifyResponseMinutes}min');
         }
       } else {
         // Active sleep push: fire every 1–2 min.
@@ -431,6 +484,7 @@ class CheckinService {
     // Clear any stale 'processing' rows before the turn gate so a crashed/killed
     // agent run can't permanently block future checkins.
     await recoverStuckProcessing();
+    await expireStalePendingTriggers();
 
     // Foreground gate: never proactively interrupt while the user is actively
     // using the app — the whole point of a proactive push is to reach them when
@@ -465,19 +519,20 @@ class CheckinService {
     final minMin = await getMinIntervalMinutes();
     final maxMin = await getMaxIntervalMinutes();
     final delayMinutes = minMin + _rand.nextInt(maxMin - minMin + 1);
-    _logger.info('Checkin pulse: next natural delay would be ~${delayMinutes}m');
+    _logger
+        .info('Checkin pulse: next natural delay would be ~${delayMinutes}m');
 
     await _db.into(_db.systemMessageQueue).insert(
-      SystemMessageQueueCompanion.insert(
-        id: _uuid.v4(),
-        triggerType: 'checkin',
-        body: _buildCheckinText(),
-        createdAt: now.millisecondsSinceEpoch ~/ 1000,
-        scheduledFor: const Value(null),
-        context: const Value(null),
-        processedAt: const Value(null),
-      ),
-    );
+          SystemMessageQueueCompanion.insert(
+            id: _uuid.v4(),
+            triggerType: 'checkin',
+            body: _buildCheckinText(),
+            createdAt: now.millisecondsSinceEpoch ~/ 1000,
+            scheduledFor: const Value(null),
+            context: const Value(null),
+            processedAt: const Value(null),
+          ),
+        );
 
     _logger.info('Checkin trigger enqueued');
     return true;
@@ -495,7 +550,8 @@ class CheckinService {
   Future<bool> dueForCheckin() async {
     if (!AppDatabase.isInitialized) return false;
     final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final row = await _db.kvStoreLookup(key: _keyNextCheckinTs, bucket: _bucket);
+    final row =
+        await _db.kvStoreLookup(key: _keyNextCheckinTs, bucket: _bucket);
     final next = int.tryParse(row?.value ?? '');
     if (next == null) {
       // First tick after install/launch — arm the next target, don't fire now.
@@ -515,13 +571,13 @@ class CheckinService {
     if (!AppDatabase.isInitialized) return;
     final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     await _db.into(_db.kvStore).insertOnConflictUpdate(
-      KvStoreCompanion.insert(
-        key: _keyNextCheckinTs,
-        bucket: const Value(_bucket),
-        value: const Value('0'), // 0 ≤ now → due on next tick
-        updatedAt: Value(nowSec),
-      ),
-    );
+          KvStoreCompanion.insert(
+            key: _keyNextCheckinTs,
+            bucket: const Value(_bucket),
+            value: const Value('0'), // 0 ≤ now → due on next tick
+            updatedAt: Value(nowSec),
+          ),
+        );
   }
 
   Future<void> _scheduleNextCheckinTs(int nowSec) async {
@@ -537,13 +593,13 @@ class CheckinService {
     final delayMin = minMin + (span == 0 ? 0 : _rand.nextInt(span + 1));
     final next = nowSec + delayMin * 60;
     await _db.into(_db.kvStore).insertOnConflictUpdate(
-      KvStoreCompanion.insert(
-        key: _keyNextCheckinTs,
-        bucket: const Value(_bucket),
-        value: Value(next.toString()),
-        updatedAt: Value(nowSec),
-      ),
-    );
+          KvStoreCompanion.insert(
+            key: _keyNextCheckinTs,
+            bucket: const Value(_bucket),
+            value: Value(next.toString()),
+            updatedAt: Value(nowSec),
+          ),
+        );
     _logger.info('Next checkin target in ${delayMin}m');
   }
 
@@ -580,34 +636,108 @@ class CheckinService {
   // Query
   // ---------------------------------------------------------------------------
 
+  /// Fail pending work that is too late to send naturally.
+  ///
+  /// A missed reminder must not surface many hours later with stale wording
+  /// such as "Current time: 23:40". Explicit commitments are still handled
+  /// promptly by the foreground-service fallback, but after the grace window
+  /// silence is safer than a misleading late interruption.
+  Future<int> expireStalePendingTriggers({int? nowEpochSec}) async {
+    if (!AppDatabase.isInitialized) return 0;
+    final now = nowEpochSec ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    var expired = 0;
+
+    expired += await (_db.update(_db.systemMessageQueue)
+          ..where((t) =>
+              t.status.equals('pending') &
+              t.triggerType.equals('checkin') &
+              t.body.like('[SLEEP PUSH]%') &
+              t.createdAt.isSmallerOrEqualValue(now - _staleSleepPushSeconds)))
+        .write(const SystemMessageQueueCompanion(status: Value('failed')));
+
+    expired += await (_db.update(_db.systemMessageQueue)
+          ..where((t) =>
+              t.status.equals('pending') &
+              t.triggerType.equals('checkin') &
+              t.createdAt.isSmallerOrEqualValue(now - _staleCheckinSeconds)))
+        .write(const SystemMessageQueueCompanion(status: Value('failed')));
+
+    expired += await (_db.update(_db.systemMessageQueue)
+          ..where((t) =>
+              t.status.equals('pending') &
+              t.triggerType.equals('reminder') &
+              t.scheduledFor
+                  .isSmallerOrEqualValue(now - _staleReminderSeconds)))
+        .write(const SystemMessageQueueCompanion(status: Value('failed')));
+
+    if (expired > 0) {
+      _logger.warning('Expired $expired stale pending system trigger(s)');
+    }
+    return expired;
+  }
+
   /// Returns true if there is any pending work — an unprocessed checkin trigger
   /// OR a reminder that is due. Used by the background callback to decide
   /// whether to run the agent even when no new checkin was enqueued.
   Future<bool> hasPendingWork() async {
-    if (!AppDatabase.isInitialized) return false;
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final rows = await (_db.select(_db.systemMessageQueue)
-          ..where((t) =>
-              t.status.equals('pending') &
-              (t.triggerType.equals('checkin') |
-                  (t.triggerType.equals('reminder') &
-                      t.scheduledFor.isSmallerOrEqualValue(now)))))
-        .get();
-    _logger.info('hasPendingWork: ${rows.length} row(s)');
-    return rows.isNotEmpty;
+    return retryOnSqliteLocked(() async {
+      if (!AppDatabase.isInitialized) return false;
+      await recoverStuckProcessing();
+      await expireStalePendingTriggers();
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final rows = await (_db.select(_db.systemMessageQueue)
+            ..where((t) =>
+                t.status.equals('pending') &
+                (t.triggerType.equals('checkin') |
+                    (t.triggerType.equals('reminder') &
+                        t.scheduledFor.isSmallerOrEqualValue(now)))))
+          .get();
+      _logger.info('hasPendingWork: ${rows.length} row(s)');
+      return rows.isNotEmpty;
+    });
   }
 
   /// Returns true if there are reminders that are due right now.
   Future<bool> hasDueReminders() async {
-    if (!AppDatabase.isInitialized) return false;
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final due = await (_db.select(_db.systemMessageQueue)
-          ..where((t) =>
-              t.status.equals('pending') &
-              t.triggerType.equals('reminder') &
-              t.scheduledFor.isSmallerOrEqualValue(now)))
-        .get();
-    return due.isNotEmpty;
+    return retryOnSqliteLocked(() async {
+      if (!AppDatabase.isInitialized) return false;
+      await recoverStuckProcessing();
+      await expireStalePendingTriggers();
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final due = await (_db.select(_db.systemMessageQueue)
+            ..where((t) =>
+                t.status.equals('pending') &
+                t.triggerType.equals('reminder') &
+                t.scheduledFor.isSmallerOrEqualValue(now)))
+          .get();
+      return due.isNotEmpty;
+    });
+  }
+
+  Future<List<SystemMessageQueueData>> claimDueCallReminders() async {
+    return retryOnSqliteLocked(() async {
+      if (!AppDatabase.isInitialized) return [];
+      await recoverStuckProcessing();
+      await expireStalePendingTriggers();
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      return _db.transaction(() async {
+        final rows = await (_db.select(_db.systemMessageQueue)
+              ..where((t) =>
+                  t.status.equals('pending') &
+                  t.triggerType.equals('reminder') &
+                  t.scheduledFor.isSmallerOrEqualValue(now) &
+                  t.context.like('%"action":"call"%'))
+              ..orderBy([(t) => OrderingTerm.asc(t.scheduledFor)]))
+            .get();
+        if (rows.isEmpty) return rows;
+        final ids = rows.map((row) => row.id).toList(growable: false);
+        await (_db.update(_db.systemMessageQueue)..where((t) => t.id.isIn(ids)))
+            .write(const SystemMessageQueueCompanion(
+          status: Value('processing'),
+        ));
+        return rows;
+      });
+    });
   }
 
   /// Drain all pending system messages (checkins and due reminders).
@@ -619,44 +749,42 @@ class CheckinService {
 
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     _logger.info('drainPending: now=$now, querying...');
-
-    // Expire stale checkin triggers (older than 1 hour) before draining.
-    // These are triggers that were never successfully processed and keep
-    // recycling through loopDetection → recoverStuckProcessing → pending.
-    final expireBefore = now - 3600; // 1 hour
-    final expiredCount = await (_db.update(_db.systemMessageQueue)
-          ..where((t) =>
-              t.status.equals('pending') &
-              t.triggerType.equals('checkin') &
-              t.createdAt.isSmallerOrEqualValue(expireBefore)))
-        .write(const SystemMessageQueueCompanion(status: Value('failed')));
-    if (expiredCount > 0) {
-      _logger.warning('drainPending: expired $expiredCount stale checkin trigger(s)');
-    }
+    await recoverStuckProcessing();
+    await expireStalePendingTriggers(nowEpochSec: now);
 
     final query = _db.select(_db.systemMessageQueue)
-      ..where((t) => t.status.equals('pending') &
+      ..where((t) =>
+          t.status.equals('pending') &
           (t.triggerType.equals('checkin') |
               (t.triggerType.equals('reminder') &
                   t.scheduledFor.isSmallerOrEqualValue(now))));
     final results = await query.get();
+    results.sort((a, b) {
+      final aPriority = a.triggerType == 'reminder' ? 0 : 1;
+      final bPriority = b.triggerType == 'reminder' ? 0 : 1;
+      if (aPriority != bPriority) return aPriority.compareTo(bPriority);
+      return (a.scheduledFor ?? a.createdAt)
+          .compareTo(b.scheduledFor ?? b.createdAt);
+    });
     _logger.info('drainPending: ${results.length} results');
     for (final r in results) {
-      _logger.info('drainPending: row id=${r.id} type=${r.triggerType} status=${r.status}');
+      _logger.info(
+          'drainPending: row id=${r.id} type=${r.triggerType} status=${r.status}');
     }
     return results;
   }
 
   /// Mark a system message with a new status.
   Future<void> markStatus(String id, String status) async {
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final processedAt = status == 'done' ? now : null;
-    await (_db.update(_db.systemMessageQueue)
-          ..where((t) => t.id.equals(id)))
-        .write(SystemMessageQueueCompanion(
-      status: Value(status),
-      processedAt: Value(processedAt),
-    ));
+    await retryOnSqliteLocked(() async {
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final processedAt = status == 'done' ? now : null;
+      await (_db.update(_db.systemMessageQueue)..where((t) => t.id.equals(id)))
+          .write(SystemMessageQueueCompanion(
+        status: Value(status),
+        processedAt: Value(processedAt),
+      ));
+    });
   }
 
   /// Marks system messages currently being handled by an agent turn as done.
@@ -665,14 +793,16 @@ class CheckinService {
   /// completion tool must finish `processing` rows rather than querying pending
   /// rows again.
   Future<int> markProcessingDone() async {
-    if (!AppDatabase.isInitialized) return 0;
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    return (_db.update(_db.systemMessageQueue)
-          ..where((t) => t.status.equals('processing')))
-        .write(SystemMessageQueueCompanion(
-      status: const Value('done'),
-      processedAt: Value(now),
-    ));
+    return retryOnSqliteLocked(() async {
+      if (!AppDatabase.isInitialized) return 0;
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      return (_db.update(_db.systemMessageQueue)
+            ..where((t) => t.status.equals('processing')))
+          .write(SystemMessageQueueCompanion(
+        status: const Value('done'),
+        processedAt: Value(now),
+      ));
+    });
   }
 
   /// Reset stuck 'processing' triggers back to 'pending', or expire them if
@@ -689,12 +819,15 @@ class CheckinService {
           ..where((t) => t.status.equals('processing')))
         .get();
     for (final row in stuck) {
-      final isOld = row.createdAt < expireBefore;
+      final referenceTs = row.triggerType == 'reminder'
+          ? row.scheduledFor ?? row.createdAt
+          : row.createdAt;
+      final isOld = referenceTs < expireBefore;
       final newStatus = isOld ? 'failed' : 'pending';
       await markStatus(row.id, newStatus);
       if (isOld) {
         _logger.warning(
-            'Expired stale trigger ${row.id} (age: ${(now - row.createdAt) ~/ 60}min)');
+            'Expired stale trigger ${row.id} (age: ${(now - referenceTs) ~/ 60}min)');
       } else {
         _logger.info('Recovered stuck trigger: ${row.id}');
       }
@@ -722,7 +855,8 @@ extension KvLookup on AppDatabase {
 /// AlarmManager wakeups that bypass Doze mode.
 @pragma('vm:entry-point')
 Future<void> alarmCheckinCallback(int alarmId) async {
-  debugPrint('AlarmCheckin: fired alarmId=$alarmId (Isolate=${Isolate.current.debugName})');
+  debugPrint(
+      'AlarmCheckin: fired alarmId=$alarmId (Isolate=${Isolate.current.debugName})');
   try {
     await setupLogger();
   } catch (_) {}
@@ -741,9 +875,8 @@ Future<void> alarmCheckinCallback(int alarmId) async {
 
     // Skip checkin if the app is currently in the foreground — the user is
     // actively using the app and doesn't need a background push.
-    // (This catches the hasPendingWork path that bypasses maybeEnqueueCheckin's
-    // own foreground gate.)
-    if (await CheckinService.instance.isAppInForeground()) {
+    final hasDueReminder = await CheckinService.instance.hasDueReminders();
+    if (await CheckinService.instance.isAppInForeground() && !hasDueReminder) {
       debugPrint('AlarmCheckin: app is in foreground, skipping checkin');
       return;
     }
@@ -776,7 +909,16 @@ Future<void> alarmCheckinCallback(int alarmId) async {
       userId: userId,
       characterId: character.id,
     );
+    // CallKit display is handled by the persistent foreground service.
+    // This background isolate has no Flutter engine — CallKit can't show here.
     debugPrint('AlarmCheckin: agent run complete');
+    // If the agent queued a voice call during a spontaneous checkin, the
+    // foreground service picks it up on its next tick.
+    await CallkitService.instance.showPendingIncomingCall(
+      characterId: character.id,
+      nameCaller: character.name,
+      avatarUrl: character.avatar,
+    );
   } catch (e, st) {
     debugPrint('AlarmCheckin: error: $e\n$st');
   } finally {

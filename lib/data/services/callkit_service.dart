@@ -49,12 +49,14 @@ class CallkitService {
         final cid = await _resolveCharacter(id);
         _log.info('CallKit decline: callId=$id characterId=$cid');
         if (cid != null) onDecline?.call(cid);
+        if (cid != null) await clearPendingCall(characterId: cid);
         await _cleanup(id);
         break;
       case CallEventActionCallTimeout(:final id):
         final cid = await _resolveCharacter(id);
         _log.info('CallKit timeout (missed): callId=$id characterId=$cid');
         if (cid != null) onDecline?.call(cid);
+        if (cid != null) await clearPendingCall(characterId: cid);
         await _cleanup(id);
         break;
       case CallEventActionCallEnded(:final id):
@@ -109,12 +111,51 @@ class CallkitService {
         incomingCallNotificationChannelName: 'Companion Call',
         isShowFullLockedScreen: true,
         isImportant: true,
+        // isFullScreen: true bypasses Android's notification system and directly
+        // launches CallkitIncomingActivity via startActivity — always full-screen.
+        // false lets Android decide: heads-up banner when screen is on,
+        // fullScreenIntent (full-screen Activity) when screen is off/locked.
+        isFullScreen: false,
       ),
     );
 
     await FlutterCallkitIncoming.showCallkitIncoming(params);
-    _log.info('showCallkitIncoming: $nameCaller (callId=$id, avatar=$resolvedAvatar)');
+    _log.info(
+        'showCallkitIncoming: $nameCaller (callId=$id, avatar=$resolvedAvatar)');
     return id;
+  }
+
+  /// Show the queued companion call, if one exists and has not already rung.
+  ///
+  /// Both the persistent foreground loop and exact AlarmManager callbacks use
+  /// this path so a background agent turn cannot leave a call stranded in
+  /// KVStore until a later poll.
+  Future<bool> showPendingIncomingCall({
+    required String characterId,
+    required String nameCaller,
+    String? avatarUrl,
+  }) async {
+    final pending = await readPendingCall();
+    if (pending == null) return false;
+    if (pending.characterId != characterId) {
+      _log.warning(
+        'Pending call character mismatch: queued=${pending.characterId}, '
+        'active=$characterId',
+      );
+      return false;
+    }
+    if (await isPendingCallAlreadyNotified()) {
+      _log.info('Pending call already notified, skipping');
+      return false;
+    }
+
+    await showIncomingCall(
+      characterId: characterId,
+      nameCaller: nameCaller,
+      avatarUrl: avatarUrl,
+    );
+    await markPendingCallNotified();
+    return true;
   }
 
   /// Convert a CharacterModel.avatar value into something the (patched) CallKit

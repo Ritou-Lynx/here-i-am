@@ -1,6 +1,8 @@
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:logging/logging.dart';
+import 'dart:io';
 
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import 'package:memex/data/services/active_persona_chat_service.dart';
 import 'package:memex/utils/logger.dart';
 
 typedef NotificationTapCallback = void Function(String? payload);
@@ -43,9 +45,8 @@ class NotificationService {
       },
     );
 
-    final androidPlugin = _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
 
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
@@ -83,6 +84,15 @@ class NotificationService {
   }) async {
     if (!_initialized) {
       _logger.warning('NotificationService not initialized');
+      return;
+    }
+
+    if (payload != null &&
+        payload.isNotEmpty &&
+        await ActivePersonaChatService.instance.isActive(payload)) {
+      _logger.info(
+        'Agent notification suppressed: active persona chat ($payload)',
+      );
       return;
     }
 
@@ -126,7 +136,7 @@ class NotificationService {
       id,
       title,
       body,
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           channelCompanionCall,
           'Companion Call',
@@ -143,5 +153,36 @@ class NotificationService {
       payload: payload,
     );
     _logger.info('Call notification shown: $title');
+  }
+
+  Future<bool?> canScheduleExactNotifications() async {
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    return androidPlugin?.canScheduleExactNotifications();
+  }
+
+  Future<void> cancelScheduledNotification(int id) async {
+    if (!_initialized) {
+      await initialize();
+    }
+    await _plugin.cancel(id);
+    _logger.info('Scheduled notification cancelled (id=$id)');
+  }
+
+  /// Ask for Android 13+ notification permission from a foreground screen.
+  Future<bool?> requestNotificationsPermissionIfNeeded() async {
+    if (!Platform.isAndroid) return null;
+    if (!_initialized) {
+      await initialize();
+    }
+
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    final enabled = await androidPlugin?.areNotificationsEnabled();
+    if (enabled != false) return enabled;
+
+    final granted = await androidPlugin?.requestNotificationsPermission();
+    _logger.info('Notification permission granted: $granted');
+    return granted;
   }
 }

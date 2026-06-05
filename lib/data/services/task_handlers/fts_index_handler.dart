@@ -1,8 +1,9 @@
+import 'dart:convert';
+
 import 'package:logging/logging.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/db/daos/search_dao.dart';
 import 'package:memex/data/services/local_task_executor.dart';
-import 'package:memex/utils/jieba.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/domain/models/system_event.dart';
 
@@ -32,9 +33,6 @@ Future<void> handleFtsIndexUpdateImpl(
     return;
   }
 
-  // Ensure jieba is loaded for tokenization
-  await JiebaSegmenter.instance.ensureLoaded();
-
   final searchDao = AppDatabase.instance.searchDao;
 
   switch (ns) {
@@ -43,6 +41,9 @@ Future<void> handleFtsIndexUpdateImpl(
       break;
     case DataChangeNs.card:
       await _handleCardFts(searchDao, op, documentKey, after);
+      break;
+    case DataChangeNs.sharedLifeEntity:
+      await _handleSharedLifeFts(searchDao, op, documentKey);
       break;
     default:
       _logger.fine('Unknown FTS namespace: $ns');
@@ -95,6 +96,60 @@ Future<void> _handleCardFts(SearchDao searchDao, String op, String documentKey,
       await searchDao.deleteCardFts(documentKey);
       break;
   }
+}
+
+Future<void> _handleSharedLifeFts(
+  SearchDao searchDao,
+  String op,
+  String documentKey,
+) async {
+  switch (op) {
+    case 'insert':
+    case 'update':
+      // Load the entity from DB — it was just written by SharedLifeMemoryService.
+      final db = AppDatabase.instance;
+      final entity = await (db.select(db.sharedLifeEntities)
+            ..where((t) => t.id.equals(documentKey)))
+          .getSingleOrNull();
+      if (entity == null) return;
+      final state = _decodeMap(entity.stateJson);
+      final tags = _stringList(state['tags']).join(' ');
+      final summary = _stringField(state, 'summary');
+      await searchDao.upsertSharedLifeFts(
+        entityId: entity.id,
+        title: entity.title,
+        tags: tags,
+        summary: summary,
+      );
+      break;
+    case 'delete':
+      await searchDao.deleteSharedLifeFts(documentKey);
+      break;
+  }
+}
+
+Map<String, dynamic> _decodeMap(String value) {
+  try {
+    final decoded = jsonDecode(value);
+    return decoded is Map
+        ? Map<String, dynamic>.from(decoded)
+        : <String, dynamic>{};
+  } catch (_) {
+    return <String, dynamic>{};
+  }
+}
+
+String _stringField(Map<String, dynamic> map, String key) {
+  final value = map[key];
+  return value is String ? value : '';
+}
+
+List<String> _stringList(dynamic value) {
+  if (value is! List) return const [];
+  return value
+      .map((item) => '$item'.trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
 }
 
 /// Serialize a [DataChangeRecord] into a task payload map.
