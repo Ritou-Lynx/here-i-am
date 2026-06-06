@@ -24,8 +24,15 @@ class ButtplugToyController implements ToyController {
 
   // Index of the first device that Intiface reports.
   int? _deviceIndex;
+  // Actuator descriptors per device — each has an index and a type string
+  // like "Vibrate", "Oscillate", etc. Stored so ScalarCmd uses correct types.
+  List<Map<String, dynamic>> _actuators = [];
   // Actuator count per device (how many independent motors).
   int _actuatorCount = 1;
+  String? _serverName;
+  String? _deviceName;
+  Map<String, dynamic>? _deviceMessages;
+  String? _lastCommandSummary;
 
   bool _connected = false;
   Timer? _patternTimer;
@@ -37,6 +44,17 @@ class ButtplugToyController implements ToyController {
 
   @override
   bool get isReady => _connected && _deviceIndex != null;
+
+  String get diagnosticSummary {
+    return [
+      'Server: ${_serverName ?? 'unknown'}',
+      'Device: ${_deviceName ?? 'none'}',
+      'DeviceIndex: ${_deviceIndex ?? 'none'}',
+      'Actuators: ${_actuators.map((a) => '${a['Index']}:${a['ActuatorType']}').join(', ')}',
+      'DeviceMessages: ${_deviceMessages?.keys.join(', ') ?? 'none'}',
+      'LastCommand: ${_lastCommandSummary ?? 'none'}',
+    ].join('\n');
+  }
 
   // ── Connection ──────────────────────────────────────────────────────────────
 
@@ -65,16 +83,21 @@ class ButtplugToyController implements ToyController {
       throw Exception('Buttplug handshake failed: $info');
     }
     _connected = true;
-    _log.info('Intiface connected: ${info['ServerInfo']['ServerName']}');
+    _serverName = info['ServerInfo']['ServerName'] as String?;
+    _log.info('Intiface connected: $_serverName');
 
     // 2. Request already-connected devices (no need to scan if toy is paired).
-    final devResp = await _sendMsg({'RequestDeviceList': {'Id': _id()}});
+    final devResp = await _sendMsg({
+      'RequestDeviceList': {'Id': _id()}
+    });
     if (devResp != null && devResp.containsKey('DeviceList')) {
       _handleDeviceList(devResp['DeviceList']);
     }
 
     // 3. Start scanning so newly-paired toys are discovered too.
-    _sendFire({'StartScanning': {'Id': _id()}});
+    _sendFire({
+      'StartScanning': {'Id': _id()}
+    });
   }
 
   void _handleDeviceList(Map<String, dynamic> body) {
@@ -82,12 +105,23 @@ class ButtplugToyController implements ToyController {
     if (devices == null || devices.isEmpty) return;
     final first = devices.first as Map<String, dynamic>;
     _deviceIndex = first['DeviceIndex'] as int;
-    final msgs = first['DeviceMessages'] as Map<String, dynamic>?;
+    _deviceName = first['DeviceName'] as String?;
+    _parseActuators(first);
+    _log.info('Using device: ${first['DeviceName']} (index $_deviceIndex, '
+        'actuators: $_actuatorCount, types: ${_actuators.map((a) => a['ActuatorType']).toList()})');
+  }
+
+  void _parseActuators(Map<String, dynamic> device) {
+    final msgs = device['DeviceMessages'] as Map<String, dynamic>?;
+    _deviceMessages = msgs;
     if (msgs != null && msgs.containsKey('ScalarCmd')) {
-      final scalars = msgs['ScalarCmd'] as List?;
-      _actuatorCount = scalars?.length ?? 1;
+      final scalars = msgs['ScalarCmd'] as List? ?? [];
+      _actuators = scalars.cast<Map<String, dynamic>>();
+      _actuatorCount = _actuators.length.clamp(1, 10);
+    } else {
+      _actuators = [];
+      _actuatorCount = 1;
     }
-    _log.info('Using device: ${first['DeviceName']} (index $_deviceIndex, actuators: $_actuatorCount)');
   }
 
   // ── ToyController interface ─────────────────────────────────────────────────
@@ -108,8 +142,10 @@ class ButtplugToyController implements ToyController {
     if (!_connected) return false;
     final idx = _deviceIndex;
     if (idx == null) return false;
-    _sendFire({'StopDeviceCmd': {'Id': _id(), 'DeviceIndex': idx}});
-    return true;
+    final resp = await _sendMsg({
+      'StopDeviceCmd': {'Id': _id(), 'DeviceIndex': idx}
+    });
+    return _isOk(resp, 'StopDeviceCmd');
   }
 
   @override
@@ -135,7 +171,8 @@ class ButtplugToyController implements ToyController {
 
   String _startWave(int peak) {
     int step = 0;
-    _patternTimer = Timer.periodic(const Duration(milliseconds: 300), (_) async {
+    _patternTimer =
+        Timer.periodic(const Duration(milliseconds: 300), (_) async {
       final t = (step % 20) / 20.0;
       final level = peak * (0.5 + 0.5 * _triangleWave(t));
       await _scalarCmd(level / 20.0);
@@ -146,7 +183,8 @@ class ButtplugToyController implements ToyController {
 
   String _startPulse(int peak) {
     bool on = false;
-    _patternTimer = Timer.periodic(const Duration(milliseconds: 400), (_) async {
+    _patternTimer =
+        Timer.periodic(const Duration(milliseconds: 400), (_) async {
       on = !on;
       await _scalarCmd(on ? peak / 20.0 : 0.0);
     });
@@ -155,7 +193,8 @@ class ButtplugToyController implements ToyController {
 
   String _startEscalate(int peak) {
     int current = 0;
-    _patternTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
+    _patternTimer =
+        Timer.periodic(const Duration(milliseconds: 500), (_) async {
       current = (current + 1).clamp(0, peak);
       await _scalarCmd(current / 20.0);
       if (current >= peak) _cancelPattern();
@@ -165,7 +204,8 @@ class ButtplugToyController implements ToyController {
 
   String _startTease(int peak) {
     int tick = 0;
-    _patternTimer = Timer.periodic(const Duration(milliseconds: 350), (_) async {
+    _patternTimer =
+        Timer.periodic(const Duration(milliseconds: 350), (_) async {
       await _scalarCmd((tick % 5) < 2 ? peak / 20.0 : 0.0);
       tick++;
     });
@@ -185,14 +225,43 @@ class ButtplugToyController implements ToyController {
     if (!_connected) return false;
     final idx = _deviceIndex;
     if (idx == null) return false;
+    final clamped = scalar.clamp(0.0, 1.0);
     final scalars = List.generate(
       _actuatorCount,
-      (i) => {'Index': i, 'Scalar': scalar.clamp(0.0, 1.0), 'ActuatorType': 'Vibrate'},
+      (i) {
+        // Use the actual actuator type from device info, fall back to Vibrate.
+        final type = (i < _actuators.length)
+            ? (_actuators[i]['ActuatorType'] as String? ?? 'Vibrate')
+            : 'Vibrate';
+        return {'Index': i, 'Scalar': clamped, 'ActuatorType': type};
+      },
     );
-    _sendFire({
+    final resp = await _sendMsg({
       'ScalarCmd': {'Id': _id(), 'DeviceIndex': idx, 'Scalars': scalars}
     });
-    return true;
+    return _isOk(resp, 'ScalarCmd');
+  }
+
+  bool _isOk(Map<String, dynamic>? resp, String command) {
+    if (resp == null || resp.isEmpty) {
+      _lastCommandSummary = '$command timeout';
+      _log.warning('$command timed out waiting for Intiface response');
+      return false;
+    }
+    if (resp.containsKey('Ok')) {
+      _lastCommandSummary = '$command Ok';
+      return true;
+    }
+    if (resp.containsKey('Error')) {
+      final body = resp['Error'] as Map<String, dynamic>? ?? const {};
+      final error = body['ErrorMessage'] ?? body;
+      _lastCommandSummary = '$command Error: $error';
+      _log.warning('$command error: $error');
+      return false;
+    }
+    _lastCommandSummary = '$command unexpected: $resp';
+    _log.warning('$command unexpected response: $resp');
+    return false;
   }
 
   int _id() => _nextId++;
@@ -239,11 +308,11 @@ class ButtplugToyController implements ToyController {
         case 'DeviceAdded':
           if (_deviceIndex == null) {
             _deviceIndex = body['DeviceIndex'] as int;
-            final msgs = body['DeviceMessages'] as Map<String, dynamic>?;
-            if (msgs != null && msgs.containsKey('ScalarCmd')) {
-              _actuatorCount = (msgs['ScalarCmd'] as List?)?.length ?? 1;
-            }
-            _log.info('Device added: ${body['DeviceName']} (index $_deviceIndex)');
+            _deviceName = body['DeviceName'] as String?;
+            _parseActuators(body);
+            _log.info(
+                'Device added: ${body['DeviceName']} (index $_deviceIndex, '
+                'actuators: $_actuatorCount, types: ${_actuators.map((a) => a['ActuatorType']).toList()})');
           }
           break;
         case 'DeviceRemoved':
@@ -262,7 +331,9 @@ class ButtplugToyController implements ToyController {
   @override
   void dispose() {
     _cancelPattern();
-    _sendFire({'StopAllDevices': {'Id': _id()}});
+    _sendFire({
+      'StopAllDevices': {'Id': _id()}
+    });
     _sub?.cancel();
     _ws?.sink.close();
   }

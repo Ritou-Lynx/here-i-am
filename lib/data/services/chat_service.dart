@@ -35,7 +35,7 @@ class ChatService {
   ChatService._internal();
 
   final Logger _logger = getLogger('ChatService');
-  final FileSystemService _fileService = FileSystemService.instance;
+  FileSystemService get _fileService => FileSystemService.instance;
   final Uuid _uuid = const Uuid();
 
   /// Send a message and get a stream of events.
@@ -130,12 +130,10 @@ class ChatService {
       // (no sessionId yet) and existing sessions.  Built-in agent names like
       // 'memex_agent' or 'knowledge_insight_agent' won't match any custom
       // config, so customAgentCfg stays null and we fall through to SuperAgent.
-      CustomAgentConfig? customAgentCfg =
-          (agentName != null && agentName.isNotEmpty)
-              ? allCustomConfigs
-                  .where((c) => c.agentName == agentName)
-                  .firstOrNull
-              : null;
+      CustomAgentConfig? customAgentCfg = (agentName != null &&
+              agentName.isNotEmpty)
+          ? allCustomConfigs.where((c) => c.agentName == agentName).firstOrNull
+          : null;
 
       final agentIdForLLM =
           customAgentCfg?.llmConfigKey ?? AgentDefinitions.chatAgent;
@@ -423,7 +421,8 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
     try {
       _logger.info('_drainPendingSystemTriggers: querying...');
       final pending = await CheckinService.instance.drainPending();
-      _logger.info('_drainPendingSystemTriggers: found ${pending.length} pending');
+      _logger
+          .info('_drainPendingSystemTriggers: found ${pending.length} pending');
       if (pending.isEmpty) return '';
 
       // Mark all as processing (turn gate)
@@ -438,7 +437,8 @@ When the user disputes content you generated (such as Cards, PKM entries, or Ass
       buf.writeln(
           'Review each trigger, then call system_checkin to process and decide:');
       buf.writeln('  silent, notify, or remind.');
-      buf.writeln('After processing all triggers, call set_system_message_status.');
+      buf.writeln(
+          'After processing all triggers, call set_system_message_status.');
       buf.writeln();
 
       for (final row in pending) {

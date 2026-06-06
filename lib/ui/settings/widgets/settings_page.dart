@@ -9,17 +9,10 @@ import 'package:memex/ui/settings/widgets/shopping_config_page.dart';
 import 'package:memex/ui/settings/widgets/toy_config_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
+import 'package:memex/ui/settings/widgets/weread_connect_page.dart';
 import 'package:memex/data/services/checkin_service.dart';
-import 'package:memex/data/services/companion_foreground_task.dart';
-import 'package:memex/data/services/character_service.dart';
-import 'package:memex/data/services/callkit_service.dart';
-import 'package:memex/data/services/notification_service.dart';
-import 'package:memex/ui/core/widgets/character_avatar.dart' show isImageAvatar;
+import 'package:memex/data/services/custom_agent_config_service.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
-import 'package:memex/agent/companion_agent/companion_agent.dart';
-import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
-import 'package:memex/domain/models/agent_definitions.dart';
-import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
 import 'package:memex/ui/settings/widgets/early_update_settings_card.dart';
@@ -44,6 +37,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _useLocalSpeechToText = true;
   CommentSettings _commentSettings = const CommentSettings();
   bool _corosConnected = false;
+  bool _wereadConnected = false;
   bool _checkinEnabled = false;
   final _elevenLabsApiKeyController = TextEditingController();
   final _miniMaxApiKeyController = TextEditingController();
@@ -56,115 +50,16 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadSettings();
   }
 
-  /// Test: force the companion to initiate a voice call now, then fire the
-  /// incoming-call notification. Tap the notification to pick up.
-  Future<void> _triggerTestCall() async {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      const SnackBar(content: Text('正在让角色生成来电...')),
-    );
-    try {
-      final userId = await UserStorage.getUserId() ?? '';
-      final character =
-          await CharacterService.instance.getPrimaryCompanion(userId);
-      if (character == null) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('没有找到主要角色')),
-        );
-        return;
-      }
-      final resources = await UserStorage.getAgentLLMResources(
-        AgentDefinitions.checkinAgent,
-        defaultClientKey: LLMConfig.defaultClientKey,
-      );
-      await CompanionAgent.runTestCall(
-        client: resources.client,
-        modelConfig: resources.modelConfig,
-        userId: userId,
-        characterId: character.id,
-      );
-      final pending = await readPendingCall();
-      if (pending == null) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('角色这次没有发起通话，可再点一次试试')),
-        );
-        return;
-      }
-      await CallkitService.instance.showIncomingCall(
-        characterId: character.id,
-        nameCaller: character.name,
-        avatarUrl: character.avatar,
-      );
-      await markPendingCallNotified();
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('✅ 系统来电已触发，接听即可'),
-          duration: Duration(seconds: 4),
-        ),
-      );
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('测试失败: $e')),
-      );
-    }
-  }
-
-  /// Verification spike: fire a system-level (CallKit) incoming call UI directly,
-  /// without involving the AI. Tests full-screen ringing, lock-screen behavior,
-  /// and accept/decline routing.
-  Future<void> _triggerSystemCallTest() async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final userId = await UserStorage.getUserId() ?? '';
-      final character =
-          await CharacterService.instance.getPrimaryCompanion(userId);
-      if (character == null) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('没有找到主要角色')),
-        );
-        return;
-      }
-      // Android 14+: ensure full-screen intent permission, else ringing is a banner.
-      final canFullScreen =
-          await CallkitService.instance.canUseFullScreenIntent();
-      if (!canFullScreen) {
-        await CallkitService.instance.requestFullScreenIntentPermission();
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('请在系统设置里允许「全屏通知」后再点一次'),
-            duration: Duration(seconds: 5),
-          ),
-        );
-        return;
-      }
-      // Pure UI verification — accept → VoiceCallScreen lets the AI greet live.
-      final avatar = isImageAvatar(character.avatar) ? character.avatar : null;
-      await CallkitService.instance.showIncomingCall(
-        characterId: character.id,
-        nameCaller: character.name,
-        avatarUrl: avatar,
-      );
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('📞 系统来电已触发。可锁屏测试全屏+响铃'),
-          duration: Duration(seconds: 4),
-        ),
-      );
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('测试失败: $e')),
-      );
-    }
-  }
-
   Future<void> _loadSettings() async {
     final locale = await UserStorage.getLocale();
     final useLocalSpeechToText = await UserStorage.getUseLocalSpeechToText();
     final commentSettings = await MemexRouter().getCommentSettings();
     final userId = await UserStorage.getUserId();
     var corosConnected = false;
+    var wereadConnected = false;
     if (userId != null) {
       corosConnected = await McpTokenStorage(userId: userId).hasToken();
+      wereadConnected = await _loadWereadConnectionStatus(userId);
       _checkinEnabled = await CheckinService.instance.isEnabled();
       final apiKey = await UserStorage.getElevenLabsApiKey();
       if (apiKey != null) {
@@ -185,7 +80,23 @@ class _SettingsPageState extends State<SettingsPage> {
         _useLocalSpeechToText = useLocalSpeechToText;
         _commentSettings = commentSettings;
         _corosConnected = corosConnected;
+        _wereadConnected = wereadConnected;
       });
+    }
+  }
+
+  Future<bool> _loadWereadConnectionStatus(String userId) async {
+    final configs = await CustomAgentConfigService.instance.loadAll(userId);
+    final config = configs.where((c) => c.agentName == 'weread').firstOrNull;
+    return RegExp(r'wrk-[A-Za-z0-9]+').hasMatch(config?.systemPrompt ?? '');
+  }
+
+  Future<void> _refreshWereadConnectionStatus() async {
+    final userId = await UserStorage.getUserId();
+    final connected =
+        userId == null ? false : await _loadWereadConnectionStatus(userId);
+    if (mounted) {
+      setState(() => _wereadConnected = connected);
     }
   }
 
@@ -272,8 +183,8 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.settings),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Theme.of(context).scaffoldBackgroundColor,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -946,6 +857,82 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          // WeRead Connect
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const WereadConnectPage(),
+                  ),
+                );
+                if (mounted) {
+                  await _refreshWereadConnectionStatus();
+                }
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.menu_book_outlined,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '微信读书',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _wereadConnected ? '已连接' : '连接书架、阅读进度和最近阅读摘要',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  _wereadConnected ? Colors.green : Colors.grey,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_wereadConnected)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: Icon(Icons.check_circle,
+                            color: Colors.green, size: 20),
+                      ),
+                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           // Voice input (ASR) config
           Material(
             color: Colors.transparent,
@@ -974,8 +961,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.mic_none,
-                        color: AppColors.primary, size: 22),
+                    Icon(Icons.mic_none, color: AppColors.primary, size: 22),
                     SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -1261,176 +1247,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 32),
-          // Debug: schedule background checkin test
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () async {
-                // New path: ensure the persistent foreground service is running,
-                // then force the next tick (≤60s) to be due so a checkin fires.
-                await CompanionForegroundService.startPersistent();
-                await CheckinService.instance.forceCheckinDueNow();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          '✅ 已触发前台服务 checkin\n现在锁屏/切后台，约 60 秒内 AI 会在后台思考并推送'),
-                      duration: Duration(seconds: 4),
-                    ),
-                  );
-                }
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.textSecondary.withValues(alpha: 0.08),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.science_outlined,
-                        color: Colors.deepPurple, size: 22),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '安排后台推送测试',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            '1分钟后在独立后台 isolate 运行，AI 自主决定是否推送',
-                            style: TextStyle(fontSize: 13, color: Colors.grey),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Debug: test AI-initiated voice call
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _triggerTestCall,
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.textSecondary.withValues(alpha: 0.08),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.phone_in_talk_outlined,
-                        color: Colors.teal, size: 22),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '测试 AI 主动来电',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            '角色立刻生成开场白并发来电通知，点通知即可接听',
-                            style: TextStyle(fontSize: 13, color: Colors.grey),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Debug: test system-level (CallKit) incoming call — verification spike
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _triggerSystemCallTest,
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.textSecondary.withValues(alpha: 0.08),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.ring_volume,
-                        color: Colors.indigo, size: 22),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '测试系统级来电 (B)',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            '直接弹系统来电界面，可锁屏验证全屏+持续响铃',
-                            style: TextStyle(fontSize: 13, color: Colors.grey),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
           // Delete Account
           Material(
             color: Colors.transparent,

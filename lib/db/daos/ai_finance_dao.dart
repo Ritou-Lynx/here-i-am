@@ -13,15 +13,13 @@ class AiFinanceDao extends DatabaseAccessor<AppDatabase>
     await into(aiFinanceLedger).insert(entry);
   }
 
-  Future<List<AiFinanceLedgerData>> getEntriesForCharacter({
-    required String characterId,
+  Future<List<AiFinanceLedgerData>> getSharedEntries({
     String? entryType,
     int? sinceEpoch,
     int? untilEpoch,
     int limit = 50,
   }) async {
-    final query = select(aiFinanceLedger)
-      ..where((t) => t.characterId.equals(characterId));
+    final query = select(aiFinanceLedger);
     if (entryType != null) {
       query.where((t) => t.entryType.equals(entryType));
     }
@@ -36,14 +34,27 @@ class AiFinanceDao extends DatabaseAccessor<AppDatabase>
     return query.get();
   }
 
-  /// Returns sum of aiAmount grouped by entryType for a character in a time range.
-  Future<Map<String, double>> getSumsByType({
-    required String characterId,
+  Future<List<AiFinanceLedgerData>> getSharedEntriesForPeriod({
     int? sinceEpoch,
     int? untilEpoch,
   }) async {
-    final query = select(aiFinanceLedger)
-      ..where((t) => t.characterId.equals(characterId));
+    final query = select(aiFinanceLedger);
+    if (sinceEpoch != null) {
+      query.where((t) => t.recordedAt.isBiggerOrEqualValue(sinceEpoch));
+    }
+    if (untilEpoch != null) {
+      query.where((t) => t.recordedAt.isSmallerOrEqualValue(untilEpoch));
+    }
+    query.orderBy([(t) => OrderingTerm.asc(t.recordedAt)]);
+    return query.get();
+  }
+
+  /// Returns sum of aiAmount grouped by entryType for the shared AI ledger.
+  Future<Map<String, double>> getSumsByType({
+    int? sinceEpoch,
+    int? untilEpoch,
+  }) async {
+    final query = select(aiFinanceLedger);
     if (sinceEpoch != null) {
       query.where((t) => t.recordedAt.isBiggerOrEqualValue(sinceEpoch));
     }

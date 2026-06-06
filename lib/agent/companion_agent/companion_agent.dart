@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
@@ -10,9 +11,12 @@ import 'package:memex/agent/state_util.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/services/conversation_capture_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
-import 'package:memex/data/services/toy_control_service.dart' show ToyController;
+import 'package:memex/data/services/toy_control_service.dart'
+    show ToyController;
+import 'package:memex/db/app_database.dart';
 import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/tavern_macro.dart';
@@ -24,12 +28,69 @@ import 'package:memex/utils/user_storage.dart';
 class CompanionAgent {
   static final Logger _logger = getLogger('CompanionAgent');
 
+  // ---------------------------------------------------------------------------
+  // Time-request detection — prevents the common LLM failure mode where it
+  // replies "好的，X分钟后提醒你" in text but never calls reminder_create.
+  // ---------------------------------------------------------------------------
+
+  /// Patterns indicating the user is making a time-related request.
+  static final List<RegExp> _timeRequestPatterns = [
+    RegExp(r'\d+\s*分钟'),
+    RegExp(r'\d+\s*小时'),
+    RegExp(r'\d+\s*[点时]'), // X点, X点半, X时
+    RegExp(r'(提醒|叫|喊|通知|打电话|打给)\s*(我|一下)'),
+    RegExp(r'(等|过)\s*\d+\s*(分钟|小时|秒)'),
+    RegExp(r'(稍后|等会|等会儿|一会|待会|待会儿|过会|过会儿)'),
+    RegExp(r'(马上|立刻|现在)\s*(提醒|叫|打电话)'),
+  ];
+
+  static bool _containsTimeRequest(String text) =>
+      _timeRequestPatterns.any((p) => p.hasMatch(text));
+
+  /// Patterns indicating the agent's text output contains a time-based promise.
+  static final List<RegExp> _timeCommitmentPatterns = [
+    RegExp(r'\d+\s*分钟'),
+    RegExp(r'\d+\s*小时'),
+    RegExp(r'\d+\s*[点时]'),
+    RegExp(r'(稍后|等会|等会儿|一会|待会|待会儿|过会|过会儿)'),
+    RegExp(r'(提醒你|叫你|喊你|通知你|打电话给你|打给你)'),
+    RegExp(r'(马上|立刻|现在)\s*(提醒|叫你|通知)'),
+  ];
+
+  static bool _containsTimeCommitment(String text) =>
+      _timeCommitmentPatterns.any((p) => p.hasMatch(text));
+
+  /// Returns true if any message in [history] contains a reminder_create call.
+  static bool _hasReminderCreateCall(List<LLMMessage> history) =>
+      history.any((msg) {
+        if (msg is ModelMessage) {
+          return msg.functionCalls.any((fc) => fc.name == 'reminder_create');
+        }
+        return false;
+      });
+
+  static const _timeRequestDirective =
+      '⛔ SYSTEM DIRECTIVE (enforced — not advice):\n'
+      'The user just made a time-based request. You MUST call `reminder_create` '
+      'in THIS turn — alongside your text reply.\n'
+      'Replying with text that promises a future action ("X分钟后提醒你") '
+      'without actually calling `reminder_create` is a HARD ERROR.\n'
+      'The user will receive NOTHING unless you create the reminder with the tool.\n'
+      'CRITICAL — VOICE CALL REQUESTS: if the user asked for a voice call '
+      '("打电话", "call me", "给我打", etc.), you MUST set action="call" '
+      'in reminder_create. Without action="call" the system will send a '
+      'notification instead of actually calling — a broken experience.\n'
+      'If unsure of the exact time, ask — but NEVER promise without scheduling.';
+
+  // ---------------------------------------------------------------------------
+
   static Future<StatefulAgent?> _createAgent({
     required LLMClient client,
     required ModelConfig modelConfig,
     required String userId,
     required String characterId,
     required String queryHint,
+    int? currentUserMessageId,
     bool saveState = true,
     bool includeCheckinTools = false,
     bool forceNewSession = false,
@@ -72,6 +133,7 @@ class CompanionAgent {
       userName: userName,
       userProfile: ctx.userProfile,
       characterMemories: ctx.characterMemories,
+      currentUserMessageId: currentUserMessageId,
       includeCheckinTools: includeCheckinTools,
       toyControlService: toyControlService,
       forceActivate: true,
@@ -98,6 +160,27 @@ class CompanionAgent {
     if (ctx.knowledgeCards.isNotEmpty) {
       state.systemReminders['user_knowledge_cards'] =
           '## User Knowledge Cards\n${ctx.knowledgeCards}';
+    }
+    if (ConversationCaptureService.isInitialized &&
+        queryHint.trim().isNotEmpty) {
+      try {
+        final entities = await ConversationCaptureService
+            .instance.sharedLifeMemory
+            .queryRelevantEntities(queryHint, limit: 8);
+        if (entities.isNotEmpty) {
+          state.systemReminders['shared_life_entities'] =
+              '## Relevant Shared Life Records\n'
+              'This is a narrow current-state preview. Use `LifeMemoryQuery` '
+              'before answering when exact retrieval matters.\n'
+              '${entities.map((entity) => jsonEncode(entity.toJson())).join('\n')}';
+        } else {
+          state.systemReminders.remove('shared_life_entities');
+        }
+      } catch (e) {
+        _logger.warning('Failed to load shared life context: $e');
+      }
+    } else {
+      state.systemReminders.remove('shared_life_entities');
     }
     if (character.postHistoryInstructions != null &&
         character.postHistoryInstructions!.trim().isNotEmpty) {
@@ -197,10 +280,26 @@ class CompanionAgent {
     );
     if (agent == null) return;
 
-    final checkinIds = await _drainPendingCheckinsIntoState(agent.state);
-    if (checkinIds.isEmpty) {
+    final pendingTrigger = await _drainPendingCheckinsIntoState(agent.state);
+    if (pendingTrigger == null) {
       _logger.info('runBackgroundCheckin: no pending checkins, skipping');
       return;
+    }
+
+    if (pendingTrigger.triggerType == 'checkin') {
+      final activeSince = DateTime.now()
+              .subtract(const Duration(minutes: 10))
+              .millisecondsSinceEpoch ~/
+          1000;
+      final recentlyChatting = await CheckinService.instance
+          .hasUserChatActivitySince(characterId, activeSince);
+      if (recentlyChatting) {
+        _logger.info(
+          'runBackgroundCheckin: recent user chat, completing checkin silently',
+        );
+        await CheckinService.instance.markProcessingDone();
+        return;
+      }
     }
 
     // Build a fresh snapshot of the user's recent activity. This bypasses the
@@ -260,7 +359,9 @@ class CompanionAgent {
     try {
       await agent.run([
         UserMessage.text(
-          isSleepPush ? _sleepPushDirective() : _normalCheckinDirective(),
+          isSleepPush
+              ? _sleepPushDirective()
+              : _directiveForTrigger(pendingTrigger),
         ),
       ], useStream: false);
       _logger.info('runBackgroundCheckin: agent run complete');
@@ -327,8 +428,7 @@ class CompanionAgent {
     required String characterId,
     required String characterName,
   }) async {
-    const body =
-        '你真的睡了吗？还是在刷手机？如果还没睡，回我一句。10分钟不回我就当你睡着了~';
+    const body = '你真的睡了吗？还是在刷手机？如果还没睡，回我一句。10分钟不回我就当你睡着了~';
     try {
       await NotificationService.instance.showAgentNotification(
         title: characterName,
@@ -348,6 +448,40 @@ class CompanionAgent {
     }
   }
 
+  static String _directiveForTrigger(SystemMessageQueueData trigger) {
+    if (_isScheduledVoiceCall(trigger)) {
+      return _scheduledVoiceCallDirective(trigger.body);
+    }
+    return _normalCheckinDirective();
+  }
+
+  static bool _isScheduledVoiceCall(SystemMessageQueueData trigger) {
+    if (trigger.triggerType != 'reminder' || trigger.context == null) {
+      return false;
+    }
+    try {
+      final context = jsonDecode(trigger.context!);
+      return context is Map<String, dynamic> && context['action'] == 'call';
+    } catch (e) {
+      _logger.warning(
+        'Ignoring malformed reminder context for ${trigger.id}: $e',
+      );
+      return false;
+    }
+  }
+
+  static String _scheduledVoiceCallDirective(String reminderText) =>
+      'SYSTEM DIRECTIVE (scheduled user commitment, single turn):\n'
+      '\n'
+      'The user explicitly requested a voice call at this time. Call them now.\n'
+      'Reminder: $reminderText\n'
+      '\n'
+      'PROTOCOL - perform EXACTLY these 2 tool calls in order:\n'
+      '1. Call `initiate_voice_call` with a warm, natural opening_message.\n'
+      '2. Call `set_system_message_status` ONCE with status="done".\n'
+      '\n'
+      'Do NOT notify, stay silent, reschedule, or produce user-visible text. '
+      'This is a user-requested timed commitment, not a discretionary checkin.';
 
   static String _normalCheckinDirective() =>
       'SYSTEM DIRECTIVE (background task, single turn):\n'
@@ -375,6 +509,10 @@ class CompanionAgent {
       '## Step 2 — Decide and act\n'
       '\n'
       'Decide naturally based on all context. Bias toward warm, useful contact.\n'
+      'If Recent Chat With You shows an ongoing exchange, game, roleplay, or '
+      'question-answer thread, preserve continuity. Prefer silent when the '
+      'user may still be engaged. If you do notify, it must clearly continue '
+      'that thread rather than switching topics.\n'
       'You have FOUR ways to reach out — pick ONE:\n'
       '\n'
       '**a) notify** (default): send a short push notification. Use when there '
@@ -425,6 +563,10 @@ class CompanionAgent {
       'SLEEP PUSH (background task, single turn — EXACTLY 2 tool calls then STOP):\n'
       '\n'
       'It is past 23:40. Your ONLY task is to push the user to sleep.\n'
+      'If Recent Chat With You shows an ongoing game, roleplay, or '
+      'conversation thread, the sleep nudge must acknowledge and gently pause '
+      'that thread. Do not send a generic bedtime message that ignores what '
+      'you were just doing.\n'
       '\n'
       'Step 1 — read "Recent Chat With You" in recent_activity_snapshot.\n'
       '  Sleep confirmed signals: 睡了/晚安/关灯/睡觉了/going to sleep/goodnight/关了/不看了\n'
@@ -452,6 +594,8 @@ class CompanionAgent {
     required String userId,
     required String characterId,
     required String userMessage,
+    List<ImagePart>? images,
+    int? userMessageId,
     DateTime? userMessageTime,
     bool debugErrorOutput = false,
     ToyController? toyControlService,
@@ -462,10 +606,11 @@ class CompanionAgent {
       userId: userId,
       characterId: characterId,
       queryHint: userMessage,
-      // Keep user-visible chat independent from the global proactive
-      // checkin/reminder queue. Background tasks process those triggers; a
-      // stuck trigger should not break every companion chat turn.
-      includeCheckinTools: false,
+      currentUserMessageId: userMessageId,
+      // Include call and reminder tools so users can request immediate calls
+      // or schedule calls for later ("call me now" / "call me in 30 minutes").
+      // Background checkin tasks process their own queued triggers separately.
+      includeCheckinTools: true,
       forceNewSession: true,
       toyControlService: toyControlService,
     );
@@ -495,11 +640,36 @@ class CompanionAgent {
         _logger.warning('CompanionAgent: failed to load activity snapshot: $e');
       }
 
+      // Explicitly signal text-chat mode. Without this, the LLM can drift into
+      // voice-call behavior when recent chat history contains call-related
+      // context (declined calls, call transcripts, proactive pushes, etc.).
+      state.systemReminders['chat_mode'] = '## TEXT CHAT MODE (active)\n'
+          'You are in a TEXT CHAT. The user is typing, NOT calling you.\n'
+          '- Speak naturally in text. Do NOT use voice-call language.\n'
+          '- Do NOT use `initiate_voice_call` unless the user explicitly asks '
+          'you to call them right now ("call me", "打给我").\n'
+          '- "（📞 ...）" messages in chat history are past records — they do '
+          'NOT mean you are currently on a call.';
+
       // User chat deliberately does not drain pending checkins. Those are
       // handled by background checkin runs so a stuck proactive trigger cannot
       // interrupt normal companion conversation.
       final checkinIds = <String>[];
       _logger.info('CompanionAgent: skipped checkin drain during user chat');
+
+      // Detect time-based user requests and inject a high-priority directive
+      // before the agent runs. This prevents the common failure mode where the
+      // LLM replies "好的，X分钟后提醒你" but never calls reminder_create.
+      final hasTimeRequest = _containsTimeRequest(userMessage);
+      if (hasTimeRequest) {
+        state.systemReminders['time_request_directive'] = _timeRequestDirective;
+      }
+
+      final List<UserContentPart> userParts = [TextPart(timedUserMessage)];
+      if (images != null && images.isNotEmpty) {
+        userParts.addAll(images);
+      }
+
       final List<LLMMessage> input;
       if (checkinIds.isNotEmpty) {
         // Inject a non-negotiable system directive before the user message.
@@ -510,18 +680,19 @@ class CompanionAgent {
             'you MUST call system_checkin and set_system_message_status. '
             'This is NOT optional. Even in character, handle this first.',
           ),
-          UserMessage([TextPart(timedUserMessage)]),
+          UserMessage(userParts),
         ];
       } else {
         input = [
-          UserMessage([TextPart(timedUserMessage)]),
+          UserMessage(userParts),
         ];
       }
 
       final resultHistory = await agent.run(input, useStream: false);
 
-      // Clean up checkin reminder after run.
+      // Clean up transient directives after run.
       state.systemReminders.remove('system_checkins');
+      state.systemReminders.remove('time_request_directive');
 
       // Scan all ModelMessage turns newest-to-oldest to find the chat reply.
       // Claude sometimes produces text in an earlier turn alongside a tool call
@@ -536,6 +707,40 @@ class CompanionAgent {
           }
         }
       }
+
+      // Post-processing: if the agent made a time commitment in text but
+      // didn't call reminder_create, run a silent correction turn so the
+      // reminder is actually created. This is the safety net for when the
+      // pre-processing directive isn't enough.
+      final madeTimeCommitment =
+          foundText.isNotEmpty && _containsTimeCommitment(foundText);
+      final calledReminderCreate = _hasReminderCreateCall(resultHistory);
+      if (madeTimeCommitment && !calledReminderCreate) {
+        _logger.severe(
+          'AGENT DID NOT CALL reminder_create despite time commitment. '
+          'User: "${userMessage.length > 80 ? '${userMessage.substring(0, 80)}…' : userMessage}". '
+          'Agent: "${foundText.length > 80 ? '${foundText.substring(0, 80)}…' : foundText}". '
+          'Running silent correction turn.',
+        );
+        try {
+          await agent.run([
+            UserMessage.text(
+              '⛔ CORRECTION (silent — user does not see this):\n'
+              'Your previous reply said: "$foundText"\n'
+              'But you did NOT call `reminder_create`. The reminder was NOT created.\n\n'
+              'The user\'s original request was: "$userMessage"\n\n'
+              'You MUST call `reminder_create` NOW with the correct delay_minutes '
+              'or due_at based on that request.\n\n'
+              'IMPORTANT: Only call the tool. Do NOT produce any user-visible '
+              'text or chat reply. This is a silent system correction.',
+            ),
+          ], useStream: false);
+          _logger.info('Correction turn complete — reminder should now exist');
+        } catch (e) {
+          _logger.severe('Correction turn failed: $e');
+        }
+      }
+
       if (foundText.isNotEmpty) {
         yield foundText;
       }
@@ -597,12 +802,12 @@ class CompanionAgent {
   }
 
   /// Drains at most one pending system trigger into agent state.systemReminders.
-  /// Returns the checkin ID if one was drained, empty list otherwise.
-  static Future<List<String>> _drainPendingCheckinsIntoState(
+  /// Returns the system trigger if one was drained, null otherwise.
+  static Future<SystemMessageQueueData?> _drainPendingCheckinsIntoState(
       AgentState state) async {
     try {
       final pending = await CheckinService.instance.drainPending();
-      if (pending.isEmpty) return [];
+      if (pending.isEmpty) return null;
 
       // Only take one at a time — leave the rest for future runs.
       final row = pending.first;
@@ -621,10 +826,10 @@ class CompanionAgent {
       }
 
       state.systemReminders['system_checkins'] = buf.toString();
-      return [row.id];
+      return row;
     } catch (e) {
       _logger.warning('Failed to drain system triggers: $e');
-      return [];
+      return null;
     }
   }
 

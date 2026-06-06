@@ -30,6 +30,9 @@ dependencies:
   dio: ^5.4.0
   web_socket_channel: ^3.0.1
 
+  # Bluetooth LE (direct toy control)
+  flutter_blue_plus: ^1.35.5
+
   # Local Storage
   shared_preferences: ^2.2.2
   path_provider: ^2.1.1
@@ -67,6 +70,7 @@ dependencies:
   android_alarm_manager_plus: ^4.0.7
   flutter_foreground_task: ^8.17.0
   flutter_local_notifications: ^18.0.1
+  timezone: ^0.10.1
   # Vendored fork (packages/flutter_callkit_incoming): patched so the call
   # screen avatar accepts local file paths, not just http URLs / flutter assets.
   flutter_callkit_incoming:

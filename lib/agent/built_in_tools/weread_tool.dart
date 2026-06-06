@@ -34,7 +34,7 @@ configured, returns a message indicating data is unavailable.''',
       'properties': <String, dynamic>{},
       'required': <String>[],
     },
-    executable: (_, __) async {
+    executable: () async {
       try {
         final fileService = FileSystemService.instance;
         final summaryPath = p.join(

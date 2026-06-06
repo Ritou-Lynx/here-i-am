@@ -81,6 +81,22 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 final GlobalKey<RootShellState> rootShellKey = GlobalKey<RootShellState>();
 
+void _installGlobalErrorLogging() {
+  final logger = getLogger('GlobalError');
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    logger.severe(
+      'Unhandled Flutter error: ${details.exceptionAsString()}',
+      details.exception,
+      details.stack,
+    );
+  };
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    logger.severe('Unhandled platform error', error, stack);
+    return false;
+  };
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -88,6 +104,7 @@ void main() async {
   AppFlavor.init(appFlavor);
 
   await setupLogger();
+  _installGlobalErrorLogging();
 
   // Initialize l10n
   await UserStorage.initL10n();

@@ -3,15 +3,19 @@ import 'package:memex/agent/built_in_tools/ai_finance_tools.dart';
 import 'package:memex/agent/built_in_tools/ai_shopping_tools.dart';
 import 'package:memex/agent/built_in_tools/checkin_tool.dart';
 import 'package:memex/agent/built_in_tools/coros_mcp_tool.dart';
+import 'package:memex/agent/built_in_tools/delegate_task_tool.dart';
 import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
+import 'package:memex/agent/built_in_tools/shared_life_memory_tools.dart';
 import 'package:memex/agent/built_in_tools/toy_control_tool.dart';
+import 'package:memex/agent/built_in_tools/user_knowledge_query_tool.dart';
 import 'package:memex/agent/built_in_tools/weread_tool.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
 import 'package:memex/agent/skills/comment_agent/tools/comment_tools.dart';
 import 'package:memex/agent/skills/comment_agent/tools/memory_tools.dart';
 import 'package:memex/agent/skills/companion_agent/tools/action_message_tools.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
+import 'package:memex/data/services/conversation_capture_service.dart';
 import 'package:memex/data/services/remote_task_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
@@ -30,6 +34,7 @@ class CharacterToolsFactory {
     required String userId,
     required String characterId,
     String? characterName,
+    int? currentUserMessageId,
     bool includeCheckinTools = false,
     ToyController? toyControlService,
   }) {
@@ -46,8 +51,14 @@ class CharacterToolsFactory {
       memoryFactory.buildMemoryEditTool(),
       memoryFactory.buildMemoryRemoveTool(),
       memoryFactory.buildHistorySearchTool(),
+      buildUserKnowledgeQueryTool(userId: userId),
       actionFactory.buildSendActionMessageTool(),
-      buildReminderTool(),
+      buildReminderTool(characterId: characterId, characterName: characterName),
+      buildDelegateTaskTool(
+        userId: userId,
+        characterId: characterId,
+        characterName: characterName ?? 'Companion',
+      ),
       buildAiFinanceRecordTool(
           characterId: characterId, service: financeService),
       buildAiFinanceQueryTool(
@@ -71,6 +82,16 @@ class CharacterToolsFactory {
     ];
     if (toyControlService != null) {
       tools.add(buildToyControlTool(service: toyControlService));
+    }
+    if (ConversationCaptureService.isInitialized) {
+      tools.addAll(
+        buildSharedLifeMemoryTools(
+          service: ConversationCaptureService.instance.sharedLifeMemory,
+          sourceCharacterId: characterId,
+          userId: userId,
+          sourceMessageId: currentUserMessageId,
+        ),
+      );
     }
     if (includeCheckinTools) {
       tools.add(buildSystemCheckinTool(

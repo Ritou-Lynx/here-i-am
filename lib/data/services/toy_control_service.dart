@@ -5,24 +5,18 @@ import 'package:memex/data/services/toy_controller.dart';
 export 'package:memex/data/services/toy_controller.dart'
     show ToyController, ToyConfig, ToyProtocol, ToyPattern;
 
-/// Factory that builds the right [ToyController] from persisted config.
+/// Factory: builds the right [ToyController] from persisted config.
 class ToyControlService {
   ToyControlService._();
 
-  /// Load config from SharedPreferences and return the appropriate controller.
-  /// Returns null if no URL has been configured yet.
   static Future<ToyController?> fromPrefs() async {
     final config = await ToyConfig.load();
     if (config == null) return null;
-    return _build(config);
-  }
-
-  static ToyController _build(ToyConfig config) {
-    switch (config.protocol) {
-      case ToyProtocol.buttplug:
-        return ButtplugToyController(wsUrl: config.url);
-      case ToyProtocol.lovense:
-        return LovenseToyController(apiUrl: config.url);
-    }
+    if (!config.autoConnect) return null;
+    return switch (config.protocol) {
+      ToyProtocol.buttplug => ButtplugToyController(wsUrl: config.url),
+      ToyProtocol.lovense => LovenseToyController(apiUrl: config.url),
+      ToyProtocol.magicMotion => null,
+    };
   }
 }

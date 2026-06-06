@@ -1,32 +1,36 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/asr/asr_config.dart';
 import 'package:memex/data/services/asr/media_button_service.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
+import 'package:memex/data/services/active_persona_chat_service.dart';
 import 'package:memex/data/services/tts_service.dart';
 import 'package:memex/data/services/buttplug_toy_controller.dart';
 import 'package:memex/data/services/toy_control_service.dart'
-    show ToyController, ToyControlService;
+    show ToyControlService, ToyController;
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/conversation_capture_service.dart';
 import 'package:memex/ui/character/widgets/voice_call_screen.dart';
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
+import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/utils/tavern_macro.dart';
-import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/data/services/notification_service.dart';
@@ -78,25 +82,41 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _isLoading = true;
   bool _isStreaming = false;
   String _streamingText = '';
+
+  // Pending message queue — user can compose the next message while the
+  // character is still generating a response. It auto-sends when streaming ends.
+  String? _pendingText;
+  List<XFile>? _pendingImages;
+
   bool _isMediaTrayOpen = false;
+
+  // Image attachment state — moved up from CompanionMediaTray
+  final _selectedImages = <XFile>[];
+  bool _isCompressingImages = false;
 
   // TTS playback state
   final _audioPlayer = AudioPlayer();
+  final Object _mediaButtonOwner = Object();
   StreamSubscription<void>? _audioCompleteSub;
   Timer? _messageRefreshTimer;
+  Timer? _rememberedNoticeTimer;
+  OverlayEntry? _rememberedNoticeEntry;
   String? _playingMessageId;
   String? _lastAutoReadMessageId;
   DateTime? _autoReadWatermarkAt;
   int? _autoReadWatermarkId;
   bool _isTtsLoading = false;
   bool _autoReadEnabled = false;
+  int _ttsRequestSerial = 0;
 
   bool _isAppInBackground = false;
   bool _mediaButtonsActive = false;
   bool _mediaButtonsActivating = false;
   bool _refreshingMessages = false;
+  int _composerClearToken = 0;
 
   ToyController? _toyControlService;
+  bool _toyConnected = false;
 
   // Pagination state — WeChat/WhatsApp style: load older messages on scroll-up
   static const int _pageSize = 30;
@@ -133,9 +153,17 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _isAppInBackground =
         state == AppLifecycleState.paused || state == AppLifecycleState.hidden;
     if (_isAppInBackground) {
+      unawaited(
+        ActivePersonaChatService.instance.clear(
+          characterId: _currentCharacterId,
+        ),
+      );
       unawaited(_stopTtsPlayback());
       _releaseMediaButtons();
     } else if (state == AppLifecycleState.resumed) {
+      unawaited(
+        ActivePersonaChatService.instance.markActive(_currentCharacterId),
+      );
       unawaited(_initMediaButtons());
     }
   }
@@ -144,6 +172,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(
+        ActivePersonaChatService.instance.markActive(_currentCharacterId));
     HardwareKeyboard.instance.addHandler(_handleHardwareKey);
     unawaited(_initMediaButtons());
     _init();
@@ -152,6 +182,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     EventBusService.instance.addHandler(
       EventBusMessageType.personaChatMessageAdded,
       _onPersonaChatMessageAdded,
+    );
+    EventBusService.instance.addHandler(
+      EventBusMessageType.conversationCaptureRemembered,
+      _onConversationCaptureRemembered,
     );
   }
 
@@ -219,19 +253,25 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     }
 
     final mediaButtons = MediaButtonService.instance;
-    mediaButtons.setOnToggle(() => unawaited(_onVoiceToggle()));
-    mediaButtons.setOnCancel(() => unawaited(_voiceController.cancel()));
+    mediaButtons.setOnToggle(
+      () => unawaited(_onVoiceToggle()),
+      owner: _mediaButtonOwner,
+    );
+    mediaButtons.setOnCancel(
+      () => unawaited(_voiceController.cancel()),
+      owner: _mediaButtonOwner,
+    );
     try {
-      await mediaButtons.activate();
+      await mediaButtons.activate(owner: _mediaButtonOwner);
       if (!mounted || _isAppInBackground) {
-        await mediaButtons.deactivate();
-        mediaButtons.clearCallbacks();
+        await mediaButtons.deactivate(owner: _mediaButtonOwner);
+        mediaButtons.clearCallbacks(owner: _mediaButtonOwner);
         return;
       }
       _mediaButtonsActive = true;
     } catch (e) {
       debugPrint('MediaButtonService activate failed: $e');
-      mediaButtons.clearCallbacks();
+      mediaButtons.clearCallbacks(owner: _mediaButtonOwner);
     } finally {
       _mediaButtonsActivating = false;
     }
@@ -239,12 +279,12 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
   void _releaseMediaButtons() {
     final mediaButtons = MediaButtonService.instance;
-    mediaButtons.clearCallbacks();
+    mediaButtons.clearCallbacks(owner: _mediaButtonOwner);
     if (!_mediaButtonsActive) return;
 
     _mediaButtonsActive = false;
     unawaited(
-      mediaButtons.deactivate().catchError(
+      mediaButtons.deactivate(owner: _mediaButtonOwner).catchError(
             (e) => debugPrint('MediaButtonService deactivate failed: $e'),
           ),
     );
@@ -305,15 +345,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       return;
     }
 
+    // Toy control via Intiface Central (Buttplug WebSocket).
     final toyService = await ToyControlService.fromPrefs();
-    // Buttplug needs an explicit WebSocket handshake before first use.
-    if (toyService is ButtplugToyController) {
-      try {
-        await toyService.connect();
-      } catch (e) {
-        // Non-fatal — toy control just won't work until Intiface is running.
-      }
-    }
 
     if (mounted) {
       _advanceAutoReadWatermark(messages);
@@ -325,14 +358,47 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         _autoReadEnabled = autoReadEnabled;
         _hasMoreHistory = messages.length >= _pageSize;
         _isLoading = false;
-        _toyControlService = toyService;
+        _toyControlService = null;
+        _toyConnected = false;
       });
       _scrollToBottom();
+
+      // Connect to Intiface in background — won't block the chat UI.
+      if (toyService != null) {
+        _connectToyBackground(toyService);
+      }
+    }
+  }
+
+  Future<void> _connectToyBackground(ToyController toyService) async {
+    if (toyService is ButtplugToyController) {
+      try {
+        await toyService.connect().timeout(const Duration(seconds: 8));
+      } catch (_) {}
+    }
+    if (mounted && toyService.isReady) {
+      setState(() {
+        _toyControlService = toyService;
+        _toyConnected = true;
+      });
+    } else {
+      toyService.dispose();
     }
   }
 
   @override
   void dispose() {
+    if (widget.enableRichCapture) {
+      unawaited(_scheduleConversationCapture(
+        force: true,
+        trigger: 'leave_chat',
+      ));
+    }
+    unawaited(
+      ActivePersonaChatService.instance.clear(
+        characterId: _currentCharacterId,
+      ),
+    );
     WidgetsBinding.instance.removeObserver(this);
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     _releaseMediaButtons();
@@ -340,11 +406,16 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       EventBusMessageType.personaChatMessageAdded,
       _onPersonaChatMessageAdded,
     );
+    EventBusService.instance.removeHandler(
+      EventBusMessageType.conversationCaptureRemembered,
+      _onConversationCaptureRemembered,
+    );
     _scrollController.removeListener(_onScroll);
     _textController.dispose();
     _scrollController.dispose();
     _audioCompleteSub?.cancel();
     _messageRefreshTimer?.cancel();
+    _hideRememberedNotice();
     _audioPlayer.dispose();
     _voiceController.dispose();
     _toyControlService?.dispose();
@@ -400,6 +471,47 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       );
       _scrollToBottom();
     });
+  }
+
+  void _onConversationCaptureRemembered(EventBusMessage message) {
+    if (message is! ConversationCaptureRememberedMessage ||
+        message.characterId != _currentCharacterId ||
+        !mounted) {
+      return;
+    }
+    _showRememberedNotice(
+      onUndo: () => unawaited(
+        ConversationCaptureService.instance.undoOperations(
+          message.operationIds,
+        ),
+      ),
+    );
+  }
+
+  void _showRememberedNotice({required VoidCallback onUndo}) {
+    _hideRememberedNotice();
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final entry = OverlayEntry(
+      builder: (_) => ConversationCaptureRememberedNotice(
+        onUndo: () {
+          _hideRememberedNotice();
+          onUndo();
+        },
+      ),
+    );
+    _rememberedNoticeEntry = entry;
+    overlay.insert(entry);
+    _rememberedNoticeTimer = Timer(
+      const Duration(seconds: 3),
+      _hideRememberedNotice,
+    );
+  }
+
+  void _hideRememberedNotice() {
+    _rememberedNoticeTimer?.cancel();
+    _rememberedNoticeTimer = null;
+    _rememberedNoticeEntry?.remove();
+    _rememberedNoticeEntry = null;
   }
 
   bool _refreshPersonaChatMessageAdded() {
@@ -471,7 +583,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     for (var i = 0; i < previous.length; i++) {
       if (previous[i].id != updated[i].id ||
           previous[i].content != updated[i].content ||
-          previous[i].messageType != updated[i].messageType) {
+          previous[i].messageType != updated[i].messageType ||
+          previous[i].attachmentsJson != updated[i].attachmentsJson) {
         return false;
       }
     }
@@ -480,16 +593,107 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
   Future<void> _sendMessage() async {
     final text = _textController.text.trim();
-    if (text.isEmpty || _isStreaming) return;
+    final hasText = text.isNotEmpty;
+    final hasImages = _selectedImages.isNotEmpty;
+    if (!hasText && !hasImages) return;
 
-    _textController.clear();
+    // While the character is still typing, queue the message — it will be sent
+    // automatically when the current response finishes streaming.
+    if (_isStreaming) {
+      _pendingText = text;
+      _pendingImages = hasImages ? List<XFile>.from(_selectedImages) : null;
+      _clearComposerText(staleText: text);
+      _clearImages();
+      return;
+    }
+
+    // Capture state before clearing
+    final imagesToSend = List<XFile>.from(_selectedImages);
+    final textToSend = text;
+    _clearComposerText(staleText: textToSend);
+    _clearImages();
+
     await _stopTtsPlayback();
 
     final userMessageTime = DateTime.now();
+    final isExplicitMemoryRequest =
+        hasText && _isExplicitMemoryRequest(textToSend);
 
-    // Persist user message
-    await _chatService.addUserMessage(_currentCharacterId, text,
-        timestamp: userMessageTime);
+    // Compress images for chat bubble display and DB storage.
+    List<Map<String, String>>? compressedAttachments;
+    if (hasImages) {
+      setState(() => _isCompressingImages = true);
+      compressedAttachments = [];
+      for (final image in imagesToSend) {
+        final compressed = await _compressImageForChat(image);
+        if (compressed != null) {
+          compressedAttachments.add(compressed);
+        }
+      }
+      if (mounted) setState(() => _isCompressingImages = false);
+    }
+
+    // ── Image analysis via vision model ────────────────────────────
+    // Uses the analyze_assets agent's separately-configured model so
+    // the character (e.g. text-only DeepSeek) can understand images.
+    // Analysis runs once; results feed both the chat context and the
+    // background card pipeline.
+    String? imageAnalysisText;
+    if (hasImages && imagesToSend.isNotEmpty) {
+      try {
+        final analysisResources = await UserStorage.getAgentLLMResources(
+          AgentDefinitions.analyzeAssets,
+          defaultClientKey: LLMConfig.defaultClientKey,
+        );
+        final analysisTool = AssetAnalysisTool(
+          client: analysisResources.client,
+          modelConfig: analysisResources.modelConfig,
+        );
+        final analyses = <String>[];
+        for (final image in imagesToSend) {
+          final result = await analysisTool.tool(
+            assetPath: image.path,
+            prompt: 'Describe this image briefly in 1-2 sentences. '
+                'Focus on what is visible: people, objects, text, scenes. '
+                'Be concise and objective.',
+          );
+          // Strip the "#Asset ... analysis result\n:" prefix.
+          final cleaned = result
+              .replaceFirst(RegExp(r'^#Asset .+ analysis result\n:'), '')
+              .trim();
+          if (cleaned.isNotEmpty) analyses.add(cleaned);
+        }
+        if (analyses.isNotEmpty) {
+          imageAnalysisText = analyses.join(' | ');
+        }
+      } catch (e) {
+        debugPrint('Image analysis failed, falling back to hint: $e');
+      }
+    }
+
+    // Persist user message with attachments
+    final userMessageId = await _chatService.addUserMessage(
+      _currentCharacterId,
+      textToSend,
+      timestamp: userMessageTime,
+      attachments: compressedAttachments,
+    );
+
+    // Fire background Memex processing for images (fire-and-forget)
+    if (hasImages) {
+      unawaited(
+        MemexRouter()
+            .submitInput(text: textToSend, images: imagesToSend)
+            .then<void>((_) {})
+            .catchError((e) => debugPrint('Background submitInput failed: $e')),
+      );
+    }
+
+    if (widget.enableRichCapture && !isExplicitMemoryRequest) {
+      unawaited(_scheduleConversationCapture(
+        trigger: 'user_message',
+      ));
+    }
 
     // Reload messages to show user's message (preserve loaded history depth)
     final messages = await _chatService.getMessages(
@@ -516,12 +720,32 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         defaultClientKey: LLMConfig.defaultClientKey,
       );
 
+      // Build user message — inject image analysis when available.
+      final imageCount = imagesToSend.length;
+      final String chatMessage;
+      if (imageAnalysisText != null && imageAnalysisText.isNotEmpty) {
+        chatMessage = textToSend.isNotEmpty
+            ? '[Image analysis: $imageAnalysisText]\n\n$textToSend'
+            : '[Image analysis: $imageAnalysisText]';
+      } else if (hasImages && imageCount > 0) {
+        chatMessage = textToSend.isNotEmpty
+            ? '[The user attached $imageCount image(s) to this message.]\n\n$textToSend'
+            : '[The user sent $imageCount image(s) without text.]';
+      } else {
+        chatMessage = textToSend;
+      }
+
       await for (final chunk in CompanionAgent.chat(
         client: resources.client,
         modelConfig: resources.modelConfig,
         userId: userId,
         characterId: _currentCharacterId,
-        userMessage: text,
+        userMessage: chatMessage,
+        // Images are only passed to the LLM when it supports vision.
+        // For text-only models, the image hint above lets the character
+        // acknowledge the images without seeing their contents.
+        images: null,
+        userMessageId: userMessageId,
         userMessageTime: userMessageTime,
         debugErrorOutput: true,
         toyControlService: _toyControlService,
@@ -542,6 +766,14 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
           isRead: !_isAppInBackground,
           timestamp: DateTime.now(),
         );
+        if (widget.enableRichCapture) {
+          unawaited(_scheduleConversationCapture(
+            force: isExplicitMemoryRequest,
+            trigger: isExplicitMemoryRequest
+                ? 'explicit_memory_fallback'
+                : 'character_message',
+          ));
+        }
         responsePersisted = true;
 
         if (_isAppInBackground && _character != null) {
@@ -572,6 +804,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
           updatedMessages: updated,
         );
         _scrollToBottom();
+        _sendPendingMessage();
       }
     } catch (e) {
       final partialResponse = buffer.toString().trim();
@@ -582,6 +815,14 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
           isRead: !_isAppInBackground,
           timestamp: DateTime.now(),
         );
+        if (widget.enableRichCapture) {
+          unawaited(_scheduleConversationCapture(
+            force: isExplicitMemoryRequest,
+            trigger: isExplicitMemoryRequest
+                ? 'explicit_memory_fallback'
+                : 'character_message',
+          ));
+        }
       }
 
       final updated = await _chatService.getMessages(
@@ -605,25 +846,126 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
             SnackBar(content: Text('Failed to get response: $e')),
           );
         }
+        _sendPendingMessage();
       }
     }
   }
 
-  Future<bool> _submitMedia(List<XFile> images) async {
+  void _clearComposerText({String? staleText}) {
+    final token = ++_composerClearToken;
+    _setComposerTextEmpty();
+    if (staleText == null || staleText.isEmpty) return;
+
+    void clearIfInputMethodRestoredStaleText() {
+      if (!mounted || token != _composerClearToken) return;
+      if (_textController.text.trim() == staleText) {
+        _setComposerTextEmpty();
+      }
+    }
+
+    scheduleMicrotask(clearIfInputMethodRestoredStaleText);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      clearIfInputMethodRestoredStaleText();
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => clearIfInputMethodRestoredStaleText(),
+      );
+    });
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 80))
+          .then((_) => clearIfInputMethodRestoredStaleText()),
+    );
+  }
+
+  void _setComposerTextEmpty() {
+    _textController.value = const TextEditingValue(
+      selection: TextSelection.collapsed(offset: 0),
+    );
+  }
+
+  /// If the user queued a message while the character was streaming, send it
+  /// now that the response has finished.
+  void _sendPendingMessage() {
+    final text = _pendingText;
+    final images = _pendingImages;
+    if (text == null && images == null) return;
+    _pendingText = null;
+    _pendingImages = null;
+    // Restore the pending text/images so _sendMessage picks them up naturally.
+    if (text != null) {
+      _composerClearToken++;
+      _textController.text = text;
+    }
+    if (images != null) _selectedImages.addAll(images);
+    unawaited(_sendMessage());
+  }
+
+  Future<void> _scheduleConversationCapture({
+    bool force = false,
+    String trigger = 'message_threshold',
+  }) async {
+    if (!ConversationCaptureService.isInitialized) return;
+    final userId = _userId ?? await UserStorage.getUserId();
+    if (userId == null) return;
+    await ConversationCaptureService.instance.noteConversationActivity(
+      userId: userId,
+      characterId: _currentCharacterId,
+      force: force,
+      trigger: trigger,
+    );
+  }
+
+  bool _isExplicitMemoryRequest(String text) {
+    final normalized = text.toLowerCase();
+    return normalized.contains('记住') ||
+        normalized.contains('记下来') ||
+        normalized.contains('remember this') ||
+        normalized.contains('remember that');
+  }
+
+  // ── Image selection management ──────────────────────────────────────────
+
+  void _onImagesPicked(List<XFile> images) {
+    setState(() {
+      for (final image in images) {
+        if (!_selectedImages.any((i) => i.path == image.path)) {
+          _selectedImages.add(image);
+        }
+      }
+      // Close the picker tray after selection.
+      _isMediaTrayOpen = false;
+    });
+  }
+
+  void _removeImage(int index) {
+    setState(() => _selectedImages.removeAt(index));
+  }
+
+  void _clearImages() {
+    setState(() => _selectedImages.clear());
+  }
+
+  /// Compresses an image for chat display and LLM vision input.
+  ///
+  /// Follows the pattern from [AssetAnalysisTool]: resize to max 2048px,
+  /// WebP quality 85, then base64-encode. Returns null on failure.
+  Future<Map<String, String>?> _compressImageForChat(XFile image) async {
     try {
-      await MemexRouter().submitInput(
-        images: images,
+      final compressed = await FlutterImageCompress.compressWithFile(
+        image.path,
+        minWidth: 2048,
+        minHeight: 2048,
+        quality: 85,
+        format: CompressFormat.webp,
+        autoCorrectionAngle: true,
+        keepExif: false,
       );
-      if (!mounted) return true;
-      setState(() => _isMediaTrayOpen = false);
-      ToastHelper.showSuccess(
-        context,
-        UserStorage.l10n.recordSubmittedAiProcessing,
-      );
-      return true;
+      if (compressed == null) return null;
+      // Use direct encode instead of compute() — avoid isolate issues on Android.
+      final base64 = base64Encode(compressed);
+      return {'mimeType': 'image/webp', 'base64': base64};
     } catch (e) {
-      if (mounted) ToastHelper.showError(context, e);
-      return false;
+      debugPrint('Failed to compress image for chat: $e');
+      return null;
     }
   }
 
@@ -672,6 +1014,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         _autoReadWatermarkAt = null;
         _autoReadWatermarkId = null;
       });
+      await ActivePersonaChatService.instance.markActive(_currentCharacterId);
       await _init();
     }
   }
@@ -712,7 +1055,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _advanceAutoReadWatermark(updatedMessages);
     if (_lastAutoReadMessageId == messageId) return;
     _lastAutoReadMessageId = messageId;
-    unawaited(_handleTtsPlay(messageId, message.content));
+    unawaited(_handleTtsPlay(messageId, message.content, autoTriggered: true));
   }
 
   bool _isUnreadableAutoReadCandidate(PersonaChatMessage message) {
@@ -765,6 +1108,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   }
 
   Future<void> _stopTtsPlayback() async {
+    _ttsRequestSerial++;
     await _audioPlayer.stop();
     if (mounted) {
       setState(() {
@@ -777,16 +1121,22 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     }
   }
 
-  Future<void> _handleTtsPlay(String messageId, String text) async {
+  Future<void> _handleTtsPlay(
+    String messageId,
+    String text, {
+    bool autoTriggered = false,
+  }) async {
+    if (autoTriggered && !_shouldAutoReadCurrentReply) return;
     if (_isTtsLoading && _playingMessageId == messageId) return;
 
     if (_playingMessageId == messageId) {
-      await _audioPlayer.stop();
+      await _stopTtsPlayback();
       if (mounted) setState(() => _playingMessageId = null);
       return;
     }
 
     await _audioPlayer.stop();
+    final requestSerial = ++_ttsRequestSerial;
 
     final voiceId = _character?.ttsVoiceId;
     if (voiceId == null || voiceId.isEmpty) {
@@ -812,11 +1162,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       );
 
       if (mounted) {
-        setState(() => _isTtsLoading = false);
-        if (_isAppInBackground) {
+        if (requestSerial != _ttsRequestSerial ||
+            _isAppInBackground ||
+            (autoTriggered && !_shouldAutoReadCurrentReply)) {
           await _stopTtsPlayback();
           return;
         }
+        setState(() => _isTtsLoading = false);
         await _audioCompleteSub?.cancel();
         await _audioPlayer.play(DeviceFileSource(audioPath));
         _audioCompleteSub = _audioPlayer.onPlayerComplete.listen((_) {
@@ -855,11 +1207,12 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
                   children: [
                     SizedBox(height: MediaQuery.of(context).padding.top),
                     _buildHeader(),
+                    const ChatTaskCapsule(),
                     Expanded(child: _buildMessageList()),
                     if (widget.enableRichCapture)
                       CompanionMediaTray(
                         isOpen: _isMediaTrayOpen,
-                        onSubmit: _submitMedia,
+                        onImagesPicked: _onImagesPicked,
                       ),
                     _buildInputBar(),
                   ],
@@ -945,6 +1298,23 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
                 ),
               ),
             ),
+            // Toy connection indicator
+            if (_toyControlService != null) ...[
+              const SizedBox(width: 6),
+              Tooltip(
+                message: _toyConnected ? '玩具已连接' : '玩具未连接',
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _toyConnected
+                        ? const Color(0xFF4ADE80)
+                        : const Color(0xFF94A3B8),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(width: 4),
             GestureDetector(
               onTap: () => openVoiceCall(
@@ -1039,6 +1409,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
                 text: msg.content,
                 isCharacter: msg.isFromCharacter,
                 messageId: msg.id.toString(),
+                attachmentsJson: msg.attachmentsJson,
               ),
           ],
         );
@@ -1221,7 +1592,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * 0.68,
               ),
-              child: Text(
+              child: SelectableText(
                 text,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
@@ -1251,11 +1622,17 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     required bool isCharacter,
     bool isStreaming = false,
     String? messageId,
+    String? attachmentsJson,
   }) {
     if (isCharacter) {
       return _buildCharacterBubble(
           text: text, isStreaming: isStreaming, messageId: messageId);
     }
+
+    final attachmentWidgets =
+        attachmentsJson != null && attachmentsJson.isNotEmpty
+            ? _buildAttachmentWidgets(attachmentsJson)
+            : <Widget>[];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
@@ -1263,13 +1640,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(width: 54),
+          const SizedBox(width: 40),
           Flexible(
             child: Align(
               alignment: Alignment.topRight,
               child: Container(
                 constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.68,
+                  maxWidth: MediaQuery.of(context).size.width * 0.88,
                 ),
                 padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
                 decoration: BoxDecoration(
@@ -1291,19 +1668,51 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
                     ),
                   ],
                 ),
-                child: Text(
-                  text,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    height: 1.55,
-                    color: Color(0xFF2D2923),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (text.isNotEmpty)
+                      SelectionArea(
+                        child: Text(
+                          text,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            height: 1.55,
+                            color: Color(0xFF2D2923),
+                          ),
+                        ),
+                      ),
+                    if (attachmentWidgets.isNotEmpty) ...[
+                      if (text.isNotEmpty) const SizedBox(height: 8),
+                      ...attachmentWidgets,
+                    ],
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: text));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('已复制'),
+                            duration: Duration(seconds: 1),
+                            behavior: SnackBarBehavior.floating,
+                            width: 120,
+                          ),
+                        );
+                      },
+                      child: const Icon(
+                        Icons.copy_rounded,
+                        size: 14,
+                        color: Color(0xFF8A857C),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
           SizedBox(
-            width: 46,
+            width: 34,
             child: Align(
               alignment: Alignment.topRight,
               child: _UserAvatar(
@@ -1316,6 +1725,33 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         ],
       ),
     );
+  }
+
+  /// Renders image attachments from a JSON-encoded attachments list below
+  /// the text in a user's chat bubble. Each attachment has `base64` (WebP)
+  /// and `mimeType` fields.
+  List<Widget> _buildAttachmentWidgets(String attachmentsJson) {
+    try {
+      final List<dynamic> attachments = jsonDecode(attachmentsJson);
+      return attachments.map((att) {
+        final base64 = att['base64'] as String;
+        final bytes = base64Decode(base64);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.memory(
+              Uint8List.fromList(bytes),
+              fit: BoxFit.cover,
+              width: double.infinity,
+            ),
+          ),
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('Failed to decode chat attachments: $e');
+      return [];
+    }
   }
 
   Widget _buildCharacterBubble({
@@ -1332,13 +1768,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 46,
+            width: 40,
             child: Align(
               alignment: Alignment.topLeft,
               child: _FramedCharacterAvatar(
                 avatar: _character?.avatar,
                 name: _character?.name ?? '',
-                size: 40,
+                size: 32,
               ),
             ),
           ),
@@ -1346,70 +1782,109 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
             child: Align(
               alignment: Alignment.topLeft,
               child: _CharacterMessageFrame(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Flexible(
-                          child: MarkdownBody(
-                            data: text,
-                            softLineBreak: true,
-                            styleSheet: _cachedMarkdownStyle,
-                          ),
-                        ),
-                        if (isStreaming) ...[
-                          const SizedBox(width: 8),
-                          const SizedBox(
-                            width: 8,
-                            height: 8,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.5,
-                              color: _personaAccent,
+                child: SelectionArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Flexible(
+                            child: MarkdownBody(
+                              data: text,
+                              softLineBreak: true,
+                              styleSheet: _cachedMarkdownStyle,
                             ),
                           ),
+                          if (isStreaming) ...[
+                            const SizedBox(width: 8),
+                            const SizedBox(
+                              width: 8,
+                              height: 8,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: _personaAccent,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                    if (showSpeaker) ...[
-                      const SizedBox(height: 10),
-                      GestureDetector(
-                        onTap: () => _handleTtsPlay(messageId, text),
-                        child: Row(
+                      ),
+                      if (showSpeaker) ...[
+                        const SizedBox(height: 10),
+                        Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              isPlaying
-                                  ? Icons.volume_up
-                                  : Icons.volume_up_outlined,
-                              size: 16,
-                              color: isPlaying
-                                  ? _personaAccent
-                                  : _personaTextMuted,
+                            GestureDetector(
+                              onTap: () => _handleTtsPlay(messageId, text),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isPlaying
+                                        ? Icons.volume_up
+                                        : Icons.volume_up_outlined,
+                                    size: 16,
+                                    color: isPlaying
+                                        ? _personaAccent
+                                        : _personaTextMuted,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isPlaying ? '播放中...' : '朗读',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isPlaying
+                                          ? _personaAccent
+                                          : _personaTextMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              isPlaying ? '播放中...' : '朗读',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isPlaying
-                                    ? _personaAccent
-                                    : _personaTextMuted,
+                            const SizedBox(width: 16),
+                            GestureDetector(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: text));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('已复制'),
+                                    duration: Duration(seconds: 1),
+                                    behavior: SnackBarBehavior.floating,
+                                    width: 120,
+                                  ),
+                                );
+                              },
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.copy_rounded,
+                                    size: 15,
+                                    color: _personaTextMuted,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    '复制',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _personaTextMuted,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 54),
+          const SizedBox(width: 36),
         ],
       ),
     );
@@ -1473,6 +1948,9 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
           ? () => setState(() => _isMediaTrayOpen = !_isMediaTrayOpen)
           : null,
       isAddActive: _isMediaTrayOpen,
+      selectedImages: _selectedImages,
+      onRemoveImage: _removeImage,
+      isCompressing: _isCompressingImages,
     );
   }
 
@@ -1647,6 +2125,99 @@ class _ChatTexturePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+@visibleForTesting
+class ConversationCaptureRememberedNotice extends StatelessWidget {
+  const ConversationCaptureRememberedNotice({
+    super.key,
+    required this.onUndo,
+  });
+
+  final VoidCallback onUndo;
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    return Positioned(
+      left: 24,
+      right: 24,
+      bottom: mediaQuery.viewInsets.bottom + mediaQuery.padding.bottom + 96,
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          builder: (context, value, child) => Transform.translate(
+            offset: Offset(0, 8 * (1 - value)),
+            child: Opacity(opacity: value, child: child),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 7, 6, 7),
+              decoration: BoxDecoration(
+                color: _personaPanel.withValues(alpha: 0.94),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: _personaAccent.withValues(alpha: 0.22),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.34),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: _personaAccent,
+                    size: 17,
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    UserStorage.l10n.companionRemembered,
+                    style: const TextStyle(
+                      color: _personaText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Container(
+                    width: 1,
+                    height: 15,
+                    color: Colors.white.withValues(alpha: 0.14),
+                  ),
+                  TextButton(
+                    onPressed: onUndo,
+                    style: TextButton.styleFrom(
+                      foregroundColor: _personaAccent,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 30),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      UserStorage.l10n.undo,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AtmosphereGlow extends StatelessWidget {
   const _AtmosphereGlow({
     required this.size,
@@ -1683,7 +2254,7 @@ class _CharacterMessageFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       constraints: BoxConstraints(
-        maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+        maxWidth: MediaQuery.sizeOf(context).width * 0.88,
       ),
       padding: const EdgeInsets.fromLTRB(18, 13, 18, 13),
       decoration: BoxDecoration(
@@ -1881,6 +2452,9 @@ class PersonaChatInputBar extends StatelessWidget {
     this.onVoiceTap,
     this.onAddTap,
     this.isAddActive = false,
+    this.selectedImages = const [],
+    this.onRemoveImage,
+    this.isCompressing = false,
   });
 
   final TextEditingController controller;
@@ -1895,11 +2469,18 @@ class PersonaChatInputBar extends StatelessWidget {
   final VoidCallback? onAddTap;
   final bool isAddActive;
 
-  bool _canSend(String value) => !isStreaming && value.trim().isNotEmpty;
+  /// Selected image attachments shown as inline preview chips.
+  final List<XFile> selectedImages;
+  final void Function(int index)? onRemoveImage;
+  final bool isCompressing;
+
+  bool _canSend(String value, bool hasImages) =>
+      !isStreaming && (value.trim().isNotEmpty || hasImages);
 
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final hasImages = selectedImages.isNotEmpty || isCompressing;
     return Padding(
       padding: EdgeInsets.fromLTRB(14, 10, 14, bottomPadding + 12),
       child: Container(
@@ -1924,62 +2505,138 @@ class PersonaChatInputBar extends StatelessWidget {
         child: ValueListenableBuilder<TextEditingValue>(
           valueListenable: controller,
           builder: (context, value, _) {
-            final canSend = _canSend(value.text);
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            final canSend = _canSend(value.text, selectedImages.isNotEmpty);
+            return Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                if (onAddTap != null) ...[
-                  _AddButton(
-                    enabled: !isStreaming,
-                    onTap: onAddTap!,
-                    active: isAddActive,
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    minLines: 1,
-                    maxLines: 5,
-                    decoration: InputDecoration(
-                      hintText: hintText,
-                      hintStyle: const TextStyle(
-                        color: _personaTextMuted,
-                        fontSize: 15,
-                      ),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 10,
-                      ),
-                      border: InputBorder.none,
+                if (hasImages) ...[
+                  SizedBox(
+                    height: 64,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount:
+                                selectedImages.length + (isCompressing ? 1 : 0),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 6),
+                            itemBuilder: (context, index) {
+                              if (isCompressing &&
+                                  index == selectedImages.length) {
+                                return const SizedBox(
+                                  width: 56,
+                                  height: 56,
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: _personaAccent,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              final image = selectedImages[index];
+                              return GestureDetector(
+                                onTap: () => onRemoveImage?.call(index),
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.file(
+                                        File(image.path),
+                                        width: 56,
+                                        height: 56,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: Container(
+                                        width: 18,
+                                        height: 18,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black
+                                              .withValues(alpha: 0.6),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.close_rounded,
+                                          size: 12,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    style: const TextStyle(
-                      fontSize: 15,
-                      height: 1.35,
-                      color: _personaText,
-                    ),
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) {
-                      if (canSend) onSend();
-                    },
-                    enabled: !isStreaming,
                   ),
-                ),
-                if (voiceController != null && onVoiceTap != null) ...[
-                  const SizedBox(width: 8),
-                  VoiceInputButton(
-                    controller: voiceController!,
-                    onTap: onVoiceTap!,
-                    iconColor: _personaAccent,
-                    bgColor: _personaPanelSoft,
-                    enabled: !isStreaming,
-                  ),
+                  const SizedBox(height: 8),
                 ],
-                const SizedBox(width: 8),
-                _SendButton(
-                  enabled: canSend,
-                  onTap: onSend,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (onAddTap != null) ...[
+                      _AddButton(
+                        enabled: !isStreaming,
+                        onTap: onAddTap!,
+                        active: isAddActive,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        minLines: 1,
+                        maxLines: 5,
+                        decoration: InputDecoration(
+                          hintText: hintText,
+                          hintStyle: const TextStyle(
+                            color: _personaTextMuted,
+                            fontSize: 15,
+                          ),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 10,
+                          ),
+                          border: InputBorder.none,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          height: 1.35,
+                          color: _personaText,
+                        ),
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        enabled: !isStreaming,
+                      ),
+                    ),
+                    if (voiceController != null && onVoiceTap != null) ...[
+                      const SizedBox(width: 8),
+                      VoiceInputButton(
+                        controller: voiceController!,
+                        onTap: onVoiceTap!,
+                        iconColor: _personaAccent,
+                        bgColor: _personaPanelSoft,
+                        enabled: !isStreaming,
+                      ),
+                    ],
+                    const SizedBox(width: 8),
+                    _SendButton(
+                      enabled: canSend,
+                      onTap: onSend,
+                    ),
+                  ],
                 ),
               ],
             );

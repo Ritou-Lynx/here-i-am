@@ -246,7 +246,7 @@ class SharedLifeEntities extends Table {
 class AiFinanceLedger extends Table {
   TextColumn get id => text()(); // UUID v4
 
-  /// The character this ledger entry belongs to.
+  /// The character that recorded or witnessed this shared ledger entry.
   TextColumn get characterId => text()();
 
   /// Entry type: 'income' | 'cost' | 'loan' | 'repayment'

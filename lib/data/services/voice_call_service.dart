@@ -90,6 +90,7 @@ class VoiceCallService extends ChangeNotifier {
   final _recorder = AudioRecorder();
   String? _recordingPath;
   bool _speaking = false;
+  int _speechSerial = 0;
   VoiceCallInputMode _inputMode = VoiceCallInputMode.pushToTalk;
   StreamSubscription<Uint8List>? _streamingAudioSub;
   final List<int> _streamingSpeechBuffer = [];
@@ -102,6 +103,14 @@ class VoiceCallService extends ChangeNotifier {
   static const int _streamingEndSilenceMs = 900;
   static const int _streamingMinSpeechMs = 450;
   static const int _streamingMaxSpeechMs = 12000;
+  static const AndroidRecordConfig _androidRecordingConfig =
+      AndroidRecordConfig(
+    service: AndroidService(
+      title: 'Voice call',
+      content: 'Listening in the background',
+    ),
+    audioManagerMode: AudioManagerMode.modeNormal,
+  );
 
   // Idle follow-up: when the user stays silent in [listening], the companion
   // proactively speaks again ("怎么不说话了？" / continue the topic / lull to
@@ -287,6 +296,7 @@ class VoiceCallService extends ChangeNotifier {
 
   Future<void> interruptSpeech() async {
     if (!_speaking) return;
+    _speechSerial++;
     _speaking = false;
     await _player.stop().catchError((_) => null);
     // User is taking over — start recording right away.
@@ -328,9 +338,7 @@ class VoiceCallService extends ChangeNotifier {
           encoder: AudioEncoder.wav,
           sampleRate: 16000,
           numChannels: 1,
-          androidConfig: AndroidRecordConfig(
-            audioManagerMode: AudioManagerMode.modeNormal,
-          ),
+          androidConfig: _androidRecordingConfig,
         ),
         path: path,
       );
@@ -545,9 +553,10 @@ class VoiceCallService extends ChangeNotifier {
     if (spokenText.isEmpty) return;
 
     await _stopStreamingCapture(discardDraft: true);
+    final speechSerial = ++_speechSerial;
     _speaking = true;
     try {
-      if (!_speaking || _state == VoiceCallState.ended) return;
+      if (!_isCurrentSpeech(speechSerial)) return;
 
       _state = VoiceCallState.companionSpeaking;
       _lastLine = spokenText;
@@ -557,14 +566,22 @@ class VoiceCallService extends ChangeNotifier {
         final path = await TtsService.textToSpeech(
           text: spokenText,
           voiceId: voiceId!,
+        ).timeout(_ttsRequestTimeout(spokenText));
+        if (!_isCurrentSpeech(speechSerial)) return;
+        await _playTtsFile(
+          path,
+          spokenText: spokenText,
+          speechSerial: speechSerial,
         );
-        if (!_speaking || _state == VoiceCallState.ended) return;
-        await _playTtsFile(path, spokenText: spokenText);
+      } on TimeoutException {
+        _logger.warning('TTS request timed out; recovering call state');
       } catch (e) {
         _logger.warning('TTS error: $e');
       }
     } finally {
-      _speaking = false;
+      if (_isCurrentSpeech(speechSerial)) {
+        _speaking = false;
+      }
     }
   }
 
@@ -626,6 +643,7 @@ class VoiceCallService extends ChangeNotifier {
   void hangUp() {
     _cancelIdleTimer();
     unawaited(_stopStreamingCapture(discardDraft: true));
+    _speechSerial++;
     _speaking = false;
     _state = VoiceCallState.ended;
     notifyListeners();
@@ -640,6 +658,7 @@ class VoiceCallService extends ChangeNotifier {
     if (_state == VoiceCallState.ended) return;
     _cancelIdleTimer();
     await _stopStreamingCapture(discardDraft: true);
+    _speechSerial++;
     _speaking = false;
     await _player.stop().catchError((_) => null);
     await _recorder.stop().catchError((_) => null);
@@ -770,18 +789,43 @@ class VoiceCallService extends ChangeNotifier {
   Future<void> _playTtsFile(
     String audioPath, {
     required String spokenText,
+    required int speechSerial,
   }) async {
     await _applyPlaybackAudioContext();
-    if (!_speaking || _state == VoiceCallState.ended) return;
+    if (!_isCurrentSpeech(speechSerial)) return;
+
+    final completed = Completer<void>();
+    final completeSub = _player.onPlayerComplete.listen((_) {
+      if (!completed.isCompleted) completed.complete();
+    });
+
     try {
-      await _player.play(DeviceFileSource(audioPath));
-      await _player.onPlayerComplete.first.timeout(
+      await _player.play(DeviceFileSource(audioPath)).timeout(
+            const Duration(seconds: 8),
+          );
+      if (!_isCurrentSpeech(speechSerial)) return;
+      await completed.future.timeout(
         _playbackTimeout(spokenText),
       );
     } on TimeoutException {
       _logger.warning('TTS playback timed out; recovering call state');
       await _player.stop().catchError((_) => null);
+    } catch (e) {
+      _logger.warning('TTS playback error: $e');
+      await _player.stop().catchError((_) => null);
+    } finally {
+      await completeSub.cancel().catchError((_) {});
     }
+  }
+
+  bool _isCurrentSpeech(int speechSerial) =>
+      _speaking &&
+      _speechSerial == speechSerial &&
+      _state != VoiceCallState.ended;
+
+  static Duration _ttsRequestTimeout(String text) {
+    final estimatedSeconds = (text.trim().length / 8.0).ceil() + 25;
+    return Duration(seconds: estimatedSeconds.clamp(35, 120));
   }
 
   static Duration _playbackTimeout(String text) {
@@ -836,9 +880,7 @@ class VoiceCallService extends ChangeNotifier {
           encoder: AudioEncoder.pcm16bits,
           sampleRate: 16000,
           numChannels: 1,
-          androidConfig: AndroidRecordConfig(
-            audioManagerMode: AudioManagerMode.modeNormal,
-          ),
+          androidConfig: _androidRecordingConfig,
         ),
       );
       _streamingAudioSub = audioStream.listen(

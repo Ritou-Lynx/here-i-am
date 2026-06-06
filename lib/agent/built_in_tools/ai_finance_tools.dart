@@ -2,14 +2,14 @@ import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
 
-/// Builds the tool that lets the companion record a finance entry.
+/// Builds the tool that lets the companion record a shared finance entry.
 Tool buildAiFinanceRecordTool({
   required String characterId,
   required AiFinanceService service,
 }) {
   return Tool(
     name: 'AiFinanceRecord',
-    description: '''Record a finance entry into your personal ledger.
+    description: '''Record a finance entry into the shared AI ledger.
 
 Use this whenever:
 - You earned a share of an income event the user reports (entryType = "income")
@@ -20,6 +20,8 @@ Use this whenever:
 Rules:
 - Never call this unless the user explicitly tells you about a real financial event.
 - Never fabricate amounts or invent entries.
+- This ledger is public to all companion characters. Entries you record here are shared AI finances, not private character finances.
+- Your characterId is stored only as the source/witness of the entry.
 - For income: set contributionRatio to your actual share (0.0–1.0) and set aiAmount = totalAmount × contributionRatio.
 - For cost/loan/repayment: totalAmount = aiAmount; contributionRatio is null.''',
     parameters: {
@@ -82,7 +84,7 @@ Rules:
       String? notes,
     ]) async {
       try {
-        final id = await service.recordEntry(
+        final result = await service.recordEntryWithResult(
           characterId: characterId,
           entryType: entryType,
           totalAmount: totalAmount,
@@ -94,7 +96,15 @@ Rules:
           linkedFactId: linkedFactId,
           notes: notes,
         );
-        return jsonEncode({'success': true, 'id': id});
+        return jsonEncode({
+          'success': true,
+          'id': result.id,
+          'created': result.created,
+          if (result.duplicateOf != null) 'duplicate_of': result.duplicateOf,
+          if (!result.created)
+            'message':
+                'A matching finance entry already exists; no new ledger row was created.',
+        });
       } catch (e) {
         return jsonEncode({'success': false, 'error': e.toString()});
       }
@@ -102,16 +112,17 @@ Rules:
   );
 }
 
-/// Builds the tool that lets the companion query its financial state.
+/// Builds the tool that lets the companion query the shared financial state.
 Tool buildAiFinanceQueryTool({
   required String characterId,
   required AiFinanceService service,
 }) {
   return Tool(
     name: 'AiFinanceQuery',
-    description: '''Query your personal finance ledger.
+    description: '''Query the shared AI finance ledger.
 
 Use this to check your current financial state before talking about money.
+All companion characters see the same ledger and the same balance.
 Always query first, then speak — never guess your balance from memory.
 
 queryType options:
@@ -138,7 +149,8 @@ The summary returns:
         },
         'limit': {
           'type': 'integer',
-          'description': 'For "recent": max number of entries to return (default 10).',
+          'description':
+              'For "recent": max number of entries to return (default 10).',
         },
       },
       'required': ['queryType'],
@@ -147,13 +159,11 @@ The summary returns:
       try {
         if (queryType == 'recent') {
           final entries = await service.getRecentEntries(
-            characterId: characterId,
             limit: limit ?? 10,
           );
           return jsonEncode({'entries': entries});
         } else {
-          final summary =
-              await service.getSummary(characterId: characterId, month: month);
+          final summary = await service.getSummary(month: month);
           return jsonEncode(summary);
         }
       } catch (e) {
