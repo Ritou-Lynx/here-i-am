@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 enum ToyPattern { steady, wave, pulse, escalate, tease }
 
 /// Protocol backend for toy control.
-enum ToyProtocol { lovense, buttplug, magicMotion }
+enum ToyProtocol { lovense, buttplug, magicMotion, svakom }
 
 /// Abstract controller interface shared by all backends.
 ///
@@ -54,6 +54,7 @@ class ToyConfig {
     final protocol = switch (raw) {
       'buttplug' => ToyProtocol.buttplug,
       'magic_motion' => ToyProtocol.magicMotion,
+      'svakom' => ToyProtocol.svakom,
       _ => ToyProtocol.lovense,
     };
     return ToyConfig(
@@ -72,6 +73,7 @@ class ToyConfig {
     final tag = switch (protocol) {
       ToyProtocol.buttplug => 'buttplug',
       ToyProtocol.magicMotion => 'magic_motion',
+      ToyProtocol.svakom => 'svakom',
       ToyProtocol.lovense => 'lovense',
     };
     await prefs.setString(_kProtocol, tag);

@@ -43,6 +43,23 @@ For shared_operations:
 - derive creates a new related item and may include a related_entity_id in patch.
 - entity_type should be event, task, plan, schedule, or fact.
 - entity_type describes how the record behaves. It is not the record's topic taxonomy.
+- Treat chat messages as evidence, not as card boundaries. A single user
+  message may produce multiple shared_operations, and multiple user messages
+  may merge into one operation for the same real-world entity.
+- Before writing operations, decompose long user messages into independent
+  life atoms: things that happened, tasks, plans, schedules, durable facts,
+  preferences, feelings, health/body states, relationship changes, and
+  corrections.
+- Split separate records when atoms have different lifecycle behavior,
+  different real-world subjects, different dates or deadlines, or would be
+  updated, completed, cancelled, searched, or corrected independently later.
+- Merge atoms into one record when they are details of the same real-world
+  entity and share one lifecycle. Example: "fixed three bugs and shipped the
+  release" is usually one work event with details; "shipped the release and
+  need to email the client tomorrow" is an event plus a task.
+- Do not force one user message into one record, and do not create a single
+  catch-all card for a long day summary when independent memories are clearly
+  present.
 - There is only one topic label system: patch.tags. Use the controlled tag
   vocabulary for topics. Do not create a second topic taxonomy through
   entity_type, titles, patch keys, or invented category labels.
@@ -83,6 +100,11 @@ For shared_operations:
   update separate records only when both parts are clearly present in the
   user's own words.
 - patch is a compact JSON object containing structured fields such as summary, time, place, details, status, related_entity_ids, or related_fact_ids.
+- patch.summary is the memory-summary text shown on review cards. It should
+  summarize this entity only, not the whole input slice.
+- For records extracted from a long user message, include patch.source_excerpts
+  as a list of 1 to 3 short user-worded evidence snippets when useful. Keep
+  excerpts short and do not quote character replies.
 - patch.tags should contain 1 to 3 durable topic labels when useful. Use only
   tags already present in tags.md. Do not repeat entity_type as a tag.
   Do not translate tags between languages.$tagConstraint

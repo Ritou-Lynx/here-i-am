@@ -2,11 +2,14 @@ import 'dart:convert';
 
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/data/services/toy_control_service.dart';
+import 'package:memex/utils/logger.dart';
 
 Tool buildToyControlTool({required ToyController service}) {
+  final log = getLogger('ToyControlTool');
   return Tool(
     name: 'ToyControl',
-    description: '''Control a connected intimate toy (vibrator, etc.) via Bluetooth.
+    description:
+        '''Control a connected intimate toy (vibrator, etc.) via Bluetooth.
 
 Call this when the user explicitly wants you to control their toy during roleplay or interactive sessions.
 
@@ -43,7 +46,8 @@ Call this when the user explicitly wants you to control their toy during rolepla
         },
         'intensityLevel': {
           'type': 'integer',
-          'description': 'Vibration intensity, 0–20. Required for vibrate and pattern.',
+          'description':
+              'Vibration intensity, 0–20. Required for vibrate and pattern.',
           'minimum': 0,
           'maximum': 20,
         },
@@ -68,15 +72,33 @@ Call this when the user explicitly wants you to control their toy during rolepla
       String? patternName,
     ]) async {
       try {
+        log.info(
+          'ToyControl requested action=$action intensity=$intensityLevel '
+          'duration=$durationSeconds pattern=$patternName '
+          'controller=${service.runtimeType} ready=${service.isReady}',
+        );
+        if (!service.isReady) {
+          log.warning('ToyControl unavailable: controller is not ready');
+          return jsonEncode({
+            'ok': false,
+            'error':
+                'toy controller is not connected; reconnect from chat or settings and try again',
+          });
+        }
         switch (action) {
           case 'stop':
             final ok = await service.stop();
+            log.info('ToyControl stop result ok=$ok');
             return jsonEncode({'ok': ok, 'action': 'stopped'});
 
           case 'vibrate':
             final level = (intensityLevel ?? 10).clamp(0, 20);
             final dur = durationSeconds ?? 0;
             final ok = await service.vibrate(level, durationSeconds: dur);
+            log.info(
+              'ToyControl vibrate result ok=$ok intensity=$level '
+              'duration=$dur controller=${service.runtimeType}',
+            );
             return jsonEncode({
               'ok': ok,
               'action': 'vibrate',
@@ -88,12 +110,23 @@ Call this when the user explicitly wants you to control their toy during rolepla
             final pattern = _parsePattern(patternName ?? 'wave');
             final level = (intensityLevel ?? 10).clamp(0, 20);
             final desc = await service.playPattern(pattern, level);
-            return jsonEncode({'ok': true, 'action': 'pattern', 'description': desc});
+            final ok = !desc.toLowerCase().contains('failed');
+            log.info(
+              'ToyControl pattern result pattern=$pattern ok=$ok '
+              'intensity=$level description=$desc',
+            );
+            return jsonEncode({
+              'ok': ok,
+              'action': 'pattern',
+              'description': desc,
+            });
 
           default:
-            return jsonEncode({'ok': false, 'error': 'unknown action: $action'});
+            return jsonEncode(
+                {'ok': false, 'error': 'unknown action: $action'});
         }
       } catch (e) {
+        log.warning('ToyControl exception: $e');
         return jsonEncode({'ok': false, 'error': e.toString()});
       }
     },

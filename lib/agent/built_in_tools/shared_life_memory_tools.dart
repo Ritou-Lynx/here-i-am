@@ -63,8 +63,54 @@ List<Tool> buildSharedLifeMemoryTools({
       sourceCharacterId: sourceCharacterId,
       sourceMessageId: sourceMessageId,
     ),
+    _buildDeleteTool(
+      service: service,
+      sourceCharacterId: sourceCharacterId,
+      sourceMessageId: sourceMessageId,
+    ),
   ]);
   return tools;
+}
+
+Tool _buildDeleteTool({
+  required SharedLifeMemoryService service,
+  required String sourceCharacterId,
+  required int sourceMessageId,
+}) {
+  return Tool(
+    name: 'LifeMemoryDelete',
+    description:
+        'Permanently delete a shared life record. Use this when the user '
+        'explicitly asks to delete / remove / clear / discard a record — '
+        'including test data, saved reading items, or notes they no longer '
+        'want. This undoes every operation on the entity and removes its '
+        'projection row. Prefer this over LifeMemoryUndo when the user '
+        'wants the whole record gone, not just the latest change reverted.',
+    parameters: {
+      'type': 'object',
+      'properties': {
+        'entity_id': {
+          'type': 'string',
+          'description': 'Exact shared life entity ID from LifeMemoryQuery.',
+        },
+      },
+      'required': ['entity_id'],
+    },
+    parameterMode: ToolParameterMode.object,
+    executable: (Map<String, dynamic> args) async {
+      try {
+        final entityId = _requiredString(args, 'entity_id');
+        final deleted = await service.fullyDeleteEntity(
+          entityId: entityId,
+          sourceCharacterId: sourceCharacterId,
+          sourceMessageId: sourceMessageId,
+        );
+        return jsonEncode({'success': deleted, 'entity_id': entityId});
+      } catch (e) {
+        return _error(e);
+      }
+    },
+  );
 }
 
 Tool _buildQueryTool(SharedLifeMemoryService service) {

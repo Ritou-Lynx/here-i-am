@@ -264,7 +264,12 @@ class HealthKitFetcher implements HealthDataFetcher {
   Map<String, dynamic> _aggregateSleep(List<HealthDataPoint> healthData) {
     Map<String, dynamic> result = {};
     for (var dataPoint in healthData) {
-      // Typically sleep date is assigned to the day we wake up
+      // Sleep date is assigned to the day we WAKE UP (dateTo), NOT the day we
+      // fell asleep (dateFrom). This is intentional: for late-night sleepers,
+      // a session from June 6 02:00 → June 6 09:00 is stored under June 6,
+      // and a session from June 7 02:00 → June 7 09:00 is stored under June 7.
+      // Agent prompts and tool descriptions must reflect this semantic so that
+      // "昨晚睡得怎么样" queries the correct date.
       final date = dataPoint.dateTo;
       final dateStr = DateTime(date.year, date.month, date.day)
           .toIso8601String()
@@ -305,7 +310,6 @@ class HealthKitFetcher implements HealthDataFetcher {
           result[key]!['_intervals'] as List<Map<String, int>>;
       intervals.sort((a, b) => a['start']!.compareTo(b['start']!));
 
-      int totalSleepMs = 0;
       int? mergedStart;
       int? mergedEnd;
 
@@ -313,14 +317,13 @@ class HealthKitFetcher implements HealthDataFetcher {
 
       void commitSession() {
         if (mergedStart != null && mergedEnd != null) {
-          totalSleepMs += (mergedEnd! - mergedStart!);
-          DateTime startDt = DateTime.fromMillisecondsSinceEpoch(mergedStart!);
-          DateTime endDt = DateTime.fromMillisecondsSinceEpoch(mergedEnd!);
+          DateTime startDt = DateTime.fromMillisecondsSinceEpoch(mergedStart);
+          DateTime endDt = DateTime.fromMillisecondsSinceEpoch(mergedEnd);
 
           sessions.add({
             'bedtime': formatTime(startDt),
             'wake_time': formatTime(endDt),
-            'duration_mins': (mergedEnd! - mergedStart!) ~/ 60000,
+            'duration_mins': (mergedEnd - mergedStart) ~/ 60000,
           });
         }
       }
@@ -332,7 +335,7 @@ class HealthKitFetcher implements HealthDataFetcher {
         } else {
           if (interval['start']! <= mergedEnd!) {
             // Overlapping, extend end if needed
-            if (interval['end']! > mergedEnd!) {
+            if (interval['end']! > mergedEnd) {
               mergedEnd = interval['end'];
             }
           } else {

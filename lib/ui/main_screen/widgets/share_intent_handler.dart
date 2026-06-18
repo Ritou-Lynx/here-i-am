@@ -10,6 +10,7 @@ import 'package:share_handler/share_handler.dart';
 
 import 'package:memex/data/services/backup_import_intent_service.dart';
 import 'package:memex/data/services/backup_service.dart';
+import 'package:memex/data/services/reading/reading_capture_service.dart';
 import 'package:memex/ui/main_screen/widgets/input_sheet.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -100,6 +101,24 @@ class ShareIntentHandler {
           media.content == null || media.content!.trim().isEmpty
               ? null
               : media.content!.trim();
+
+      // Reading Companion: text-only shares that contain a recognised
+      // 小红书 / 微信公众号 / generic article link go to ReadingCaptureService
+      // instead of the legacy InputSheet draft path. Image shares and
+      // unrecognised text fall through to the existing flow.
+      final attachmentsAreEmpty = attachments.where((a) => a != null).isEmpty;
+      if (trimmedText != null &&
+          attachmentsAreEmpty &&
+          ReadingCaptureService.isInitialized) {
+        final captureResult = await ReadingCaptureService.instance
+            .captureFromShare(trimmedText);
+        if (captureResult.success) {
+          logger.info(
+              'Reading capture handled share (entity=${captureResult.entityId})');
+          return;
+        }
+        // notRecognised / failed → fall through to InputSheet draft.
+      }
 
       final imageFiles = <XFile>[];
 

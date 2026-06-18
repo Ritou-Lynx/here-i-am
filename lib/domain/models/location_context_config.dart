@@ -6,6 +6,7 @@ class LocationContextConfig {
   final bool enabled;
   final GeocodingProvider provider;
   final String amapApiKey;
+  final bool transitCompanionEnabled;
   final LocationContextGranularity granularity;
   final int ttlMinutes;
 
@@ -13,6 +14,7 @@ class LocationContextConfig {
     this.enabled = false,
     this.provider = GeocodingProvider.openStreetMap,
     this.amapApiKey = '',
+    this.transitCompanionEnabled = false,
     this.granularity = LocationContextGranularity.neighborhood,
     this.ttlMinutes = 15,
   });
@@ -25,6 +27,8 @@ class LocationContextConfig {
         orElse: () => GeocodingProvider.openStreetMap,
       ),
       amapApiKey: json['amapApiKey'] as String? ?? '',
+      transitCompanionEnabled:
+          json['transitCompanionEnabled'] as bool? ?? false,
       granularity: LocationContextGranularity.values.firstWhere(
         (e) => e.name == json['granularity'],
         orElse: () => LocationContextGranularity.neighborhood,
@@ -37,6 +41,7 @@ class LocationContextConfig {
         'enabled': enabled,
         'provider': provider.name,
         'amapApiKey': amapApiKey,
+        'transitCompanionEnabled': transitCompanionEnabled,
         'granularity': granularity.name,
         'ttlMinutes': ttlMinutes,
       };
@@ -45,6 +50,7 @@ class LocationContextConfig {
     bool? enabled,
     GeocodingProvider? provider,
     String? amapApiKey,
+    bool? transitCompanionEnabled,
     LocationContextGranularity? granularity,
     int? ttlMinutes,
   }) {
@@ -52,6 +58,8 @@ class LocationContextConfig {
       enabled: enabled ?? this.enabled,
       provider: provider ?? this.provider,
       amapApiKey: amapApiKey ?? this.amapApiKey,
+      transitCompanionEnabled:
+          transitCompanionEnabled ?? this.transitCompanionEnabled,
       granularity: granularity ?? this.granularity,
       ttlMinutes: ttlMinutes ?? this.ttlMinutes,
     );

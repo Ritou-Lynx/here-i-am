@@ -91,7 +91,9 @@ class TimelineCard extends StatelessWidget {
   }
 
   Widget _buildContent() {
-    Widget content = Padding(padding: padding, child: child);
+    Widget content = SelectionArea(
+      child: Padding(padding: padding, child: child),
+    );
 
     if (variant == TimelineCardVariant.glass) {
       // Simple white card — no backdrop blur

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:logging/logging.dart';
 import 'package:memex/data/services/file_logger_service.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
@@ -29,6 +31,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
   int _currentFileOffset = 0;
   bool _isLoading = false;
   bool _isSearching = false;
+  String? _loadError;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -69,16 +72,61 @@ class _LogViewerPageState extends State<LogViewerPage> {
     setState(() => _isLoading = true);
     try {
       final files = await FileLoggerService.instance.getAllLogFiles();
-      if (mounted) {
-        setState(() {
-          _logFiles = files;
-          if (files.isNotEmpty && _selectedFile == null) {
-            _selectedFile = files.first;
-            _loadLogs(isInitial: true);
-          } else {
-            _isLoading = false;
+      if (!mounted) return;
+
+      // File's == is identity-based — re-reading the directory produces
+      // fresh File instances whose paths match the existing _selectedFile
+      // but are NOT == to it. Without remapping, the Dropdown sees
+      // `value` not present in `items` and asserts. Re-bind _selectedFile
+      // to the new instance by matching path.
+      File? rebound;
+      if (_selectedFile != null) {
+        final selectedPath = _selectedFile!.path;
+        for (final f in files) {
+          if (f.path == selectedPath) {
+            rebound = f;
+            break;
           }
-        });
+        }
+      }
+
+      // First-time pick: skip 0-byte files. Today's log can be empty when
+      // the sink buffer hasn't been flushed since boot; falling back to
+      // the most recent non-empty file is much friendlier than rendering
+      // a blank screen.
+      File? defaultPick;
+      if (rebound == null && files.isNotEmpty) {
+        for (final f in files) {
+          try {
+            if (await f.length() > 0) {
+              defaultPick = f;
+              break;
+            }
+          } catch (_) {
+            // ignore file stat failure; try the next.
+          }
+        }
+        defaultPick ??= files.first;
+      }
+
+      bool shouldLoadAfter = false;
+      setState(() {
+        _logFiles = files;
+        if (rebound != null) {
+          // Same file as before, just a fresh File handle.
+          _selectedFile = rebound;
+        } else if (defaultPick != null) {
+          _selectedFile = defaultPick;
+          shouldLoadAfter = true;
+        } else {
+          // No log files at all.
+          _selectedFile = null;
+          _isLoading = false;
+        }
+      });
+
+      if (shouldLoadAfter) {
+        await _loadLogs(isInitial: true);
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
@@ -90,7 +138,10 @@ class _LogViewerPageState extends State<LogViewerPage> {
   Future<void> _loadLogs({bool isInitial = false}) async {
     if (_selectedFile == null) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
 
     try {
       final file = _selectedFile!;
@@ -100,9 +151,25 @@ class _LogViewerPageState extends State<LogViewerPage> {
         return;
       }
 
-      final content = await file.readAsLines();
+      // readAsLines() will throw on invalid UTF-8 bytes (and quietly
+      // returns [] in some edge cases). Read raw bytes and decode with
+      // allowMalformed:true so a stray bad byte doesn't blank the page.
+      // Then split on any of \r\n, \n, \r so the splitter doesn't miss
+      // platform-mixed line endings.
+      final bytes = await file.readAsBytes();
+      String decoded;
+      try {
+        decoded = utf8.decode(bytes, allowMalformed: true);
+      } catch (e) {
+        decoded = String.fromCharCodes(bytes);
+      }
+      final lines = decoded.split(RegExp(r'\r\n|\n|\r'));
+      // The trailing empty element from a file ending in \n is noise.
+      if (lines.isNotEmpty && lines.last.isEmpty) {
+        lines.removeLast();
+      }
       _logLines.clear();
-      _logLines.addAll(content);
+      _logLines.addAll(lines);
       _currentFileOffset = await file.length(); // Update offset to end of file
 
       setState(() {});
@@ -116,8 +183,9 @@ class _LogViewerPageState extends State<LogViewerPage> {
           }
         });
       }
-    } catch (e) {
-      debugPrint('Error loading logs: $e');
+    } catch (e, stack) {
+      debugPrint('Error loading logs: $e\n$stack');
+      _loadError = e.toString();
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -250,29 +318,31 @@ class _LogViewerPageState extends State<LogViewerPage> {
           Expanded(
             child: _isLoading && _logLines.isEmpty
                 ? Center(child: AgentLogoLoading())
-                : SelectionArea(
-                    child: Scrollbar(
-                      controller: _scrollController,
-                      thumbVisibility: true,
-                      radius: const Radius.circular(4),
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(8),
-                        itemCount: filteredLines.length,
-                        itemBuilder: (context, index) {
-                          final line = filteredLines[index];
-                          return Text(
-                            line,
-                            style: TextStyle(
-                              fontFamily: 'Courier',
-                              fontSize: 12,
-                              color: _getLineColor(line),
-                            ),
-                          );
-                        },
+                : filteredLines.isEmpty
+                    ? _buildEmptyPlaceholder()
+                    : SelectionArea(
+                        child: Scrollbar(
+                          controller: _scrollController,
+                          thumbVisibility: true,
+                          radius: const Radius.circular(4),
+                          child: ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.all(8),
+                            itemCount: filteredLines.length,
+                            itemBuilder: (context, index) {
+                              final line = filteredLines[index];
+                              return Text(
+                                line,
+                                style: TextStyle(
+                                  fontFamily: 'Courier',
+                                  fontSize: 12,
+                                  color: _getLineColor(line),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
           ),
         ],
       ),
@@ -307,6 +377,331 @@ class _LogViewerPageState extends State<LogViewerPage> {
               }
             },
             child: const Icon(Icons.arrow_downward),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Diagnostic placeholder when there's nothing to show — pre-fix, this
+  /// page rendered a blank screen and made it look broken. Now it tells
+  /// you whether the log directory exists, what its path is, how many
+  /// files were found, and gives you a button to write a probe line so
+  /// you can confirm the write-pipe end-to-end.
+  Widget _buildEmptyPlaceholder() {
+    final logDir = FileLoggerService.instance.getLogDirectoryPath();
+    final hasFiles = _logFiles.isNotEmpty;
+    final reason = !hasFiles
+        ? '日志目录中还没有 .log 文件'
+        : '当前选中的文件没有匹配的内容（可能是过滤器或文件刚被创建）';
+    final diag = FileLoggerService.instance.diagnosticSnapshot();
+    final selectedName = _selectedFile?.path.split('/').last;
+    final fileSizes = <File, int>{};
+    for (final f in _logFiles) {
+      try {
+        fileSizes[f] = f.lengthSync();
+      } catch (_) {
+        fileSizes[f] = -1;
+      }
+    }
+    final selectedSize =
+        _selectedFile == null ? null : fileSizes[_selectedFile];
+    final mostRecentNonEmpty = _logFiles.firstWhere(
+      (f) => (fileSizes[f] ?? 0) > 0,
+      orElse: () => _logFiles.isNotEmpty ? _logFiles.first : File(''),
+    );
+    final canJumpToNonEmpty = _logFiles.isNotEmpty &&
+        mostRecentNonEmpty.path.isNotEmpty &&
+        mostRecentNonEmpty.path != _selectedFile?.path;
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Icon(Icons.description_outlined,
+              size: 48, color: Color(0xFFB0B0B0)),
+          const SizedBox(height: 16),
+          Text(
+            reason,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, color: Color(0xFF666666)),
+          ),
+          if (_loadError != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFEBEE),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFEF9A9A)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '读取错误：',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFB00020),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _loadError!,
+                    style: const TextStyle(
+                      fontFamily: 'Courier',
+                      fontSize: 11,
+                      color: Color(0xFFB00020),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          if (logDir != null) ...[
+            const Text(
+              '日志目录：',
+              style: TextStyle(fontSize: 12, color: Color(0xFF999999)),
+            ),
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: logDir));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('已复制日志目录路径'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: const Color(0xFFE0E0E0)),
+                ),
+                child: Text(
+                  logDir,
+                  style: const TextStyle(
+                    fontFamily: 'Courier',
+                    fontSize: 11,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '点击复制路径 · 已找到 ${_logFiles.length} 个文件',
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFF999999),
+              ),
+            ),
+          ] else
+            const Text(
+              '日志目录尚未初始化（FileLoggerService.initialize 可能失败）',
+              style: TextStyle(fontSize: 12, color: Color(0xFFB00020)),
+              textAlign: TextAlign.center,
+            ),
+          if (selectedName != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8E1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFFE082)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '当前选中：$selectedName',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF5D4037),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '文件大小：${selectedSize ?? '未知'} 字节',
+                    style: const TextStyle(
+                      fontFamily: 'Courier',
+                      fontSize: 11,
+                      color: Color(0xFF5D4037),
+                    ),
+                  ),
+                  if (canJumpToNonEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '检测到 ${mostRecentNonEmpty.path.split('/').last} '
+                      '(${fileSizes[mostRecentNonEmpty]} 字节) 有内容',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF5D4037),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.arrow_forward, size: 14),
+                      label: const Text('切换到这个文件',
+                          style: TextStyle(fontSize: 12)),
+                      onPressed: () {
+                        setState(() {
+                          _selectedFile = mostRecentNonEmpty;
+                          _logLines.clear();
+                          _currentFileOffset = 0;
+                        });
+                        _loadLogs(isInitial: true);
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          // Service-level diagnostics. If you're staring at this because
+          // logs are empty, these counters tell you whether the issue is
+          // (a) initialize failed, (b) Logger.root listener never fires,
+          // or (c) the sink is failing to write.
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFAFAFA),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFFE5E5E5)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'FileLoggerService 诊断',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF666666),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _diagLine('initialize 调用过', diag['initialize_called']),
+                _diagLine('initialize 成功', diag['initialize_succeeded']),
+                if (diag['initialize_error'] != null)
+                  _diagLine('init 错误', diag['initialize_error']),
+                _diagLine('sink 已打开', diag['sink_open']),
+                _diagLine('当前 sink 日期', diag['current_sink_date']),
+                _diagLine('写入尝试次数', diag['write_attempts']),
+                _diagLine('写入成功次数', diag['write_successes']),
+                _diagLine('最后成功时间', diag['last_success_time']),
+                if (diag['last_write_error'] != null)
+                  _diagLine('最近写入错误', diag['last_write_error']),
+                const Divider(height: 16),
+                _diagLine('UI _logLines 行数', _logLines.length),
+                _diagLine('UI _isLoading', _isLoading),
+                _diagLine('UI 过滤后行数', _getFilteredLines().length),
+                _diagLine('UI _lineCount 上限', _lineCount),
+                _diagLine('UI _levelFilter', _levelFilter),
+                _diagLine('UI _searchQuery',
+                    _searchQuery.isEmpty ? '(空)' : _searchQuery),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.bolt, size: 18),
+                  label: const Text('通过 Logger 写'),
+                  onPressed: () async {
+                    Logger('LogViewerProbe').info(
+                        'Probe entry at ${DateTime.now().toIso8601String()}');
+                    await Future.delayed(const Duration(milliseconds: 800));
+                    await _loadLogFiles();
+                    if (_selectedFile != null) {
+                      await _loadLogs(isInitial: true);
+                    }
+                    if (!mounted) return;
+                    setState(() {}); // refresh diag panel
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('已通过 Logger.root 写入'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.flash_on, size: 18),
+                  label: const Text('绕过 Logger 直写'),
+                  onPressed: () async {
+                    final ok = await FileLoggerService.instance
+                        .writeDirectProbe(
+                      'DirectProbe at ${DateTime.now().toIso8601String()}',
+                    );
+                    await Future.delayed(const Duration(milliseconds: 200));
+                    await _loadLogFiles();
+                    if (_selectedFile != null) {
+                      await _loadLogs(isInitial: true);
+                    }
+                    if (!mounted) return;
+                    setState(() {}); // refresh diag panel
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            ok ? '直写成功' : '直写失败，看上面诊断'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _diagLine(String key, Object? value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              key,
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFF888888),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value?.toString() ?? '—',
+              style: TextStyle(
+                fontFamily: 'Courier',
+                fontSize: 11,
+                color: value == null
+                    ? const Color(0xFFAAAAAA)
+                    : (value == false
+                        ? const Color(0xFFB00020)
+                        : const Color(0xFF333333)),
+              ),
+            ),
           ),
         ],
       ),
@@ -410,6 +805,35 @@ class _LogViewerPageState extends State<LogViewerPage> {
                   },
                 ),
               ],
+            ),
+            const SizedBox(width: 12),
+            // Probe button — always visible (even when the log view has
+            // content), so the user can drop a marker to verify the
+            // write pipe and find their place in the stream.
+            OutlinedButton.icon(
+              icon: const Icon(Icons.bolt, size: 14),
+              label: const Text('写测试日志', style: TextStyle(fontSize: 12)),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+              ),
+              onPressed: () async {
+                Logger('LogViewerProbe').info(
+                    'Probe entry at ${DateTime.now().toIso8601String()}');
+                await Future.delayed(const Duration(milliseconds: 800));
+                await _loadLogFiles();
+                if (_selectedFile != null) {
+                  await _loadLogs(isInitial: true);
+                }
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('已写入测试日志，已刷新文件'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              },
             ),
           ],
         ),

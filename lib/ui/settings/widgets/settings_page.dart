@@ -10,10 +10,13 @@ import 'package:memex/ui/settings/widgets/toy_config_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
 import 'package:memex/ui/settings/widgets/weread_connect_page.dart';
+import 'package:memex/ui/settings/widgets/xhs_connect_page.dart';
+import 'package:memex/data/services/reading/xhs/xhs_cookie_repository.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/custom_agent_config_service.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
+import 'package:memex/ui/settings/widgets/device_app_blocker_settings_page.dart';
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
 import 'package:memex/ui/settings/widgets/early_update_settings_card.dart';
 import 'package:memex/db/app_database.dart';
@@ -857,6 +860,112 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          // 小红书 Connect (Reading Companion)
+          ValueListenableBuilder<bool>(
+            valueListenable: XhsCookieRepository.instance.isLoggedIn,
+            builder: (context, xhsConnected, _) {
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () async {
+                    if (xhsConnected) {
+                      // Offer disconnect when already connected.
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('断开小红书连接'),
+                          content: const Text('断开后 TA 将无法在后台抓取你存的小红书笔记。要继续吗？'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('取消'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('断开'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        await XhsCookieRepository.instance.clear();
+                      }
+                      return;
+                    }
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const XhsConnectPage(),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              AppColors.textSecondary.withValues(alpha: 0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.bookmark_border_rounded,
+                          color: AppColors.primary,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '小红书',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                xhsConnected
+                                    ? '已连接 · TA 可以替你打开收藏的笔记'
+                                    : '连接账号后 TA 才能打开你存的笔记',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color:
+                                      xhsConnected ? Colors.green : Colors.grey,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (xhsConnected)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 8),
+                            child: Icon(Icons.check_circle,
+                                color: Colors.green, size: 20),
+                          ),
+                        const Icon(Icons.chevron_right,
+                            color: Color(0xFFCBD5E1)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
           // WeRead Connect
           Material(
             color: Colors.transparent,
@@ -1055,6 +1164,69 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          if (Platform.isAndroid) ...[
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const DeviceAppBlockerSettingsPage(),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.textSecondary.withValues(alpha: 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.app_blocking_outlined,
+                          color: AppColors.primary, size: 22),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Device App Blocker',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Connect Tasker so companions can lock distracting apps at bedtime',
+                              style:
+                                  TextStyle(fontSize: 13, color: Colors.grey),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           // Toy control config
           Material(
             color: Colors.transparent,

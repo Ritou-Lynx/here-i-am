@@ -14,7 +14,16 @@ linter:
 
 analyzer:
   exclude:
+    - ".dart_tool/**"
+    - ".tmp-appdata/**"
     - "**/*.g.dart"
     - "**/*.freezed.dart"
+    - "btdump/**"
+    - "btdump2/**"
+    - "build/**"
+    - "intiface_apk_arm64/**"
+    - "intiface_apk_base/**"
+    - "magicmotion_apk/**"
+    - "prototypes/**"
 
 

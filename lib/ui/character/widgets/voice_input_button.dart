@@ -56,26 +56,34 @@ class VoiceInputButton extends StatelessWidget {
           );
         }
 
-        return GestureDetector(
-          onTap: enabled && !isProcessing ? onTap : null,
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              color: isRecording ? Colors.redAccent.shade400 : bgColor,
-              shape: BoxShape.circle,
-              boxShadow: isRecording
-                  ? [
-                      BoxShadow(
-                        color: Colors.redAccent.withValues(alpha: 0.6),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                  : null,
+        return Semantics(
+          button: true,
+          enabled: enabled && !isProcessing,
+          label: isRecording ? 'Stop voice input' : 'Start voice input',
+          child: GestureDetector(
+            onTap: enabled && !isProcessing ? onTap : null,
+            child: Opacity(
+              opacity: enabled ? 1 : 0.45,
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  color: isRecording ? Colors.redAccent.shade400 : bgColor,
+                  shape: BoxShape.circle,
+                  boxShadow: isRecording
+                      ? [
+                          BoxShadow(
+                            color: Colors.redAccent.withValues(alpha: 0.6),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: inner,
+              ),
             ),
-            alignment: Alignment.center,
-            child: inner,
           ),
         );
       },

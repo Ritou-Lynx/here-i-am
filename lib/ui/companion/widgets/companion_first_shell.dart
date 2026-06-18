@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:memex/data/repositories/memex_router.dart';
+import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
@@ -24,12 +27,25 @@ class CompanionFirstShell extends StatefulWidget {
 class _CompanionFirstShellState extends State<CompanionFirstShell> {
   final _logger = getLogger('CompanionFirstShell');
   String? _characterId;
+  PersonaChatOpenRequest? _pendingOpenRequest;
+  bool _startVoiceMode = false;
   bool _isLoading = true;
+  StreamSubscription<PersonaChatOpenRequest>? _openChatSub;
 
   @override
   void initState() {
     super.initState();
+    _pendingOpenRequest = PersonaChatOpenService.instance.consumePending();
+    _openChatSub = PersonaChatOpenService.instance.requests.listen(
+      _handleOpenChatRequest,
+    );
     _loadInitialCharacter();
+  }
+
+  @override
+  void dispose() {
+    _openChatSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadInitialCharacter() async {
@@ -45,9 +61,11 @@ class _CompanionFirstShellState extends State<CompanionFirstShell> {
           characters.where((character) => character.enabled).toList();
       final remembered =
           await UserStorage.getLastActiveCompanionCharacterId(userId);
+      final requested = _pendingOpenRequest;
+      _pendingOpenRequest = null;
       final characterId = resolveCompanionFirstCharacterId(
         enabledCharacterIds: enabled.map((character) => character.id),
-        rememberedCharacterId: remembered,
+        rememberedCharacterId: requested?.characterId ?? remembered,
       );
 
       if (characterId != null) {
@@ -58,11 +76,45 @@ class _CompanionFirstShellState extends State<CompanionFirstShell> {
       if (!mounted) return;
       setState(() {
         _characterId = characterId;
+        _startVoiceMode = requested?.startVoiceMode == true &&
+            requested?.characterId == characterId;
         _isLoading = false;
       });
     } catch (e, stackTrace) {
       _logger.severe('Failed to load the initial companion', e, stackTrace);
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleOpenChatRequest(PersonaChatOpenRequest request) async {
+    final characterId = request.characterId;
+    _pendingOpenRequest = request;
+    if (_isLoading) return;
+
+    final userId = await UserStorage.getUserId();
+    if (userId == null) return;
+
+    try {
+      final characters = (await MemexRouter().fetchCharacters()).valueOrThrow;
+      final enabledIds = characters
+          .where((character) => character.enabled)
+          .map((character) => character.id)
+          .toSet();
+      if (!enabledIds.contains(characterId)) return;
+
+      await UserStorage.setLastActiveCompanionCharacterId(userId, characterId);
+      if (!mounted) return;
+      _pendingOpenRequest = null;
+      setState(() {
+        _startVoiceMode = request.startVoiceMode;
+        _characterId = characterId;
+      });
+    } catch (e, stackTrace) {
+      _logger.warning(
+        'Failed to open requested companion chat',
+        e,
+        stackTrace,
+      );
     }
   }
 
@@ -86,9 +138,11 @@ class _CompanionFirstShellState extends State<CompanionFirstShell> {
     final characterId = _characterId;
     if (characterId == null) return const _NoCompanionView();
     return PersonaChatScreen(
+      key: ValueKey('companion-chat-$characterId'),
       characterId: characterId,
       embedded: true,
       enableRichCapture: true,
+      initialVoiceMode: _startVoiceMode,
       onOpenSpaces: _openLifeSpace,
     );
   }

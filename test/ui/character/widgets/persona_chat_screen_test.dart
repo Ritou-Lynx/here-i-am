@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -11,6 +12,8 @@ void main() {
     required bool isStreaming,
     required VoidCallback onSend,
     VoidCallback? onAddTap,
+    VoidCallback? onVoiceModeTap,
+    bool isVoiceModeActive = false,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -19,37 +22,104 @@ void main() {
           isStreaming: isStreaming,
           onSend: onSend,
           onAddTap: onAddTap,
+          onVoiceModeTap: onVoiceModeTap,
+          isVoiceModeActive: isVoiceModeActive,
           hintText: 'Message...',
         ),
       ),
     );
   }
 
-  testWidgets('send button is disabled until the user enters text',
+  testWidgets('empty input shows voice actions until the user enters text',
       (tester) async {
     final controller = TextEditingController();
     var sends = 0;
+    var voiceModeStarts = 0;
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(buildSubject(
       controller: controller,
       isStreaming: false,
       onSend: () => sends++,
+      onVoiceModeTap: () => voiceModeStarts++,
     ));
 
-    await tester.tap(find.bySemanticsLabel('Send message'));
+    expect(find.bySemanticsLabel('Send message'), findsNothing);
+    await tester.tap(find.bySemanticsLabel('Start voice mode'));
     await tester.pump();
     expect(sends, 0);
+    expect(voiceModeStarts, 1);
 
     await tester.enterText(find.byType(TextField), 'hello');
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.bySemanticsLabel('Send message'));
     await tester.pump();
     expect(sends, 1);
   });
 
-  testWidgets('streaming state disables text entry and sending',
+  testWidgets('active voice mode stays in the chat input bar', (tester) async {
+    final controller = TextEditingController();
+    var exits = 0;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(buildSubject(
+      controller: controller,
+      isStreaming: false,
+      isVoiceModeActive: true,
+      onSend: () {},
+      onVoiceModeTap: () => exits++,
+    ));
+
+    expect(find.bySemanticsLabel('Start voice mode'), findsNothing);
+    await tester.tap(find.bySemanticsLabel('End voice mode'));
+    await tester.pump();
+    expect(exits, 1);
+  });
+
+  testWidgets('active voice mode keeps end action visible while typing',
+      (tester) async {
+    final controller = TextEditingController(text: 'typed reply');
+    var sends = 0;
+    var exits = 0;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(buildSubject(
+      controller: controller,
+      isStreaming: false,
+      isVoiceModeActive: true,
+      onSend: () => sends++,
+      onVoiceModeTap: () => exits++,
+    ));
+
+    await tester.tap(find.bySemanticsLabel('Send message'));
+    await tester.pump();
+    expect(sends, 1);
+
+    await tester.tap(find.bySemanticsLabel('End voice mode'));
+    await tester.pump();
+    expect(exits, 1);
+  });
+
+  testWidgets('active voice mode can be ended while streaming', (tester) async {
+    final controller = TextEditingController();
+    var exits = 0;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(buildSubject(
+      controller: controller,
+      isStreaming: true,
+      isVoiceModeActive: true,
+      onSend: () {},
+      onVoiceModeTap: () => exits++,
+    ));
+
+    await tester.tap(find.bySemanticsLabel('End voice mode'));
+    await tester.pump();
+    expect(exits, 1);
+  });
+
+  testWidgets('streaming state allows sending into the pending queue',
       (tester) async {
     final controller = TextEditingController(text: 'hello');
     var sends = 0;
@@ -62,11 +132,11 @@ void main() {
     ));
 
     final textField = tester.widget<TextField>(find.byType(TextField));
-    expect(textField.enabled, isFalse);
+    expect(textField.enabled, isNot(false));
 
     await tester.tap(find.bySemanticsLabel('Send message'));
     await tester.pump();
-    expect(sends, 0);
+    expect(sends, 1);
   });
 
   testWidgets('input uses newline action instead of keyboard send',
@@ -174,10 +244,122 @@ void main() {
       0,
     );
   });
+
+  test('search snippet keeps the matched text in view', () {
+    final snippet = personaChatSearchSnippet(
+      '${List.filled(20, 'early context').join(' ')} '
+          'needle message details '
+          '${List.filled(20, 'late context').join(' ')}',
+      'needle',
+    );
+
+    expect(snippet, contains('needle'));
+    expect(snippet.length, lessThan(140));
+  });
+
+  test('first new character message picks the earliest generated item', () {
+    final base = DateTime(2026, 6, 17, 9);
+    final previous = [
+      _chatMessage(
+        id: 1,
+        content: 'user',
+        timestamp: base,
+        isFromCharacter: false,
+      ),
+    ];
+    final updated = [
+      _chatMessage(
+        id: 3,
+        content: 'spoken reply',
+        timestamp: base.add(const Duration(milliseconds: 2)),
+      ),
+      _chatMessage(
+        id: 2,
+        content: '*looks over*',
+        timestamp: base.add(const Duration(milliseconds: 1)),
+        messageType: 'action',
+      ),
+      ...previous,
+    ];
+
+    expect(
+      personaChatFirstNewCharacterMessageId(
+        previousMessages: previous,
+        updatedMessages: updated,
+      ),
+      2,
+    );
+  });
+
+  test('generated readable messages are ordered from first to last', () {
+    final base = DateTime(2026, 6, 17, 9);
+    final previous = [
+      _chatMessage(
+        id: 1,
+        content: 'user',
+        timestamp: base,
+        isFromCharacter: false,
+      ),
+    ];
+    final updated = [
+      _chatMessage(
+        id: 4,
+        content: 'third spoken',
+        timestamp: base.add(const Duration(milliseconds: 3)),
+      ),
+      _chatMessage(
+        id: 2,
+        content: '*first action*',
+        timestamp: base.add(const Duration(milliseconds: 1)),
+        messageType: 'action',
+      ),
+      _chatMessage(
+        id: 3,
+        content: 'first spoken',
+        timestamp: base.add(const Duration(milliseconds: 2)),
+      ),
+      ...previous,
+    ];
+
+    final ordered = personaChatGeneratedReadableMessagesInOrder(
+      previousMessages: previous,
+      updatedMessages: updated,
+    );
+
+    expect(ordered.map((message) => message.id), [3, 4]);
+  });
+
+  test('split character messages use first segment playback id', () {
+    final message = _chatMessage(
+      id: 7,
+      content: '*she nods* I am here.\n*she smiles* Still here.',
+      timestamp: DateTime(2026, 6, 17, 9),
+    );
+
+    expect(personaChatTtsPlaybackIdForMessage(message), '7:0');
+  });
 }
 
 Finder _findSemanticsLabel(String label) {
   return find.byWidgetPredicate(
     (widget) => widget is Semantics && widget.properties.label == label,
+  );
+}
+
+PersonaChatMessage _chatMessage({
+  required int id,
+  required String content,
+  required DateTime timestamp,
+  bool isFromCharacter = true,
+  String messageType = 'chat',
+}) {
+  return PersonaChatMessage(
+    id: id,
+    characterId: 'luna',
+    isFromCharacter: isFromCharacter,
+    content: content,
+    isRead: true,
+    timestamp: timestamp,
+    messageType: messageType,
   );
 }

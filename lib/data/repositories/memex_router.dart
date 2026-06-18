@@ -15,6 +15,10 @@ import 'package:memex/data/services/card_attachment_service.dart';
 import 'package:memex/data/services/card_detail_notifier.dart';
 import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:memex/data/services/conversation_capture_service.dart';
+import 'package:memex/data/services/reading/fetchers/xiaohongshu_fetcher.dart';
+import 'package:memex/data/services/reading/reading_capture_service.dart';
+import 'package:memex/data/services/reading/reading_fetch_coordinator.dart';
+import 'package:memex/data/services/reading/xhs/xhs_cookie_repository.dart';
 import 'package:memex/data/services/app_update_service.dart';
 import 'package:memex/data/services/user_notification_service.dart';
 import 'package:path/path.dart' as path;
@@ -100,6 +104,26 @@ class MemexRouter {
       if (AppFlavor.isHereIAm) {
         ConversationCaptureService.init(AppDatabase.instance, userId);
         final captureService = ConversationCaptureService.instance;
+        // Reading Companion: share-intent → reading_item entity pipeline.
+        // Reuses ConversationCapture's sharedLifeMemory instance so userId
+        // is already attached.
+        ReadingCaptureService.init(
+          db: AppDatabase.instance,
+          sharedLifeMemory: captureService.sharedLifeMemory,
+        );
+        // Reading Companion: platform-aware fetcher pipeline.
+        // 微信公众号 HTML fetcher is always available; the 小红书 fetcher
+        // is registered too but short-circuits with a "please connect"
+        // message when there's no live session.
+        ReadingFetchCoordinator.init(
+          db: AppDatabase.instance,
+          sharedLifeMemory: captureService.sharedLifeMemory,
+        );
+        ReadingFetchCoordinator.instance.registerFetcher(XiaohongshuFetcher());
+        // Restore the persisted "user marked connected" bit for 小红书 so
+        // a previously-confirmed session survives app restarts. (The
+        // system WebView keeps the cookie itself; this restores OUR flag.)
+        unawaited(XhsCookieRepository.instance.restoreFromPrefs());
         if (await captureService.needsHistoricalBackfillReset()) {
           await captureService.resetHistoricalBackfill();
         }

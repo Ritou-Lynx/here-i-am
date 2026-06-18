@@ -23,6 +23,7 @@ import 'package:memex/ui/app_lock/widgets/lock_screen_page.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/core/themes/app_theme.dart';
 import 'dart:io';
+import 'package:memex/data/services/reading/xhs/xhs_hidden_webview_host.dart';
 import 'package:memex/ui/main_screen/widgets/radial_menu.dart';
 import 'package:memex/domain/models/shortcut_item.dart' as app_shortcut;
 import 'package:record/record.dart';
@@ -46,10 +47,8 @@ import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/data/services/callkit_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
-import 'package:memex/data/services/voice_call_service.dart'
-    show VoiceCallDirection;
+import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
-import 'package:memex/ui/character/widgets/voice_call_screen.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:memex/data/services/companion_foreground_task.dart';
@@ -65,6 +64,7 @@ import 'package:memex/data/services/app_update_service.dart';
 import 'package:memex/data/services/backup_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:memex/routing/router.dart';
+import 'package:memex/routing/routes.dart';
 import 'package:memex/data/services/onboarding_service.dart';
 import 'package:memex/data/services/demo_service.dart';
 import 'package:memex/ui/core/widgets/demo_overlay.dart';
@@ -80,6 +80,26 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 final GlobalKey<RootShellState> rootShellKey = GlobalKey<RootShellState>();
+
+void _openPersonaChatVoiceModeFromRoot(String characterId) {
+  final context = rootNavigatorKey.currentContext;
+  if (context == null) return;
+  if (AppFlavor.isHereIAm) {
+    PersonaChatOpenService.instance.requestOpen(
+      characterId,
+      startVoiceMode: true,
+    );
+    rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+    GoRouter.of(context).go(AppRoutes.home);
+    return;
+  }
+  openPersonaChat(
+    context,
+    characterId: characterId,
+    rootNavigator: true,
+    initialVoiceMode: true,
+  );
+}
 
 void _installGlobalErrorLogging() {
   final logger = getLogger('GlobalError');
@@ -135,23 +155,47 @@ void main() async {
   // Initialize notification service for agent checkins
   await NotificationService.instance.initialize();
 
-  // Route notification taps: call notifications open VoiceCallScreen,
-  // all others open the character's chat screen.
-  NotificationService.instance.setTapHandler((String? payload) {
-    if (payload == null || payload.isEmpty) return;
+  // Route notification taps into the character's chat screen. Call payloads
+  // enter inline voice mode inside chat instead of opening a separate call UI.
+  //
+  // The tap may fire before runApp() has created the navigator (cold start
+  // from a notification). When context is unavailable, store the payload and
+  // retry after the first frame so the characterId routes correctly.
+  String? pendingNotificationPayload;
+  void handleNotificationPayload(String payload) {
     final context = rootNavigatorKey.currentContext;
-    if (context == null) return;
+    if (context == null) {
+      pendingNotificationPayload = payload;
+      return;
+    }
 
     if (payload.startsWith('call:')) {
       final characterId = payload.substring(5);
-      openVoiceCall(
-        context,
-        characterId: characterId,
-        rootNavigator: true,
-        direction: VoiceCallDirection.companionToUser,
-      );
+      _openPersonaChatVoiceModeFromRoot(characterId);
     } else {
+      unawaited(NotificationService.instance.cancelAgentNotification());
+      if (AppFlavor.isHereIAm) {
+        PersonaChatOpenService.instance.requestOpen(payload);
+        rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+        GoRouter.of(context).go(AppRoutes.home);
+        return;
+      }
       openPersonaChat(context, characterId: payload, rootNavigator: true);
+    }
+  }
+
+  NotificationService.instance.setTapHandler((String? payload) {
+    if (payload == null || payload.isEmpty) return;
+    handleNotificationPayload(payload);
+  });
+
+  // Always register a post-frame hook: the notification callback may fire
+  // before OR after runApp() creates the navigator. This catches both cases.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final payload = pendingNotificationPayload;
+    if (payload != null) {
+      pendingNotificationPayload = null;
+      handleNotificationPayload(payload);
     }
   });
 
@@ -160,25 +204,18 @@ void main() async {
   CallkitService.instance.onAccept = (String characterId) async {
     // CallKit holds the call audio session while a call is "ongoing", which
     // mutes our own TTS. Once the user accepts, immediately end the CallKit
-    // session so audio focus returns to the app, then open our in-app call UI.
+    // session so audio focus returns to the app, then open chat voice mode.
     await CallkitService.instance.endAll();
-    // Give Android ~300 ms to return audio focus before VoiceCallService
-    // starts TTS. Without this delay the first greeting is muted.
+    // Give Android ~300 ms to return audio focus before chat voice mode
+    // starts TTS. Without this delay the first spoken reply can be muted.
     await Future.delayed(const Duration(milliseconds: 300));
-    final context = rootNavigatorKey.currentContext;
-    if (context == null) return;
-    openVoiceCall(
-      context,
-      characterId: characterId,
-      rootNavigator: true,
-      direction: VoiceCallDirection.companionToUser,
-    );
+    _openPersonaChatVoiceModeFromRoot(characterId);
   };
   CallkitService.instance.onDecline = (String characterId) {
     // Record a missed/declined-call memory so the companion remembers.
     PersonaChatService.instance.addCharacterMessage(
       characterId,
-      '（📞 你拒接了一通来电）',
+      '锛堭煋?浣犳嫆鎺ヤ簡涓€閫氭潵鐢碉級',
       timestamp: DateTime.now(),
       isRead: true,
     );
@@ -405,7 +442,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _checkUser();
     _checkLockSettings();
-    // App starts in the foreground — begin the heartbeat so background checkins
+    // App starts in the foreground 鈥?begin the heartbeat so background checkins
     // stay silent while the user is actively using the app.
     _startForegroundHeartbeat();
   }
@@ -496,17 +533,10 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
         if (pending == null) return;
         // If CallKit already rang (notified flag set), the user accepted via
         // the system screen and onAccept handles the navigation. Opening a
-        // second VoiceCallScreen here would create a duplicate session with
-        // conflicting audio. Only open directly when CallKit never showed.
+        // second voice-mode request here would create conflicting audio.
+        // Only open directly when CallKit never showed.
         if (await isPendingCallAlreadyNotified()) return;
-        final context = rootNavigatorKey.currentContext;
-        if (context == null) return;
-        openVoiceCall(
-          context,
-          characterId: pending.characterId,
-          rootNavigator: true,
-          direction: VoiceCallDirection.companionToUser,
-        );
+        _openPersonaChatVoiceModeFromRoot(pending.characterId);
       } catch (_) {}
     });
   }
@@ -621,6 +651,17 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
                       },
                     )
                   : const PrivacyScreen(),
+            // Off-screen 1x1 WebView for Reading Companion's 灏忕孩涔?
+            // background fetch pipeline. Stays mounted for the lifetime of
+            // the app so the controller can navigate at any time.
+            if (AppFlavor.isHereIAm)
+              const Positioned(
+                left: 0,
+                bottom: 0,
+                width: 1,
+                height: 1,
+                child: XhsHiddenWebViewHost(),
+              ),
           ],
         );
       },
@@ -707,7 +748,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     _logger.info('initState: Starting comprehensive health check...');
     _checkAndReportHealthData().catchError((error, stackTrace) {
       _logger.severe(
-          '❌ Error in _checkAndReportHealthData: $error', error, stackTrace);
+          '鉂?Error in _checkAndReportHealthData: $error', error, stackTrace);
     });
 
     // Register stochastic checkin pulse task (WorkManager, best-effort)
@@ -1000,7 +1041,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _handleAICoreButtonTap() async {
-    // No LLM config check — users can submit records without AI configured.
+    // No LLM config check 鈥?users can submit records without AI configured.
 
     if (mounted) {
       // Prefill text during demo
@@ -1070,13 +1111,13 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     try {
       _logger.info('=== Starting comprehensive health check ===');
 
-      // Detect if previous pedometer access crashed the app — skip this launch only
+      // Detect if previous pedometer access crashed the app 鈥?skip this launch only
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool('pedometer_attempting') == true) {
         _logger.warning(
             'Pedometer crash detected from previous launch, skipping this session');
         await prefs.remove('pedometer_attempting');
-        // Set in-memory flag only — will retry on next app launch
+        // Set in-memory flag only 鈥?will retry on next app launch
         PedometerFetcher.skipThisSession = true;
       }
 
@@ -1169,18 +1210,18 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       final success = await _memexRouter.reportDailyHealthSummary(dailySummary);
 
       if (success) {
-        _logger.info('✅ Successfully reported health summary.');
+        _logger.info('鉁?Successfully reported health summary.');
         // Mark success for all types that were fetched
         for (var entry in newlyFetchedData.entries) {
           await healthService.markReportSuccess(entry.key, entry.value);
         }
       } else {
         _logger.warning(
-            '❌ Failed to report health summary to server, will retry next time');
+            '鉂?Failed to report health summary to server, will retry next time');
       }
     } catch (e, stackTrace) {
       _logger.severe(
-          '❌ Failed to check and report health data: $e', e, stackTrace);
+          '鉂?Failed to check and report health data: $e', e, stackTrace);
     }
   }
 
@@ -1484,7 +1525,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       if (mounted) setState(() => _isRadialMenuOpen = false);
       unawaited(_handleInputSubmit(InputData(text: item.content)));
     } else if (hasRecording) {
-      // Show calibrating state — keep menu open
+      // Show calibrating state 鈥?keep menu open
       if (mounted) setState(() => _isQuickCalibrating = true);
 
       await _stopRecording(cancel: false);
@@ -1528,7 +1569,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Consume a pending quick action (e.g. "记一下" from app icon long-press).
+  /// Consume a pending quick action (e.g. "璁颁竴涓? from app icon long-press).
   /// Handles cold-start (action queued before widget built) and warm-start
   /// (action arrives while app is in background).
   void _consumeQuickActionIfNeeded() {
@@ -1655,7 +1696,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         _eventBus.connect();
       }
       // Consume any quick action that arrived while in background.
-      // Use synchronous check — platform callback fires before resumed,
+      // Use synchronous check 鈥?platform callback fires before resumed,
       // so no need for the 2-sec wait (which could catch a re-delivered intent).
       final action = QuickActionService.instance.consumeIfPending();
       if (action == 'quick_note' && mounted) {
@@ -1670,7 +1711,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   Future<bool> _handleInputSubmit(InputData data) async {
-    // During demo: advance tapSend → tapCard first, so the overlay
+    // During demo: advance tapSend 鈫?tapCard first, so the overlay
     // immediately shows a blocking scrim (cardReady is still false).
     DemoService.instance.tryAdvance(DemoStep.tapSend);
 
@@ -1949,7 +1990,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                     ),
                   ),
 
-                  // Library — single widget for both icon + text so the
+                  // Library 鈥?single widget for both icon + text so the
                   // demo spotlight key covers the whole tab area.
                   Positioned(
                     top: 47.02,

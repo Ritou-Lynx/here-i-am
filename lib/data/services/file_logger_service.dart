@@ -26,18 +26,48 @@ class FileLoggerService {
   final _lock = Lock();
   DateTime _lastFlushTime = DateTime.now();
 
+  // ------- diagnostic counters (LogViewer reads these) -------
+  bool _initializeCalled = false;
+  bool _initializeSucceeded = false;
+  String? _initializeError;
+  int _writeAttempts = 0;
+  int _writeSuccesses = 0;
+  String? _lastWriteError;
+  DateTime? _lastWriteErrorTime;
+  DateTime? _lastSuccessTime;
+
+  /// Snapshot of the service's recent activity. LogViewer surfaces this
+  /// when the user can't see any log content — turns "the logs are empty,
+  /// dunno why" into actionable info.
+  Map<String, dynamic> diagnosticSnapshot() => {
+        'initialize_called': _initializeCalled,
+        'initialize_succeeded': _initializeSucceeded,
+        'initialize_error': _initializeError,
+        'log_directory': _logDirectory?.path,
+        'sink_open': _sink != null,
+        'current_sink_date': _currentSinkDate,
+        'write_attempts': _writeAttempts,
+        'write_successes': _writeSuccesses,
+        'last_success_time': _lastSuccessTime?.toIso8601String(),
+        'last_write_error': _lastWriteError,
+        'last_write_error_time': _lastWriteErrorTime?.toIso8601String(),
+      };
+
   /// Initialize logging
   Future<void> initialize() async {
+    _initializeCalled = true;
     try {
       final appDocDir = await getApplicationDocumentsDirectory();
       _logDirectory = Directory('${appDocDir.path}/$_logDirName');
       if (!await _logDirectory!.exists()) {
         await _logDirectory!.create(recursive: true);
       }
+      _initializeSucceeded = true;
       // clean old logs on startup
       _cleanOldLogs();
     } catch (e) {
       // if init fails, use debugPrint as fallback
+      _initializeError = e.toString();
       debugPrint('Failed to initialize FileLoggerService: $e');
     }
   }
@@ -89,7 +119,12 @@ class FileLoggerService {
 
   /// Write log to file
   Future<void> writeLog(LogRecord record) async {
-    if (_logDirectory == null) return;
+    _writeAttempts++;
+    if (_logDirectory == null) {
+      _lastWriteError = 'log directory not initialized';
+      _lastWriteErrorTime = DateTime.now();
+      return;
+    }
 
     // 1. Prepare content (no lock needed)
     final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(record.time);
@@ -116,8 +151,12 @@ class FileLoggerService {
           await _sink?.flush();
           _lastFlushTime = now;
         }
+        _writeSuccesses++;
+        _lastSuccessTime = now;
       } catch (e) {
         // Handle "Bad state: StreamSink is bound to a stream" or "closed"
+        _lastWriteError = e.toString();
+        _lastWriteErrorTime = DateTime.now();
         debugPrint('Failed to write log to file: $e');
 
         // Attempt recovery: Close and force null so next write tries to re-open
@@ -127,6 +166,25 @@ class FileLoggerService {
         } catch (_) {}
       }
     });
+  }
+
+  /// Direct write that bypasses the Logger.root listener pipe — used by
+  /// LogViewer's diagnostic button to verify that the file-write side of
+  /// the system is healthy independently of whether Logger.root.onRecord
+  /// has any listeners attached.
+  Future<bool> writeDirectProbe(String message) async {
+    final record = LogRecord(
+      Level.INFO,
+      message,
+      'DirectProbe',
+    );
+    await writeLog(record);
+    await _lock.synchronized(() async {
+      await _sink?.flush();
+    });
+    return _lastSuccessTime != null &&
+        _lastSuccessTime!
+            .isAfter(DateTime.now().subtract(const Duration(seconds: 5)));
   }
 
   /// Remove log files older than retention days

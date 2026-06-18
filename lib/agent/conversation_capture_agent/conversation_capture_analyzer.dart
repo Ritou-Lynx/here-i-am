@@ -49,7 +49,7 @@ class ConversationCaptureAnalyzer {
       ],
       modelConfig: ModelConfig(
         model: modelConfig.model,
-        maxTokens: 1800,
+        maxTokens: 3000,
         extra: modelConfig.extra,
       ),
     );

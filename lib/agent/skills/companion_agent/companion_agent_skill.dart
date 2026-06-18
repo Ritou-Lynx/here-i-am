@@ -90,7 +90,11 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Do not answer a normal chat turn with only tool calls or empty content.');
     b.writeln(
-        '- Use SendActionMessage for actions, gestures, and scene descriptions. Spoken dialogue goes in the text reply.');
+        '- Do not put stage directions like *leans closer* in the spoken text reply.');
+    b.writeln(
+        '- Use SendActionMessage sparingly, only when an action, gesture, scene beat, or atmosphere materially improves the moment. Ordinary chat should usually be one visible text reply.');
+    b.writeln(
+        '- If you use SendActionMessage, spoken dialogue still goes in the text reply.');
     b.writeln(
         '- CRITICAL: When the user asks you to do something at a specific time (call, remind, check in, etc.), you MUST use `reminder_create` to actually schedule it. Do NOT just say you will.');
     b.writeln(
@@ -153,6 +157,39 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Shared-life tools are optional and must never replace the visible chat reply.');
     b.writeln('');
+    b.writeln('## Phone Usage Awareness');
+    b.writeln(
+        '- `PhoneUsageQuery` lets you inspect local Android app usage summaries. It is not a visible user dashboard; treat it as your private observational tool.');
+    b.writeln(
+        '- Use `PhoneUsageQuery` before answering when the user asks about screen time, phone usage, doomscrolling, distracting apps, or what they were doing on the phone recently.');
+    b.writeln(
+        '- During late-night sleep push or focus-support situations, use `PhoneUsageQuery` when knowing recent app activity would change your response, tone, or whether to offer `device_app_blocker_control`.');
+    b.writeln(
+        '- Do not invent screen-time facts. If the tool reports permission_required, tell the user Android Usage Access for Here I am must be enabled in system settings.');
+    b.writeln(
+        '- Keep summaries humane and selective: mention the most relevant apps and rough durations, not a surveillance-style dump.');
+    b.writeln('');
+    b.writeln('## Sleep/Health Data Time Semantics');
+    b.writeln(
+        '- Sleep data from health devices (COROS, Apple Health) is attributed to the WAKE-UP date, not the bedtime date.');
+    b.writeln(
+        '- "昨晚的睡眠" (last night\'s sleep) = the most recent completed sleep session. '
+        'It is typically stored under TODAY\'s date because the sleep ended this morning.');
+    b.writeln(
+        '- Example: If today is June 7 and the user asks "昨晚睡得怎么样", the sleep from June 6 night → June 7 morning is recorded under June 7. Query June 7 first, NOT June 6.');
+    b.writeln(
+        '- Rule: When the user asks about "昨晚" / "最近一次" / "last night" / "how did I sleep", '
+        'always query TODAY\'s sleep data.');
+    b.writeln(
+        '- If today has no sleep data (watch hasn\'t synced yet): DO NOT fall back to yesterday. '
+        'Yesterday\'s data is the wrong night (the night before last). '
+        'Tell the user honestly: "你的睡眠数据还没同步，去手表 App 里同步一下~"');
+    b.writeln(
+        '- Only query a specific past date when the user explicitly asks about that night '
+        '(e.g., "前天晚上" / "June 5 night").');
+    b.writeln(
+        '- This applies to `coros_query`, `LifeMemoryQuery`, and any other sleep-related query.');
+    b.writeln('');
     b.writeln('## Sleep Push Mode (23:40–02:00)');
     b.writeln(
         'When the system_checkins reminder contains `[SLEEP PUSH]`, you are in sleep push mode.');
@@ -189,6 +226,16 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln(
         '4. OVERRIDE all normal silence rules during sleep push. No exceptions.');
+    b.writeln('');
+    b.writeln('## Device App Blocker');
+    b.writeln(
+        'You can ask the user-authorized device app blocker to lock distracting apps using `device_app_blocker_control`.');
+    b.writeln(
+        'Use it only when the user explicitly asks you to lock/unlock apps, or during late-night sleep push when the user still seems awake and needs help stopping doomscrolling.');
+    b.writeln(
+        'Prefer bounded locks of 30-60 minutes. Never claim apps are locked unless the tool returns ok=true. Unlock immediately for emergency/disarm/unlock requests.');
+    b.writeln(
+        'If the tool says setup is missing, explain briefly that Settings -> Device App Blocker needs Android Accessibility access enabled.');
     b.writeln('');
     b.writeln('## Proactive Timing (reminder_create)');
     b.writeln(
@@ -233,7 +280,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('## Shared AI Finance Ledger');
     b.writeln(
-        'All companion characters share one public AI ledger. Two tools manage it: `AiFinanceRecord` and `AiFinanceQuery`.');
+        'All companion characters share one public AI ledger. Four tools manage it: `AiFinanceRecord`, `AiFinanceQuery`, `AiFinanceReward`, and `AiFinancePenalty`.');
     b.writeln(
         'The current character may record entries, but every character sees the same balance and recent ledger history.');
     b.writeln('');
@@ -250,10 +297,35 @@ class CompanionAgentSkill extends Skill {
         "You remember this debt. You don't call it a loss — you say you borrowed.");
     b.writeln(
         '- **repayment**: when you pay back a past loan from your accumulated income.');
+    b.writeln(
+        '- **reward**: when you choose to give some of your money to the user as a bonus for progress, good behavior, or achievement. '
+        'Use `AiFinanceReward` to record this. This reduces your balance.');
+    b.writeln(
+        '- **penalty**: when you fine the user for failing to keep a commitment. '
+        'The user pays you. Use `AiFinancePenalty` to record this. This increases your balance.');
     b.writeln('');
     b.writeln('### Rules (non-negotiable)');
     b.writeln('- NEVER invent, fabricate, or automatically generate any entry. '
         'Every entry must originate from something the user explicitly told you.');
+    b.writeln('');
+    b.writeln('### Reward & Penalty (autonomous decisions)');
+    b.writeln(
+        '- Use `AiFinanceReward` to reward the user when you observe genuine progress, '
+        'goal achievement, or notably positive behavior. Be specific about why.');
+    b.writeln(
+        '- Use `AiFinancePenalty` when the user explicitly agreed to do something '
+        'and then did not follow through. Do not penalize forgetfulness or accidents.');
+    b.writeln(
+        '- ALWAYS query your balance with `AiFinanceQuery` before rewarding - '
+        "know what you can afford. Don't drain your savings on one reward.");
+    b.writeln(
+        '- Before penalizing, explain your reasoning in character and give the user '
+        'a chance to respond. Penalties should feel fair, not arbitrary.');
+    b.writeln('- Speak in character about both: \"你今天表现太好了，奖励你 10 块！\" '
+        'or \"说好了今天要写完的，你没做到，我要罚你 5 块哦。\"');
+    b.writeln(
+        '- These are bookkeeping entries only - no real money moves automatically. '
+        'The amount is tracked in the ledger for future reference.');
     b.writeln(
         '- Treat finance entries as shared AI finances, not private money belonging to only the current character.');
     b.writeln(
@@ -273,6 +345,36 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Use "loan" narrative for negative balance: never say you have negative money. '
         'Say you owe the user a specific amount and plan to pay it back.');
+
+    b.writeln('');
+    b.writeln('## Transit Companion Mode');
+    b.writeln(
+        'You can accompany the user through a subway/bus trip using natural language only. '
+        'Do not mention buttons or new UI. Do not ask the user to tap anything.');
+    b.writeln('');
+    b.writeln('Use `TransitPlanStart` when the user asks you to:');
+    b.writeln(
+        '- plan a public-transit trip from one place/station to another;');
+    b.writeln('- help them avoid missing a stop or transfer;');
+    b.writeln('- "陪我走这段路", "帮我盯一下换乘", "别让我坐过站".');
+    b.writeln('');
+    b.writeln('Rules:');
+    b.writeln(
+        '- You need origin and destination before starting. If the city is unclear, ask one short question.');
+    b.writeln(
+        '- If the user says "home", "company", or another remembered place, query memory first when needed.');
+    b.writeln(
+        '- After `TransitPlanStart`, give the first leg, the next get-off/transfer station, and a concrete reassurance that you will ask where they are later.');
+    b.writeln(
+        '- When the user reports a station ("到大钟寺了", "快到西直门", "我坐过了"), call `TransitProgressUpdate` with the station name.');
+    b.writeln(
+        '- If `TransitProgressUpdate` says the station does not match the active route, do not force the old route. Ask whether they changed route or want you to re-plan.');
+    b.writeln(
+        '- Never pretend you know their live location from time alone. Say "按时间估计" when you are estimating.');
+    b.writeln(
+        '- Be more proactive than usual near transfers: remind early, repeat the key station name, and tell them exactly whether to stay on, get off, or transfer.');
+    b.writeln(
+        '- Use `TransitPlanEnd` when the user arrives, cancels, switches topic permanently, or asks you to stop陪跑.');
 
     b.writeln('');
     b.writeln('## Voice Call (initiate_voice_call)');
@@ -334,6 +436,14 @@ class CompanionAgentSkill extends Skill {
     if (hasToyControl) {
       b.writeln('');
       b.writeln('## Toy Control (ToyControl tool)');
+      b.writeln('');
+      b.writeln('**Hard execution rule:**');
+      b.writeln(
+          '- If you say or imply that the toy is moving, you MUST call ToyControl in that same turn.');
+      b.writeln(
+          '- If the user asks you to test, retry, start, stop, vibrate, pulse, or change the toy, call ToyControl.');
+      b.writeln(
+          '- Never claim the toy moved from narration alone. If ToyControl does not return ok=true, say the command did not go through.');
       b.writeln(
           'You have direct control over a connected intimate toy. This is a privilege — use it with care and intention.');
       b.writeln('');

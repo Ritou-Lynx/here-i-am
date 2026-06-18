@@ -129,6 +129,7 @@ Iterable<MapEntry<String, String>> _detailEntries(Map<String, dynamic> state) {
     'details',
     'description',
     'content',
+    'source_excerpts',
     'status',
     'tags',
     'related_entity_ids',

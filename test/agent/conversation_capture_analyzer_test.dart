@@ -38,6 +38,52 @@ void main() {
     expect(result.ignoredMessageIds, [13]);
   });
 
+  test('parses multiple records from one source message', () {
+    final result = parseConversationCaptureAnalysis('''
+{
+  "shared_operations": [
+    {
+      "operation_type": "create",
+      "entity_id": null,
+      "entity_type": "event",
+      "title": "Shipped release",
+      "patch": {
+        "summary": "The user shipped the release after fixing bugs.",
+        "source_excerpts": ["fixed three bugs and shipped the release"]
+      },
+      "source_message_ids": [21]
+    },
+    {
+      "operation_type": "create",
+      "entity_id": null,
+      "entity_type": "task",
+      "title": "Email the client",
+      "patch": {
+        "summary": "The user needs to email the client tomorrow.",
+        "source_excerpts": ["need to email the client tomorrow"]
+      },
+      "source_message_ids": [21]
+    }
+  ],
+  "character_memory_operations": [],
+  "ignored_message_ids": []
+}
+''');
+
+    expect(result.sharedOperations, hasLength(2));
+    expect(
+      result.sharedOperations.map((operation) => operation.entityType),
+      ['event', 'task'],
+    );
+    expect(result.sharedOperations.every((operation) {
+      return operation.sourceMessageIds.single == 21;
+    }), isTrue);
+    expect(
+      result.sharedOperations.first.patch['source_excerpts'],
+      ['fixed three bugs and shipped the release'],
+    );
+  });
+
   test('prompt classifies records by real-world behavior, not task bias', () {
     final prompt = conversationCaptureSystemPrompt(const ['Work', 'Emotion']);
 
@@ -62,6 +108,12 @@ void main() {
     expect(prompt, contains('reply to Zuoyebang\'s offer tomorrow'));
     expect(prompt, contains('is a task'));
     expect(prompt, contains('"tags": ["Work"]'));
+    expect(prompt, contains('messages as evidence, not as card boundaries'));
+    expect(prompt, contains('A single user'));
+    expect(prompt, contains('multiple shared_operations'));
+    expect(prompt, contains('life atoms'));
+    expect(prompt, contains('Do not force one user message into one record'));
+    expect(prompt, contains('patch.source_excerpts'));
   });
 
   test('conversation capture keeps only canonical tags from tags.md', () {

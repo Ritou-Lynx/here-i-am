@@ -249,11 +249,13 @@ class AiFinanceLedger extends Table {
   /// The character that recorded or witnessed this shared ledger entry.
   TextColumn get characterId => text()();
 
-  /// Entry type: 'income' | 'cost' | 'loan' | 'repayment'
+  /// Entry type: 'income' | 'cost' | 'loan' | 'repayment' | 'reward' | 'penalty'
   /// - income: AI earned a share of a real income event
   /// - cost: an expense tagged as AI-related (e.g. Claude subscription)
   /// - loan: AI's costs exceeded its balance; user covered the gap
   /// - repayment: AI repaid a previous loan from its balance
+  /// - reward: AI rewards the user out of its own balance (AI expense)
+  /// - penalty: AI penalizes the user; user pays AI (AI income)
   TextColumn get entryType => text()();
 
   /// Full amount of the original event (e.g. total income before split).

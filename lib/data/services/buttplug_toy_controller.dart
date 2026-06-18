@@ -334,6 +334,8 @@ class ButtplugToyController implements ToyController {
     _sendFire({
       'StopAllDevices': {'Id': _id()}
     });
+    _connected = false;
+    _deviceIndex = null;
     _sub?.cancel();
     _ws?.sink.close();
   }

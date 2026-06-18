@@ -4,11 +4,16 @@ import 'package:memex/agent/built_in_tools/ai_shopping_tools.dart';
 import 'package:memex/agent/built_in_tools/checkin_tool.dart';
 import 'package:memex/agent/built_in_tools/coros_mcp_tool.dart';
 import 'package:memex/agent/built_in_tools/delegate_task_tool.dart';
+import 'package:memex/agent/built_in_tools/device_app_blocker_tool.dart';
 import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
+import 'package:memex/agent/built_in_tools/phone_usage_tool.dart';
+import 'package:memex/agent/built_in_tools/reading_content_tool.dart';
 import 'package:memex/agent/built_in_tools/shared_life_memory_tools.dart';
 import 'package:memex/agent/built_in_tools/toy_control_tool.dart';
+import 'package:memex/agent/built_in_tools/transit_companion_tools.dart';
 import 'package:memex/agent/built_in_tools/user_knowledge_query_tool.dart';
+import 'package:memex/agent/built_in_tools/web_search_tool.dart';
 import 'package:memex/agent/built_in_tools/weread_tool.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
 import 'package:memex/agent/skills/comment_agent/tools/comment_tools.dart';
@@ -16,6 +21,7 @@ import 'package:memex/agent/skills/comment_agent/tools/memory_tools.dart';
 import 'package:memex/agent/skills/companion_agent/tools/action_message_tools.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
 import 'package:memex/data/services/conversation_capture_service.dart';
+import 'package:memex/data/services/reading/reading_fetch_coordinator.dart';
 import 'package:memex/data/services/remote_task_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
@@ -63,8 +69,14 @@ class CharacterToolsFactory {
           characterId: characterId, service: financeService),
       buildAiFinanceQueryTool(
           characterId: characterId, service: financeService),
+      buildAiFinanceRewardTool(
+          characterId: characterId, service: financeService),
+      buildAiFinancePenaltyTool(
+          characterId: characterId, service: financeService),
       buildCorosMcpTool(),
       buildWereadTool(userId: userId),
+      buildPhoneUsageQueryTool(),
+      buildWebSearchTool(),
       // Autonomous shopping tools (budget gate enforced in service, not just prompt)
       buildShoppingBudgetTool(characterId: characterId),
       buildShoppingSearchTool(),
@@ -79,6 +91,8 @@ class CharacterToolsFactory {
         characterId: characterId,
         remoteTaskService: remoteTaskService,
       ),
+      buildDeviceAppBlockerTool(),
+      ...buildTransitCompanionTools(characterId: characterId),
     ];
     if (toyControlService != null) {
       tools.add(buildToyControlTool(service: toyControlService));
@@ -92,6 +106,13 @@ class CharacterToolsFactory {
           sourceMessageId: currentUserMessageId,
         ),
       );
+      if (ReadingFetchCoordinator.isInitialized) {
+        tools.add(buildLoadReadingContentTool(
+          sharedLifeMemory:
+              ConversationCaptureService.instance.sharedLifeMemory,
+          fetchCoordinator: ReadingFetchCoordinator.instance,
+        ));
+      }
     }
     if (includeCheckinTools) {
       tools.add(buildSystemCheckinTool(

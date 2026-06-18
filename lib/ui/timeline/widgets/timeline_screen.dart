@@ -32,7 +32,8 @@ import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/character/widgets/persona_avatar_button.dart';
 import 'package:memex/ui/schedule/widgets/schedule_aggregator_screen.dart';
 import 'package:memex/data/services/custom_agent_config_service.dart';
-import 'package:memex/domain/models/custom_agent_config.dart' show CustomAgentConfig;
+import 'package:memex/domain/models/custom_agent_config.dart'
+    show CustomAgentConfig;
 
 /// Timeline screen - main memory view. Receives [viewModel] and [insightViewModel] from parent (Compass-style).
 class TimelineScreen extends StatefulWidget {
@@ -1412,7 +1413,7 @@ class _TimelineEntryItemState extends State<_TimelineEntryItem> {
       padding: const EdgeInsets.only(bottom: 20),
       child: GestureDetector(
         onTap: onTap,
-        onLongPress: canToggleClassic ? _toggleClassicMode : null,
+        onSecondaryTap: canToggleClassic ? _toggleClassicMode : null,
         behavior: HitTestBehavior.opaque,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

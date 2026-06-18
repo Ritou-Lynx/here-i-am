@@ -297,6 +297,36 @@ class SharedLifeMemoryService {
     return false;
   }
 
+  /// Fully delete an entity by undoing every one of its still-active
+  /// operations. After all operations are reverted, `_rebuildEntity` will
+  /// find no active create op and drop the entity row.
+  ///
+  /// This is the semantics most users mean by "delete this record" — the
+  /// existing `undoLatestEntityOperation` only rolls back the most recent
+  /// op, which for a fetched reading_item means undoing the fetch result
+  /// rather than the record itself.
+  ///
+  /// Returns true if any operations were undone, false if the entity was
+  /// already empty / had no active operations.
+  Future<bool> fullyDeleteEntity({
+    required String entityId,
+    required String sourceCharacterId,
+    required int sourceMessageId,
+  }) async {
+    final activeRows = await _activeRowsForEntity(entityId);
+    if (activeRows.isEmpty) return false;
+    // Undo from newest to oldest so the projection stays consistent if
+    // anyone reads mid-transaction (currently no one does, but it's the
+    // safe default).
+    final idsNewestFirst = activeRows.reversed.map((r) => r.id).toList();
+    await undoOperations(
+      idsNewestFirst,
+      sourceCharacterId: sourceCharacterId,
+      sourceMessageIds: [sourceMessageId],
+    );
+    return true;
+  }
+
   Future<void> undoOperations(
     List<String> operationIds, {
     String? sourceCharacterId,
@@ -520,6 +550,9 @@ const _supportedEntityTypes = {
   'plan',
   'schedule',
   'fact',
+  // Reading Companion: articles the user saved from share intent
+  // (小红书 / 微信公众号 / web). Captured via ReadingCaptureService.
+  'reading_item',
 };
 
 Set<String> _searchTerms(String text) {

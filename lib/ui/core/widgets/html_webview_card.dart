@@ -449,6 +449,8 @@ class _HtmlWebViewCardState extends State<HtmlWebViewCard> {
         }
         * {
           pointer-events: ${widget.onContentTap != null ? 'auto' : 'none !important'};
+          -webkit-user-select: text !important;
+          user-select: text !important;
           -webkit-box-sizing: border-box;
           -moz-box-sizing: border-box;
           box-sizing: border-box;

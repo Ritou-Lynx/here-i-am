@@ -51,6 +51,9 @@ dependencies:
   # WebView (for future HTML card rendering)
   webview_flutter: ^4.4.4
 
+  # HTML parsing (Reading Companion fetch pipeline)
+  html: ^0.15.4
+
   # Utils
   intl: ^0.20.2
   uuid: ^4.3.3

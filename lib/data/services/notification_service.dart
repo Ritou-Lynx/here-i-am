@@ -19,6 +19,8 @@ class NotificationService {
   // Channels are immutable after creation, so we rev the ID to force recreate.
   static const String channelAgentCheckin = 'agent_checkin_v2';
   static const String channelCompanionCall = 'companion_call_v1';
+  static const int agentCheckinNotificationId = 0;
+  static const int companionCallNotificationId = 1;
 
   bool _initialized = false;
   NotificationTapCallback? _onTap;
@@ -80,7 +82,7 @@ class NotificationService {
     required String title,
     required String body,
     String? payload,
-    int id = 0,
+    int id = agentCheckinNotificationId,
   }) async {
     if (!_initialized) {
       _logger.warning('NotificationService not initialized');
@@ -111,6 +113,7 @@ class NotificationService {
           playSound: true,
           fullScreenIntent: false, // popup, but not lock-screen takeover
           category: AndroidNotificationCategory.message,
+          autoCancel: true,
           styleInformation: BigTextStyleInformation(body),
         ),
       ),
@@ -125,7 +128,7 @@ class NotificationService {
     required String title,
     required String body,
     required String payload,
-    int id = 1,
+    int id = companionCallNotificationId,
   }) async {
     if (!_initialized) {
       _logger.warning('NotificationService not initialized');
@@ -167,6 +170,14 @@ class NotificationService {
     }
     await _plugin.cancel(id);
     _logger.info('Scheduled notification cancelled (id=$id)');
+  }
+
+  Future<void> cancelAgentNotification() async {
+    if (!_initialized) {
+      await initialize();
+    }
+    await _plugin.cancel(agentCheckinNotificationId);
+    _logger.info('Agent notification cancelled');
   }
 
   /// Ask for Android 13+ notification permission from a foreground screen.

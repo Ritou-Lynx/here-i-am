@@ -43,4 +43,22 @@ class ActivePersonaChatService {
     );
     return !age.isNegative && age <= _freshWindow;
   }
+
+  /// Returns the most-recently active character ID if it is still inside the
+  /// freshness window, or null otherwise. Used by features (e.g. Reading
+  /// Capture from share intent) that need to route content to "whichever
+  /// companion the user was just talking to".
+  Future<String?> getActiveCharacterId() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final id = prefs.getString(_keyCharacterId);
+    if (id == null || id.isEmpty) return null;
+    final updatedAtMs = prefs.getInt(_keyUpdatedAtMs);
+    if (updatedAtMs == null) return null;
+    final age = DateTime.now().difference(
+      DateTime.fromMillisecondsSinceEpoch(updatedAtMs),
+    );
+    if (age.isNegative || age > _freshWindow) return null;
+    return id;
+  }
 }

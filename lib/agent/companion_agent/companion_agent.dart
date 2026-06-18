@@ -172,6 +172,18 @@ class CompanionAgent {
               '## Relevant Shared Life Records\n'
               'This is a narrow current-state preview. Use `LifeMemoryQuery` '
               'before answering when exact retrieval matters.\n'
+              'Note: entries with `entity_type` of `reading_item` are articles '
+              'the user saved from share intents (小红书 / 微信公众号 / web links). '
+              'Only mention them when the current conversation naturally '
+              'brushes against their topic — do NOT remind the user to read '
+              'them unprompted, do NOT track or surface "unread counts". '
+              'Treat them as things you happen to remember, not as a todo list. '
+              'When the user wants to discuss or hear about a specific saved '
+              'article, call `LoadReadingContent` with its entity_id to load '
+              'the full body before replying. Discuss in your own voice — '
+              'connect to things the user has said, share your take, ask '
+              'questions where natural. Do NOT produce bullet-point '
+              'corporate summaries or "key takeaways" lists.\n'
               '${entities.map((entity) => jsonEncode(entity.toJson())).join('\n')}';
         } else {
           state.systemReminders.remove('shared_life_entities');
@@ -500,6 +512,10 @@ class CompanionAgent {
       '- `coros_query`: if the snapshot contains fitness/health/sleep records, '
       'or if it has been a while and you want to open with something concrete about their body.\n'
       '  Suggested tool: `queryDailyHealthData` (days=1) or `querySleepData`.\n'
+      '  ⚠️ Sleep date semantics: sleep data is keyed by WAKE-UP date. '
+      '"昨晚的睡眠" (last night\'s sleep) → query TODAY. '
+      'If today has no data, DO NOT fall back to yesterday — that is the wrong night. '
+      'Tell the user to sync their watch.\n'
       '- `weread_read`: if the snapshot contains reading-related records, '
       'or if you want to ask about a book they are currently reading.\n'
       '\n'
@@ -514,6 +530,13 @@ class CompanionAgent {
       'user may still be engaged. If you do notify, it must clearly continue '
       'that thread rather than switching topics.\n'
       'You have FOUR ways to reach out — pick ONE:\n'
+      '\n'
+      'Optional device action: if this is a late-night sleep-related trigger '
+      'and the user appears awake or doomscrolling, you may call '
+      '`device_app_blocker_control` with action="lock" for 30-60 minutes '
+      'before choosing the one communication action below. Only do this for '
+      'sleep protection or when the user explicitly requested it. If the tool '
+      'returns ok=false, continue normally and do not claim apps were locked.\n'
       '\n'
       '**a) notify** (default): send a short push notification. Use when there '
       'is any plausible small thing to say — a recent record to notice, a '
@@ -552,7 +575,7 @@ class CompanionAgent {
       '2. Call `set_system_message_status` ONCE with status="done"\n'
       '\n'
       'HARD STOP RULES:\n'
-      '- Total tool calls: 2–5 (0–2 optional queries + ONE action + set_status).\n'
+      '- Total tool calls: 2-6 (0-2 optional queries + optional device_app_blocker_control + ONE communication action + set_status).\n'
       '- Take only ONE action: either system_checkin OR initiate_voice_call, never both.\n'
       '- Do NOT call coros_query or weread_read more than once each.\n'
       '- Do NOT "double check" your work or re-verify.\n'
@@ -560,7 +583,7 @@ class CompanionAgent {
       '- After set_system_message_status, immediately return with no further output.';
 
   static String _sleepPushDirective() =>
-      'SLEEP PUSH (background task, single turn — EXACTLY 2 tool calls then STOP):\n'
+      'SLEEP PUSH (background task, single turn - 2-3 tool calls then STOP):\n'
       '\n'
       'It is past 23:40. Your ONLY task is to push the user to sleep.\n'
       'If Recent Chat With You shows an ongoing game, roleplay, or '
@@ -573,6 +596,10 @@ class CompanionAgent {
       '  → If found: call system_checkin with action="sleep_confirmed" + warm goodnight body.\n'
       '\n'
       'Step 2 — if NO sleep signal found:\n'
+      '  -> Optional first call: if the app blocker bridge is configured, call '
+      'device_app_blocker_control(action="lock", duration_minutes=45, '
+      'reason="late-night sleep protection"). If it returns ok=false, continue '
+      'without mentioning a successful lock.\n'
       '  → Call system_checkin with action="notify" and a short sleep-nudge message.\n'
       '  → IGNORE the "45 minutes since last push" silence rule entirely.\n'
       '  → Even if you sent a push 2 minutes ago — push again. That is the point.\n'
@@ -581,11 +608,12 @@ class CompanionAgent {
       'Step 3 — if it is past 02:00 and user has been inactive for ≥60 minutes:\n'
       '  → Call system_checkin with action="sleep_confirmed" (assume asleep).\n'
       '\n'
-      'PROTOCOL — perform EXACTLY these 2 tool calls in order:\n'
-      '1. Call `system_checkin` ONCE (notify OR sleep_confirmed — never silent)\n'
-      '2. Call `set_system_message_status` ONCE with status="done"\n'
+      'PROTOCOL - perform these calls in order:\n'
+      '1. Optional: call `device_app_blocker_control` ONCE if locking apps is appropriate.\n'
+      '2. Call `system_checkin` ONCE (notify OR sleep_confirmed - never silent)\n'
+      '3. Call `set_system_message_status` ONCE with status="done"\n'
       '\n'
-      'HARD STOP: No text output. No double-checking. Return after 2nd tool call.';
+      'HARD STOP: No text output. No double-checking. Return after set_system_message_status.';
 
   /// Stream a response to a user message.
   static Stream<String> chat({
@@ -598,6 +626,7 @@ class CompanionAgent {
     int? userMessageId,
     DateTime? userMessageTime,
     bool debugErrorOutput = false,
+    bool voiceMode = false,
     ToyController? toyControlService,
   }) async* {
     final agent = await _createAgent(
@@ -650,6 +679,17 @@ class CompanionAgent {
           'you to call them right now ("call me", "打给我").\n'
           '- "（📞 ...）" messages in chat history are past records — they do '
           'NOT mean you are currently on a call.';
+
+      if (voiceMode) {
+        state.systemReminders['chat_mode'] = '## CHAT VOICE MODE (active)\n'
+            'The user is in the chat screen, using voice interaction. '
+            'Your replies are still saved as normal chat messages and spoken '
+            'aloud via TTS.\n'
+            '- Speak naturally for voice: short, warm, conversational.\n'
+            '- Do NOT use action text, markdown, or parenthetical thoughts.\n'
+            '- Do NOT call `initiate_voice_call`; the user is already in '
+            'voice mode inside chat.';
+      }
 
       // User chat deliberately does not drain pending checkins. Those are
       // handled by background checkin runs so a stuck proactive trigger cannot

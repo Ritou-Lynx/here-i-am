@@ -46,13 +46,25 @@ class VoiceInputController extends ChangeNotifier {
   Future<String?> toggle() async {
     switch (_state) {
       case VoiceInputState.idle:
-        await _start();
+        await start();
         return null;
       case VoiceInputState.recording:
-        return _stopAndRecognize();
+        return stopAndRecognize();
       case VoiceInputState.processing:
         return null;
     }
+  }
+
+  /// Start recording if the controller is idle.
+  Future<void> start() async {
+    if (_state != VoiceInputState.idle) return;
+    await _start();
+  }
+
+  /// Stop the current recording and run ASR.
+  Future<String?> stopAndRecognize() async {
+    if (_state != VoiceInputState.recording) return null;
+    return _stopAndRecognize();
   }
 
   /// Cancel an in-progress recording without sending it to ASR.
@@ -139,7 +151,8 @@ class VoiceInputController extends ChangeNotifier {
     final file = File(path);
     if (!file.existsSync() || file.lengthSync() < 1024) {
       // <1KB = essentially silence / aborted recording
-      _logger.warning('Recording too short (${file.existsSync() ? file.lengthSync() : 0} bytes), skipping ASR');
+      _logger.warning(
+          'Recording too short (${file.existsSync() ? file.lengthSync() : 0} bytes), skipping ASR');
       lastError = '录音过短';
       await _deleteCurrentFile();
       _state = VoiceInputState.idle;

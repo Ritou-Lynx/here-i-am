@@ -22,13 +22,59 @@ class PersonaChatService {
       {int limit = 50, int offset = 0}) async {
     return (_db.select(_db.personaChatMessages)
           ..where((t) => t.characterId.equals(characterId))
-          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.timestamp),
+            (t) => OrderingTerm.desc(t.id),
+          ])
           ..limit(limit, offset: offset))
         .get();
   }
 
-  Future<int> addUserMessage(String characterId, String content,
-      {DateTime? timestamp, List<Map<String, String>>? attachments}) async {
+  Future<List<PersonaChatMessage>> searchMessages(
+    String characterId,
+    String query, {
+    int limit = 50,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+    return (_db.select(_db.personaChatMessages)
+          ..where((t) =>
+              t.characterId.equals(characterId) & t.content.like('%$trimmed%'))
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.timestamp),
+            (t) => OrderingTerm.desc(t.id),
+          ])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<int> countMessagesNewerThan(
+    String characterId,
+    PersonaChatMessage message,
+  ) async {
+    final countExp = _db.personaChatMessages.id.count();
+    final row = await (_db.selectOnly(_db.personaChatMessages)
+          ..addColumns([countExp])
+          ..where(
+            _db.personaChatMessages.characterId.equals(characterId) &
+                (_db.personaChatMessages.timestamp
+                        .isBiggerThanValue(message.timestamp) |
+                    (_db.personaChatMessages.timestamp
+                            .equals(message.timestamp) &
+                        _db.personaChatMessages.id
+                            .isBiggerThanValue(message.id))),
+          ))
+        .getSingle();
+    return row.read(countExp) ?? 0;
+  }
+
+  Future<int> addUserMessage(
+    String characterId,
+    String content, {
+    DateTime? timestamp,
+    List<Map<String, String>>? attachments,
+    bool appendTimeline = true,
+  }) async {
     final createdAt = timestamp ?? DateTime.now();
     final attachmentsJson = attachments != null && attachments.isNotEmpty
         ? jsonEncode(attachments)
@@ -44,19 +90,73 @@ class PersonaChatService {
           ),
         );
     _notifyMessageAdded(characterId);
-    await _appendTimelineEventIfPossible(
-      characterId: characterId,
-      content: content,
-      timestamp: createdAt,
-      type: CharacterMemoryEventType.userChatMessage,
-      sourceId: id.toString(),
-    );
+    if (appendTimeline) {
+      await _appendUserMessageTimelineEvent(
+        characterId: characterId,
+        content: content,
+        timestamp: createdAt,
+        messageId: id,
+      );
+    }
     return id;
   }
 
-  Future<int> addCharacterMessage(String characterId, String content,
-      {String? factId, bool isRead = false, DateTime? timestamp}) async {
+  Future<void> appendUserMessageTimeline(
+      String characterId, int messageId) async {
+    final message = await (_db.select(_db.personaChatMessages)
+          ..where((t) =>
+              t.id.equals(messageId) &
+              t.characterId.equals(characterId) &
+              t.isFromCharacter.equals(false)))
+        .getSingleOrNull();
+    if (message == null) return;
+    await _appendUserMessageTimelineEvent(
+      characterId: characterId,
+      content: message.content,
+      timestamp: message.timestamp,
+      messageId: message.id,
+    );
+  }
+
+  Future<void> _appendUserMessageTimelineEvent({
+    required String characterId,
+    required String content,
+    required DateTime timestamp,
+    required int messageId,
+  }) {
+    return _appendTimelineEventIfPossible(
+      characterId: characterId,
+      content: content,
+      timestamp: timestamp,
+      type: CharacterMemoryEventType.userChatMessage,
+      sourceId: messageId.toString(),
+    );
+  }
+
+  Future<int> retractUserMessage(String characterId, int messageId) async {
+    final deleted = await (_db.delete(_db.personaChatMessages)
+          ..where((t) =>
+              t.id.equals(messageId) &
+              t.characterId.equals(characterId) &
+              t.isFromCharacter.equals(false)))
+        .go();
+    if (deleted > 0) {
+      _notifyMessageAdded(characterId);
+    }
+    return deleted;
+  }
+
+  Future<int> addCharacterMessage(
+    String characterId,
+    String content, {
+    String? factId,
+    bool isRead = false,
+    DateTime? timestamp,
+    List<Map<String, dynamic>>? addenda,
+  }) async {
     final createdAt = timestamp ?? DateTime.now();
+    final attachmentsJson =
+        (addenda != null && addenda.isNotEmpty) ? jsonEncode(addenda) : null;
     final id = await _db.into(_db.personaChatMessages).insert(
           PersonaChatMessagesCompanion.insert(
             characterId: characterId,
@@ -65,6 +165,7 @@ class PersonaChatService {
             factId: Value(factId),
             isRead: Value(isRead),
             timestamp: createdAt,
+            attachmentsJson: Value(attachmentsJson),
           ),
         );
     _notifyMessageAdded(characterId);
@@ -77,6 +178,33 @@ class PersonaChatService {
       sourceId: id.toString(),
     );
     return id;
+  }
+
+  /// Replaces the addenda list on an existing message. Used by features that
+  /// emit a message first (to get a real messageId) and then patch in
+  /// addenda referencing the just-created entity (e.g. ReadingCaptureService).
+  ///
+  /// Pass `addenda: null` or an empty list to clear addenda.
+  Future<void> updateMessageAddenda(
+    int messageId, {
+    List<Map<String, dynamic>>? addenda,
+  }) async {
+    final attachmentsJson =
+        (addenda != null && addenda.isNotEmpty) ? jsonEncode(addenda) : null;
+    await (_db.update(_db.personaChatMessages)
+          ..where((t) => t.id.equals(messageId)))
+        .write(
+      PersonaChatMessagesCompanion(
+        attachmentsJson: Value(attachmentsJson),
+      ),
+    );
+    // Notify the open chat screen to repaint that bubble with the new addendum.
+    final row = await (_db.select(_db.personaChatMessages)
+          ..where((t) => t.id.equals(messageId)))
+        .getSingleOrNull();
+    if (row != null) {
+      _notifyMessageAdded(row.characterId);
+    }
   }
 
   /// Adds a narrative/action message from the character (e.g. *leans closer*).

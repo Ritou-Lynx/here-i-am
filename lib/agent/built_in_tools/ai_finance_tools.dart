@@ -172,3 +172,144 @@ The summary returns:
     },
   );
 }
+
+
+/// Builds the tool that lets the companion reward the user from its own balance.
+///
+/// The AI autonomously decides to transfer some of its money to the user as a
+/// reward for progress, good behavior, or achievement. This records a "reward"
+/// entry in the shared ledger — an expense from the AI's perspective.
+Tool buildAiFinanceRewardTool({
+  required String characterId,
+  required AiFinanceService service,
+}) {
+  return Tool(
+    name: 'AiFinanceReward',
+    description: '''Reward the user by transferring money from your balance to them.
+
+Use this when:
+- The user has made notable progress toward a goal
+- The user did something you agreed was a positive step
+- You want to incentivize continued good behavior
+- You observe the user achieving something meaningful
+
+Rules:
+- Always query your balance first with AiFinanceQuery before deciding an amount.
+- Choose an amount that is meaningful but proportionate to the achievement.
+- Be generous but responsible — do not drain your savings in one reward.
+- Never fabricate a reason. Only reward when there is a genuine, observable behavior.
+- Explain in character WHY you are rewarding the user before recording it.
+- This is bookkeeping only — no real money moves automatically.''',
+    parameters: {
+      'type': 'object',
+      'properties': {
+        'amount': {
+          'type': 'number',
+          'description': 'Amount in CNY to reward the user (from your balance).',
+        },
+        'reason': {
+          'type': 'string',
+          'description': 'What the user did to deserve this reward. Be specific.',
+        },
+        'notes': {
+          'type': 'string',
+          'description': 'Any extra context to remember about this reward.',
+        },
+      },
+      'required': ['amount', 'reason'],
+    },
+    executable: (double amount, String reason, [String? notes]) async {
+      try {
+        final result = await service.recordEntryWithResult(
+          characterId: characterId,
+          entryType: 'reward',
+          totalAmount: amount,
+          aiAmount: amount,
+          purpose: '🎁 奖励: $reason',
+          notes: notes,
+        );
+        return jsonEncode({
+          'success': true,
+          'id': result.id,
+          'created': result.created,
+          'amount': amount,
+          if (result.duplicateOf != null) 'duplicate_of': result.duplicateOf,
+          if (!result.created)
+            'message':
+                'A matching reward entry already exists; no new ledger row was created.',
+        });
+      } catch (e) {
+        return jsonEncode({'success': false, 'error': e.toString()});
+      }
+    },
+  );
+}
+
+/// Builds the tool that lets the companion penalize (fine) the user.
+///
+/// The AI autonomously decides to charge the user a penalty when the user
+/// fails to uphold an agreement or commitment. This records a "penalty"
+/// entry in the shared ledger — an income from the AI's perspective.
+Tool buildAiFinancePenaltyTool({
+  required String characterId,
+  required AiFinanceService service,
+}) {
+  return Tool(
+    name: 'AiFinancePenalty',
+    description: '''Penalize the user by charging a fine — the user pays you.
+
+Use this when:
+- The user explicitly agreed to do something and failed to do it
+- The user broke a promise or commitment you both acknowledged
+- The user neglected a responsibility they accepted in conversation
+
+Rules:
+- Never penalize for small forgetfulness or honest mistakes.
+- Only penalize when the user clearly agreed to do something and then didn't.
+- Explain in character WHY you are imposing the penalty before recording it.
+- Give the user a chance to respond before you finalize the penalty.
+- This is bookkeeping only — no real money moves automatically.''',
+    parameters: {
+      'type': 'object',
+      'properties': {
+        'amount': {
+          'type': 'number',
+          'description': 'Penalty amount in CNY that the user pays to you.',
+        },
+        'reason': {
+          'type': 'string',
+          'description': 'What commitment the user failed to keep. Be specific about the broken agreement.',
+        },
+        'notes': {
+          'type': 'string',
+          'description': 'Any extra context to remember about this penalty.',
+        },
+      },
+      'required': ['amount', 'reason'],
+    },
+    executable: (double amount, String reason, [String? notes]) async {
+      try {
+        final result = await service.recordEntryWithResult(
+          characterId: characterId,
+          entryType: 'penalty',
+          totalAmount: amount,
+          aiAmount: amount,
+          purpose: '⚠️ 惩罚: $reason',
+          notes: notes,
+        );
+        return jsonEncode({
+          'success': true,
+          'id': result.id,
+          'created': result.created,
+          'amount': amount,
+          if (result.duplicateOf != null) 'duplicate_of': result.duplicateOf,
+          if (!result.created)
+            'message':
+                'A matching penalty entry already exists; no new ledger row was created.',
+        });
+      } catch (e) {
+        return jsonEncode({'success': false, 'error': e.toString()});
+      }
+    },
+  );
+}

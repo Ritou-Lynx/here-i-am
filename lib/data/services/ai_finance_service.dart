@@ -134,9 +134,11 @@ class AiFinanceService {
     final cost = sums['cost'] ?? 0.0;
     final loan = sums['loan'] ?? 0.0;
     final repayment = sums['repayment'] ?? 0.0;
+    final reward = sums['reward'] ?? 0.0;
+    final penalty = sums['penalty'] ?? 0.0;
 
-    // balance = income + repayment - cost - loan
-    final balance = income + repayment - cost - loan;
+    // balance = income + repayment + penalty - cost - loan - reward
+    final balance = income + repayment + penalty - cost - loan - reward;
 
     // all-time totals for debt calculation
     final allSums = month != null
@@ -148,7 +150,9 @@ class AiFinanceService {
     final allCost = allSums['cost'] ?? 0.0;
     final allLoan = allSums['loan'] ?? 0.0;
     final allRepayment = allSums['repayment'] ?? 0.0;
-    final allBalance = allIncome + allRepayment - allCost - allLoan;
+    final allReward = allSums['reward'] ?? 0.0;
+    final allPenalty = allSums['penalty'] ?? 0.0;
+    final allBalance = allIncome + allRepayment + allPenalty - allCost - allLoan - allReward;
 
     return {
       'ledger_scope': 'shared_ai',
@@ -157,6 +161,8 @@ class AiFinanceService {
       'cost': cost,
       'loan': loan,
       'repayment': repayment,
+      'reward': reward,
+      'penalty': penalty,
       'period_net': balance,
       'all_time_balance': allBalance,
       // Positive all_time_balance = savings; negative = still owes user

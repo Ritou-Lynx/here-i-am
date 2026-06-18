@@ -259,6 +259,7 @@ class CompanionForegroundService {
   static const String _ownerPrefsKey = 'foreground_task_owner';
   static const String _versionPrefsKey = 'companion_foreground_config_version';
   static const String _ownerCompanion = 'companion';
+  static const String _ownerVoiceCall = 'voice_call';
   static const int _configVersion = 2;
 
   // Tick cadence. The interval gate (CheckinService.dueForCheckin) decides when
@@ -304,6 +305,10 @@ class CompanionForegroundService {
     if (isRunning) {
       final owner = prefs.getString(_ownerPrefsKey);
       final version = prefs.getInt(_versionPrefsKey);
+      if (owner == _ownerVoiceCall) {
+        debugPrint('[ForegroundTask] voice call service is active; skip');
+        return;
+      }
       if (owner == _ownerCompanion && version == _configVersion) {
         debugPrint('[ForegroundTask] persistent service already running');
         return;

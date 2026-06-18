@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/ui/companion/widgets/companion_first_shell.dart';
 import 'package:memex/ui/companion/widgets/companion_life_space_screen.dart';
 import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
-import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/utils/command.dart';
 import 'package:memex/utils/result.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -57,8 +57,7 @@ void main() {
     );
   });
 
-  testWidgets('life space top bar shows all tab labels',
-      (tester) async {
+  testWidgets('life space top bar shows all tab labels', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: CompanionLifeSpaceScreen(
@@ -71,14 +70,10 @@ void main() {
     expect(find.text(UserStorage.l10n.schedule), findsOneWidget);
     expect(find.text(UserStorage.l10n.personalCenter), findsOneWidget);
 
-    // Back arrow is always visible.
     expect(find.byIcon(Icons.arrow_back_ios_new_rounded), findsOneWidget);
 
-    // Tapping a tab switches content.
     await tester.tap(find.text(UserStorage.l10n.schedule));
     await tester.pump();
-    // The schedule tab pill should now be highlighted (no simple finder for
-    // selected style; verifying it doesn't crash is the main signal).
   });
 
   testWidgets('life space route passes the existing timeline view model',

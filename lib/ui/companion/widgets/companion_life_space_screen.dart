@@ -27,6 +27,14 @@ class CompanionLifeSpaceScreen extends StatefulWidget {
 
 class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
   int _currentIndex = 0;
+  final Set<int> _visitedIndexes = {0};
+
+  void _selectTab(int index) {
+    setState(() {
+      _currentIndex = index;
+      _visitedIndexes.add(index);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,25 +53,31 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
               currentIndex: _currentIndex,
               labels: labels,
               onBack: () => Navigator.pop(context),
-              onTabSelected: (index) =>
-                  setState(() => _currentIndex = index),
+              onTabSelected: _selectTab,
             ),
             Expanded(
               child: IndexedStack(
                 index: _currentIndex,
-                children: [
-                  CompanionReviewScreen(
-                    viewModel: widget.timelineViewModel,
-                  ),
-                  const ScheduleAggregatorScreen(),
-                  const PersonalCenterScreen(),
-                ],
+                children: List.generate(
+                  labels.length,
+                  (index) => _visitedIndexes.contains(index)
+                      ? _buildTab(index)
+                      : const SizedBox.shrink(),
+                ),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildTab(int index) {
+    return switch (index) {
+      0 => CompanionReviewScreen(viewModel: widget.timelineViewModel),
+      1 => const ScheduleAggregatorScreen(),
+      _ => const PersonalCenterScreen(),
+    };
   }
 }
 
@@ -93,38 +107,45 @@ class _LifeSpaceTopBar extends StatelessWidget {
             padding: const EdgeInsets.all(10),
           ),
           Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(labels.length, (i) {
-                final selected = i == currentIndex;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: GestureDetector(
-                    onTap: () => onTabSelected(i),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? AppColors.primary.withValues(alpha: 0.10)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        labels[i],
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight:
-                              selected ? FontWeight.w600 : FontWeight.w400,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(labels.length, (i) {
+                  final selected = i == currentIndex;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: GestureDetector(
+                      onTap: () => onTabSelected(i),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
                           color: selected
-                              ? AppColors.primary
-                              : AppColors.textTertiary,
+                              ? AppColors.primary.withValues(alpha: 0.10)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          labels[i],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight:
+                                selected ? FontWeight.w600 : FontWeight.w400,
+                            color: selected
+                                ? AppColors.primary
+                                : AppColors.textTertiary,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                }),
+              ),
             ),
           ),
         ],

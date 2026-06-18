@@ -360,6 +360,7 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
     }
   }
 
+  // ignore: unused_element
   Future<void> _showLLMStats() async {
     if (_detail == null || _detail!.llmStats == null) {
       if (mounted) {
@@ -1233,158 +1234,162 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
                             child: Padding(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 16),
-                                  // Title
-                                  if (detail.title.isNotEmpty)
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 12),
-                                      child: Text(
-                                        detail.title,
-                                        style: const TextStyle(
-                                          fontFamily: 'PingFang SC',
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF334155),
-                                          height: 1.375, // 33/24
-                                          letterSpacing: -0.45,
+                              child: SelectionArea(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 16),
+                                    // Title
+                                    if (detail.title.isNotEmpty)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 12),
+                                        child: Text(
+                                          detail.title,
+                                          style: const TextStyle(
+                                            fontFamily: 'PingFang SC',
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF334155),
+                                            height: 1.375, // 33/24
+                                            letterSpacing: -0.45,
+                                          ),
                                         ),
                                       ),
-                                    ),
 
-                                  // Content with tags
-                                  if (detail.rawContent.isNotEmpty ||
-                                      detail.tags.isNotEmpty)
-                                    Text.rich(
-                                      TextSpan(
-                                        children: [
-                                          TextSpan(
-                                            text: detail.rawContent,
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              color: Color(0xFF334155),
-                                              height: 1.6,
+                                    // Content with tags
+                                    if (detail.rawContent.isNotEmpty ||
+                                        detail.tags.isNotEmpty)
+                                      Text.rich(
+                                        TextSpan(
+                                          children: [
+                                            TextSpan(
+                                              text: detail.rawContent,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                color: Color(0xFF334155),
+                                                height: 1.6,
+                                              ),
                                             ),
-                                          ),
-                                          if (detail.rawContent.isNotEmpty &&
-                                              detail.tags.isNotEmpty)
-                                            const TextSpan(text: ' '),
-                                          ...detail.tags.map((tag) {
-                                            return TextSpan(
-                                              text: '#$tag',
+                                            if (detail.rawContent.isNotEmpty &&
+                                                detail.tags.isNotEmpty)
+                                              const TextSpan(text: ' '),
+                                            ...detail.tags.map((tag) {
+                                              return TextSpan(
+                                                text: '#$tag',
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  color: Color(0xFF6366F1),
+                                                  fontWeight: FontWeight.w400,
+                                                  height: 1.25,
+                                                  letterSpacing: 0,
+                                                ),
+                                                recognizer:
+                                                    TapGestureRecognizer()
+                                                      ..onTap = () {
+                                                        Navigator.pop(context, {
+                                                          'action':
+                                                              'filter_tag',
+                                                          'tag': tag
+                                                        });
+                                                      },
+                                              );
+                                            }).expand((span) => [
+                                                  span,
+                                                  const TextSpan(text: ' '),
+                                                ]),
+                                          ],
+                                        ),
+                                      )
+                                    else if (detail.tags.isNotEmpty)
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: detail.tags.map((tag) {
+                                          return GestureDetector(
+                                            onTap: () {
+                                              Navigator.pop(context, {
+                                                'action': 'filter_tag',
+                                                'tag': tag
+                                              });
+                                            },
+                                            child: Text(
+                                              '#$tag',
                                               style: const TextStyle(
                                                 fontSize: 16,
                                                 color: Color(0xFF6366F1),
                                                 fontWeight: FontWeight.w400,
-                                                height: 1.25,
                                                 letterSpacing: 0,
                                               ),
-                                              recognizer: TapGestureRecognizer()
-                                                ..onTap = () {
-                                                  Navigator.pop(context, {
-                                                    'action': 'filter_tag',
-                                                    'tag': tag
-                                                  });
-                                                },
-                                            );
-                                          }).expand((span) => [
-                                                span,
-                                                const TextSpan(text: ' '),
-                                              ]),
-                                        ],
-                                      ),
-                                    )
-                                  else if (detail.tags.isNotEmpty)
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: detail.tags.map((tag) {
-                                        return GestureDetector(
-                                          onTap: () {
-                                            Navigator.pop(context, {
-                                              'action': 'filter_tag',
-                                              'tag': tag
-                                            });
-                                          },
-                                          child: Text(
-                                            '#$tag',
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              color: Color(0xFF6366F1),
-                                              fontWeight: FontWeight.w400,
-                                              letterSpacing: 0,
                                             ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
-
-                                  const SizedBox(height: 16),
-
-                                  // Date and Location
-                                  Wrap(
-                                    crossAxisAlignment:
-                                        WrapCrossAlignment.center,
-                                    children: [
-                                      GestureDetector(
-                                        onTap: _openCalendar,
-                                        onLongPress: _editTime,
-                                        child: Text(
-                                          DateFormat('MM-dd')
-                                              .format(detail.timestamp),
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Color(0xFF94A3B8),
-                                          ),
-                                        ),
+                                          );
+                                        }).toList(),
                                       ),
-                                      if (detail.address.isNotEmpty) ...[
-                                        const SizedBox(width: 6),
+
+                                    const SizedBox(height: 16),
+
+                                    // Date and Location
+                                    Wrap(
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      children: [
                                         GestureDetector(
-                                          onLongPress: _editLocation,
+                                          onTap: _openCalendar,
+                                          onLongPress: _editTime,
                                           child: Text(
-                                            detail.address,
+                                            DateFormat('MM-dd')
+                                                .format(detail.timestamp),
                                             style: const TextStyle(
                                               fontSize: 13,
                                               color: Color(0xFF94A3B8),
                                             ),
-                                            maxLines: null,
-                                            softWrap: true,
                                           ),
                                         ),
+                                        if (detail.address.isNotEmpty) ...[
+                                          const SizedBox(width: 6),
+                                          GestureDetector(
+                                            onLongPress: _editLocation,
+                                            child: Text(
+                                              detail.address,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFF94A3B8),
+                                              ),
+                                              maxLines: null,
+                                              softWrap: true,
+                                            ),
+                                          ),
+                                        ],
                                       ],
-                                    ],
-                                  ),
+                                    ),
 
-                                  const SizedBox(height: 24),
-                                  const Divider(
-                                      height: 1, color: Color(0xFFE2E8F0)),
-                                  const SizedBox(height: 16),
-
-                                  // Related Records
-                                  // Related Records Bar Removed
-
-                                  // Comments Area
-                                  // Related Records Trigger (replacing comments count)
-                                  // AI Related Memories Section
-                                  if (detail
-                                      .insight.relatedCards.isNotEmpty) ...[
-                                    _buildRelatedMemoriesSection(
-                                        context, detail.insight.relatedCards),
                                     const SizedBox(height: 24),
+                                    const Divider(
+                                        height: 1, color: Color(0xFFE2E8F0)),
+                                    const SizedBox(height: 16),
+
+                                    // Related Records
+                                    // Related Records Bar Removed
+
+                                    // Comments Area
+                                    // Related Records Trigger (replacing comments count)
+                                    // AI Related Memories Section
+                                    if (detail
+                                        .insight.relatedCards.isNotEmpty) ...[
+                                      _buildRelatedMemoriesSection(
+                                          context, detail.insight.relatedCards),
+                                      const SizedBox(height: 24),
+                                    ],
+                                    const SizedBox(height: 16),
+
+                                    // Display Comments
+                                    _buildCommentsList(detail),
+
+                                    const SizedBox(
+                                        height:
+                                            100), // Bottom padding for fixed bar
                                   ],
-                                  const SizedBox(height: 16),
-
-                                  // Display Comments
-                                  _buildCommentsList(detail),
-
-                                  const SizedBox(
-                                      height:
-                                          100), // Bottom padding for fixed bar
-                                ],
+                                ),
                               ),
                             ),
                           ),

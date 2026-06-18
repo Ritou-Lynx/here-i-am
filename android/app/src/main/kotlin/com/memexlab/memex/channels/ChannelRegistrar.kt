@@ -21,5 +21,7 @@ object ChannelRegistrar {
         AppUpdateChannelHandler.register(flutterEngine, activity)
         BackupStorageChannelHandler.register(flutterEngine, activity)
         BackupImportChannelHandler.register(flutterEngine, activity)
+        PhoneUsageChannelHandler.register(flutterEngine, activity)
+        DeviceAppBlockerChannelHandler.register(flutterEngine, activity)
     }
 }

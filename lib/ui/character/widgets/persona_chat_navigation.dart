@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:memex/data/repositories/memex_router.dart';
+import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/companion/widgets/companion_life_space_screen.dart';
 import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
@@ -11,6 +11,7 @@ String personaChatRouteName(String characterId) => 'persona-chat:$characterId';
 
 Route<void> buildPersonaChatRoute(
   String characterId, {
+  bool initialVoiceMode = false,
   WidgetBuilder? builder,
 }) {
   return MaterialPageRoute<void>(
@@ -22,6 +23,7 @@ Route<void> buildPersonaChatRoute(
         (context) => PersonaChatScreen(
               characterId: characterId,
               enableRichCapture: true,
+              initialVoiceMode: initialVoiceMode,
               onOpenSpaces: () {
                 final vm = TimelineViewModel(router: MemexRouter());
                 Navigator.push(
@@ -40,6 +42,7 @@ void openPersonaChat(
   BuildContext context, {
   required String characterId,
   bool rootNavigator = false,
+  bool initialVoiceMode = false,
   WidgetBuilder? builder,
 }) {
   final navigator = Navigator.of(context, rootNavigator: rootNavigator);
@@ -48,6 +51,12 @@ void openPersonaChat(
   );
 
   if (existingRoute != null) {
+    if (initialVoiceMode) {
+      PersonaChatOpenService.instance.requestOpen(
+        characterId,
+        startVoiceMode: true,
+      );
+    }
     navigator.popUntil((route) => identical(route, existingRoute));
     return;
   }
@@ -55,6 +64,7 @@ void openPersonaChat(
   navigator.push(
     buildPersonaChatRoute(
       characterId,
+      initialVoiceMode: initialVoiceMode,
       builder: builder,
     ),
   );
