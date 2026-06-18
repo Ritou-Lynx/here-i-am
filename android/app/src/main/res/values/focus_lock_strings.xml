@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="focus_lock_accessibility_description">Keeps Here I am in front while focus lock is active.</string>
+</resources>
