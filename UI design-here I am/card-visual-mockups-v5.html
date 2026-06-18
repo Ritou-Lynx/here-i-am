@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Here I Am · Memory Card Visual Mockups v5</title>
+  <style>
+    :root{
+      --bg:#F6F0EF;
+      --ink:#5F4B4A;
+      --ink-mid:#6F5A59;
+      --ink-soft:#A8908E;
+      --rose:#C08E96;
+      --rose-soft:#E3C2C4;
+      --rose-deep:#B27D88;
+      --hairline:rgba(117,97,95,.14);
+      --glass-line:rgba(255,255,255,.62);
+      --mood-excited:#E89A8E;
+      --mood-calm:#E5C7CB;
+      --mood-tense:#9E7A8A;
+      --mood-low:#6F7A8A;
+      --mood-neutral:#DCD2CE;
+      --warn:#D8A05A;
+      --xhs:#FE2C55;
+      --wechat:#07C160;
+      --dp:#F4A91E;
+    }
+
+    *{box-sizing:border-box}
+    html,body{min-height:100%;margin:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC",sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(circle at 14% 7%,rgba(255,255,255,.76),transparent 24%),
+        radial-gradient(circle at 78% 14%,rgba(227,194,196,.32),transparent 28%),
+        radial-gradient(circle at 18% 86%,rgba(166,154,184,.14),transparent 30%),
+        linear-gradient(180deg,#F8F3F2 0%,var(--bg) 52%,#F1E8E8 100%);
+      overflow-x:hidden;
+    }
+
+    .page{
+      width:calc(100% - 32px);
+      max-width:1180px;
+      margin:0 auto;
+      padding:36px 0 58px;
+    }
+
+    .top{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:24px;
+      margin-bottom:24px;
+    }
+
+    h1{
+      margin:0;
+      font-size:24px;
+      line-height:1.25;
+      letter-spacing:.08em;
+      color:var(--ink);
+      font-weight:540;
+    }
+
+    .sub{
+      max-width:760px;
+      margin:10px 0 0;
+      color:var(--ink-soft);
+      font-size:13px;
+      line-height:1.8;
+    }
+
+    .chips{
+      display:flex;
+      justify-content:flex-end;
+      flex-wrap:wrap;
+      gap:8px;
+      max-width:430px;
+    }
+
+    .chips span{
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid rgba(117,97,95,.12);
+      background:rgba(255,255,255,.36);
+      color:var(--ink-soft);
+      font-size:10px;
+      letter-spacing:.12em;
+      backdrop-filter:blur(12px);
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:18px;
+      align-items:start;
+    }
+
+    .sample{display:grid;gap:8px}
+    .sample-name{
+      padding-left:10px;
+      color:var(--ink-soft);
+      font-size:10px;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+    }
+
+    .memory-card{
+      --mood:var(--mood-neutral);
+      position:relative;
+      overflow:hidden;
+      min-height:0;
+      padding:20px 18px 16px;
+      border-radius:28px;
+      border:1px solid var(--glass-line);
+      background:
+        radial-gradient(circle at 0 0,color-mix(in srgb,var(--mood) 54%,transparent) 0%,color-mix(in srgb,var(--mood) 22%,transparent) 26%,transparent 48%),
+        linear-gradient(145deg,rgba(255,255,255,.64),rgba(255,255,255,.24) 42%,rgba(246,229,229,.28)),
+        radial-gradient(circle at 88% 96%,rgba(192,142,150,.10),transparent 36%);
+      box-shadow:
+        0 26px 62px rgba(117,97,95,.18),
+        inset 0 1px 0 rgba(255,255,255,.78),
+        inset -18px -22px 54px rgba(176,125,136,.10);
+      backdrop-filter:blur(22px) saturate(1.16);
+    }
+
+    .memory-card::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at 86% 13%,rgba(255,255,255,.52) 0 1px,transparent 2px),
+        radial-gradient(circle at 91% 19%,rgba(255,255,255,.38) 0 1.5px,transparent 3px),
+        linear-gradient(108deg,transparent 0 55%,rgba(255,255,255,.17) 56%,transparent 64%);
+      opacity:.8;
+    }
+
+    .memory-card.uncertain{
+      background:
+        radial-gradient(circle at 0 0,rgba(220,210,206,.16),transparent 42%),
+        linear-gradient(145deg,rgba(255,255,255,.64),rgba(255,255,255,.24) 42%,rgba(246,229,229,.28)),
+        radial-gradient(circle at 88% 96%,rgba(192,142,150,.10),transparent 36%);
+    }
+
+    .memory-card.chat-recall{
+      min-height:0;
+      padding:16px 17px;
+      border-radius:22px;
+      background:
+        linear-gradient(145deg,rgba(255,255,255,.54),rgba(255,255,255,.22) 48%,rgba(246,229,229,.18));
+      box-shadow:
+        0 16px 36px rgba(117,97,95,.12),
+        inset 0 1px 0 rgba(255,255,255,.68);
+    }
+
+    .status{
+      position:relative;
+      z-index:1;
+      display:inline-flex;
+      align-items:center;
+      width:max-content;
+      gap:6px;
+      margin-bottom:10px;
+      padding:4px 9px 4px 7px;
+      border-radius:999px;
+      border:1px solid rgba(216,160,90,.34);
+      background:rgba(216,160,90,.16);
+      color:#B57A2E;
+      font-size:10.5px;
+      letter-spacing:.06em;
+    }
+
+    .status::before{
+      content:"";
+      width:6px;
+      height:6px;
+      border-radius:50%;
+      background:currentColor;
+    }
+
+    .status.cancel{
+      border-color:rgba(168,144,142,.32);
+      background:rgba(168,144,142,.16);
+      color:#7A6664;
+    }
+
+    .blocks{
+      position:relative;
+      z-index:1;
+      display:grid;
+      gap:12px;
+    }
+
+    .title-block{
+      font-size:14px;
+      font-weight:620;
+      color:var(--ink-mid);
+      letter-spacing:.04em;
+    }
+
+    .text-block{
+      margin:0;
+      color:rgba(95,75,74,.96);
+      font-size:14.5px;
+      line-height:1.78;
+      letter-spacing:.01em;
+    }
+
+    .text-block .em{
+      color:var(--ink);
+      background:linear-gradient(180deg,transparent 62%,rgba(227,194,196,.42) 0);
+      border-radius:3px;
+    }
+
+    .subject-ref{
+      margin-bottom:-4px;
+      color:var(--ink-soft);
+      font-size:11px;
+      letter-spacing:.05em;
+    }
+
+    .quote{
+      position:relative;
+      padding-left:16px;
+    }
+
+    .quote::before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:4px;
+      bottom:4px;
+      width:2px;
+      border-radius:999px;
+      background:linear-gradient(180deg,rgba(192,142,150,.10),rgba(192,142,150,.62),rgba(192,142,150,.12));
+    }
+
+    .quote p{
+      margin:0;
+      color:#604848;
+      font-size:17px;
+      line-height:1.72;
+      font-weight:420;
+    }
+
+    .quote .context{
+      margin-top:8px;
+      color:var(--ink-soft);
+      font-size:12px;
+      line-height:1.65;
+    }
+
+    .number-row{
+      display:grid;
+      grid-template-columns:max-content 1fr;
+      gap:14px;
+      align-items:center;
+    }
+
+    .number-row.stack{display:block}
+
+    .num-main{
+      display:flex;
+      align-items:baseline;
+      gap:7px;
+      color:var(--ink);
+      white-space:nowrap;
+    }
+
+    .num-main .value{
+      font-size:44px;
+      line-height:1;
+      font-weight:540;
+      letter-spacing:0;
+    }
+
+    .num-main .unit{
+      color:var(--ink-soft);
+      font-size:13px;
+      letter-spacing:.06em;
+    }
+
+    .number-note{
+      margin:0;
+      color:rgba(95,75,74,.78);
+      font-size:13.5px;
+      line-height:1.62;
+    }
+
+    .sparkline{
+      height:28px;
+      width:100%;
+      display:block;
+    }
+
+    .progress{
+      height:6px;
+      width:100%;
+      overflow:hidden;
+      border-radius:999px;
+      background:rgba(117,97,95,.10);
+    }
+
+    .progress i{
+      display:block;
+      height:100%;
+      width:var(--p,50%);
+      border-radius:inherit;
+      background:linear-gradient(90deg,var(--rose-soft),var(--rose));
+    }
+
+    .table{
+      display:grid;
+      border-top:1px solid var(--hairline);
+    }
+
+    .row{
+      display:grid;
+      grid-template-columns:60px 1fr;
+      gap:12px;
+      align-items:start;
+      padding:7px 0;
+      border-bottom:1px solid var(--hairline);
+      font-size:13px;
+      line-height:1.4;
+    }
+
+    .row .label{
+      color:var(--ink-soft);
+      font-size:12.5px;
+    }
+    .row .value{
+      color:var(--ink-mid);
+      text-align:right;
+      font-weight:500;
+    }
+
+    .row .value.left{text-align:left}
+
+    .media{
+      position:relative;
+      height:156px;
+      overflow:hidden;
+      border-radius:18px;
+      background:
+        radial-gradient(circle at 76% 24%,#FFF7E4 0 6%,transparent 7%),
+        linear-gradient(140deg,#CDB8C8 0%,#D9B5AF 38%,#8FA7A0 72%,#F1E6DD 100%);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.68);
+    }
+
+    .media.photo{
+      background:
+        radial-gradient(circle at 72% 23%,rgba(255,239,185,.96) 0 5%,rgba(255,239,185,.36) 6% 12%,transparent 13%),
+        linear-gradient(180deg,#8F9FB4 0%,#C7A5AA 42%,#D8C0B6 58%,#6F8F91 100%);
+    }
+
+    .media.photo::before{
+      height:64%;
+      background:
+        linear-gradient(0deg,rgba(95,75,74,.22),transparent 44%),
+        linear-gradient(175deg,transparent 0 32%,rgba(255,255,255,.38) 33% 34%,transparent 35%),
+        linear-gradient(12deg,rgba(84,118,116,.72),rgba(255,255,255,.06));
+      clip-path:polygon(0 64%,17% 50%,29% 72%,46% 38%,62% 67%,76% 46%,100% 62%,100% 100%,0 100%);
+    }
+
+    .media.photo::after{
+      content:"";
+      position:absolute;
+      left:13%;
+      right:14%;
+      bottom:19%;
+      height:18px;
+      border-radius:50%;
+      background:linear-gradient(90deg,transparent,rgba(255,242,218,.36),transparent);
+      filter:blur(7px);
+      opacity:.9;
+    }
+
+    .media::before{
+      content:"";
+      position:absolute;
+      inset:auto 0 0;
+      height:58%;
+      background:
+        radial-gradient(ellipse at 12% 100%,rgba(111,90,89,.18),transparent 44%),
+        linear-gradient(170deg,transparent 0 22%,rgba(255,255,255,.42) 23% 24%,transparent 25%),
+        linear-gradient(20deg,rgba(95,117,109,.45),rgba(255,255,255,.04));
+      clip-path:polygon(0 55%,18% 30%,34% 62%,52% 18%,75% 54%,100% 26%,100% 100%,0 100%);
+    }
+
+    .media-count{
+      position:absolute;
+      top:10px;
+      right:10px;
+      z-index:1;
+      padding:5px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.54);
+      background:rgba(255,255,255,.44);
+      color:var(--ink-mid);
+      font-size:11px;
+      backdrop-filter:blur(8px);
+    }
+
+    .media-dots{
+      position:absolute;
+      z-index:1;
+      left:0;
+      right:0;
+      bottom:9px;
+      display:flex;
+      justify-content:center;
+      gap:5px;
+    }
+
+    .media-dots i{
+      width:5px;
+      height:5px;
+      border-radius:50%;
+      background:rgba(255,255,255,.72);
+    }
+
+    .links{
+      position:relative;
+      z-index:1;
+      display:grid;
+      gap:8px;
+      margin-top:12px;
+    }
+
+    .link{
+      display:grid;
+      grid-template-columns:24px 1fr auto;
+      align-items:center;
+      gap:10px;
+      min-height:42px;
+      padding:9px 10px;
+      border-radius:14px;
+      border:1px solid rgba(117,97,95,.10);
+      background:rgba(255,255,255,.38);
+    }
+
+    .brand{
+      display:grid;
+      place-items:center;
+      width:24px;
+      height:24px;
+      border-radius:7px;
+      color:white;
+      font-size:9px;
+      font-weight:650;
+      letter-spacing:0;
+    }
+
+    .brand.xhs{background:var(--xhs)}
+    .brand.wx{background:var(--wechat)}
+    .brand.dp{background:var(--dp)}
+    .brand.sys{background:var(--rose)}
+
+    .link-title{
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      color:var(--ink-mid);
+      font-size:12.5px;
+      font-weight:500;
+    }
+
+    .open{
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(192,142,150,.24);
+      color:#8E646C;
+      background:rgba(255,255,255,.22);
+      font-size:11px;
+      letter-spacing:.08em;
+    }
+
+    .foot{
+      position:relative;
+      z-index:1;
+      display:flex;
+      align-items:center;
+      gap:11px;
+      margin-top:16px;
+      padding-top:2px;
+    }
+
+    .links + .foot{margin-top:10px}
+
+    .tags{
+      display:flex;
+      gap:11px;
+      flex-wrap:wrap;
+      min-width:0;
+    }
+
+    .tag{
+      color:#8E646C;
+      font-size:10.5px;
+      letter-spacing:.10em;
+      white-space:nowrap;
+    }
+
+    .chat{
+      margin-left:auto;
+      flex:0 0 auto;
+      padding:7px 13px;
+      border-radius:999px;
+      border:0;
+      background:var(--rose);
+      color:white;
+      font-size:11px;
+      letter-spacing:.10em;
+      box-shadow:0 9px 20px rgba(192,142,150,.22);
+    }
+
+    @media (max-width:960px){
+      .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .top{display:block}
+      .chips{justify-content:flex-start;margin-top:18px}
+    }
+
+    @media (max-width:620px){
+      .page{width:calc(100% - 32px);padding-top:24px}
+      .grid{grid-template-columns:1fr;max-width:358px}
+      .memory-card{border-radius:26px}
+      h1{font-size:20px}
+      .number-row{display:block}
+      .number-note{margin-top:7px}
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="top">
+      <div>
+        <h1>Memory Card · 板块组装视觉图 v5</h1>
+        <p class="sub">按当前 markdown 收敛后的视觉版：统一凝露外壳 + 固定板块（情绪角晕 / 异常状态 / Foot）+ 活动板块自由组装。链接只作为附件，计划并入 Table，完整图表留给 Insight。</p>
+      </div>
+      <div class="chips">
+        <span>Title</span><span>Text</span><span>Quote</span><span>Number</span><span>Table</span><span>Sparkline</span><span>Media</span><span>LinkAttachment</span>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="sample">
+        <div class="sample-name">01 text only · calm</div>
+        <div class="memory-card" style="--mood:var(--mood-calm)">
+          <div class="blocks">
+            <p class="text-block">最近你对周末安排有点抗拒，更想把时间留给自己。TA 之后提议活动时，应先问你的<span class="em">精力状态</span>。</p>
+          </div>
+          <div class="foot">
+            <div class="tags"><span class="tag">Relationship</span><span class="tag">Emotion</span></div>
+            <button class="chat">聊聊</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">02 quote + subject</div>
+        <div class="memory-card uncertain">
+          <span class="status">待确认</span>
+          <div class="blocks">
+            <div class="subject-ref">妈妈 · 通话中</div>
+            <div class="quote">
+              <p>“院子那棵橘子树今年挂得特别多。”</p>
+              <div class="context">这句话保留了她当时轻松的语气。</div>
+            </div>
+          </div>
+          <div class="foot">
+            <div class="tags"><span class="tag">Relationship</span><span class="tag">Memory</span></div>
+            <button class="chat">聊聊</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">03 number + note + sparkline</div>
+        <div class="memory-card" style="--mood:var(--mood-neutral)">
+          <div class="blocks">
+            <div class="title-block">睡眠</div>
+            <div class="number-row">
+              <div class="num-main"><span class="value">6.8</span><span class="unit">小时</span></div>
+              <p class="number-note">入睡偏晚，时长比平时少一点。</p>
+            </div>
+            <svg class="sparkline" viewBox="0 0 320 28" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M0 22 L46 20 L92 17 L138 16 L184 19 L230 18 L276 14 L320 15 L320 28 L0 28 Z" fill="rgba(192,142,150,.10)"/>
+              <path d="M0 22 L46 20 L92 17 L138 16 L184 19 L230 18 L276 14 L320 15" fill="none" stroke="#C08E96" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="320" cy="15" r="2.8" fill="#C08E96"/>
+            </svg>
+          </div>
+          <div class="foot">
+            <div class="tags"><span class="tag">Health</span><span class="tag">Body</span></div>
+            <button class="chat">聊聊</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">04 number + table split</div>
+        <div class="memory-card" style="--mood:var(--mood-excited)">
+          <div class="blocks">
+            <div class="title-block">收入分配</div>
+            <div class="number-row stack">
+              <div class="num-main"><span class="value">¥1,500</span></div>
+              <p class="number-note">这次按 30% 分给 TA。</p>
+            </div>
+            <div class="table">
+              <div class="row"><span class="label">TA</span><span class="value">30% · ¥450</span></div>
+              <div class="row"><span class="label">你保留</span><span class="value">¥1,050</span></div>
+            </div>
+          </div>
+          <div class="foot">
+            <div class="tags"><span class="tag">Finance</span><span class="tag">Relationship</span></div>
+            <button class="chat">聊聊</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">05 table as plan</div>
+        <div class="memory-card" style="--mood:var(--mood-tense)">
+          <span class="status">需复核</span>
+          <div class="blocks">
+            <div class="title-block">牙科复诊</div>
+            <div class="table">
+              <div class="row"><span class="label">时间</span><span class="value">周五 14:30</span></div>
+              <div class="row"><span class="label">地点</span><span class="value">牙科门诊</span></div>
+              <div class="row"><span class="label">事项</span><span class="value">复诊和检查牙套状态</span></div>
+            </div>
+          </div>
+          <div class="foot">
+            <div class="tags"><span class="tag">Health</span><span class="tag">Project</span></div>
+            <button class="chat">聊聊</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">06 quote + work</div>
+        <div class="memory-card" style="--mood:var(--mood-low)">
+          <div class="blocks">
+            <div class="subject-ref">沙丘 · 第一部</div>
+            <p class="text-block">看完第一部，你最被打动的是那种巨大空旷里的孤独感。</p>
+            <div class="quote">
+              <p>“人站在风沙里，好像会突然意识到自己很小。”</p>
+            </div>
+          </div>
+          <div class="links">
+            <div class="link"><span class="brand wx">文</span><span class="link-title">公众号影评摘录</span><span class="open">打开</span></div>
+          </div>
+          <div class="foot">
+            <div class="tags"><span class="tag">Reading</span><span class="tag">Emotion</span></div>
+            <button class="chat">聊聊</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">07 media + caption</div>
+        <div class="memory-card" style="--mood:var(--mood-calm)">
+          <div class="blocks">
+            <div class="media photo"><span class="media-count">1/3</span><span class="media-dots"><i></i><i></i><i></i></span></div>
+            <p class="text-block">晚上在江边散步，你特别喜欢那盏蓝色路灯。</p>
+          </div>
+          <div class="foot">
+            <div class="tags"><span class="tag">Memory</span><span class="tag">Emotion</span></div>
+            <button class="chat">聊聊</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">08 complex combo</div>
+        <div class="memory-card" style="--mood:var(--mood-excited)">
+          <div class="blocks">
+            <div class="title-block">杭州周末</div>
+            <p class="text-block">你想把这条 city walk 路线留到秋天，周末先确认活动时间。</p>
+            <div class="table">
+              <div class="row"><span class="label">下一步</span><span class="value">确认具体时间和地址</span></div>
+              <div class="row"><span class="label">状态</span><span class="value">待安排</span></div>
+            </div>
+          </div>
+          <div class="links">
+            <div class="link"><span class="brand xhs">小</span><span class="link-title">杭州 city walk 路线</span><span class="open">打开</span></div>
+            <div class="link"><span class="brand dp">评</span><span class="link-title">快闪活动详情</span><span class="open">打开</span></div>
+          </div>
+          <div class="foot">
+            <div class="tags"><span class="tag">Project</span><span class="tag">Reading</span><span class="tag">Interest</span></div>
+            <button class="chat">聊聊</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">09 chat recall simplified</div>
+        <div class="memory-card chat-recall">
+          <div class="blocks">
+            <div class="title-block">旧记忆召回</div>
+            <p class="text-block">你之前说过，周末如果已经很累，就希望 TA 先问你有没有精力再安排活动。</p>
+            <div class="quote">
+              <p>“我想把这个周末留给自己。”</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">10 cancelled status</div>
+        <div class="memory-card" style="--mood:var(--mood-neutral)">
+          <span class="status cancel">已取消</span>
+          <div class="blocks">
+            <div class="title-block">周末读书会</div>
+            <p class="text-block">这次活动已经取消，后续不用再提醒。相关材料仍保留在记忆里，方便之后重新安排。</p>
+            <div class="table">
+              <div class="row"><span class="label">原时间</span><span class="value">周六 15:00</span></div>
+              <div class="row"><span class="label">状态</span><span class="value">⊘ 已取消</span></div>
+            </div>
+          </div>
+          <div class="foot">
+            <div class="tags"><span class="tag">Reading</span><span class="tag">Schedule</span></div>
+            <button class="chat">聊聊</button>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

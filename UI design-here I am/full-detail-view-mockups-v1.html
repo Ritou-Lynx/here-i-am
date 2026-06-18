@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Here I Am · Full Detail View Mockups v1</title>
+  <style>
+    :root{
+      --bg:#F6F0EF;
+      --ink:#5F4B4A;
+      --ink-mid:#6F5A59;
+      --ink-soft:#A8908E;
+      --rose:#C08E96;
+      --rose-soft:#E3C2C4;
+      --hairline:rgba(117,97,95,.14);
+      --glass-line:rgba(255,255,255,.62);
+      --mood-excited:#E89A8E;
+      --mood-calm:#E5C7CB;
+      --mood-tense:#9E7A8A;
+      --mood-low:#6F7A8A;
+      --mood-neutral:#DCD2CE;
+      --warn:#D8A05A;
+      --xhs:#FE2C55;
+      --wechat:#07C160;
+      --dp:#F4A91E;
+    }
+
+    *{box-sizing:border-box}
+    html,body{min-height:100%;margin:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC",sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(circle at 16% 8%,rgba(255,255,255,.78),transparent 24%),
+        radial-gradient(circle at 80% 12%,rgba(227,194,196,.33),transparent 28%),
+        radial-gradient(circle at 20% 90%,rgba(166,154,184,.13),transparent 30%),
+        linear-gradient(180deg,#F8F3F2 0%,var(--bg) 54%,#F1E8E8 100%);
+      overflow-x:hidden;
+    }
+
+    .page{
+      width:calc(100% - 32px);
+      max-width:1220px;
+      margin:0 auto;
+      padding:36px 0 58px;
+    }
+
+    .top{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:24px;
+      margin-bottom:24px;
+    }
+
+    h1{
+      margin:0;
+      font-size:24px;
+      line-height:1.25;
+      letter-spacing:.08em;
+      font-weight:540;
+    }
+
+    .sub{
+      max-width:760px;
+      margin:10px 0 0;
+      color:var(--ink-soft);
+      font-size:13px;
+      line-height:1.8;
+    }
+
+    .chips{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      gap:8px;
+      max-width:420px;
+    }
+
+    .chips span{
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid rgba(117,97,95,.12);
+      background:rgba(255,255,255,.36);
+      color:var(--ink-soft);
+      font-size:10px;
+      letter-spacing:.12em;
+      backdrop-filter:blur(12px);
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:18px;
+      align-items:start;
+    }
+
+    .sample{display:grid;gap:8px}
+
+    .sample-name{
+      padding-left:10px;
+      color:var(--ink-soft);
+      font-size:10px;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+    }
+
+    .detail{
+      --mood:var(--mood-neutral);
+      position:relative;
+      overflow:hidden;
+      min-height:760px;
+      border-radius:32px;
+      border:1px solid var(--glass-line);
+      background:
+        radial-gradient(circle at 0 0,color-mix(in srgb,var(--mood) 48%,transparent) 0%,color-mix(in srgb,var(--mood) 18%,transparent) 24%,transparent 46%),
+        linear-gradient(150deg,rgba(255,255,255,.64),rgba(255,255,255,.25) 48%,rgba(246,229,229,.25)),
+        radial-gradient(circle at 92% 98%,rgba(192,142,150,.10),transparent 34%);
+      box-shadow:
+        0 28px 70px rgba(117,97,95,.18),
+        inset 0 1px 0 rgba(255,255,255,.78),
+        inset -18px -22px 54px rgba(176,125,136,.10);
+      backdrop-filter:blur(22px) saturate(1.16);
+    }
+
+    .detail::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at 86% 10%,rgba(255,255,255,.52) 0 1px,transparent 2px),
+        radial-gradient(circle at 92% 17%,rgba(255,255,255,.38) 0 1.5px,transparent 3px),
+        linear-gradient(108deg,transparent 0 56%,rgba(255,255,255,.16) 57%,transparent 65%);
+      opacity:.8;
+    }
+
+    .detail-inner{
+      position:relative;
+      z-index:1;
+      display:grid;
+      gap:18px;
+      padding:18px 18px 20px;
+    }
+
+    .bar{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+
+    .icon-btn,.pill-btn{
+      border:1px solid rgba(117,97,95,.12);
+      background:rgba(255,255,255,.36);
+      color:var(--ink-mid);
+      backdrop-filter:blur(12px);
+    }
+
+    .icon-btn{
+      display:grid;
+      place-items:center;
+      width:34px;
+      height:34px;
+      border-radius:50%;
+      font-size:18px;
+      line-height:1;
+    }
+
+    .bar-title{
+      min-width:0;
+      flex:1;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      color:var(--ink-mid);
+      font-size:12px;
+      letter-spacing:.10em;
+    }
+
+    .pill-btn{
+      padding:8px 12px;
+      border-radius:999px;
+      font-size:11px;
+      letter-spacing:.10em;
+      white-space:nowrap;
+    }
+
+    .pill-btn.primary{
+      border-color:transparent;
+      background:var(--rose);
+      color:white;
+      box-shadow:0 9px 20px rgba(192,142,150,.22);
+    }
+
+    .module{
+      display:grid;
+      gap:13px;
+      padding:2px 0 0;
+    }
+
+    .title-block{
+      color:var(--ink-mid);
+      font-size:15px;
+      font-weight:620;
+      letter-spacing:.04em;
+    }
+
+    .text-block{
+      margin:0;
+      color:rgba(95,75,74,.96);
+      font-size:15px;
+      line-height:1.82;
+      letter-spacing:.01em;
+    }
+
+    .text-block .em{
+      color:var(--ink);
+      background:linear-gradient(180deg,transparent 62%,rgba(227,194,196,.42) 0);
+      border-radius:3px;
+    }
+
+    .subject-ref{
+      margin-bottom:-5px;
+      color:var(--ink-soft);
+      font-size:11px;
+      letter-spacing:.05em;
+    }
+
+    .quote{
+      position:relative;
+      padding-left:16px;
+    }
+
+    .quote::before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:4px;
+      bottom:4px;
+      width:2px;
+      border-radius:999px;
+      background:linear-gradient(180deg,rgba(192,142,150,.10),rgba(192,142,150,.62),rgba(192,142,150,.12));
+    }
+
+    .quote p{
+      margin:0;
+      color:#604848;
+      font-size:17px;
+      line-height:1.72;
+      font-weight:420;
+    }
+
+    .table{
+      display:grid;
+      border-top:1px solid var(--hairline);
+    }
+
+    .row{
+      display:grid;
+      grid-template-columns:64px 1fr;
+      gap:12px;
+      align-items:start;
+      padding:8px 0;
+      border-bottom:1px solid var(--hairline);
+      font-size:13px;
+      line-height:1.45;
+    }
+
+    .row .label{
+      color:var(--ink-soft);
+      font-size:12.5px;
+    }
+
+    .row .value{
+      color:var(--ink-mid);
+      text-align:right;
+      font-weight:500;
+    }
+
+    .media{
+      position:relative;
+      height:154px;
+      overflow:hidden;
+      border-radius:18px;
+      background:
+        radial-gradient(circle at 72% 23%,rgba(255,239,185,.96) 0 5%,rgba(255,239,185,.36) 6% 12%,transparent 13%),
+        linear-gradient(180deg,#8F9FB4 0%,#C7A5AA 42%,#D8C0B6 58%,#6F8F91 100%);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.68);
+    }
+
+    .media::before{
+      content:"";
+      position:absolute;
+      inset:auto 0 0;
+      height:64%;
+      background:
+        linear-gradient(0deg,rgba(95,75,74,.22),transparent 44%),
+        linear-gradient(175deg,transparent 0 32%,rgba(255,255,255,.38) 33% 34%,transparent 35%),
+        linear-gradient(12deg,rgba(84,118,116,.72),rgba(255,255,255,.06));
+      clip-path:polygon(0 64%,17% 50%,29% 72%,46% 38%,62% 67%,76% 46%,100% 62%,100% 100%,0 100%);
+    }
+
+    .link{
+      display:grid;
+      grid-template-columns:24px 1fr auto;
+      align-items:center;
+      gap:10px;
+      min-height:42px;
+      padding:9px 10px;
+      border-radius:14px;
+      border:1px solid rgba(117,97,95,.10);
+      background:rgba(255,255,255,.38);
+    }
+
+    .brand{
+      display:grid;
+      place-items:center;
+      width:24px;
+      height:24px;
+      border-radius:7px;
+      color:white;
+      font-size:9px;
+      font-weight:650;
+    }
+
+    .brand.xhs{background:var(--xhs)}
+    .brand.wx{background:var(--wechat)}
+    .brand.dp{background:var(--dp)}
+
+    .link-title{
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      color:var(--ink-mid);
+      font-size:12.5px;
+      font-weight:500;
+    }
+
+    .open{
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(192,142,150,.24);
+      color:#8E646C;
+      background:rgba(255,255,255,.22);
+      font-size:11px;
+      letter-spacing:.08em;
+    }
+
+    .tags{
+      display:flex;
+      gap:11px;
+      flex-wrap:wrap;
+      padding-top:1px;
+    }
+
+    .tag{
+      color:#8E646C;
+      font-size:10.5px;
+      letter-spacing:.10em;
+      white-space:nowrap;
+    }
+
+    .section{
+      display:grid;
+      gap:10px;
+    }
+
+    .section-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding-top:3px;
+      color:var(--ink-mid);
+      font-size:12px;
+      font-weight:620;
+      letter-spacing:.10em;
+    }
+
+    .section-head span:last-child{
+      color:var(--ink-soft);
+      font-size:10px;
+      font-weight:500;
+    }
+
+    .source-list,.related-list,.history-list{
+      display:grid;
+      gap:8px;
+    }
+
+    .source,.related,.fold{
+      border-radius:18px;
+      border:1px solid rgba(117,97,95,.10);
+      background:rgba(255,255,255,.34);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.56);
+    }
+
+    .source{
+      padding:12px;
+    }
+
+    .source-text{
+      margin:0 0 9px;
+      color:rgba(95,75,74,.92);
+      font-size:13px;
+      line-height:1.66;
+    }
+
+    .metadata{
+      display:flex;
+      flex-wrap:wrap;
+      gap:7px;
+    }
+
+    .metadata span{
+      padding:4px 7px;
+      border-radius:999px;
+      background:rgba(255,255,255,.38);
+      color:var(--ink-soft);
+      font-size:10px;
+      letter-spacing:.05em;
+    }
+
+    .related{
+      display:grid;
+      gap:5px;
+      padding:11px 12px;
+      color:var(--ink-mid);
+      font-size:12.5px;
+    }
+
+    .related p{
+      margin:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      font-weight:520;
+    }
+
+    .related small{
+      color:var(--ink-soft);
+      font-size:11px;
+      line-height:1.45;
+    }
+
+    .fold{
+      padding:12px;
+    }
+
+    .fold.clean .field-grid,
+    .fold.clean .history{
+      margin-top:0;
+    }
+
+    .fold.collapsed{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      min-height:42px;
+      color:var(--ink-soft);
+      font-size:12px;
+    }
+
+    .fold-title{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      color:var(--ink-mid);
+      font-size:12.5px;
+      font-weight:600;
+    }
+
+    .fold-title span:last-child{
+      color:var(--ink-soft);
+      font-size:11px;
+      font-weight:500;
+    }
+
+    .field-grid{
+      display:grid;
+      gap:7px;
+      margin-top:10px;
+    }
+
+    .field{
+      display:grid;
+      grid-template-columns:76px 1fr;
+      gap:10px;
+      color:var(--ink-mid);
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    .field span:first-child{color:var(--ink-soft)}
+
+    .history{
+      display:grid;
+      gap:7px;
+      margin-top:10px;
+      color:var(--ink-soft);
+      font-size:12px;
+      line-height:1.5;
+    }
+
+    .history b{
+      color:var(--ink-mid);
+      font-weight:560;
+    }
+
+    .status{
+      display:inline-flex;
+      align-items:center;
+      width:max-content;
+      gap:6px;
+      padding:4px 9px 4px 7px;
+      border-radius:999px;
+      border:1px solid rgba(216,160,90,.34);
+      background:rgba(216,160,90,.16);
+      color:#B57A2E;
+      font-size:10.5px;
+      letter-spacing:.06em;
+    }
+
+    .status::before{
+      content:"";
+      width:6px;
+      height:6px;
+      border-radius:50%;
+      background:currentColor;
+    }
+
+    @media (max-width:1040px){
+      .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .top{display:block}
+      .chips{justify-content:flex-start;margin-top:18px}
+    }
+
+    @media (max-width:680px){
+      .page{width:calc(100% - 26px);padding-top:24px}
+      .grid{grid-template-columns:1fr;max-width:390px}
+      .detail{min-height:0;border-radius:28px}
+      h1{font-size:20px}
+      .bar-title{display:none}
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="top">
+      <div>
+        <h1>Full Detail View · 详情页视觉图 v1</h1>
+        <p class="sub">详情页是同一张记忆卡的展开形态：上方复用 Summary Card 的活动板块，下面承载来源整合、相关记忆卡片、AI 理解和修订历史。所有纠错入口统一收束到编辑与聊聊。</p>
+      </div>
+      <div class="chips">
+        <span>Activity Blocks</span><span>Sources</span><span>Metadata</span><span>Related Cards</span><span>AI Understanding</span><span>History</span>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="sample">
+        <div class="sample-name">01 text memory detail</div>
+        <section class="detail" style="--mood:var(--mood-calm)">
+          <div class="detail-inner">
+            <div class="bar">
+              <button class="icon-btn">‹</button>
+              <div class="bar-title">记忆详情</div>
+              <button class="pill-btn">编辑</button>
+              <button class="pill-btn primary">聊聊</button>
+            </div>
+
+            <div class="module">
+              <p class="text-block">最近你对周末安排有点抗拒，更想把时间留给自己。TA 之后提议活动时，应先问你的<span class="em">精力状态</span>。</p>
+              <div class="tags"><span class="tag">Relationship</span><span class="tag">Emotion</span><span class="tag">SelfCare</span></div>
+            </div>
+
+            <section class="section">
+              <div class="section-head"><span>来源</span><span>2 条</span></div>
+              <div class="source-list">
+                <div class="source">
+                  <p class="source-text">“我这周真的不想再被安排了，周末想留给自己。”</p>
+                  <div class="metadata"><span>聊天</span><span>今天 22:14</span><span>家</span></div>
+                </div>
+                <div class="source">
+                  <p class="source-text">TA 提议周六出门时，你又补充说“可以先问我有没有精力”。</p>
+                  <div class="metadata"><span>聊天</span><span>今天 22:19</span><span>未记录地点</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><span>关联</span><span></span></div>
+              <div class="related-list">
+                <div class="related"><p>周末安排偏好</p><small>你之前提到，周末更希望留出不被安排的空白时间。</small></div>
+                <div class="related"><p>上次临时出门后的疲惫感</p><small>相关记忆卡片 · 3 天前</small></div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><span>AI 理解</span><span>收起</span></div>
+              <div class="fold clean">
+                <div class="field-grid">
+                  <div class="field"><span>情绪依据</span><span>“不想再被安排”“留给自己”</span></div>
+                  <div class="field"><span>倾向</span><span>边界感、低唤起、轻微抗拒</span></div>
+                  <div class="field"><span>人物</span><span>你 / TA</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><span>修订历史</span><span>展开</span></div>
+              <div class="fold collapsed">创建、追加、合并、编辑、撤销等记录</div>
+            </section>
+          </div>
+        </section>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">02 multi-source detail</div>
+        <section class="detail" style="--mood:var(--mood-excited)">
+          <div class="detail-inner">
+            <div class="bar">
+              <button class="icon-btn">‹</button>
+              <div class="bar-title">记忆详情</div>
+              <button class="pill-btn">编辑</button>
+              <button class="pill-btn primary">聊聊</button>
+            </div>
+
+            <div class="module">
+              <div class="title-block">杭州周末</div>
+              <p class="text-block">你想把这条 city walk 路线留到秋天，周末先确认活动时间。这个链接更像一次可能的出行计划，不只是“想读”。</p>
+              <div class="table">
+                <div class="row"><span class="label">下一步</span><span class="value">确认具体时间和地址</span></div>
+                <div class="row"><span class="label">状态</span><span class="value">待安排</span></div>
+              </div>
+              <div class="link"><span class="brand xhs">小</span><span class="link-title">杭州 city walk 路线</span><span class="open">打开</span></div>
+              <div class="tags"><span class="tag">Project</span><span class="tag">Reading</span><span class="tag">Interest</span><span class="tag">Travel</span></div>
+            </div>
+
+            <section class="section">
+              <div class="section-head"><span>来源</span><span>3 条</span></div>
+              <div class="source-list">
+                <div class="source">
+                  <p class="source-text">用户分享小红书链接，并附言：“这个路线看起来不错，秋天可以去。”</p>
+                  <div class="metadata"><span>链接分享</span><span>昨天 21:02</span><span>小红书</span></div>
+                </div>
+                <div class="source">
+                  <p class="source-text">链接内容识别：杭州 city walk 路线，包含咖啡店、街区、傍晚拍照点。</p>
+                  <div class="metadata"><span>网页识别</span><span>昨天 21:03</span><span>杭州</span></div>
+                </div>
+                <div class="source">
+                  <p class="source-text">后续对话里你说：“周末先看看有没有快闪活动，别排太满。”</p>
+                  <div class="metadata"><span>聊天</span><span>今天 09:16</span><span>未记录地点</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><span>关联</span><span></span></div>
+              <div class="related-list">
+                <div class="related"><p>秋天想去杭州</p><small>相关记忆卡片 · 由上一次旅行聊天生成</small></div>
+                <div class="related"><p>周末不要排太满</p><small>相关记忆卡片 · 与出行计划有关</small></div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><span>AI 理解</span><span>展开</span></div>
+              <div class="fold collapsed">链接实体、地点候选、计划状态等识别字段</div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><span>修订历史</span><span>收起</span></div>
+              <div class="fold clean">
+                <div class="history">
+                  <div><b>创建</b> 昨天 21:03 · 从链接分享生成</div>
+                  <div><b>追加</b> 今天 09:16 · 合入周末安排对话</div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">03 schedule table detail</div>
+        <section class="detail" style="--mood:var(--mood-tense)">
+          <div class="detail-inner">
+            <div class="bar">
+              <button class="icon-btn">‹</button>
+              <div class="bar-title">记忆详情</div>
+              <button class="pill-btn">编辑</button>
+              <button class="pill-btn primary">聊聊</button>
+            </div>
+
+            <div class="module">
+              <span class="status">需复核</span>
+              <div class="title-block">牙科复诊</div>
+              <div class="table">
+                <div class="row"><span class="label">时间</span><span class="value">周五 14:30</span></div>
+                <div class="row"><span class="label">地点</span><span class="value">牙科门诊</span></div>
+                <div class="row"><span class="label">事项</span><span class="value">复诊和检查牙套状态</span></div>
+              </div>
+              <p class="text-block">这条日程来自截图和对话合并，AI 对具体门诊名称还没有完全确认。</p>
+              <div class="tags"><span class="tag">Health</span><span class="tag">Schedule</span><span class="tag">Project</span></div>
+            </div>
+
+            <section class="section">
+              <div class="section-head"><span>来源</span><span>2 条</span></div>
+              <div class="source-list">
+                <div class="source">
+                  <p class="source-text">预约截图识别：周五 14:30，复诊，牙套状态检查。</p>
+                  <div class="metadata"><span>图片识别</span><span>周一 18:42</span><span>截图无定位</span></div>
+                </div>
+                <div class="source">
+                  <p class="source-text">“这个应该是上次那家牙科，但我不确定是不是同一个门诊。”</p>
+                  <div class="metadata"><span>聊天</span><span>周一 18:45</span><span>家</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><span>关联</span><span></span></div>
+              <div class="related-list">
+                <div class="related"><p>上次牙套调整后的不适</p><small>相关记忆卡片 · 复诊背景</small></div>
+                <div class="related"><p>牙科门诊地址确认</p><small>相关记忆卡片 · AI 仍需复核</small></div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><span>AI 理解</span><span>收起</span></div>
+              <div class="fold clean">
+                <div class="field-grid">
+                  <div class="field"><span>时间</span><span>周五 14:30</span></div>
+                  <div class="field"><span>地点</span><span>牙科门诊，低置信</span></div>
+                  <div class="field"><span>状态</span><span>需复核</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><span>修订历史</span><span>展开</span></div>
+              <div class="fold collapsed">创建、复核、修订、取消等记录</div>
+            </section>
+          </div>
+        </section>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

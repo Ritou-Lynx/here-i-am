@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Here I Am · Chat And Voice Mockups v1</title>
+  <style>
+    :root{
+      --bg:#F6F0EF;
+      --ink:#5F4B4A;
+      --ink-mid:#6F5A59;
+      --ink-soft:#A8908E;
+      --rose:#C08E96;
+      --rose-soft:#E3C2C4;
+      --glass-line:rgba(255,255,255,.62);
+      --hairline:rgba(117,97,95,.14);
+      --mood-calm:#E5C7CB;
+      --mood-low:#6F7A8A;
+      --mood-neutral:#DCD2CE;
+      --green:#78A889;
+      --warn:#D8A05A;
+      --red:#C96D6D;
+      --xhs:#FE2C55;
+    }
+
+    *{box-sizing:border-box}
+    html,body{min-height:100%;margin:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC",sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(circle at 15% 8%,rgba(255,255,255,.78),transparent 24%),
+        radial-gradient(circle at 78% 14%,rgba(227,194,196,.32),transparent 28%),
+        radial-gradient(circle at 16% 88%,rgba(166,154,184,.13),transparent 30%),
+        linear-gradient(180deg,#F8F3F2 0%,var(--bg) 52%,#F1E8E8 100%);
+      overflow-x:hidden;
+    }
+
+    .page{
+      width:calc(100% - 32px);
+      max-width:1220px;
+      margin:0 auto;
+      padding:36px 0 58px;
+    }
+
+    .top{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:24px;
+      margin-bottom:24px;
+    }
+
+    h1{
+      margin:0;
+      font-size:24px;
+      line-height:1.25;
+      letter-spacing:.08em;
+      font-weight:540;
+    }
+
+    .sub{
+      max-width:760px;
+      margin:10px 0 0;
+      color:var(--ink-soft);
+      font-size:13px;
+      line-height:1.8;
+    }
+
+    .chips{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      gap:8px;
+      max-width:430px;
+    }
+
+    .chips span{
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid rgba(117,97,95,.12);
+      background:rgba(255,255,255,.36);
+      color:var(--ink-soft);
+      font-size:10px;
+      letter-spacing:.12em;
+      backdrop-filter:blur(12px);
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:minmax(0,420px);
+      justify-content:center;
+      gap:18px;
+      align-items:start;
+    }
+
+    .sample{display:grid;gap:8px}
+    .sample:not(.selected){display:none}
+    .sample-name{
+      padding-left:10px;
+      color:var(--ink-soft);
+      font-size:10px;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+    }
+
+    .phone{
+      position:relative;
+      overflow:hidden;
+      min-height:760px;
+      border-radius:34px;
+      border:1px solid var(--glass-line);
+      background:
+        radial-gradient(circle at 50% 73%,rgba(229,199,203,.18),transparent 28%),
+        linear-gradient(180deg,rgba(255,255,255,.58),rgba(255,255,255,.26) 45%,rgba(246,229,229,.30)),
+        radial-gradient(circle at 8% 0,rgba(229,199,203,.36),transparent 38%);
+      box-shadow:
+        0 28px 70px rgba(117,97,95,.18),
+        inset 0 1px 0 rgba(255,255,255,.78),
+        inset -18px -22px 54px rgba(176,125,136,.10);
+      backdrop-filter:blur(22px) saturate(1.16);
+    }
+
+    .phone::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at 85% 11%,rgba(255,255,255,.52) 0 1px,transparent 2px),
+        radial-gradient(circle at 90% 18%,rgba(255,255,255,.36) 0 1.5px,transparent 3px),
+        linear-gradient(108deg,transparent 0 55%,rgba(255,255,255,.15) 56%,transparent 64%);
+      opacity:.82;
+    }
+
+    .chat{
+      position:relative;
+      z-index:1;
+      display:flex;
+      flex-direction:column;
+      min-height:760px;
+      padding:14px 14px 16px;
+    }
+
+    .space-ring{
+      position:absolute;
+      left:50%;
+      bottom:116px;
+      width:198px;
+      height:198px;
+      transform:translateX(-50%);
+      border-radius:50%;
+      border:1px solid rgba(192,142,150,.28);
+      background:
+        radial-gradient(circle,transparent 56%,rgba(255,255,255,.35) 57% 61%,transparent 62%),
+        radial-gradient(circle,rgba(192,142,150,.08),transparent 58%);
+      box-shadow:
+        0 0 42px rgba(192,142,150,.14),
+        inset 0 0 26px rgba(255,255,255,.32);
+      opacity:.42;
+      pointer-events:none;
+    }
+
+    .space-ring::after{
+      content:"";
+      position:absolute;
+      inset:28px;
+      border-radius:50%;
+      border:1px solid rgba(111,122,138,.16);
+      opacity:.75;
+    }
+
+    .topbar{
+      position:relative;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-height:50px;
+      z-index:5;
+    }
+
+    .avatar{
+      position:relative;
+      width:42px;
+      height:42px;
+      border-radius:50%;
+      border:1px solid rgba(255,255,255,.68);
+      background:
+        radial-gradient(circle at 34% 28%,rgba(255,255,255,.72),transparent 27%),
+        linear-gradient(145deg,#C8A5AA,#7C8B9F);
+      box-shadow:0 12px 26px rgba(117,97,95,.18);
+    }
+
+    .toy-dot{
+      position:absolute;
+      right:-1px;
+      bottom:1px;
+      width:9px;
+      height:9px;
+      border-radius:50%;
+      border:1.5px solid rgba(255,255,255,.86);
+      background:var(--green);
+      box-shadow:0 0 10px rgba(120,168,137,.46);
+    }
+
+    .identity{
+      min-width:0;
+      flex:1;
+      display:grid;
+      gap:2px;
+    }
+
+    .name{
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      color:var(--ink);
+      font-size:16px;
+      font-weight:620;
+    }
+
+    .hint{
+      color:var(--ink-soft);
+      font-size:10.5px;
+      letter-spacing:.10em;
+    }
+
+    .top-actions{
+      position:relative;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+
+    .round{
+      display:grid;
+      place-items:center;
+      width:36px;
+      height:36px;
+      border-radius:50%;
+      border:1px solid rgba(117,97,95,.12);
+      background:rgba(255,255,255,.36);
+      color:var(--ink-mid);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.56);
+      backdrop-filter:blur(12px);
+      font-size:16px;
+    }
+
+    .icon{
+      width:17px;
+      height:17px;
+      display:block;
+      fill:none;
+      stroke:currentColor;
+      stroke-width:2;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+
+    .icon.big{
+      width:22px;
+      height:22px;
+    }
+
+    .round.primary{
+      background:rgba(192,142,150,.92);
+      color:white;
+      border-color:rgba(192,142,150,.20);
+      box-shadow:0 9px 20px rgba(192,142,150,.22);
+    }
+
+    .tool-ring{
+      position:absolute;
+      right:0;
+      top:48px;
+      width:232px;
+      height:150px;
+      z-index:6;
+      pointer-events:none;
+    }
+
+    .ring-arc{
+      position:absolute;
+      left:0;
+      top:0;
+      width:232px;
+      height:150px;
+      overflow:visible;
+      filter:drop-shadow(0 16px 22px rgba(117,97,95,.11));
+      opacity:.98;
+      pointer-events:none;
+    }
+
+    .ring-arc path{
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+
+    .ring-arc .arc-shadow{stroke:rgba(117,97,95,.08);stroke-width:22}
+    .ring-arc .arc-body{stroke:rgba(255,255,255,.58);stroke-width:18}
+    .ring-arc .arc-highlight{stroke:rgba(255,255,255,.78);stroke-width:4}
+
+    .tool{
+      position:absolute;
+      display:grid;
+      place-items:center;
+      width:32px;
+      height:32px;
+      border-radius:50%;
+      border:1px solid rgba(117,97,95,.12);
+      background:rgba(255,255,255,.58);
+      color:var(--ink-mid);
+      font-size:14px;
+      box-shadow:0 8px 18px rgba(117,97,95,.12);
+      pointer-events:auto;
+    }
+
+    .tool-ring[data-ring-layout] .tool{
+      transform:translate(-50%,-50%);
+    }
+
+    .tool.t1{left:8px;top:26px}
+    .tool.t2{left:42px;top:68px}
+    .tool.t3{left:82px;top:68px}
+    .tool.t4{left:118px;top:26px}
+
+    .messages{
+      position:relative;
+      z-index:2;
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      padding:20px 0 12px;
+    }
+
+    .chat.with-tools .messages{padding-top:140px}
+
+    .bubble{
+      max-width:82%;
+      padding:12px 14px;
+      border-radius:18px;
+      font-size:14px;
+      line-height:1.66;
+      box-shadow:0 12px 26px rgba(117,97,95,.10);
+    }
+
+    .bubble.ai{
+      align-self:flex-start;
+      color:rgba(95,75,74,.96);
+      background:rgba(255,255,255,.46);
+      border:1px solid rgba(255,255,255,.56);
+      border-top-left-radius:7px;
+    }
+
+    .bubble.user{
+      align-self:flex-end;
+      color:#5C4847;
+      background:rgba(229,199,203,.52);
+      border:1px solid rgba(255,255,255,.52);
+      border-top-right-radius:7px;
+    }
+
+    .memory-mini{
+      align-self:flex-start;
+      width:84%;
+      padding:14px;
+      border-radius:22px;
+      border:1px solid rgba(255,255,255,.62);
+      background:
+        linear-gradient(145deg,rgba(255,255,255,.54),rgba(255,255,255,.22) 48%,rgba(246,229,229,.18));
+      box-shadow:
+        0 16px 36px rgba(117,97,95,.12),
+        inset 0 1px 0 rgba(255,255,255,.68);
+    }
+
+    .memory-mini b{
+      display:block;
+      margin-bottom:6px;
+      color:var(--ink-mid);
+      font-size:13px;
+      letter-spacing:.04em;
+    }
+
+    .memory-mini p{
+      margin:0;
+      color:rgba(95,75,74,.94);
+      font-size:13.5px;
+      line-height:1.7;
+    }
+
+    .notice{
+      align-self:center;
+      display:flex;
+      align-items:center;
+      gap:9px;
+      padding:8px 10px 8px 13px;
+      border-radius:999px;
+      border:1px solid rgba(117,97,95,.10);
+      background:rgba(255,255,255,.44);
+      color:var(--ink-soft);
+      font-size:11px;
+      backdrop-filter:blur(12px);
+    }
+
+    .notice button{
+      border:0;
+      padding:5px 9px;
+      border-radius:999px;
+      background:rgba(192,142,150,.14);
+      color:#8E646C;
+      font-size:11px;
+      letter-spacing:.08em;
+    }
+
+    .composer{
+      position:relative;
+      z-index:4;
+      display:grid;
+      gap:8px;
+      padding:10px;
+      border-radius:28px;
+      border:1px solid rgba(255,255,255,.54);
+      background:rgba(255,255,255,.34);
+      box-shadow:
+        0 16px 36px rgba(117,97,95,.12),
+        inset 0 1px 0 rgba(255,255,255,.64);
+      backdrop-filter:blur(18px);
+    }
+
+    .attach-chip{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      width:max-content;
+      max-width:100%;
+      padding:7px 9px;
+      border-radius:14px;
+      background:rgba(255,255,255,.42);
+      color:var(--ink-mid);
+      font-size:12px;
+    }
+
+    .brand{
+      display:grid;
+      place-items:center;
+      width:22px;
+      height:22px;
+      border-radius:7px;
+      background:var(--xhs);
+      color:white;
+      font-size:9px;
+      font-weight:650;
+    }
+
+    .input-row{
+      display:flex;
+      align-items:flex-end;
+      gap:8px;
+    }
+
+    .input{
+      flex:1;
+      min-height:38px;
+      padding:9px 8px;
+      color:var(--ink-soft);
+      font-size:14px;
+      line-height:1.4;
+    }
+
+    .mini{
+      display:grid;
+      place-items:center;
+      width:38px;
+      height:38px;
+      flex:0 0 auto;
+      border-radius:50%;
+      border:1px solid rgba(117,97,95,.10);
+      background:rgba(255,255,255,.28);
+      color:var(--ink-mid);
+      font-size:16px;
+    }
+
+    .mini.send{
+      background:var(--rose);
+      color:white;
+      border-color:transparent;
+      box-shadow:0 9px 20px rgba(192,142,150,.22);
+    }
+
+    .mini.call{
+      background:rgba(192,142,150,.92);
+      color:white;
+      border-color:rgba(192,142,150,.12);
+      box-shadow:0 9px 20px rgba(192,142,150,.20);
+    }
+
+    .voice-panel{
+      position:relative;
+      z-index:4;
+      display:grid;
+      gap:8px;
+      padding:9px 10px;
+      border-radius:28px;
+      border:1px solid rgba(255,255,255,.58);
+      background:
+        radial-gradient(circle at 50% 0,rgba(229,199,203,.36),transparent 48%),
+        rgba(255,255,255,.36);
+      box-shadow:
+        0 18px 42px rgba(117,97,95,.15),
+        inset 0 1px 0 rgba(255,255,255,.64);
+      backdrop-filter:blur(20px);
+    }
+
+    .voice-status{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      color:var(--ink-mid);
+      font-size:13px;
+      letter-spacing:.04em;
+    }
+
+    .voice-status span:last-child{
+      color:var(--ink-soft);
+      font-size:11px;
+    }
+
+    .wave{
+      flex:1;
+      min-width:58px;
+      height:30px;
+      border-radius:18px;
+      background:
+        repeating-linear-gradient(90deg,transparent 0 12px,rgba(192,142,150,.32) 12px 14px,transparent 14px 22px),
+        linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,.10));
+      mask-image:radial-gradient(ellipse at center,black 55%,transparent 76%);
+      opacity:.9;
+    }
+
+    .voice-controls{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+
+    .voice-live-row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .call-end{
+      background:var(--red);
+      color:white;
+    }
+
+    .mic-live{
+      width:38px;
+      height:38px;
+      background:rgba(192,142,150,.18);
+      border-color:rgba(192,142,150,.46);
+      color:var(--rose);
+      font-size:22px;
+      box-shadow:0 0 24px rgba(192,142,150,.18);
+    }
+
+    .keyboard{
+      color:var(--ink-mid);
+    }
+
+    .caption{
+      padding:9px 11px;
+      border-radius:16px;
+      background:rgba(255,255,255,.38);
+      color:var(--ink-mid);
+      font-size:12.5px;
+      line-height:1.55;
+    }
+
+    @media (max-width:1040px){
+      .grid{grid-template-columns:minmax(0,420px);justify-content:center}
+      .top{display:block}
+      .chips{justify-content:flex-start;margin-top:18px}
+    }
+
+    @media (max-width:680px){
+      .page{width:calc(100% - 26px);padding-top:24px}
+      .grid{grid-template-columns:1fr;max-width:390px}
+      .phone,.chat{min-height:760px}
+      h1{font-size:20px}
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="top">
+      <div>
+        <h1>Chat + Voice · 第一版原型</h1>
+        <p class="sub">保留现有聊天功能，重新整理入口层级：电话进入聊天内语音模式；全局设置常驻；聊天工具以半圆环展开；记忆沉淀提示保留撤销。</p>
+      </div>
+      <div class="chips">
+        <span>Chat Home</span><span>Tool Ring</span><span>Global Settings</span><span>Voice Mode</span><span>Memory Undo</span>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="sample">
+        <div class="sample-name">01 default chat</div>
+        <section class="phone">
+          <div class="space-ring"></div>
+          <div class="chat">
+            <header class="topbar">
+              <div class="avatar"><i class="toy-dot"></i></div>
+              <div class="identity">
+                <div class="name">沙丘</div>
+                <div class="hint">点击切换角色</div>
+              </div>
+              <div class="top-actions">
+                <div class="round">◎</div>
+                <div class="round">⚙</div>
+              </div>
+            </header>
+
+            <div class="messages">
+              <div class="bubble ai">你刚才说不想把周末排满，我记住了。我们可以先留一块空白，不急着决定。</div>
+              <div class="bubble user">嗯，我最近真的不太想被安排。</div>
+              <div class="memory-mini">
+                <b>旧记忆召回</b>
+                <p>你之前说过，周末如果已经很累，就希望 TA 先问你有没有精力再安排活动。</p>
+              </div>
+              <div class="notice">这段对话已沉淀为记忆 <button>撤销</button></div>
+            </div>
+
+            <div class="composer">
+              <div class="input-row">
+                <div class="mini">＋</div>
+                <div class="input">说点什么...</div>
+                <div class="mini" title="录音">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 18v4"/><path d="M8 22h8"/></svg>
+                </div>
+                <div class="mini call" title="语音通话">
+                  <svg class="icon big" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8v8"/><path d="M10 5v14"/><path d="M14 7v10"/><path d="M18 10v4"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </article>
+
+      <article class="sample selected">
+        <div class="sample-name">02 semi-ring tools open</div>
+        <section class="phone">
+          <div class="space-ring"></div>
+          <div class="chat with-tools">
+            <header class="topbar">
+              <div class="avatar"><i class="toy-dot"></i></div>
+              <div class="identity">
+                <div class="name">沙丘</div>
+                <div class="hint">点击切换角色</div>
+              </div>
+              <div class="top-actions">
+                <div class="round">×</div>
+                <div class="round">⚙</div>
+              </div>
+              <div class="tool-ring" data-ring-layout data-cx="126" data-cy="18" data-r="104" data-start="158" data-end="22">
+                <svg class="ring-arc" viewBox="0 0 232 150" aria-hidden="true">
+                  <path class="arc-shadow"/>
+                  <path class="arc-body"/>
+                  <path class="arc-highlight"/>
+                </svg>
+                <div class="tool t1" title="搜索">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                </div>
+                <div class="tool t2" title="自动朗读">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+                </div>
+                <div class="tool t3" title="通话记录">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>
+                </div>
+                <div class="tool t4" title="空间">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>
+                </div>
+              </div>
+            </header>
+
+            <div class="messages">
+              <div class="bubble user">这个小红书链接你先帮我留一下，我可能秋天想去。</div>
+              <div class="bubble ai">好，我会把它当成一个可能的出行计划，而不是单纯的待读文章。</div>
+              <div class="bubble user">还有周末别排太满。</div>
+              <div class="notice">已沉淀为一条记忆 <button>撤销</button></div>
+            </div>
+
+            <div class="composer">
+              <div class="attach-chip"><span class="brand">小</span><span>杭州 city walk 路线</span></div>
+              <div class="input-row">
+                <div class="mini">＋</div>
+                <div class="input">补充一句备注...</div>
+                <div class="mini send">➤</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </article>
+
+      <article class="sample">
+        <div class="sample-name">03 voice mode inside chat</div>
+        <section class="phone">
+          <div class="space-ring"></div>
+          <div class="chat">
+            <header class="topbar">
+              <div class="avatar"><i class="toy-dot"></i></div>
+              <div class="identity">
+                <div class="name">沙丘</div>
+                <div class="hint">点击切换角色</div>
+              </div>
+              <div class="top-actions">
+                <div class="round">◎</div>
+                <div class="round">⚙</div>
+              </div>
+            </header>
+
+            <div class="messages">
+              <div class="bubble ai">我在。你可以直接说，我会把对话正常留在这里。</div>
+              <div class="bubble user">那我说一下这周的安排。</div>
+              <div class="bubble ai">嗯，我听着。</div>
+              <div class="bubble user">周五下午可能要去牙科复诊，但门诊名字我还不确定...</div>
+            </div>
+
+            <div class="composer">
+              <div class="input-row">
+                <div class="mini">＋</div>
+                <div class="input">边说边补充文字...</div>
+                <div class="mini mic-live" title="麦克风开关">
+                  <svg class="icon big" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 18v4"/><path d="M8 22h8"/></svg>
+                </div>
+                <div class="mini call-end" title="结束语音">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </article>
+    </section>
+  </main>
+  <script>
+    function arcPath(cx, cy, r, startDeg, endDeg, steps = 28) {
+      const points = [];
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const deg = startDeg + (endDeg - startDeg) * t;
+        const rad = deg * Math.PI / 180;
+        points.push([cx + Math.cos(rad) * r, cy + Math.sin(rad) * r]);
+      }
+      return points.map(([x, y], index) => `${index ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)}`).join(' ');
+    }
+
+    function layoutRing(ring) {
+      const cx = Number(ring.dataset.cx || ring.clientWidth / 2);
+      const cy = Number(ring.dataset.cy || 18);
+      const r = Number(ring.dataset.r || 78);
+      const start = Number(ring.dataset.start || 150);
+      const end = Number(ring.dataset.end || 30);
+      const materialPaths = [
+        ['.arc-shadow', r + 1, start, end],
+        ['.arc-body', r, start, end],
+        ['.arc-highlight', r - 8, start + 10, end - 10],
+      ];
+      materialPaths.forEach(([selector, radius, startAngle, endAngle]) => {
+        ring.querySelector(selector).setAttribute('d', arcPath(cx, cy, radius, startAngle, endAngle));
+      });
+
+      const items = [...ring.querySelectorAll('.tool')];
+      items.forEach((item, index) => {
+        const deg = items.length === 1
+          ? (start + end) / 2
+          : start + (end - start) * (index / (items.length - 1));
+        const rad = deg * Math.PI / 180;
+        item.style.left = `${cx + Math.cos(rad) * r}px`;
+        item.style.top = `${cy + Math.sin(rad) * r}px`;
+      });
+    }
+
+    document.querySelectorAll('.tool-ring[data-ring-layout]').forEach(layoutRing);
+  </script>
+</body>
+</html>

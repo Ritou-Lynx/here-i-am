@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Here I Am · 圆柱大厅 v3</title>
+<style>
+  :root{
+    --bg:#F6F0EF;--ink:#75615F;--ink-soft:#A8908E;--rose:#C08E96;
+    --pearl:#FFF9F6;--line:rgba(117,97,95,.16);--cool:#8FA7A0;--violet:#A69AB8;
+    /* cylinder geometry (overridden in media query for mobile)
+       Constraint: panelW <= 1.155 * R  (else side panels' far edges poke past z=0 into camera)
+       Projected front width = panelW * persp / (persp + R)
+       Strategy for bigger front: push panelW to the geometric limit AND raise persp to reduce shrinkage */
+    --R: 560px;          /* cylinder radius */
+    --panelW: 640px;     /* ~1.14 R, at the cylinder-validity edge */
+    --panelH: 780px;
+    --persp: 2000px;     /* large persp = flatter projection = larger projected front */
+    --step: 60deg;       /* 360 / N panels */
+    --ringRot: 0deg;     /* driven by JS */
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overflow:hidden;background:var(--bg);
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    color:var(--ink);user-select:none;-webkit-user-select:none;touch-action:none;
+    transition:background-color .9s cubic-bezier(.4,.0,.2,1);}
+
+  /* mist behind everything */
+  #bgFog{position:fixed;inset:0;background:
+    radial-gradient(ellipse at 18% 22%,rgba(192,142,150,.20),transparent 48%),
+    radial-gradient(ellipse at 82% 76%,rgba(143,167,160,.16),transparent 54%),
+    radial-gradient(ellipse at 52% 104%,rgba(166,154,184,.13),transparent 50%);
+    z-index:0;}
+
+  /* hall = perspective camera at center, looking outward at the cylinder wall */
+  #hall{position:fixed;inset:0;
+    perspective:var(--persp);perspective-origin:50% 50%;
+    overflow:hidden;z-index:2;}
+
+  /* a single 3D scene so floor/ceiling/ring share the same space */
+  #scene{position:absolute;left:50%;top:50%;width:0;height:0;
+    transform-style:preserve-3d;}
+
+  /* ceiling & floor: concentric ellipses anchoring the cylinder */
+  .horizon{position:absolute;left:0;top:0;width:0;height:0;
+    transform-style:preserve-3d;}
+  .horizon i{position:absolute;left:0;top:0;
+    width:calc(var(--R) * 2.4);height:calc(var(--R) * 2.4);
+    margin-left:calc(var(--R) * -1.2);margin-top:calc(var(--R) * -1.2);
+    border:1px solid rgba(117,97,95,.10);border-radius:50%;}
+  #ceil{transform:translateY(calc(var(--panelH) * -.58)) rotateX(82deg);}
+  #floor{transform:translateY(calc(var(--panelH) * .58)) rotateX(82deg);}
+  .horizon i:nth-child(2){transform:scale(.74);border-color:rgba(117,97,95,.06);}
+  .horizon i:nth-child(3){transform:scale(.50);border-color:rgba(117,97,95,.04);}
+
+  /* the ring — THE cylinder. JS sets --ringRot, everything inside rides along. */
+  #ring{position:absolute;left:0;top:0;width:0;height:0;
+    transform-style:preserve-3d;
+    transform:rotateY(var(--ringRot));
+    will-change:transform;}
+
+  /* each panel sits on the inner wall.
+     --panel-tint / --panel-glow / --panel-fill are set per panel inline (from its skin). */
+  .panel{position:absolute;
+    width:var(--panelW);height:var(--panelH);
+    left:calc(var(--panelW) * -.5);
+    top:calc(var(--panelH) * -.5);
+    /* placement = inner cylinder wall facing center */
+    transform:rotateY(calc(var(--i) * var(--step) * -1)) translateZ(calc(var(--R) * -1));
+    transform-style:preserve-3d;
+    border-radius:26px;overflow:hidden;
+    background:linear-gradient(145deg,
+      rgba(255,255,255,.62),
+      rgba(255,255,255,.30) 44%,
+      var(--panel-tint, rgba(246,229,229,.34)));
+    border:1px solid rgba(255,255,255,.58);
+    box-shadow:
+      0 36px 90px rgba(117,97,95,.18),
+      inset 0 1px 0 rgba(255,255,255,.78),
+      inset -24px -26px 70px var(--panel-glow, rgba(192,142,150,.10));
+    backdrop-filter:blur(18px) saturate(1.12);
+    -webkit-backdrop-filter:blur(18px) saturate(1.12);
+    /* JS sets these per panel each frame */
+    --dim:0;
+    opacity:calc(1 - var(--dim) * .55);
+    filter:saturate(calc(1 - var(--dim) * .6)) brightness(calc(1 - var(--dim) * .10));
+  }
+  .panel.behind{visibility:hidden;}    /* hide the >90° backside panels */
+  .panel:not(.front) .panelBody{pointer-events:none;overflow:hidden;}
+  .panel:not(.front){pointer-events:none;}
+
+  /* a soft vertical light gradient on the inner wall sells "interior lighting" */
+  .panel::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(180deg,
+      rgba(255,255,255,.16) 0%,
+      rgba(255,255,255,0) 22%,
+      rgba(117,97,95,.04) 78%,
+      rgba(117,97,95,.10) 100%);}
+
+  .panelHead{position:relative;z-index:2;
+    height:74px;display:flex;align-items:center;gap:16px;padding:0 28px;
+    border-bottom:1px solid var(--line);}
+  .panelMark{width:12px;height:12px;border-radius:50%;border:2px solid var(--rose);
+    box-shadow:0 0 16px rgba(192,142,150,.26);}
+  .panelName{font-size:20px;font-weight:500;letter-spacing:.18em;color:#6F5A59;}
+  .panelSub{font-size:11px;letter-spacing:.16em;color:var(--ink-soft);margin-top:4px;}
+  .panelPos{margin-left:auto;font-size:11px;letter-spacing:.14em;color:var(--ink-soft);}
+  .panelBody{position:relative;z-index:2;
+    height:calc(100% - 74px);overflow:auto;padding:24px 28px 30px;
+    scrollbar-width:thin;scrollbar-color:rgba(117,97,95,.24) transparent;}
+  .panelBody::-webkit-scrollbar{width:6px;}
+  .panelBody::-webkit-scrollbar-thumb{background:rgba(117,97,95,.22);border-radius:6px;}
+
+  /* content styles carried from v2 */
+  .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;align-items:start;}
+  .band{border-top:1px solid var(--line);padding-top:16px;margin-top:18px;}
+  .span2{grid-column:1/-1;}
+  .label{font-size:10px;letter-spacing:.26em;color:var(--ink-soft);}
+  .metric{font-size:48px;line-height:1.05;font-weight:500;color:#6F5A59;margin-top:10px;}
+  .metric small{font-size:13px;color:var(--ink-soft);letter-spacing:.14em;margin-left:8px;}
+  .sectionTitle{font-size:13px;font-weight:500;letter-spacing:.16em;color:#6F5A59;margin-bottom:12px;}
+  .rows{display:grid;gap:9px;}
+  .row{display:grid;grid-template-columns:minmax(84px,.7fr) 1fr auto;gap:12px;align-items:center;
+    min-height:32px;font-size:12px;letter-spacing:.04em;color:rgba(117,97,95,.82);}
+  .row b{font-weight:500;color:#6F5A59;text-align:right;}
+  .bar{height:5px;border-radius:999px;background:rgba(117,97,95,.10);overflow:hidden;}
+  /* gradient stays inside the panel's own skin family */
+  .bar i{display:block;height:100%;border-radius:inherit;
+    background:linear-gradient(90deg, var(--panel-fill, rgba(227,194,196,.55)), var(--rose));}
+  .timeline{display:grid;gap:12px;}
+  .event{display:grid;grid-template-columns:58px 1fr auto;gap:12px;align-items:start;
+    padding-bottom:12px;border-bottom:1px solid rgba(117,97,95,.10);}
+  .event time{font-size:11px;letter-spacing:.08em;color:var(--ink-soft);}
+  .event strong{display:block;font-size:13px;font-weight:500;color:#6F5A59;margin-bottom:4px;}
+  .event span{font-size:12px;color:rgba(117,97,95,.72);line-height:1.55;}
+  .pill{font-size:10px;letter-spacing:.12em;color:#8E646C;border:1px solid rgba(192,142,150,.26);
+    border-radius:999px;padding:4px 9px;background:rgba(255,255,255,.22);}
+  .twoCol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;}
+  .quote{font-size:17px;line-height:1.9;color:#6F5A59;letter-spacing:.04em;}
+  .note{font-size:12px;line-height:1.75;color:rgba(117,97,95,.72);}
+  .chart{height:132px;display:flex;align-items:end;gap:9px;padding-top:8px;}
+  /* chart bars: this panel's accent up top, fading into its own light tint */
+  .chart i{flex:1;border-radius:999px 999px 3px 3px;
+    background:linear-gradient(180deg, var(--rose), var(--panel-fill, rgba(227,194,196,.28)));}
+
+  /* HUD layers — outside the 3D scene */
+  .hud{position:fixed;z-index:20;pointer-events:none;}
+  #title{top:calc(env(safe-area-inset-top,0px) + 16px);left:0;right:0;text-align:center;
+    font-size:10px;letter-spacing:.28em;color:var(--ink-soft);}
+  #hint{bottom:calc(env(safe-area-inset-bottom,0px) + 20px);left:0;right:0;text-align:center;
+    font-size:10px;letter-spacing:.16em;color:var(--ink-soft);opacity:.76;transition:opacity .8s;}
+  #hint.gone{opacity:0;}
+  #rail{position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:18;display:grid;gap:8px;}
+  .dot{width:5px;height:18px;border-radius:999px;background:rgba(117,97,95,.18);transition:height .25s,background .25s;}
+  .dot.on{height:34px;background:var(--rose);}
+  #bar{position:fixed;z-index:30;left:0;right:0;bottom:0;
+    display:flex;justify-content:center;gap:10px;
+    padding:12px 18px calc(env(safe-area-inset-bottom,0px) + 14px);}
+  .btn{border:1px solid rgba(117,97,95,.22);border-radius:999px;background:rgba(255,255,255,.50);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    font-size:11px;letter-spacing:.16em;padding:10px 18px;font-family:inherit;color:var(--ink);
+    cursor:pointer;}
+
+  @media (max-width:720px){
+    :root{
+      /* mobile: aim for front panel ≈ 88% of viewport width.
+         R=360, panelW=410 (=1.14R, max safe), persp=1700
+         projected = 410 * 1700/2060 ≈ 338px on a 380px viewport = ~89% */
+      --R:360px;
+      --panelW:410px;
+      --panelH:660px;
+      --persp:1700px;
+    }
+    .panelHead{height:64px;padding:0 18px;}
+    .panelName{font-size:17px;}
+    .panelBody{padding:18px 18px 26px;}
+    .grid,.twoCol{grid-template-columns:1fr;}
+    .span2{grid-column:auto;}
+    .metric{font-size:36px;}
+  }
+</style>
+</head>
+<body>
+<div id="bgFog"></div>
+<div id="hall">
+  <div id="scene">
+    <div id="ceil" class="horizon"><i></i><i></i><i></i></div>
+    <div id="floor" class="horizon"><i></i><i></i><i></i></div>
+    <div id="ring"></div>
+  </div>
+</div>
+<div class="hud" id="title">HERE I AM · 观察舱 · 圆柱大厅</div>
+<div class="hud" id="hint">横滑转身 · 圆柱整体绕你旋转</div>
+<div id="rail"></div>
+<div id="bar">
+  <button class="btn" id="bPrev">← 转身</button>
+  <button class="btn" id="bNext">转身 →</button>
+</div>
+
+<script>
+/* 5 skins from the design doc §8 (玫瑰单色系 × 五时辰皮肤).
+   each skin = a bg + a 5-step scale (lightest → deepest). */
+const SKINS = {
+  R0:{ name:'鱼肚白', tod:'黎明', bg:'#F1ECED', s:['#E4D6DA','#D2C0C7','#BFAAB3','#AC939E','#957B89'] },
+  R3:{ name:'珊瑚暖', tod:'朝',  bg:'#F8F2EC', s:['#F0D2C6','#EBC0B2','#E0A99A','#D4988A','#C8887C'] },
+  R1:{ name:'玫瑰雾', tod:'昼',  bg:'#F6F0EF', s:['#E3C2C4','#D9B0B4','#CDA0A6','#C08E96','#B27D88'] },
+  R2:{ name:'豆沙',   tod:'午后', bg:'#F4EEE9', s:['#E0C4BF','#D2ACA8','#C99C99','#BE8D8A','#B07E7C'] },
+  R4:{ name:'紫调玫瑰',tod:'暮', bg:'#F3EFF2', s:['#E4CCD4','#D8B8C2','#C9A3B0','#BB91A3','#AC8096'] },
+  R5:{ name:'绯雾',   tod:'夜',  bg:'#F1EAE8', s:['#DCBDB9','#CBA3A0','#B98A87','#A87874','#9A6B6B'] },
+};
+function rgba(hex,a){
+  const n=parseInt(hex.slice(1),16);
+  return `rgba(${n>>16},${(n>>8)&255},${n&255},${a})`;
+}
+
+const DOMAINS=[
+  // each wall wears one of the 5 brand skins; rotating around the cylinder = walking through the day
+  {name:'记忆',sub:'质检台 / 最近沉淀 / 云中定位',skin:'R1',html:`
+    <div class="grid">
+      <section><div class="label">最近沉淀</div><div class="metric">12<small>条新记忆</small></div>
+        <div class="band rows">
+          <div class="row"><span>已确认</span><div class="bar"><i style="width:75%"></i></div><b>9</b></div>
+          <div class="row"><span>待核对</span><div class="bar"><i style="width:25%"></i></div><b>3</b></div>
+          <div class="row"><span>已撤回</span><div class="bar"><i style="width:0%"></i></div><b>0</b></div>
+        </div>
+      </section>
+      <section><div class="sectionTitle">本周记忆气象</div>
+        <div class="chart"><i style="height:42%"></i><i style="height:58%"></i><i style="height:36%"></i><i style="height:72%"></i><i style="height:66%"></i><i style="height:48%"></i><i style="height:84%"></i></div>
+        <p class="note">关系、论文、身体三个方向出现连续沉积。周五夜间的情绪浓度最高。</p>
+      </section>
+      <section class="span2 band"><div class="sectionTitle">待核对</div>
+        <div class="timeline">
+          <div class="event"><time>23:14</time><div><strong>深夜散步</strong><span>可能是一条关系记忆，地点与情绪强度需要确认。</span></div><em class="pill">改</em></div>
+          <div class="event"><time>18:40</time><div><strong>复盘会议</strong><span>从对话中提取出一个计划调整，建议同步到日程。</span></div><em class="pill">对</em></div>
+          <div class="event"><time>昨天</time><div><strong>母亲来电</strong><span>包含事实更新和情绪线索，等待你确认是否沉淀。</span></div><em class="pill">撤</em></div>
+        </div>
+      </section>
+    </div>`},
+  {name:'日程',sub:'未来事项 / 约会计划 / 提醒',skin:'R3',html:`
+    <div class="grid">
+      <section><div class="label">下一件事</div><div class="metric">07:30<small>晨跑</small></div>
+        <div class="band timeline">
+          <div class="event"><time>明天</time><div><strong>导师 1:1</strong><span>带上论文结构与本周实验记录。</span></div><em class="pill">准备</em></div>
+          <div class="event"><time>周六</time><div><strong>共读《长日将尽》</strong><span>预计 40 分钟，晚饭后。</span></div><em class="pill">约定</em></div>
+        </div>
+      </section>
+      <section><div class="sectionTitle">时间分布</div>
+        <div class="rows">
+          <div class="row"><span>工作</span><div class="bar"><i style="width:64%"></i></div><b>18h</b></div>
+          <div class="row"><span>身体</span><div class="bar"><i style="width:36%"></i></div><b>5h</b></div>
+          <div class="row"><span>关系</span><div class="bar"><i style="width:42%"></i></div><b>7h</b></div>
+          <div class="row"><span>留白</span><div class="bar"><i style="width:22%"></i></div><b>3h</b></div>
+        </div>
+      </section>
+      <section class="span2 band"><div class="sectionTitle">计划草案</div><p class="quote">周六下午适合安排一次轻量约会：书店、散步、早一点回家。不要再把恢复时间挤掉。</p></section>
+    </div>`},
+  {name:'账本',sub:'余额 / 支出 / 共同生活账目',skin:'R2',html:`
+    <div class="grid">
+      <section><div class="label">TA 的余额</div><div class="metric">¥ 1,284<small>本月结余</small></div>
+        <div class="band rows">
+          <div class="row"><span>为你支出</span><div class="bar"><i style="width:58%"></i></div><b>¥421</b></div>
+          <div class="row"><span>订阅</span><div class="bar"><i style="width:26%"></i></div><b>¥88</b></div>
+          <div class="row"><span>储备</span><div class="bar"><i style="width:72%"></i></div><b>¥775</b></div>
+        </div>
+      </section>
+      <section><div class="sectionTitle">最近流水</div>
+        <div class="timeline">
+          <div class="event"><time>今天</time><div><strong>咖啡</strong><span>雨天散步后的小奖励。</span></div><b>¥36</b></div>
+          <div class="event"><time>周二</time><div><strong>共读电子书</strong><span>书房同步记录。</span></div><b>¥28</b></div>
+          <div class="event"><time>周一</time><div><strong>晚安音频</strong><span>夜间陪伴内容。</span></div><b>¥12</b></div>
+        </div>
+      </section>
+    </div>`},
+  {name:'身体',sub:'运动 / 睡眠 / 恢复趋势',skin:'R5',html:`
+    <div class="grid">
+      <section><div class="label">今日活动</div><div class="metric">7,328<small>步</small></div>
+        <div class="band chart"><i style="height:38%"></i><i style="height:54%"></i><i style="height:46%"></i><i style="height:70%"></i><i style="height:64%"></i><i style="height:48%"></i><i style="height:76%"></i></div>
+      </section>
+      <section><div class="sectionTitle">恢复信号</div>
+        <div class="rows">
+          <div class="row"><span>睡眠</span><div class="bar"><i style="width:68%"></i></div><b>6h42m</b></div>
+          <div class="row"><span>静息心率</span><div class="bar"><i style="width:72%"></i></div><b>62</b></div>
+          <div class="row"><span>跑步</span><div class="bar"><i style="width:44%"></i></div><b>3.2km</b></div>
+          <div class="row"><span>压力</span><div class="bar"><i style="width:52%"></i></div><b>中</b></div>
+        </div>
+      </section>
+      <section class="span2 band"><div class="sectionTitle">身体备注</div><p class="note">连续两天睡眠不足，今天不建议安排高强度训练。晚上适合提前进入低刺激状态。</p></section>
+    </div>`},
+  {name:'书房',sub:'共读 / 摘录 / 待读',skin:'R4',html:`
+    <div class="grid">
+      <section><div class="label">在读</div><div class="metric" style="font-size:34px">《长日将尽》</div>
+        <div class="band rows">
+          <div class="row"><span>进度</span><div class="bar"><i style="width:67%"></i></div><b>67%</b></div>
+          <div class="row"><span>本周共读</span><div class="bar"><i style="width:46%"></i></div><b>2h18m</b></div>
+          <div class="row"><span>待读</span><div class="bar"><i style="width:35%"></i></div><b>4 本</b></div>
+        </div>
+      </section>
+      <section><div class="sectionTitle">上次摘录</div><p class="quote">"我们总是在事后才知道，哪些时刻其实已经改变了方向。"</p><p class="note">昨晚 23:14 · 关系 / 回望</p></section>
+      <section class="span2 band"><div class="sectionTitle">待读队列</div>
+        <div class="timeline">
+          <div class="event"><time>1</time><div><strong>悉达多</strong><span>精神线索，适合周末读。</span></div><em class="pill">加入</em></div>
+          <div class="event"><time>2</time><div><strong>卡拉马佐夫兄弟</strong><span>长线阅读，不急。</span></div><em class="pill">搁置</em></div>
+        </div>
+      </section>
+    </div>`},
+  {name:'未成形',sub:'新的共同生活流入后，这里会长出一面墙',skin:'R0',html:`
+    <div class="grid">
+      <section class="span2"><div class="label">尚未成形</div><div class="metric" style="font-size:30px;line-height:1.5">当一种新的共同生活流入，<br>这里会长出一面墙。</div></section>
+      <section class="span2 band"><p class="note">例如旅行、创作、宠物、家庭设备、长期项目。它不是预设入口，而是数据流稳定之后自然凝结的观察面。</p></section>
+    </div>`}
+];
+const N = DOMAINS.length;          // 6
+const STEP = 360 / N;              // 60
+const root = document.documentElement;
+const ring = document.getElementById('ring');
+const rail = document.getElementById('rail');
+const hint = document.getElementById('hint');
+
+let curIdx = 0;
+let ringRot = 0;          // current rotation in degrees (drives --ringRot)
+let panels = [];          // DOM refs
+
+/* ---------- build the cylinder once ----------
+   Each panel gets a full set of CSS vars from its own skin, scoped inline.
+   Children of the panel (bars, chart, mark) inherit these and stay in family
+   even though the global :root --rose is the ACTIVE wall's skin. */
+function buildRing(){
+  ring.innerHTML = DOMAINS.map((d,i)=>{
+    const sk = SKINS[d.skin];
+    const accent = sk.s[3];        // brand-equivalent mid-deep
+    const light  = sk.s[0];        // lightest step
+    const styleVars = [
+      `--i:${i}`,
+      `--rose:${accent}`,
+      `--panel-tint:${rgba(light,.34)}`,
+      `--panel-fill:${rgba(light,.55)}`,
+      `--panel-glow:${rgba(accent,.10)}`,
+    ].join(';');
+    return `<article class="panel" data-i="${i}" data-skin="${d.skin}" style="${styleVars}">
+      <header class="panelHead">
+        <i class="panelMark" style="border-color:${accent};box-shadow:0 0 16px ${rgba(accent,.34)}"></i>
+        <div>
+          <div class="panelName">${d.name}</div>
+          <div class="panelSub">${d.sub} · ${sk.tod}</div>
+        </div>
+        <div class="panelPos">${String(i+1).padStart(2,'0')} / ${String(N).padStart(2,'0')}</div>
+      </header>
+      <div class="panelBody">${d.html}</div>
+    </article>`;
+  }).join('');
+  panels = Array.from(ring.querySelectorAll('.panel'));
+  rail.innerHTML = DOMAINS.map((_,i)=>`<i class="dot${i===curIdx?' on':''}"></i>`).join('');
+}
+
+/* ---------- per-frame apply: rotate ring + update each panel's dim ---------- */
+function applyRot(){
+  root.style.setProperty('--ringRot', ringRot + 'deg');
+  // each panel j sits at angle -j*STEP on the ring;
+  // its world angle (relative to front) = ringRot - j*STEP, normalized to (-180,180].
+  for(let j=0;j<N;j++){
+    let a = (ringRot - j*STEP) % 360;
+    if(a > 180) a -= 360;
+    if(a <= -180) a += 360;
+    const abs = Math.abs(a);
+    // dim 0 at front, 1 at side, clamp; cosine-shaped so center stays bright
+    const dim = Math.min(1, (1 - Math.cos(abs*Math.PI/180)) * 0.9);
+    const p = panels[j];
+    p.style.setProperty('--dim', dim.toFixed(3));
+    p.classList.toggle('front', abs < STEP/2 - 1);
+    p.classList.toggle('behind', abs > 110);     // hide panels swinging behind viewer
+  }
+  // accent + global skin follow the active wall — body bg transitions to its 时辰
+  const d = DOMAINS[curIdx];
+  const sk = SKINS[d.skin];
+  root.style.setProperty('--rose', sk.s[3]);
+  root.style.setProperty('--bg', sk.bg);
+  // dots
+  rail.querySelectorAll('.dot').forEach((dot,k)=>dot.classList.toggle('on', k===curIdx));
+}
+
+/* ---------- rAF-driven tween between two ringRot values ----------
+   we drive the rotation ourselves so dim/front/behind update every frame */
+let animRAF = null, animFrom=0, animTo=0, animStart=0, animDur=820;
+function easeOutCubic(t){return 1 - Math.pow(1-t,3);}
+function tween(to, dur){
+  cancelAnimationFrame(animRAF);
+  animFrom = ringRot; animTo = to;
+  animStart = performance.now(); animDur = dur ?? 820;
+  const step = (now)=>{
+    const t = Math.min(1, (now - animStart) / animDur);
+    ringRot = animFrom + (animTo - animFrom) * easeOutCubic(t);
+    applyRot();
+    if(t < 1) animRAF = requestAnimationFrame(step);
+    else animRAF = null;
+  };
+  animRAF = requestAnimationFrame(step);
+}
+
+/* ---------- navigation: pick the front panel & rotate the whole ring ---------- */
+function setCurrent(targetIdx, animate=true){
+  // targetIdx may be unbounded (from drag-snap); curIdx wraps but rotation does NOT —
+  // we deliberately keep ringRot continuous so the cylinder takes the SHORT path even after wrap.
+  const delta = targetIdx - curIdx;          // signed step count
+  curIdx = ((targetIdx % N) + N) % N;
+  const targetRot = ringRot + delta * STEP;  // continuous rotation, no jump
+  if(animate) tween(targetRot);
+  else { ringRot = targetRot; applyRot(); }
+}
+function go(delta){ setCurrent(curIdx + delta, true); hideHint(); }
+
+/* ---------- pointer-following drag: directly write ringRot, snap on release ---------- */
+let dragging=false, dragStartX=0, dragStartRot=0, dragLastT=0, dragVel=0, dragLastX=0;
+const DRAG_PX_PER_STEP = 240;   // px of drag that equals one panel step
+function onDown(x){
+  cancelAnimationFrame(animRAF); animRAF=null;
+  dragging=true;
+  dragStartX = x; dragLastX = x;
+  dragStartRot = ringRot;
+  dragLastT = performance.now(); dragVel = 0;
+  hideHint();
+}
+function onMove(x){
+  if(!dragging) return;
+  const now = performance.now();
+  const dt = Math.max(1, now - dragLastT);
+  dragVel = (x - dragLastX) / dt;     // px/ms
+  dragLastX = x; dragLastT = now;
+  const dx = x - dragStartX;
+  // finger drag-right pushes the cylinder clockwise (from above) → ringRot decreases
+  ringRot = dragStartRot - (dx / DRAG_PX_PER_STEP) * STEP;
+  applyRot();
+}
+function onUp(){
+  if(!dragging) return;
+  dragging=false;
+  // velocity flick: add an inertial offset so a quick swipe carries through to the next slot
+  const flick = -dragVel * 90;        // tuned constant
+  const projected = ringRot + flick * STEP / DRAG_PX_PER_STEP;
+  const snapSteps = Math.round(projected / STEP);   // continuous step index
+  // update curIdx based on signed delta (so wrapping stays continuous)
+  const delta = snapSteps - Math.round(ringRot / STEP);
+  // ensure the snap moves at MOST one slot on a near-still release
+  const targetIdx = curIdx + (snapSteps - (curIdx + Math.round((ringRot - curIdx*STEP) / STEP)));
+  // simpler: snap ringRot to nearest STEP, derive curIdx from it
+  const finalRot = snapSteps * STEP;
+  const finalIdx = ((snapSteps % N) + N) % N;
+  curIdx = finalIdx;
+  tween(finalRot, 520);
+}
+
+document.addEventListener('touchstart', e=>onDown(e.touches[0].clientX), {passive:true});
+document.addEventListener('touchmove',  e=>onMove(e.touches[0].clientX), {passive:true});
+document.addEventListener('touchend',   e=>onUp(),                       {passive:true});
+document.addEventListener('mousedown',  e=>{ if(e.button===0) onDown(e.clientX); });
+document.addEventListener('mousemove',  e=>onMove(e.clientX));
+document.addEventListener('mouseup',    e=>onUp());
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight') go(1);
+  if(e.key==='ArrowLeft')  go(-1);
+});
+document.getElementById('bNext').addEventListener('click', ()=>go(1));
+document.getElementById('bPrev').addEventListener('click', ()=>go(-1));
+
+function hideHint(){ hint.classList.add('gone'); }
+setTimeout(hideHint, 7000);
+
+buildRing();
+applyRot();
+</script>
+</body>
+</html>

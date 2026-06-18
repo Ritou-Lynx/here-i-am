@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Here I Am · 主界面灰盒 v5</title>
+<style>
+  :root{--bg:#F6F0EF;--ink:#75615F;--ink-soft:#A8908E;--rose:#C08E96;}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overflow:hidden;background:var(--bg);
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    color:var(--ink);user-select:none;-webkit-user-select:none;touch-action:none;}
+  #cv{position:fixed;inset:0;}
+  #cv2{position:fixed;inset:0;pointer-events:none;z-index:6;}
+
+  #chat{position:fixed;inset:0;z-index:8;pointer-events:none;
+    background:rgba(246,240,239,.42);
+    backdrop-filter:blur(10px) saturate(1.1);-webkit-backdrop-filter:blur(10px) saturate(1.1);
+    -webkit-mask:radial-gradient(circle at 50% 44%,transparent 0 64px,#000 126px);
+    mask:radial-gradient(circle at 50% 44%,transparent 0 64px,#000 126px);
+    transition:opacity .9s;}
+  #chat.hidden{opacity:0;}
+  #chatUi{position:fixed;inset:0;z-index:9;pointer-events:none;transition:opacity .7s;}
+  #chatUi.hidden{opacity:0;}
+  .cname{position:absolute;top:calc(env(safe-area-inset-top,0px) + 18px);left:0;right:0;
+    text-align:center;font-size:13px;letter-spacing:.22em;font-weight:500;}
+  .msg{position:absolute;max-width:62%;padding:11px 15px;border-radius:18px;
+    font-size:13px;line-height:1.8;}
+  .m1{left:18px;bottom:190px;background:rgba(255,255,255,.78);
+    border:1px solid rgba(192,142,150,.18);border-bottom-left-radius:6px;color:#6F5A59;}
+  .m2{right:18px;bottom:118px;background:rgba(192,142,150,.85);color:#FFF;
+    border-bottom-right-radius:6px;}
+  .inputbar{position:absolute;left:14px;right:14px;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 70px);
+    height:46px;border-radius:23px;background:rgba(255,255,255,.7);
+    border:1px solid rgba(192,142,150,.22);display:flex;align-items:center;
+    padding:0 18px;font-size:12px;color:var(--ink-soft);letter-spacing:.1em;}
+
+  .hud{position:fixed;z-index:14;pointer-events:none;}
+  #crumb{top:calc(env(safe-area-inset-top,0px) + 14px);left:0;right:0;text-align:center;
+    font-size:10px;letter-spacing:.3em;color:var(--ink-soft);}
+
+  #compass{top:calc(env(safe-area-inset-top,0px) + 32px);left:50%;
+    transform:translateX(-50%);width:min(320px,78vw);height:32px;overflow:hidden;
+    opacity:0;transition:opacity .5s;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 28%,#000 72%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 28%,#000 72%,transparent);}
+  #compass.on{opacity:1;}
+  #compassTrack{position:absolute;top:0;left:50%;height:100%;white-space:nowrap;will-change:transform;}
+  .cseg{display:inline-block;width:90px;text-align:center;vertical-align:top;}
+  .cseg .w{display:block;font-size:11.5px;letter-spacing:.2em;color:var(--ink);padding-top:2px;}
+  .cseg .t{display:block;margin:5px auto 0;width:1px;height:6px;background:rgba(117,97,95,.25);}
+  #caret{top:calc(env(safe-area-inset-top,0px) + 28px);left:50%;transform:translateX(-50%);
+    width:1px;height:5px;background:var(--ink);opacity:0;transition:opacity .5s;}
+  #caret.on{opacity:1;}
+
+  #hint{bottom:calc(env(safe-area-inset-bottom,0px) + 76px);left:0;right:0;text-align:center;
+    font-size:10px;letter-spacing:.16em;color:var(--ink-soft);opacity:.75;transition:opacity .6s;}
+  #screenName{bottom:calc(env(safe-area-inset-bottom,0px) + 100px);left:0;right:0;text-align:center;
+    font-size:13px;letter-spacing:.34em;font-weight:500;color:var(--ink);
+    opacity:0;transition:opacity .5s;}
+  #timeHud{left:16px;top:50%;transform:translateY(-50%);opacity:0;transition:opacity .5s;}
+  #timeHud .ln{width:1px;height:46px;background:rgba(117,97,95,.25);margin:8px 0 8px 2px;}
+  #tDate{font-size:13px;font-weight:500;letter-spacing:.06em;}
+  #tAgo{font-size:10px;color:var(--ink-soft);margin-top:3px;letter-spacing:.12em;}
+
+  #screenHall{position:fixed;inset:0;z-index:7;pointer-events:none;opacity:var(--sh-a,0);visibility:hidden;
+    /* desktop defaults — kept loose (panelW < 1.10 * R) so adjacent panels don't poke past z=0 */
+    --sh-r:520px;--sh-w:560px;--sh-h:740px;--sh-persp:1800px;--sh-step:60deg;
+    --sh-origin-y:50%;--portal-a:0;--portal-scale:.25;
+    perspective:var(--sh-persp);perspective-origin:50% 50%;
+    transition:opacity .55s ease,visibility .55s;overflow:hidden;}
+  #screenHall.on{visibility:visible;}
+  #screenHall::before{content:"";position:absolute;left:50%;top:var(--sh-origin-y);
+    width:132px;height:132px;margin:-66px 0 0 -66px;border-radius:50%;
+    border:2px solid rgba(255,250,248,.92);
+    box-shadow:0 0 26px rgba(192,142,150,.42),inset 0 0 18px rgba(192,142,150,.18);
+    opacity:var(--portal-a);transform:scale(var(--portal-scale));
+    transition:none;z-index:0;}
+  #screenHall::after{content:"";position:absolute;left:50%;top:var(--sh-origin-y);
+    width:420px;height:420px;margin:-210px 0 0 -210px;border-radius:50%;
+    background:radial-gradient(circle,rgba(255,250,248,.20),rgba(192,142,150,.10) 34%,transparent 67%);
+    opacity:calc(var(--portal-a) * .75);transform:scale(calc(var(--portal-scale) * 1.1));z-index:0;}
+  #screenScene{position:absolute;left:50%;top:var(--sh-origin-y);width:0;height:0;transform-style:preserve-3d;
+    transform:translateY(var(--sh-y,0)) scale(var(--sh-scale,1)) rotateX(var(--sh-tilt,0deg));
+    filter:blur(var(--sh-blur,0));will-change:transform,filter;z-index:1;}
+  .shHorizon{position:absolute;left:0;top:0;width:0;height:0;transform-style:preserve-3d;}
+  .shHorizon i{position:absolute;left:0;top:0;
+    width:calc(var(--sh-r,520px) * 2.4);height:calc(var(--sh-r,520px) * 2.4);
+    margin-left:calc(var(--sh-r,520px) * -1.2);margin-top:calc(var(--sh-r,520px) * -1.2);
+    border:1px solid rgba(117,97,95,.10);border-radius:50%;}
+  .shHorizon i:nth-child(2){transform:scale(.74);border-color:rgba(117,97,95,.06);}
+  .shHorizon i:nth-child(3){transform:scale(.50);border-color:rgba(117,97,95,.04);}
+  #shCeil{transform:translateY(calc(var(--sh-h,720px) * -.58)) rotateX(82deg);}
+  #shFloor{transform:translateY(calc(var(--sh-h,720px) * .58)) rotateX(82deg);}
+  #screenRing{position:absolute;left:0;top:0;width:0;height:0;transform-style:preserve-3d;
+    transform:rotateY(var(--sh-rot,0deg));will-change:transform;}
+  .shPanel{position:absolute;width:var(--sh-w,600px);height:var(--sh-h,720px);
+    left:calc(var(--sh-w,600px) * -.5);top:calc(var(--sh-h,720px) * -.5);
+    transform:rotateY(calc(var(--i) * var(--sh-step,60deg) * -1)) translateZ(calc(var(--sh-r,520px) * -1));
+    transform-style:preserve-3d;border-radius:26px;overflow:hidden;
+    background:linear-gradient(145deg,rgba(255,255,255,.62),rgba(255,255,255,.30) 44%,var(--panel-tint,rgba(246,229,229,.34)));
+    border:1px solid rgba(255,255,255,.58);
+    box-shadow:0 36px 90px rgba(117,97,95,.18),inset 0 1px 0 rgba(255,255,255,.78),
+      inset -24px -26px 70px var(--panel-glow,rgba(192,142,150,.10));
+    backdrop-filter:blur(18px) saturate(1.12);-webkit-backdrop-filter:blur(18px) saturate(1.12);
+    --dim:0;opacity:calc(1 - var(--dim) * .55);
+    filter:saturate(calc(1 - var(--dim) * .6)) brightness(calc(1 - var(--dim) * .10));}
+  .shPanel.behind{visibility:hidden;}
+  .shPanel:not(.front){pointer-events:none;}
+  .shPanel::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(180deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,0) 22%,rgba(117,97,95,.04) 78%,rgba(117,97,95,.10) 100%);}
+  .shHead{position:relative;z-index:2;height:74px;display:flex;align-items:center;gap:16px;padding:0 28px;
+    border-bottom:1px solid rgba(117,97,95,.16);}
+  .shMark{width:12px;height:12px;border-radius:50%;border:2px solid var(--rose);}
+  .shName{font-size:20px;font-weight:500;letter-spacing:.18em;color:#6F5A59;}
+  .shSub{font-size:11px;letter-spacing:.16em;color:var(--ink-soft);margin-top:4px;}
+  .shPos{margin-left:auto;font-size:11px;letter-spacing:.14em;color:var(--ink-soft);}
+  .shBody{position:relative;z-index:2;height:calc(100% - 74px);overflow:hidden;padding:24px 28px 30px;}
+  .shGrid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;align-items:start;}
+  .shBand{border-top:1px solid rgba(117,97,95,.16);padding-top:16px;margin-top:18px;}
+  .shSpan{grid-column:1/-1;}
+  .shLabel{font-size:10px;letter-spacing:.26em;color:var(--ink-soft);}
+  .shMetric{font-size:48px;line-height:1.05;font-weight:500;color:#6F5A59;margin-top:10px;}
+  .shMetric small{font-size:13px;color:var(--ink-soft);letter-spacing:.14em;margin-left:8px;}
+  .shTitle{font-size:13px;font-weight:500;letter-spacing:.16em;color:#6F5A59;margin-bottom:12px;}
+  .shRows{display:grid;gap:9px;}
+  .shRow{display:grid;grid-template-columns:minmax(84px,.7fr) 1fr auto;gap:12px;align-items:center;
+    min-height:32px;font-size:12px;letter-spacing:.04em;color:rgba(117,97,95,.82);}
+  .shRow b{font-weight:500;color:#6F5A59;text-align:right;}
+  .shBar{height:5px;border-radius:999px;background:rgba(117,97,95,.10);overflow:hidden;}
+  .shBar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--panel-fill,rgba(227,194,196,.55)),var(--rose));}
+  .shTimeline{display:grid;gap:12px;}
+  .shEvent{display:grid;grid-template-columns:58px 1fr auto;gap:12px;align-items:start;
+    padding-bottom:12px;border-bottom:1px solid rgba(117,97,95,.10);}
+  .shEvent time{font-size:11px;letter-spacing:.08em;color:var(--ink-soft);}
+  .shEvent strong{display:block;font-size:13px;font-weight:500;color:#6F5A59;margin-bottom:4px;}
+  .shEvent span,.shNote{font-size:12px;color:rgba(117,97,95,.72);line-height:1.65;}
+  .shPill{font-size:10px;letter-spacing:.12em;color:#8E646C;border:1px solid rgba(192,142,150,.26);
+    border-radius:999px;padding:4px 9px;background:rgba(255,255,255,.22);}
+  .shChart{height:132px;display:flex;align-items:end;gap:9px;padding-top:8px;}
+  .shChart i{flex:1;border-radius:999px 999px 3px 3px;background:linear-gradient(180deg,var(--rose),var(--panel-fill,rgba(227,194,196,.28)));}
+  @media (max-width:720px){
+    /* mobile: panelW=300, R=280 (ratio 1.07), persp=1400 — leaves clear sliver of adjacent panels visible */
+    #screenHall{--sh-r:280px;--sh-w:300px;--sh-h:520px;--sh-persp:1400px;}
+    .shHead{height:60px;padding:0 18px;}.shName{font-size:16px;}
+    .shBody{padding:16px 18px 22px;}.shGrid{grid-template-columns:1fr;}
+    .shSpan{grid-column:auto;}.shMetric{font-size:32px;}
+  }
+
+  #bar{position:fixed;z-index:15;left:0;right:0;bottom:0;
+    display:flex;justify-content:center;gap:10px;
+    padding:12px 18px calc(env(safe-area-inset-bottom,0px) + 16px);}
+  .btn{border:1px solid rgba(117,97,95,.26);border-radius:999px;background:rgba(255,255,255,.42);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    font-size:11px;letter-spacing:.16em;padding:10px 22px;font-family:inherit;color:var(--ink);}
+
+  #cardWrap{position:fixed;inset:0;z-index:20;display:grid;place-items:center;
+    perspective:900px;pointer-events:none;}
+  #card{width:min(370px,calc(100vw - 40px));border-radius:30px;position:relative;overflow:hidden;
+    padding:24px 23px 20px;pointer-events:auto;opacity:0;visibility:hidden;
+    transform:translate3d(0,30px,0) rotateX(8deg) scale(.78);transform-origin:center 56%;
+    transition:opacity .5s ease,transform .6s cubic-bezier(.18,.92,.18,1),visibility .5s;
+    background:
+      linear-gradient(145deg,rgba(255,255,255,.47),rgba(255,255,255,.18) 38%,rgba(246,229,229,.22) 100%),
+      radial-gradient(circle at 18% 12%,rgba(255,255,255,.76),transparent 28%);
+    backdrop-filter:blur(22px) saturate(1.25);-webkit-backdrop-filter:blur(22px) saturate(1.25);
+    border:1px solid rgba(255,255,255,.48);
+    box-shadow:0 34px 80px rgba(117,97,95,.24),inset 0 1px 0 rgba(255,255,255,.78),
+      inset -18px -22px 58px rgba(176,125,136,.12);}
+  #card.show{opacity:1;visibility:visible;transform:translate3d(0,0,0) rotateX(0) scale(1);}
+  .topline{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.22em;color:var(--ink-soft);}
+  .rdot{width:9px;height:9px;border-radius:50%;border:1.6px solid var(--rose);
+    box-shadow:0 0 10px rgba(192,142,150,.3);}
+  #cClose{margin-left:auto;border:none;background:rgba(255,255,255,.24);color:var(--ink-soft);
+    width:28px;height:28px;border-radius:50%;font-size:15px;font-family:inherit;}
+  #cDate{margin-top:26px;font-size:11px;letter-spacing:.18em;color:var(--ink-soft);}
+  #cTitle{font-size:26px;font-weight:500;margin-top:10px;color:#6F5A59;
+    text-shadow:0 1px 0 rgba(255,255,255,.5);}
+  #cBody{font-size:13.5px;line-height:2;color:rgba(95,75,74,.94);margin-top:15px;}
+  #cMeta{margin-top:18px;font-size:10.5px;letter-spacing:.16em;color:var(--ink-soft);}
+  .acts{display:flex;gap:8px;margin-top:18px;align-items:center;}
+  .act{border:1px solid rgba(154,107,115,.4);border-radius:999px;background:rgba(255,255,255,.22);
+    color:#8E646C;font-size:11px;letter-spacing:.1em;padding:8px 13px;font-family:inherit;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+  .act.primary{margin-left:auto;background:rgba(192,142,150,.92);border-color:transparent;color:#FFF;}
+
+  @media (prefers-reduced-motion: reduce){
+    #card{transition:opacity .3s;transform:none;}
+  }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<canvas id="cv2"></canvas>
+
+<div id="screenHall">
+  <div id="screenScene">
+    <div id="shCeil" class="shHorizon"><i></i><i></i><i></i></div>
+    <div id="shFloor" class="shHorizon"><i></i><i></i><i></i></div>
+    <div id="screenRing"></div>
+  </div>
+</div>
+
+<div id="chat"></div>
+<div id="chatUi">
+  <div class="cname">TA</div>
+  <div class="msg m1">今天江边的风很大,但是不冷。我把这件事记下来了。</div>
+  <div class="msg m2">好,晚安。</div>
+  <div class="inputbar">说点什么……</div>
+</div>
+
+<div class="hud" id="crumb">聊天 · 当下</div>
+<div class="hud" id="compass"><div id="compassTrack"></div></div>
+<div class="hud" id="caret"></div>
+
+<div class="hud" id="screenName"></div>
+<div class="hud" id="timeHud">
+  <div style="font-size:9px;letter-spacing:.28em;color:var(--ink-soft)">视平线</div>
+  <div class="ln"></div><div id="tDate">—</div><div id="tAgo">—</div>
+</div>
+<div class="hud" id="hint">双指张开 或 点击中央圆环 —— 坠入</div>
+<div id="bar">
+  <button class="btn" id="bUp">⌃ 返回上层</button>
+  <button class="btn" id="bDown">深入 ⌄</button>
+</div>
+
+<div id="cardWrap"><section id="card">
+  <div class="topline"><span class="rdot"></span><span id="cTheme">记忆凝露</span><button id="cClose">×</button></div>
+  <div id="cDate"></div><h1 id="cTitle"></h1><div id="cBody"></div>
+  <div id="cMeta"></div>
+  <div class="acts">
+    <button class="act">改</button><button class="act">撤</button>
+    <button class="act">云中定位</button><button class="act primary">问问 TA</button>
+  </div>
+</section></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ====================== 基础 ====================== */
+const BG=0xF6F0EF;
+const TONES=['#E3C2C4','#D9B0B4','#CDA0A6','#C08E96','#B27D88'];
+const IRIS=['#E8C9CF','#C9B4D6','#F0D2C2','#FBF7F5'];
+const SCREENS=['记忆','日程','账本','身体','书房'];
+const EMOTIONS=['愉悦','兴奋','紧张','焦虑','低落','忧郁','平静','放松'];
+const LABELS=['约会','论文','跑步','晚安','搬家','顿悟','想念','八公里','开题','道歉','夜宵','体检','合照','摘录','下雨','通话','和母亲','深夜散步','复盘会议','江边'];
+const BODIES=['它说会记住的。那就先放在这里。','回头看的时候,希望还能想起当时的天气。',
+  '这件事拖了很久,今天总算有了一个交代。','记录这条的时候已经很晚了,但还是想留下来。'];
+const P2=0.6;     /* ← 通透感 60% 固化 */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const rnd=mulberry32(20260612);
+const gauss=()=>(rnd()+rnd()+rnd()+rnd()-2)/2;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function hexA(h,a){const n=parseInt(h.slice(1),16);
+  return`rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;}
+function deepA(h,f,a){const n=parseInt(h.slice(1),16);
+  return`rgba(${(n>>16&255)*f|0},${(n>>8&255)*f|0},${(n&255)*f|0},${a})`;}
+
+/* ====================== Three.js:云海 + 大厅 ====================== */
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('cv'),antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));
+renderer.setSize(innerWidth,innerHeight);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(BG);
+const cam=new THREE.PerspectiveCamera(64,innerWidth/innerHeight,0.1,400);
+cam.rotation.order='YXZ';
+cam.position.set(0,62,0.01);
+cam.rotation.x=-Math.PI/2;
+renderer.domElement.addEventListener('webglcontextlost',e=>e.preventDefault());
+
+function tex(draw,size=160){
+  const c=document.createElement('canvas');c.width=c.height=size;
+  draw(c.getContext('2d'),size);
+  return new THREE.CanvasTexture(c);
+}
+const mistTex=TONES.map(t=>tex((x,s)=>{
+  const g=x.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  g.addColorStop(0,hexA(t,.5));g.addColorStop(.55,hexA(t,.22));g.addColorStop(1,hexA(t,0));
+  x.fillStyle=g;x.fillRect(0,0,s,s);
+}));
+const ringTex=tex((x,s)=>{
+  const c=s/2;
+  x.strokeStyle='rgba(255,250,248,.95)';x.lineWidth=s*.045;
+  x.shadowColor='rgba(192,142,150,.9)';x.shadowBlur=s*.1;
+  x.beginPath();x.arc(c,c,s*.32,0,7);x.stroke();
+  x.shadowBlur=s*.2;x.strokeStyle=hexA(TONES[3],.5);
+  x.beginPath();x.arc(c,c,s*.32,0,7);x.stroke();
+});
+const puffTex=tex((x,s)=>{
+  const g=x.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  g.addColorStop(0,'rgba(255,253,252,.75)');g.addColorStop(1,'rgba(255,253,252,0)');
+  x.fillStyle=g;x.fillRect(0,0,s,s);
+});
+
+const env=new THREE.Group();scene.add(env);
+for(let i=0;i<30;i++){
+  const a=rnd()*Math.PI*2, r=18+rnd()*30, y=-30+rnd()*40;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({
+    map:mistTex[Math.floor(rnd()*4)],transparent:true,depthWrite:false,opacity:.42}));
+  sp.position.set(Math.cos(a)*r,y,Math.sin(a)*r);
+  const s=14+rnd()*14;sp.scale.set(s,s*.6,1);
+  env.add(sp);
+}
+const ring=new THREE.Sprite(new THREE.SpriteMaterial({map:ringTex,transparent:true,depthWrite:false}));
+ring.position.set(0,7.6,0);ring.scale.set(5,5,1);
+scene.add(ring);
+const hall=new THREE.Group();scene.add(hall);
+const screenMats=[],titleMeshes=[];
+{
+  const slot=Math.PI/3, len=slot*0.8;
+  for(let i=0;i<6;i++){
+    const mist=i===5;
+    const geo=new THREE.CylinderGeometry(5.6,5.6,6.4,16,1,true,i*slot+slot*.1,len);
+    const mat=new THREE.MeshBasicMaterial({color:0xFFF8F6,transparent:true,
+      opacity:mist?.05:.18,side:THREE.BackSide,depthWrite:false});
+    hall.add(new THREE.Mesh(geo,mat));
+    screenMats.push(mat);
+    const name=mist?'· · ·':SCREENS[i];
+    const tmap=tex((x,s)=>{
+      x.fillStyle='rgba(117,97,95,.92)';
+      x.font='500 46px "Noto Sans SC",sans-serif';
+      x.textAlign='center';x.textBaseline='middle';
+      x.fillText(name,s/2,s/2);
+    },256);
+    const tm=new THREE.Mesh(new THREE.PlaneGeometry(2.3,2.3),
+      new THREE.MeshBasicMaterial({map:tmap,transparent:true,opacity:mist?.25:.95,depthWrite:false}));
+    const mid=i*slot+slot*.5;
+    tm.position.set(Math.sin(mid)*5.2,1.6,Math.cos(mid)*5.2);
+    tm.lookAt(0,1.6,0);
+    tm.userData.name=mist?'（尚未成形）':name;
+    hall.add(tm);titleMeshes.push(tm);
+  }
+}
+hall.visible=false;
+
+const SKINS={
+  R0:{name:'鱼肚白',tod:'黎明',bg:'#F1ECED',s:['#E4D6DA','#D2C0C7','#BFAAB3','#AC939E','#957B89']},
+  R3:{name:'珊瑚晕',tod:'晨',bg:'#F8F2EC',s:['#F0D2C6','#EBC0B2','#E0A99A','#D4988A','#C8887C']},
+  R1:{name:'玫瑰雾',tod:'昼',bg:'#F6F0EF',s:['#E3C2C4','#D9B0B4','#CDA0A6','#C08E96','#B27D88']},
+  R2:{name:'豆沙',tod:'午后',bg:'#F4EEE9',s:['#E0C4BF','#D2ACA8','#C99C99','#BE8D8A','#B07E7C']},
+  R4:{name:'紫调玫瑰',tod:'暮',bg:'#F3EFF2',s:['#E4CCD4','#D8B8C2','#C9A3B0','#BB91A3','#AC8096']},
+  R5:{name:'绯雾',tod:'夜',bg:'#F1EAE8',s:['#DCBDB9','#CBA3A0','#B98A87','#A87874','#9A6B6B']},
+};
+function rgba(hex,a){
+  const n=parseInt(hex.slice(1),16);
+  return`rgba(${n>>16},${(n>>8)&255},${n&255},${a})`;
+}
+const HALL_DOMAINS=[
+  {name:'记忆',sub:'质检台 / 最近沉淀 / 云中定位',skin:'R1',html:`
+    <div class="shGrid">
+      <section><div class="shLabel">最近沉淀</div><div class="shMetric">12<small>条新记忆</small></div>
+        <div class="shBand shRows">
+          <div class="shRow"><span>已确认</span><div class="shBar"><i style="width:75%"></i></div><b>9</b></div>
+          <div class="shRow"><span>待核对</span><div class="shBar"><i style="width:25%"></i></div><b>3</b></div>
+          <div class="shRow"><span>已撤回</span><div class="shBar"><i style="width:0%"></i></div><b>0</b></div>
+        </div>
+      </section>
+      <section><div class="shTitle">本周记忆气象</div>
+        <div class="shChart"><i style="height:42%"></i><i style="height:58%"></i><i style="height:36%"></i><i style="height:72%"></i><i style="height:66%"></i><i style="height:48%"></i><i style="height:84%"></i></div>
+        <p class="shNote">关系、论文、身体三个方向出现连续沉积。周五夜间的情绪浓度最高。</p>
+      </section>
+      <section class="shSpan shBand"><div class="shTitle">待核对</div>
+        <div class="shTimeline">
+          <div class="shEvent"><time>23:14</time><div><strong>深夜散步</strong><span>可能是一条关系记忆，地点与情绪强度需要确认。</span></div><em class="shPill">改</em></div>
+          <div class="shEvent"><time>18:40</time><div><strong>复盘会议</strong><span>从对话中提取出一个计划调整，建议同步到日程。</span></div><em class="shPill">对</em></div>
+        </div>
+      </section>
+    </div>`},
+  {name:'日程',sub:'未来事项 / 约会计划 / 提醒',skin:'R3',html:`
+    <div class="shGrid">
+      <section><div class="shLabel">下一件事</div><div class="shMetric">07:30<small>晨跑</small></div>
+        <div class="shBand shTimeline">
+          <div class="shEvent"><time>明天</time><div><strong>导师 1:1</strong><span>带上论文结构与本周实验记录。</span></div><em class="shPill">准备</em></div>
+          <div class="shEvent"><time>周六</time><div><strong>共读《长日将尽》</strong><span>预计 40 分钟，晚饭后。</span></div><em class="shPill">约定</em></div>
+        </div>
+      </section>
+      <section><div class="shTitle">时间分布</div><div class="shRows">
+        <div class="shRow"><span>工作</span><div class="shBar"><i style="width:64%"></i></div><b>18h</b></div>
+        <div class="shRow"><span>身体</span><div class="shBar"><i style="width:36%"></i></div><b>5h</b></div>
+        <div class="shRow"><span>关系</span><div class="shBar"><i style="width:42%"></i></div><b>7h</b></div>
+      </div></section>
+    </div>`},
+  {name:'账本',sub:'余额 / 支出 / 共同生活账目',skin:'R2',html:`
+    <div class="shGrid">
+      <section><div class="shLabel">TA 的余额</div><div class="shMetric">¥ 1,284<small>本月结余</small></div>
+        <div class="shBand shRows">
+          <div class="shRow"><span>为你支出</span><div class="shBar"><i style="width:58%"></i></div><b>¥421</b></div>
+          <div class="shRow"><span>订阅</span><div class="shBar"><i style="width:26%"></i></div><b>¥88</b></div>
+          <div class="shRow"><span>储备</span><div class="shBar"><i style="width:72%"></i></div><b>¥775</b></div>
+        </div>
+      </section>
+      <section><div class="shTitle">最近流水</div><div class="shTimeline">
+        <div class="shEvent"><time>今天</time><div><strong>咖啡</strong><span>雨天散步后的小奖励。</span></div><b>¥36</b></div>
+        <div class="shEvent"><time>周二</time><div><strong>共读电子书</strong><span>书房同步记录。</span></div><b>¥28</b></div>
+      </div></section>
+    </div>`},
+  {name:'身体',sub:'运动 / 睡眠 / 恢复趋势',skin:'R5',html:`
+    <div class="shGrid">
+      <section><div class="shLabel">今日活动</div><div class="shMetric">7,328<small>步</small></div>
+        <div class="shBand shChart"><i style="height:38%"></i><i style="height:54%"></i><i style="height:46%"></i><i style="height:70%"></i><i style="height:64%"></i><i style="height:48%"></i><i style="height:76%"></i></div>
+      </section>
+      <section><div class="shTitle">恢复信号</div><div class="shRows">
+        <div class="shRow"><span>睡眠</span><div class="shBar"><i style="width:68%"></i></div><b>6h42m</b></div>
+        <div class="shRow"><span>静息心率</span><div class="shBar"><i style="width:72%"></i></div><b>62</b></div>
+        <div class="shRow"><span>跑步</span><div class="shBar"><i style="width:44%"></i></div><b>3.2km</b></div>
+      </div></section>
+    </div>`},
+  {name:'书房',sub:'共读 / 摘录 / 待读',skin:'R4',html:`
+    <div class="shGrid">
+      <section><div class="shLabel">在读</div><div class="shMetric" style="font-size:34px">《长日将尽》</div>
+        <div class="shBand shRows">
+          <div class="shRow"><span>进度</span><div class="shBar"><i style="width:67%"></i></div><b>67%</b></div>
+          <div class="shRow"><span>本周共读</span><div class="shBar"><i style="width:46%"></i></div><b>2h18m</b></div>
+          <div class="shRow"><span>待读</span><div class="shBar"><i style="width:35%"></i></div><b>4 本</b></div>
+        </div>
+      </section>
+      <section><div class="shTitle">上次摘录</div><p class="shNote" style="font-size:17px;line-height:1.9;color:#6F5A59">“我们总是在事后才知道，哪些时刻其实已经改变了方向。”</p></section>
+    </div>`},
+  {name:'未成形',sub:'新的共同生活流入后，这里会长出一面墙',skin:'R0',html:`
+    <div class="shGrid"><section class="shSpan"><div class="shLabel">尚未成形</div>
+      <div class="shMetric" style="font-size:30px;line-height:1.5">当一种新的共同生活流入，<br>这里会长出一面墙。</div>
+      <p class="shNote shBand">它不是预设入口，而是数据流稳定之后自然凝结的观察面。</p></section></div>`},
+];
+const screenHallEl=document.getElementById('screenHall');
+const screenRingEl=document.getElementById('screenRing');
+let hallIdx=0,hallRot=0,hallPanels=[];
+let screenHallEnter=0;
+const HALL_STEP=360/HALL_DOMAINS.length;
+function buildScreenHall(){
+  screenRingEl.innerHTML=HALL_DOMAINS.map((d,i)=>{
+    const sk=SKINS[d.skin],accent=sk.s[3],light=sk.s[0];
+    const vars=[`--i:${i}`,`--rose:${accent}`,`--panel-tint:${rgba(light,.34)}`,`--panel-fill:${rgba(light,.55)}`,`--panel-glow:${rgba(accent,.10)}`].join(';');
+    return `<article class="shPanel" style="${vars}">
+      <header class="shHead"><i class="shMark" style="border-color:${accent};box-shadow:0 0 16px ${rgba(accent,.34)}"></i>
+        <div><div class="shName">${d.name}</div><div class="shSub">${d.sub} · ${sk.tod}</div></div>
+        <div class="shPos">${String(i+1).padStart(2,'0')} / ${String(HALL_DOMAINS.length).padStart(2,'0')}</div>
+      </header><div class="shBody">${d.html}</div>
+    </article>`;
+  }).join('');
+  hallPanels=Array.from(screenRingEl.querySelectorAll('.shPanel'));
+  applyScreenHall();
+}
+function applyScreenHall(){
+  document.documentElement.style.setProperty('--sh-rot',hallRot+'deg');
+  for(let j=0;j<hallPanels.length;j++){
+    let a=(hallRot-j*HALL_STEP)%360;
+    if(a>180)a-=360;if(a<=-180)a+=360;
+    const abs=Math.abs(a);
+    const dim=Math.min(1,(1-Math.cos(abs*Math.PI/180))*0.9);
+    hallPanels[j].style.setProperty('--dim',dim.toFixed(3));
+    hallPanels[j].classList.toggle('front',abs<HALL_STEP/2-1);
+    hallPanels[j].classList.toggle('behind',abs>110);
+  }
+  hallIdx=((Math.round(hallRot/HALL_STEP)%hallPanels.length)+hallPanels.length)%hallPanels.length;
+}
+function screenHallDrag(dx){
+  hallRot-=dx/240*HALL_STEP;
+  applyScreenHall();
+}
+function snapScreenHall(){
+  hallRot=Math.round(hallRot/HALL_STEP)*HALL_STEP;
+  applyScreenHall();
+}
+/* ─── 圆柱大厅过渡：三种语义、互不掺合 ────────────────────────
+   setScreenHallEnter(K)  · FALL 入场 (K 0→1)：戏剧化 tilt + 下沉 + 井口 flash
+   setScreenHallExit(K)   · RISE 离场 (K 1→0)：温和 scale-back，无 tilt，井口微闪
+   setScreenHallFade(α)   · HALL↔CLOUD：transform 完全不动，只动 alpha
+   这样 toCloud / toHall / startRise 都不会再触发"屏幕倒下"的 K=0 入场姿态。 */
+function _hallLandedTransforms(){
+  screenHallEl.style.setProperty('--sh-tilt','0deg');
+  screenHallEl.style.setProperty('--sh-y','0vh');
+  screenHallEl.style.setProperty('--sh-scale','1');
+  screenHallEl.style.setProperty('--sh-blur','0px');
+}
+function setScreenHallEnter(k){
+  /* FALL 入场：摄像机正在从上方落入井口。
+     K=0  井口前的下落起点  · K=1  落定在墙中央 */
+  const t=clamp(k,0,1);
+  screenHallEnter=t;
+  const hallScale= lerp(0.66, 1, smooth(0.46, 1, t));
+  const hallY    = lerp(34, 0, smooth(0.46, 1, t));
+  const hallTilt = lerp(58, 0, smooth(0.44, 1, t));
+  const hallBlur = lerp(7, 0, smooth(0.56, 0.95, t));
+  const hallA    = smooth(0.52, 0.88, t);
+  const portalBase = smooth(0, 0.18, t) * (1 - smooth(0.60, 0.86, t));
+  const flashRaw   = smooth(0.40, 0.50, t) * (1 - smooth(0.50, 0.64, t));
+  const flash      = Math.pow(flashRaw, 0.55) * 0.95;
+  const portalA    = clamp(portalBase + flash, 0, 1);
+  const portalScale= lerp(0.40, 6.4, smooth(0, 0.62, t));
+  screenHallEl.style.setProperty('--sh-a',     hallA.toFixed(3));
+  screenHallEl.style.setProperty('--sh-scale', hallScale.toFixed(3));
+  screenHallEl.style.setProperty('--sh-y',     hallY.toFixed(2)+'vh');
+  screenHallEl.style.setProperty('--sh-tilt',  hallTilt.toFixed(1)+'deg');
+  screenHallEl.style.setProperty('--sh-blur',  hallBlur.toFixed(2)+'px');
+  screenHallEl.style.setProperty('--portal-a', portalA.toFixed(3));
+  screenHallEl.style.setProperty('--portal-scale', portalScale.toFixed(3));
+  screenHallEl.style.setProperty('--sh-origin-y','50%');
+}
+function setScreenHallExit(k){
+  /* RISE 离场：从大厅里飘起来，墙在身后远去。**没有 tilt**——
+     只是轻微 scale 回退 + alpha 退出，像后退一步看着墙退远。
+     K=1 还在大厅里  ·  K=0 完全离开 */
+  const t=clamp(k,0,1);
+  screenHallEnter=t;
+  const scale  = lerp(0.92, 1, smooth(0.10, 1, t));   /* 微缩，让位非常温和 */
+  const blur   = lerp(3, 0, smooth(0.20, 1, t));
+  const hallA  = smooth(0.10, 0.78, t);
+  screenHallEl.style.setProperty('--sh-tilt','0deg');
+  screenHallEl.style.setProperty('--sh-y','0vh');
+  screenHallEl.style.setProperty('--sh-scale', scale.toFixed(3));
+  screenHallEl.style.setProperty('--sh-blur',  blur.toFixed(2)+'px');
+  screenHallEl.style.setProperty('--sh-a',     hallA.toFixed(3));
+  /* 上升穿井口的瞬间一个微弱的回光 */
+  const passing = 1 - t;
+  const flashRaw = smooth(0.35, 0.50, passing) * (1 - smooth(0.50, 0.66, passing));
+  const portalA  = Math.pow(flashRaw, 0.6) * 0.55;
+  screenHallEl.style.setProperty('--portal-a', portalA.toFixed(3));
+  screenHallEl.style.setProperty('--portal-scale', lerp(0.5, 4.4, smooth(0, 0.65, passing)).toFixed(3));
+  screenHallEl.style.setProperty('--sh-origin-y','50%');
+}
+function setScreenHallFade(alpha){
+  /* HALL ↔ CLOUD：墙在原地"雾化"——transform 一寸都不动，只动 alpha。
+     这是 ADR 8 的字面执行（"墙雾化让开，人不动"）。 */
+  _hallLandedTransforms();
+  screenHallEl.style.setProperty('--sh-a', alpha.toFixed(3));
+  screenHallEl.style.setProperty('--portal-a','0');
+  screenHallEl.style.setProperty('--portal-scale','0.25');
+  screenHallEl.style.setProperty('--sh-origin-y','50%');
+}
+buildScreenHall();
+
+let puffs=[];
+function puff(){
+  for(let i=0;i<10;i++){
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:puffTex,transparent:true,depthWrite:false,opacity:.55}));
+    const a=rnd()*Math.PI*2;
+    sp.position.set(Math.cos(a)*1.2,-2.6,Math.sin(a)*1.2);
+    sp.scale.set(1.5,1,1);
+    sp.userData={a,t0:performance.now()};
+    scene.add(sp);puffs.push(sp);
+  }
+}
+
+/* ====================== 气泡数据:极坐标 ====================== */
+const bubbles=[];
+{
+  /* 均匀洒在 360°: 任何方向都有气泡可见,初始就能看到 */
+  const N=120;
+  for(let i=0;i<N;i++){
+    const baseA=i/N*Math.PI*2;
+    const a=baseA+gauss()*.25;        /* 角度轻微抖动,不规则 */
+    const inten=clamp(.15+rnd()*.85,.05,1);
+    const day=365*Math.pow(rnd(),1.4);
+    const R=10+inten*30;
+    bubbles.push({
+      ang:a, R, day, inten,
+      tone:TONES[clamp(Math.floor(inten*5),0,4)],
+      label:LABELS[Math.floor(rnd()*LABELS.length)],
+      ph:rnd()*7, popT:0,
+      x:0,y:0,r:0,_hitY:0,
+      visible:false,worldZ:0,camDist:0
+    });
+  }
+}
+let dataPhi=0, dayEye=8;
+
+/* overlay canvas */
+const ov=document.getElementById('cv2');
+const ctx=ov.getContext('2d');     /* 用 ctx 直接对接 v3 源码 */
+ctx.imageSmoothingEnabled=true;
+ctx.imageSmoothingQuality='high';
+if(ctx.textRendering!==undefined)ctx.textRendering='geometricPrecision';
+
+/* ====================== 1:1 移植 v3 气泡画法 ====================== */
+/* === 注意:以下两个函数的内部逻辑与 droplet-workbench-v3.html 完全一致 ===
+   === 仅有变化:p2 → P2 常量(0.6) === */
+function drawBubble(d,r,a,now){
+  if(d.popT){
+    const age=(now-d.popT)/900;          /* 涟漪需要更长时间荡开 */
+    if(age>=1)d.popT=0;
+  }
+  /* 按文字长度决定横向拉伸:1-2字 1.0,3字 1.25,4字+ 1.45 */
+  const labelLen=d.label.length;
+  const xs=labelLen<=2?1.0:labelLen===3?1.25:1.45;
+  const wob=reduceMotion?0:Math.sin(now*0.0024+d.ph);
+  const bob=reduceMotion?0:Math.sin(now*0.0009+d.ph)*3;
+  const x=Math.round(d.x*ovPR)/ovPR, y=Math.round((d.y+bob)*ovPR)/ovPR;
+  const film=lerp(0.16,0.05,P2);
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale((1+wob*0.035)*xs, 1-wob*0.035);
+
+  const g=ctx.createRadialGradient(0,0,r*0.1,0,0,r);
+  g.addColorStop(0,  hexA(d.tone,a*film*0.3));
+  g.addColorStop(0.7,hexA(d.tone,a*film*0.5));
+  g.addColorStop(0.93,hexA(d.tone,a*film*2.2));
+  g.addColorStop(1,  hexA(d.tone,0));
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill();
+
+  const SEG=12, shift=now*0.0004;
+  for(let i=0;i<SEG;i++){
+    const c=IRIS[(i+Math.floor(shift*SEG))%IRIS.length];
+    const a0=i/SEG*Math.PI*2+shift, a1=(i+1.15)/SEG*Math.PI*2+shift;
+    ctx.strokeStyle=hexA(c,a*(0.30+0.25*P2));
+    ctx.lineWidth=Math.max(1.1,r*0.035);
+    ctx.beginPath();ctx.arc(0,0,r*0.99,a0,a1);ctx.stroke();
+  }
+  ctx.strokeStyle=deepA(d.tone,0.85,a*0.10);
+  ctx.lineWidth=r*0.05;
+  ctx.beginPath();ctx.arc(0,0,r*0.93,0,7);ctx.stroke();
+
+  ctx.strokeStyle=`rgba(255,253,251,${a*(0.30+0.2*P2)})`;
+  ctx.lineWidth=r*0.10;ctx.lineCap='round';
+  ctx.beginPath();ctx.arc(0,0,r*0.74,Math.PI*1.08,Math.PI*1.42);ctx.stroke();
+  ctx.strokeStyle=`rgba(255,253,251,${a*0.16})`;
+  ctx.lineWidth=r*0.05;
+  ctx.beginPath();ctx.arc(0,0,r*0.7,Math.PI*0.18,Math.PI*0.36);ctx.stroke();
+  const cau=ctx.createRadialGradient(0,r*0.5,0,0,r*0.5,r*0.5);
+  cau.addColorStop(0,`rgba(255,250,248,${a*0.10})`);cau.addColorStop(1,'rgba(255,250,248,0)');
+  ctx.fillStyle=cau;ctx.beginPath();ctx.arc(0,r*0.4,r*0.55,0,7);ctx.fill();
+
+  if(a>0.55&&r>11.5&&(d.camDist===undefined||d.camDist<26)){
+    const txt=d.label.length>3?d.label.slice(0,2)+'…':d.label;
+    const innerW=r*xs*1.18;
+    let fs=Math.max(9.5,r*0.42);
+    if(fs>=7.2){
+      ctx.save();ctx.scale(1/xs,1);
+      ctx.font=`500 ${fs.toFixed(1)}px "Noto Sans SC","PingFang SC",sans-serif`;
+      const tw=ctx.measureText(txt).width;
+      if(tw>innerW){
+        fs=fs*innerW/tw;
+        ctx.font=`500 ${fs.toFixed(1)}px "Noto Sans SC","PingFang SC",sans-serif`;
+      }
+      if(fs>=7.8){
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillStyle=deepA(d.tone,0.45,a*0.95);
+        ctx.fillText(txt,0,0);
+      }
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+  if(d.popT){
+    const age=(now-d.popT)/900;
+    if(age<1)drawPop(d,r,a,age,now,x,y,xs);
+  }
+  d._hitY=y;
+}
+function drawPop(d,r,a,age,now,x,y,xs){
+  const wob=reduceMotion?0:Math.sin(now*0.0024+d.ph);
+  const e=1-Math.pow(1-age,3);
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale((1+wob*0.035)*xs,1-wob*0.035);
+
+  const wash=ctx.createRadialGradient(0,0,r*0.15,0,0,r*(1.05+e*2.15));
+  wash.addColorStop(0,`rgba(255,250,248,${a*(1-age)*0.12})`);
+  wash.addColorStop(0.48,hexA(d.tone,a*(1-age)*0.075));
+  wash.addColorStop(1,hexA(d.tone,0));
+  ctx.fillStyle=wash;ctx.beginPath();ctx.arc(0,0,r*(1.05+e*2.15),0,7);ctx.fill();
+
+  for(let k=0;k<3;k++){
+    const t=clamp((age-k*0.15)/(0.95-k*0.08),0,1);
+    if(t<=0||t>=1)continue;
+    const fade=a*Math.pow(1-t,1.7)*(1-k*0.22);
+    const rr=r*(0.9+t*(2.25+k*0.35));
+    const rot=d.ph*0.28+wob*0.16+k*0.55;
+    ctx.save();
+    ctx.rotate(rot);
+    ctx.scale(1+0.035*wob,0.94-0.025*wob);
+    ctx.lineCap='round';
+    ctx.strokeStyle=hexA(d.tone,fade*(k?0.18:0.28));
+    ctx.lineWidth=Math.max(1.4,r*(0.18-k*0.035)*(1-t));
+    ctx.beginPath();
+    ctx.arc(0,0,rr,Math.PI*0.06+k*0.32+t*0.45,Math.PI*0.92+k*0.32+t*0.45);
+    ctx.stroke();
+    ctx.strokeStyle=`rgba(255,253,251,${fade*0.16})`;
+    ctx.lineWidth=Math.max(0.8,r*(0.08-k*0.012)*(1-t));
+    ctx.beginPath();
+    ctx.arc(0,0,rr*0.96,Math.PI*1.12+k*0.22-t*0.25,Math.PI*1.72+k*0.22-t*0.25);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const skin=ctx.createRadialGradient(0,0,r*0.72,0,0,r*(1.18+e*0.55));
+  skin.addColorStop(0,hexA(d.tone,0));
+  skin.addColorStop(0.72,`rgba(255,253,251,${a*(1-age)*0.10})`);
+  skin.addColorStop(1,hexA(d.tone,0));
+  ctx.fillStyle=skin;ctx.beginPath();ctx.arc(0,0,r*(1.18+e*0.55),0,7);ctx.fill();
+
+  ctx.restore();
+}
+/* === 移植结束 === */
+
+/* ====================== 投影:从 3D 坐标投到屏幕 + 计算 r ====================== */
+const F_NEAR=10, F_FAR=80;       /* 远雾边界拉远,让大多数气泡可见 */
+const BAND_IN=14, BAND_OUT=26;
+const tmpV=new THREE.Vector3();
+function projectBubble(b){
+  const wx=Math.cos(b.ang+dataPhi)*b.R;
+  const wz=Math.sin(b.ang+dataPhi)*b.R;
+  const wy=-(b.day-dayEye)*.5;
+  const band=1-smooth(BAND_IN,BAND_OUT,Math.abs(wy));
+  if(band<=0.02){b.visible=false;return;}
+  tmpV.set(wx,wy,wz);
+  tmpV.applyMatrix4(cam.matrixWorldInverse);
+  const camDist=-tmpV.z;
+  if(camDist<1){b.visible=false;return;}
+  /* 雾衰减:远处大幅压暗,景深感的关键 */
+  const fog=1-smooth(F_NEAR,F_FAR,camDist);
+  const v=new THREE.Vector3(wx,wy,wz).project(cam);
+  if(Math.abs(v.x)>1.5||Math.abs(v.y)>1.5){b.visible=false;return;}
+  b.x=(v.x+1)/2*innerWidth;
+  b.y=(-v.y+1)/2*innerHeight;
+  /* 基础半径下调 + 透视缩放系数下调:整体偏小,且近大远小幅度更大 */
+  const baseR=lerp(13,23,b.inten)*(0.85+0.3*((b.ph%1)));
+  const depthScale=clamp(1-(camDist-6)*0.008,0.78,1.0);
+  b.r=baseR*depthScale;
+  b._alpha=band*fog;
+  b.worldZ=tmpV.z;
+  b.camDist=camDist;
+  /* 太小或太淡的气泡完全不画 */
+  b.visible=b.r>2.5&&b._alpha>.06;
+}
+
+/* ====================== 相位机 ====================== */
+let phase='CHAT';
+const crumb=document.getElementById('crumb');
+const hint=document.getElementById('hint');
+const screenName=document.getElementById('screenName');
+const timeHud=document.getElementById('timeHud');
+const compass=document.getElementById('compass');
+const caret=document.getElementById('caret');
+const chatEls=[document.getElementById('chat'),document.getElementById('chatUi')];
+const PHASE_TXT={
+  CHAT:['聊天 · 当下','双指张开 或 点击中央圆环 —— 坠入'],
+  FALL:['坠落 · 沉入记忆','……'],
+  HALL:['大厅 · 观察舱','横滑 转身切屏 · 张开 入云 · 捏拢 升回当下'],
+  CLOUD:['记忆云 · 过去','横滑 转身 = 面向某种情绪 · 竖滑 = 在时间里上下穿行'],
+  CARD:['凝露卡','捏拢 或 点外部 收回'],
+  RISE:['升回当下','……'],
+};
+function setPhase(p){
+  phase=p;
+  crumb.textContent=PHASE_TXT[p][0];
+  hint.textContent=PHASE_TXT[p][1];
+  screenName.style.opacity=p==='HALL'?1:0;
+  /* 大厅 .on 类只控制 CSS visibility——保持给所有"非聊天"相位都打开，
+     这样 toCloud / toHall fade 时不会被 visibility:hidden 中途截胡 */
+  screenHallEl.classList.toggle('on', p!=='CHAT');
+  /* K 完全由转场负责。只在两个边界态强制清理：
+     - 进 CHAT：彻底退场（避免 RISE 被打断后残留半透明） */
+  if(p==='CHAT') setScreenHallExit(0);
+  timeHud.style.opacity=p==='CLOUD'?1:0;
+  compass.classList.toggle('on',p==='CLOUD');
+  caret.classList.toggle('on',p==='CLOUD');
+  chatEls.forEach(el=>el.classList.toggle('hidden',p!=='CHAT'));
+}
+setPhase('CHAT');
+
+let anims=[];
+function anim(dur,fn,done){anims.push({t0:performance.now(),dur,fn,done});}
+
+/* fall:
+   0     ────  0.42  ──── 0.50 ────  0.65 ──── 1.0
+   ↓ 自由下落      井口逼近     穿过 (flash)    大厅倾斜露出 → 落定
+   摄像机 y=62 → 0；俯视 -90° 保持到 0.52，之后才抬头到平视；
+   CSS 大厅在 0.42 之后开始浮现，到 0.95 落定 */
+function startFall(){
+  if(phase!=='CHAT')return;setPhase('FALL');
+  anim(reduceMotion?500:2200,p=>{
+    /* 下落用一个"加速 → 微微过冲 → 减速"的曲线：前半下落快 (失重感),
+       后半在井口附近减速 (像被大厅接住) */
+    const eFall = p<0.62
+      ? 0.5*Math.pow(p/0.62,2.2)         /* 前段：缓加速到接近井口 */
+      : 0.5 + 0.5*(1-Math.pow(1-(p-0.62)/0.38,2.8));  /* 后段：明显减速落定 */
+    cam.position.y = lerp(62, 0, eFall);
+    /* 俯仰：直到 flash 之后才开始抬头，避免"边掉边歪头"的违和 */
+    cam.rotation.x = lerp(-Math.PI/2, 0, smooth(0.55, 0.94, p));
+    /* CSS 大厅入场：和摄像机的减速段对齐 */
+    setScreenHallEnter(smooth(0.38, 1, p));
+  },()=>{puff();setPhase('HALL');});
+}
+/* rise: 不是倒放——上升节奏是"脚一蹬就走 → 越往上越慢"。
+   关键：用 setScreenHallExit，墙不再 tilt 翻倒，只是温和 scale 回退 + fade */
+function startRise(){
+  if(phase!=='HALL')return;setPhase('RISE');
+  anim(reduceMotion?400:1900,p=>{
+    const eRise = p<0.35
+      ? Math.pow(p/0.35,1.6)*0.42
+      : 0.42 + 0.58*(1-Math.pow(1-(p-0.35)/0.65,2.2));
+    cam.position.y = lerp(0, 62, eRise);
+    cam.rotation.x = lerp(0, -Math.PI/2, smooth(0.10, 0.55, p));
+    setScreenHallExit(1 - smooth(0.05, 0.65, p));
+  },()=>setPhase('CHAT'));
+}
+/* HALL → CLOUD：墙在原地雾化（ADR 8 字面执行），transform 不动 */
+function toCloud(){
+  if(phase!=='HALL')return;setPhase('CLOUD');
+  anim(reduceMotion?260:780,p=>{
+    const e=ease(p);
+    setScreenHallFade(1 - e);
+    screenMats.forEach((m,i)=>m.opacity=lerp(i===5?.05:.18,.02,p));
+    titleMeshes.forEach(t=>t.material.opacity=lerp(t.userData.name==='（尚未成形）'?.25:.95,.05,p));
+  });
+}
+/* CLOUD → HALL：墙原地重新凝结（雾化逆过程） */
+function toHall(){
+  if(phase!=='CLOUD')return;setPhase('HALL');
+  anim(reduceMotion?260:780,p=>{
+    const e=ease(p);
+    setScreenHallFade(e);
+    screenMats.forEach((m,i)=>m.opacity=lerp(.02,i===5?.05:.18,p));
+    titleMeshes.forEach(t=>t.material.opacity=lerp(.05,t.userData.name==='（尚未成形）'?.25:.95,p));
+  });
+}
+
+/* ====================== 凝露卡 ====================== */
+const card=document.getElementById('card');
+let poppedB=null;
+function openCardFor(b){
+  document.getElementById('cTheme').textContent='记忆凝露 · '+b.label;
+  document.getElementById('cTitle').textContent=b.label;
+  document.getElementById('cBody').textContent=BODIES[Math.floor(Math.random()*BODIES.length)];
+  const d=new Date(Date.now()-b.day*864e5);
+  document.getElementById('cDate').textContent=`${d.getFullYear()} · ${String(d.getMonth()+1).padStart(2,'0')} · ${String(d.getDate()).padStart(2,'0')}`;
+  const em=EMOTIONS[Math.round((b.ang%(Math.PI*2)+Math.PI*2)%(Math.PI*2)/(Math.PI/4))%8];
+  document.getElementById('cMeta').textContent=`亲密 · ${em} ${Math.round(b.inten*100)} · ${Math.round(b.day)===0?'今天':Math.round(b.day)+' 天前'}`;
+  setPhase('CARD');
+  setTimeout(()=>card.classList.add('show'),300);
+}
+function popBubble(b){
+  if(b.popT)return;
+  b.popT=performance.now();
+  poppedB=b;
+  setTimeout(()=>openCardFor(b),600);
+}
+function closeCard(){
+  card.classList.remove('show');
+  poppedB=null;
+  setPhase('CLOUD');
+}
+document.getElementById('cClose').addEventListener('click',e=>{e.stopPropagation();closeCard();});
+
+/* ====================== 穿层 ====================== */
+function deeper(){
+  if(phase==='CHAT')startFall();
+  else if(phase==='HALL')toCloud();
+  else if(phase==='CLOUD')popCenter();
+}
+function shallower(){
+  if(phase==='CARD')closeCard();
+  else if(phase==='CLOUD')toHall();
+  else if(phase==='HALL')startRise();
+}
+document.getElementById('bUp').addEventListener('click',shallower);
+document.getElementById('bDown').addEventListener('click',deeper);
+function popCenter(){
+  let best=null,bd=1e9;
+  for(const b of bubbles){
+    if(!b.visible||b.worldZ>-1)continue;
+    const d=(b.x-innerWidth/2)**2+(b.y-innerHeight*.5)**2;
+    if(d<bd){bd=d;best=b;}
+  }
+  if(best)popBubble(best);
+}
+
+/* ====================== 手势 ====================== */
+const el=renderer.domElement;
+let dragging=false,lastX=0,lastY=0,startX=0,startY=0,startT=0,moved=0;
+let pinchD=0,pinchConsumed=false,lastTap=0,hallSnap=null,lastTouchT=0;
+el.addEventListener('touchstart',e=>{
+  lastTouchT=performance.now();
+  if(e.touches.length===1){
+    dragging=true;hallSnap=null;
+    lastX=startX=e.touches[0].clientX;lastY=startY=e.touches[0].clientY;
+    startT=performance.now();moved=0;
+  }else if(e.touches.length>=2){
+    dragging=false;pinchConsumed=false;
+    pinchD=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                      e.touches[0].clientY-e.touches[1].clientY);
+  }
+},{passive:true});
+el.addEventListener('touchmove',e=>{
+  lastTouchT=performance.now();
+  if(dragging&&e.touches.length===1){
+    const x=e.touches[0].clientX,y=e.touches[0].clientY;
+    const dx=x-lastX,dy=y-lastY;moved+=Math.abs(dx)+Math.abs(dy);
+    routeDrag(dx,dy);lastX=x;lastY=y;
+  }else if(e.touches.length>=2&&!pinchConsumed){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                       e.touches[0].clientY-e.touches[1].clientY);
+    const ratio=d/pinchD;
+    if(ratio>1.32){pinchConsumed=true;deeper();}
+    else if(ratio<.74){pinchConsumed=true;shallower();}
+  }
+},{passive:true});
+el.addEventListener('touchend',e=>{
+  lastTouchT=performance.now();
+  if(dragging&&e.touches.length===0){
+    dragging=false;
+    if(phase==='HALL')snapScreenHall();
+    if(moved<10&&performance.now()-startT<350){
+      const now=performance.now();
+      if(now-lastTap<300){deeper();lastTap=0;}
+      else{lastTap=now;
+        setTimeout(()=>{if(lastTap&&performance.now()-lastTap>=300){routeTap(startX,startY);lastTap=0;}},310);}
+    }
+  }
+  if(e.touches.length<2)pinchConsumed=false;
+},{passive:true});
+
+const touchRecent=()=>performance.now()-lastTouchT<1000;
+let mDown=false;
+el.addEventListener('mousedown',e=>{if(touchRecent())return;mDown=true;hallSnap=null;
+  lastX=startX=e.clientX;lastY=startY=e.clientY;startT=performance.now();moved=0;});
+addEventListener('mousemove',e=>{if(touchRecent()||!mDown)return;
+  const dx=e.clientX-lastX,dy=e.clientY-lastY;moved+=Math.abs(dx)+Math.abs(dy);
+  routeDrag(dx,dy);lastX=e.clientX;lastY=e.clientY;});
+addEventListener('mouseup',e=>{if(touchRecent()){mDown=false;return;}
+  if(mDown){if(phase==='HALL')snapScreenHall();
+    if(moved<8&&performance.now()-startT<350)routeTap(e.clientX,e.clientY);}
+  mDown=false;});
+let wheelT=0;
+el.addEventListener('wheel',e=>{
+  const now=performance.now();if(now-wheelT<600)return;wheelT=now;
+  e.deltaY<0?deeper():shallower();
+},{passive:true});
+
+function routeDrag(dx,dy){
+  if(phase==='HALL'){screenHallDrag(dx);}
+  else if(phase==='CLOUD'){
+    dataPhi+=dx*0.0045;
+    dayEye=clamp(dayEye-dy*0.12,0,365);
+  }
+}
+function routeTap(x,y){
+  if(phase==='CARD'){closeCard();return;}
+  if(phase==='CHAT'){
+    const cx=innerWidth/2,cy=innerHeight*.44;
+    if(Math.hypot(x-cx,y-cy)<115)startFall();
+    return;
+  }
+  if(phase==='CLOUD'){
+    let hit=null,bd=1e9;
+    for(const b of bubbles){
+      if(!b.visible)continue;
+      const d=Math.hypot(x-b.x,y-b.y);
+      if(d<b.r*1.2&&d<bd){bd=d;hit=b;}
+    }
+    if(hit)popBubble(hit);
+  }
+}
+
+/* ====================== 罗盘带 ====================== */
+const track=document.getElementById('compassTrack');
+{let html='';for(let r=0;r<5;r++)for(const w of EMOTIONS)
+  html+=`<div class="cseg"><span class="w">${w}</span><span class="t"></span></div>`;
+ track.innerHTML=html;}
+const SEG_W=90,RING_W=SEG_W*8;
+function updateCompass(){
+  if(phase!=='CLOUD')return;
+  const a=((-dataPhi)%(Math.PI*2)+Math.PI*2)%(Math.PI*2);
+  const px=(a/(Math.PI*2))*RING_W;
+  track.style.transform=`translateX(${-(RING_W*2+px)-SEG_W/2}px)`;
+}
+
+/* ====================== HUD ====================== */
+const v3w=new THREE.Vector3();
+const tDate=document.getElementById('tDate'),tAgo=document.getElementById('tAgo');
+function updateHud(){
+  if(phase==='CLOUD'){
+    const dEye=Math.round(dayEye);
+    const d=new Date(Date.now()-dEye*864e5);
+    tDate.textContent=`${d.getMonth()+1}月${d.getDate()}日`;
+    tAgo.textContent=dEye===0?'云顶 · 最新':dEye+' 天前';
+  }
+  if(phase==='HALL'){
+    screenName.textContent=HALL_DOMAINS[hallIdx].name;
+  }
+}
+
+/* ====================== overlay 绘制 ====================== */
+let ovPR=Math.min(Math.max(devicePixelRatio,2.4),2.6);
+function sizeOverlay(){
+  ov.width=innerWidth*ovPR;ov.height=innerHeight*ovPR;
+  ov.style.width=innerWidth+'px';ov.style.height=innerHeight+'px';
+  ctx.imageSmoothingEnabled=false;  /* 关掉,矢量字形不需要,反而更清 */
+}
+function drawCloudOverlay(now){
+  ctx.setTransform(ovPR,0,0,ovPR,0,0);
+  ctx.clearRect(0,0,innerWidth,innerHeight);
+  if(phase==='HALL'||phase==='CLOUD'||phase==='CARD'){
+    const phaseA=(phase==='CLOUD'||phase==='CARD')?1:.18;
+    if(phaseA<1)ctx.globalAlpha=phaseA;
+    for(const b of bubbles)projectBubble(b);
+    const sorted=[...bubbles].filter(b=>b.visible).sort((a,b)=>a.worldZ-b.worldZ);
+    /* 直接调用 v3 同款 drawBubble */
+    for(const b of sorted){
+      drawBubble(b, b.r, b._alpha, now);
+    }
+    /* 包裹雾 */
+    if(phase==='CLOUD'||phase==='CARD'){
+      const edge=(x,y,r,a)=>{
+        const g=ctx.createRadialGradient(x,y,0,x,y,r);
+        g.addColorStop(0,hexA(TONES[0],a));g.addColorStop(1,hexA(TONES[0],0));
+        ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+      };
+      edge(innerWidth/2,-innerHeight*.18,innerHeight*.55,.06);
+      edge(innerWidth/2,innerHeight*1.18,innerHeight*.55,.06);
+      edge(-innerWidth*.16,innerHeight/2,innerWidth*.5,.05);
+      edge(innerWidth*1.16,innerHeight/2,innerWidth*.5,.05);
+    }
+    if(phaseA<1)ctx.globalAlpha=1;
+  }
+}
+
+/* ====================== 主循环 ====================== */
+function loop(now){
+  requestAnimationFrame(loop);
+  anims=anims.filter(a=>{
+    const p=clamp((now-a.t0)/a.dur,0,1);
+    a.fn(p);
+    if(p>=1){a.done&&a.done();return false;}
+    return true;
+  });
+  ring.material.opacity=(.6+.3*Math.sin(now*.0028))*(1-smooth(.18,.82,screenHallEnter));
+  const rs=4.8+.3*Math.sin(now*.0028);
+  ring.scale.set(rs,rs,1);
+
+  puffs=puffs.filter(p=>{
+    const k=(now-p.userData.t0)/900;
+    if(k>=1){scene.remove(p);return false;}
+    const r=1.2+k*3.4;
+    p.position.set(Math.cos(p.userData.a)*r,-2.6+k*.6,Math.sin(p.userData.a)*r);
+    const s=1.5+k*3;p.scale.set(s,s*.55,1);
+    p.material.opacity=.55*(1-k);
+    return true;
+  });
+
+  cam.updateMatrixWorld();
+  renderer.render(scene,cam);
+  drawCloudOverlay(now);
+  updateCompass();
+  updateHud();
+}
+sizeOverlay();
+requestAnimationFrame(loop);
+
+addEventListener('resize',()=>{
+  cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+  sizeOverlay();
+});
+</script>
+</body>
+</html>

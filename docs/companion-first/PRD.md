@@ -234,6 +234,17 @@ A single model call classifies a slice into multiple destinations:
 }
 ```
 
+Extraction granularity is semantic, not message-shaped:
+
+- One user message may create or update multiple Review cards when it contains
+  independent life records.
+- Multiple user messages may merge into one Review card when they describe the
+  same evolving real-world entity.
+- The organizer should first decompose long inputs into atomic life facts, then
+  decide whether each atom creates, updates, completes, cancels, corrects, or
+  derives from an existing entity.
+- Source messages remain evidence. They do not define card boundaries.
+
 Supported shared operations:
 
 | Operation | Meaning |
