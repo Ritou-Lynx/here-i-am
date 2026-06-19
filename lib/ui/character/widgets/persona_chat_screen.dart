@@ -54,9 +54,41 @@ const _personaLine = Color(0xFF343A45);
 const _personaCharacterBubble = Color(0xD9101115);
 const _personaUserBubble = Color(0xFFE8DEC8);
 const _personaUserBorder = Color(0xFFEFE4CD);
+const _voiceModeIdleFollowUpSilenceTimeout = Duration(seconds: 60);
+const _voiceModeMaxRecordingDuration = Duration(seconds: 120);
+const _voiceModeMaxSilentFollowUps = 8;
 
 String _chatUiText({required String zh, required String en}) {
   return UserStorage.l10n.localeName.toLowerCase().startsWith('zh') ? zh : en;
+}
+
+@visibleForTesting
+bool personaChatVoiceIdleFollowUpShouldForceClose(
+  int followUpIndex, {
+  int maxFollowUps = _voiceModeMaxSilentFollowUps,
+}) {
+  return followUpIndex >= maxFollowUps;
+}
+
+@visibleForTesting
+String personaChatVoiceIdleFollowUpPrompt({
+  required int followUpIndex,
+  required bool forceClose,
+}) {
+  if (forceClose) {
+    return '[The user has been silent for about 60 seconds again in chat voice '
+        'mode. This is silent follow-up $followUpIndex. They may have fallen '
+        'asleep. Say a very soft, brief goodnight or closing line, then call '
+        '`end_voice_mode` in this same turn. Do not use markdown, action text, '
+        'or parenthetical thoughts.]';
+  }
+  return '[The user has been silent for about 60 seconds in chat voice mode. '
+      'This is silent follow-up $followUpIndex. React naturally in one or two '
+      'short spoken sentences. If the recent conversation is about sleep, '
+      'bedtime, rest, or the user wanting company while falling asleep, keep '
+      'speaking softly and do not require them to answer. Otherwise gently ask '
+      'if they are still there or continue the topic. Vary your wording. Do '
+      'not use markdown, action text, or parenthetical thoughts.]';
 }
 
 /// 1-on-1 chat screen with an AI companion character.
@@ -159,7 +191,9 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _voiceModeStartQueued = false;
   bool _voiceModeOpeningInProgress = false;
   bool _endVoiceModeAfterCurrentReply = false;
+  int _voiceModeSilentFollowUps = 0;
   int _voiceModeOpeningSerial = 0;
+  int _voiceModeIdleFollowUpSerial = 0;
   int _ttsRequestSerial = 0;
 
   bool _isAppInBackground = false;
@@ -357,7 +391,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       return;
     }
 
-    final result = await _voiceController.toggle(autoStop: true);
+    final result = await _voiceController.toggle(
+      autoStop: true,
+      initialSilenceTimeout:
+          _isInlineVoiceMode ? _voiceModeIdleFollowUpSilenceTimeout : null,
+      maxRecordingDuration:
+          _isInlineVoiceMode ? _voiceModeMaxRecordingDuration : null,
+    );
     if (!mounted) return;
     if (result != null && result.isNotEmpty) {
       _textController.text = result;
@@ -373,7 +413,11 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   Future<void> _interruptRoleVoiceAndStartRecording() async {
     await _stopTtsPlayback();
     if (!mounted || !_isInlineVoiceMode) return;
-    await _voiceController.start(autoStop: true);
+    await _voiceController.start(
+      autoStop: true,
+      initialSilenceTimeout: _voiceModeIdleFollowUpSilenceTimeout,
+      maxRecordingDuration: _voiceModeMaxRecordingDuration,
+    );
     if (!mounted) return;
     final error = _voiceController.lastError;
     if (error != null && _voiceController.state == VoiceInputState.idle) {
@@ -417,12 +461,60 @@ only after you have written the goodbye you want the user to hear.''',
     if (!mounted || !_isInlineVoiceMode) return;
     final recognized = text?.trim() ?? '';
     if (recognized.isNotEmpty) {
+      _voiceModeSilentFollowUps = 0;
       _textController.text = recognized;
       await _sendMessage();
       return;
     }
     if (!mounted || !_isInlineVoiceMode || _isVoiceReplyActive) return;
-    _queueVoiceModeRecordingStart(delay: const Duration(milliseconds: 600));
+    await _runVoiceModeIdleFollowUp();
+  }
+
+  Future<void> _runVoiceModeIdleFollowUp() async {
+    if (!mounted || !_isInlineVoiceMode || _isAppInBackground) return;
+    if (_isStreaming || _isRoleVoiceActive) {
+      _queueVoiceModeRecordingStart(delay: const Duration(milliseconds: 600));
+      return;
+    }
+
+    final followUpIndex = ++_voiceModeSilentFollowUps;
+    final forceClose = personaChatVoiceIdleFollowUpShouldForceClose(
+      followUpIndex,
+    );
+    final serial = ++_voiceModeIdleFollowUpSerial;
+    final text = await _generateVoiceModeIdleFollowUp(
+      serial: serial,
+      followUpIndex: followUpIndex,
+      forceClose: forceClose,
+    );
+
+    if (!mounted ||
+        !_isInlineVoiceMode ||
+        serial != _voiceModeIdleFollowUpSerial) {
+      return;
+    }
+
+    final spoken = text?.trim();
+    if (spoken == null || spoken.isEmpty) {
+      _queueVoiceModeRecordingStart(delay: const Duration(milliseconds: 600));
+      return;
+    }
+
+    if (forceClose) {
+      _endVoiceModeAfterCurrentReply = true;
+    }
+    final followUp = await _persistVoiceModeOpening(spoken);
+    if (!mounted ||
+        !_isInlineVoiceMode ||
+        serial != _voiceModeIdleFollowUpSerial) {
+      return;
+    }
+    _lastAutoReadMessageId = followUp.playbackId;
+    await _handleTtsPlay(
+      followUp.playbackId,
+      followUp.text,
+      autoTriggered: false,
+    );
   }
 
   void _queueVoiceModeRecordingStart({Duration delay = Duration.zero}) {
@@ -449,7 +541,11 @@ only after you have written the goodbye you want the user to hear.''',
       return;
     }
 
-    await _voiceController.start(autoStop: true);
+    await _voiceController.start(
+      autoStop: true,
+      initialSilenceTimeout: _voiceModeIdleFollowUpSilenceTimeout,
+      maxRecordingDuration: _voiceModeMaxRecordingDuration,
+    );
     if (!mounted) return;
     final error = _voiceController.lastError;
     if (error != null && _voiceController.state == VoiceInputState.idle) {
@@ -635,6 +731,69 @@ only after you have written the goodbye you want the user to hear.''',
       );
     }
     return null;
+  }
+
+  Future<String?> _generateVoiceModeIdleFollowUp({
+    required int serial,
+    required int followUpIndex,
+    required bool forceClose,
+  }) async {
+    final userId = _userId ?? await UserStorage.getUserId();
+    if (userId == null) return null;
+
+    final previousStreaming = _isStreaming;
+    final previousActiveCharacterId = _activeStreamingCharacterId;
+    final buffer = StringBuffer();
+    if (mounted) {
+      setState(() {
+        _isStreaming = true;
+        _streamingText = '';
+        _activeStreamingCharacterId = _currentCharacterId;
+      });
+    }
+
+    try {
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.companionAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+      await for (final chunk in CompanionAgent.chat(
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+        userId: userId,
+        characterId: _currentCharacterId,
+        userMessage: personaChatVoiceIdleFollowUpPrompt(
+          followUpIndex: followUpIndex,
+          forceClose: forceClose,
+        ),
+        debugErrorOutput: true,
+        voiceMode: true,
+        extraTools: [_buildEndVoiceModeTool()],
+      )) {
+        if (!mounted ||
+            !_isInlineVoiceMode ||
+            serial != _voiceModeIdleFollowUpSerial) {
+          return null;
+        }
+        buffer.write(chunk);
+        setState(() => _streamingText = buffer.toString());
+        _scrollToBottom();
+      }
+    } catch (e) {
+      return forceClose ? '我先不吵你了，闭上眼睛好好睡。晚安。' : '我在呢。你不用说话，闭上眼睛，慢慢放松就好。';
+    } finally {
+      if (mounted && serial == _voiceModeIdleFollowUpSerial) {
+        setState(() {
+          _isStreaming = previousStreaming;
+          _streamingText = '';
+          _activeStreamingCharacterId = previousActiveCharacterId;
+        });
+      }
+    }
+
+    final text = buffer.toString().trim();
+    if (text.isNotEmpty) return text;
+    return forceClose ? '我先不吵你了，闭上眼睛好好睡。晚安。' : '我在呢。你不用说话，闭上眼睛，慢慢放松就好。';
   }
 
   Future<void> _initMediaButtons() async {
@@ -1121,6 +1280,9 @@ only after you have written the goodbye you want the user to hear.''',
         ? List<XFile>.from(queuedImages)
         : List<XFile>.from(_selectedImages);
     final textToSend = text;
+    if (_isInlineVoiceMode && hasText) {
+      _voiceModeSilentFollowUps = 0;
+    }
     if (!isQueuedMessage) {
       _clearComposerText(staleText: textToSend);
       _clearImages();
@@ -2001,12 +2163,16 @@ only after you have written the goodbye you want the user to hear.''',
     if (!mounted) return;
     setState(() => _isInlineVoiceMode = enabled);
     if (enabled) {
+      _voiceModeSilentFollowUps = 0;
+      _voiceModeIdleFollowUpSerial++;
       _queueVoiceModeOpening();
     } else {
       _voiceModeOpeningSerial++;
+      _voiceModeIdleFollowUpSerial++;
       _voiceModeOpeningInProgress = false;
       _voiceModeStartQueued = false;
       _endVoiceModeAfterCurrentReply = false;
+      _voiceModeSilentFollowUps = 0;
       await _voiceController.cancel();
       await _stopTtsPlayback();
     }

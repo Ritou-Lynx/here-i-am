@@ -387,6 +387,45 @@ void main() {
       isTrue,
     );
   });
+
+  test('voice endpoint supports longer initial silence for voice mode', () {
+    final startedAt = DateTime(2026, 6, 19, 9);
+
+    expect(
+      voiceInputShouldAutoStop(
+        now: startedAt.add(const Duration(seconds: 59)),
+        startedAt: startedAt,
+        lastSpeechAt: null,
+        heardSpeech: false,
+        initialSilenceTimeout: const Duration(seconds: 60),
+        maxRecordingDuration: const Duration(seconds: 120),
+      ),
+      isFalse,
+    );
+    expect(
+      voiceInputShouldAutoStop(
+        now: startedAt.add(const Duration(seconds: 60)),
+        startedAt: startedAt,
+        lastSpeechAt: null,
+        heardSpeech: false,
+        initialSilenceTimeout: const Duration(seconds: 60),
+        maxRecordingDuration: const Duration(seconds: 120),
+      ),
+      isTrue,
+    );
+  });
+
+  test('voice idle follow-up closes on the eighth silent turn', () {
+    expect(personaChatVoiceIdleFollowUpShouldForceClose(7), isFalse);
+    expect(personaChatVoiceIdleFollowUpShouldForceClose(8), isTrue);
+
+    final prompt = personaChatVoiceIdleFollowUpPrompt(
+      followUpIndex: 8,
+      forceClose: true,
+    );
+    expect(prompt, contains('60 seconds'));
+    expect(prompt, contains('end_voice_mode'));
+  });
 }
 
 Finder _findSemanticsLabel(String label) {

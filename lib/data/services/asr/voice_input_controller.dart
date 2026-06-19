@@ -40,6 +40,8 @@ class VoiceInputController extends ChangeNotifier {
   Timer? _endpointPollTimer;
   DateTime? _recordingStartedAt;
   DateTime? _lastSpeechAt;
+  Duration _autoStopInitialSilenceTimeout = _voiceEndpointInitialSilenceTimeout;
+  Duration _autoStopMaxRecordingDuration = _voiceEndpointMaxRecordingDuration;
   bool _heardSpeech = false;
   bool _autoStopEnabled = false;
   bool _autoStopInProgress = false;
@@ -63,10 +65,18 @@ class VoiceInputController extends ChangeNotifier {
   ///
   /// Returns the recognized text on the recording → idle transition, null
   /// otherwise. If ASR fails, returns null and sets [lastError].
-  Future<String?> toggle({bool autoStop = false}) async {
+  Future<String?> toggle({
+    bool autoStop = false,
+    Duration? initialSilenceTimeout,
+    Duration? maxRecordingDuration,
+  }) async {
     switch (_state) {
       case VoiceInputState.idle:
-        await start(autoStop: autoStop);
+        await start(
+          autoStop: autoStop,
+          initialSilenceTimeout: initialSilenceTimeout,
+          maxRecordingDuration: maxRecordingDuration,
+        );
         return null;
       case VoiceInputState.recording:
         return stopAndRecognize();
@@ -76,9 +86,17 @@ class VoiceInputController extends ChangeNotifier {
   }
 
   /// Start recording if the controller is idle.
-  Future<void> start({bool autoStop = false}) async {
+  Future<void> start({
+    bool autoStop = false,
+    Duration? initialSilenceTimeout,
+    Duration? maxRecordingDuration,
+  }) async {
     if (_state != VoiceInputState.idle) return;
-    await _start(autoStop: autoStop);
+    await _start(
+      autoStop: autoStop,
+      initialSilenceTimeout: initialSilenceTimeout,
+      maxRecordingDuration: maxRecordingDuration,
+    );
   }
 
   /// Stop the current recording and run ASR.
@@ -103,7 +121,11 @@ class VoiceInputController extends ChangeNotifier {
     _logger.info('Recording cancelled');
   }
 
-  Future<void> _start({required bool autoStop}) async {
+  Future<void> _start({
+    required bool autoStop,
+    Duration? initialSilenceTimeout,
+    Duration? maxRecordingDuration,
+  }) async {
     lastError = null;
 
     final config = await AsrConfig.load();
@@ -139,6 +161,10 @@ class VoiceInputController extends ChangeNotifier {
       _state = VoiceInputState.recording;
       _recordingStartedAt = DateTime.now();
       _lastSpeechAt = null;
+      _autoStopInitialSilenceTimeout =
+          initialSilenceTimeout ?? _voiceEndpointInitialSilenceTimeout;
+      _autoStopMaxRecordingDuration =
+          maxRecordingDuration ?? _voiceEndpointMaxRecordingDuration;
       _heardSpeech = false;
       _autoStopEnabled = autoStop;
       _autoStopInProgress = false;
@@ -222,7 +248,8 @@ class VoiceInputController extends ChangeNotifier {
       'Voice endpoint detection started: '
       'threshold=${_voiceEndpointSpeechThresholdDb.toStringAsFixed(1)}dB '
       'trailing=${_voiceEndpointTrailingSilenceTimeout.inMilliseconds}ms '
-      'initial=${_voiceEndpointInitialSilenceTimeout.inMilliseconds}ms',
+      'initial=${_autoStopInitialSilenceTimeout.inMilliseconds}ms '
+      'max=${_autoStopMaxRecordingDuration.inMilliseconds}ms',
     );
     _amplitudeSub = _recorder
         .onAmplitudeChanged(_voiceEndpointPollInterval)
@@ -273,6 +300,8 @@ class VoiceInputController extends ChangeNotifier {
       startedAt: startedAt,
       lastSpeechAt: _lastSpeechAt,
       heardSpeech: _heardSpeech,
+      initialSilenceTimeout: _autoStopInitialSilenceTimeout,
+      maxRecordingDuration: _autoStopMaxRecordingDuration,
     )) {
       return;
     }
@@ -287,9 +316,24 @@ class VoiceInputController extends ChangeNotifier {
   }
 
   Future<void> _autoStopAndRecognize() async {
-    final text = await stopAndRecognize();
+    final text =
+        _heardSpeech ? await stopAndRecognize() : await _stopBlankRecording();
     _autoStopInProgress = false;
     await onAutoRecognitionComplete?.call(text);
+  }
+
+  Future<String?> _stopBlankRecording() async {
+    await _stopEndpointDetection();
+    try {
+      await _recorder.stop();
+    } catch (e) {
+      _logger.warning('blank stop error: $e');
+    }
+    await _deleteCurrentFile();
+    _state = VoiceInputState.idle;
+    _clearEndpointState();
+    notifyListeners();
+    return null;
   }
 
   Future<void> _stopEndpointDetection() async {
@@ -307,6 +351,8 @@ class VoiceInputController extends ChangeNotifier {
   void _clearEndpointState() {
     _recordingStartedAt = null;
     _lastSpeechAt = null;
+    _autoStopInitialSilenceTimeout = _voiceEndpointInitialSilenceTimeout;
+    _autoStopMaxRecordingDuration = _voiceEndpointMaxRecordingDuration;
     _heardSpeech = false;
     _autoStopEnabled = false;
     _autoStopInProgress = false;
