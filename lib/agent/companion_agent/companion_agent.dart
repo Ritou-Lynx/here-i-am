@@ -628,6 +628,7 @@ class CompanionAgent {
     bool debugErrorOutput = false,
     bool voiceMode = false,
     ToyController? toyControlService,
+    List<Tool> extraTools = const [],
   }) async* {
     final agent = await _createAgent(
       client: client,
@@ -642,6 +643,7 @@ class CompanionAgent {
       includeCheckinTools: true,
       forceNewSession: true,
       toyControlService: toyControlService,
+      extraTools: extraTools,
     );
     if (agent == null) {
       yield 'Sorry, character not found.';
@@ -688,7 +690,10 @@ class CompanionAgent {
             '- Speak naturally for voice: short, warm, conversational.\n'
             '- Do NOT use action text, markdown, or parenthetical thoughts.\n'
             '- Do NOT call `initiate_voice_call`; the user is already in '
-            'voice mode inside chat.';
+            'voice mode inside chat.\n'
+            '- If the user asks to hang up/end the call, or you naturally '
+            'decide to end the voice conversation, say a brief spoken goodbye '
+            'and call `end_voice_mode` in the same turn.';
       }
 
       // User chat deliberately does not drain pending checkins. Those are

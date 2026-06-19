@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -157,6 +158,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _isInlineVoiceMode = false;
   bool _voiceModeStartQueued = false;
   bool _voiceModeOpeningInProgress = false;
+  bool _endVoiceModeAfterCurrentReply = false;
   int _voiceModeOpeningSerial = 0;
   int _ttsRequestSerial = 0;
 
@@ -355,7 +357,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       return;
     }
 
-    final result = await _voiceController.toggle(autoStop: _isInlineVoiceMode);
+    final result = await _voiceController.toggle(autoStop: true);
     if (!mounted) return;
     if (result != null && result.isNotEmpty) {
       _textController.text = result;
@@ -383,6 +385,31 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     if (!mounted || error.isEmpty) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(error), duration: const Duration(seconds: 3)),
+    );
+  }
+
+  Tool _buildEndVoiceModeTool() {
+    return Tool(
+      name: 'end_voice_mode',
+      description:
+          '''End the current chat voice mode after your current spoken reply.
+
+Use this when the user asks to hang up/end the call, or when you naturally
+decide to end the voice conversation after saying a brief goodbye. Call this
+only after you have written the goodbye you want the user to hear.''',
+      parameters: {
+        'type': 'object',
+        'properties': {
+          'reason': {
+            'type': 'string',
+            'description': 'Short internal reason for ending voice mode.',
+          },
+        },
+      },
+      executable: ([String? reason]) async {
+        _endVoiceModeAfterCurrentReply = true;
+        return 'Voice mode will end after this reply is spoken.';
+      },
     );
   }
 
@@ -1308,6 +1335,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         debugErrorOutput: true,
         voiceMode: _isInlineVoiceMode,
         toyControlService: toyControlService,
+        extraTools: _isInlineVoiceMode ? [_buildEndVoiceModeTool()] : const [],
       )) {
         if (_isSendCanceled(sendSerial, userMessageId)) {
           break;
@@ -1978,6 +2006,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       _voiceModeOpeningSerial++;
       _voiceModeOpeningInProgress = false;
       _voiceModeStartQueued = false;
+      _endVoiceModeAfterCurrentReply = false;
       await _voiceController.cancel();
       await _stopTtsPlayback();
     }
@@ -2011,6 +2040,11 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       _playingMessageId = null;
       _isTtsLoading = false;
     });
+    if (_endVoiceModeAfterCurrentReply && _isInlineVoiceMode) {
+      _endVoiceModeAfterCurrentReply = false;
+      unawaited(_setInlineVoiceMode(false));
+      return;
+    }
     _queueVoiceModeRecordingStart();
   }
 
