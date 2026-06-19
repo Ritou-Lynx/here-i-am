@@ -10,12 +10,7 @@ import io.flutter.plugin.common.MethodChannel
 import com.memexlab.memex.FocusLockAccessibilityService
 
 /**
- * Handles app-blocker commands.
- *
- * Native focus lock uses AccessibilityService. Tasker can still receive
- * fallback commands with:
- *   Profile -> Event -> System -> Intent Received
- *   Action: com.memexlab.hereiam.APP_BLOCKER_COMMAND
+ * Handles native app-blocker commands.
  */
 object DeviceAppBlockerChannelHandler {
     private const val CHANNEL = "com.memexlab.memex/device_app_blocker"
@@ -35,10 +30,10 @@ object DeviceAppBlockerChannelHandler {
                         setNativeFocusLock(activity, call.arguments, result)
                     }
                     "isNativeFocusLockActive" -> {
-                        result.success(FocusLockAccessibilityService.isLocked(activity))
-                    }
-                    "sendTaskerIntent" -> {
-                        sendTaskerIntent(activity, call.arguments, result)
+                        result.success(
+                            FocusLockAccessibilityService.isServiceConnected() &&
+                                FocusLockAccessibilityService.isLocked(activity)
+                        )
                     }
                     else -> result.notImplemented()
                 }
@@ -61,34 +56,19 @@ object DeviceAppBlockerChannelHandler {
             )
             return
         }
-        FocusLockAccessibilityService.setLocked(activity, enabled, untilMs)
-        result.success(FocusLockAccessibilityService.isLocked(activity))
-    }
-
-    private fun sendTaskerIntent(
-        activity: Activity,
-        arguments: Any?,
-        result: MethodChannel.Result
-    ) {
-        val args = arguments as? Map<*, *>
-        val action = args?.get("intentAction") as? String
-        val payloadJson = args?.get("payloadJson") as? String
-        if (action.isNullOrBlank() || payloadJson.isNullOrBlank()) {
+        if (enabled && !FocusLockAccessibilityService.isServiceConnected()) {
             result.error(
-                "INVALID_ARGS",
-                "intentAction and payloadJson are required",
+                "SERVICE_NOT_RUNNING",
+                "Accessibility service is enabled but not running. Toggle it off and on in Android Accessibility settings.",
                 null
             )
             return
         }
-
-        val intent = Intent(action).apply {
-            putExtra("payload_json", payloadJson)
-            putExtra("source", "memex")
-            addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
-        }
-        activity.sendBroadcast(intent)
-        result.success(true)
+        FocusLockAccessibilityService.setLocked(activity, enabled, untilMs)
+        result.success(
+            FocusLockAccessibilityService.isServiceConnected() &&
+                FocusLockAccessibilityService.isLocked(activity)
+        )
     }
 
     private fun isAccessibilityServiceEnabled(context: Context): Boolean {

@@ -290,9 +290,13 @@ class DeviceAppBlockerService {
         until: active ? until : null,
       );
     } on PlatformException catch (e) {
-      final message = e.code == 'SERVICE_NOT_ENABLED'
-          ? 'Enable Here I am in Android Accessibility settings first.'
-          : 'Failed to control native focus lock: ${e.message ?? e.code}';
+      final message = switch (e.code) {
+        'SERVICE_NOT_ENABLED' =>
+          'Enable Here I am in Android Accessibility settings first.',
+        'SERVICE_NOT_RUNNING' =>
+          'Restart Here I am in Android Accessibility settings, then try again.',
+        _ => 'Failed to control native focus lock: ${e.message ?? e.code}',
+      };
       final previous = await getState();
       await _saveState(DeviceAppBlockerState(
         active: previous.active,
