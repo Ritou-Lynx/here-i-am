@@ -13,6 +13,11 @@ enum ToyProtocol { lovense, buttplug, magicMotion, svakom }
 abstract class ToyController {
   bool get isReady;
 
+  Future<bool> ensureReady({
+    Duration timeout = const Duration(seconds: 8),
+  }) async =>
+      isReady;
+
   /// Vibrate at [intensity] (0–20) for [durationSeconds] (0 = continuous).
   Future<bool> vibrate(int intensity, {int durationSeconds = 0});
 

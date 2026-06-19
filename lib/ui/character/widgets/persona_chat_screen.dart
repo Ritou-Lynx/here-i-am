@@ -242,7 +242,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
   Future<void> _tryConnectToy({bool forceRefresh = false}) async {
     await _ensureToyConnected(
-      timeout: const Duration(seconds: 10),
+      timeout: const Duration(seconds: 22),
       forceRefresh: forceRefresh,
     );
   }
@@ -1287,7 +1287,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       }
 
       final toyControlService =
-          await _ensureToyConnected(timeout: const Duration(seconds: 12));
+          await _ensureToyConnected(timeout: const Duration(seconds: 22));
       if (_isSendCanceled(sendSerial, userMessageId)) {
         _finishCanceledSend(sendSerial);
         return;
@@ -1319,6 +1319,9 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
             _scrollToBottom();
           }
         }
+      }
+      if (mounted && toyControlService != null) {
+        setState(() => _toyConnected = toyControlService.isReady);
       }
       if (_isSendCanceled(sendSerial, userMessageId)) {
         _finishCanceledSend(sendSerial);

@@ -47,6 +47,7 @@ class MagicMotionFlamingoController implements ToyController {
   Timer? _keepAliveTimer;
   Timer? _heartbeatTimer; // prevent device idle-disconnect when not vibrating
   Timer? _patternTimer;
+  Timer? _autoStopTimer;
   StreamSubscription<BluetoothConnectionState>? _connectionSub;
 
   // Keep-alive state
@@ -64,8 +65,39 @@ class MagicMotionFlamingoController implements ToyController {
   // ── Connection ──────────────────────────────────────────────────────────────
 
   Future<void> connect() async {
+    if (isReady) return;
+
+    Object? lastError;
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      if (attempt > 1) {
+        await Future.delayed(Duration(milliseconds: 500 * attempt));
+      }
+      await _resetBleHandle();
+      try {
+        await _connectOnce();
+        return;
+      } catch (e) {
+        lastError = e;
+        _log.warning(
+          'Flamingo connect attempt $attempt failed for $deviceName: $e',
+        );
+      }
+    }
+
+    throw Exception('Could not connect to Flamingo Max: $lastError');
+  }
+
+  Future<void> _connectOnce() async {
     _device = BluetoothDevice.fromId(deviceId);
-    await _device!.connect(timeout: const Duration(seconds: 10));
+    try {
+      await _device!.connect(timeout: const Duration(seconds: 6));
+    } catch (e) {
+      final message = e.toString().toLowerCase();
+      if (!message.contains('already')) {
+        rethrow;
+      }
+      _log.info('$deviceName was already connected; rediscovering services');
+    }
 
     // Track connection drops — update _connected so isReady reflects reality
     _connectionSub?.cancel();
@@ -74,6 +106,8 @@ class MagicMotionFlamingoController implements ToyController {
         _log.warning('$deviceName disconnected');
         _connected = false;
         _writeChar = null;
+        _stopHeartbeat();
+        _cancelAutoStop();
         _cancelPattern();
       }
     });
@@ -119,6 +153,40 @@ class MagicMotionFlamingoController implements ToyController {
     }
   }
 
+  @override
+  Future<bool> ensureReady({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    if (isReady) return true;
+    try {
+      await connect().timeout(timeout);
+      return isReady;
+    } catch (e) {
+      _log.warning('Flamingo reconnect failed: $e');
+      return false;
+    }
+  }
+
+  Future<void> _resetBleHandle() async {
+    _cancelPattern();
+    _cancelAutoStop();
+    _stopHeartbeat();
+    await _connectionSub?.cancel();
+    _connectionSub = null;
+    _connected = false;
+    _writeChar = null;
+    _writing = false;
+
+    final device = _device;
+    _device = null;
+    if (device == null) return;
+    try {
+      await device.disconnect();
+    } catch (e) {
+      _log.fine('Ignoring Flamingo disconnect during reset: $e');
+    }
+  }
+
   /// Sends a zero-strength command every 3 s to keep the device from
   /// applying its application-level idle-disconnect timeout.
   /// Stops automatically once a vibration keep-alive takes over.
@@ -145,23 +213,32 @@ class MagicMotionFlamingoController implements ToyController {
 
   @override
   Future<bool> vibrate(int intensity, {int durationSeconds = 0}) async {
+    _cancelAutoStop();
     _cancelPattern();
     final str = _mapStrength(intensity);
     const freq = 500; // 50 Hz
-    final ok = await _sendScript(freq: freq, strength: str, durationMs: 0xFFFF);
+    final ok = await _sendUserScript(
+      freq: freq,
+      strength: str,
+      durationMs: 0xFFFF,
+    );
     if (ok) _startKeepAlive(freq, str);
     if (ok && durationSeconds > 0) {
-      Future.delayed(Duration(seconds: durationSeconds), stop);
+      _autoStopTimer = Timer(Duration(seconds: durationSeconds), () {
+        _autoStopTimer = null;
+        unawaited(stop());
+      });
     }
     return ok;
   }
 
   @override
   Future<bool> stop() async {
+    _cancelAutoStop();
     _cancelPattern();
     _stopKeepAlive();
     _keepAliveStr = 0;
-    final ok = await _sendScript(freq: 500, strength: 0, durationMs: 0);
+    final ok = await _sendUserScript(freq: 500, strength: 0, durationMs: 0);
     // Restart heartbeat so device doesn't idle-disconnect while waiting for next command
     if (_connected) _startHeartbeat();
     return ok;
@@ -169,36 +246,37 @@ class MagicMotionFlamingoController implements ToyController {
 
   @override
   Future<String> playPattern(ToyPattern pattern, int peakIntensity) async {
+    _cancelAutoStop();
     _cancelPattern();
     final peak = _mapStrength(peakIntensity.clamp(1, 20));
     switch (pattern) {
       case ToyPattern.steady:
-        final ok =
-            await _sendScript(freq: 500, strength: peak, durationMs: 0xFFFF);
+        final ok = await _sendUserScript(
+            freq: 500, strength: peak, durationMs: 0xFFFF);
         if (ok) _startKeepAlive(500, peak);
-        return 'steady vibration';
+        return ok ? 'steady vibration' : 'steady (BLE write failed)';
       case ToyPattern.wave:
         // Prime the connection with one synchronous write before starting the timer
-        final waveOk =
-            await _sendScript(freq: 500, strength: peak, durationMs: 0xFFFF);
+        final waveOk = await _sendUserScript(
+            freq: 500, strength: peak, durationMs: 0xFFFF);
         if (!waveOk) return 'wave (BLE write failed)';
         _startWave(peak);
         return 'gentle wave pattern';
       case ToyPattern.pulse:
-        final pulseOk =
-            await _sendScript(freq: 500, strength: peak, durationMs: 0xFFFF);
+        final pulseOk = await _sendUserScript(
+            freq: 500, strength: peak, durationMs: 0xFFFF);
         if (!pulseOk) return 'pulse (BLE write failed)';
         _startPulse(peak);
         return 'rhythmic pulse';
       case ToyPattern.escalate:
-        final escOk = await _sendScript(
+        final escOk = await _sendUserScript(
             freq: 500, strength: peak ~/ 4, durationMs: 0xFFFF);
         if (!escOk) return 'escalate (BLE write failed)';
         _startEscalate(peak);
         return 'slow escalation';
       case ToyPattern.tease:
-        final teaseOk =
-            await _sendScript(freq: 500, strength: peak, durationMs: 0xFFFF);
+        final teaseOk = await _sendUserScript(
+            freq: 500, strength: peak, durationMs: 0xFFFF);
         if (!teaseOk) return 'tease (BLE write failed)';
         _startTease(peak);
         return 'teasing bursts';
@@ -267,6 +345,11 @@ class MagicMotionFlamingoController implements ToyController {
     _stopKeepAlive();
   }
 
+  void _cancelAutoStop() {
+    _autoStopTimer?.cancel();
+    _autoStopTimer = null;
+  }
+
   // ── Keep-alive ───────────────────────────────────────────────────────────────
 
   void _startKeepAlive(int freq, int strength) {
@@ -301,6 +384,34 @@ class MagicMotionFlamingoController implements ToyController {
   /// [skipIfBusy] = true for keep-alive / heartbeat timers: if another write is
   /// already in flight, just skip this periodic tick rather than stacking up.
   /// User commands (vibrate, stop, pattern) leave it false and wait briefly.
+  Future<bool> _sendUserScript({
+    required int freq,
+    required int strength,
+    required int durationMs,
+  }) async {
+    if (!isReady &&
+        !(await ensureReady(timeout: const Duration(seconds: 22)))) {
+      return false;
+    }
+
+    final ok = await _sendScript(
+      freq: freq,
+      strength: strength,
+      durationMs: durationMs,
+    );
+    if (ok) return true;
+
+    _log.warning('Flamingo write failed; reconnecting before retry');
+    if (!(await ensureReady(timeout: const Duration(seconds: 22)))) {
+      return false;
+    }
+    return _sendScript(
+      freq: freq,
+      strength: strength,
+      durationMs: durationMs,
+    );
+  }
+
   Future<bool> _sendScript({
     required int freq, // frequency in 0.1 Hz units (e.g. 500 = 50 Hz)
     required int strength, // strength * 10 (0–1000)
@@ -383,6 +494,7 @@ class MagicMotionFlamingoController implements ToyController {
   void dispose() {
     _connectionSub?.cancel();
     _stopHeartbeat();
+    _cancelAutoStop();
     _cancelPattern();
     _connected = false;
     _writeChar = null;

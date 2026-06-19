@@ -61,6 +61,20 @@ class MagicMotionToyController implements ToyController {
   @override
   bool get isReady => _connected && (_writeChar2 != null || _writeChar != null);
 
+  @override
+  Future<bool> ensureReady({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    if (isReady) return true;
+    try {
+      await connect().timeout(timeout);
+      return isReady;
+    } catch (e) {
+      _log.warning('Magic Motion reconnect failed: $e');
+      return false;
+    }
+  }
+
   // ── Connection ──────────────────────────────────────────────────────────────
 
   Future<void> connect() async {

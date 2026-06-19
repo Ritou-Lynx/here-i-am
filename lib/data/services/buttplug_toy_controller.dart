@@ -45,6 +45,20 @@ class ButtplugToyController implements ToyController {
   @override
   bool get isReady => _connected && _deviceIndex != null;
 
+  @override
+  Future<bool> ensureReady({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    if (isReady) return true;
+    try {
+      await connect().timeout(timeout);
+      return isReady;
+    } catch (e) {
+      _log.warning('Intiface reconnect failed: $e');
+      return false;
+    }
+  }
+
   String get diagnosticSummary {
     return [
       'Server: ${_serverName ?? 'unknown'}',

@@ -25,6 +25,12 @@ class LovenseToyController implements ToyController {
   @override
   bool get isReady => apiUrl.isNotEmpty;
 
+  @override
+  Future<bool> ensureReady({
+    Duration timeout = const Duration(seconds: 8),
+  }) async =>
+      isReady;
+
   Future<bool> _send(String action, {int timeSec = 0}) async {
     try {
       final resp = await _dio.post(
@@ -79,9 +85,11 @@ class LovenseToyController implements ToyController {
 
   String _startWave(int peak) {
     int step = 0;
-    _patternTimer = Timer.periodic(const Duration(milliseconds: 300), (_) async {
+    _patternTimer =
+        Timer.periodic(const Duration(milliseconds: 300), (_) async {
       final t = (step % 20) / 20.0;
-      final level = (peak * (0.5 - 0.5 * (2 * t - 1).abs() + 0.5)).round().clamp(0, 20);
+      final level =
+          (peak * (0.5 - 0.5 * (2 * t - 1).abs() + 0.5)).round().clamp(0, 20);
       await _send('Vibrate:$level');
       step++;
     });
@@ -90,7 +98,8 @@ class LovenseToyController implements ToyController {
 
   String _startPulse(int peak) {
     bool on = false;
-    _patternTimer = Timer.periodic(const Duration(milliseconds: 400), (_) async {
+    _patternTimer =
+        Timer.periodic(const Duration(milliseconds: 400), (_) async {
       on = !on;
       await _send(on ? 'Vibrate:$peak' : 'Vibrate:0');
     });
@@ -99,7 +108,8 @@ class LovenseToyController implements ToyController {
 
   String _startEscalate(int peak) {
     int current = 0;
-    _patternTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
+    _patternTimer =
+        Timer.periodic(const Duration(milliseconds: 500), (_) async {
       current = (current + 1).clamp(0, peak);
       await _send('Vibrate:$current');
       if (current >= peak) _cancelPattern();
@@ -109,7 +119,8 @@ class LovenseToyController implements ToyController {
 
   String _startTease(int peak) {
     int tick = 0;
-    _patternTimer = Timer.periodic(const Duration(milliseconds: 350), (_) async {
+    _patternTimer =
+        Timer.periodic(const Duration(milliseconds: 350), (_) async {
       await _send((tick % 5) < 2 ? 'Vibrate:$peak' : 'Vibrate:0');
       tick++;
     });

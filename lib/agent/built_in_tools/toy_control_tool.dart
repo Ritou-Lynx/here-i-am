@@ -77,12 +77,14 @@ Call this when the user explicitly wants you to control their toy during rolepla
           'duration=$durationSeconds pattern=$patternName '
           'controller=${service.runtimeType} ready=${service.isReady}',
         );
-        if (!service.isReady) {
+        final ready =
+            await service.ensureReady(timeout: const Duration(seconds: 22));
+        if (!ready) {
           log.warning('ToyControl unavailable: controller is not ready');
           return jsonEncode({
             'ok': false,
             'error':
-                'toy controller is not connected; reconnect from chat or settings and try again',
+                'toy controller is not connected; automatic reconnect failed',
           });
         }
         switch (action) {
