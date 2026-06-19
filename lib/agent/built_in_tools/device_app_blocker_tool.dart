@@ -10,16 +10,17 @@ Tool buildDeviceAppBlockerTool() {
     description: '''Control the user's authorized device app blocker.
 
 Use this only when:
-- the user explicitly asks you to lock or unlock distracting apps, or
+- the user explicitly asks you to lock or unlock distracting apps,
+- the user gives conditional focus-protection authorization such as "if I go
+  scroll Xiaohongshu/TikTok pull me back", "stop me if I open short-video
+  apps", or "don't let me keep browsing", or
 - a late-night sleep-push/system check clearly indicates the user is awake and
   needs help stopping doomscrolling.
 
 This tool does not silently install or enable blocking. It sends a bounded
-command to the user's chosen blocker backend. By default this is Here I am's
-own Android Accessibility focus lock; advanced users can still configure a
-Tasker/webhook fallback in Settings. If setup or Android Accessibility access
-is missing, the tool returns ok=false and you should explain that setup is
-needed in Settings -> Device App Blocker.
+command to Here I am's own Android Accessibility focus lock. If setup or
+Android Accessibility access is missing, the tool returns ok=false and you
+should explain that setup is needed in Settings -> Device App Blocker.
 
 Safety:
 - Prefer short bounded locks (30-60 minutes) unless the user requested longer.

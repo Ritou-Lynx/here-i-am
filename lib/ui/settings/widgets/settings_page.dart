@@ -1210,7 +1210,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                             SizedBox(height: 2),
                             Text(
-                              'Connect Tasker so companions can lock distracting apps at bedtime',
+                              'Allow companions to use Android focus lock when you authorize it',
                               style:
                                   TextStyle(fontSize: 13, color: Colors.grey),
                               maxLines: 2,

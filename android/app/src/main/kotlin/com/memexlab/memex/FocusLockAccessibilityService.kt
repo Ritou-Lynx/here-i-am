@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 
 class FocusLockAccessibilityService : AccessibilityService() {
@@ -53,6 +54,7 @@ class FocusLockAccessibilityService : AccessibilityService() {
             returning = false
             return
         }
+        if (shouldIgnorePackage(packageName)) return
         if (returning) return
         returning = true
         performGlobalAction(GLOBAL_ACTION_HOME)
@@ -70,4 +72,29 @@ class FocusLockAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() = Unit
+
+    private fun shouldIgnorePackage(packageName: String): Boolean {
+        if (packageName == "android") return true
+        if (packageName == "com.android.systemui") return true
+        return currentInputMethodPackages().contains(packageName)
+    }
+
+    private fun currentInputMethodPackages(): Set<String> {
+        val resolver = contentResolver
+        val values = listOfNotNull(
+            Settings.Secure.getString(resolver, Settings.Secure.DEFAULT_INPUT_METHOD),
+            Settings.Secure.getString(resolver, Settings.Secure.ENABLED_INPUT_METHODS)
+        )
+        return values
+            .flatMap { it.split(':', ';') }
+            .mapNotNull { value ->
+                val trimmed = value.trim()
+                if (trimmed.isEmpty()) {
+                    null
+                } else {
+                    trimmed.substringBefore('/').takeIf { it.isNotBlank() }
+                }
+            }
+            .toSet()
+    }
 }

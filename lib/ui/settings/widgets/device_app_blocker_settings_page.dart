@@ -13,15 +13,11 @@ class DeviceAppBlockerSettingsPage extends StatefulWidget {
 class _DeviceAppBlockerSettingsPageState
     extends State<DeviceAppBlockerSettingsPage> {
   final _service = DeviceAppBlockerService.instance;
-  final _urlController = TextEditingController();
-  final _tokenController = TextEditingController();
   final _durationController = TextEditingController();
-  final _packagesController = TextEditingController();
 
   bool _enabled = false;
   bool _loading = true;
   bool _busy = false;
-  bool _obscureToken = true;
   bool _nativeAccessibilityEnabled = false;
   bool _nativeFocusLockActive = false;
   DeviceAppBlockerState _state = const DeviceAppBlockerState();
@@ -34,10 +30,7 @@ class _DeviceAppBlockerSettingsPageState
 
   @override
   void dispose() {
-    _urlController.dispose();
-    _tokenController.dispose();
     _durationController.dispose();
-    _packagesController.dispose();
     super.dispose();
   }
 
@@ -49,10 +42,7 @@ class _DeviceAppBlockerSettingsPageState
     if (!mounted) return;
     setState(() {
       _enabled = config.enabled;
-      _urlController.text = config.webhookUrl;
-      _tokenController.text = config.authToken;
       _durationController.text = config.defaultDurationMinutes.toString();
-      _packagesController.text = config.blockedPackages.join('\n');
       _state = state;
       _nativeAccessibilityEnabled = nativeEnabled;
       _nativeFocusLockActive = nativeActive;
@@ -64,14 +54,12 @@ class _DeviceAppBlockerSettingsPageState
     final duration = int.tryParse(_durationController.text.trim()) ?? 45;
     await _service.saveConfig(DeviceAppBlockerConfig(
       enabled: _enabled,
-      webhookUrl: _urlController.text.trim(),
-      authToken: _tokenController.text.trim(),
       defaultDurationMinutes: duration,
-      blockedPackages: _parsePackages(_packagesController.text),
     ));
     if (!mounted || !showMessage) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Saved')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Saved')),
+    );
   }
 
   Future<void> _run(Future<DeviceAppBlockerResult> Function() action) async {
@@ -93,27 +81,26 @@ class _DeviceAppBlockerSettingsPageState
     );
   }
 
-  List<String> _parsePackages(String raw) {
-    return raw
-        .split(RegExp(r'[\n,]'))
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList();
-  }
-
-  String _statusText() {
-    if (_state.active) {
-      final until = _state.until;
-      if (until == null) return 'Active';
-      return 'Active until ${TimeOfDay.fromDateTime(until).format(context)}';
-    }
-    if (_nativeFocusLockActive) return 'Native focus lock active';
-    if (_state.lastError.isNotEmpty) return 'Last error: ${_state.lastError}';
-    return 'Not active';
-  }
-
   Future<void> _openNativeSettings() async {
     await _service.openNativeAccessibilitySettings();
+  }
+
+  String _lockSummary() {
+    if (_nativeFocusLockActive || _state.active) {
+      final until = _state.until;
+      if (until == null) return 'Focus lock is active';
+      return 'Focus lock is active until ${TimeOfDay.fromDateTime(until).format(context)}';
+    }
+    if (_state.lastError.isNotEmpty) return _state.lastError;
+    return _nativeAccessibilityEnabled
+        ? 'Ready'
+        : 'Enable Android Accessibility access to use focus lock';
+  }
+
+  Color _summaryColor() {
+    if (_nativeFocusLockActive || _state.active) return Colors.green;
+    if (_state.lastError.isNotEmpty) return Colors.redAccent;
+    return _nativeAccessibilityEnabled ? Colors.green : Colors.grey[700]!;
   }
 
   @override
@@ -146,7 +133,7 @@ class _DeviceAppBlockerSettingsPageState
                     ),
                     title: const Text('Enable app blocker'),
                     subtitle: const Text(
-                      'AI can send bounded focus lock/unlock commands only after this is enabled.',
+                      'Allows authorized characters to start or stop a bounded focus lock.',
                     ),
                     value: _enabled,
                     onChanged: (value) => setState(() => _enabled = value),
@@ -154,85 +141,57 @@ class _DeviceAppBlockerSettingsPageState
                 ]),
                 const SizedBox(height: 16),
                 _card([
-                  _sectionTitle('Native Android focus lock'),
-                  Text(
-                    _nativeAccessibilityEnabled
-                        ? 'Accessibility service enabled'
-                        : 'Accessibility service not enabled',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: _nativeAccessibilityEnabled
-                          ? Colors.green
-                          : Colors.grey[700],
-                    ),
+                  _sectionTitle('Android focus lock'),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Icon(
+                        _nativeAccessibilityEnabled
+                            ? Icons.check_circle
+                            : Icons.error_outline,
+                        color: _nativeAccessibilityEnabled
+                            ? Colors.green
+                            : Colors.grey[700],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _nativeAccessibilityEnabled
+                              ? 'Accessibility access enabled'
+                              : 'Accessibility access needed',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _nativeAccessibilityEnabled
+                                ? Colors.green
+                                : Colors.grey[700],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
+                  Text(
+                    _lockSummary(),
+                    style: TextStyle(fontSize: 13, color: _summaryColor()),
+                  ),
+                  const SizedBox(height: 14),
                   OutlinedButton.icon(
                     onPressed: _openNativeSettings,
                     icon: const Icon(Icons.accessibility_new, size: 18),
                     label: const Text('Open Accessibility settings'),
                   ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Leave endpoint empty to use the built-in Accessibility lock. When active, leaving Here I am briefly returns you to this app.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
                 ]),
                 const SizedBox(height: 16),
                 _card([
-                  _sectionTitle('External endpoint fallback'),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _urlController,
-                    decoration: const InputDecoration(
-                      labelText: 'Endpoint (optional)',
-                      hintText: 'Leave empty to use native Accessibility',
-                      helperText:
-                          'Optional: intent://com.memexlab.hereiam.APP_BLOCKER_COMMAND or webhook URL',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _tokenController,
-                    obscureText: _obscureToken,
-                    decoration: InputDecoration(
-                      labelText: 'Optional shared token',
-                      border: const OutlineInputBorder(),
-                      isDense: true,
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscureToken
-                            ? Icons.visibility_off
-                            : Icons.visibility),
-                        onPressed: () =>
-                            setState(() => _obscureToken = !_obscureToken),
-                      ),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 16),
-                _card([
-                  _sectionTitle('Lock profile'),
+                  _sectionTitle('Default lock duration'),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _durationController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Default duration (minutes)',
+                      labelText: 'Minutes',
                       hintText: '45',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _packagesController,
-                    minLines: 4,
-                    maxLines: 8,
-                    decoration: const InputDecoration(
-                      labelText: 'Blocked package names',
-                      hintText: 'com.xingin.xhs',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
@@ -240,29 +199,22 @@ class _DeviceAppBlockerSettingsPageState
                 ]),
                 const SizedBox(height: 16),
                 _card([
-                  _sectionTitle('Status'),
-                  Text(
-                    _statusText(),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: _state.active ? Colors.green : Colors.grey[700],
-                    ),
-                  ),
-                  if (_state.reason.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      _state.reason,
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
+                  _sectionTitle('Manual controls'),
+                  const SizedBox(height: 12),
                   Wrap(
                     spacing: 10,
                     runSpacing: 10,
                     children: [
                       ElevatedButton.icon(
-                        onPressed:
-                            _busy ? null : () => _run(_service.testConnection),
+                        onPressed: _busy
+                            ? null
+                            : () => _run(
+                                  () => _service.sendCommand(
+                                    action: 'lock',
+                                    reason: 'Manual test from settings',
+                                    source: 'settings',
+                                  ),
+                                ),
                         icon: _busy
                             ? const SizedBox(
                                 width: 16,
@@ -271,22 +223,8 @@ class _DeviceAppBlockerSettingsPageState
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.wifi_tethering, size: 18),
-                        label: const Text('Test'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _busy
-                            ? null
-                            : () => _run(
-                                  () => _service.sendCommand(
-                                    action: 'lock',
-                                    durationMinutes: 10,
-                                    reason: 'Manual test from settings',
-                                    source: 'settings',
-                                  ),
-                                ),
-                        icon: const Icon(Icons.lock_clock, size: 18),
-                        label: const Text('Lock 10 min'),
+                            : const Icon(Icons.lock_clock, size: 18),
+                        label: const Text('Lock now'),
                       ),
                       OutlinedButton.icon(
                         onPressed: _busy
@@ -304,14 +242,6 @@ class _DeviceAppBlockerSettingsPageState
                     ],
                   ),
                 ]),
-                const SizedBox(height: 16),
-                _card([
-                  _sectionTitle('How it works'),
-                  const Text(
-                    'Default mode uses Here I am\'s own Accessibility Service. Tasker is still supported if you provide an intent:// endpoint or webhook URL.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                ]),
               ],
             ),
     );
@@ -321,7 +251,7 @@ class _DeviceAppBlockerSettingsPageState
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
               color: AppColors.textSecondary.withValues(alpha: 0.08),

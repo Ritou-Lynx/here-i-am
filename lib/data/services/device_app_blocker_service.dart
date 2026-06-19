@@ -2,78 +2,41 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:memex/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DeviceAppBlockerConfig {
-  static const defaultIntentAction = 'com.memexlab.hereiam.APP_BLOCKER_COMMAND';
-  static const defaultIntentUrl = 'intent://$defaultIntentAction';
-
   final bool enabled;
-  final String webhookUrl;
-  final String authToken;
   final int defaultDurationMinutes;
-  final List<String> blockedPackages;
 
   const DeviceAppBlockerConfig({
     this.enabled = false,
-    this.webhookUrl = '',
-    this.authToken = '',
     this.defaultDurationMinutes = 45,
-    this.blockedPackages = const ['com.xingin.xhs'],
   });
-
-  String get effectiveEndpoint {
-    final trimmed = webhookUrl.trim();
-    return trimmed;
-  }
-
-  bool get useNativeAccessibility => effectiveEndpoint.isEmpty;
 
   bool get isReady => enabled;
 
   factory DeviceAppBlockerConfig.fromJson(Map<String, dynamic> json) {
-    final rawPackages = json['blockedPackages'];
-    final packages = rawPackages is List
-        ? rawPackages
-            .whereType<String>()
-            .map((value) => value.trim())
-            .where((value) => value.isNotEmpty)
-            .toList()
-        : const <String>[];
     return DeviceAppBlockerConfig(
       enabled: json['enabled'] as bool? ?? false,
-      webhookUrl: json['webhookUrl'] as String? ?? '',
-      authToken: json['authToken'] as String? ?? '',
       defaultDurationMinutes:
           (json['defaultDurationMinutes'] as num?)?.toInt() ?? 45,
-      blockedPackages: packages.isEmpty ? const ['com.xingin.xhs'] : packages,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'enabled': enabled,
-        'webhookUrl': webhookUrl,
-        'authToken': authToken,
         'defaultDurationMinutes': defaultDurationMinutes,
-        'blockedPackages': blockedPackages,
       };
 
   DeviceAppBlockerConfig copyWith({
     bool? enabled,
-    String? webhookUrl,
-    String? authToken,
     int? defaultDurationMinutes,
-    List<String>? blockedPackages,
   }) {
     return DeviceAppBlockerConfig(
       enabled: enabled ?? this.enabled,
-      webhookUrl: webhookUrl ?? this.webhookUrl,
-      authToken: authToken ?? this.authToken,
       defaultDurationMinutes:
           defaultDurationMinutes ?? this.defaultDurationMinutes,
-      blockedPackages: blockedPackages ?? this.blockedPackages,
     );
   }
 }
@@ -165,20 +128,9 @@ class DeviceAppBlockerService {
   }
 
   Future<void> saveConfig(DeviceAppBlockerConfig config) async {
-    final normalizedUrl = _stripTrailingSlash(config.webhookUrl.trim());
-    final normalizedPackages = config.blockedPackages
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
     final safeDuration = config.defaultDurationMinutes.clamp(1, 720);
     final normalized = config.copyWith(
-      webhookUrl: normalizedUrl,
       defaultDurationMinutes: safeDuration,
-      blockedPackages: normalizedPackages.isEmpty
-          ? const ['com.xingin.xhs']
-          : normalizedPackages,
     );
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_configKey, jsonEncode(normalized.toJson()));
@@ -211,14 +163,11 @@ class DeviceAppBlockerService {
       message: jsonEncode({
         'configured': config.enabled,
         'enabled': config.enabled,
-        'mode':
-            config.useNativeAccessibility ? 'native_accessibility' : 'tasker',
         'native_accessibility_enabled': nativeAvailable,
         'native_focus_lock_active': nativeActive,
         'active': state.active,
         'until': state.until?.toIso8601String(),
         'reason': state.reason,
-        'blocked_packages': config.blockedPackages,
         'last_error': state.lastError,
       }),
       until: state.until,
@@ -287,159 +236,11 @@ class DeviceAppBlockerService {
     final until = effectiveDuration == null
         ? null
         : DateTime.now().add(Duration(minutes: effectiveDuration));
-    final endpoint = config.effectiveEndpoint;
-    if (config.useNativeAccessibility) {
-      return _sendNativeAccessibilityCommand(
-        action: normalizedAction,
-        until: until,
-        reason: reason?.trim() ?? '',
-      );
-    }
-
-    final uri = Uri.tryParse(endpoint);
-    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
-      return DeviceAppBlockerResult(
-        ok: false,
-        action: normalizedAction,
-        message: 'Invalid Tasker endpoint.',
-      );
-    }
-
-    final body = {
-      'action': normalizedAction,
-      'block_mode': lock,
-      'duration_minutes': effectiveDuration,
-      'until': until?.toIso8601String(),
-      'reason': reason?.trim() ?? '',
-      'source': source,
-      'blocked_packages': config.blockedPackages,
-      'timestamp': DateTime.now().toIso8601String(),
-    };
-    if (uri.scheme == 'intent') {
-      return _sendIntentCommand(
-        intentAction: uri.host,
-        action: normalizedAction,
-        body: body,
-        until: until,
-      );
-    }
-
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      if (config.authToken.trim().isNotEmpty) ...{
-        'Authorization': 'Bearer ${config.authToken.trim()}',
-        'X-Memex-Token': config.authToken.trim(),
-      },
-    };
-
-    try {
-      final response = await http
-          .post(uri, headers: headers, body: jsonEncode(body))
-          .timeout(const Duration(seconds: 10));
-      final ok = response.statusCode >= 200 && response.statusCode < 300;
-      final message = ok
-          ? 'Tasker accepted $normalizedAction.'
-          : 'Tasker returned HTTP ${response.statusCode}: ${response.body}';
-      final previous = await getState();
-      final nextState = normalizedAction == 'ping'
-          ? DeviceAppBlockerState(
-              active: previous.active,
-              until: previous.until,
-              reason: previous.reason,
-              lastError: ok ? '' : message,
-              updatedAt: DateTime.now(),
-            )
-          : DeviceAppBlockerState(
-              active: ok && lock,
-              until: ok ? until : previous.until,
-              reason: ok ? (reason?.trim() ?? '') : previous.reason,
-              lastError: ok ? '' : message,
-              updatedAt: DateTime.now(),
-            );
-      await _saveState(nextState);
-      return DeviceAppBlockerResult(
-        ok: ok,
-        action: normalizedAction,
-        message: message,
-        statusCode: response.statusCode,
-        until: until,
-      );
-    } catch (e) {
-      final message = 'Failed to call Tasker webhook: $e';
-      final previous = await getState();
-      await _saveState(DeviceAppBlockerState(
-        active: previous.active,
-        until: previous.until,
-        reason: previous.reason,
-        lastError: message,
-        updatedAt: DateTime.now(),
-      ));
-      return DeviceAppBlockerResult(
-        ok: false,
-        action: normalizedAction,
-        message: message,
-      );
-    }
-  }
-
-  Future<DeviceAppBlockerResult> _sendIntentCommand({
-    required String intentAction,
-    required String action,
-    required Map<String, dynamic> body,
-    DateTime? until,
-  }) async {
-    if (!Platform.isAndroid) {
-      return DeviceAppBlockerResult(
-        ok: false,
-        action: action,
-        message: 'Tasker intent bridge is only available on Android.',
-      );
-    }
-    try {
-      await _channel.invokeMethod<bool>('sendTaskerIntent', {
-        'intentAction': intentAction,
-        'payloadJson': jsonEncode(body),
-      });
-      final lock = action == 'lock';
-      final previous = await getState();
-      final nextState = action == 'ping'
-          ? DeviceAppBlockerState(
-              active: previous.active,
-              until: previous.until,
-              reason: previous.reason,
-              lastError: '',
-              updatedAt: DateTime.now(),
-            )
-          : DeviceAppBlockerState(
-              active: lock,
-              until: until,
-              reason: (body['reason'] as String?) ?? '',
-              lastError: '',
-              updatedAt: DateTime.now(),
-            );
-      await _saveState(nextState);
-      return DeviceAppBlockerResult(
-        ok: true,
-        action: action,
-        message: 'Tasker intent sent: $intentAction',
-        until: until,
-      );
-    } catch (e) {
-      final message = 'Failed to send Tasker intent: $e';
-      final previous = await getState();
-      await _saveState(DeviceAppBlockerState(
-        active: previous.active,
-        until: previous.until,
-        reason: previous.reason,
-        lastError: message,
-        updatedAt: DateTime.now(),
-      ));
-      return DeviceAppBlockerResult(
-        ok: false,
-        action: action,
-        message: message,
-      );
-    }
+    return _sendNativeAccessibilityCommand(
+      action: normalizedAction,
+      until: until,
+      reason: reason?.trim() ?? '',
+    );
   }
 
   Future<DeviceAppBlockerResult> _sendNativeAccessibilityCommand({
@@ -526,13 +327,5 @@ class DeviceAppBlockerService {
   Future<void> _saveState(DeviceAppBlockerState state) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_stateKey, jsonEncode(state.toJson()));
-  }
-
-  String _stripTrailingSlash(String value) {
-    var out = value;
-    while (out.endsWith('/')) {
-      out = out.substring(0, out.length - 1);
-    }
-    return out;
   }
 }

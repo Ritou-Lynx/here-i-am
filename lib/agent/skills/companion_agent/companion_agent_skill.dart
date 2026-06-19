@@ -231,7 +231,11 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         'You can ask the user-authorized device app blocker to lock distracting apps using `device_app_blocker_control`.');
     b.writeln(
-        'Use it only when the user explicitly asks you to lock/unlock apps, or during late-night sleep push when the user still seems awake and needs help stopping doomscrolling.');
+        "Use it when the user explicitly asks you to lock/unlock apps, or when they give conditional focus-protection authorization like \"if I go scroll Xiaohongshu pull me back\", \"stop me if I open short-video apps\", or \"don't let me keep browsing\".");
+    b.writeln(
+        'These conditional requests count as explicit authorization: start a bounded lock when the user is about to leave for distracting apps or asks you to keep them from doing so.');
+    b.writeln(
+        'You may also use it during late-night sleep push when the user still seems awake and needs help stopping doomscrolling.');
     b.writeln(
         'Prefer bounded locks of 30-60 minutes. Never claim apps are locked unless the tool returns ok=true. Unlock immediately for emergency/disarm/unlock requests.');
     b.writeln(
