@@ -670,7 +670,7 @@ only after you have written the goodbye you want the user to hear.''',
 
     final previousStreaming = _isStreaming;
     final previousActiveCharacterId = _activeStreamingCharacterId;
-    final buffer = StringBuffer();
+    String lastChunk = '';
     if (mounted) {
       setState(() {
         _isStreaming = true;
@@ -698,8 +698,8 @@ only after you have written the goodbye you want the user to hear.''',
             serial != _voiceModeOpeningSerial) {
           return null;
         }
-        buffer.write(chunk);
-        setState(() => _streamingText = buffer.toString());
+        lastChunk = chunk;
+        setState(() => _streamingText = chunk);
         _scrollToBottom();
       }
     } catch (_) {
@@ -721,7 +721,7 @@ only after you have written the goodbye you want the user to hear.''',
       }
     }
 
-    final text = buffer.toString().trim();
+    final text = lastChunk.trim();
     if (text.isNotEmpty) return text;
     if (fallbackFirstMessage != null && fallbackFirstMessage.isNotEmpty) {
       return TavernMacro.resolve(
@@ -743,7 +743,7 @@ only after you have written the goodbye you want the user to hear.''',
 
     final previousStreaming = _isStreaming;
     final previousActiveCharacterId = _activeStreamingCharacterId;
-    final buffer = StringBuffer();
+    String lastChunk = '';
     if (mounted) {
       setState(() {
         _isStreaming = true;
@@ -775,8 +775,8 @@ only after you have written the goodbye you want the user to hear.''',
             serial != _voiceModeIdleFollowUpSerial) {
           return null;
         }
-        buffer.write(chunk);
-        setState(() => _streamingText = buffer.toString());
+        lastChunk = chunk;
+        setState(() => _streamingText = chunk);
         _scrollToBottom();
       }
     } catch (e) {
@@ -791,7 +791,7 @@ only after you have written the goodbye you want the user to hear.''',
       }
     }
 
-    final text = buffer.toString().trim();
+    final text = lastChunk.trim();
     if (text.isNotEmpty) return text;
     return forceClose ? '我先不吵你了，闭上眼睛好好睡。晚安。' : '我在呢。你不用说话，闭上眼睛，慢慢放松就好。';
   }
@@ -1447,7 +1447,7 @@ only after you have written the goodbye you want the user to hear.''',
       return;
     }
 
-    final buffer = StringBuffer();
+    String lastChunk = '';
     var responsePersisted = false;
 
     try {
@@ -1502,9 +1502,9 @@ only after you have written the goodbye you want the user to hear.''',
         if (_isSendCanceled(sendSerial, userMessageId)) {
           break;
         }
-        buffer.write(chunk);
+        lastChunk = chunk;
         if (mounted) {
-          setState(() => _streamingText = buffer.toString());
+          setState(() => _streamingText = chunk);
           if (_currentCharacterId == sendCharacterId) {
             _scrollToBottom();
           }
@@ -1519,7 +1519,7 @@ only after you have written the goodbye you want the user to hear.''',
       }
 
       // Persist character response
-      final fullResponse = buffer.toString().trim();
+      final fullResponse = lastChunk.trim();
       if (fullResponse.isNotEmpty) {
         if (_isSendCanceled(sendSerial, userMessageId)) {
           _finishCanceledSend(sendSerial);
@@ -1605,7 +1605,7 @@ only after you have written the goodbye you want the user to hear.''',
         _finishCanceledSend(sendSerial);
         return;
       }
-      final partialResponse = buffer.toString().trim();
+      final partialResponse = lastChunk.trim();
       if (partialResponse.isNotEmpty && !responsePersisted) {
         if (_isSendCanceled(sendSerial, userMessageId)) {
           _finishCanceledSend(sendSerial);

@@ -4,9 +4,9 @@
 
 ## 当前阶段
 
-**Phase 0：计划已建立，尚未开始代码切片。**
+**Phase 1 已完成，接下来可做 Phase 2。**
 
-本专项按“小切片、可验证、可单独提交”的方式推进。每次继续时，先读本文件，再只选择一个高收益改动执行。
+本专项按”小切片、可验证、可单独提交”的方式推进。每次继续时，先读本文件，再只选择一个高收益改动执行。
 
 ## 现状诊断
 
@@ -23,10 +23,11 @@
 
 ### Phase 1：首字速度
 
-- [ ] 真流式输出
+- [x] 真流式输出
   - 目标：角色文字首字能尽快显示，不再等整段回复完成。
   - 方向：让 companion chat 使用 streaming 路径，把模型 chunk 推到 UI 的 `_streamingText`。
   - 验证：普通文字聊天、动作消息、提醒工具、错误恢复、取消/撤回都不崩。
+  - 改动：`companion_agent.dart` 切为 `agent.runStream(useStream: true)` 逐 chunk yield；`persona_chat_screen.dart` 适配 cumulative full-text chunk。
 
 ### Phase 2：发送前阻塞
 

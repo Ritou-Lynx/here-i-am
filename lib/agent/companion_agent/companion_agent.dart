@@ -734,25 +734,36 @@ class CompanionAgent {
         ];
       }
 
-      final resultHistory = await agent.run(input, useStream: false);
+      // Use runStream for true streaming — yields text chunks as they arrive
+      // instead of waiting for the entire agent run to complete.
+      final resultHistory = <LLMMessage>[];
+      String foundText = '';
+      var streamedText = false;
+
+      await for (final event in agent.runStream(input, useStream: true)) {
+        // Collect full messages for post-processing (reminder check, etc.)
+        if (event.eventType == StreamingEventType.fullModelMessage ||
+            event.eventType == StreamingEventType.functionCallResult) {
+          resultHistory.add(event.data as LLMMessage);
+        }
+
+        // Stream text chunks to UI as they arrive.
+        // Each modelChunkMessage carries the cumulative textOutput so far;
+        // we yield it directly so the UI can replace _streamingText.
+        if (event.eventType == StreamingEventType.modelChunkMessage) {
+          final chunk = event.data as ModelMessage;
+          final text = chunk.textOutput;
+          if (text != null && text.isNotEmpty && text != foundText) {
+            foundText = text;
+            streamedText = true;
+            yield text;
+          }
+        }
+      }
 
       // Clean up transient directives after run.
       state.systemReminders.remove('system_checkins');
       state.systemReminders.remove('time_request_directive');
-
-      // Scan all ModelMessage turns newest-to-oldest to find the chat reply.
-      // Claude sometimes produces text in an earlier turn alongside a tool call
-      // (e.g. SendActionMessage), so checking only the last turn can miss it.
-      String foundText = '';
-      for (final msg in resultHistory.reversed) {
-        if (msg is ModelMessage) {
-          final t = msg.textOutput ?? '';
-          if (t.trim().isNotEmpty) {
-            foundText = t;
-            break;
-          }
-        }
-      }
 
       // Post-processing: if the agent made a time commitment in text but
       // didn't call reminder_create, run a silent correction turn so the
@@ -787,7 +798,9 @@ class CompanionAgent {
         }
       }
 
-      if (foundText.isNotEmpty) {
+      // Only yield at the end if we didn't already stream (edge case: loop
+      // detection recovery path where text was recovered from history).
+      if (foundText.isNotEmpty && !streamedText) {
         yield foundText;
       }
       // Post-run: check if compression is needed based on real token usage.
