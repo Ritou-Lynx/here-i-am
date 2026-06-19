@@ -14,6 +14,12 @@ import 'package:memex/utils/logger.dart';
 
 enum VoiceInputState { idle, recording, processing }
 
+const _voiceEndpointPollInterval = Duration(milliseconds: 200);
+const _voiceEndpointInitialSilenceTimeout = Duration(seconds: 4);
+const _voiceEndpointTrailingSilenceTimeout = Duration(milliseconds: 1100);
+const _voiceEndpointMaxRecordingDuration = Duration(seconds: 60);
+const _voiceEndpointSpeechThresholdDb = -45.0;
+
 /// Drives the press-to-talk recording → ASR pipeline.
 ///
 /// State machine:
@@ -30,6 +36,18 @@ class VoiceInputController extends ChangeNotifier {
   VoiceInputState _state = VoiceInputState.idle;
   String? _currentPath;
   AsrClient? _asrClient;
+  StreamSubscription<Amplitude>? _amplitudeSub;
+  DateTime? _recordingStartedAt;
+  DateTime? _lastSpeechAt;
+  bool _heardSpeech = false;
+  bool _autoStopEnabled = false;
+  bool _autoStopInProgress = false;
+
+  /// Called when automatic endpoint detection stops a recording.
+  ///
+  /// [text] is null when the recording was empty, too short, or ASR returned
+  /// no usable text. The owner can decide whether to keep listening.
+  Future<void> Function(String? text)? onAutoRecognitionComplete;
 
   /// Last error message (for UI to surface). Cleared on next toggle.
   String? lastError;
@@ -43,10 +61,10 @@ class VoiceInputController extends ChangeNotifier {
   ///
   /// Returns the recognized text on the recording → idle transition, null
   /// otherwise. If ASR fails, returns null and sets [lastError].
-  Future<String?> toggle() async {
+  Future<String?> toggle({bool autoStop = false}) async {
     switch (_state) {
       case VoiceInputState.idle:
-        await start();
+        await start(autoStop: autoStop);
         return null;
       case VoiceInputState.recording:
         return stopAndRecognize();
@@ -56,9 +74,9 @@ class VoiceInputController extends ChangeNotifier {
   }
 
   /// Start recording if the controller is idle.
-  Future<void> start() async {
+  Future<void> start({bool autoStop = false}) async {
     if (_state != VoiceInputState.idle) return;
-    await _start();
+    await _start(autoStop: autoStop);
   }
 
   /// Stop the current recording and run ASR.
@@ -76,13 +94,14 @@ class VoiceInputController extends ChangeNotifier {
     } catch (e) {
       _logger.warning('cancel: stop error: $e');
     }
+    await _stopEndpointDetection();
     await _deleteCurrentFile();
     _state = VoiceInputState.idle;
     notifyListeners();
     _logger.info('Recording cancelled');
   }
 
-  Future<void> _start() async {
+  Future<void> _start({required bool autoStop}) async {
     lastError = null;
 
     final config = await AsrConfig.load();
@@ -116,6 +135,14 @@ class VoiceInputController extends ChangeNotifier {
       );
       _currentPath = path;
       _state = VoiceInputState.recording;
+      _recordingStartedAt = DateTime.now();
+      _lastSpeechAt = null;
+      _heardSpeech = false;
+      _autoStopEnabled = autoStop;
+      _autoStopInProgress = false;
+      if (autoStop) {
+        _startEndpointDetection();
+      }
       _logger.info('Recording started → $path');
       notifyListeners();
     } catch (e) {
@@ -126,6 +153,7 @@ class VoiceInputController extends ChangeNotifier {
   }
 
   Future<String?> _stopAndRecognize() async {
+    await _stopEndpointDetection();
     _state = VoiceInputState.processing;
     notifyListeners();
 
@@ -136,6 +164,7 @@ class VoiceInputController extends ChangeNotifier {
       _logger.severe('stop error: $e');
       lastError = '停止录音失败: $e';
       _state = VoiceInputState.idle;
+      _clearEndpointState();
       notifyListeners();
       return null;
     }
@@ -144,6 +173,7 @@ class VoiceInputController extends ChangeNotifier {
     if (path == null) {
       lastError = '录音文件路径为空';
       _state = VoiceInputState.idle;
+      _clearEndpointState();
       notifyListeners();
       return null;
     }
@@ -156,6 +186,7 @@ class VoiceInputController extends ChangeNotifier {
       lastError = '录音过短';
       await _deleteCurrentFile();
       _state = VoiceInputState.idle;
+      _clearEndpointState();
       notifyListeners();
       return null;
     }
@@ -165,6 +196,7 @@ class VoiceInputController extends ChangeNotifier {
       _logger.info('ASR result: "$text"');
       await _deleteCurrentFile();
       _state = VoiceInputState.idle;
+      _clearEndpointState();
       notifyListeners();
       return text.trim().isEmpty ? null : text.trim();
     } catch (e) {
@@ -172,9 +204,71 @@ class VoiceInputController extends ChangeNotifier {
       lastError = '识别失败: $e';
       await _deleteCurrentFile();
       _state = VoiceInputState.idle;
+      _clearEndpointState();
       notifyListeners();
       return null;
     }
+  }
+
+  void _startEndpointDetection() {
+    unawaited(_stopEndpointDetection());
+    _amplitudeSub = _recorder
+        .onAmplitudeChanged(_voiceEndpointPollInterval)
+        .listen(_handleAmplitude, onError: (Object e) {
+      _logger.warning('Amplitude monitor error: $e');
+    });
+  }
+
+  void _handleAmplitude(Amplitude amplitude) {
+    if (!_autoStopEnabled ||
+        _state != VoiceInputState.recording ||
+        _autoStopInProgress) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final startedAt = _recordingStartedAt;
+    if (startedAt == null) return;
+
+    if (voiceInputAmplitudeIsSpeech(amplitude.current)) {
+      _heardSpeech = true;
+      _lastSpeechAt = now;
+    }
+
+    if (!voiceInputShouldAutoStop(
+      now: now,
+      startedAt: startedAt,
+      lastSpeechAt: _lastSpeechAt,
+      heardSpeech: _heardSpeech,
+    )) {
+      return;
+    }
+
+    _autoStopInProgress = true;
+    unawaited(_autoStopAndRecognize());
+  }
+
+  Future<void> _autoStopAndRecognize() async {
+    final text = await stopAndRecognize();
+    _autoStopInProgress = false;
+    await onAutoRecognitionComplete?.call(text);
+  }
+
+  Future<void> _stopEndpointDetection() async {
+    final sub = _amplitudeSub;
+    _amplitudeSub = null;
+    if (sub != null) {
+      await sub.cancel();
+    }
+    _autoStopEnabled = false;
+  }
+
+  void _clearEndpointState() {
+    _recordingStartedAt = null;
+    _lastSpeechAt = null;
+    _heardSpeech = false;
+    _autoStopEnabled = false;
+    _autoStopInProgress = false;
   }
 
   Future<void> _deleteCurrentFile() async {
@@ -194,8 +288,39 @@ class VoiceInputController extends ChangeNotifier {
     if (_state == VoiceInputState.recording) {
       _recorder.stop().catchError((_) => null);
     }
+    unawaited(_stopEndpointDetection());
     _deleteCurrentFile();
     _recorder.dispose();
     super.dispose();
   }
+}
+
+@visibleForTesting
+bool voiceInputAmplitudeIsSpeech(
+  double db, {
+  double thresholdDb = _voiceEndpointSpeechThresholdDb,
+}) {
+  return db >= thresholdDb;
+}
+
+@visibleForTesting
+bool voiceInputShouldAutoStop({
+  required DateTime now,
+  required DateTime startedAt,
+  required DateTime? lastSpeechAt,
+  required bool heardSpeech,
+  Duration initialSilenceTimeout = _voiceEndpointInitialSilenceTimeout,
+  Duration trailingSilenceTimeout = _voiceEndpointTrailingSilenceTimeout,
+  Duration maxRecordingDuration = _voiceEndpointMaxRecordingDuration,
+}) {
+  final elapsed = now.difference(startedAt);
+  if (elapsed >= maxRecordingDuration) return true;
+
+  if (!heardSpeech) {
+    return elapsed >= initialSilenceTimeout;
+  }
+
+  final lastSpeech = lastSpeechAt;
+  if (lastSpeech == null) return false;
+  return now.difference(lastSpeech) >= trailingSilenceTimeout;
 }

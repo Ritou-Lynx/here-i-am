@@ -143,6 +143,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   final _audioPlayer = AudioPlayer();
   final Object _mediaButtonOwner = Object();
   StreamSubscription<void>? _audioCompleteSub;
+  StreamSubscription<PlayerState>? _audioStateSub;
   StreamSubscription<PersonaChatOpenRequest>? _openRequestSub;
   Timer? _messageRefreshTimer;
   Timer? _rememberedNoticeTimer;
@@ -266,6 +267,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   void initState() {
     super.initState();
     _isInlineVoiceMode = widget.initialVoiceMode;
+    _voiceController.onAutoRecognitionComplete =
+        _onAutoVoiceRecognitionComplete;
     WidgetsBinding.instance.addObserver(this);
     unawaited(
         ActivePersonaChatService.instance.markActive(_currentCharacterId));
@@ -352,7 +355,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       return;
     }
 
-    final result = await _voiceController.toggle();
+    final result = await _voiceController.toggle(autoStop: _isInlineVoiceMode);
     if (!mounted) return;
     if (result != null && result.isNotEmpty) {
       _textController.text = result;
@@ -368,7 +371,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   Future<void> _interruptRoleVoiceAndStartRecording() async {
     await _stopTtsPlayback();
     if (!mounted || !_isInlineVoiceMode) return;
-    await _voiceController.start();
+    await _voiceController.start(autoStop: true);
     if (!mounted) return;
     final error = _voiceController.lastError;
     if (error != null && _voiceController.state == VoiceInputState.idle) {
@@ -383,13 +386,25 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     );
   }
 
-  void _queueVoiceModeRecordingStart() {
+  Future<void> _onAutoVoiceRecognitionComplete(String? text) async {
+    if (!mounted || !_isInlineVoiceMode) return;
+    final recognized = text?.trim() ?? '';
+    if (recognized.isNotEmpty) {
+      _textController.text = recognized;
+      await _sendMessage();
+      return;
+    }
+    if (!mounted || !_isInlineVoiceMode || _isVoiceReplyActive) return;
+    _queueVoiceModeRecordingStart(delay: const Duration(milliseconds: 600));
+  }
+
+  void _queueVoiceModeRecordingStart({Duration delay = Duration.zero}) {
     if (_voiceModeStartQueued) return;
     _voiceModeStartQueued = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(Future<void>.delayed(delay).then((_) {
       _voiceModeStartQueued = false;
       unawaited(_startVoiceModeRecordingIfReady());
-    });
+    }));
   }
 
   void _queueVoiceModeOpening() {
@@ -407,7 +422,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       return;
     }
 
-    await _voiceController.start();
+    await _voiceController.start(autoStop: true);
     if (!mounted) return;
     final error = _voiceController.lastError;
     if (error != null && _voiceController.state == VoiceInputState.idle) {
@@ -841,6 +856,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _scrollController.dispose();
     _highlightTimer?.cancel();
     _audioCompleteSub?.cancel();
+    _audioStateSub?.cancel();
     _openRequestSub?.cancel();
     _messageRefreshTimer?.cancel();
     _hideRememberedNotice();
@@ -1968,6 +1984,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _ttsRequestSerial++;
     await _audioCompleteSub?.cancel();
     _audioCompleteSub = null;
+    await _audioStateSub?.cancel();
+    _audioStateSub = null;
     await _audioPlayer.stop();
     if (mounted) {
       setState(() {
@@ -1977,6 +1995,37 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     } else {
       _playingMessageId = null;
       _isTtsLoading = false;
+    }
+  }
+
+  void _handleTtsPlaybackCompleted(int requestSerial, String messageId) {
+    if (!mounted ||
+        requestSerial != _ttsRequestSerial ||
+        _playingMessageId != messageId) {
+      return;
+    }
+    setState(() {
+      _playingMessageId = null;
+      _isTtsLoading = false;
+    });
+    _queueVoiceModeRecordingStart();
+  }
+
+  Future<void> _watchTtsPlaybackCompletion(
+    int requestSerial,
+    String messageId,
+  ) async {
+    for (var i = 0; i < 20; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (!mounted ||
+          requestSerial != _ttsRequestSerial ||
+          _playingMessageId != messageId) {
+        return;
+      }
+      if (_audioPlayer.state == PlayerState.completed) {
+        _handleTtsPlaybackCompleted(requestSerial, messageId);
+        return;
+      }
     }
   }
 
@@ -2027,14 +2076,17 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
           await _stopTtsPlayback();
           return;
         }
-        setState(() => _isTtsLoading = false);
-        await _audioCompleteSub?.cancel();
-        await _audioPlayer.play(DeviceFileSource(audioPath));
         _audioCompleteSub = _audioPlayer.onPlayerComplete.listen((_) {
-          if (!mounted) return;
-          setState(() => _playingMessageId = null);
-          _queueVoiceModeRecordingStart();
+          _handleTtsPlaybackCompleted(requestSerial, messageId);
         });
+        _audioStateSub = _audioPlayer.onPlayerStateChanged.listen((state) {
+          if (state == PlayerState.completed) {
+            _handleTtsPlaybackCompleted(requestSerial, messageId);
+          }
+        });
+        setState(() => _isTtsLoading = false);
+        await _audioPlayer.play(DeviceFileSource(audioPath));
+        unawaited(_watchTtsPlaybackCompletion(requestSerial, messageId));
       }
     } catch (e) {
       if (mounted) {

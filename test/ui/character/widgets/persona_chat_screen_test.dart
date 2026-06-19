@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/data/services/asr/voice_input_controller.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -337,6 +338,54 @@ void main() {
     );
 
     expect(personaChatTtsPlaybackIdForMessage(message), '7:0');
+  });
+
+  test('voice endpoint treats quiet input as silence', () {
+    expect(voiceInputAmplitudeIsSpeech(-30), isTrue);
+    expect(voiceInputAmplitudeIsSpeech(-60), isFalse);
+  });
+
+  test('voice endpoint stops after blank or trailing silence', () {
+    final startedAt = DateTime(2026, 6, 19, 9);
+
+    expect(
+      voiceInputShouldAutoStop(
+        now: startedAt.add(const Duration(seconds: 3)),
+        startedAt: startedAt,
+        lastSpeechAt: null,
+        heardSpeech: false,
+      ),
+      isFalse,
+    );
+    expect(
+      voiceInputShouldAutoStop(
+        now: startedAt.add(const Duration(seconds: 4)),
+        startedAt: startedAt,
+        lastSpeechAt: null,
+        heardSpeech: false,
+      ),
+      isTrue,
+    );
+
+    final lastSpeechAt = startedAt.add(const Duration(seconds: 2));
+    expect(
+      voiceInputShouldAutoStop(
+        now: lastSpeechAt.add(const Duration(milliseconds: 1000)),
+        startedAt: startedAt,
+        lastSpeechAt: lastSpeechAt,
+        heardSpeech: true,
+      ),
+      isFalse,
+    );
+    expect(
+      voiceInputShouldAutoStop(
+        now: lastSpeechAt.add(const Duration(milliseconds: 1100)),
+        startedAt: startedAt,
+        lastSpeechAt: lastSpeechAt,
+        heardSpeech: true,
+      ),
+      isTrue,
+    );
   });
 }
 
