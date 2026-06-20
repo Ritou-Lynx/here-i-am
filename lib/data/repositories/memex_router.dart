@@ -127,6 +127,7 @@ class MemexRouter {
         // a previously-confirmed session survives app restarts. (The
         // system WebView keeps the cookie itself; this restores OUR flag.)
         unawaited(XhsCookieRepository.instance.restoreFromPrefs());
+        await _resetCharacterMemoryIfNeeded(userId);
         if (await captureService.needsHistoricalBackfillReset()) {
           await captureService.resetHistoricalBackfill();
         }
@@ -183,6 +184,30 @@ class MemexRouter {
 
   String?
       _targetUserIdForInit; // Track the user ID we are currently initializing for
+
+  static const _characterMemoryResetMarkerKey = 'character_memory_full_reset_v1';
+
+  Future<void> _resetCharacterMemoryIfNeeded(String userId) async {
+    final db = AppDatabase.instance;
+    final marker = await (db.select(db.kvStore)
+          ..where((t) => t.key.equals(_characterMemoryResetMarkerKey)))
+        .getSingleOrNull();
+    if (marker == null) return;
+
+    final memDir = Directory(path.join(
+      FileSystemService.instance.getSystemPath(userId),
+      'character_memory',
+    ));
+    if (await memDir.exists()) {
+      await memDir.delete(recursive: true);
+      _logger.info('Data reset v24: cleared character_memory dir');
+    }
+
+    await (db.delete(db.kvStore)
+          ..where((t) => t.key.equals(_characterMemoryResetMarkerKey)))
+        .go();
+    _logger.info('Data reset v24 complete — chat/SharedLife/card tables cleared');
+  }
 
   void _registerEventSubscriptions() {
     final eventBus = GlobalEventBus.instance;

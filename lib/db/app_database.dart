@@ -90,7 +90,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -333,6 +333,33 @@ class AppDatabase extends _$AppDatabase {
             await customStatement(
                 'CREATE INDEX IF NOT EXISTS idx_shared_life_entities_occurred '
                 'ON shared_life_entities(occurred_at)');
+          }
+          if (from < 24) {
+            // One-time data reset: clear tables contaminated by auto-capture.
+            // Character YAML personas and API/LLM settings are preserved.
+            // Character memory files (LTM/rolling context) are cleared via a
+            // KvStore marker picked up by MemexRouter on next startup.
+            await customStatement('DELETE FROM shared_life_entities');
+            await customStatement('DELETE FROM shared_life_event_operations');
+            await customStatement('DELETE FROM persona_chat_messages');
+            await customStatement('DELETE FROM card_cache');
+            await customStatement('DELETE FROM conversation_capture_cursors');
+            try {
+              await customStatement('DELETE FROM shared_life_fts');
+            } catch (_) {}
+            // Cancel pending capture tasks
+            await customStatement(
+              "UPDATE tasks SET status='completed', "
+              "result='{\"discarded\":\"data_reset_v24\"}' "
+              "WHERE type='conversation_capture_task' "
+              "AND status IN ('pending','processing','retrying')",
+            );
+            // Marker for filesystem cleanup (character_memory dir)
+            await customStatement(
+              "INSERT OR REPLACE INTO kv_store(key, value, bucket, updated_at) "
+              "VALUES ('character_memory_full_reset_v1', 'pending', "
+              "'data_reset', CAST(strftime('%s', 'now') AS INTEGER))",
+            );
           }
         },
       );
