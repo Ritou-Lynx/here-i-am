@@ -90,7 +90,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 26;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -369,6 +369,14 @@ class AppDatabase extends _$AppDatabase {
               "VALUES ('workspace_dirs_reset_v25', 'pending', "
               "'data_reset', CAST(strftime('%s', 'now') AS INTEGER))",
             );
+          }
+          if (from < 26) {
+            // Schedule feature removed pending memory system rebuild.
+            // Clear schedule-related data: system actions, clarification
+            // requests, and the outbound message queue.
+            await customStatement('DELETE FROM system_actions');
+            await customStatement('DELETE FROM clarification_requests');
+            await customStatement('DELETE FROM system_message_queue');
           }
         },
       );

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
-import 'package:memex/ui/schedule/widgets/schedule_aggregator_screen.dart';
 import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
 import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -40,7 +39,6 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
   Widget build(BuildContext context) {
     final labels = [
       UserStorage.l10n.bottomNavTimeline,
-      UserStorage.l10n.schedule,
       UserStorage.l10n.personalCenter,
     ];
 
@@ -75,7 +73,6 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
   Widget _buildTab(int index) {
     return switch (index) {
       0 => CompanionReviewScreen(viewModel: widget.timelineViewModel),
-      1 => const ScheduleAggregatorScreen(),
       _ => const PersonalCenterScreen(),
     };
   }
