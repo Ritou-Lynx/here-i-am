@@ -128,6 +128,7 @@ class MemexRouter {
         // system WebView keeps the cookie itself; this restores OUR flag.)
         unawaited(XhsCookieRepository.instance.restoreFromPrefs());
         await _resetCharacterMemoryIfNeeded(userId);
+        await _resetWorkspaceDirsIfNeeded(userId);
         if (await captureService.needsHistoricalBackfillReset()) {
           await captureService.resetHistoricalBackfill();
         }
@@ -186,6 +187,7 @@ class MemexRouter {
       _targetUserIdForInit; // Track the user ID we are currently initializing for
 
   static const _characterMemoryResetMarkerKey = 'character_memory_full_reset_v1';
+  static const _workspaceDirsResetMarkerKey = 'workspace_dirs_reset_v25';
 
   Future<void> _resetCharacterMemoryIfNeeded(String userId) async {
     final db = AppDatabase.instance;
@@ -207,6 +209,43 @@ class MemexRouter {
           ..where((t) => t.key.equals(_characterMemoryResetMarkerKey)))
         .go();
     _logger.info('Data reset v24 complete — chat/SharedLife/card tables cleared');
+  }
+
+  Future<void> _resetWorkspaceDirsIfNeeded(String userId) async {
+    final db = AppDatabase.instance;
+    final marker = await (db.select(db.kvStore)
+          ..where((t) => t.key.equals(_workspaceDirsResetMarkerKey)))
+        .getSingleOrNull();
+    if (marker == null) return;
+
+    final fs = FileSystemService.instance;
+    final dirsToWipe = [
+      fs.getFactsPath(userId),
+      fs.getCardsPath(userId),
+      fs.getKnowledgeInsightsPath(userId),
+      fs.getPkmPath(userId),
+    ];
+    for (final dirPath in dirsToWipe) {
+      final dir = Directory(dirPath);
+      if (!await dir.exists()) continue;
+      await for (final entry in dir.list(recursive: false)) {
+        try {
+          if (entry is Directory) {
+            await entry.delete(recursive: true);
+          } else {
+            await entry.delete();
+          }
+        } catch (e) {
+          _logger.warning('workspace reset: could not delete ${entry.path}: $e');
+        }
+      }
+      _logger.info('Data reset v25: wiped contents of $dirPath');
+    }
+
+    await (db.delete(db.kvStore)
+          ..where((t) => t.key.equals(_workspaceDirsResetMarkerKey)))
+        .go();
+    _logger.info('Data reset v25 complete — Facts/Cards/KnowledgeInsights/PKM wiped');
   }
 
   void _registerEventSubscriptions() {

@@ -90,7 +90,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 24;
+  int get schemaVersion => 25;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -358,6 +358,15 @@ class AppDatabase extends _$AppDatabase {
             await customStatement(
               "INSERT OR REPLACE INTO kv_store(key, value, bucket, updated_at) "
               "VALUES ('character_memory_full_reset_v1', 'pending', "
+              "'data_reset', CAST(strftime('%s', 'now') AS INTEGER))",
+            );
+          }
+          if (from < 25) {
+            // Marker for filesystem cleanup of Memex workspace directories
+            // (Facts, Cards, KnowledgeInsights, PKM). Picked up by MemexRouter.
+            await customStatement(
+              "INSERT OR REPLACE INTO kv_store(key, value, bucket, updated_at) "
+              "VALUES ('workspace_dirs_reset_v25', 'pending', "
               "'data_reset', CAST(strftime('%s', 'now') AS INTEGER))",
             );
           }
