@@ -162,13 +162,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   final Set<int> _canceledSendSerials = {};
   final Set<int> _retractedUserMessageIds = {};
 
-  // Pending message queue 鈥?user can compose the next message while the
+  // Pending message queue: user can compose the next message while the
   // character is still generating a response. It auto-sends when streaming ends.
   final List<_PendingPersonaChatMessage> _pendingMessages = [];
 
   bool _isMediaTrayOpen = false;
 
-  // Image attachment state 鈥?moved up from CompanionMediaTray
+  // Image attachment state, moved up from CompanionMediaTray.
   final _selectedImages = <XFile>[];
   bool _isCompressingImages = false;
 
@@ -211,13 +211,13 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _toyConnected = false;
   bool _toyConnecting = false;
 
-  // Pagination state 鈥?WeChat/WhatsApp style: load older messages on scroll-up
+  // Pagination state: WeChat/WhatsApp style, load older messages on scroll-up.
   static const int _pageSize = 30;
   static const Duration _recallGracePeriod = Duration(milliseconds: 900);
   bool _hasMoreHistory = true;
   bool _isLoadingMore = false;
 
-  // Cached MarkdownStyleSheet 鈥?avoid recreating on every build
+  // Cached MarkdownStyleSheet to avoid recreating on every build.
   static final _cachedMarkdownStyle = MarkdownStyleSheet(
     p: const TextStyle(
       fontSize: 15,
@@ -392,7 +392,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         'physical=${event.physicalKey.debugName} '
         'char=${event.character}');
 
-    // Volume keys deliberately excluded 鈥?they conflict with TTS volume control.
+    // Volume keys deliberately excluded; they conflict with TTS volume control.
     final key = event.logicalKey;
     final isDown = key == LogicalKeyboardKey.pageDown ||
         key == LogicalKeyboardKey.arrowDown ||
@@ -1126,7 +1126,7 @@ only after you have written the goodbye you want the user to hear.''',
     if (!mounted) return;
     if (_refreshPersonaChatMessageAdded()) return;
     final previousMessages = List<PersonaChatMessage>.of(_messages);
-    // New message arrived 鈥?reload the latest page and keep any older
+    // New message arrived; reload the latest page and keep any older
     // messages that were already loaded via pagination.
     _chatService
         .getMessages(_currentCharacterId, limit: _messages.length + 5)
@@ -1291,7 +1291,7 @@ only after you have written the goodbye you want the user to hear.''',
     final sendCharacter = queuedMessage?.character ??
         (forcedCharacterId == null ? _character : forcedCharacter);
 
-    // While the character is still typing, queue the message 鈥?it will be sent
+    // While the character is still typing, queue the message; it will be sent
     // automatically when the current response finishes streaming.
     if (_isStreaming && !isQueuedMessage) {
       final imagesToQueue = List<XFile>.from(_selectedImages);
@@ -1450,8 +1450,8 @@ only after you have written the goodbye you want the user to hear.''',
     // Reading Companion: if the user's message contains a recognised
     // reading link (xiaohongshu / wechat / generic article), capture it as
     // a reading_item entity in the background. The companion will emit a
-    // separate "鏀跺埌浜? message with a reading_card addendum on success.
-    // Failures and non-reading messages are silent 鈥?most chat messages
+    // separate confirmation message with a reading_card addendum on success.
+    // Failures and non-reading messages are silent; most chat messages
     // aren't reading links.
     if (textToSend.trim().isNotEmpty && ReadingCaptureService.isInitialized) {
       unawaited(
@@ -1494,7 +1494,7 @@ only after you have written the goodbye you want the user to hear.''',
         return;
       }
 
-      // Build user message 鈥?inject image analysis when available.
+      // Build user message; inject image analysis when available.
       final imageCount = imagesToSend.length;
       final String chatMessage;
       if (imageAnalysisText != null && imageAnalysisText.isNotEmpty) {
@@ -1877,7 +1877,7 @@ only after you have written the goodbye you want the user to hear.''',
         keepExif: false,
       );
       if (compressed == null) return null;
-      // Use direct encode instead of compute() 鈥?avoid isolate issues on Android.
+      // Use direct encode instead of compute() to avoid isolate issues on Android.
       final base64 = base64Encode(compressed);
       return {'mimeType': 'image/webp', 'base64': base64};
     } catch (e) {
@@ -2035,7 +2035,7 @@ only after you have written the goodbye you want the user to hear.''',
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_chatUiText(
-            zh: '杩欐潯娑堟伅宸茬粡涓嶈兘鎾ゅ洖',
+            zh: '这条消息已经不能撤回',
             en: 'This message can no longer be recalled',
           )),
         ),
@@ -2285,7 +2285,7 @@ only after you have written the goodbye you want the user to hear.''',
     if (voiceId == null || voiceId.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('璇峰厛鍦ㄨ鑹茶缃腑閰嶇疆 TTS 璇煶 ID')),
+          const SnackBar(content: Text('请先在角色设置中配置 TTS 语音 ID')),
         );
       }
       return;
@@ -2847,12 +2847,12 @@ only after you have written the goodbye you want the user to hear.''',
         ),
       );
     }
-    // Invisible sentinel 鈥?the scroll listener handles triggering the load.
+    // Invisible sentinel; the scroll listener handles triggering the load.
     return const SizedBox(height: 1);
   }
 
   /// Renders a narrative / action description message.
-  /// No speech bubble 鈥?italic text centred with a subtle divider style,
+  /// No speech bubble; italic text centred with a subtle divider style,
   /// matching the roleplay convention for stage directions.
   Widget _buildActionMessage({required String text}) {
     return Padding(

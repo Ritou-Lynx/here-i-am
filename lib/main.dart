@@ -215,7 +215,7 @@ void main() async {
     // Record a missed/declined-call memory so the companion remembers.
     PersonaChatService.instance.addCharacterMessage(
       characterId,
-      '锛堭煋?浣犳嫆鎺ヤ簡涓€閫氭潵鐢碉級',
+      '（你拒接了一通来电）',
       timestamp: DateTime.now(),
       isRead: true,
     );
@@ -442,7 +442,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _checkUser();
     _checkLockSettings();
-    // App starts in the foreground 鈥?begin the heartbeat so background checkins
+    // App starts in the foreground; begin the heartbeat so background checkins
     // stay silent while the user is actively using the app.
     _startForegroundHeartbeat();
   }
@@ -1041,7 +1041,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _handleAICoreButtonTap() async {
-    // No LLM config check 鈥?users can submit records without AI configured.
+    // No LLM config check; users can submit records without AI configured.
 
     if (mounted) {
       // Prefill text during demo
@@ -1111,13 +1111,13 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     try {
       _logger.info('=== Starting comprehensive health check ===');
 
-      // Detect if previous pedometer access crashed the app 鈥?skip this launch only
+      // Detect if previous pedometer access crashed the app; skip this launch only
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool('pedometer_attempting') == true) {
         _logger.warning(
             'Pedometer crash detected from previous launch, skipping this session');
         await prefs.remove('pedometer_attempting');
-        // Set in-memory flag only 鈥?will retry on next app launch
+        // Set in-memory flag only; will retry on next app launch
         PedometerFetcher.skipThisSession = true;
       }
 
@@ -1525,7 +1525,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       if (mounted) setState(() => _isRadialMenuOpen = false);
       unawaited(_handleInputSubmit(InputData(text: item.content)));
     } else if (hasRecording) {
-      // Show calibrating state 鈥?keep menu open
+      // Show calibrating state; keep menu open
       if (mounted) setState(() => _isQuickCalibrating = true);
 
       await _stopRecording(cancel: false);
@@ -1569,7 +1569,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Consume a pending quick action (e.g. "璁颁竴涓? from app icon long-press).
+  /// Consume a pending quick action (e.g. "记一下" from app icon long-press).
   /// Handles cold-start (action queued before widget built) and warm-start
   /// (action arrives while app is in background).
   void _consumeQuickActionIfNeeded() {
@@ -1696,7 +1696,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         _eventBus.connect();
       }
       // Consume any quick action that arrived while in background.
-      // Use synchronous check 鈥?platform callback fires before resumed,
+      // Use synchronous check; platform callback fires before resumed,
       // so no need for the 2-sec wait (which could catch a re-delivered intent).
       final action = QuickActionService.instance.consumeIfPending();
       if (action == 'quick_note' && mounted) {
@@ -1990,7 +1990,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                     ),
                   ),
 
-                  // Library 鈥?single widget for both icon + text so the
+                  // Library: single widget for both icon + text so the
                   // demo spotlight key covers the whole tab area.
                   Positioned(
                     top: 47.02,

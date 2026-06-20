@@ -1,4 +1,4 @@
-﻿import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:drift/drift.dart';
 import 'package:memex/data/services/sqlite_retry.dart';
 import 'package:memex/db/app_database.dart';
@@ -9,7 +9,7 @@ const _keyOpening = 'pending_opening';
 const _keyNotified = 'pending_notified';
 
 /// Reads the pending opening message (and characterId) from KVStore.
-/// Does NOT delete 鈥?caller decides when to clear.
+/// Does NOT delete; caller decides when to clear.
 Future<({String characterId, String opening})?> readPendingCall() async {
   if (!AppDatabase.isInitialized) return null;
   final db = AppDatabase.instance;
@@ -116,14 +116,14 @@ Tool buildInitiateCallTool({required String characterId}) {
     name: 'initiate_voice_call',
     description: '''Initiate a voice call to the user.
 
-Use this when you genuinely want to TALK 鈥?not just text. A call is more
+Use this when you genuinely want to TALK, not just text. A call is more
 intimate and immediate. Good reasons:
 - Something emotional or important that deserves a real conversation
 - The user seems lonely or would benefit from hearing your voice
 - You want a real exchange rather than a one-way notification
 
 You will say opening_message first when the user picks up.
-Keep it natural and open-ended 鈥?it is the first thing they hear.''',
+Keep it natural and open-ended; it is the first thing they hear.''',
     parameters: {
       'type': 'object',
       'properties': {
