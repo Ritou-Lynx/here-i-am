@@ -1,4 +1,5 @@
 import 'package:memex/agent/record_organizer_agent/record_organizer_analyzer.dart';
+import 'package:memex/data/services/domain_schema_validator.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
@@ -137,9 +138,26 @@ class RecordOrganizerService {
       return const RecordResult(entityIds: [], entityTitles: [], isEmpty: true);
     }
 
-    // Validate tags against known vocabulary
+    // Validate and normalize each operation's patch against its domain schema
+    const validator = DomainSchemaValidator();
+    final schemaValidatedOps = analysis.operations.map((op) {
+      final domain = (op.patch['_primaryDomain'] as String?) ?? 'general';
+      final normalized = validator.validate(domain, op.patch).normalizedPatch;
+      return SharedLifeOperationDraft(
+        operationType: op.operationType,
+        entityType: op.entityType,
+        title: op.title,
+        patch: normalized,
+        sourceKind: op.sourceKind,
+        sourceRef: op.sourceRef,
+        rawInput: op.rawInput,
+        entityId: op.entityId,
+      );
+    }).toList(growable: false);
+
+    // Restrict tags to known vocabulary
     final validatedOps = _restrictTagsToKnownTags(
-      analysis.operations,
+      schemaValidatedOps,
       knownTags: knownTags,
     );
 
