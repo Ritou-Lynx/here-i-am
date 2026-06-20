@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-**Phase 1 裸流式实验失败，已回退到完整回复优先。接下来做 Phase 2。**
+**Phase 2 已完成，接下来可做 Phase 3。**
 
 本专项按”小切片、可验证、可单独提交”的方式推进。每次继续时，先读本文件，再只选择一个高收益改动执行。
 
@@ -13,7 +13,7 @@
 | 慢点 | 位置 | 影响 | 判断 |
 |---|---|---|---|
 | 角色聊天裸流式失败 | `CompanionAgent.chat` 曾切到 `runStream(useStream: true)` | MiniMax M3 会把英文思考链作为可见 chunk 滚出；chunk 语义还可能是 delta，导致最终只剩最后几个字 | 不再直接裸流式 |
-| 玩具连接同步等待 | `PersonaChatScreen._sendMessage` 发送前 `_ensureToyConnected(timeout: 22s)` | 配了玩具但连接慢/失败时，模型请求前就被卡住 | 高风险阻塞 |
+| 玩具连接同步等待 | `PersonaChatScreen._sendMessage` 曾在发送前 `_ensureToyConnected(timeout: 22s)` | 已改为只使用现成 ready 连接；未连接时后台补连，不挡回复 | 已解决 |
 | 工具集过重 | `CharacterToolsFactory.buildCompanionTools` 默认挂大量工具 | 工具 schema 全进请求体，增加 prompt 和模型决策成本 | 高收益优化 |
 | 撤回宽限 900ms | `_recallGracePeriod` | 每次发送固定增加近 1 秒 | 保留，暂不优先改 |
 | TTS 非流式 | `MiniMaxTtsService.textToSpeech` 使用 `stream: false` | 文字完成后还要等完整音频生成才播放 | 后续优化 |
@@ -36,10 +36,11 @@
 
 ### Phase 2：发送前阻塞
 
-- [ ] 玩具连接异步化
+- [x] 玩具连接异步化
   - 目标：普通聊天发送不等待玩具连接。
   - 方向：只有已连接时挂 toy tool；未连接时后台连接，下一轮或明确玩具互动时再使用。
   - 验证：未配置玩具、配置但未连接、已连接三种状态。
+  - 改动：`PersonaChatScreen._sendMessage` 不再等待 `_ensureToyConnected(timeout: 22s)`；新增 ready-only 取用和后台补连。
 
 ### Phase 3：工具分层
 

@@ -283,6 +283,40 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     );
   }
 
+  ToyController? _readyToyControlService() {
+    final service = _toyControlService;
+    if (service == null || !service.isReady) {
+      return null;
+    }
+    if (mounted && !_toyConnected) {
+      setState(() => _toyConnected = true);
+    }
+    return service;
+  }
+
+  void _connectToyInBackground({
+    Duration timeout = const Duration(seconds: 8),
+  }) {
+    if (_toyConnecting) return;
+
+    final service = _toyControlService;
+    if (service != null && service.isReady) {
+      if (mounted && !_toyConnected) {
+        setState(() => _toyConnected = true);
+      }
+      return;
+    }
+
+    unawaited(
+      _ensureToyConnected(timeout: timeout).catchError(
+        (e) {
+          debugPrint('Toy background connection failed: $e');
+          return null;
+        },
+      ),
+    );
+  }
+
   bool _didFirstDependencies = false;
 
   @override
@@ -1475,11 +1509,9 @@ only after you have written the goodbye you want the user to hear.''',
         chatMessage = textToSend;
       }
 
-      final toyControlService =
-          await _ensureToyConnected(timeout: const Duration(seconds: 22));
-      if (_isSendCanceled(sendSerial, userMessageId)) {
-        _finishCanceledSend(sendSerial);
-        return;
+      final toyControlService = _readyToyControlService();
+      if (toyControlService == null) {
+        _connectToyInBackground();
       }
 
       await for (final chunk in CompanionAgent.chat(
