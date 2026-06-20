@@ -4068,6 +4068,39 @@ class $SharedLifeEventOperationsTable extends SharedLifeEventOperations
   late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
       'created_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _sourceKindMeta =
+      const VerificationMeta('sourceKind');
+  @override
+  late final GeneratedColumn<String> sourceKind = GeneratedColumn<String>(
+      'source_kind', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('chat_message'));
+  static const VerificationMeta _sourceRefMeta =
+      const VerificationMeta('sourceRef');
+  @override
+  late final GeneratedColumn<String> sourceRef = GeneratedColumn<String>(
+      'source_ref', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _rawInputMeta =
+      const VerificationMeta('rawInput');
+  @override
+  late final GeneratedColumn<String> rawInput = GeneratedColumn<String>(
+      'raw_input', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _primaryDomainMeta =
+      const VerificationMeta('primaryDomain');
+  @override
+  late final GeneratedColumn<String> primaryDomain = GeneratedColumn<String>(
+      'primary_domain', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('general'));
+  static const VerificationMeta _facetsMeta = const VerificationMeta('facets');
+  @override
+  late final GeneratedColumn<String> facets = GeneratedColumn<String>(
+      'facets', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -4080,7 +4113,12 @@ class $SharedLifeEventOperationsTable extends SharedLifeEventOperations
         sourceCharacterId,
         captureTaskId,
         revertsOperationId,
-        createdAt
+        createdAt,
+        sourceKind,
+        sourceRef,
+        rawInput,
+        primaryDomain,
+        facets
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4166,6 +4204,30 @@ class $SharedLifeEventOperationsTable extends SharedLifeEventOperations
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('source_kind')) {
+      context.handle(
+          _sourceKindMeta,
+          sourceKind.isAcceptableOrUnknown(
+              data['source_kind']!, _sourceKindMeta));
+    }
+    if (data.containsKey('source_ref')) {
+      context.handle(_sourceRefMeta,
+          sourceRef.isAcceptableOrUnknown(data['source_ref']!, _sourceRefMeta));
+    }
+    if (data.containsKey('raw_input')) {
+      context.handle(_rawInputMeta,
+          rawInput.isAcceptableOrUnknown(data['raw_input']!, _rawInputMeta));
+    }
+    if (data.containsKey('primary_domain')) {
+      context.handle(
+          _primaryDomainMeta,
+          primaryDomain.isAcceptableOrUnknown(
+              data['primary_domain']!, _primaryDomainMeta));
+    }
+    if (data.containsKey('facets')) {
+      context.handle(_facetsMeta,
+          facets.isAcceptableOrUnknown(data['facets']!, _facetsMeta));
+    }
     return context;
   }
 
@@ -4198,6 +4260,16 @@ class $SharedLifeEventOperationsTable extends SharedLifeEventOperations
           DriftSqlType.string, data['${effectivePrefix}reverts_operation_id']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      sourceKind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_kind'])!,
+      sourceRef: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_ref']),
+      rawInput: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}raw_input']),
+      primaryDomain: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}primary_domain'])!,
+      facets: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}facets']),
     );
   }
 
@@ -4220,6 +4292,11 @@ class SharedLifeEventOperation extends DataClass
   final String? captureTaskId;
   final String? revertsOperationId;
   final int createdAt;
+  final String sourceKind;
+  final String? sourceRef;
+  final String? rawInput;
+  final String primaryDomain;
+  final String? facets;
   const SharedLifeEventOperation(
       {required this.id,
       required this.entityId,
@@ -4231,7 +4308,12 @@ class SharedLifeEventOperation extends DataClass
       required this.sourceCharacterId,
       this.captureTaskId,
       this.revertsOperationId,
-      required this.createdAt});
+      required this.createdAt,
+      required this.sourceKind,
+      this.sourceRef,
+      this.rawInput,
+      required this.primaryDomain,
+      this.facets});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -4250,6 +4332,17 @@ class SharedLifeEventOperation extends DataClass
       map['reverts_operation_id'] = Variable<String>(revertsOperationId);
     }
     map['created_at'] = Variable<int>(createdAt);
+    map['source_kind'] = Variable<String>(sourceKind);
+    if (!nullToAbsent || sourceRef != null) {
+      map['source_ref'] = Variable<String>(sourceRef);
+    }
+    if (!nullToAbsent || rawInput != null) {
+      map['raw_input'] = Variable<String>(rawInput);
+    }
+    map['primary_domain'] = Variable<String>(primaryDomain);
+    if (!nullToAbsent || facets != null) {
+      map['facets'] = Variable<String>(facets);
+    }
     return map;
   }
 
@@ -4270,6 +4363,16 @@ class SharedLifeEventOperation extends DataClass
           ? const Value.absent()
           : Value(revertsOperationId),
       createdAt: Value(createdAt),
+      sourceKind: Value(sourceKind),
+      sourceRef: sourceRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceRef),
+      rawInput: rawInput == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rawInput),
+      primaryDomain: Value(primaryDomain),
+      facets:
+          facets == null && nullToAbsent ? const Value.absent() : Value(facets),
     );
   }
 
@@ -4289,6 +4392,11 @@ class SharedLifeEventOperation extends DataClass
       revertsOperationId:
           serializer.fromJson<String?>(json['revertsOperationId']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
+      sourceKind: serializer.fromJson<String>(json['sourceKind']),
+      sourceRef: serializer.fromJson<String?>(json['sourceRef']),
+      rawInput: serializer.fromJson<String?>(json['rawInput']),
+      primaryDomain: serializer.fromJson<String>(json['primaryDomain']),
+      facets: serializer.fromJson<String?>(json['facets']),
     );
   }
   @override
@@ -4306,6 +4414,11 @@ class SharedLifeEventOperation extends DataClass
       'captureTaskId': serializer.toJson<String?>(captureTaskId),
       'revertsOperationId': serializer.toJson<String?>(revertsOperationId),
       'createdAt': serializer.toJson<int>(createdAt),
+      'sourceKind': serializer.toJson<String>(sourceKind),
+      'sourceRef': serializer.toJson<String?>(sourceRef),
+      'rawInput': serializer.toJson<String?>(rawInput),
+      'primaryDomain': serializer.toJson<String>(primaryDomain),
+      'facets': serializer.toJson<String?>(facets),
     };
   }
 
@@ -4320,7 +4433,12 @@ class SharedLifeEventOperation extends DataClass
           String? sourceCharacterId,
           Value<String?> captureTaskId = const Value.absent(),
           Value<String?> revertsOperationId = const Value.absent(),
-          int? createdAt}) =>
+          int? createdAt,
+          String? sourceKind,
+          Value<String?> sourceRef = const Value.absent(),
+          Value<String?> rawInput = const Value.absent(),
+          String? primaryDomain,
+          Value<String?> facets = const Value.absent()}) =>
       SharedLifeEventOperation(
         id: id ?? this.id,
         entityId: entityId ?? this.entityId,
@@ -4336,6 +4454,11 @@ class SharedLifeEventOperation extends DataClass
             ? revertsOperationId.value
             : this.revertsOperationId,
         createdAt: createdAt ?? this.createdAt,
+        sourceKind: sourceKind ?? this.sourceKind,
+        sourceRef: sourceRef.present ? sourceRef.value : this.sourceRef,
+        rawInput: rawInput.present ? rawInput.value : this.rawInput,
+        primaryDomain: primaryDomain ?? this.primaryDomain,
+        facets: facets.present ? facets.value : this.facets,
       );
   SharedLifeEventOperation copyWithCompanion(
       SharedLifeEventOperationsCompanion data) {
@@ -4362,6 +4485,14 @@ class SharedLifeEventOperation extends DataClass
           ? data.revertsOperationId.value
           : this.revertsOperationId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      sourceKind:
+          data.sourceKind.present ? data.sourceKind.value : this.sourceKind,
+      sourceRef: data.sourceRef.present ? data.sourceRef.value : this.sourceRef,
+      rawInput: data.rawInput.present ? data.rawInput.value : this.rawInput,
+      primaryDomain: data.primaryDomain.present
+          ? data.primaryDomain.value
+          : this.primaryDomain,
+      facets: data.facets.present ? data.facets.value : this.facets,
     );
   }
 
@@ -4378,7 +4509,12 @@ class SharedLifeEventOperation extends DataClass
           ..write('sourceCharacterId: $sourceCharacterId, ')
           ..write('captureTaskId: $captureTaskId, ')
           ..write('revertsOperationId: $revertsOperationId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('sourceKind: $sourceKind, ')
+          ..write('sourceRef: $sourceRef, ')
+          ..write('rawInput: $rawInput, ')
+          ..write('primaryDomain: $primaryDomain, ')
+          ..write('facets: $facets')
           ..write(')'))
         .toString();
   }
@@ -4395,7 +4531,12 @@ class SharedLifeEventOperation extends DataClass
       sourceCharacterId,
       captureTaskId,
       revertsOperationId,
-      createdAt);
+      createdAt,
+      sourceKind,
+      sourceRef,
+      rawInput,
+      primaryDomain,
+      facets);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4410,7 +4551,12 @@ class SharedLifeEventOperation extends DataClass
           other.sourceCharacterId == this.sourceCharacterId &&
           other.captureTaskId == this.captureTaskId &&
           other.revertsOperationId == this.revertsOperationId &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.sourceKind == this.sourceKind &&
+          other.sourceRef == this.sourceRef &&
+          other.rawInput == this.rawInput &&
+          other.primaryDomain == this.primaryDomain &&
+          other.facets == this.facets);
 }
 
 class SharedLifeEventOperationsCompanion
@@ -4426,6 +4572,11 @@ class SharedLifeEventOperationsCompanion
   final Value<String?> captureTaskId;
   final Value<String?> revertsOperationId;
   final Value<int> createdAt;
+  final Value<String> sourceKind;
+  final Value<String?> sourceRef;
+  final Value<String?> rawInput;
+  final Value<String> primaryDomain;
+  final Value<String?> facets;
   final Value<int> rowid;
   const SharedLifeEventOperationsCompanion({
     this.id = const Value.absent(),
@@ -4439,6 +4590,11 @@ class SharedLifeEventOperationsCompanion
     this.captureTaskId = const Value.absent(),
     this.revertsOperationId = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.sourceKind = const Value.absent(),
+    this.sourceRef = const Value.absent(),
+    this.rawInput = const Value.absent(),
+    this.primaryDomain = const Value.absent(),
+    this.facets = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SharedLifeEventOperationsCompanion.insert({
@@ -4453,6 +4609,11 @@ class SharedLifeEventOperationsCompanion
     this.captureTaskId = const Value.absent(),
     this.revertsOperationId = const Value.absent(),
     required int createdAt,
+    this.sourceKind = const Value.absent(),
+    this.sourceRef = const Value.absent(),
+    this.rawInput = const Value.absent(),
+    this.primaryDomain = const Value.absent(),
+    this.facets = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         entityId = Value(entityId),
@@ -4475,6 +4636,11 @@ class SharedLifeEventOperationsCompanion
     Expression<String>? captureTaskId,
     Expression<String>? revertsOperationId,
     Expression<int>? createdAt,
+    Expression<String>? sourceKind,
+    Expression<String>? sourceRef,
+    Expression<String>? rawInput,
+    Expression<String>? primaryDomain,
+    Expression<String>? facets,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4490,6 +4656,11 @@ class SharedLifeEventOperationsCompanion
       if (revertsOperationId != null)
         'reverts_operation_id': revertsOperationId,
       if (createdAt != null) 'created_at': createdAt,
+      if (sourceKind != null) 'source_kind': sourceKind,
+      if (sourceRef != null) 'source_ref': sourceRef,
+      if (rawInput != null) 'raw_input': rawInput,
+      if (primaryDomain != null) 'primary_domain': primaryDomain,
+      if (facets != null) 'facets': facets,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4506,6 +4677,11 @@ class SharedLifeEventOperationsCompanion
       Value<String?>? captureTaskId,
       Value<String?>? revertsOperationId,
       Value<int>? createdAt,
+      Value<String>? sourceKind,
+      Value<String?>? sourceRef,
+      Value<String?>? rawInput,
+      Value<String>? primaryDomain,
+      Value<String?>? facets,
       Value<int>? rowid}) {
     return SharedLifeEventOperationsCompanion(
       id: id ?? this.id,
@@ -4519,6 +4695,11 @@ class SharedLifeEventOperationsCompanion
       captureTaskId: captureTaskId ?? this.captureTaskId,
       revertsOperationId: revertsOperationId ?? this.revertsOperationId,
       createdAt: createdAt ?? this.createdAt,
+      sourceKind: sourceKind ?? this.sourceKind,
+      sourceRef: sourceRef ?? this.sourceRef,
+      rawInput: rawInput ?? this.rawInput,
+      primaryDomain: primaryDomain ?? this.primaryDomain,
+      facets: facets ?? this.facets,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4559,6 +4740,21 @@ class SharedLifeEventOperationsCompanion
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
+    if (sourceKind.present) {
+      map['source_kind'] = Variable<String>(sourceKind.value);
+    }
+    if (sourceRef.present) {
+      map['source_ref'] = Variable<String>(sourceRef.value);
+    }
+    if (rawInput.present) {
+      map['raw_input'] = Variable<String>(rawInput.value);
+    }
+    if (primaryDomain.present) {
+      map['primary_domain'] = Variable<String>(primaryDomain.value);
+    }
+    if (facets.present) {
+      map['facets'] = Variable<String>(facets.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4579,6 +4775,11 @@ class SharedLifeEventOperationsCompanion
           ..write('captureTaskId: $captureTaskId, ')
           ..write('revertsOperationId: $revertsOperationId, ')
           ..write('createdAt: $createdAt, ')
+          ..write('sourceKind: $sourceKind, ')
+          ..write('sourceRef: $sourceRef, ')
+          ..write('rawInput: $rawInput, ')
+          ..write('primaryDomain: $primaryDomain, ')
+          ..write('facets: $facets, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4644,6 +4845,51 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
   late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
       'updated_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _primaryDomainMeta =
+      const VerificationMeta('primaryDomain');
+  @override
+  late final GeneratedColumn<String> primaryDomain = GeneratedColumn<String>(
+      'primary_domain', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('general'));
+  static const VerificationMeta _facetsMeta = const VerificationMeta('facets');
+  @override
+  late final GeneratedColumn<String> facets = GeneratedColumn<String>(
+      'facets', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _occurredAtMeta =
+      const VerificationMeta('occurredAt');
+  @override
+  late final GeneratedColumn<int> occurredAt = GeneratedColumn<int>(
+      'occurred_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _occurredEndAtMeta =
+      const VerificationMeta('occurredEndAt');
+  @override
+  late final GeneratedColumn<int> occurredEndAt = GeneratedColumn<int>(
+      'occurred_end_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _valenceMeta =
+      const VerificationMeta('valence');
+  @override
+  late final GeneratedColumn<double> valence = GeneratedColumn<double>(
+      'valence', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _arousalMeta =
+      const VerificationMeta('arousal');
+  @override
+  late final GeneratedColumn<double> arousal = GeneratedColumn<double>(
+      'arousal', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _schemaVersionMeta =
+      const VerificationMeta('schemaVersion');
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+      'schema_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -4654,7 +4900,14 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
         sourceCharacterId,
         lastOperationId,
         createdAt,
-        updatedAt
+        updatedAt,
+        primaryDomain,
+        facets,
+        occurredAt,
+        occurredEndAt,
+        valence,
+        arousal,
+        schemaVersion
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4723,6 +4976,42 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('primary_domain')) {
+      context.handle(
+          _primaryDomainMeta,
+          primaryDomain.isAcceptableOrUnknown(
+              data['primary_domain']!, _primaryDomainMeta));
+    }
+    if (data.containsKey('facets')) {
+      context.handle(_facetsMeta,
+          facets.isAcceptableOrUnknown(data['facets']!, _facetsMeta));
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+          _occurredAtMeta,
+          occurredAt.isAcceptableOrUnknown(
+              data['occurred_at']!, _occurredAtMeta));
+    }
+    if (data.containsKey('occurred_end_at')) {
+      context.handle(
+          _occurredEndAtMeta,
+          occurredEndAt.isAcceptableOrUnknown(
+              data['occurred_end_at']!, _occurredEndAtMeta));
+    }
+    if (data.containsKey('valence')) {
+      context.handle(_valenceMeta,
+          valence.isAcceptableOrUnknown(data['valence']!, _valenceMeta));
+    }
+    if (data.containsKey('arousal')) {
+      context.handle(_arousalMeta,
+          arousal.isAcceptableOrUnknown(data['arousal']!, _arousalMeta));
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+          _schemaVersionMeta,
+          schemaVersion.isAcceptableOrUnknown(
+              data['schema_version']!, _schemaVersionMeta));
+    }
     return context;
   }
 
@@ -4750,6 +5039,20 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+      primaryDomain: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}primary_domain'])!,
+      facets: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}facets']),
+      occurredAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}occurred_at']),
+      occurredEndAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}occurred_end_at']),
+      valence: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}valence']),
+      arousal: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}arousal']),
+      schemaVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
     );
   }
 
@@ -4770,6 +5073,13 @@ class SharedLifeEntity extends DataClass
   final String lastOperationId;
   final int createdAt;
   final int updatedAt;
+  final String primaryDomain;
+  final String? facets;
+  final int? occurredAt;
+  final int? occurredEndAt;
+  final double? valence;
+  final double? arousal;
+  final int schemaVersion;
   const SharedLifeEntity(
       {required this.id,
       required this.entityType,
@@ -4779,7 +5089,14 @@ class SharedLifeEntity extends DataClass
       required this.sourceCharacterId,
       required this.lastOperationId,
       required this.createdAt,
-      required this.updatedAt});
+      required this.updatedAt,
+      required this.primaryDomain,
+      this.facets,
+      this.occurredAt,
+      this.occurredEndAt,
+      this.valence,
+      this.arousal,
+      required this.schemaVersion});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -4792,6 +5109,23 @@ class SharedLifeEntity extends DataClass
     map['last_operation_id'] = Variable<String>(lastOperationId);
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
+    map['primary_domain'] = Variable<String>(primaryDomain);
+    if (!nullToAbsent || facets != null) {
+      map['facets'] = Variable<String>(facets);
+    }
+    if (!nullToAbsent || occurredAt != null) {
+      map['occurred_at'] = Variable<int>(occurredAt);
+    }
+    if (!nullToAbsent || occurredEndAt != null) {
+      map['occurred_end_at'] = Variable<int>(occurredEndAt);
+    }
+    if (!nullToAbsent || valence != null) {
+      map['valence'] = Variable<double>(valence);
+    }
+    if (!nullToAbsent || arousal != null) {
+      map['arousal'] = Variable<double>(arousal);
+    }
+    map['schema_version'] = Variable<int>(schemaVersion);
     return map;
   }
 
@@ -4806,6 +5140,22 @@ class SharedLifeEntity extends DataClass
       lastOperationId: Value(lastOperationId),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      primaryDomain: Value(primaryDomain),
+      facets:
+          facets == null && nullToAbsent ? const Value.absent() : Value(facets),
+      occurredAt: occurredAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(occurredAt),
+      occurredEndAt: occurredEndAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(occurredEndAt),
+      valence: valence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(valence),
+      arousal: arousal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(arousal),
+      schemaVersion: Value(schemaVersion),
     );
   }
 
@@ -4822,6 +5172,13 @@ class SharedLifeEntity extends DataClass
       lastOperationId: serializer.fromJson<String>(json['lastOperationId']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      primaryDomain: serializer.fromJson<String>(json['primaryDomain']),
+      facets: serializer.fromJson<String?>(json['facets']),
+      occurredAt: serializer.fromJson<int?>(json['occurredAt']),
+      occurredEndAt: serializer.fromJson<int?>(json['occurredEndAt']),
+      valence: serializer.fromJson<double?>(json['valence']),
+      arousal: serializer.fromJson<double?>(json['arousal']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
     );
   }
   @override
@@ -4837,6 +5194,13 @@ class SharedLifeEntity extends DataClass
       'lastOperationId': serializer.toJson<String>(lastOperationId),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
+      'primaryDomain': serializer.toJson<String>(primaryDomain),
+      'facets': serializer.toJson<String?>(facets),
+      'occurredAt': serializer.toJson<int?>(occurredAt),
+      'occurredEndAt': serializer.toJson<int?>(occurredEndAt),
+      'valence': serializer.toJson<double?>(valence),
+      'arousal': serializer.toJson<double?>(arousal),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
     };
   }
 
@@ -4849,7 +5213,14 @@ class SharedLifeEntity extends DataClass
           String? sourceCharacterId,
           String? lastOperationId,
           int? createdAt,
-          int? updatedAt}) =>
+          int? updatedAt,
+          String? primaryDomain,
+          Value<String?> facets = const Value.absent(),
+          Value<int?> occurredAt = const Value.absent(),
+          Value<int?> occurredEndAt = const Value.absent(),
+          Value<double?> valence = const Value.absent(),
+          Value<double?> arousal = const Value.absent(),
+          int? schemaVersion}) =>
       SharedLifeEntity(
         id: id ?? this.id,
         entityType: entityType ?? this.entityType,
@@ -4860,6 +5231,14 @@ class SharedLifeEntity extends DataClass
         lastOperationId: lastOperationId ?? this.lastOperationId,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
+        primaryDomain: primaryDomain ?? this.primaryDomain,
+        facets: facets.present ? facets.value : this.facets,
+        occurredAt: occurredAt.present ? occurredAt.value : this.occurredAt,
+        occurredEndAt:
+            occurredEndAt.present ? occurredEndAt.value : this.occurredEndAt,
+        valence: valence.present ? valence.value : this.valence,
+        arousal: arousal.present ? arousal.value : this.arousal,
+        schemaVersion: schemaVersion ?? this.schemaVersion,
       );
   SharedLifeEntity copyWithCompanion(SharedLifeEntitiesCompanion data) {
     return SharedLifeEntity(
@@ -4877,6 +5256,20 @@ class SharedLifeEntity extends DataClass
           : this.lastOperationId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      primaryDomain: data.primaryDomain.present
+          ? data.primaryDomain.value
+          : this.primaryDomain,
+      facets: data.facets.present ? data.facets.value : this.facets,
+      occurredAt:
+          data.occurredAt.present ? data.occurredAt.value : this.occurredAt,
+      occurredEndAt: data.occurredEndAt.present
+          ? data.occurredEndAt.value
+          : this.occurredEndAt,
+      valence: data.valence.present ? data.valence.value : this.valence,
+      arousal: data.arousal.present ? data.arousal.value : this.arousal,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
     );
   }
 
@@ -4891,14 +5284,36 @@ class SharedLifeEntity extends DataClass
           ..write('sourceCharacterId: $sourceCharacterId, ')
           ..write('lastOperationId: $lastOperationId, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('primaryDomain: $primaryDomain, ')
+          ..write('facets: $facets, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('occurredEndAt: $occurredEndAt, ')
+          ..write('valence: $valence, ')
+          ..write('arousal: $arousal, ')
+          ..write('schemaVersion: $schemaVersion')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, entityType, title, stateJson, status,
-      sourceCharacterId, lastOperationId, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+      id,
+      entityType,
+      title,
+      stateJson,
+      status,
+      sourceCharacterId,
+      lastOperationId,
+      createdAt,
+      updatedAt,
+      primaryDomain,
+      facets,
+      occurredAt,
+      occurredEndAt,
+      valence,
+      arousal,
+      schemaVersion);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4911,7 +5326,14 @@ class SharedLifeEntity extends DataClass
           other.sourceCharacterId == this.sourceCharacterId &&
           other.lastOperationId == this.lastOperationId &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.primaryDomain == this.primaryDomain &&
+          other.facets == this.facets &&
+          other.occurredAt == this.occurredAt &&
+          other.occurredEndAt == this.occurredEndAt &&
+          other.valence == this.valence &&
+          other.arousal == this.arousal &&
+          other.schemaVersion == this.schemaVersion);
 }
 
 class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
@@ -4924,6 +5346,13 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
   final Value<String> lastOperationId;
   final Value<int> createdAt;
   final Value<int> updatedAt;
+  final Value<String> primaryDomain;
+  final Value<String?> facets;
+  final Value<int?> occurredAt;
+  final Value<int?> occurredEndAt;
+  final Value<double?> valence;
+  final Value<double?> arousal;
+  final Value<int> schemaVersion;
   final Value<int> rowid;
   const SharedLifeEntitiesCompanion({
     this.id = const Value.absent(),
@@ -4935,6 +5364,13 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     this.lastOperationId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.primaryDomain = const Value.absent(),
+    this.facets = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.occurredEndAt = const Value.absent(),
+    this.valence = const Value.absent(),
+    this.arousal = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SharedLifeEntitiesCompanion.insert({
@@ -4947,6 +5383,13 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     required String lastOperationId,
     required int createdAt,
     required int updatedAt,
+    this.primaryDomain = const Value.absent(),
+    this.facets = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.occurredEndAt = const Value.absent(),
+    this.valence = const Value.absent(),
+    this.arousal = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         entityType = Value(entityType),
@@ -4966,6 +5409,13 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     Expression<String>? lastOperationId,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
+    Expression<String>? primaryDomain,
+    Expression<String>? facets,
+    Expression<int>? occurredAt,
+    Expression<int>? occurredEndAt,
+    Expression<double>? valence,
+    Expression<double>? arousal,
+    Expression<int>? schemaVersion,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4978,6 +5428,13 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
       if (lastOperationId != null) 'last_operation_id': lastOperationId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (primaryDomain != null) 'primary_domain': primaryDomain,
+      if (facets != null) 'facets': facets,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (occurredEndAt != null) 'occurred_end_at': occurredEndAt,
+      if (valence != null) 'valence': valence,
+      if (arousal != null) 'arousal': arousal,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4992,6 +5449,13 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
       Value<String>? lastOperationId,
       Value<int>? createdAt,
       Value<int>? updatedAt,
+      Value<String>? primaryDomain,
+      Value<String?>? facets,
+      Value<int?>? occurredAt,
+      Value<int?>? occurredEndAt,
+      Value<double?>? valence,
+      Value<double?>? arousal,
+      Value<int>? schemaVersion,
       Value<int>? rowid}) {
     return SharedLifeEntitiesCompanion(
       id: id ?? this.id,
@@ -5003,6 +5467,13 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
       lastOperationId: lastOperationId ?? this.lastOperationId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      primaryDomain: primaryDomain ?? this.primaryDomain,
+      facets: facets ?? this.facets,
+      occurredAt: occurredAt ?? this.occurredAt,
+      occurredEndAt: occurredEndAt ?? this.occurredEndAt,
+      valence: valence ?? this.valence,
+      arousal: arousal ?? this.arousal,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5037,6 +5508,27 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<int>(updatedAt.value);
     }
+    if (primaryDomain.present) {
+      map['primary_domain'] = Variable<String>(primaryDomain.value);
+    }
+    if (facets.present) {
+      map['facets'] = Variable<String>(facets.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<int>(occurredAt.value);
+    }
+    if (occurredEndAt.present) {
+      map['occurred_end_at'] = Variable<int>(occurredEndAt.value);
+    }
+    if (valence.present) {
+      map['valence'] = Variable<double>(valence.value);
+    }
+    if (arousal.present) {
+      map['arousal'] = Variable<double>(arousal.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5055,6 +5547,922 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
           ..write('lastOperationId: $lastOperationId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('primaryDomain: $primaryDomain, ')
+          ..write('facets: $facets, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('occurredEndAt: $occurredEndAt, ')
+          ..write('valence: $valence, ')
+          ..write('arousal: $arousal, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $EntityEmbeddingsTable extends EntityEmbeddings
+    with TableInfo<$EntityEmbeddingsTable, EntityEmbedding> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EntityEmbeddingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _entityIdMeta =
+      const VerificationMeta('entityId');
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+      'entity_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _vectorMeta = const VerificationMeta('vector');
+  @override
+  late final GeneratedColumn<Uint8List> vector = GeneratedColumn<Uint8List>(
+      'vector', aliasedName, false,
+      type: DriftSqlType.blob, requiredDuringInsert: true);
+  static const VerificationMeta _providerMeta =
+      const VerificationMeta('provider');
+  @override
+  late final GeneratedColumn<String> provider = GeneratedColumn<String>(
+      'provider', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+      'model', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _dimensionMeta =
+      const VerificationMeta('dimension');
+  @override
+  late final GeneratedColumn<int> dimension = GeneratedColumn<int>(
+      'dimension', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _contentHashMeta =
+      const VerificationMeta('contentHash');
+  @override
+  late final GeneratedColumn<String> contentHash = GeneratedColumn<String>(
+      'content_hash', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [entityId, vector, provider, model, dimension, contentHash, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'entity_embeddings';
+  @override
+  VerificationContext validateIntegrity(Insertable<EntityEmbedding> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('entity_id')) {
+      context.handle(_entityIdMeta,
+          entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta));
+    } else if (isInserting) {
+      context.missing(_entityIdMeta);
+    }
+    if (data.containsKey('vector')) {
+      context.handle(_vectorMeta,
+          vector.isAcceptableOrUnknown(data['vector']!, _vectorMeta));
+    } else if (isInserting) {
+      context.missing(_vectorMeta);
+    }
+    if (data.containsKey('provider')) {
+      context.handle(_providerMeta,
+          provider.isAcceptableOrUnknown(data['provider']!, _providerMeta));
+    } else if (isInserting) {
+      context.missing(_providerMeta);
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+          _modelMeta, model.isAcceptableOrUnknown(data['model']!, _modelMeta));
+    } else if (isInserting) {
+      context.missing(_modelMeta);
+    }
+    if (data.containsKey('dimension')) {
+      context.handle(_dimensionMeta,
+          dimension.isAcceptableOrUnknown(data['dimension']!, _dimensionMeta));
+    } else if (isInserting) {
+      context.missing(_dimensionMeta);
+    }
+    if (data.containsKey('content_hash')) {
+      context.handle(
+          _contentHashMeta,
+          contentHash.isAcceptableOrUnknown(
+              data['content_hash']!, _contentHashMeta));
+    } else if (isInserting) {
+      context.missing(_contentHashMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {entityId};
+  @override
+  EntityEmbedding map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EntityEmbedding(
+      entityId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}entity_id'])!,
+      vector: attachedDatabase.typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}vector'])!,
+      provider: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}provider'])!,
+      model: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}model'])!,
+      dimension: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}dimension'])!,
+      contentHash: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content_hash'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $EntityEmbeddingsTable createAlias(String alias) {
+    return $EntityEmbeddingsTable(attachedDatabase, alias);
+  }
+}
+
+class EntityEmbedding extends DataClass implements Insertable<EntityEmbedding> {
+  final String entityId;
+  final Uint8List vector;
+  final String provider;
+  final String model;
+  final int dimension;
+  final String contentHash;
+  final int updatedAt;
+  const EntityEmbedding(
+      {required this.entityId,
+      required this.vector,
+      required this.provider,
+      required this.model,
+      required this.dimension,
+      required this.contentHash,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['entity_id'] = Variable<String>(entityId);
+    map['vector'] = Variable<Uint8List>(vector);
+    map['provider'] = Variable<String>(provider);
+    map['model'] = Variable<String>(model);
+    map['dimension'] = Variable<int>(dimension);
+    map['content_hash'] = Variable<String>(contentHash);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  EntityEmbeddingsCompanion toCompanion(bool nullToAbsent) {
+    return EntityEmbeddingsCompanion(
+      entityId: Value(entityId),
+      vector: Value(vector),
+      provider: Value(provider),
+      model: Value(model),
+      dimension: Value(dimension),
+      contentHash: Value(contentHash),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory EntityEmbedding.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EntityEmbedding(
+      entityId: serializer.fromJson<String>(json['entityId']),
+      vector: serializer.fromJson<Uint8List>(json['vector']),
+      provider: serializer.fromJson<String>(json['provider']),
+      model: serializer.fromJson<String>(json['model']),
+      dimension: serializer.fromJson<int>(json['dimension']),
+      contentHash: serializer.fromJson<String>(json['contentHash']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'entityId': serializer.toJson<String>(entityId),
+      'vector': serializer.toJson<Uint8List>(vector),
+      'provider': serializer.toJson<String>(provider),
+      'model': serializer.toJson<String>(model),
+      'dimension': serializer.toJson<int>(dimension),
+      'contentHash': serializer.toJson<String>(contentHash),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  EntityEmbedding copyWith(
+          {String? entityId,
+          Uint8List? vector,
+          String? provider,
+          String? model,
+          int? dimension,
+          String? contentHash,
+          int? updatedAt}) =>
+      EntityEmbedding(
+        entityId: entityId ?? this.entityId,
+        vector: vector ?? this.vector,
+        provider: provider ?? this.provider,
+        model: model ?? this.model,
+        dimension: dimension ?? this.dimension,
+        contentHash: contentHash ?? this.contentHash,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  EntityEmbedding copyWithCompanion(EntityEmbeddingsCompanion data) {
+    return EntityEmbedding(
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      vector: data.vector.present ? data.vector.value : this.vector,
+      provider: data.provider.present ? data.provider.value : this.provider,
+      model: data.model.present ? data.model.value : this.model,
+      dimension: data.dimension.present ? data.dimension.value : this.dimension,
+      contentHash:
+          data.contentHash.present ? data.contentHash.value : this.contentHash,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntityEmbedding(')
+          ..write('entityId: $entityId, ')
+          ..write('vector: $vector, ')
+          ..write('provider: $provider, ')
+          ..write('model: $model, ')
+          ..write('dimension: $dimension, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(entityId, $driftBlobEquality.hash(vector),
+      provider, model, dimension, contentHash, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EntityEmbedding &&
+          other.entityId == this.entityId &&
+          $driftBlobEquality.equals(other.vector, this.vector) &&
+          other.provider == this.provider &&
+          other.model == this.model &&
+          other.dimension == this.dimension &&
+          other.contentHash == this.contentHash &&
+          other.updatedAt == this.updatedAt);
+}
+
+class EntityEmbeddingsCompanion extends UpdateCompanion<EntityEmbedding> {
+  final Value<String> entityId;
+  final Value<Uint8List> vector;
+  final Value<String> provider;
+  final Value<String> model;
+  final Value<int> dimension;
+  final Value<String> contentHash;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const EntityEmbeddingsCompanion({
+    this.entityId = const Value.absent(),
+    this.vector = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.model = const Value.absent(),
+    this.dimension = const Value.absent(),
+    this.contentHash = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EntityEmbeddingsCompanion.insert({
+    required String entityId,
+    required Uint8List vector,
+    required String provider,
+    required String model,
+    required int dimension,
+    required String contentHash,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : entityId = Value(entityId),
+        vector = Value(vector),
+        provider = Value(provider),
+        model = Value(model),
+        dimension = Value(dimension),
+        contentHash = Value(contentHash),
+        updatedAt = Value(updatedAt);
+  static Insertable<EntityEmbedding> custom({
+    Expression<String>? entityId,
+    Expression<Uint8List>? vector,
+    Expression<String>? provider,
+    Expression<String>? model,
+    Expression<int>? dimension,
+    Expression<String>? contentHash,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (entityId != null) 'entity_id': entityId,
+      if (vector != null) 'vector': vector,
+      if (provider != null) 'provider': provider,
+      if (model != null) 'model': model,
+      if (dimension != null) 'dimension': dimension,
+      if (contentHash != null) 'content_hash': contentHash,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EntityEmbeddingsCompanion copyWith(
+      {Value<String>? entityId,
+      Value<Uint8List>? vector,
+      Value<String>? provider,
+      Value<String>? model,
+      Value<int>? dimension,
+      Value<String>? contentHash,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return EntityEmbeddingsCompanion(
+      entityId: entityId ?? this.entityId,
+      vector: vector ?? this.vector,
+      provider: provider ?? this.provider,
+      model: model ?? this.model,
+      dimension: dimension ?? this.dimension,
+      contentHash: contentHash ?? this.contentHash,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (vector.present) {
+      map['vector'] = Variable<Uint8List>(vector.value);
+    }
+    if (provider.present) {
+      map['provider'] = Variable<String>(provider.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (dimension.present) {
+      map['dimension'] = Variable<int>(dimension.value);
+    }
+    if (contentHash.present) {
+      map['content_hash'] = Variable<String>(contentHash.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntityEmbeddingsCompanion(')
+          ..write('entityId: $entityId, ')
+          ..write('vector: $vector, ')
+          ..write('provider: $provider, ')
+          ..write('model: $model, ')
+          ..write('dimension: $dimension, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SharedLifeSummariesTable extends SharedLifeSummaries
+    with TableInfo<$SharedLifeSummariesTable, SharedLifeSummary> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SharedLifeSummariesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _domainMeta = const VerificationMeta('domain');
+  @override
+  late final GeneratedColumn<String> domain = GeneratedColumn<String>(
+      'domain', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _periodMeta = const VerificationMeta('period');
+  @override
+  late final GeneratedColumn<String> period = GeneratedColumn<String>(
+      'period', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _summaryTextMeta =
+      const VerificationMeta('summaryText');
+  @override
+  late final GeneratedColumn<String> summaryText = GeneratedColumn<String>(
+      'summary_text', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statsJsonMeta =
+      const VerificationMeta('statsJson');
+  @override
+  late final GeneratedColumn<String> statsJson = GeneratedColumn<String>(
+      'stats_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sourceEntityIdsMeta =
+      const VerificationMeta('sourceEntityIds');
+  @override
+  late final GeneratedColumn<String> sourceEntityIds = GeneratedColumn<String>(
+      'source_entity_ids', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceHashMeta =
+      const VerificationMeta('sourceHash');
+  @override
+  late final GeneratedColumn<String> sourceHash = GeneratedColumn<String>(
+      'source_hash', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _generatedByMeta =
+      const VerificationMeta('generatedBy');
+  @override
+  late final GeneratedColumn<String> generatedBy = GeneratedColumn<String>(
+      'generated_by', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _generatedAtMeta =
+      const VerificationMeta('generatedAt');
+  @override
+  late final GeneratedColumn<int> generatedAt = GeneratedColumn<int>(
+      'generated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _isStaleMeta =
+      const VerificationMeta('isStale');
+  @override
+  late final GeneratedColumn<bool> isStale = GeneratedColumn<bool>(
+      'is_stale', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_stale" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        domain,
+        period,
+        summaryText,
+        statsJson,
+        sourceEntityIds,
+        sourceHash,
+        generatedBy,
+        generatedAt,
+        isStale
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'shared_life_summaries';
+  @override
+  VerificationContext validateIntegrity(Insertable<SharedLifeSummary> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('domain')) {
+      context.handle(_domainMeta,
+          domain.isAcceptableOrUnknown(data['domain']!, _domainMeta));
+    } else if (isInserting) {
+      context.missing(_domainMeta);
+    }
+    if (data.containsKey('period')) {
+      context.handle(_periodMeta,
+          period.isAcceptableOrUnknown(data['period']!, _periodMeta));
+    } else if (isInserting) {
+      context.missing(_periodMeta);
+    }
+    if (data.containsKey('summary_text')) {
+      context.handle(
+          _summaryTextMeta,
+          summaryText.isAcceptableOrUnknown(
+              data['summary_text']!, _summaryTextMeta));
+    } else if (isInserting) {
+      context.missing(_summaryTextMeta);
+    }
+    if (data.containsKey('stats_json')) {
+      context.handle(_statsJsonMeta,
+          statsJson.isAcceptableOrUnknown(data['stats_json']!, _statsJsonMeta));
+    }
+    if (data.containsKey('source_entity_ids')) {
+      context.handle(
+          _sourceEntityIdsMeta,
+          sourceEntityIds.isAcceptableOrUnknown(
+              data['source_entity_ids']!, _sourceEntityIdsMeta));
+    } else if (isInserting) {
+      context.missing(_sourceEntityIdsMeta);
+    }
+    if (data.containsKey('source_hash')) {
+      context.handle(
+          _sourceHashMeta,
+          sourceHash.isAcceptableOrUnknown(
+              data['source_hash']!, _sourceHashMeta));
+    } else if (isInserting) {
+      context.missing(_sourceHashMeta);
+    }
+    if (data.containsKey('generated_by')) {
+      context.handle(
+          _generatedByMeta,
+          generatedBy.isAcceptableOrUnknown(
+              data['generated_by']!, _generatedByMeta));
+    } else if (isInserting) {
+      context.missing(_generatedByMeta);
+    }
+    if (data.containsKey('generated_at')) {
+      context.handle(
+          _generatedAtMeta,
+          generatedAt.isAcceptableOrUnknown(
+              data['generated_at']!, _generatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_generatedAtMeta);
+    }
+    if (data.containsKey('is_stale')) {
+      context.handle(_isStaleMeta,
+          isStale.isAcceptableOrUnknown(data['is_stale']!, _isStaleMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SharedLifeSummary map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SharedLifeSummary(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      domain: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}domain'])!,
+      period: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}period'])!,
+      summaryText: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}summary_text'])!,
+      statsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}stats_json']),
+      sourceEntityIds: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_entity_ids'])!,
+      sourceHash: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_hash'])!,
+      generatedBy: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}generated_by'])!,
+      generatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}generated_at'])!,
+      isStale: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_stale'])!,
+    );
+  }
+
+  @override
+  $SharedLifeSummariesTable createAlias(String alias) {
+    return $SharedLifeSummariesTable(attachedDatabase, alias);
+  }
+}
+
+class SharedLifeSummary extends DataClass
+    implements Insertable<SharedLifeSummary> {
+  final String id;
+  final String domain;
+  final String period;
+  final String summaryText;
+  final String? statsJson;
+  final String sourceEntityIds;
+  final String sourceHash;
+  final String generatedBy;
+  final int generatedAt;
+  final bool isStale;
+  const SharedLifeSummary(
+      {required this.id,
+      required this.domain,
+      required this.period,
+      required this.summaryText,
+      this.statsJson,
+      required this.sourceEntityIds,
+      required this.sourceHash,
+      required this.generatedBy,
+      required this.generatedAt,
+      required this.isStale});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['domain'] = Variable<String>(domain);
+    map['period'] = Variable<String>(period);
+    map['summary_text'] = Variable<String>(summaryText);
+    if (!nullToAbsent || statsJson != null) {
+      map['stats_json'] = Variable<String>(statsJson);
+    }
+    map['source_entity_ids'] = Variable<String>(sourceEntityIds);
+    map['source_hash'] = Variable<String>(sourceHash);
+    map['generated_by'] = Variable<String>(generatedBy);
+    map['generated_at'] = Variable<int>(generatedAt);
+    map['is_stale'] = Variable<bool>(isStale);
+    return map;
+  }
+
+  SharedLifeSummariesCompanion toCompanion(bool nullToAbsent) {
+    return SharedLifeSummariesCompanion(
+      id: Value(id),
+      domain: Value(domain),
+      period: Value(period),
+      summaryText: Value(summaryText),
+      statsJson: statsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(statsJson),
+      sourceEntityIds: Value(sourceEntityIds),
+      sourceHash: Value(sourceHash),
+      generatedBy: Value(generatedBy),
+      generatedAt: Value(generatedAt),
+      isStale: Value(isStale),
+    );
+  }
+
+  factory SharedLifeSummary.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SharedLifeSummary(
+      id: serializer.fromJson<String>(json['id']),
+      domain: serializer.fromJson<String>(json['domain']),
+      period: serializer.fromJson<String>(json['period']),
+      summaryText: serializer.fromJson<String>(json['summaryText']),
+      statsJson: serializer.fromJson<String?>(json['statsJson']),
+      sourceEntityIds: serializer.fromJson<String>(json['sourceEntityIds']),
+      sourceHash: serializer.fromJson<String>(json['sourceHash']),
+      generatedBy: serializer.fromJson<String>(json['generatedBy']),
+      generatedAt: serializer.fromJson<int>(json['generatedAt']),
+      isStale: serializer.fromJson<bool>(json['isStale']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'domain': serializer.toJson<String>(domain),
+      'period': serializer.toJson<String>(period),
+      'summaryText': serializer.toJson<String>(summaryText),
+      'statsJson': serializer.toJson<String?>(statsJson),
+      'sourceEntityIds': serializer.toJson<String>(sourceEntityIds),
+      'sourceHash': serializer.toJson<String>(sourceHash),
+      'generatedBy': serializer.toJson<String>(generatedBy),
+      'generatedAt': serializer.toJson<int>(generatedAt),
+      'isStale': serializer.toJson<bool>(isStale),
+    };
+  }
+
+  SharedLifeSummary copyWith(
+          {String? id,
+          String? domain,
+          String? period,
+          String? summaryText,
+          Value<String?> statsJson = const Value.absent(),
+          String? sourceEntityIds,
+          String? sourceHash,
+          String? generatedBy,
+          int? generatedAt,
+          bool? isStale}) =>
+      SharedLifeSummary(
+        id: id ?? this.id,
+        domain: domain ?? this.domain,
+        period: period ?? this.period,
+        summaryText: summaryText ?? this.summaryText,
+        statsJson: statsJson.present ? statsJson.value : this.statsJson,
+        sourceEntityIds: sourceEntityIds ?? this.sourceEntityIds,
+        sourceHash: sourceHash ?? this.sourceHash,
+        generatedBy: generatedBy ?? this.generatedBy,
+        generatedAt: generatedAt ?? this.generatedAt,
+        isStale: isStale ?? this.isStale,
+      );
+  SharedLifeSummary copyWithCompanion(SharedLifeSummariesCompanion data) {
+    return SharedLifeSummary(
+      id: data.id.present ? data.id.value : this.id,
+      domain: data.domain.present ? data.domain.value : this.domain,
+      period: data.period.present ? data.period.value : this.period,
+      summaryText:
+          data.summaryText.present ? data.summaryText.value : this.summaryText,
+      statsJson: data.statsJson.present ? data.statsJson.value : this.statsJson,
+      sourceEntityIds: data.sourceEntityIds.present
+          ? data.sourceEntityIds.value
+          : this.sourceEntityIds,
+      sourceHash:
+          data.sourceHash.present ? data.sourceHash.value : this.sourceHash,
+      generatedBy:
+          data.generatedBy.present ? data.generatedBy.value : this.generatedBy,
+      generatedAt:
+          data.generatedAt.present ? data.generatedAt.value : this.generatedAt,
+      isStale: data.isStale.present ? data.isStale.value : this.isStale,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedLifeSummary(')
+          ..write('id: $id, ')
+          ..write('domain: $domain, ')
+          ..write('period: $period, ')
+          ..write('summaryText: $summaryText, ')
+          ..write('statsJson: $statsJson, ')
+          ..write('sourceEntityIds: $sourceEntityIds, ')
+          ..write('sourceHash: $sourceHash, ')
+          ..write('generatedBy: $generatedBy, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('isStale: $isStale')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, domain, period, summaryText, statsJson,
+      sourceEntityIds, sourceHash, generatedBy, generatedAt, isStale);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SharedLifeSummary &&
+          other.id == this.id &&
+          other.domain == this.domain &&
+          other.period == this.period &&
+          other.summaryText == this.summaryText &&
+          other.statsJson == this.statsJson &&
+          other.sourceEntityIds == this.sourceEntityIds &&
+          other.sourceHash == this.sourceHash &&
+          other.generatedBy == this.generatedBy &&
+          other.generatedAt == this.generatedAt &&
+          other.isStale == this.isStale);
+}
+
+class SharedLifeSummariesCompanion extends UpdateCompanion<SharedLifeSummary> {
+  final Value<String> id;
+  final Value<String> domain;
+  final Value<String> period;
+  final Value<String> summaryText;
+  final Value<String?> statsJson;
+  final Value<String> sourceEntityIds;
+  final Value<String> sourceHash;
+  final Value<String> generatedBy;
+  final Value<int> generatedAt;
+  final Value<bool> isStale;
+  final Value<int> rowid;
+  const SharedLifeSummariesCompanion({
+    this.id = const Value.absent(),
+    this.domain = const Value.absent(),
+    this.period = const Value.absent(),
+    this.summaryText = const Value.absent(),
+    this.statsJson = const Value.absent(),
+    this.sourceEntityIds = const Value.absent(),
+    this.sourceHash = const Value.absent(),
+    this.generatedBy = const Value.absent(),
+    this.generatedAt = const Value.absent(),
+    this.isStale = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SharedLifeSummariesCompanion.insert({
+    required String id,
+    required String domain,
+    required String period,
+    required String summaryText,
+    this.statsJson = const Value.absent(),
+    required String sourceEntityIds,
+    required String sourceHash,
+    required String generatedBy,
+    required int generatedAt,
+    this.isStale = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        domain = Value(domain),
+        period = Value(period),
+        summaryText = Value(summaryText),
+        sourceEntityIds = Value(sourceEntityIds),
+        sourceHash = Value(sourceHash),
+        generatedBy = Value(generatedBy),
+        generatedAt = Value(generatedAt);
+  static Insertable<SharedLifeSummary> custom({
+    Expression<String>? id,
+    Expression<String>? domain,
+    Expression<String>? period,
+    Expression<String>? summaryText,
+    Expression<String>? statsJson,
+    Expression<String>? sourceEntityIds,
+    Expression<String>? sourceHash,
+    Expression<String>? generatedBy,
+    Expression<int>? generatedAt,
+    Expression<bool>? isStale,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (domain != null) 'domain': domain,
+      if (period != null) 'period': period,
+      if (summaryText != null) 'summary_text': summaryText,
+      if (statsJson != null) 'stats_json': statsJson,
+      if (sourceEntityIds != null) 'source_entity_ids': sourceEntityIds,
+      if (sourceHash != null) 'source_hash': sourceHash,
+      if (generatedBy != null) 'generated_by': generatedBy,
+      if (generatedAt != null) 'generated_at': generatedAt,
+      if (isStale != null) 'is_stale': isStale,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SharedLifeSummariesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? domain,
+      Value<String>? period,
+      Value<String>? summaryText,
+      Value<String?>? statsJson,
+      Value<String>? sourceEntityIds,
+      Value<String>? sourceHash,
+      Value<String>? generatedBy,
+      Value<int>? generatedAt,
+      Value<bool>? isStale,
+      Value<int>? rowid}) {
+    return SharedLifeSummariesCompanion(
+      id: id ?? this.id,
+      domain: domain ?? this.domain,
+      period: period ?? this.period,
+      summaryText: summaryText ?? this.summaryText,
+      statsJson: statsJson ?? this.statsJson,
+      sourceEntityIds: sourceEntityIds ?? this.sourceEntityIds,
+      sourceHash: sourceHash ?? this.sourceHash,
+      generatedBy: generatedBy ?? this.generatedBy,
+      generatedAt: generatedAt ?? this.generatedAt,
+      isStale: isStale ?? this.isStale,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (domain.present) {
+      map['domain'] = Variable<String>(domain.value);
+    }
+    if (period.present) {
+      map['period'] = Variable<String>(period.value);
+    }
+    if (summaryText.present) {
+      map['summary_text'] = Variable<String>(summaryText.value);
+    }
+    if (statsJson.present) {
+      map['stats_json'] = Variable<String>(statsJson.value);
+    }
+    if (sourceEntityIds.present) {
+      map['source_entity_ids'] = Variable<String>(sourceEntityIds.value);
+    }
+    if (sourceHash.present) {
+      map['source_hash'] = Variable<String>(sourceHash.value);
+    }
+    if (generatedBy.present) {
+      map['generated_by'] = Variable<String>(generatedBy.value);
+    }
+    if (generatedAt.present) {
+      map['generated_at'] = Variable<int>(generatedAt.value);
+    }
+    if (isStale.present) {
+      map['is_stale'] = Variable<bool>(isStale.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedLifeSummariesCompanion(')
+          ..write('id: $id, ')
+          ..write('domain: $domain, ')
+          ..write('period: $period, ')
+          ..write('summaryText: $summaryText, ')
+          ..write('statsJson: $statsJson, ')
+          ..write('sourceEntityIds: $sourceEntityIds, ')
+          ..write('sourceHash: $sourceHash, ')
+          ..write('generatedBy: $generatedBy, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('isStale: $isStale, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6128,14 +7536,16 @@ class AiFinanceLedgerData extends DataClass
     implements Insertable<AiFinanceLedgerData> {
   final String id;
 
-  /// The character this ledger entry belongs to.
+  /// The character that recorded or witnessed this shared ledger entry.
   final String characterId;
 
-  /// Entry type: 'income' | 'cost' | 'loan' | 'repayment'
+  /// Entry type: 'income' | 'cost' | 'loan' | 'repayment' | 'reward' | 'penalty'
   /// - income: AI earned a share of a real income event
   /// - cost: an expense tagged as AI-related (e.g. Claude subscription)
   /// - loan: AI's costs exceeded its balance; user covered the gap
   /// - repayment: AI repaid a previous loan from its balance
+  /// - reward: AI rewards the user out of its own balance (AI expense)
+  /// - penalty: AI penalizes the user; user pays AI (AI income)
   final String entryType;
 
   /// Full amount of the original event (e.g. total income before split).
@@ -8008,6 +9418,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $SharedLifeEventOperationsTable(this);
   late final $SharedLifeEntitiesTable sharedLifeEntities =
       $SharedLifeEntitiesTable(this);
+  late final $EntityEmbeddingsTable entityEmbeddings =
+      $EntityEmbeddingsTable(this);
+  late final $SharedLifeSummariesTable sharedLifeSummaries =
+      $SharedLifeSummariesTable(this);
   late final $UserNotificationsTable userNotifications =
       $UserNotificationsTable(this);
   late final $SystemMessageQueueTable systemMessageQueue =
@@ -8038,6 +9452,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         conversationCaptureCursors,
         sharedLifeEventOperations,
         sharedLifeEntities,
+        entityEmbeddings,
+        sharedLifeSummaries,
         userNotifications,
         systemMessageQueue,
         aiFinanceLedger,
@@ -9995,6 +11411,11 @@ typedef $$SharedLifeEventOperationsTableCreateCompanionBuilder
   Value<String?> captureTaskId,
   Value<String?> revertsOperationId,
   required int createdAt,
+  Value<String> sourceKind,
+  Value<String?> sourceRef,
+  Value<String?> rawInput,
+  Value<String> primaryDomain,
+  Value<String?> facets,
   Value<int> rowid,
 });
 typedef $$SharedLifeEventOperationsTableUpdateCompanionBuilder
@@ -10010,6 +11431,11 @@ typedef $$SharedLifeEventOperationsTableUpdateCompanionBuilder
   Value<String?> captureTaskId,
   Value<String?> revertsOperationId,
   Value<int> createdAt,
+  Value<String> sourceKind,
+  Value<String?> sourceRef,
+  Value<String?> rawInput,
+  Value<String> primaryDomain,
+  Value<String?> facets,
   Value<int> rowid,
 });
 
@@ -10057,6 +11483,21 @@ class $$SharedLifeEventOperationsTableFilterComposer
 
   ColumnFilters<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceKind => $composableBuilder(
+      column: $table.sourceKind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceRef => $composableBuilder(
+      column: $table.sourceRef, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get rawInput => $composableBuilder(
+      column: $table.rawInput, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get primaryDomain => $composableBuilder(
+      column: $table.primaryDomain, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get facets => $composableBuilder(
+      column: $table.facets, builder: (column) => ColumnFilters(column));
 }
 
 class $$SharedLifeEventOperationsTableOrderingComposer
@@ -10105,6 +11546,22 @@ class $$SharedLifeEventOperationsTableOrderingComposer
 
   ColumnOrderings<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceKind => $composableBuilder(
+      column: $table.sourceKind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceRef => $composableBuilder(
+      column: $table.sourceRef, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get rawInput => $composableBuilder(
+      column: $table.rawInput, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get primaryDomain => $composableBuilder(
+      column: $table.primaryDomain,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get facets => $composableBuilder(
+      column: $table.facets, builder: (column) => ColumnOrderings(column));
 }
 
 class $$SharedLifeEventOperationsTableAnnotationComposer
@@ -10148,6 +11605,21 @@ class $$SharedLifeEventOperationsTableAnnotationComposer
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceKind => $composableBuilder(
+      column: $table.sourceKind, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceRef =>
+      $composableBuilder(column: $table.sourceRef, builder: (column) => column);
+
+  GeneratedColumn<String> get rawInput =>
+      $composableBuilder(column: $table.rawInput, builder: (column) => column);
+
+  GeneratedColumn<String> get primaryDomain => $composableBuilder(
+      column: $table.primaryDomain, builder: (column) => column);
+
+  GeneratedColumn<String> get facets =>
+      $composableBuilder(column: $table.facets, builder: (column) => column);
 }
 
 class $$SharedLifeEventOperationsTableTableManager extends RootTableManager<
@@ -10192,6 +11664,11 @@ class $$SharedLifeEventOperationsTableTableManager extends RootTableManager<
             Value<String?> captureTaskId = const Value.absent(),
             Value<String?> revertsOperationId = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
+            Value<String> sourceKind = const Value.absent(),
+            Value<String?> sourceRef = const Value.absent(),
+            Value<String?> rawInput = const Value.absent(),
+            Value<String> primaryDomain = const Value.absent(),
+            Value<String?> facets = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SharedLifeEventOperationsCompanion(
@@ -10206,6 +11683,11 @@ class $$SharedLifeEventOperationsTableTableManager extends RootTableManager<
             captureTaskId: captureTaskId,
             revertsOperationId: revertsOperationId,
             createdAt: createdAt,
+            sourceKind: sourceKind,
+            sourceRef: sourceRef,
+            rawInput: rawInput,
+            primaryDomain: primaryDomain,
+            facets: facets,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -10220,6 +11702,11 @@ class $$SharedLifeEventOperationsTableTableManager extends RootTableManager<
             Value<String?> captureTaskId = const Value.absent(),
             Value<String?> revertsOperationId = const Value.absent(),
             required int createdAt,
+            Value<String> sourceKind = const Value.absent(),
+            Value<String?> sourceRef = const Value.absent(),
+            Value<String?> rawInput = const Value.absent(),
+            Value<String> primaryDomain = const Value.absent(),
+            Value<String?> facets = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SharedLifeEventOperationsCompanion.insert(
@@ -10234,6 +11721,11 @@ class $$SharedLifeEventOperationsTableTableManager extends RootTableManager<
             captureTaskId: captureTaskId,
             revertsOperationId: revertsOperationId,
             createdAt: createdAt,
+            sourceKind: sourceKind,
+            sourceRef: sourceRef,
+            rawInput: rawInput,
+            primaryDomain: primaryDomain,
+            facets: facets,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -10271,6 +11763,13 @@ typedef $$SharedLifeEntitiesTableCreateCompanionBuilder
   required String lastOperationId,
   required int createdAt,
   required int updatedAt,
+  Value<String> primaryDomain,
+  Value<String?> facets,
+  Value<int?> occurredAt,
+  Value<int?> occurredEndAt,
+  Value<double?> valence,
+  Value<double?> arousal,
+  Value<int> schemaVersion,
   Value<int> rowid,
 });
 typedef $$SharedLifeEntitiesTableUpdateCompanionBuilder
@@ -10284,6 +11783,13 @@ typedef $$SharedLifeEntitiesTableUpdateCompanionBuilder
   Value<String> lastOperationId,
   Value<int> createdAt,
   Value<int> updatedAt,
+  Value<String> primaryDomain,
+  Value<String?> facets,
+  Value<int?> occurredAt,
+  Value<int?> occurredEndAt,
+  Value<double?> valence,
+  Value<double?> arousal,
+  Value<int> schemaVersion,
   Value<int> rowid,
 });
 
@@ -10324,6 +11830,27 @@ class $$SharedLifeEntitiesTableFilterComposer
 
   ColumnFilters<int> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get primaryDomain => $composableBuilder(
+      column: $table.primaryDomain, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get facets => $composableBuilder(
+      column: $table.facets, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get occurredAt => $composableBuilder(
+      column: $table.occurredAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get occurredEndAt => $composableBuilder(
+      column: $table.occurredEndAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get valence => $composableBuilder(
+      column: $table.valence, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get arousal => $composableBuilder(
+      column: $table.arousal, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
 }
 
 class $$SharedLifeEntitiesTableOrderingComposer
@@ -10363,6 +11890,30 @@ class $$SharedLifeEntitiesTableOrderingComposer
 
   ColumnOrderings<int> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get primaryDomain => $composableBuilder(
+      column: $table.primaryDomain,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get facets => $composableBuilder(
+      column: $table.facets, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get occurredAt => $composableBuilder(
+      column: $table.occurredAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get occurredEndAt => $composableBuilder(
+      column: $table.occurredEndAt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get valence => $composableBuilder(
+      column: $table.valence, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get arousal => $composableBuilder(
+      column: $table.arousal, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$SharedLifeEntitiesTableAnnotationComposer
@@ -10400,6 +11951,27 @@ class $$SharedLifeEntitiesTableAnnotationComposer
 
   GeneratedColumn<int> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get primaryDomain => $composableBuilder(
+      column: $table.primaryDomain, builder: (column) => column);
+
+  GeneratedColumn<String> get facets =>
+      $composableBuilder(column: $table.facets, builder: (column) => column);
+
+  GeneratedColumn<int> get occurredAt => $composableBuilder(
+      column: $table.occurredAt, builder: (column) => column);
+
+  GeneratedColumn<int> get occurredEndAt => $composableBuilder(
+      column: $table.occurredEndAt, builder: (column) => column);
+
+  GeneratedColumn<double> get valence =>
+      $composableBuilder(column: $table.valence, builder: (column) => column);
+
+  GeneratedColumn<double> get arousal =>
+      $composableBuilder(column: $table.arousal, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => column);
 }
 
 class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
@@ -10439,6 +12011,13 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             Value<String> lastOperationId = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<int> updatedAt = const Value.absent(),
+            Value<String> primaryDomain = const Value.absent(),
+            Value<String?> facets = const Value.absent(),
+            Value<int?> occurredAt = const Value.absent(),
+            Value<int?> occurredEndAt = const Value.absent(),
+            Value<double?> valence = const Value.absent(),
+            Value<double?> arousal = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SharedLifeEntitiesCompanion(
@@ -10451,6 +12030,13 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             lastOperationId: lastOperationId,
             createdAt: createdAt,
             updatedAt: updatedAt,
+            primaryDomain: primaryDomain,
+            facets: facets,
+            occurredAt: occurredAt,
+            occurredEndAt: occurredEndAt,
+            valence: valence,
+            arousal: arousal,
+            schemaVersion: schemaVersion,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -10463,6 +12049,13 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             required String lastOperationId,
             required int createdAt,
             required int updatedAt,
+            Value<String> primaryDomain = const Value.absent(),
+            Value<String?> facets = const Value.absent(),
+            Value<int?> occurredAt = const Value.absent(),
+            Value<int?> occurredEndAt = const Value.absent(),
+            Value<double?> valence = const Value.absent(),
+            Value<double?> arousal = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SharedLifeEntitiesCompanion.insert(
@@ -10475,6 +12068,13 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             lastOperationId: lastOperationId,
             createdAt: createdAt,
             updatedAt: updatedAt,
+            primaryDomain: primaryDomain,
+            facets: facets,
+            occurredAt: occurredAt,
+            occurredEndAt: occurredEndAt,
+            valence: valence,
+            arousal: arousal,
+            schemaVersion: schemaVersion,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -10498,6 +12098,465 @@ typedef $$SharedLifeEntitiesTableProcessedTableManager = ProcessedTableManager<
       BaseReferences<_$AppDatabase, $SharedLifeEntitiesTable, SharedLifeEntity>
     ),
     SharedLifeEntity,
+    PrefetchHooks Function()>;
+typedef $$EntityEmbeddingsTableCreateCompanionBuilder
+    = EntityEmbeddingsCompanion Function({
+  required String entityId,
+  required Uint8List vector,
+  required String provider,
+  required String model,
+  required int dimension,
+  required String contentHash,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$EntityEmbeddingsTableUpdateCompanionBuilder
+    = EntityEmbeddingsCompanion Function({
+  Value<String> entityId,
+  Value<Uint8List> vector,
+  Value<String> provider,
+  Value<String> model,
+  Value<int> dimension,
+  Value<String> contentHash,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$EntityEmbeddingsTableFilterComposer
+    extends Composer<_$AppDatabase, $EntityEmbeddingsTable> {
+  $$EntityEmbeddingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get entityId => $composableBuilder(
+      column: $table.entityId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<Uint8List> get vector => $composableBuilder(
+      column: $table.vector, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get provider => $composableBuilder(
+      column: $table.provider, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get model => $composableBuilder(
+      column: $table.model, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get dimension => $composableBuilder(
+      column: $table.dimension, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$EntityEmbeddingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $EntityEmbeddingsTable> {
+  $$EntityEmbeddingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get entityId => $composableBuilder(
+      column: $table.entityId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<Uint8List> get vector => $composableBuilder(
+      column: $table.vector, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get provider => $composableBuilder(
+      column: $table.provider, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get model => $composableBuilder(
+      column: $table.model, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get dimension => $composableBuilder(
+      column: $table.dimension, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$EntityEmbeddingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EntityEmbeddingsTable> {
+  $$EntityEmbeddingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get vector =>
+      $composableBuilder(column: $table.vector, builder: (column) => column);
+
+  GeneratedColumn<String> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<int> get dimension =>
+      $composableBuilder(column: $table.dimension, builder: (column) => column);
+
+  GeneratedColumn<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$EntityEmbeddingsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $EntityEmbeddingsTable,
+    EntityEmbedding,
+    $$EntityEmbeddingsTableFilterComposer,
+    $$EntityEmbeddingsTableOrderingComposer,
+    $$EntityEmbeddingsTableAnnotationComposer,
+    $$EntityEmbeddingsTableCreateCompanionBuilder,
+    $$EntityEmbeddingsTableUpdateCompanionBuilder,
+    (
+      EntityEmbedding,
+      BaseReferences<_$AppDatabase, $EntityEmbeddingsTable, EntityEmbedding>
+    ),
+    EntityEmbedding,
+    PrefetchHooks Function()> {
+  $$EntityEmbeddingsTableTableManager(
+      _$AppDatabase db, $EntityEmbeddingsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EntityEmbeddingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EntityEmbeddingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EntityEmbeddingsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> entityId = const Value.absent(),
+            Value<Uint8List> vector = const Value.absent(),
+            Value<String> provider = const Value.absent(),
+            Value<String> model = const Value.absent(),
+            Value<int> dimension = const Value.absent(),
+            Value<String> contentHash = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              EntityEmbeddingsCompanion(
+            entityId: entityId,
+            vector: vector,
+            provider: provider,
+            model: model,
+            dimension: dimension,
+            contentHash: contentHash,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String entityId,
+            required Uint8List vector,
+            required String provider,
+            required String model,
+            required int dimension,
+            required String contentHash,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              EntityEmbeddingsCompanion.insert(
+            entityId: entityId,
+            vector: vector,
+            provider: provider,
+            model: model,
+            dimension: dimension,
+            contentHash: contentHash,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$EntityEmbeddingsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $EntityEmbeddingsTable,
+    EntityEmbedding,
+    $$EntityEmbeddingsTableFilterComposer,
+    $$EntityEmbeddingsTableOrderingComposer,
+    $$EntityEmbeddingsTableAnnotationComposer,
+    $$EntityEmbeddingsTableCreateCompanionBuilder,
+    $$EntityEmbeddingsTableUpdateCompanionBuilder,
+    (
+      EntityEmbedding,
+      BaseReferences<_$AppDatabase, $EntityEmbeddingsTable, EntityEmbedding>
+    ),
+    EntityEmbedding,
+    PrefetchHooks Function()>;
+typedef $$SharedLifeSummariesTableCreateCompanionBuilder
+    = SharedLifeSummariesCompanion Function({
+  required String id,
+  required String domain,
+  required String period,
+  required String summaryText,
+  Value<String?> statsJson,
+  required String sourceEntityIds,
+  required String sourceHash,
+  required String generatedBy,
+  required int generatedAt,
+  Value<bool> isStale,
+  Value<int> rowid,
+});
+typedef $$SharedLifeSummariesTableUpdateCompanionBuilder
+    = SharedLifeSummariesCompanion Function({
+  Value<String> id,
+  Value<String> domain,
+  Value<String> period,
+  Value<String> summaryText,
+  Value<String?> statsJson,
+  Value<String> sourceEntityIds,
+  Value<String> sourceHash,
+  Value<String> generatedBy,
+  Value<int> generatedAt,
+  Value<bool> isStale,
+  Value<int> rowid,
+});
+
+class $$SharedLifeSummariesTableFilterComposer
+    extends Composer<_$AppDatabase, $SharedLifeSummariesTable> {
+  $$SharedLifeSummariesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get domain => $composableBuilder(
+      column: $table.domain, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get period => $composableBuilder(
+      column: $table.period, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get summaryText => $composableBuilder(
+      column: $table.summaryText, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get statsJson => $composableBuilder(
+      column: $table.statsJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceEntityIds => $composableBuilder(
+      column: $table.sourceEntityIds,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceHash => $composableBuilder(
+      column: $table.sourceHash, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get generatedBy => $composableBuilder(
+      column: $table.generatedBy, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get generatedAt => $composableBuilder(
+      column: $table.generatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isStale => $composableBuilder(
+      column: $table.isStale, builder: (column) => ColumnFilters(column));
+}
+
+class $$SharedLifeSummariesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SharedLifeSummariesTable> {
+  $$SharedLifeSummariesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get domain => $composableBuilder(
+      column: $table.domain, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get period => $composableBuilder(
+      column: $table.period, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get summaryText => $composableBuilder(
+      column: $table.summaryText, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get statsJson => $composableBuilder(
+      column: $table.statsJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceEntityIds => $composableBuilder(
+      column: $table.sourceEntityIds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceHash => $composableBuilder(
+      column: $table.sourceHash, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get generatedBy => $composableBuilder(
+      column: $table.generatedBy, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get generatedAt => $composableBuilder(
+      column: $table.generatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isStale => $composableBuilder(
+      column: $table.isStale, builder: (column) => ColumnOrderings(column));
+}
+
+class $$SharedLifeSummariesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SharedLifeSummariesTable> {
+  $$SharedLifeSummariesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get domain =>
+      $composableBuilder(column: $table.domain, builder: (column) => column);
+
+  GeneratedColumn<String> get period =>
+      $composableBuilder(column: $table.period, builder: (column) => column);
+
+  GeneratedColumn<String> get summaryText => $composableBuilder(
+      column: $table.summaryText, builder: (column) => column);
+
+  GeneratedColumn<String> get statsJson =>
+      $composableBuilder(column: $table.statsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceEntityIds => $composableBuilder(
+      column: $table.sourceEntityIds, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceHash => $composableBuilder(
+      column: $table.sourceHash, builder: (column) => column);
+
+  GeneratedColumn<String> get generatedBy => $composableBuilder(
+      column: $table.generatedBy, builder: (column) => column);
+
+  GeneratedColumn<int> get generatedAt => $composableBuilder(
+      column: $table.generatedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get isStale =>
+      $composableBuilder(column: $table.isStale, builder: (column) => column);
+}
+
+class $$SharedLifeSummariesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $SharedLifeSummariesTable,
+    SharedLifeSummary,
+    $$SharedLifeSummariesTableFilterComposer,
+    $$SharedLifeSummariesTableOrderingComposer,
+    $$SharedLifeSummariesTableAnnotationComposer,
+    $$SharedLifeSummariesTableCreateCompanionBuilder,
+    $$SharedLifeSummariesTableUpdateCompanionBuilder,
+    (
+      SharedLifeSummary,
+      BaseReferences<_$AppDatabase, $SharedLifeSummariesTable,
+          SharedLifeSummary>
+    ),
+    SharedLifeSummary,
+    PrefetchHooks Function()> {
+  $$SharedLifeSummariesTableTableManager(
+      _$AppDatabase db, $SharedLifeSummariesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SharedLifeSummariesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SharedLifeSummariesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SharedLifeSummariesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> domain = const Value.absent(),
+            Value<String> period = const Value.absent(),
+            Value<String> summaryText = const Value.absent(),
+            Value<String?> statsJson = const Value.absent(),
+            Value<String> sourceEntityIds = const Value.absent(),
+            Value<String> sourceHash = const Value.absent(),
+            Value<String> generatedBy = const Value.absent(),
+            Value<int> generatedAt = const Value.absent(),
+            Value<bool> isStale = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SharedLifeSummariesCompanion(
+            id: id,
+            domain: domain,
+            period: period,
+            summaryText: summaryText,
+            statsJson: statsJson,
+            sourceEntityIds: sourceEntityIds,
+            sourceHash: sourceHash,
+            generatedBy: generatedBy,
+            generatedAt: generatedAt,
+            isStale: isStale,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String domain,
+            required String period,
+            required String summaryText,
+            Value<String?> statsJson = const Value.absent(),
+            required String sourceEntityIds,
+            required String sourceHash,
+            required String generatedBy,
+            required int generatedAt,
+            Value<bool> isStale = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SharedLifeSummariesCompanion.insert(
+            id: id,
+            domain: domain,
+            period: period,
+            summaryText: summaryText,
+            statsJson: statsJson,
+            sourceEntityIds: sourceEntityIds,
+            sourceHash: sourceHash,
+            generatedBy: generatedBy,
+            generatedAt: generatedAt,
+            isStale: isStale,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$SharedLifeSummariesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $SharedLifeSummariesTable,
+    SharedLifeSummary,
+    $$SharedLifeSummariesTableFilterComposer,
+    $$SharedLifeSummariesTableOrderingComposer,
+    $$SharedLifeSummariesTableAnnotationComposer,
+    $$SharedLifeSummariesTableCreateCompanionBuilder,
+    $$SharedLifeSummariesTableUpdateCompanionBuilder,
+    (
+      SharedLifeSummary,
+      BaseReferences<_$AppDatabase, $SharedLifeSummariesTable,
+          SharedLifeSummary>
+    ),
+    SharedLifeSummary,
     PrefetchHooks Function()>;
 typedef $$UserNotificationsTableCreateCompanionBuilder
     = UserNotificationsCompanion Function({
@@ -11932,6 +13991,10 @@ class $AppDatabaseManager {
           _db, _db.sharedLifeEventOperations);
   $$SharedLifeEntitiesTableTableManager get sharedLifeEntities =>
       $$SharedLifeEntitiesTableTableManager(_db, _db.sharedLifeEntities);
+  $$EntityEmbeddingsTableTableManager get entityEmbeddings =>
+      $$EntityEmbeddingsTableTableManager(_db, _db.entityEmbeddings);
+  $$SharedLifeSummariesTableTableManager get sharedLifeSummaries =>
+      $$SharedLifeSummariesTableTableManager(_db, _db.sharedLifeSummaries);
   $$UserNotificationsTableTableManager get userNotifications =>
       $$UserNotificationsTableTableManager(_db, _db.userNotifications);
   $$SystemMessageQueueTableTableManager get systemMessageQueue =>

@@ -112,12 +112,18 @@ class ConversationCaptureService {
     );
   }
 
+  /// Auto-capture is disabled pending migration to RecordOrganizerService.
+  /// User-truth is now only written via explicit user actions (record button,
+  /// floating ball, natural language "记一下", external data streams).
+  static bool autoCapturePaused = true;
+
   Future<bool> scheduleIfNeeded({
     required String userId,
     required String characterId,
     bool force = false,
     String trigger = 'message_threshold',
   }) async {
+    if (autoCapturePaused && !force) return false;
     var cursor = await _readOrCreateCursor(characterId);
     if (cursor.lastQueuedMessageId > cursor.lastExtractedMessageId) {
       final hasActiveTask = await _hasActiveQueuedCaptureTask(

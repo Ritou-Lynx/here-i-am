@@ -9,13 +9,30 @@ import 'package:uuid/uuid.dart';
 
 const _uuid = Uuid();
 
+/// Reserved patch field names managed by [DomainSchemaValidator].
+/// These are promoted to projection columns and must not enter [stateJson].
+const _reservedPatchFields = {
+  '_occurredAt',
+  '_occurredEndAt',
+  '_timeConfidence',
+  '_timeSourceText',
+  '_primaryDomain',
+  '_facets',
+  '_valence',
+  '_arousal',
+  '_schemaVersion',
+};
+
 class SharedLifeOperationDraft {
   const SharedLifeOperationDraft({
     required this.operationType,
     required this.entityType,
     required this.title,
     required this.patch,
-    required this.sourceMessageIds,
+    this.sourceKind = 'chat_message',
+    this.sourceRef,
+    this.rawInput,
+    this.sourceMessageIds = const [],
     this.entityId,
   });
 
@@ -23,7 +40,22 @@ class SharedLifeOperationDraft {
   final String entityType;
   final String title;
   final Map<String, dynamic> patch;
+
+  /// Evidence source kind. Any non-null value allows the operation through.
+  /// Supported values: chat_message / floating_ball / screenshot_ocr /
+  /// health_import / manual_edit / record_button / external_share
+  final String sourceKind;
+
+  /// Generic reference ID for the source (message id, file path, batch id…)
+  final String? sourceRef;
+
+  /// Raw user input verbatim, preserved for audit.
+  final String? rawInput;
+
+  /// Legacy: chat message IDs validated against [allowedSourceMessageIds].
+  /// Only checked when [sourceKind] == 'chat_message'.
   final List<int> sourceMessageIds;
+
   final String? entityId;
 }
 
@@ -49,6 +81,13 @@ class SharedLifeEntitySnapshot {
     required this.status,
     required this.state,
     required this.updatedAt,
+    this.primaryDomain = 'general',
+    this.facets = const [],
+    this.occurredAt,
+    this.occurredEndAt,
+    this.valence,
+    this.arousal,
+    this.schemaVersion = 1,
   });
 
   final String id;
@@ -57,6 +96,14 @@ class SharedLifeEntitySnapshot {
   final String status;
   final Map<String, dynamic> state;
   final int updatedAt;
+
+  final String primaryDomain;
+  final List<String> facets;
+  final int? occurredAt;
+  final int? occurredEndAt;
+  final double? valence;
+  final double? arousal;
+  final int schemaVersion;
 
   List<String> get tags => _stringList(state['tags']);
 
@@ -69,6 +116,13 @@ class SharedLifeEntitySnapshot {
         'entity_type': entityType,
         'title': title,
         'status': status,
+        'primary_domain': primaryDomain,
+        'facets': facets,
+        'occurred_at': occurredAt,
+        'occurred_end_at': occurredEndAt,
+        'valence': valence,
+        'arousal': arousal,
+        'schema_version': schemaVersion,
         'tags': tags,
         'state': state,
         'updated_at': updatedAt,
@@ -108,14 +162,34 @@ class SharedLifeMemoryService {
     String text, {
     int limit = 12,
     bool includeCancelled = false,
+    String? domain,
+    int? occurredAfter,
+    int? occurredBefore,
+    String? entityType,
   }) async {
     final query = db.select(db.sharedLifeEntities);
     if (!includeCancelled) {
       query.where((t) => t.status.isNotIn(const ['cancelled']));
     }
+    if (domain != null) {
+      query.where((t) =>
+          t.primaryDomain.equals(domain) |
+          t.facets.like('%"$domain"%'));
+    }
+    if (occurredAfter != null) {
+      query.where((t) =>
+          t.occurredAt.isNull() | t.occurredAt.isBiggerOrEqualValue(occurredAfter));
+    }
+    if (occurredBefore != null) {
+      query.where((t) =>
+          t.occurredAt.isNull() | t.occurredAt.isSmallerOrEqualValue(occurredBefore));
+    }
+    if (entityType != null) {
+      query.where((t) => t.entityType.equals(entityType));
+    }
     query
       ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
-      ..limit(60);
+      ..limit(200);
     final rows = await query.get();
     final terms = _searchTerms(text);
     final ranked = rows
@@ -159,7 +233,7 @@ class SharedLifeMemoryService {
           ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
         .get();
     final sourceMessageIds = operations
-        .expand((operation) => _decodeIntList(operation.sourceMessageIds))
+        .expand((op) => _decodeIntList(op.sourceMessageIds))
         .toSet()
         .toList()
       ..sort();
@@ -177,11 +251,18 @@ class SharedLifeMemoryService {
     );
   }
 
+  /// Apply a list of operation drafts to the event log and rebuild projections.
+  ///
+  /// Evidence gating:
+  /// - When [draft.sourceKind] == 'chat_message', the draft's [sourceMessageIds]
+  ///   are filtered against [allowedSourceMessageIds]; empty result is still
+  ///   accepted (the sourceKind itself is evidence enough).
+  /// - Any other [sourceKind] bypasses the message-ID check entirely.
   Future<SharedLifeApplyResult> applyOperations({
     required String sourceCharacterId,
     required String? captureTaskId,
     required List<SharedLifeOperationDraft> operations,
-    required Set<int> allowedSourceMessageIds,
+    Set<int> allowedSourceMessageIds = const {},
   }) async {
     final operationIds = <String>[];
     final entityIds = <String>[];
@@ -201,15 +282,15 @@ class SharedLifeMemoryService {
               .warning('Ignored unsupported shared entity type: $entityType');
           continue;
         }
-        final sourceIds = draft.sourceMessageIds
-            .where(allowedSourceMessageIds.contains)
-            .toSet()
-            .toList()
-          ..sort();
-        if (sourceIds.isEmpty) {
-          _logger.warning('Ignored shared operation without valid evidence');
-          continue;
-        }
+
+        // Determine validated source message IDs for back-compat storage
+        final sourceIds = draft.sourceKind == 'chat_message'
+            ? (draft.sourceMessageIds
+                .where(allowedSourceMessageIds.contains)
+                .toSet()
+                .toList()
+              ..sort())
+            : <int>[];
 
         final existingEntity = draft.entityId == null
             ? null
@@ -231,6 +312,15 @@ class SharedLifeMemoryService {
             : existingEntity?.title ?? draft.entityType.trim();
         final now = DateTime.now().microsecondsSinceEpoch;
 
+        // Extract domain from patch reserved fields
+        final primaryDomain = draft.patch['_primaryDomain'] as String? ??
+            existingEntity?.primaryDomain ??
+            'general';
+        final facetsRaw = draft.patch['_facets'];
+        final facets = facetsRaw is List
+            ? jsonEncode(facetsRaw)
+            : (facetsRaw as String?);
+
         await db.into(db.sharedLifeEventOperations).insert(
               SharedLifeEventOperationsCompanion.insert(
                 id: operationId,
@@ -242,7 +332,13 @@ class SharedLifeMemoryService {
                 sourceMessageIds: jsonEncode(sourceIds),
                 sourceCharacterId: sourceCharacterId,
                 captureTaskId: Value(captureTaskId),
+                revertsOperationId: const Value(null),
                 createdAt: now,
+                sourceKind: Value(draft.sourceKind),
+                sourceRef: Value(draft.sourceRef),
+                rawInput: Value(draft.rawInput),
+                primaryDomain: Value(primaryDomain),
+                facets: Value(facets),
               ),
             );
         await _rebuildEntity(entityId);
@@ -272,6 +368,18 @@ class SharedLifeMemoryService {
     );
   }
 
+  /// Apply an operation directly without a chat message (e.g. UI edit, floating ball).
+  Future<SharedLifeApplyResult> applyDirectOperation({
+    required String sourceCharacterId,
+    required SharedLifeOperationDraft operation,
+  }) {
+    return applyOperations(
+      sourceCharacterId: sourceCharacterId,
+      captureTaskId: null,
+      operations: [operation],
+    );
+  }
+
   Future<bool> undoLatestEntityOperation({
     required String entityId,
     required String sourceCharacterId,
@@ -297,32 +405,19 @@ class SharedLifeMemoryService {
     return false;
   }
 
-  /// Fully delete an entity by undoing every one of its still-active
-  /// operations. After all operations are reverted, `_rebuildEntity` will
-  /// find no active create op and drop the entity row.
-  ///
-  /// This is the semantics most users mean by "delete this record" — the
-  /// existing `undoLatestEntityOperation` only rolls back the most recent
-  /// op, which for a fetched reading_item means undoing the fetch result
-  /// rather than the record itself.
-  ///
-  /// Returns true if any operations were undone, false if the entity was
-  /// already empty / had no active operations.
+  /// Fully delete an entity by undoing every one of its still-active operations.
   Future<bool> fullyDeleteEntity({
     required String entityId,
     required String sourceCharacterId,
-    required int sourceMessageId,
+    int? sourceMessageId,
   }) async {
     final activeRows = await _activeRowsForEntity(entityId);
     if (activeRows.isEmpty) return false;
-    // Undo from newest to oldest so the projection stays consistent if
-    // anyone reads mid-transaction (currently no one does, but it's the
-    // safe default).
     final idsNewestFirst = activeRows.reversed.map((r) => r.id).toList();
     await undoOperations(
       idsNewestFirst,
       sourceCharacterId: sourceCharacterId,
-      sourceMessageIds: [sourceMessageId],
+      sourceMessageIds: sourceMessageId != null ? [sourceMessageId] : [],
     );
     return true;
   }
@@ -364,8 +459,7 @@ class SharedLifeMemoryService {
     });
   }
 
-  /// Repairs projections written by older builds that allowed an update-like
-  /// operation to survive after its originating create operation was undone.
+  /// Repairs projections where a create operation was undone but update ops survived.
   Future<int> repairOrphanedEntities() async {
     final rows = await db.select(db.sharedLifeEntities).get();
     var repaired = 0;
@@ -381,10 +475,7 @@ class SharedLifeMemoryService {
     return repaired;
   }
 
-  /// Keeps SharedLife tags aligned with the single user tag list (`tags.md`).
-  /// Older builds allowed the capture agent to invent localized tags; this
-  /// appends correction operations so the event log remains truthful while the
-  /// current projection stops exposing out-of-vocabulary labels.
+  /// Keeps SharedLife tags aligned with the known tag vocabulary.
   Future<int> repairTagsAgainstKnownTags(List<String> knownTags) async {
     final canonicalTags = <String, String>{
       for (final tag in knownTags)
@@ -445,9 +536,34 @@ class SharedLifeMemoryService {
     var title = first.title;
     var status = 'active';
     final state = <String, dynamic>{};
+
+    // Promoted columns — accumulated across patches
+    String primaryDomain = 'general';
+    String? facets;
+    int? occurredAt;
+    int? occurredEndAt;
+    double? valence;
+    double? arousal;
+    int schemaVersion = 1;
+
     for (final row in projectionRows) {
       title = row.title.trim().isEmpty ? title : row.title;
       final patch = _decodeMap(row.patchJson);
+
+      // Extract reserved fields before merging into state
+      final reserved = _extractReservedFields(patch);
+      if (reserved['_primaryDomain'] case final String d) primaryDomain = d;
+      if (reserved['_facets'] case final String f) facets = f;
+      if (reserved['_occurredAt'] case final int ts) occurredAt = ts;
+      if (reserved['_occurredEndAt'] case final int ts) occurredEndAt = ts;
+      if (reserved['_valence'] case final double v) valence = v;
+      if (reserved['_arousal'] case final double v) arousal = v;
+      if (reserved['_schemaVersion'] case final int v) schemaVersion = v;
+
+      // domain columns on the operation row take precedence if set
+      if (row.primaryDomain != 'general') primaryDomain = row.primaryDomain;
+      if (row.facets != null) facets = row.facets;
+
       switch (row.operationType) {
         case 'append':
           _appendPatch(state, patch);
@@ -478,6 +594,13 @@ class SharedLifeMemoryService {
             lastOperationId: projectionRows.last.id,
             createdAt: first.createdAt,
             updatedAt: now,
+            primaryDomain: Value(primaryDomain),
+            facets: Value(facets),
+            occurredAt: Value(occurredAt),
+            occurredEndAt: Value(occurredEndAt),
+            valence: Value(valence),
+            arousal: Value(arousal),
+            schemaVersion: Value(schemaVersion),
           ),
         );
     _publishEntityChange(
@@ -489,7 +612,6 @@ class SharedLifeMemoryService {
   void _publishEntityChange(String entityId, DataChangeOp op) {
     final userId = _userId;
     if (userId == null) return;
-    // Fire-and-forget: the event bus publishes to subscribers (FTS index).
     GlobalEventBus.instance.publish(
       userId: userId,
       event: SystemEvent<DataChangeRecord>(
@@ -512,11 +634,10 @@ class SharedLifeMemoryService {
         .get();
     final revertedIds =
         rows.map((row) => row.revertsOperationId).whereType<String>().toSet();
-    final activeRows = rows
+    return rows
         .where((row) =>
             row.operationType != 'undo' && !revertedIds.contains(row.id))
         .toList(growable: false);
-    return activeRows;
   }
 
   SharedLifeEntitySnapshot _snapshotFromRow(SharedLifeEntity row) {
@@ -527,9 +648,18 @@ class SharedLifeMemoryService {
       status: row.status,
       state: _decodeMap(row.stateJson),
       updatedAt: row.updatedAt,
+      primaryDomain: row.primaryDomain,
+      facets: _stringList(_decodeJsonList(row.facets)),
+      occurredAt: row.occurredAt,
+      occurredEndAt: row.occurredEndAt,
+      valence: row.valence,
+      arousal: row.arousal,
+      schemaVersion: row.schemaVersion,
     );
   }
 }
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 bool _createsEntity(SharedLifeEventOperation row) =>
     row.operationType == 'create' || row.operationType == 'derive';
@@ -550,13 +680,42 @@ const _supportedEntityTypes = {
   'plan',
   'schedule',
   'fact',
-  // Reading Companion: articles the user saved from share intent
-  // (小红书 / 微信公众号 / web). Captured via ReadingCaptureService.
   'reading_item',
 };
 
+/// Extracts reserved `_*` fields from a patch, returning a map of promoted values.
+/// The patch itself is not mutated here — callers decide how to merge the rest.
+Map<String, Object> _extractReservedFields(Map<String, dynamic> patch) {
+  final result = <String, Object>{};
+  for (final key in _reservedPatchFields) {
+    final value = patch[key];
+    if (value == null) continue;
+    switch (key) {
+      case '_primaryDomain':
+        if (value is String) result[key] = value;
+      case '_facets':
+        if (value is List) result[key] = jsonEncode(value);
+        if (value is String) result[key] = value;
+      case '_occurredAt':
+      case '_occurredEndAt':
+        if (value is String) {
+          final ts = DateTime.tryParse(value)?.microsecondsSinceEpoch;
+          if (ts != null) result[key] = ts;
+        } else if (value is int) {
+          result[key] = value;
+        }
+      case '_valence':
+      case '_arousal':
+        if (value is num) result[key] = value.toDouble();
+      case '_schemaVersion':
+        if (value is int) result[key] = value;
+    }
+  }
+  return result;
+}
+
 Set<String> _searchTerms(String text) {
-  return RegExp(r'[A-Za-z0-9_\u4e00-\u9fff]{2,}')
+  return RegExp(r'[A-Za-z0-9_一-鿿]{2,}')
       .allMatches(text.toLowerCase())
       .map((match) => match.group(0)!)
       .take(16)
@@ -571,6 +730,15 @@ Map<String, dynamic> _decodeMap(String value) {
         : <String, dynamic>{};
   } catch (_) {
     return <String, dynamic>{};
+  }
+}
+
+dynamic _decodeJsonList(String? value) {
+  if (value == null) return null;
+  try {
+    return jsonDecode(value);
+  } catch (_) {
+    return null;
   }
 }
 
@@ -606,6 +774,7 @@ bool _sameStringList(List<String> a, List<String> b) {
 
 void _mergePatch(Map<String, dynamic> target, Map<String, dynamic> patch) {
   for (final entry in patch.entries) {
+    if (_reservedPatchFields.contains(entry.key)) continue; // never enters state
     final existing = target[entry.key];
     if (entry.value == null) {
       target.remove(entry.key);
@@ -621,6 +790,7 @@ void _mergePatch(Map<String, dynamic> target, Map<String, dynamic> patch) {
 
 void _appendPatch(Map<String, dynamic> target, Map<String, dynamic> patch) {
   for (final entry in patch.entries) {
+    if (_reservedPatchFields.contains(entry.key)) continue; // never enters state
     final existing = target[entry.key];
     if (existing is List && entry.value is List) {
       target[entry.key] = [...existing, ...(entry.value as List)];

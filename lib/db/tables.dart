@@ -212,11 +212,22 @@ class SharedLifeEventOperations extends Table {
   TextColumn get entityType => text()();
   TextColumn get title => text()();
   TextColumn get patchJson => text()();
-  TextColumn get sourceMessageIds => text()(); // JSON list<int>
+  TextColumn get sourceMessageIds => text()(); // JSON list<int>, kept for back-compat
   TextColumn get sourceCharacterId => text()();
   TextColumn get captureTaskId => text().nullable()();
   TextColumn get revertsOperationId => text().nullable()();
   IntColumn get createdAt => integer()();
+
+  // Evidence model — replaces sourceMessageIds as the gating field
+  TextColumn get sourceKind =>
+      text().withDefault(const Constant('chat_message'))();
+  TextColumn get sourceRef => text().nullable()();
+  TextColumn get rawInput => text().nullable()();
+
+  // Domain
+  TextColumn get primaryDomain =>
+      text().withDefault(const Constant('general'))();
+  TextColumn get facets => text().nullable()(); // JSON array of secondary domains
 
   @override
   Set<Column> get primaryKey => {id};
@@ -233,6 +244,57 @@ class SharedLifeEntities extends Table {
   TextColumn get lastOperationId => text()();
   IntColumn get createdAt => integer()();
   IntColumn get updatedAt => integer()();
+
+  // Domain
+  TextColumn get primaryDomain =>
+      text().withDefault(const Constant('general'))();
+  TextColumn get facets => text().nullable()(); // JSON array of secondary domains
+
+  // Event time — when the event happened, not when it was recorded
+  IntColumn get occurredAt => integer().nullable()(); // microseconds since epoch
+  IntColumn get occurredEndAt => integer().nullable()(); // optional end time
+
+  // Emotion coordinates for future 3D visualization
+  RealColumn get valence => real().nullable()(); // -1.0 to 1.0
+  RealColumn get arousal => real().nullable()(); // 0.0 to 1.0
+
+  // Domain schema version for future migrations
+  IntColumn get schemaVersion =>
+      integer().withDefault(const Constant(1))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Embedding vectors for semantic retrieval of [SharedLifeEntities].
+/// One row per entity. Invalidated when entity content changes.
+class EntityEmbeddings extends Table {
+  TextColumn get entityId => text()();
+  BlobColumn get vector => blob()();
+  TextColumn get provider => text()(); // "local_bge_m3" | "openai" | ...
+  TextColumn get model => text()();
+  IntColumn get dimension => integer()();
+  TextColumn get contentHash => text()(); // used to detect stale embeddings
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {entityId};
+}
+
+/// AI-derived weekly/periodic summaries of [SharedLifeEntities].
+/// Stored separately from User-truth — never mixed into SharedLifeEntities.
+class SharedLifeSummaries extends Table {
+  TextColumn get id => text()();
+  TextColumn get domain => text()();
+  TextColumn get period => text()(); // "2026-06-14/2026-06-20" or "2026-06"
+  TextColumn get summaryText => text()();
+  TextColumn get statsJson => text().nullable()();
+  TextColumn get sourceEntityIds => text()(); // JSON array of entity IDs
+  TextColumn get sourceHash => text()(); // hash of source entities for staleness
+  TextColumn get generatedBy => text()(); // "consolidation_agent" / model name
+  IntColumn get generatedAt => integer()();
+  BoolColumn get isStale =>
+      boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

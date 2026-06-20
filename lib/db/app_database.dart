@@ -26,6 +26,8 @@ part 'app_database.g.dart';
     ConversationCaptureCursors,
     SharedLifeEventOperations,
     SharedLifeEntities,
+    EntityEmbeddings,
+    SharedLifeSummaries,
     UserNotifications,
     SystemMessageQueue,
     AiFinanceLedger,
@@ -88,7 +90,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 22;
+  int get schemaVersion => 23;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -280,6 +282,58 @@ class AppDatabase extends _$AppDatabase {
             // Schedule a rebuild to backfill existing SharedLife entities.
             _needsFtsRebuild = true;
           }
+          if (from < 23) {
+            // Evidence model + domain fields on SharedLifeEventOperations
+            const opTable = 'shared_life_event_operations';
+            await _addColumnIfMissing(
+                "$opTable ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'chat_message'");
+            await _addColumnIfMissing(
+                '$opTable ADD COLUMN source_ref TEXT');
+            await _addColumnIfMissing(
+                '$opTable ADD COLUMN raw_input TEXT');
+            await _addColumnIfMissing(
+                "$opTable ADD COLUMN primary_domain TEXT NOT NULL DEFAULT 'general'");
+            await _addColumnIfMissing(
+                '$opTable ADD COLUMN facets TEXT');
+
+            // Domain + event-time + emotion fields on SharedLifeEntities
+            const entTable = 'shared_life_entities';
+            await _addColumnIfMissing(
+                "$entTable ADD COLUMN primary_domain TEXT NOT NULL DEFAULT 'general'");
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN facets TEXT');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN occurred_at INTEGER');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN occurred_end_at INTEGER');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN valence REAL');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN arousal REAL');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1');
+
+            // New tables
+            await m.createTable(entityEmbeddings);
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_entity_embeddings_updated '
+                'ON entity_embeddings(updated_at)');
+            await m.createTable(sharedLifeSummaries);
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_shared_life_summaries_domain_period '
+                'ON shared_life_summaries(domain, period)');
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_shared_life_summaries_stale '
+                'ON shared_life_summaries(is_stale)');
+
+            // Index for domain + time retrieval on entities
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_shared_life_entities_domain '
+                'ON shared_life_entities(primary_domain, occurred_at)');
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_shared_life_entities_occurred '
+                'ON shared_life_entities(occurred_at)');
+          }
         },
       );
 
@@ -329,6 +383,17 @@ class AppDatabase extends _$AppDatabase {
     return errorStr.contains(tableName) &&
         (errorStr.contains('already exists') ||
             errorStr.contains('duplicate table'));
+  }
+
+  Future<void> _addColumnIfMissing(String alterFragment) async {
+    try {
+      await customStatement('ALTER TABLE $alterFragment');
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (!msg.contains('duplicate column') && !msg.contains('already exists')) {
+        rethrow;
+      }
+    }
   }
 }
 
