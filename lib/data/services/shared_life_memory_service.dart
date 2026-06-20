@@ -373,10 +373,21 @@ class SharedLifeMemoryService {
     required String sourceCharacterId,
     required SharedLifeOperationDraft operation,
   }) {
+    return applyDirectOperations(
+      sourceCharacterId: sourceCharacterId,
+      operations: [operation],
+    );
+  }
+
+  /// Apply multiple operations directly (e.g. RecordOrganizerService batch).
+  Future<SharedLifeApplyResult> applyDirectOperations({
+    required String sourceCharacterId,
+    required List<SharedLifeOperationDraft> operations,
+  }) {
     return applyOperations(
       sourceCharacterId: sourceCharacterId,
       captureTaskId: null,
-      operations: [operation],
+      operations: operations,
     );
   }
 

@@ -15,6 +15,7 @@ import 'package:memex/data/services/card_attachment_service.dart';
 import 'package:memex/data/services/card_detail_notifier.dart';
 import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:memex/data/services/conversation_capture_service.dart';
+import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/data/services/reading/fetchers/xiaohongshu_fetcher.dart';
 import 'package:memex/data/services/reading/reading_capture_service.dart';
 import 'package:memex/data/services/reading/reading_fetch_coordinator.dart';
@@ -104,6 +105,8 @@ class MemexRouter {
       if (AppFlavor.isHereIAm) {
         ConversationCaptureService.init(AppDatabase.instance, userId);
         final captureService = ConversationCaptureService.instance;
+        // Record Organizer — explicit user-truth write path.
+        RecordOrganizerService.init(captureService.sharedLifeMemory);
         // Reading Companion: share-intent → reading_item entity pipeline.
         // Reuses ConversationCapture's sharedLifeMemory instance so userId
         // is already attached.

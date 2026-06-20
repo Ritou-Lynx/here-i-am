@@ -31,6 +31,7 @@ import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/conversation_capture_service.dart';
+import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/data/services/reading/reading_capture_service.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
@@ -1974,6 +1975,52 @@ only after you have written the goodbye you want the user to hear.''',
     );
   }
 
+  Future<void> _recordMessage(PersonaChatMessage message) async {
+    if (!RecordOrganizerService.isInitialized) return;
+    final userId = _userId ?? await UserStorage.getUserId();
+    if (userId == null) return;
+    final characterId = _currentCharacterId;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_chatUiText(zh: '正在记录…', en: 'Recording…')),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        width: 160,
+      ),
+    );
+
+    final result = await RecordOrganizerService.instance.recordFromMessage(
+      userId: userId,
+      sourceCharacterId: characterId,
+      messageId: message.id,
+      content: message.content,
+    );
+
+    if (!mounted) return;
+    if (result.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_chatUiText(zh: '未识别到可记录内容', en: 'Nothing to record')),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      final titles = result.entityTitles.take(2).join('、');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_chatUiText(
+            zh: '已记录：$titles',
+            en: 'Recorded: $titles',
+          )),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   bool _isSendCanceled(int sendSerial, int userMessageId) {
     return _canceledSendSerials.contains(sendSerial) ||
         _retractedUserMessageIds.contains(userMessageId);
@@ -2989,6 +3036,19 @@ only after you have written the goodbye you want the user to hear.''',
                           ),
                         ),
                         if (userMessage != null) ...[
+                          const SizedBox(width: 12),
+                          Semantics(
+                            button: true,
+                            label: 'Record message',
+                            child: GestureDetector(
+                              onTap: () => _recordMessage(userMessage),
+                              child: const Icon(
+                                Icons.bookmark_add_outlined,
+                                size: 15,
+                                color: Color(0xFF8A857C),
+                              ),
+                            ),
+                          ),
                           const SizedBox(width: 12),
                           Semantics(
                             button: true,
