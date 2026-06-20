@@ -27,6 +27,7 @@ class _SharedLifeEntityDetailScreenState
     extends State<SharedLifeEntityDetailScreen> {
   SharedLifeEntityDetail? _detail;
   Object? _error;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -45,6 +46,85 @@ class _SharedLifeEntityDetailScreenState
     }
   }
 
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除记录'),
+        content: const Text('确定要删除这条记录吗？此操作会撤销所有相关操作。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _isDeleting = true);
+    try {
+      final entity = _detail?.entity;
+      await widget.service.fullyDeleteEntity(
+        entityId: widget.entityId,
+        sourceCharacterId: entity?.state['source_character_id'] as String? ??
+            'user_direct',
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true); // signal caller that something changed
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('删除失败：$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
+    }
+  }
+
+  Future<void> _editTitle() async {
+    final entity = _detail?.entity;
+    if (entity == null) return;
+    final controller = TextEditingController(text: entity.title);
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('编辑标题'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: '记录标题'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (newTitle == null || newTitle.isEmpty || newTitle == entity.title) return;
+    await widget.service.applyDirectOperation(
+      sourceCharacterId: 'user_direct',
+      operation: SharedLifeOperationDraft(
+        operationType: 'correct',
+        entityType: entity.entityType,
+        title: newTitle,
+        patch: {},
+        sourceKind: 'manual_edit',
+        entityId: widget.entityId,
+      ),
+    );
+    await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = _detail;
@@ -57,6 +137,26 @@ class _SharedLifeEntityDetailScreenState
         title: Text(
           detail?.entity.title ?? UserStorage.l10n.companionSharedLifeDetail,
         ),
+        actions: [
+          if (detail != null) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              tooltip: '编辑标题',
+              onPressed: _editTitle,
+            ),
+            IconButton(
+              icon: _isDeleting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.delete_outline, size: 20),
+              tooltip: '删除',
+              onPressed: _isDeleting ? null : _confirmDelete,
+            ),
+          ],
+        ],
       ),
       body: error != null
           ? Center(child: Text(UserStorage.l10n.operationFailed(error)))
