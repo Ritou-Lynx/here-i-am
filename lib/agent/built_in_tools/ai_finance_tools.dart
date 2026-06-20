@@ -2,6 +2,13 @@ import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
 
+const double _maxPenaltyAmountCny = 100.0;
+
+bool _isTenYuanStep(double amount) {
+  final cents = (amount * 100).round();
+  return cents > 0 && cents % 1000 == 0;
+}
+
 /// Builds the tool that lets the companion record a shared finance entry.
 Tool buildAiFinanceRecordTool({
   required String characterId,
@@ -173,7 +180,6 @@ The summary returns:
   );
 }
 
-
 /// Builds the tool that lets the companion reward the user from its own balance.
 ///
 /// The AI autonomously decides to transfer some of its money to the user as a
@@ -185,7 +191,8 @@ Tool buildAiFinanceRewardTool({
 }) {
   return Tool(
     name: 'AiFinanceReward',
-    description: '''Reward the user by transferring money from your balance to them.
+    description:
+        '''Reward the user by transferring money from your balance to them.
 
 Use this when:
 - The user has made notable progress toward a goal
@@ -205,11 +212,13 @@ Rules:
       'properties': {
         'amount': {
           'type': 'number',
-          'description': 'Amount in CNY to reward the user (from your balance).',
+          'description':
+              'Amount in CNY to reward the user (from your balance).',
         },
         'reason': {
           'type': 'string',
-          'description': 'What the user did to deserve this reward. Be specific.',
+          'description':
+              'What the user did to deserve this reward. Be specific.',
         },
         'notes': {
           'type': 'string',
@@ -262,12 +271,19 @@ Use this when:
 - The user explicitly agreed to do something and failed to do it
 - The user broke a promise or commitment you both acknowledged
 - The user neglected a responsibility they accepted in conversation
+- The user violated a standing relationship rule, bedtime/focus agreement, or
+  accepted penalty dynamic
 
 Rules:
 - Never penalize for small forgetfulness or honest mistakes.
-- Only penalize when the user clearly agreed to do something and then didn't.
+- Only penalize when there is a clear agreement, standing rule, or accepted
+  relationship dynamic behind the fine.
 - Explain in character WHY you are imposing the penalty before recording it.
-- Give the user a chance to respond before you finalize the penalty.
+- If there is no standing rule, give the user a chance to respond before you
+  finalize the penalty. If there is a standing agreement, you may record it
+  directly and state the reason.
+- Use 10 CNY steps. Typical penalties are 10, 20, 30... up to 100 CNY.
+- The hard maximum is 100 CNY per penalty entry.
 - This is bookkeeping only — no real money moves automatically.''',
     parameters: {
       'type': 'object',
@@ -278,7 +294,8 @@ Rules:
         },
         'reason': {
           'type': 'string',
-          'description': 'What commitment the user failed to keep. Be specific about the broken agreement.',
+          'description':
+              'What commitment the user failed to keep. Be specific about the broken agreement.',
         },
         'notes': {
           'type': 'string',
@@ -289,6 +306,25 @@ Rules:
     },
     executable: (double amount, String reason, [String? notes]) async {
       try {
+        if (amount <= 0) {
+          return jsonEncode({
+            'success': false,
+            'error': 'Penalty amount must be greater than 0 CNY.',
+          });
+        }
+        if (!_isTenYuanStep(amount)) {
+          return jsonEncode({
+            'success': false,
+            'error': 'Penalty amount must use 10 CNY steps.',
+          });
+        }
+        if (amount > _maxPenaltyAmountCny) {
+          return jsonEncode({
+            'success': false,
+            'error': 'Penalty amount cannot exceed 100 CNY.',
+            'max_amount': _maxPenaltyAmountCny,
+          });
+        }
         final result = await service.recordEntryWithResult(
           characterId: characterId,
           entryType: 'penalty',

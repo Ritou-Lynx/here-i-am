@@ -104,6 +104,9 @@ class DeviceAppBlockerService {
 
   static final DeviceAppBlockerService instance = DeviceAppBlockerService._();
 
+  static const int companionMaxDurationMinutes = 360;
+  static const int settingsMaxDurationMinutes = 720;
+
   static const _configKey = 'device_app_blocker_config';
   static const _stateKey = 'device_app_blocker_state';
   static const _channel =
@@ -128,7 +131,8 @@ class DeviceAppBlockerService {
   }
 
   Future<void> saveConfig(DeviceAppBlockerConfig config) async {
-    final safeDuration = config.defaultDurationMinutes.clamp(1, 720);
+    final safeDuration =
+        config.defaultDurationMinutes.clamp(1, settingsMaxDurationMinutes);
     final normalized = config.copyWith(
       defaultDurationMinutes: safeDuration,
     );
@@ -230,8 +234,10 @@ class DeviceAppBlockerService {
     }
 
     final lock = normalizedAction == 'lock';
+    final maxDuration = _maxDurationForSource(source);
     final effectiveDuration = lock
-        ? (durationMinutes ?? config.defaultDurationMinutes).clamp(1, 720)
+        ? (durationMinutes ?? config.defaultDurationMinutes)
+            .clamp(1, maxDuration)
         : null;
     final until = effectiveDuration == null
         ? null
@@ -241,6 +247,14 @@ class DeviceAppBlockerService {
       until: until,
       reason: reason?.trim() ?? '',
     );
+  }
+
+  int _maxDurationForSource(String source) {
+    final normalized = source.trim().toLowerCase();
+    if (normalized.startsWith('companion')) {
+      return companionMaxDurationMinutes;
+    }
+    return settingsMaxDurationMinutes;
   }
 
   Future<DeviceAppBlockerResult> _sendNativeAccessibilityCommand({
