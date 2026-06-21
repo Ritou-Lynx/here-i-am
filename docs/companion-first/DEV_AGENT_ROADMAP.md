@@ -46,6 +46,13 @@
 - 能列出 Codex `--json` 的全部事件类型
 - 决定：**fork MyPilot 加 Codex 适配**，还是**用 MyPilot 原样跑 CC + 自己另起一个 Codex bridge**
 
+### 当前备注（2026-06-21）
+
+见 `docs/companion-first/DEV_AGENT_MYPILOT_PROBE.md`。当前 Windows 开发机上
+`mypilot@0.5.0` 被 `node-pty` native build 阻塞，原因是 Visual Studio Build
+Tools 缺 Spectre-mitigated C++ libraries。阶段推进先使用项目内 Bridge 原型，
+MyPilot fork 路线保留为后续 hook / reconnect / remote-control 底座。
+
 ### 触发下一步
 协议文档落地、技术路径选定。
 

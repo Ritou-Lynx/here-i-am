@@ -450,6 +450,25 @@ class DevAgentBridgeService {
     }
   }
 
+  Future<void> runAction({
+    required String runId,
+    required String action,
+  }) async {
+    final run = await getRun(runId);
+    if (run == null || run.sessionId == null) {
+      throw const DevAgentBridgeException('Run is not connected to a bridge.');
+    }
+    final project = await getProject(run.projectId);
+    if (project == null) {
+      throw const DevAgentBridgeException('Dev project not found.');
+    }
+    await _dio.postUri<Map<String, dynamic>>(
+      _bridgeUri(project.bridgeUrl, '/v1/runs/${run.sessionId}/actions'),
+      data: {'action': action},
+    );
+    await refreshRun(runId);
+  }
+
   Future<void> abort(String runId) async {
     final run = await getRun(runId);
     if (run == null) return;

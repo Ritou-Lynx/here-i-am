@@ -181,6 +181,30 @@ Response:
 }
 ```
 
+### Run Action
+
+`POST /v1/runs/{bridge_run_id}/actions`
+
+Request:
+
+```json
+{
+  "action": "leave"
+}
+```
+
+Actions:
+
+| Action | Purpose |
+|---|---|
+| `leave` | Keep the run/worktree as-is for later review |
+| `discard` | Remove the isolated worktree and mark the run artifacts discarded |
+| `apply` | Merge/apply the isolated worktree back to the default branch |
+
+`apply` and `discard` must be implemented by the bridge, never by the phone.
+If the run has no isolated worktree, the bridge should reject `apply` and
+`discard` with a clear error.
+
 ## Event Kinds
 
 | Kind | Purpose |
