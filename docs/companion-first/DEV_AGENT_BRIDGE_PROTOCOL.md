@@ -32,6 +32,9 @@ as a project-local bridge:
   marks those runs as failed while preserving prior events.
 - It exposes HTTP for local curl probes, but phone testing still needs HTTPS
   via Tailscale Serve or a trusted certificate.
+- Debug/dev app builds may use `https://127.0.0.1:<port>` with `adb reverse`
+  and a self-signed localhost certificate for USB-only testing. This exception
+  is limited to loopback hosts and does not allow plain HTTP.
 - It does not create worktrees, write files, commit, push, or perform real
   approval-gated writes.
 

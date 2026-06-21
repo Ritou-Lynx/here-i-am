@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
@@ -56,11 +58,7 @@ class DevAgentBridgeService {
   DevAgentBridgeService._({
     Dio? dio,
     AppDatabase? db,
-  })  : _dio = dio ??
-            Dio(BaseOptions(
-              connectTimeout: const Duration(seconds: 15),
-              receiveTimeout: const Duration(seconds: 60),
-            )),
+  })  : _dio = dio ?? _createDio(),
         _dbOverride = db;
 
   static DevAgentBridgeService? _instance;
@@ -80,6 +78,32 @@ class DevAgentBridgeService {
   final Uuid _uuid = const Uuid();
 
   AppDatabase get _db => _dbOverride ?? AppDatabase.instance;
+
+  static Dio _createDio() {
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 60),
+      ),
+    );
+    if (kDebugMode) {
+      (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+        final client = HttpClient();
+        client.badCertificateCallback = (_, host, __) {
+          return _isDebugLoopbackHost(host);
+        };
+        return client;
+      };
+    }
+    return dio;
+  }
+
+  static bool _isDebugLoopbackHost(String host) {
+    final normalized = host.toLowerCase();
+    return normalized == 'localhost' ||
+        normalized == '127.0.0.1' ||
+        normalized == '::1';
+  }
 
   Stream<List<DevProject>> watchProjects() {
     final query = _db.select(_db.devProjects)

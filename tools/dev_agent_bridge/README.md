@@ -44,6 +44,12 @@ Local health check:
 Invoke-RestMethod http://127.0.0.1:47831/v1/health
 ```
 
+If local curl tests go through a proxy, bypass it:
+
+```powershell
+curl.exe --noproxy "*" -k https://127.0.0.1:47831/v1/health
+```
+
 The default state file is ignored by git. Override it when needed:
 
 ```powershell
@@ -54,10 +60,28 @@ powershell -File tools\dev_agent_bridge\start_bridge.ps1
 ## Phone Testing
 
 The Flutter app rejects plain HTTP Bridge URLs. For phone testing, expose this
-local service over HTTPS. Recommended path:
+local service over HTTPS.
+
+For quick USB testing with the dev/debug app:
 
 ```powershell
-node tools\dev_agent_bridge\dev_agent_bridge.mjs
+powershell -File tools\dev_agent_bridge\start_usb_bridge.ps1
+```
+
+Then set the Dev Room Bridge URL on the phone to:
+
+```text
+https://127.0.0.1:47831
+```
+
+This script generates a local 30-day certificate, starts the bridge with HTTPS,
+and configures `adb reverse tcp:47831 tcp:47831`. The app only accepts the
+self-signed localhost certificate in debug builds and only for loopback hosts.
+
+For normal daily use, prefer Tailscale Serve:
+
+```powershell
+powershell -File tools\dev_agent_bridge\start_bridge.ps1
 tailscale serve --https=443 http://127.0.0.1:47831
 ```
 

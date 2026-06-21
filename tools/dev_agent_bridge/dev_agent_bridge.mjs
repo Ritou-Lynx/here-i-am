@@ -486,6 +486,8 @@ const server = certPath && keyPath
       {
         cert: readFileSync(certPath),
         key: readFileSync(keyPath),
+        minVersion: 'TLSv1.2',
+        maxVersion: 'TLSv1.2',
       },
       handle,
     )
