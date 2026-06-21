@@ -24,6 +24,8 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
   late final TextEditingController _bridgeUrlController;
   String _permissionTier = DevProjectPermissionTier.readOnly.value;
   bool _saving = false;
+  bool _checkingBridge = false;
+  String? _bridgeStatus;
 
   @override
   void initState() {
@@ -69,6 +71,31 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
       );
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _checkBridge() async {
+    setState(() {
+      _checkingBridge = true;
+      _bridgeStatus = null;
+    });
+    try {
+      final health = await DevAgentBridgeService.instance.checkBridgeHealth(
+        _bridgeUrlController.text,
+      );
+      if (!mounted) return;
+      final agents =
+          health.agents.isEmpty ? '无代理列表' : health.agents.join(' / ');
+      setState(() {
+        _bridgeStatus = health.ok
+            ? '${health.bridgeId} · ${health.version} · $agents'
+            : 'Bridge 返回异常';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _bridgeStatus = e.toString());
+    } finally {
+      if (mounted) setState(() => _checkingBridge = false);
     }
   }
 
@@ -125,6 +152,33 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
                 }
                 return null;
               },
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _checkingBridge ? null : _checkBridge,
+                  icon: _checkingBridge
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.wifi_tethering_outlined, size: 18),
+                  label: const Text('测试 Bridge'),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _bridgeStatus ?? '保存前可以先确认 Bridge 是否在线。',
+                    style: const TextStyle(
+                      height: 1.35,
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(

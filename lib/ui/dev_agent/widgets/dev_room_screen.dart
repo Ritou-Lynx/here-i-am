@@ -5,8 +5,23 @@ import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_project_settings_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_run_screen.dart';
 
-class DevRoomScreen extends StatelessWidget {
+class DevRoomScreen extends StatefulWidget {
   const DevRoomScreen({super.key});
+
+  @override
+  State<DevRoomScreen> createState() => _DevRoomScreenState();
+}
+
+class _DevRoomScreenState extends State<DevRoomScreen> {
+  bool _refreshingRuns = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshActiveRuns();
+    });
+  }
 
   Future<void> _openProjectSettings(
     BuildContext context, {
@@ -46,10 +61,46 @@ class DevRoomScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _refreshActiveRuns({bool showResult = false}) async {
+    if (_refreshingRuns) return;
+    setState(() => _refreshingRuns = true);
+    try {
+      final count = await DevAgentBridgeService.instance.refreshActiveRuns();
+      if (!mounted || !showResult) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(count == 0 ? '没有正在运行的任务。' : '已刷新 $count 个任务。')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _refreshingRuns = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Dev Room')),
+      appBar: AppBar(
+        title: const Text('Dev Room'),
+        actions: [
+          IconButton(
+            tooltip: '刷新任务',
+            onPressed: _refreshingRuns
+                ? null
+                : () => _refreshActiveRuns(showResult: true),
+            icon: _refreshingRuns
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openProjectSettings(context),
         icon: const Icon(Icons.add),

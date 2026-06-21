@@ -25,6 +25,20 @@ enum DevProjectPermissionTier {
   final String value;
 }
 
+class DevAgentBridgeHealth {
+  const DevAgentBridgeHealth({
+    required this.ok,
+    required this.bridgeId,
+    required this.version,
+    required this.agents,
+  });
+
+  final bool ok;
+  final String bridgeId;
+  final String version;
+  final List<String> agents;
+}
+
 class DevAgentBridgeException implements Exception {
   const DevAgentBridgeException(this.message);
   final String message;
@@ -176,6 +190,38 @@ class DevAgentBridgeService {
       ..where((t) => t.runId.equals(runId))
       ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
     return query.get();
+  }
+
+  Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
+    _validateBridgeUrl(bridgeUrl);
+    final response = await _dio.getUri<Map<String, dynamic>>(
+      _bridgeUri(bridgeUrl, '/v1/health'),
+    );
+    final data = response.data ?? {};
+    final agents = data['agents'];
+    return DevAgentBridgeHealth(
+      ok: data['ok'] == true,
+      bridgeId: data['bridge_id']?.toString() ?? 'unknown',
+      version: data['version']?.toString() ?? 'unknown',
+      agents: agents is List ? agents.map((e) => e.toString()).toList() : [],
+    );
+  }
+
+  Future<int> refreshActiveRuns({String? projectId}) async {
+    final query = _db.select(_db.devAgentRuns)
+      ..where(
+        (t) =>
+            t.sessionId.isNotNull() &
+            t.status.isNotIn(const ['done', 'failed', 'aborted']),
+      );
+    if (projectId != null) {
+      query.where((t) => t.projectId.equals(projectId));
+    }
+    final runs = await query.get();
+    for (final run in runs) {
+      await refreshRun(run.id);
+    }
+    return runs.length;
   }
 
   Future<String> startRun({
