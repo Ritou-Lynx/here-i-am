@@ -131,8 +131,9 @@
 - 不使用 canvas、`requestAnimationFrame`、`animation` 或 `@keyframes`。
 - 只使用 CSS / Flutter 可等价实现的静态 overlay 与伪元素思路。
 - 结构上固定为最上层非交互贴层：`position: absolute; inset: 0; pointer-events: none; z-index: 8;`。
-- 只表达三件事：少量微小凝露点、雾面颗粒、顺着玻璃留下的细水痕。
-- 透明度由 token 控制，默认值：`rainOpacity = .18`、`rainMicroOpacity = .10`、`rainStreakOpacity = .13`。
+- 只表达三件事：疏密不一致的静态水滴、大小不一致的凝露点、雾蒙蒙的玻璃颗粒。
+- 禁止画成平行竖线、水流痕、划痕或“雨正在往下流”的天气效果。
+- 透明度由 token 控制，默认值以真机观感为准；`rainStreakOpacity` 仅作为旧名保留，用来控制大水滴层强度。
 
 ### 雾
 

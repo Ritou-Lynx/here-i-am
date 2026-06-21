@@ -40,7 +40,7 @@ import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
-import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
+import 'package:memex/ui/core/widgets/here_iam_rose_mist_layer.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
@@ -2416,9 +2416,6 @@ only after you have written the goodbye you want the user to hear.''',
                     _buildInputBar(),
                   ],
                 ),
-                const Positioned.fill(
-                  child: HereIamRainLayer(),
-                ),
                 if (_showJumpToLatest) _buildJumpToLatestButton(),
                 if (_isHeaderActionsOpen)
                   Positioned.fill(
@@ -3967,6 +3964,9 @@ class _ChatAtmosphereBackground extends StatelessWidget {
               ),
             ),
           ),
+        const Positioned.fill(
+          child: HereIamRoseMistLayer(),
+        ),
       ],
     );
   }

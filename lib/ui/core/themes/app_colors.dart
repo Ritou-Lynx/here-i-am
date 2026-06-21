@@ -36,11 +36,11 @@ class AppColors {
   static const Color companionBg = Color(0xFF241319);
   static const Color companionSurface = Color(0xFF4D222B);
   static const Color companionSurfaceSoft = Color(0xFF2A151B);
-  static const Color companionSurfaceDeep = Color(0xFF6A3D47);
+  static const Color companionSurfaceDeep = Color(0xFF5E4047);
   static const Color companionText = Color(0xFFF0D5D7);
   static const Color companionTextMuted = Color(0xB8EBD1C4);
-  static const Color companionAccent = Color(0xFFA75D6A);
-  static const Color companionAccentSoft = Color(0xFFB9939A);
+  static const Color companionAccent = Color(0xFFE6D1D3);
+  static const Color companionAccentSoft = Color(0xFFCDB6BA);
 
   // Avatar gradient
   static const List<Color> avatarGradient = [

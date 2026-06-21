@@ -43,7 +43,7 @@
    现有 Chat 功能全部保留；圆柱、记忆云、捏合、空间漫游等 3D 交互先作为后续增强，不作为第一版主路径。
 
 7. 雨滴层只做静态材质。
-   它是暮雨玫瑰主题的玻璃贴层，不做动态天气特效；实现时不得引入 canvas、requestAnimationFrame、keyframes 或持续动画。
+   它是暮雨玫瑰主题的玻璃贴层，不做动态天气特效；实现时不得引入 canvas、requestAnimationFrame、keyframes 或持续动画，也不要画成平行竖线、水痕或划痕。
 
 ## 阶段 1：UI 系统规范
 

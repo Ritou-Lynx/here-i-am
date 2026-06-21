@@ -291,9 +291,10 @@ circumplex 情绪模型的原版画法本就是一个**圆**：角度 = 情绪�
 | Accent | #D36F7E |
 | Text | #F0D5D7 |
 
-雨滴层是固定在玻璃最上层的静态 texture，只模拟少量凝露点、雾面颗粒和细水痕。
+雨滴层是固定在玻璃最上层的静态 texture，只模拟雾玻璃背后的静态水滴：
+疏密不一致、大小不一致、边缘发软，像水汽附着在玻璃后面。
 它不下落、不流动、不交互；实现时禁止 canvas、`requestAnimationFrame`、`animation` / `@keyframes`。
-透明度默认 token：`rainOpacity .18`、`rainMicroOpacity .10`、`rainStreakOpacity .13`。
+禁止画成平行竖线、水流痕、划痕或“雨正在往下流”的天气效果。
 
 ### 色彩系统：玫瑰单色系 × 时辰皮肤
 
@@ -387,4 +388,4 @@ Claude Code 翻译进 Flutter。
 | 2026-06-13 | 修正 L3→L4 动效语义：点按只触发水波晕开，气泡本身不破裂消失 |
 | 2026-06-14 | 色彩库扩充：补 R0 鱼肚白（黎明）、R6 残霞（晚霞）、R7 沉夜（深夜）三套，填齐一天的时辰间隙；R0 接「未成形」墙，R6/R7 备用待调用 |
 | 2026-06-14 | 圆柱大厅墙↔皮肤映射定稿：日程 R3 / 记忆 R1 / 账本 R2 / 书房 R4 / 身体 R5 / 未成形 R0；转身时整个空间背景平滑过渡到目标皮肤 |
-| 2026-06-21 | 默认主题切换为暮雨玫瑰 / Dusky Rose Rain；R0-R7 保留为换肤参考；雨滴层锁定为静态玻璃 texture，禁止 canvas、requestAnimationFrame、keyframes 和持续动画 |
+| 2026-06-21 | 默认主题切换为暮雨玫瑰 / Dusky Rose Rain；R0-R7 保留为换肤参考；雨滴层锁定为静态玻璃 texture，禁止 canvas、requestAnimationFrame、keyframes、持续动画、平行竖线水痕 |

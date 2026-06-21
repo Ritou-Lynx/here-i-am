@@ -1,0 +1,246 @@
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+
+/// Product-level visual tokens for Here I Am skins.
+///
+/// These tokens are intentionally separate from Material's [ColorScheme]:
+/// Material colors describe platform widgets, while these describe the
+/// companion world surface: mist, glass, rain, text, and emotional accents.
+@immutable
+class HereIamThemeTokens extends ThemeExtension<HereIamThemeTokens> {
+  const HereIamThemeTokens({
+    required this.id,
+    required this.nameZh,
+    required this.nameEn,
+    required this.brightness,
+    required this.background,
+    required this.backgroundSoft,
+    required this.surface,
+    required this.surfaceSoft,
+    required this.surfaceDeep,
+    required this.accent,
+    required this.accentSoft,
+    required this.highlight,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textMuted,
+    required this.glassFill,
+    required this.glassFillSoft,
+    required this.glassStroke,
+    required this.glassEdge,
+    required this.rainBead,
+    required this.rainOpacity,
+    required this.rainMicroOpacity,
+    required this.rainStreakOpacity,
+    required this.mistOpacity,
+    required this.cardRadius,
+    required this.innerRadius,
+  });
+
+  final String id;
+  final String nameZh;
+  final String nameEn;
+  final Brightness brightness;
+
+  final Color background;
+  final Color backgroundSoft;
+  final Color surface;
+  final Color surfaceSoft;
+  final Color surfaceDeep;
+  final Color accent;
+  final Color accentSoft;
+  final Color highlight;
+
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color textMuted;
+
+  final Color glassFill;
+  final Color glassFillSoft;
+  final Color glassStroke;
+  final Color glassEdge;
+
+  final Color rainBead;
+  final double rainOpacity;
+  final double rainMicroOpacity;
+  final double rainStreakOpacity;
+  final double mistOpacity;
+
+  final double cardRadius;
+  final double innerRadius;
+
+  /// Current default: Rose Mist's night-facing product skin.
+  static const HereIamThemeTokens current = duskyRoseRain;
+
+  /// 暮雨玫瑰 / Dusky Rose Rain.
+  static const HereIamThemeTokens duskyRoseRain = HereIamThemeTokens(
+    id: 'duskyRoseRain',
+    nameZh: '暮雨玫瑰',
+    nameEn: 'Dusky Rose Rain',
+    brightness: Brightness.dark,
+    background: Color(0xFF241319),
+    backgroundSoft: Color(0xFF120B0E),
+    surface: Color(0xFF4D222B),
+    surfaceSoft: Color(0xFF2A151B),
+    surfaceDeep: Color(0xFF5E4047),
+    accent: Color(0xFFE6D1D3),
+    accentSoft: Color(0xFFCDB6BA),
+    highlight: Color(0xFFCDB6BA),
+    textPrimary: Color(0xFFF0D5D7),
+    textSecondary: Color(0xB8EBD1C4),
+    textMuted: Color(0x85E6CABE),
+    glassFill: Color(0x0FFFFFFF),
+    glassFillSoft: Color(0x05FFFFFF),
+    glassStroke: Color(0x47EECDBF),
+    glassEdge: Color(0x52FFECE2),
+    rainBead: Color(0xCCFFECDD),
+    rainOpacity: 0.42,
+    rainMicroOpacity: 0.22,
+    rainStreakOpacity: 0.38,
+    mistOpacity: 0.62,
+    cardRadius: 26,
+    innerRadius: 19,
+  );
+
+  /// 玫瑰雾 / Rose Mist.
+  ///
+  /// The original daytime direction remains as a switchable skin.
+  static const HereIamThemeTokens roseMistDay = HereIamThemeTokens(
+    id: 'roseMistDay',
+    nameZh: '玫瑰雾',
+    nameEn: 'Rose Mist Day',
+    brightness: Brightness.light,
+    background: Color(0xFFF6F0EF),
+    backgroundSoft: Color(0xFFFAF7F6),
+    surface: Color(0xFFFFFFFF),
+    surfaceSoft: Color(0xFFF3E8E8),
+    surfaceDeep: Color(0xFFCDA0A6),
+    accent: Color(0xFFC08E96),
+    accentSoft: Color(0xFFE3C2C4),
+    highlight: Color(0xFFD9B0B4),
+    textPrimary: Color(0xFF2E2427),
+    textSecondary: Color(0xB32E2427),
+    textMuted: Color(0x802E2427),
+    glassFill: Color(0xB3FFFFFF),
+    glassFillSoft: Color(0x66FFFFFF),
+    glassStroke: Color(0x80D9B0B4),
+    glassEdge: Color(0x99FFFFFF),
+    rainBead: Color(0x73FFFFFF),
+    rainOpacity: 0.08,
+    rainMicroOpacity: 0.05,
+    rainStreakOpacity: 0.04,
+    mistOpacity: 0.42,
+    cardRadius: 26,
+    innerRadius: 19,
+  );
+
+  static const List<HereIamThemeTokens> skins = [
+    duskyRoseRain,
+    roseMistDay,
+  ];
+
+  @override
+  HereIamThemeTokens copyWith({
+    String? id,
+    String? nameZh,
+    String? nameEn,
+    Brightness? brightness,
+    Color? background,
+    Color? backgroundSoft,
+    Color? surface,
+    Color? surfaceSoft,
+    Color? surfaceDeep,
+    Color? accent,
+    Color? accentSoft,
+    Color? highlight,
+    Color? textPrimary,
+    Color? textSecondary,
+    Color? textMuted,
+    Color? glassFill,
+    Color? glassFillSoft,
+    Color? glassStroke,
+    Color? glassEdge,
+    Color? rainBead,
+    double? rainOpacity,
+    double? rainMicroOpacity,
+    double? rainStreakOpacity,
+    double? mistOpacity,
+    double? cardRadius,
+    double? innerRadius,
+  }) {
+    return HereIamThemeTokens(
+      id: id ?? this.id,
+      nameZh: nameZh ?? this.nameZh,
+      nameEn: nameEn ?? this.nameEn,
+      brightness: brightness ?? this.brightness,
+      background: background ?? this.background,
+      backgroundSoft: backgroundSoft ?? this.backgroundSoft,
+      surface: surface ?? this.surface,
+      surfaceSoft: surfaceSoft ?? this.surfaceSoft,
+      surfaceDeep: surfaceDeep ?? this.surfaceDeep,
+      accent: accent ?? this.accent,
+      accentSoft: accentSoft ?? this.accentSoft,
+      highlight: highlight ?? this.highlight,
+      textPrimary: textPrimary ?? this.textPrimary,
+      textSecondary: textSecondary ?? this.textSecondary,
+      textMuted: textMuted ?? this.textMuted,
+      glassFill: glassFill ?? this.glassFill,
+      glassFillSoft: glassFillSoft ?? this.glassFillSoft,
+      glassStroke: glassStroke ?? this.glassStroke,
+      glassEdge: glassEdge ?? this.glassEdge,
+      rainBead: rainBead ?? this.rainBead,
+      rainOpacity: rainOpacity ?? this.rainOpacity,
+      rainMicroOpacity: rainMicroOpacity ?? this.rainMicroOpacity,
+      rainStreakOpacity: rainStreakOpacity ?? this.rainStreakOpacity,
+      mistOpacity: mistOpacity ?? this.mistOpacity,
+      cardRadius: cardRadius ?? this.cardRadius,
+      innerRadius: innerRadius ?? this.innerRadius,
+    );
+  }
+
+  @override
+  HereIamThemeTokens lerp(
+    ThemeExtension<HereIamThemeTokens>? other,
+    double t,
+  ) {
+    if (other is! HereIamThemeTokens) return this;
+    return HereIamThemeTokens(
+      id: t < 0.5 ? id : other.id,
+      nameZh: t < 0.5 ? nameZh : other.nameZh,
+      nameEn: t < 0.5 ? nameEn : other.nameEn,
+      brightness: t < 0.5 ? brightness : other.brightness,
+      background: Color.lerp(background, other.background, t)!,
+      backgroundSoft: Color.lerp(backgroundSoft, other.backgroundSoft, t)!,
+      surface: Color.lerp(surface, other.surface, t)!,
+      surfaceSoft: Color.lerp(surfaceSoft, other.surfaceSoft, t)!,
+      surfaceDeep: Color.lerp(surfaceDeep, other.surfaceDeep, t)!,
+      accent: Color.lerp(accent, other.accent, t)!,
+      accentSoft: Color.lerp(accentSoft, other.accentSoft, t)!,
+      highlight: Color.lerp(highlight, other.highlight, t)!,
+      textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
+      textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
+      textMuted: Color.lerp(textMuted, other.textMuted, t)!,
+      glassFill: Color.lerp(glassFill, other.glassFill, t)!,
+      glassFillSoft: Color.lerp(glassFillSoft, other.glassFillSoft, t)!,
+      glassStroke: Color.lerp(glassStroke, other.glassStroke, t)!,
+      glassEdge: Color.lerp(glassEdge, other.glassEdge, t)!,
+      rainBead: Color.lerp(rainBead, other.rainBead, t)!,
+      rainOpacity: lerpDouble(rainOpacity, other.rainOpacity, t)!,
+      rainMicroOpacity:
+          lerpDouble(rainMicroOpacity, other.rainMicroOpacity, t)!,
+      rainStreakOpacity:
+          lerpDouble(rainStreakOpacity, other.rainStreakOpacity, t)!,
+      mistOpacity: lerpDouble(mistOpacity, other.mistOpacity, t)!,
+      cardRadius: lerpDouble(cardRadius, other.cardRadius, t)!,
+      innerRadius: lerpDouble(innerRadius, other.innerRadius, t)!,
+    );
+  }
+}
+
+extension HereIamThemeLookup on BuildContext {
+  HereIamThemeTokens get hereIamTheme {
+    return Theme.of(this).extension<HereIamThemeTokens>() ??
+        HereIamThemeTokens.current;
+  }
+}
