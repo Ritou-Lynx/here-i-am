@@ -18,16 +18,23 @@ class DevDiffScreen extends StatefulWidget {
 class _DevDiffScreenState extends State<DevDiffScreen> {
   bool _submitting = false;
 
-  Future<void> _runAction(String action) async {
+  Future<void> _decide(String decision) async {
     setState(() => _submitting = true);
     try {
-      await DevAgentBridgeService.instance.runAction(
-        runId: widget.artifact.runId,
-        action: action,
+      final result = await DevAgentBridgeService.instance.decideRun(
+        widget.artifact.runId,
+        decision,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_successText(action))),
+        SnackBar(
+          content: Text(
+            result.accepted
+                ? _successText(decision)
+                : (result.message ??
+                    '$decision 被 Bridge 拒绝：${result.reason ?? "unknown"}'),
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -64,21 +71,21 @@ class _DevDiffScreenState extends State<DevDiffScreen> {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: _submitting ? null : () => _runAction('discard'),
+                onPressed: _submitting ? null : () => _decide('discard'),
                 child: const Text('丢弃'),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: OutlinedButton(
-                onPressed: _submitting ? null : () => _runAction('leave'),
+                onPressed: _submitting ? null : () => _decide('leave'),
                 child: const Text('留着'),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: FilledButton(
-                onPressed: _submitting ? null : () => _runAction('apply'),
+                onPressed: _submitting ? null : () => _decide('apply'),
                 child: _submitting
                     ? const SizedBox(
                         width: 16,
@@ -94,8 +101,8 @@ class _DevDiffScreenState extends State<DevDiffScreen> {
     );
   }
 
-  String _successText(String action) {
-    return switch (action) {
+  String _successText(String decision) {
+    return switch (decision) {
       'discard' => '已请求丢弃。',
       'apply' => '已请求应用。',
       _ => '已保留。',

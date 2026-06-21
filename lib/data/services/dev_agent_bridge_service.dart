@@ -487,29 +487,6 @@ class DevAgentBridgeService {
     }
   }
 
-  /// Legacy `/actions` shell kept alive while the App still references it. The
-  /// authoritative path is `decideRun()` below — this one POSTs to the bridge's
-  /// stub endpoint which only accepts `leave` (and returns 501 for the rest).
-  /// Slated for removal once all callers move to `decideRun`.
-  Future<void> runAction({
-    required String runId,
-    required String action,
-  }) async {
-    final run = await getRun(runId);
-    if (run == null || run.sessionId == null) {
-      throw const DevAgentBridgeException('Run is not connected to a bridge.');
-    }
-    final project = await getProject(run.projectId);
-    if (project == null) {
-      throw const DevAgentBridgeException('Dev project not found.');
-    }
-    await _dio.postUri<Map<String, dynamic>>(
-      _bridgeUri(project.bridgeUrl, '/v1/runs/${run.sessionId}/actions'),
-      data: {'action': action},
-    );
-    await refreshRun(runId);
-  }
-
   /// Send a post-run decision (`leave` / `discard` / `apply`) to the bridge.
   ///
   /// The app never executes git/shell itself — this only forwards the user's

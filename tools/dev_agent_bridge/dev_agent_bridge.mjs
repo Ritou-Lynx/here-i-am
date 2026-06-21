@@ -780,36 +780,6 @@ async function handle(req, res) {
       return;
     }
 
-    const actionsMatch = path.match(/^\/v1\/runs\/([^/]+)\/actions$/);
-    if (req.method === 'POST' && actionsMatch) {
-      const run = runs.get(decodeURIComponent(actionsMatch[1]));
-      if (!run) return notFound(res);
-      const body = await readJson(req);
-      const action = String(body.action || '').trim();
-      if (action === 'leave') {
-        addEvent(run, 'status', {
-          status: 'left_for_review',
-          message: 'Run artifacts kept for later review.',
-        });
-        json(res, 200, { ok: true, action, status: run.status });
-        return;
-      }
-      if (action === 'discard' || action === 'apply') {
-        if (!run.worktreePath) {
-          json(res, 409, {
-            error: 'no_worktree',
-            message: `${action} requires an isolated worktree.`,
-          });
-          return;
-        }
-      }
-      json(res, 501, {
-        error: 'action_not_implemented',
-        message: `${action || 'unknown'} is not implemented by this bridge prototype.`,
-      });
-      return;
-    }
-
     notFound(res);
   } catch (error) {
     json(res, 500, {
