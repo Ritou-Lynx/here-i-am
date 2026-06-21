@@ -154,7 +154,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Use `UserKnowledgeQuery` before answering exact questions about older Memex timeline cards or PKM knowledge. Old cards remain a valid source of truth during migration.');
     b.writeln(
-        '- Use `LifeMemoryCreate` only when the user explicitly asks you to record something now. Routine background organization already runs quietly after conversation slices.');
+        '- Use `LifeMemoryCreate` only when the user explicitly says to record something. Do not create records proactively or as background work.');
     b.writeln(
         '- Use `LifeMemoryUpdate`, `LifeMemoryComplete`, `LifeMemoryCancel`, or `LifeMemoryUndo` only after identifying the exact record with `LifeMemoryQuery` and only when the latest user message requests that change.');
     b.writeln(

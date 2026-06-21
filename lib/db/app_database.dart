@@ -97,7 +97,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 29;
+  int get schemaVersion => 30;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -390,6 +390,28 @@ class AppDatabase extends _$AppDatabase {
           if (from < 29) {
             // Clear _System/memory/ (长期记忆 + 近期记忆 shown in settings).
             // Picked up by MemexRouter._resetSystemMemoryIfNeeded on next startup.
+            await customStatement(
+              "INSERT OR REPLACE INTO kv_store(key, value, bucket, updated_at) "
+              "VALUES ('system_memory_reset_v29', 'pending', "
+              "'data_reset', CAST(strftime('%s', 'now') AS INTEGER))",
+            );
+          }
+          if (from < 30) {
+            // Second full memory reset: clear any SharedLife data and character
+            // memory files that accumulated after the v24 reset (e.g. from
+            // CharacterContextCompressor checkpoint writes or stale AI tool calls).
+            await customStatement('DELETE FROM shared_life_entities');
+            await customStatement('DELETE FROM shared_life_event_operations');
+            try {
+              await customStatement('DELETE FROM shared_life_fts');
+            } catch (_) {}
+            // Re-issue filesystem reset markers so MemexRouter clears the dirs
+            // again on next startup.
+            await customStatement(
+              "INSERT OR REPLACE INTO kv_store(key, value, bucket, updated_at) "
+              "VALUES ('character_memory_full_reset_v1', 'pending', "
+              "'data_reset', CAST(strftime('%s', 'now') AS INTEGER))",
+            );
             await customStatement(
               "INSERT OR REPLACE INTO kv_store(key, value, bucket, updated_at) "
               "VALUES ('system_memory_reset_v29', 'pending', "
