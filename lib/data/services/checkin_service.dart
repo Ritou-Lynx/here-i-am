@@ -43,10 +43,14 @@ class CheckinService {
   static const _keySleepClaimedTs = 'sleep_push_claimed_ts';
   // Epoch-seconds timestamp when the verification push was sent.
   static const _keySleepVerifyTs = 'sleep_push_verify_ts';
+  static const _keySleepCallCountPrefix = 'sleep_push_call_count_';
 
   // Sleep push window: 23:40–02:00 (high-frequency mode to nudge user to sleep)
   static const int _sleepPushMinMin = 1;
   static const int _sleepPushMaxMin = 2;
+  static const int _sleepCallMinMin = 5;
+  static const int _sleepCallMaxMin = 10;
+  static const int maxSleepCallsPerNight = 2;
   // Minutes after claim before we send the "are you really asleep?" verification push.
   static const int _sleepClaimVerifyMinutes = 15;
   // Minutes after sending the verification push before we check for a response.
@@ -116,6 +120,16 @@ class CheckinService {
     return (h == 23 && m >= 40) || h == 0 || h == 1;
   }
 
+  /// Returns true during the gentler pre-midnight bedtime call window
+  /// (23:30-24:00). This does not imply high-frequency sleep push by itself.
+  bool isSleepCallWindow() {
+    final now = DateTime.now();
+    return now.hour == 23 && now.minute >= 30;
+  }
+
+  bool isSleepInterventionWindow() =>
+      isSleepPushWindow() || isSleepCallWindow();
+
   /// Maps post-midnight hours back to the previous calendar date so that
   /// the whole "tonight" session (23:40 → 02:00) shares the same key.
   String _sleepNightKey() {
@@ -123,6 +137,8 @@ class CheckinService {
     final d = now.hour < 4 ? now.subtract(const Duration(days: 1)) : now;
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
+
+  String _sleepCallCountKey() => '$_keySleepCallCountPrefix${_sleepNightKey()}';
 
   /// Whether the user has already confirmed sleep for tonight.
   Future<bool> isSleepConfirmedTonight() async {
@@ -145,6 +161,34 @@ class CheckinService {
           ),
         );
     _logger.info('Sleep confirmed tonight (${_sleepNightKey()})');
+  }
+
+  Future<int> getSleepCallCountTonight() async {
+    if (!AppDatabase.isInitialized) return 0;
+    final row =
+        await _db.kvStoreLookup(key: _sleepCallCountKey(), bucket: _bucket);
+    return int.tryParse(row?.value ?? '') ?? 0;
+  }
+
+  Future<bool> canInitiateSleepCallTonight() async {
+    if (!isSleepCallWindow()) return false;
+    if (await isSleepConfirmedTonight()) return false;
+    return await getSleepCallCountTonight() < maxSleepCallsPerNight;
+  }
+
+  Future<int> markSleepCallInitiated() async {
+    final next = await getSleepCallCountTonight() + 1;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    await _db.into(_db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: _sleepCallCountKey(),
+            bucket: const Value(_bucket),
+            value: Value(next.toString()),
+            updatedAt: Value(now),
+          ),
+        );
+    _logger.info('Sleep call count tonight: $next');
+    return next;
   }
 
   /// User announced they are going to sleep, but we have not yet verified
@@ -383,7 +427,7 @@ class CheckinService {
   Future<void> scheduleProductionAlarm() async {
     if (!Platform.isAndroid) return;
     final int minMin, maxMin;
-    if (isSleepPushWindow() && !await isSleepConfirmedTonight()) {
+    if (isSleepInterventionWindow() && !await isSleepConfirmedTonight()) {
       final claimedTs = await getSleepClaimedTs();
       if (claimedTs != null) {
         final verifyTs = await getSleepVerifyTs();
@@ -402,8 +446,9 @@ class CheckinService {
         }
       } else {
         // Active sleep push: fire every 1–2 min.
-        minMin = _sleepPushMinMin;
-        maxMin = _sleepPushMaxMin;
+        final pushWindow = isSleepPushWindow();
+        minMin = pushWindow ? _sleepPushMinMin : _sleepCallMinMin;
+        maxMin = pushWindow ? _sleepPushMaxMin : _sleepCallMaxMin;
         _logger.info('Sleep push active — using $minMin–${maxMin}min interval');
       }
     } else {
@@ -558,6 +603,13 @@ class CheckinService {
       await _scheduleNextCheckinTs(nowSec);
       return false;
     }
+    final sleepInterval = await _sleepInterventionInterval();
+    if (sleepInterval != null &&
+        nowSec < next &&
+        next - nowSec > sleepInterval.maxMin * 60) {
+      await _scheduleNextCheckinTs(nowSec);
+      return true;
+    }
     if (nowSec >= next) {
       await _scheduleNextCheckinTs(nowSec);
       return true;
@@ -582,9 +634,10 @@ class CheckinService {
 
   Future<void> _scheduleNextCheckinTs(int nowSec) async {
     final int minMin, maxMin;
-    if (isSleepPushWindow() && !await isSleepConfirmedTonight()) {
-      minMin = _sleepPushMinMin;
-      maxMin = _sleepPushMaxMin;
+    final sleepInterval = await _sleepInterventionInterval();
+    if (sleepInterval != null) {
+      minMin = sleepInterval.minMin;
+      maxMin = sleepInterval.maxMin;
     } else {
       minMin = await getMinIntervalMinutes();
       maxMin = await getMaxIntervalMinutes();
@@ -603,16 +656,28 @@ class CheckinService {
     _logger.info('Next checkin target in ${delayMin}m');
   }
 
+  Future<({int minMin, int maxMin})?> _sleepInterventionInterval() async {
+    if (!isSleepInterventionWindow() || await isSleepConfirmedTonight()) {
+      return null;
+    }
+    if (isSleepPushWindow()) {
+      return (minMin: _sleepPushMinMin, maxMin: _sleepPushMaxMin);
+    }
+    return (minMin: _sleepCallMinMin, maxMin: _sleepCallMaxMin);
+  }
+
   String _buildCheckinText() {
     final now = DateTime.now();
-    if (isSleepPushWindow()) {
+    if (isSleepInterventionWindow()) {
       final hh = now.hour.toString().padLeft(2, '0');
       final mm = now.minute.toString().padLeft(2, '0');
       return '[SLEEP PUSH] Current time: $hh:$mm — '
           'It is bedtime. Nudge the user to sleep. '
+          'Between 23:30 and 24:00, a bedtime voice call is allowed if useful; '
+          'the system enforces max 2 bedtime calls per night. '
           'Check recent chat: if user confirmed sleep, call sleep_confirmed. '
-          'Otherwise always call notify with a sleep-push message. '
-          'Never call silent during sleep push.';
+          'Otherwise choose exactly one communication action: call or notify. '
+          'Never call silent during sleep intervention.';
     }
 
     final hour = now.hour;

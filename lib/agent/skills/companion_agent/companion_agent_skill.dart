@@ -1,4 +1,5 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/prompt.dart';
 import 'package:memex/agent/skills/character_tools_factory.dart';
 import 'package:memex/data/services/toy_control_service.dart'
@@ -18,6 +19,7 @@ class CompanionAgentSkill extends Skill {
     int? currentUserMessageId,
     bool includeCheckinTools = false,
     ToyController? toyControlService,
+    InitiateCallPolicy? initiateCallPolicy,
     super.forceActivate,
   }) : super(
           name: 'companion_chat',
@@ -37,6 +39,7 @@ class CompanionAgentSkill extends Skill {
             currentUserMessageId: currentUserMessageId,
             includeCheckinTools: includeCheckinTools,
             toyControlService: toyControlService,
+            initiateCallPolicy: initiateCallPolicy,
           ),
         );
 
@@ -210,6 +213,15 @@ class CompanionAgentSkill extends Skill {
         'If Recent Chat With You shows an ongoing game, roleplay, or conversation thread, acknowledge that thread and gently pause it. Do not send a generic bedtime message that ignores what you were just doing.');
     b.writeln(
         'Sleep push may use relationship consequences when justified: a ledger fine, a temporary focus lock, a teasing/adult punishment, or another character-specific consequence. Keep it bounded, intentional, and tied to the bedtime agreement.');
+    b.writeln('');
+    b.writeln('');
+    b.writeln('Bedtime call window: between 23:30 and 24:00, you may use '
+        '`initiate_voice_call` instead of a notification when voice would be '
+        'more effective or intimate for sleep enforcement. The system enforces '
+        'a hard maximum of 2 bedtime calls per night. If a call is blocked, '
+        'fall back to one concise sleep notification. Outside 23:30-24:00, '
+        'do not initiate a sleep-enforcement call unless the user explicitly '
+        'scheduled that call.');
     b.writeln('');
     b.writeln('Rules:');
     b.writeln(

@@ -43,6 +43,7 @@ class CharacterToolsFactory {
     int? currentUserMessageId,
     bool includeCheckinTools = false,
     ToyController? toyControlService,
+    InitiateCallPolicy? initiateCallPolicy,
   }) {
     final memoryFactory = MemoryToolFactory(
       userId: userId,
@@ -118,7 +119,10 @@ class CharacterToolsFactory {
       tools.add(buildSystemCheckinTool(
           characterId: characterId, characterName: characterName));
       tools.add(buildSetSystemMessageStatusTool());
-      tools.add(buildInitiateCallTool(characterId: characterId));
+      tools.add(buildInitiateCallTool(
+        characterId: characterId,
+        beforeQueue: initiateCallPolicy,
+      ));
     }
     return tools;
   }
