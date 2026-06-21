@@ -249,12 +249,11 @@ function commandFor(agentType, project, prompt, mode, cwd) {
       cwd,
     ];
     if (isWrite) {
-      // Codex 0.140+ still asks for approval on every write even when
-      // sandbox=workspace-write. In --json (non-interactive) mode the lack of
-      // a TTY auto-rejects, surfacing as "writing is blocked by read-only
-      // sandbox; rejected by user approval settings". Bypass via flag so the
-      // worktree isolation is the only gate.
-      args.push('--ask-for-approval', 'never');
+      // Codex 0.141 removed the --ask-for-approval CLI flag; approval policy
+      // is now only configurable via config file or -c override. Without
+      // approval=never, sandbox=workspace-write still pops user approval on
+      // every write, and in --json (non-interactive) mode that auto-rejects.
+      args.push('-c', 'approval_policy="never"');
     }
     if (codexModel) args.push('-m', codexModel);
     args.push(prompt);
@@ -615,6 +614,9 @@ async function handle(req, res) {
       runs.set(runId, run);
       persistState();
       addEvent(run, 'status', { status: 'pending', message: 'Run accepted by bridge.' });
+      console.log(
+        `[runs] new run ${runId.slice(0, 8)} agent=${run.agentType} mode=${mode} tier=${project.permissionTier} project="${project.name}" id=${project.id.slice(0, 8)}`,
+      );
       startProcess(run, run.agentType, project, prompt, mode);
       json(res, 200, {
         run_id: runId,

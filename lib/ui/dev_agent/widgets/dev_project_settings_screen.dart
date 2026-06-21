@@ -74,6 +74,42 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
     }
   }
 
+  Future<void> _delete() async {
+    final project = widget.project;
+    if (project == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除项目?'),
+        content: Text('"${project.name}" 的所有 run 历史、事件、artifact 会一起被清掉。Bridge 端的 worktree 不会被动。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
+    setState(() => _saving = true);
+    try {
+      await DevAgentBridgeService.instance.deleteProject(project.id);
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _checkBridge() async {
     setState(() {
       _checkingBridge = true;
@@ -106,6 +142,12 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
       appBar: AppBar(
         title: Text(isEditing ? '编辑 Dev 项目' : '新增 Dev 项目'),
         actions: [
+          if (isEditing)
+            IconButton(
+              tooltip: '删除项目',
+              onPressed: _saving ? null : _delete,
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+            ),
           TextButton(
             onPressed: _saving ? null : _save,
             child: _saving
