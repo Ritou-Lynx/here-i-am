@@ -6,8 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:memex/data/repositories/memex_router.dart';
-import 'package:memex/ui/memory/view_models/memory_viewmodel.dart';
-import 'package:memex/ui/memory/widgets/memory_screen.dart';
+
 import 'package:memex/ui/character/widgets/character_config_screen.dart';
 import 'package:memex/ui/character/widgets/tavern_import_screen.dart';
 import 'package:memex/ui/character/view_models/character_viewmodel.dart';
@@ -43,14 +42,6 @@ GoRouter createAppRouter(
             context.go(AppRoutes.home);
           },
         ),
-      ),
-      GoRoute(
-        path: AppRoutes.memory,
-        builder: (context, state) {
-          final vm = MemoryViewModel(router: context.read<MemexRouter>());
-          vm.loadMemory();
-          return MemoryScreen(viewModel: vm);
-        },
       ),
       GoRoute(
         path: AppRoutes.characterConfig,
