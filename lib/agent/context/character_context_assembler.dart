@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:memex/agent/context/user_knowledge_context_service.dart';
 import 'package:memex/agent/memory/character_memory_service.dart';
-import 'package:memex/agent/memory/memory_management.dart';
+
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/utils/time_context.dart';
@@ -52,7 +52,7 @@ class CharacterContextAssembler {
       characterId: character.id,
       queryHint: queryHint,
     );
-    final userProfileRaw = await _loadUserProfile(userId, sourceAgent);
+    const userProfileRaw = '';
     final recentTimelineRaw = await _loadRecentTimeline(
       userId,
       character.id,
@@ -105,19 +105,6 @@ class CharacterContextAssembler {
     final maxChars = maxTokens * 4;
     if (input.length <= maxChars) return input;
     return '${input.substring(0, maxChars)}...';
-  }
-
-  static Future<String> _loadUserProfile(
-      String userId, String sourceAgent) async {
-    try {
-      final mm = await MemoryManagement.createDefault(
-        userId: userId,
-        sourceAgent: sourceAgent,
-      );
-      return mm.buildMemoryPrompt();
-    } catch (_) {
-      return '';
-    }
   }
 
   static Future<String> _loadRecentTimeline(

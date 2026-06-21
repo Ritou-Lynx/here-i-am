@@ -5,7 +5,7 @@ import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
 import 'package:memex/agent/context/character_context_assembler.dart';
 import 'package:memex/agent/memory/character_context_compressor.dart';
-import 'package:memex/agent/memory/memory_management.dart';
+
 import 'package:memex/agent/skills/companion_agent/companion_agent_skill.dart';
 import 'package:memex/agent/state_util.dart';
 import 'package:logging/logging.dart';
@@ -209,22 +209,14 @@ class CompanionAgent {
     addAgentLogger(controller);
     addAgentActivityCollector(controller);
 
-    // User-level memory management (append_memories tool)
-    final memoryManagement = await MemoryManagement.createDefault(
-      userId: userId,
-      sourceAgent: 'companion_agent',
-    );
-    final memoryManagementPrompt =
-        await memoryManagement.buildMemoryManagementPrompt();
-
     return StatefulAgent(
       name: 'companion_agent',
       client: client,
       modelConfig: modelConfig,
       state: state,
       skills: [skill],
-      tools: [...memoryManagement.buildMemoryManagementTools(), ...extraTools],
-      systemPrompts: [memoryManagementPrompt],
+      tools: extraTools,
+      systemPrompts: const [],
       disableSubAgents: true,
       controller: controller,
       withGeneralPrinciples: true,

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/context/character_context_assembler.dart';
 import 'package:memex/agent/memory/character_memory_service.dart';
-import 'package:memex/agent/memory/memory_management.dart';
+
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -152,16 +152,6 @@ class CharacterContextCompressor {
     final existingSummary =
         await svc.loadCheckpointSummary(userId, characterId);
 
-    // Load user-level memories
-    String userMemories = '';
-    try {
-      final mm = await MemoryManagement.createDefault(
-        userId: userId,
-        sourceAgent: 'compressor',
-      );
-      userMemories = await mm.buildMemoryPrompt();
-    } catch (_) {}
-
     // Load character-level memories
     final characterMemories = await svc.buildAllMemoriesText(
       userId: userId,
@@ -188,11 +178,6 @@ class CharacterContextCompressor {
     prompt.writeln(
         'The following facts are already stored in structured memory. Do NOT repeat them in the summary:');
 
-    if (userMemories.isNotEmpty) {
-      prompt.writeln('');
-      prompt.writeln('### User Memories (already stored)');
-      prompt.writeln(userMemories);
-    }
     if (characterMemories.isNotEmpty) {
       prompt.writeln('');
       prompt.writeln('### Character Memories (already stored)');
