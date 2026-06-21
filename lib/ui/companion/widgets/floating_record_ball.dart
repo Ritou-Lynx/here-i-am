@@ -5,9 +5,15 @@ import 'package:memex/utils/user_storage.dart';
 /// Floating action ball that lets the user quickly save a fact, plan, or note
 /// to User-truth from any screen in the app.
 ///
+/// [navigatorKey] is used to obtain the correct BuildContext for showing
+/// bottom sheets — the ball lives above the Navigator in the widget tree,
+/// so it cannot use its own context directly.
+///
 /// Drag to reposition. Tap to open the quick-save sheet.
 class FloatingRecordBall extends StatefulWidget {
-  const FloatingRecordBall({super.key});
+  const FloatingRecordBall({super.key, required this.navigatorKey});
+
+  final GlobalKey<NavigatorState> navigatorKey;
 
   @override
   State<FloatingRecordBall> createState() => _FloatingRecordBallState();
@@ -20,17 +26,11 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
   bool _dragging = false;
 
   void _showQuickSave() {
-    if (!RecordOrganizerService.isInitialized) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('记录服务尚未就绪，请稍候'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
+    if (!RecordOrganizerService.isInitialized) return;
+    final navContext = widget.navigatorKey.currentContext;
+    if (navContext == null) return;
     showModalBottomSheet<void>(
-      context: context,
+      context: navContext,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const _QuickSaveSheet(),

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
-import 'package:memex/ui/companion/widgets/floating_record_ball.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
 import 'package:memex/utils/logger.dart';
@@ -138,18 +137,13 @@ class _CompanionFirstShellState extends State<CompanionFirstShell> {
 
     final characterId = _characterId;
     if (characterId == null) return const _NoCompanionView();
-    return Stack(
-      children: [
-        PersonaChatScreen(
-          key: ValueKey('companion-chat-$characterId'),
-          characterId: characterId,
-          embedded: true,
-          enableRichCapture: true,
-          initialVoiceMode: _startVoiceMode,
-          onOpenSpaces: _openLifeSpace,
-        ),
-        const FloatingRecordBall(),
-      ],
+    return PersonaChatScreen(
+      key: ValueKey('companion-chat-$characterId'),
+      characterId: characterId,
+      embedded: true,
+      enableRichCapture: true,
+      initialVoiceMode: _startVoiceMode,
+      onOpenSpaces: _openLifeSpace,
     );
   }
 }
