@@ -218,13 +218,15 @@ Tool _buildCreateTool({
     name: 'LifeMemoryCreate',
     description: '''Create a shared life record from the user's current message.
 
-Use this only when the user explicitly asks you to remember or record an
-objective event, task, plan, schedule, or durable fact. Do not use it for casual
-conversation or character-private relationship memory. Use tags only from the
-single user tag list in tags.md; do not invent, translate, or create synonyms.
-entity_type describes behavior, not topic taxonomy. Query first when the
-request may refer to an existing record, then update instead of creating a
-duplicate.''',
+ONLY call this tool when the user's current message contains an explicit
+record-request phrase such as: "记一下"、"帮我记"、"记录一下"、"保存一下"、
+"存一下"、"加到记录里"、"记住这个". Mentioning facts, events, or plans in
+ordinary conversation does NOT qualify — do not call this tool in that case.
+
+Do not use for casual conversation or character-private memory. Use tags only
+from the user tag list in tags.md; do not invent or translate tags.
+entity_type describes behavior, not topic. Query first if the request may
+refer to an existing record, then update instead of creating a duplicate.''',
     parameters: {
       'type': 'object',
       'properties': {

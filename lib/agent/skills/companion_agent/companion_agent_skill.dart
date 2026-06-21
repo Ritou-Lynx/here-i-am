@@ -154,9 +154,9 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Use `UserKnowledgeQuery` before answering exact questions about older Memex timeline cards or PKM knowledge. Old cards remain a valid source of truth during migration.');
     b.writeln(
-        '- Use `LifeMemoryCreate` only when the user explicitly says to record something. Do not create records proactively or as background work.');
+        '- Use `LifeMemoryCreate` ONLY when the user\'s current message contains an explicit record request. Qualifying phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、"加到记录里"、"记住这个". Mentioning facts, events, or plans in conversation does NOT qualify. No trigger phrase → do NOT call this tool.');
     b.writeln(
-        '- Use `LifeMemoryUpdate`, `LifeMemoryComplete`, `LifeMemoryCancel`, or `LifeMemoryUndo` only after identifying the exact record with `LifeMemoryQuery` and only when the latest user message requests that change.');
+        '- Use `LifeMemoryUpdate`, `LifeMemoryComplete`, `LifeMemoryCancel`, or `LifeMemoryUndo` ONLY when the user\'s current message explicitly requests that change to an existing record. Identifying a record in conversation does not qualify.');
     b.writeln(
         '- Shared-life tools are optional and must never replace the visible chat reply.');
     b.writeln('');
