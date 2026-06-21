@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>暮雨玫瑰 · 大雨后玻璃水珠</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-0: #0d080b;
+      --bg-1: #241319;
+      --bg-2: #4d222b;
+      --bg-3: #5e4047;
+      --ink: #f0d5d7;
+      --muted: rgba(240, 213, 215, .68);
+      --accent: #e6d1d3;
+      --drop-core: rgba(255, 246, 239, .42);
+      --drop-rim: rgba(255, 246, 239, .74);
+      --drop-shadow: rgba(34, 10, 16, .34);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 18% 14%, rgba(205, 182, 186, .14), transparent 30%),
+        radial-gradient(circle at 78% 78%, rgba(94, 64, 71, .30), transparent 38%),
+        linear-gradient(145deg, #090608, #160d12 52%, #241319);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1380px, 100vw);
+      padding: 38px;
+    }
+
+    header {
+      margin-bottom: 24px;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-family: "Times New Roman", "Noto Serif SC", serif;
+      font-size: 34px;
+      font-weight: 500;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .note {
+      max-width: 430px;
+      text-align: right;
+      letter-spacing: .03em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    .panel {
+      min-width: 0;
+    }
+
+    .glass {
+      position: relative;
+      height: 640px;
+      overflow: hidden;
+      border-radius: 34px;
+      border: 1px solid rgba(255, 236, 226, .25);
+      background:
+        radial-gradient(circle at 18% 18%, rgba(240, 213, 215, .16), transparent 25%),
+        radial-gradient(circle at 78% 30%, rgba(160, 91, 105, .20), transparent 31%),
+        radial-gradient(circle at 48% 74%, rgba(94, 64, 71, .36), transparent 38%),
+        linear-gradient(150deg, var(--bg-0), var(--bg-1) 46%, var(--bg-2));
+      box-shadow:
+        0 30px 74px rgba(0, 0, 0, .36),
+        inset 0 1px rgba(255, 255, 255, .18),
+        inset 0 -1px rgba(0, 0, 0, .26);
+      isolation: isolate;
+    }
+
+    .rain-haze,
+    .glass-film,
+    .beads,
+    .sample-card {
+      position: absolute;
+      inset: 0;
+    }
+
+    .rain-haze {
+      z-index: 1;
+      background:
+        radial-gradient(ellipse at 18% 12%, rgba(255,255,255,.18), transparent 30%),
+        radial-gradient(ellipse at 70% 38%, rgba(255,255,255,.10), transparent 42%),
+        radial-gradient(ellipse at 42% 92%, rgba(255,255,255,.08), transparent 34%),
+        linear-gradient(135deg, rgba(255,255,255,.08), transparent 22% 74%, rgba(255,255,255,.06));
+      filter: blur(10px);
+      opacity: var(--haze, .72);
+      mix-blend-mode: screen;
+    }
+
+    .glass-film {
+      z-index: 2;
+      background:
+        linear-gradient(115deg, rgba(255,255,255,.13), transparent 22% 68%, rgba(255,255,255,.055)),
+        radial-gradient(circle at 50% 48%, rgba(255,255,255,.045), transparent 52%);
+      backdrop-filter: blur(var(--film-blur, 16px)) saturate(.78);
+    }
+
+    .beads {
+      z-index: 3;
+      pointer-events: none;
+      opacity: var(--bead-opacity, 1);
+    }
+
+    .bead {
+      position: absolute;
+      left: calc(var(--x) * 1%);
+      top: calc(var(--y) * 1%);
+      width: calc(var(--w) * 1px);
+      height: calc(var(--h, var(--w)) * 1px);
+      transform: translate(-50%, -50%) rotate(var(--r, 0deg));
+      border-radius: 48% 52% 54% 46% / 46% 48% 52% 54%;
+      opacity: var(--a, .8);
+      background:
+        radial-gradient(circle at 30% 24%, rgba(255,255,255,.92) 0 4%, rgba(255,255,255,.38) 7%, transparent 20%),
+        radial-gradient(circle at 68% 74%, rgba(255,255,255,.30) 0 11%, transparent 34%),
+        radial-gradient(circle at 50% 52%, var(--drop-core) 0 35%, rgba(255,255,255,.12) 58%, transparent 74%);
+      border: .65px solid rgba(255,255,255,.36);
+      box-shadow:
+        inset 1px 1px 4px rgba(255,255,255,.28),
+        inset -4px -5px 9px rgba(42, 13, 20, .30),
+        0 2px 5px rgba(0,0,0,.12),
+        0 0 calc(var(--w) * .52px) rgba(255, 245, 238, .09);
+      backdrop-filter: blur(2px) saturate(1.18);
+    }
+
+    .bead.big {
+      border-width: .8px;
+      background:
+        radial-gradient(circle at 28% 22%, rgba(255,255,255,.94) 0 5%, rgba(255,255,255,.42) 9%, transparent 23%),
+        radial-gradient(circle at 72% 72%, rgba(255,255,255,.22) 0 12%, transparent 38%),
+        radial-gradient(circle at 50% 52%, rgba(255,246,239,.34) 0 32%, rgba(255,246,239,.16) 56%, transparent 77%);
+      box-shadow:
+        inset 2px 2px 6px rgba(255,255,255,.32),
+        inset -6px -7px 12px rgba(42, 13, 20, .36),
+        0 3px 9px rgba(0,0,0,.14),
+        0 0 calc(var(--w) * .72px) rgba(255,245,238,.10);
+    }
+
+    .bead.soft {
+      filter: blur(.45px);
+      opacity: calc(var(--a, .8) * .78);
+      border-color: rgba(255,255,255,.22);
+    }
+
+    .sample-card {
+      inset: auto 22px 22px;
+      z-index: 4;
+      padding: 18px 18px 19px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,236,226,.20);
+      background: linear-gradient(145deg, rgba(255,255,255,.078), rgba(255,255,255,.025));
+      backdrop-filter: blur(21px) saturate(.78);
+      box-shadow: inset 0 1px rgba(255,255,255,.18), 0 18px 36px rgba(0,0,0,.24);
+    }
+
+    .name {
+      color: var(--accent);
+      font-family: "Times New Roman", "Noto Serif SC", serif;
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .sample-card p {
+      color: rgba(240,213,215,.74);
+    }
+
+    .line {
+      width: 76%;
+      height: 8px;
+      margin-top: 13px;
+      border-radius: 999px;
+      background: rgba(240,213,215,.20);
+    }
+
+    .line + .line {
+      width: 52%;
+      opacity: .68;
+    }
+
+    .caption {
+      padding: 14px 4px 0;
+    }
+
+    .caption strong {
+      display: block;
+      color: var(--accent);
+      font-weight: 520;
+      margin-bottom: 5px;
+    }
+
+    .caption span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .heavy { --haze: .78; --film-blur: 18px; --bead-opacity: .96; }
+    .balanced { --haze: .72; --film-blur: 16px; --bead-opacity: .90; }
+    .closeup { --haze: .82; --film-blur: 20px; --bead-opacity: 1; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>大雨后 · 玻璃上的水珠</h1>
+        <p>水雾弥漫，水珠附着在玻璃上：有体积、有边缘、有折射，不是雾点，也不是下流的雨线。</p>
+      </div>
+      <p class="note">这次只看“水珠质感”。选中后再翻译回 Flutter，不直接上手机。</p>
+    </header>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="glass heavy">
+          <div class="rain-haze"></div>
+          <div class="glass-film"></div>
+          <div class="beads">
+            <i class="bead big" style="--x:13;--y:18;--w:28;--h:24;--a:.72;--r:-10deg"></i>
+            <i class="bead" style="--x:24;--y:28;--w:12;--h:10;--a:.82;--r:8deg"></i>
+            <i class="bead soft" style="--x:36;--y:17;--w:19;--h:16;--a:.58"></i>
+            <i class="bead big" style="--x:52;--y:27;--w:34;--h:29;--a:.62;--r:4deg"></i>
+            <i class="bead" style="--x:70;--y:18;--w:13;--h:12;--a:.76"></i>
+            <i class="bead big soft" style="--x:87;--y:32;--w:24;--h:22;--a:.54;--r:-14deg"></i>
+            <i class="bead" style="--x:12;--y:46;--w:14;--h:12;--a:.80"></i>
+            <i class="bead big" style="--x:27;--y:58;--w:30;--h:25;--a:.64;--r:12deg"></i>
+            <i class="bead" style="--x:43;--y:48;--w:10;--h:9;--a:.70"></i>
+            <i class="bead soft" style="--x:62;--y:59;--w:22;--h:18;--a:.60"></i>
+            <i class="bead" style="--x:79;--y:50;--w:15;--h:13;--a:.76"></i>
+            <i class="bead big soft" style="--x:91;--y:69;--w:26;--h:23;--a:.48"></i>
+            <i class="bead" style="--x:34;--y:82;--w:12;--h:11;--a:.68"></i>
+            <i class="bead soft" style="--x:66;--y:84;--w:18;--h:15;--a:.50"></i>
+          </div>
+          <div class="sample-card">
+            <div class="name">方案 A · 雨后水珠重</div>
+            <p>水珠明确，像刚下过大雨，玻璃上还挂着水。</p>
+            <div class="line"></div><div class="line"></div>
+          </div>
+        </div>
+        <p class="caption"><strong>A 雨后水珠重</strong><span>水珠体积最大、最明显，适合确认“这就是水珠”。</span></p>
+      </article>
+
+      <article class="panel">
+        <div class="glass balanced">
+          <div class="rain-haze"></div>
+          <div class="glass-film"></div>
+          <div class="beads">
+            <i class="bead big soft" style="--x:15;--y:16;--w:24;--h:20;--a:.52"></i>
+            <i class="bead" style="--x:27;--y:25;--w:10;--h:9;--a:.72"></i>
+            <i class="bead" style="--x:39;--y:18;--w:8;--h:7;--a:.62"></i>
+            <i class="bead big" style="--x:52;--y:31;--w:26;--h:22;--a:.58;--r:8deg"></i>
+            <i class="bead soft" style="--x:68;--y:19;--w:18;--h:15;--a:.48"></i>
+            <i class="bead" style="--x:84;--y:28;--w:11;--h:10;--a:.68"></i>
+            <i class="bead" style="--x:14;--y:43;--w:9;--h:8;--a:.64"></i>
+            <i class="bead big soft" style="--x:31;--y:56;--w:25;--h:21;--a:.50"></i>
+            <i class="bead" style="--x:49;--y:46;--w:11;--h:9;--a:.68"></i>
+            <i class="bead soft" style="--x:63;--y:59;--w:17;--h:14;--a:.46"></i>
+            <i class="bead" style="--x:78;--y:49;--w:13;--h:12;--a:.68"></i>
+            <i class="bead big soft" style="--x:89;--y:68;--w:22;--h:19;--a:.44"></i>
+            <i class="bead" style="--x:21;--y:78;--w:8;--h:7;--a:.56"></i>
+            <i class="bead soft" style="--x:44;--y:84;--w:15;--h:13;--a:.42"></i>
+            <i class="bead" style="--x:72;--y:82;--w:10;--h:9;--a:.58"></i>
+          </div>
+          <div class="sample-card">
+            <div class="name">方案 B · 水雾均衡</div>
+            <p>水珠清楚，但不会太抢聊天内容。</p>
+            <div class="line"></div><div class="line"></div>
+          </div>
+        </div>
+        <p class="caption"><strong>B 水雾均衡</strong><span>我觉得这是最适合手机 UI 的强度：看得出是水珠，但不压文字。</span></p>
+      </article>
+
+      <article class="panel">
+        <div class="glass closeup">
+          <div class="rain-haze"></div>
+          <div class="glass-film"></div>
+          <div class="beads">
+            <i class="bead big" style="--x:18;--y:21;--w:40;--h:34;--a:.60;--r:-8deg"></i>
+            <i class="bead soft" style="--x:38;--y:15;--w:18;--h:16;--a:.42"></i>
+            <i class="bead big" style="--x:61;--y:29;--w:46;--h:38;--a:.56;--r:10deg"></i>
+            <i class="bead" style="--x:84;--y:18;--w:14;--h:12;--a:.64"></i>
+            <i class="bead big soft" style="--x:22;--y:52;--w:34;--h:30;--a:.50"></i>
+            <i class="bead" style="--x:44;--y:47;--w:13;--h:11;--a:.60"></i>
+            <i class="bead big" style="--x:73;--y:57;--w:38;--h:33;--a:.52;--r:-12deg"></i>
+            <i class="bead soft" style="--x:90;--y:75;--w:26;--h:22;--a:.40"></i>
+            <i class="bead" style="--x:36;--y:82;--w:12;--h:10;--a:.56"></i>
+            <i class="bead big soft" style="--x:58;--y:88;--w:30;--h:26;--a:.42"></i>
+          </div>
+          <div class="sample-card">
+            <div class="name">方案 C · 近景大水珠</div>
+            <p>更戏剧化，像镜头贴近雨后窗玻璃。</p>
+            <div class="line"></div><div class="line"></div>
+          </div>
+        </div>
+        <p class="caption"><strong>C 近景大水珠</strong><span>最有水珠感，但可能太像摄影前景，需要谨慎。</span></p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

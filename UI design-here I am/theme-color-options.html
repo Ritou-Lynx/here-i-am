@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Here I Am · 单卡主色调预览</title>
+  <style>
+    :root {
+      --page-bg: #eee9e8;
+      --ink: #393236;
+      --muted: #82777e;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(255,255,255,.88), transparent 30%),
+        radial-gradient(circle at 85% 10%, rgba(255,255,255,.48), transparent 24%),
+        linear-gradient(135deg, #f5f1f0, #e8e2e1);
+      color: var(--ink);
+    }
+
+    .page {
+      max-width: 1260px;
+      margin: 0 auto;
+      padding: 34px 24px 52px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: flex-end;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: .01em;
+    }
+
+    .intro {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .note {
+      flex: 0 0 auto;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(255,255,255,.52);
+      border: 1px solid rgba(255,255,255,.72);
+      box-shadow: 0 16px 40px rgba(54, 42, 48, .08);
+      color: #766b72;
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .theme {
+      --bg: #f1eced;
+      --soft: #d2c0c7;
+      --mid: #ac939e;
+      --deep: #957b89;
+      --ink-strong: #4f484d;
+      --ink-soft: #8d818b;
+      position: relative;
+      overflow: hidden;
+      min-height: 430px;
+      border-radius: 28px;
+      padding: 14px;
+      background:
+        radial-gradient(circle at 16% 8%, rgba(255,255,255,.9), transparent 28%),
+        radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--soft) 42%, transparent), transparent 28%),
+        radial-gradient(circle at 76% 86%, color-mix(in srgb, var(--mid) 22%, transparent), transparent 33%),
+        linear-gradient(145deg, var(--bg), color-mix(in srgb, var(--bg) 82%, var(--soft)));
+      border: 1px solid rgba(255,255,255,.66);
+      box-shadow:
+        0 22px 56px rgba(54, 42, 50, .11),
+        inset 0 1px rgba(255,255,255,.66);
+    }
+
+    .theme::before {
+      content: "";
+      position: absolute;
+      inset: -50px;
+      background:
+        radial-gradient(circle at 22% 28%, color-mix(in srgb, var(--soft) 36%, transparent), transparent 17%),
+        radial-gradient(circle at 80% 55%, color-mix(in srgb, var(--mid) 20%, transparent), transparent 18%);
+      filter: blur(18px);
+      opacity: .78;
+      pointer-events: none;
+    }
+
+    .head {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      min-height: 54px;
+    }
+
+    .title strong {
+      display: block;
+      color: var(--ink-strong);
+      font-size: 17px;
+      line-height: 1.15;
+      margin-bottom: 5px;
+    }
+
+    .title span {
+      color: var(--ink-soft);
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .swatches {
+      display: flex;
+      gap: 5px;
+      padding-top: 2px;
+    }
+
+    .swatches i {
+      width: 15px;
+      height: 15px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.72);
+      box-shadow: 0 6px 14px rgba(38, 30, 35, .12);
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      min-height: 326px;
+      margin-top: 12px;
+      padding: 18px;
+      border-radius: 26px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--mid) 30%, transparent), transparent 38%),
+        linear-gradient(150deg, rgba(255,255,255,.72), rgba(255,255,255,.36));
+      border: 1px solid rgba(255,255,255,.74);
+      box-shadow:
+        0 20px 46px rgba(55, 42, 50, .13),
+        inset 0 1px rgba(255,255,255,.74);
+      backdrop-filter: blur(20px);
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      right: -24px;
+      top: 34px;
+      width: 88px;
+      height: 128px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.42);
+      transform: rotate(18deg);
+      opacity: .62;
+    }
+
+    .state {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      color: var(--deep);
+      background: color-mix(in srgb, var(--soft) 22%, white);
+      border: 1px solid color-mix(in srgb, var(--mid) 24%, white);
+      font-size: 10px;
+      font-weight: 650;
+    }
+
+    .state::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--mid);
+    }
+
+    .card h2 {
+      margin: 18px 0 9px;
+      color: var(--ink-strong);
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .card p {
+      margin: 0;
+      color: color-mix(in srgb, var(--ink-strong) 88%, var(--deep));
+      font-size: 13px;
+      line-height: 1.76;
+    }
+
+    .quote {
+      margin-top: 15px;
+      padding-left: 12px;
+      border-left: 2px solid var(--mid);
+      color: var(--ink-strong);
+      font-size: 14px;
+      line-height: 1.62;
+    }
+
+    .foot {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--deep);
+      font-size: 10px;
+      letter-spacing: .09em;
+    }
+
+    .button {
+      flex: 0 0 auto;
+      padding: 8px 13px;
+      border-radius: 999px;
+      background: var(--deep);
+      color: white;
+      font-size: 11px;
+      letter-spacing: .08em;
+      box-shadow: 0 12px 24px color-mix(in srgb, var(--deep) 22%, transparent);
+    }
+
+    .r0 {
+      --bg: #f1eced;
+      --soft: #d2c0c7;
+      --mid: #ac939e;
+      --deep: #957b89;
+      --ink-strong: #4f484d;
+      --ink-soft: #8d818b;
+    }
+
+    .r3 {
+      --bg: #f8f2ec;
+      --soft: #ebc0b2;
+      --mid: #d4988a;
+      --deep: #c8887c;
+      --ink-strong: #51423c;
+      --ink-soft: #91786f;
+    }
+
+    .r1 {
+      --bg: #f6f0ef;
+      --soft: #d9b0b4;
+      --mid: #c08e96;
+      --deep: #b27d88;
+      --ink-strong: #514145;
+      --ink-soft: #8e7278;
+    }
+
+    .r2 {
+      --bg: #f4eee9;
+      --soft: #d2aca8;
+      --mid: #be8d8a;
+      --deep: #b07e7c;
+      --ink-strong: #51423f;
+      --ink-soft: #8e7672;
+    }
+
+    .r4 {
+      --bg: #f3eff2;
+      --soft: #d8b8c2;
+      --mid: #bb91a3;
+      --deep: #ac8096;
+      --ink-strong: #4d424b;
+      --ink-soft: #897583;
+    }
+
+    .r6 {
+      --bg: #f4ece7;
+      --soft: #d5aea1;
+      --mid: #b07f7a;
+      --deep: #985f66;
+      --ink-strong: #51403e;
+      --ink-soft: #8d706e;
+    }
+
+    .r5 {
+      --bg: #f1eae8;
+      --soft: #cba3a0;
+      --mid: #a87874;
+      --deep: #9a6b6b;
+      --ink-strong: #4d403f;
+      --ink-soft: #82706e;
+    }
+
+    .r7 {
+      --bg: #ece7e8;
+      --soft: #bcb1b7;
+      --mid: #8d818b;
+      --deep: #776a74;
+      --ink-strong: #403a3f;
+      --ink-soft: #756c73;
+    }
+
+    .blue {
+      --bg: #eef2f3;
+      --soft: #c9d7dc;
+      --mid: #9fb8c3;
+      --deep: #6f8d9b;
+      --ink-strong: #3f4b51;
+      --ink-soft: #74858d;
+    }
+
+    .green {
+      --bg: #eef2ec;
+      --soft: #cbd9c7;
+      --mid: #9fb89a;
+      --deep: #748c6f;
+      --ink-strong: #424d40;
+      --ink-soft: #748270;
+    }
+
+    @media (max-width: 1160px) {
+      .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 760px) {
+      .page { padding: 24px 14px 40px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .grid { grid-template-columns: 1fr; }
+      .theme { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>Here I Am · 单卡主色调预览</h1>
+        <p class="intro">每个方案只呈现同一张 Memory Summary Card。原时辰皮肤 R0-R7 都放进来了，并保留上一轮新增的蓝色、绿色候选。这样能更直接看出颜色本身和凝露卡语言合不合。</p>
+      </div>
+      <div class="note">one card · same structure</div>
+    </header>
+
+    <section class="grid">
+      <article class="theme r0">
+        <div class="head">
+          <div class="title"><strong>R0 鱼肚白</strong><span>dawn white</span></div>
+          <div class="swatches"><i style="background:#f1eced"></i><i style="background:#d2c0c7"></i><i style="background:#ac939e"></i><i style="background:#957b89"></i></div>
+        </div>
+        <div class="card"><span class="state">需复核</span><h2>周末边界</h2><p>最近你更希望周末保留空白，不想每次都被安排得太满。之后计划约会或外出时，应先确认你的精力状态。</p><div class="quote">“周末不要排太满。”</div><div class="foot"><div class="tags"><span>Rest</span><span>Life</span></div><div class="button">聊聊</div></div></div>
+      </article>
+
+      <article class="theme r3">
+        <div class="head">
+          <div class="title"><strong>R3 珊瑚晨</strong><span>coral morning</span></div>
+          <div class="swatches"><i style="background:#f8f2ec"></i><i style="background:#ebc0b2"></i><i style="background:#d4988a"></i><i style="background:#c8887c"></i></div>
+        </div>
+        <div class="card"><span class="state">需复核</span><h2>周末边界</h2><p>最近你更希望周末保留空白，不想每次都被安排得太满。之后计划约会或外出时，应先确认你的精力状态。</p><div class="quote">“周末不要排太满。”</div><div class="foot"><div class="tags"><span>Rest</span><span>Life</span></div><div class="button">聊聊</div></div></div>
+      </article>
+
+      <article class="theme r1">
+        <div class="head">
+          <div class="title"><strong>R1 玫瑰雾</strong><span>current rose</span></div>
+          <div class="swatches"><i style="background:#f6f0ef"></i><i style="background:#d9b0b4"></i><i style="background:#c08e96"></i><i style="background:#b27d88"></i></div>
+        </div>
+        <div class="card"><span class="state">需复核</span><h2>周末边界</h2><p>最近你更希望周末保留空白，不想每次都被安排得太满。之后计划约会或外出时，应先确认你的精力状态。</p><div class="quote">“周末不要排太满。”</div><div class="foot"><div class="tags"><span>Rest</span><span>Life</span></div><div class="button">聊聊</div></div></div>
+      </article>
+
+      <article class="theme r2">
+        <div class="head">
+          <div class="title"><strong>R2 豆沙</strong><span>red bean ash</span></div>
+          <div class="swatches"><i style="background:#f4eee9"></i><i style="background:#d2aca8"></i><i style="background:#be8d8a"></i><i style="background:#b07e7c"></i></div>
+        </div>
+        <div class="card"><span class="state">需复核</span><h2>周末边界</h2><p>最近你更希望周末保留空白，不想每次都被安排得太满。之后计划约会或外出时，应先确认你的精力状态。</p><div class="quote">“周末不要排太满。”</div><div class="foot"><div class="tags"><span>Rest</span><span>Life</span></div><div class="button">聊聊</div></div></div>
+      </article>
+
+      <article class="theme r4">
+        <div class="head">
+          <div class="title"><strong>R4 紫调玫瑰</strong><span>mauve rose</span></div>
+          <div class="swatches"><i style="background:#f3eff2"></i><i style="background:#d8b8c2"></i><i style="background:#bb91a3"></i><i style="background:#ac8096"></i></div>
+        </div>
+        <div class="card"><span class="state">需复核</span><h2>周末边界</h2><p>最近你更希望周末保留空白，不想每次都被安排得太满。之后计划约会或外出时，应先确认你的精力状态。</p><div class="quote">“周末不要排太满。”</div><div class="foot"><div class="tags"><span>Rest</span><span>Life</span></div><div class="button">聊聊</div></div></div>
+      </article>
+
+      <article class="theme r6">
+        <div class="head">
+          <div class="title"><strong>R6 残霞</strong><span>afterglow</span></div>
+          <div class="swatches"><i style="background:#f4ece7"></i><i style="background:#d5aea1"></i><i style="background:#b07f7a"></i><i style="background:#985f66"></i></div>
+        </div>
+        <div class="card"><span class="state">需复核</span><h2>周末边界</h2><p>最近你更希望周末保留空白，不想每次都被安排得太满。之后计划约会或外出时，应先确认你的精力状态。</p><div class="quote">“周末不要排太满。”</div><div class="foot"><div class="tags"><span>Rest</span><span>Life</span></div><div class="button">聊聊</div></div></div>
+      </article>
+
+      <article class="theme r5">
+        <div class="head">
+          <div class="title"><strong>R5 绯雾</strong><span>night rose</span></div>
+          <div class="swatches"><i style="background:#f1eae8"></i><i style="background:#cba3a0"></i><i style="background:#a87874"></i><i style="background:#9a6b6b"></i></div>
+        </div>
+        <div class="card"><span class="state">需复核</span><h2>周末边界</h2><p>最近你更希望周末保留空白，不想每次都被安排得太满。之后计划约会或外出时，应先确认你的精力状态。</p><div class="quote">“周末不要排太满。”</div><div class="foot"><div class="tags"><span>Rest</span><span>Life</span></div><div class="button">聊聊</div></div></div>
+      </article>
+
+      <article class="theme r7">
+        <div class="head">
+          <div class="title"><strong>R7 沉夜</strong><span>deep dusk</span></div>
+          <div class="swatches"><i style="background:#ece7e8"></i><i style="background:#bcb1b7"></i><i style="background:#8d818b"></i><i style="background:#776a74"></i></div>
+        </div>
+        <div class="card"><span class="state">需复核</span><h2>周末边界</h2><p>最近你更希望周末保留空白，不想每次都被安排得太满。之后计划约会或外出时，应先确认你的精力状态。</p><div class="quote">“周末不要排太满。”</div><div class="foot"><div class="tags"><span>Rest</span><span>Life</span></div><div class="button">聊聊</div></div></div>
+      </article>
+
+      <article class="theme blue">
+        <div class="head">
+          <div class="title"><strong>晨雾蓝</strong><span>custom blue</span></div>
+          <div class="swatches"><i style="background:#eef2f3"></i><i style="background:#c9d7dc"></i><i style="background:#9fb8c3"></i><i style="background:#6f8d9b"></i></div>
+        </div>
+        <div class="card"><span class="state">需复核</span><h2>周末边界</h2><p>最近你更希望周末保留空白，不想每次都被安排得太满。之后计划约会或外出时，应先确认你的精力状态。</p><div class="quote">“周末不要排太满。”</div><div class="foot"><div class="tags"><span>Rest</span><span>Life</span></div><div class="button">聊聊</div></div></div>
+      </article>
+
+      <article class="theme green">
+        <div class="head">
+          <div class="title"><strong>苔雾绿</strong><span>custom green</span></div>
+          <div class="swatches"><i style="background:#eef2ec"></i><i style="background:#cbd9c7"></i><i style="background:#9fb89a"></i><i style="background:#748c6f"></i></div>
+        </div>
+        <div class="card"><span class="state">需复核</span><h2>周末边界</h2><p>最近你更希望周末保留空白，不想每次都被安排得太满。之后计划约会或外出时，应先确认你的精力状态。</p><div class="quote">“周末不要排太满。”</div><div class="foot"><div class="tags"><span>Rest</span><span>Life</span></div><div class="button">聊聊</div></div></div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

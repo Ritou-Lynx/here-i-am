@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>暮雨玫瑰 · 雾玻璃水滴材质候选</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-0: #100a0d;
+      --bg-1: #241319;
+      --bg-2: #4d222b;
+      --surface: rgba(255, 255, 255, .055);
+      --stroke: rgba(238, 205, 191, .24);
+      --ink: #f0d5d7;
+      --muted: rgba(235, 209, 196, .68);
+      --accent: #e6d1d3;
+      --drop: rgba(255, 238, 226, .74);
+      --drop-soft: rgba(255, 238, 226, .24);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 20% 12%, rgba(205, 182, 186, .16), transparent 34%),
+        radial-gradient(circle at 76% 72%, rgba(106, 61, 71, .28), transparent 36%),
+        linear-gradient(145deg, #090608, #160d12 52%, #241319);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1420px, 100vw);
+      padding: 40px;
+    }
+
+    header {
+      margin-bottom: 26px;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-family: "Times New Roman", "Noto Serif SC", serif;
+      font-weight: 500;
+      font-size: 34px;
+      letter-spacing: .02em;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .rule {
+      text-align: right;
+      max-width: 430px;
+      font-size: 13px;
+      letter-spacing: .04em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(230px, 1fr));
+      gap: 22px;
+    }
+
+    .option {
+      min-width: 0;
+    }
+
+    .phone {
+      position: relative;
+      height: 620px;
+      overflow: hidden;
+      border-radius: 32px;
+      border: 1px solid rgba(255, 236, 226, .24);
+      background:
+        radial-gradient(circle at 72% 18%, rgba(230, 209, 211, .18), transparent 28%),
+        radial-gradient(circle at 36% 64%, rgba(106, 61, 71, .30), transparent 38%),
+        linear-gradient(150deg, var(--bg-0), var(--bg-1) 48%, var(--bg-2));
+      box-shadow:
+        0 28px 70px rgba(0, 0, 0, .34),
+        inset 0 1px rgba(255,255,255,.18),
+        inset 0 -1px rgba(0,0,0,.24);
+      isolation: isolate;
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background:
+        radial-gradient(circle at 24% 18%, rgba(255,255,255,.08), transparent 20%),
+        radial-gradient(circle at 66% 72%, rgba(255,255,255,.045), transparent 26%),
+        linear-gradient(160deg, rgba(255,255,255,.08), transparent 36% 72%, rgba(255,255,255,.035));
+      backdrop-filter: blur(17px) saturate(.82);
+    }
+
+    .mist {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 30% 22%, rgba(255,255,255,.08), transparent 25%),
+        radial-gradient(circle at 72% 58%, rgba(255,255,255,.06), transparent 34%),
+        radial-gradient(circle at 45% 86%, rgba(255,255,255,.045), transparent 28%);
+      opacity: var(--mist, .78);
+      mix-blend-mode: screen;
+    }
+
+    .drops {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      filter: blur(var(--drop-blur, .35px));
+      opacity: var(--drop-opacity, 1);
+    }
+
+    .drop {
+      position: absolute;
+      left: calc(var(--x) * 1%);
+      top: calc(var(--y) * 1%);
+      width: calc(var(--s) * 1px);
+      height: calc(var(--s) * .82px);
+      transform: translate(-50%, -50%) rotate(var(--r, 0deg));
+      border-radius: 52% 48% 50% 50%;
+      opacity: var(--a, .5);
+      background:
+        radial-gradient(circle at 34% 28%, rgba(255,255,255,.30) 0 10%, transparent 23%),
+        radial-gradient(circle at 58% 64%, var(--drop) 0 16%, var(--drop-soft) 43%, transparent 74%);
+      box-shadow:
+        inset 0 0 0 .45px rgba(255,255,255,.18),
+        inset 2px 2px 5px rgba(255,255,255,.08),
+        inset -3px -4px 7px rgba(55, 22, 29, .18),
+        0 0 calc(var(--s) * .55px) rgba(255,255,255,.08);
+    }
+
+    .drop.soft {
+      background:
+        radial-gradient(circle at 42% 38%, rgba(255,255,255,.14) 0 12%, transparent 30%),
+        radial-gradient(circle, rgba(255,238,226,.34) 0 20%, rgba(255,238,226,.12) 46%, transparent 72%);
+      box-shadow:
+        inset 0 0 0 .35px rgba(255,255,255,.10),
+        0 0 calc(var(--s) * .75px) rgba(255,255,255,.06);
+    }
+
+    .drop.fog {
+      opacity: calc(var(--a, .5) * .72);
+      filter: blur(.8px);
+    }
+
+    .content {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 22px;
+      z-index: 4;
+      padding: 18px 17px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,236,226,.20);
+      background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.024));
+      backdrop-filter: blur(20px) saturate(.78);
+      box-shadow: inset 0 1px rgba(255,255,255,.18), 0 16px 34px rgba(0,0,0,.24);
+    }
+
+    .name {
+      color: var(--accent);
+      font-family: "Times New Roman", "Noto Serif SC", serif;
+      font-size: 23px;
+      margin-bottom: 8px;
+    }
+
+    .line {
+      height: 8px;
+      border-radius: 999px;
+      margin-top: 12px;
+      background: rgba(240,213,215,.22);
+    }
+
+    .line:nth-child(3) { width: 74%; }
+    .line:nth-child(4) { width: 52%; opacity: .68; }
+
+    .caption {
+      padding: 14px 4px 0;
+    }
+
+    .caption strong {
+      display: block;
+      color: var(--accent);
+      font-weight: 520;
+      margin-bottom: 5px;
+    }
+
+    .caption span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .a { --mist: .82; --drop-opacity: .92; --drop-blur: .55px; }
+    .b { --mist: .76; --drop-opacity: 1; --drop-blur: .28px; }
+    .c { --mist: .88; --drop-opacity: .82; --drop-blur: .9px; }
+    .d { --mist: .72; --drop-opacity: 1; --drop-blur: .18px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>暮雨玫瑰 · 雾玻璃水滴材质</h1>
+        <p>只看玻璃板背后的静态水滴：没有下流方向，没有平行竖线，没有天气动画。</p>
+      </div>
+      <p class="rule">目标：疏密不一致、大小不一致、边缘发软，像水汽附着在雾蒙蒙的玻璃背后。</p>
+    </header>
+
+    <section class="grid">
+      <article class="option">
+        <div class="phone a">
+          <div class="mist"></div>
+          <div class="drops">
+            <i class="drop soft" style="--x:12;--y:18;--s:18;--a:.30;--r:-8deg"></i>
+            <i class="drop" style="--x:22;--y:26;--s:7;--a:.52;--r:12deg"></i>
+            <i class="drop fog" style="--x:36;--y:16;--s:11;--a:.36"></i>
+            <i class="drop soft" style="--x:54;--y:28;--s:22;--a:.26;--r:4deg"></i>
+            <i class="drop" style="--x:71;--y:19;--s:8;--a:.46"></i>
+            <i class="drop soft" style="--x:86;--y:31;--s:16;--a:.28;--r:-14deg"></i>
+            <i class="drop" style="--x:15;--y:48;--s:10;--a:.48"></i>
+            <i class="drop fog" style="--x:29;--y:57;--s:20;--a:.32"></i>
+            <i class="drop" style="--x:46;--y:46;--s:6;--a:.42"></i>
+            <i class="drop soft" style="--x:62;--y:59;--s:15;--a:.34"></i>
+            <i class="drop" style="--x:79;--y:51;--s:9;--a:.44"></i>
+            <i class="drop soft" style="--x:91;--y:67;--s:13;--a:.26"></i>
+          </div>
+          <div class="content">
+            <div class="name">方案 A · 雾后稀疏</div>
+            <p>少量大水滴，最安静，适合怕喧宾夺主。</p>
+            <div class="line"></div><div class="line"></div>
+          </div>
+        </div>
+        <p class="caption"><strong>A 雾后稀疏</strong><span>水滴更少、更软，几乎只是一层潮湿提示。</span></p>
+      </article>
+
+      <article class="option">
+        <div class="phone b">
+          <div class="mist"></div>
+          <div class="drops">
+            <i class="drop" style="--x:8;--y:13;--s:5;--a:.48"></i>
+            <i class="drop soft" style="--x:16;--y:20;--s:14;--a:.36"></i>
+            <i class="drop" style="--x:25;--y:17;--s:8;--a:.58"></i>
+            <i class="drop" style="--x:33;--y:29;--s:4;--a:.42"></i>
+            <i class="drop soft" style="--x:44;--y:21;--s:18;--a:.32"></i>
+            <i class="drop" style="--x:55;--y:34;--s:7;--a:.54"></i>
+            <i class="drop fog" style="--x:66;--y:16;--s:13;--a:.36"></i>
+            <i class="drop" style="--x:78;--y:25;--s:5;--a:.46"></i>
+            <i class="drop soft" style="--x:91;--y:18;--s:20;--a:.30"></i>
+            <i class="drop" style="--x:13;--y:42;--s:7;--a:.52"></i>
+            <i class="drop soft" style="--x:24;--y:55;--s:16;--a:.36"></i>
+            <i class="drop" style="--x:37;--y:47;--s:6;--a:.50"></i>
+            <i class="drop fog" style="--x:51;--y:58;--s:21;--a:.30"></i>
+            <i class="drop" style="--x:63;--y:48;--s:5;--a:.42"></i>
+            <i class="drop soft" style="--x:76;--y:59;--s:14;--a:.34"></i>
+            <i class="drop" style="--x:88;--y:45;--s:8;--a:.50"></i>
+            <i class="drop" style="--x:20;--y:76;--s:5;--a:.46"></i>
+            <i class="drop soft" style="--x:39;--y:82;--s:17;--a:.34"></i>
+            <i class="drop" style="--x:58;--y:75;--s:6;--a:.46"></i>
+            <i class="drop soft" style="--x:84;--y:82;--s:19;--a:.30"></i>
+          </div>
+          <div class="content">
+            <div class="name">方案 B · 凝露不均</div>
+            <p>小滴更多，有疏密变化，但仍然没有流动方向。</p>
+            <div class="line"></div><div class="line"></div>
+          </div>
+        </div>
+        <p class="caption"><strong>B 凝露不均</strong><span>更像玻璃后面挂了一层细小水汽，存在感中等。</span></p>
+      </article>
+
+      <article class="option">
+        <div class="phone c">
+          <div class="mist"></div>
+          <div class="drops">
+            <i class="drop fog" style="--x:14;--y:18;--s:24;--a:.24"></i>
+            <i class="drop soft" style="--x:31;--y:26;--s:18;--a:.28"></i>
+            <i class="drop fog" style="--x:49;--y:16;--s:28;--a:.20"></i>
+            <i class="drop" style="--x:67;--y:29;--s:7;--a:.42"></i>
+            <i class="drop soft" style="--x:84;--y:22;--s:22;--a:.26"></i>
+            <i class="drop" style="--x:21;--y:48;--s:8;--a:.40"></i>
+            <i class="drop fog" style="--x:43;--y:54;--s:32;--a:.22"></i>
+            <i class="drop soft" style="--x:69;--y:50;--s:17;--a:.28"></i>
+            <i class="drop fog" style="--x:89;--y:64;--s:25;--a:.20"></i>
+            <i class="drop soft" style="--x:27;--y:80;--s:20;--a:.26"></i>
+            <i class="drop" style="--x:58;--y:78;--s:6;--a:.38"></i>
+            <i class="drop fog" style="--x:78;--y:86;--s:30;--a:.20"></i>
+          </div>
+          <div class="content">
+            <div class="name">方案 C · 深雾大滴</div>
+            <p>大滴在雾后面，最像“隔着玻璃看见水汽”。</p>
+            <div class="line"></div><div class="line"></div>
+          </div>
+        </div>
+        <p class="caption"><strong>C 深雾大滴</strong><span>更朦胧、更成熟，水滴像在玻璃背面。</span></p>
+      </article>
+
+      <article class="option">
+        <div class="phone d">
+          <div class="mist"></div>
+          <div class="drops">
+            <i class="drop" style="--x:10;--y:12;--s:4;--a:.46"></i>
+            <i class="drop" style="--x:18;--y:22;--s:5;--a:.54"></i>
+            <i class="drop" style="--x:24;--y:15;--s:3;--a:.38"></i>
+            <i class="drop soft" style="--x:33;--y:26;--s:10;--a:.30"></i>
+            <i class="drop" style="--x:42;--y:18;--s:4;--a:.46"></i>
+            <i class="drop" style="--x:54;--y:29;--s:5;--a:.48"></i>
+            <i class="drop" style="--x:63;--y:17;--s:3;--a:.40"></i>
+            <i class="drop soft" style="--x:77;--y:25;--s:12;--a:.28"></i>
+            <i class="drop" style="--x:90;--y:18;--s:4;--a:.44"></i>
+            <i class="drop" style="--x:14;--y:41;--s:4;--a:.42"></i>
+            <i class="drop" style="--x:27;--y:51;--s:5;--a:.50"></i>
+            <i class="drop soft" style="--x:38;--y:43;--s:13;--a:.30"></i>
+            <i class="drop" style="--x:49;--y:55;--s:3;--a:.38"></i>
+            <i class="drop" style="--x:61;--y:47;--s:4;--a:.42"></i>
+            <i class="drop" style="--x:73;--y:58;--s:5;--a:.48"></i>
+            <i class="drop soft" style="--x:88;--y:49;--s:11;--a:.28"></i>
+            <i class="drop" style="--x:19;--y:72;--s:4;--a:.44"></i>
+            <i class="drop soft" style="--x:35;--y:82;--s:12;--a:.30"></i>
+            <i class="drop" style="--x:51;--y:76;--s:3;--a:.38"></i>
+            <i class="drop" style="--x:66;--y:86;--s:5;--a:.48"></i>
+            <i class="drop" style="--x:82;--y:78;--s:4;--a:.42"></i>
+            <i class="drop soft" style="--x:94;--y:88;--s:10;--a:.26"></i>
+          </div>
+          <div class="content">
+            <div class="name">方案 D · 细密哈气</div>
+            <p>更细碎，像窗户上薄薄一层凝露颗粒。</p>
+            <div class="line"></div><div class="line"></div>
+          </div>
+        </div>
+        <p class="caption"><strong>D 细密哈气</strong><span>颗粒感更强，适合做很轻的全局材质。</span></p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

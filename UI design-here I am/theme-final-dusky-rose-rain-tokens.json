@@ -1,0 +1,147 @@
+{
+  "meta": {
+    "name": "Here I Am · Mature Micro-Tipsy",
+    "description": "Mature bar-light, frosted glass, smoky rose/plum/copper palettes. No green accents.",
+    "recommendedImplementation": "Use color tokens for theme switching; use CSS backdrop-filter and lightweight pseudo-elements for condensation. Avoid baking rain/glass into bitmap assets except for optional decorative overlays."
+  },
+  "foundation": {
+    "moodBg0": "#070608",
+    "moodBg1": "#120B0E",
+    "textPrimary": "#EAD2C2",
+    "textSecondary": "rgba(235, 209, 196, 0.72)",
+    "glassBlur": "18px",
+    "glassFillA": "rgba(255,255,255,0.075)",
+    "glassFillB": "rgba(255,255,255,0.025)",
+    "glassStroke": "rgba(238,205,191,0.28)",
+    "rainOpacity": 0.18,
+    "rainMicroOpacity": 0.10,
+    "rainStreakOpacity": 0.13,
+    "mistOpacity": 0.62,
+    "cardRadius": "26px",
+    "innerRadius": "19px"
+  },
+  "themes": {
+    "smokyPlum": {
+      "nameZh": "烟熏梅子夜",
+      "nameEn": "Smoky Plum",
+      "palette": [
+        "#1A121A",
+        "#2A1826",
+        "#5A3A4D",
+        "#D9C6D6"
+      ],
+      "semantic": {
+        "background": "#1A121A",
+        "surface": "#2A1826",
+        "accent": "#B884A9",
+        "text": "#EAD9EA",
+        "highlight": "#D9C6D6"
+      }
+    },
+    "velvetNegroni": {
+      "nameZh": "丝绒内格罗尼",
+      "nameEn": "Velvet Negroni",
+      "palette": [
+        "#18080B",
+        "#3A0910",
+        "#A40D22",
+        "#E8C7C3"
+      ],
+      "semantic": {
+        "background": "#18080B",
+        "surface": "#3A0910",
+        "accent": "#C1122B",
+        "text": "#F1D5CF",
+        "highlight": "#E8C7C3"
+      },
+      "notes": "正红 / 酒红 / 口红感"
+    },
+    "champagneNoir": {
+      "nameZh": "香槟黑丝绸",
+      "nameEn": "Champagne Noir",
+      "palette": [
+        "#15161A",
+        "#2B2430",
+        "#6F643F",
+        "#E9DFCE"
+      ],
+      "semantic": {
+        "background": "#15161A",
+        "surface": "#2B2430",
+        "accent": "#BFA676",
+        "text": "#EFE5D5",
+        "highlight": "#E9DFCE"
+      }
+    },
+    "duskyRoseRain": {
+      "nameZh": "暮雨玫瑰",
+      "nameEn": "Dusky Rose Rain",
+      "palette": [
+        "#241319",
+        "#4D222B",
+        "#7E4A55",
+        "#C9A3A9"
+      ],
+      "semantic": {
+        "background": "#241319",
+        "surface": "#4D222B",
+        "accent": "#D36F7E",
+        "text": "#F0D5D7",
+        "highlight": "#C9A3A9"
+      }
+    },
+    "copperTwilight": {
+      "nameZh": "铜暮微光",
+      "nameEn": "Copper Twilight",
+      "palette": [
+        "#211712",
+        "#4A2718",
+        "#7B4B2D",
+        "#C7A07B"
+      ],
+      "semantic": {
+        "background": "#211712",
+        "surface": "#4A2718",
+        "accent": "#D7823C",
+        "text": "#F4DDC5",
+        "highlight": "#C7A07B"
+      }
+    },
+    "mauveAfterglow": {
+      "nameZh": "暮光紫雾",
+      "nameEn": "Mauve Afterglow",
+      "palette": [
+        "#1C1620",
+        "#3A293D",
+        "#6F5B77",
+        "#DCC6DB"
+      ],
+      "semantic": {
+        "background": "#1C1620",
+        "surface": "#3A293D",
+        "accent": "#A987B1",
+        "text": "#E7D7E8",
+        "highlight": "#DCC6DB"
+      }
+    }
+  },
+  "implementation_notes_v2": {
+    "background": "Abstract dark mist gradient only; no literal bar photo/bokeh/object layer.",
+    "material": "Matte frosted glass: lower saturation, stronger blur, lower gloss/highlight opacity.",
+    "rain_effect": "Use a separate non-interactive static overlay layer. It only simulates tiny condensation beads, matte grain, and thin glass streaks. Do not use canvas, requestAnimationFrame, keyframes, or continuous animation.",
+    "changed_palettes": {
+      "dusky_rose_rain": [
+        "#241319",
+        "#4D222B",
+        "#7E4A55",
+        "#C9A3A9"
+      ],
+      "copper_twilight": [
+        "#211712",
+        "#4A2718",
+        "#7B4B2D",
+        "#C7A07B"
+      ]
+    }
+  }
+}

@@ -1,8 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_controller.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/settings/widgets/asr_config_page.dart';
 import 'package:memex/ui/settings/widgets/shopping_config_page.dart';
@@ -249,6 +252,8 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          _buildVisualThemeCard(),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(20),
@@ -1605,6 +1610,136 @@ class _SettingsPageState extends State<SettingsPage> {
             fontWeight: FontWeight.w500,
             color: isSelected ? Colors.white : Colors.grey[600],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVisualThemeCard() {
+    final themeController = context.watch<HereIamThemeController>();
+    final selectedId = themeController.tokens.id;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textSecondary.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.palette_outlined, color: AppColors.primary, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '视觉主题',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '切换聊天窗口的玫瑰雾 / 暮雨玫瑰视觉效果',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _buildThemeChip(
+                tokens: HereIamThemeTokens.duskyRoseRain,
+                selectedId: selectedId,
+                onTap: themeController.selectTheme,
+              ),
+              _buildThemeChip(
+                tokens: HereIamThemeTokens.roseMistDay,
+                selectedId: selectedId,
+                onTap: themeController.selectTheme,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThemeChip({
+    required HereIamThemeTokens tokens,
+    required String selectedId,
+    required ValueChanged<String> onTap,
+  }) {
+    final isSelected = selectedId == tokens.id;
+    return GestureDetector(
+      onTap: () => onTap(tokens.id),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? tokens.accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? tokens.accent : Colors.grey[300]!,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    tokens.background,
+                    tokens.surface,
+                    tokens.accentSoft,
+                  ],
+                ),
+                border: Border.all(
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.8)
+                      : Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              tokens.nameZh,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: isSelected
+                    ? (tokens.brightness == Brightness.dark
+                        ? tokens.background
+                        : Colors.white)
+                    : Colors.grey[700],
+              ),
+            ),
+          ],
         ),
       ),
     );

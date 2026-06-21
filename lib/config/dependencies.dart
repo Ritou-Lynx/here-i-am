@@ -5,6 +5,7 @@
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:memex/data/repositories/memex_router.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_controller.dart';
 
 /// Shared dependency providers for the app.
 /// Only register Repository and Service here; do not register ViewModels.
@@ -13,5 +14,8 @@ import 'package:memex/data/repositories/memex_router.dart';
 List<SingleChildWidget> get dependencyProviders => [
       Provider<MemexRouter>(
         create: (_) => MemexRouter(),
+      ),
+      ChangeNotifierProvider<HereIamThemeController>(
+        create: (_) => HereIamThemeController()..load(),
       ),
     ];

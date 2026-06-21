@@ -1,16 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/services/photo_suggestion_service.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
-const _trayPanel = Color(0xF0241319);
-const _trayPanelSoft = AppColors.companionSurface;
-const _trayText = AppColors.companionText;
-const _trayMuted = AppColors.companionTextMuted;
-const _trayAccent = AppColors.companionAccent;
+Color get _trayPanel {
+  final tokens = HereIamThemeRuntime.current;
+  return tokens.brightness == Brightness.dark
+      ? tokens.background.withValues(alpha: 0.94)
+      : tokens.surface.withValues(alpha: 0.86);
+}
+
+Color get _trayPanelSoft {
+  final tokens = HereIamThemeRuntime.current;
+  return tokens.brightness == Brightness.dark
+      ? tokens.surface
+      : tokens.surfaceSoft.withValues(alpha: 0.92);
+}
+
+Color get _trayText => HereIamThemeRuntime.current.textPrimary;
+Color get _trayMuted => HereIamThemeRuntime.current.textSecondary;
+Color get _trayAccent => HereIamThemeRuntime.current.accent;
+Color get _trayEdge => HereIamThemeRuntime.current.glassEdge;
 
 /// Lightweight media picker for companion chat.
 ///
@@ -142,7 +155,7 @@ class _CompanionMediaTrayState extends State<CompanionMediaTray> {
                 color: _trayPanel,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.11),
+                  color: _trayEdge.withValues(alpha: 0.56),
                 ),
               ),
               child: SizedBox(
@@ -185,7 +198,7 @@ class _CompanionMediaTrayState extends State<CompanionMediaTray> {
       return Center(
         child: Text(
           UserStorage.l10n.smartSuggesting,
-          style: const TextStyle(color: _trayMuted, fontSize: 12),
+          style: TextStyle(color: _trayMuted, fontSize: 12),
         ),
       );
     }
@@ -220,7 +233,7 @@ class _SuggestionCluster extends StatelessWidget {
           color: _trayPanelSoft,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.1),
+            color: _trayEdge.withValues(alpha: 0.48),
           ),
         ),
         child: Row(
@@ -246,7 +259,7 @@ class _SuggestionCluster extends StatelessWidget {
             if (cluster.length > 3)
               Text(
                 '+${cluster.length - 3}',
-                style: const TextStyle(color: _trayText, fontSize: 12),
+                style: TextStyle(color: _trayText, fontSize: 12),
               ),
           ],
         ),
@@ -276,7 +289,7 @@ class _ActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: _trayPanelSoft,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          border: Border.all(color: _trayEdge.withValues(alpha: 0.48)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -287,7 +300,7 @@ class _ActionButton extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: _trayText, fontSize: 10),
+              style: TextStyle(color: _trayText, fontSize: 10),
             ),
           ],
         ),

@@ -112,20 +112,20 @@ class HereIamThemeTokens extends ThemeExtension<HereIamThemeTokens> {
     nameEn: 'Rose Mist Day',
     brightness: Brightness.light,
     background: Color(0xFFF6F0EF),
-    backgroundSoft: Color(0xFFFAF7F6),
-    surface: Color(0xFFFFFFFF),
-    surfaceSoft: Color(0xFFF3E8E8),
+    backgroundSoft: Color(0xFFF8F3F2),
+    surface: Color(0xFFF8F3F2),
+    surfaceSoft: Color(0xFFF1E8E8),
     surfaceDeep: Color(0xFFCDA0A6),
     accent: Color(0xFFC08E96),
-    accentSoft: Color(0xFFE3C2C4),
+    accentSoft: Color(0xFFE5C7CB),
     highlight: Color(0xFFD9B0B4),
-    textPrimary: Color(0xFF2E2427),
-    textSecondary: Color(0xB32E2427),
-    textMuted: Color(0x802E2427),
-    glassFill: Color(0xB3FFFFFF),
-    glassFillSoft: Color(0x66FFFFFF),
-    glassStroke: Color(0x80D9B0B4),
-    glassEdge: Color(0x99FFFFFF),
+    textPrimary: Color(0xFF5F4B4A),
+    textSecondary: Color(0xFF6F5A59),
+    textMuted: Color(0xFFA8908E),
+    glassFill: Color(0x7DFFFFFF),
+    glassFillSoft: Color(0x5CFFFFFF),
+    glassStroke: Color(0x8FFFFFFF),
+    glassEdge: Color(0x85FFFFFF),
     rainBead: Color(0x73FFFFFF),
     rainOpacity: 0.08,
     rainMicroOpacity: 0.05,
@@ -139,6 +139,13 @@ class HereIamThemeTokens extends ThemeExtension<HereIamThemeTokens> {
     duskyRoseRain,
     roseMistDay,
   ];
+
+  static HereIamThemeTokens byId(String id) {
+    return skins.firstWhere(
+      (skin) => skin.id == id,
+      orElse: () => current,
+    );
+  }
 
   @override
   HereIamThemeTokens copyWith({
@@ -241,6 +248,10 @@ class HereIamThemeTokens extends ThemeExtension<HereIamThemeTokens> {
 extension HereIamThemeLookup on BuildContext {
   HereIamThemeTokens get hereIamTheme {
     return Theme.of(this).extension<HereIamThemeTokens>() ??
-        HereIamThemeTokens.current;
+        HereIamThemeRuntime.current;
   }
+}
+
+abstract final class HereIamThemeRuntime {
+  static HereIamThemeTokens current = HereIamThemeTokens.current;
 }

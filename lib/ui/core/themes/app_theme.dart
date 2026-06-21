@@ -112,7 +112,11 @@ abstract final class AppTheme {
     );
   }
 
-  static ThemeData get lightTheme {
+  static ThemeData get lightTheme => lightThemeFor(HereIamThemeTokens.current);
+
+  static ThemeData lightThemeFor([
+    HereIamThemeTokens tokens = HereIamThemeTokens.current,
+  ]) {
     final textTheme = _buildTextTheme(Brightness.light);
     return ThemeData(
       scaffoldBackgroundColor: scaffoldBackgroundLight,
@@ -121,8 +125,8 @@ abstract final class AppTheme {
         brightness: Brightness.light,
       ),
       useMaterial3: true,
-      extensions: const [
-        HereIamThemeTokens.current,
+      extensions: [
+        tokens,
       ],
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
@@ -140,7 +144,11 @@ abstract final class AppTheme {
     );
   }
 
-  static ThemeData get darkTheme {
+  static ThemeData get darkTheme => darkThemeFor(HereIamThemeTokens.current);
+
+  static ThemeData darkThemeFor([
+    HereIamThemeTokens tokens = HereIamThemeTokens.current,
+  ]) {
     final textTheme = _buildTextTheme(Brightness.dark);
     return ThemeData(
       scaffoldBackgroundColor: const Color(0xFF0F172A),
@@ -149,8 +157,8 @@ abstract final class AppTheme {
         brightness: Brightness.dark,
       ),
       useMaterial3: true,
-      extensions: const [
-        HereIamThemeTokens.current,
+      extensions: [
+        tokens,
       ],
       textTheme: textTheme,
       appBarTheme: AppBarTheme(

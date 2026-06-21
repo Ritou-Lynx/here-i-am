@@ -22,6 +22,7 @@ import 'package:memex/ui/user_setup/widgets/user_setup_screen.dart';
 import 'package:memex/ui/app_lock/widgets/lock_screen_page.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/core/themes/app_theme.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_controller.dart';
 import 'dart:io';
 import 'package:memex/data/services/reading/xhs/xhs_hidden_webview_host.dart';
 import 'package:memex/ui/main_screen/widgets/radial_menu.dart';
@@ -629,12 +630,13 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final hereIamTheme = context.watch<HereIamThemeController>().tokens;
     return MaterialApp.router(
       title: 'Memex',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: rootScaffoldMessengerKey,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: AppTheme.lightThemeFor(hereIamTheme),
+      darkTheme: AppTheme.darkThemeFor(hereIamTheme),
       themeMode:
           ThemeMode.light, // Unified light mode, disabling adaptive dark mode
       routerConfig: widget.router,

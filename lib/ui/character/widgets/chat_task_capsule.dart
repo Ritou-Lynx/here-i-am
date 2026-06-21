@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/agent_activity_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 
 /// A slim capsule that appears between the chat header and message list
 /// when the companion has delegated a background task.
@@ -88,6 +88,10 @@ class _ChatTaskCapsuleState extends State<ChatTaskCapsule>
 
     final title = _latestDelegationMsg?.title ?? 'AI 正在整理…';
     final content = _latestDelegationMsg?.content ?? '';
+    final tokens = HereIamThemeRuntime.current;
+    final panelColor = tokens.brightness == Brightness.dark
+        ? tokens.surface.withValues(alpha: 0.92)
+        : tokens.surface.withValues(alpha: 0.86);
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 250),
@@ -104,11 +108,10 @@ class _ChatTaskCapsuleState extends State<ChatTaskCapsule>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.companionSurface.withValues(alpha: 0.92),
+                  color: panelColor,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color:
-                        AppColors.companionSurfaceDeep.withValues(alpha: 0.6),
+                    color: tokens.glassEdge.withValues(alpha: 0.62),
                   ),
                 ),
                 child: Row(
@@ -123,8 +126,7 @@ class _ChatTaskCapsuleState extends State<ChatTaskCapsule>
                           height: 8,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.companionAccent
-                                .withValues(alpha: opacity),
+                            color: tokens.accent.withValues(alpha: opacity),
                           ),
                         );
                       },
@@ -135,9 +137,9 @@ class _ChatTaskCapsuleState extends State<ChatTaskCapsule>
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
-                          color: AppColors.companionText,
+                          color: tokens.textPrimary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -145,10 +147,10 @@ class _ChatTaskCapsuleState extends State<ChatTaskCapsule>
                     AnimatedRotation(
                       turns: _expanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 200),
-                      child: const Icon(
+                      child: Icon(
                         Icons.keyboard_arrow_down_rounded,
                         size: 18,
-                        color: AppColors.companionTextMuted,
+                        color: tokens.textSecondary,
                       ),
                     ),
                   ],
@@ -178,16 +180,20 @@ class ChatTaskCapsuleDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final maxHeight =
         (MediaQuery.sizeOf(context).height * 0.32).clamp(120.0, 260.0);
+    final tokens = HereIamThemeRuntime.current;
+    final panelColor = tokens.brightness == Brightness.dark
+        ? tokens.surfaceSoft.withValues(alpha: 0.95)
+        : tokens.surface.withValues(alpha: 0.9);
 
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(top: 4),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF101217).withValues(alpha: 0.95),
+        color: panelColor,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: AppColors.companionSurfaceDeep.withValues(alpha: 0.4),
+          color: tokens.glassEdge.withValues(alpha: 0.5),
         ),
       ),
       child: ConstrainedBox(
@@ -195,10 +201,10 @@ class ChatTaskCapsuleDetail extends StatelessWidget {
         child: SingleChildScrollView(
           child: Text(
             content,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               height: 1.5,
-              color: AppColors.companionTextMuted,
+              color: tokens.textSecondary,
             ),
           ),
         ),

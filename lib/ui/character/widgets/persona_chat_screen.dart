@@ -37,7 +37,6 @@ import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dar
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
 import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/widgets/here_iam_rose_mist_layer.dart';
@@ -47,17 +46,29 @@ import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:intl/intl.dart';
 
-const _personaStageInk = AppColors.companionBg;
-const _personaPanel = AppColors.companionSurfaceSoft;
-const _personaPanelSoft = AppColors.companionSurface;
-const _personaText = AppColors.companionText;
-const _personaTextMuted = AppColors.companionTextMuted;
-const _personaAccent = AppColors.companionAccent;
-const _personaAccentCool = AppColors.companionAccentSoft;
-const _personaLine = AppColors.companionSurfaceDeep;
-const _personaCharacterBubble = Color(0xD9241319);
-const _personaUserBubble = AppColors.companionAccentSoft;
-const _personaUserBorder = AppColors.companionText;
+Color get _personaStageInk => HereIamThemeRuntime.current.background;
+Color get _personaPanel => HereIamThemeRuntime.current.surfaceSoft;
+Color get _personaPanelSoft => HereIamThemeRuntime.current.surface;
+Color get _personaText => HereIamThemeRuntime.current.textPrimary;
+Color get _personaTextMuted => HereIamThemeRuntime.current.textSecondary;
+Color get _personaAccent => HereIamThemeRuntime.current.accent;
+Color get _personaAccentCool => HereIamThemeRuntime.current.accentSoft;
+Color get _personaLine => HereIamThemeRuntime.current.surfaceDeep;
+Color get _personaCharacterBubble {
+  final tokens = HereIamThemeRuntime.current;
+  return tokens.brightness == Brightness.dark
+      ? tokens.background.withValues(alpha: 0.84)
+      : tokens.glassFill;
+}
+
+Color get _personaUserBubble {
+  final tokens = HereIamThemeRuntime.current;
+  return tokens.brightness == Brightness.dark
+      ? tokens.accentSoft.withValues(alpha: 0.9)
+      : const Color(0x99C9A3B0);
+}
+
+Color get _personaUserBorder => HereIamThemeRuntime.current.glassEdge;
 const _voiceModeIdleFollowUpSilenceTimeout = Duration(seconds: 60);
 const _voiceModeMaxRecordingDuration = Duration(seconds: 120);
 const _voiceModeMaxSilentFollowUps = 8;
@@ -221,30 +232,36 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _hasMoreHistory = true;
   bool _isLoadingMore = false;
 
-  // Cached MarkdownStyleSheet to avoid recreating on every build.
-  static final _cachedMarkdownStyle = MarkdownStyleSheet(
-    p: const TextStyle(
-      fontSize: 15,
-      height: 1.68,
-      color: _personaText,
-    ),
-    strong: const TextStyle(
-      fontWeight: FontWeight.w700,
-      color: _personaText,
-    ),
-    em: const TextStyle(fontStyle: FontStyle.italic),
-    listBullet: const TextStyle(color: _personaAccent),
-    code: const TextStyle(
-      fontSize: 13,
-      color: _personaText,
-      backgroundColor: Color(0xFF241615),
-      fontFamily: 'monospace',
-    ),
-    codeblockDecoration: BoxDecoration(
-      color: const Color(0xFF241615),
-      borderRadius: BorderRadius.circular(8),
-    ),
-  );
+  MarkdownStyleSheet get _messageMarkdownStyle {
+    final tokens = HereIamThemeRuntime.current;
+    final codeBackground = tokens.brightness == Brightness.dark
+        ? const Color(0xFF241615)
+        : tokens.glassFillSoft;
+
+    return MarkdownStyleSheet(
+      p: TextStyle(
+        fontSize: 15,
+        height: 1.68,
+        color: tokens.textPrimary,
+      ),
+      strong: TextStyle(
+        fontWeight: FontWeight.w700,
+        color: tokens.textPrimary,
+      ),
+      em: const TextStyle(fontStyle: FontStyle.italic),
+      listBullet: TextStyle(color: tokens.accent),
+      code: TextStyle(
+        fontSize: 13,
+        color: tokens.textPrimary,
+        backgroundColor: codeBackground,
+        fontFamily: 'monospace',
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: codeBackground,
+        borderRadius: BorderRadius.circular(8),
+      ),
+    );
+  }
 
   bool get _isStreamingCurrentCharacter =>
       _isStreaming && _activeStreamingCharacterId == _currentCharacterId;
@@ -2440,7 +2457,7 @@ only after you have written the goodbye you want the user to hear.''',
           if (!widget.embedded) ...[
             GestureDetector(
               onTap: () => Navigator.pop(context),
-              child: const _FrostedCircleButton(
+              child: _FrostedCircleButton(
                 child: Icon(
                   Icons.arrow_back_ios_new_rounded,
                   color: _personaText,
@@ -2487,7 +2504,7 @@ only after you have written the goodbye you want the user to hear.''',
                         character.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 17,
                           height: 1.1,
                           fontWeight: FontWeight.w600,
@@ -2497,7 +2514,7 @@ only after you have written the goodbye you want the user to hear.''',
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(
+                    Icon(
                       Icons.keyboard_arrow_down_rounded,
                       size: 19,
                       color: _personaAccent,
@@ -2655,7 +2672,7 @@ only after you have written the goodbye you want the user to hear.''',
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.keyboard_arrow_down_rounded,
                 color: _personaAccent,
                 size: 24,
@@ -2812,7 +2829,7 @@ only after you have written the goodbye you want the user to hear.''',
               const SizedBox(height: 20),
               Text(
                 _character?.name ?? '',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: _personaText,
@@ -2839,7 +2856,7 @@ only after you have written the goodbye you want the user to hear.''',
           ),
           child: Text(
             label,
-            style: const TextStyle(fontSize: 11, color: _personaTextMuted),
+            style: TextStyle(fontSize: 11, color: _personaTextMuted),
           ),
         ),
       ),
@@ -2883,7 +2900,7 @@ only after you have written the goodbye you want the user to hear.''',
 
   Widget _buildLoadMoreIndicator() {
     if (_isLoadingMore) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 20),
         child: Center(
           child: SizedBox(
@@ -2925,7 +2942,7 @@ only after you have written the goodbye you want the user to hear.''',
               child: SelectableText(
                 text,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13.5,
                   height: 1.6,
                   fontStyle: FontStyle.italic,
@@ -2990,7 +3007,7 @@ only after you have written the goodbye you want the user to hear.''',
                   ),
                   padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
                   decoration: BoxDecoration(
-                    color: _personaUserBubble.withValues(alpha: 0.9),
+                    color: _personaUserBubble,
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(18),
                       topRight: Radius.circular(6),
@@ -3016,10 +3033,10 @@ only after you have written the goodbye you want the user to hear.''',
                         SelectionArea(
                           child: Text(
                             text,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15,
                               height: 1.55,
-                              color: Color(0xFF2D2923),
+                              color: _personaText,
                             ),
                           ),
                         ),
@@ -3036,10 +3053,10 @@ only after you have written the goodbye you want the user to hear.''',
                               Clipboard.setData(ClipboardData(text: text));
                               _showCopiedSnackBar();
                             },
-                            child: const Icon(
+                            child: Icon(
                               Icons.copy_rounded,
                               size: 14,
-                              color: Color(0xFF8A857C),
+                              color: _personaTextMuted,
                             ),
                           ),
                           if (userMessage != null) ...[
@@ -3050,10 +3067,10 @@ only after you have written the goodbye you want the user to hear.''',
                               child: GestureDetector(
                                 onTap: () =>
                                     _confirmRetractUserMessage(userMessage),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.undo_rounded,
                                   size: 15,
-                                  color: Color(0xFF8A857C),
+                                  color: _personaTextMuted,
                                 ),
                               ),
                             ),
@@ -3224,12 +3241,12 @@ only after you have written the goodbye you want the user to hear.''',
                             child: MarkdownBody(
                               data: text,
                               softLineBreak: true,
-                              styleSheet: _cachedMarkdownStyle,
+                              styleSheet: _messageMarkdownStyle,
                             ),
                           ),
                           if (isStreaming) ...[
                             const SizedBox(width: 8),
-                            const SizedBox(
+                            SizedBox(
                               width: 8,
                               height: 8,
                               child: CircularProgressIndicator(
@@ -3270,7 +3287,7 @@ only after you have written the goodbye you want the user to hear.''',
                                 Clipboard.setData(ClipboardData(text: text));
                                 _showCopiedSnackBar();
                               },
-                              child: const Icon(
+                              child: Icon(
                                 Icons.copy_rounded,
                                 size: 15,
                                 color: _personaTextMuted,
@@ -3505,7 +3522,7 @@ class _PersonaChatSearchSheetState extends State<_PersonaChatSearchSheet> {
         child: Material(
           color: Colors.transparent,
           child: Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: _personaPanel,
               borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
             ),
@@ -3540,13 +3557,13 @@ class _PersonaChatSearchSheetState extends State<_PersonaChatSearchSheet> {
                             onChanged: _onQueryChanged,
                             textInputAction: TextInputAction.search,
                             onSubmitted: (_) => _runSearch(),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: _personaText,
                               fontSize: 15,
                               letterSpacing: 0,
                             ),
                             decoration: InputDecoration(
-                              prefixIcon: const Icon(
+                              prefixIcon: Icon(
                                 Icons.search_rounded,
                                 color: _personaTextMuted,
                                 size: 20,
@@ -3554,7 +3571,7 @@ class _PersonaChatSearchSheetState extends State<_PersonaChatSearchSheet> {
                               suffixIcon: _controller.text.isEmpty
                                   ? null
                                   : IconButton(
-                                      icon: const Icon(
+                                      icon: Icon(
                                         Icons.close_rounded,
                                         color: _personaTextMuted,
                                         size: 18,
@@ -3568,7 +3585,7 @@ class _PersonaChatSearchSheetState extends State<_PersonaChatSearchSheet> {
                                 zh: '鎼滅储鑱婂ぉ璁板綍',
                                 en: 'Search chat history',
                               ),
-                              hintStyle: const TextStyle(
+                              hintStyle: TextStyle(
                                 color: _personaTextMuted,
                                 fontSize: 15,
                               ),
@@ -3584,7 +3601,7 @@ class _PersonaChatSearchSheetState extends State<_PersonaChatSearchSheet> {
                         onPressed: () => Navigator.pop(context),
                         child: Text(
                           UserStorage.l10n.cancel,
-                          style: const TextStyle(color: _personaAccent),
+                          style: TextStyle(color: _personaAccent),
                         ),
                       ),
                     ],
@@ -3608,7 +3625,7 @@ class _PersonaChatSearchSheetState extends State<_PersonaChatSearchSheet> {
       );
     }
     if (_isSearching) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
           strokeWidth: 1.8,
           color: _personaAccent,
@@ -3690,7 +3707,7 @@ class _SearchResultTile extends StatelessWidget {
                           sender,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: _personaText,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -3701,7 +3718,7 @@ class _SearchResultTile extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         time,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: _personaTextMuted,
                           fontSize: 11,
                           letterSpacing: 0,
@@ -3724,7 +3741,7 @@ class _SearchResultTile extends StatelessWidget {
                   minWidth: 34,
                   minHeight: 34,
                 ),
-                icon: const Icon(
+                icon: Icon(
                   Icons.copy_rounded,
                   size: 17,
                   color: _personaTextMuted,
@@ -3768,7 +3785,7 @@ class _HighlightedSnippet extends StatelessWidget {
         text,
         maxLines: 3,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
+        style: TextStyle(
           color: _personaTextMuted,
           fontSize: 13.5,
           height: 1.45,
@@ -3785,7 +3802,7 @@ class _HighlightedSnippet extends StatelessWidget {
           TextSpan(text: before),
           TextSpan(
             text: match,
-            style: const TextStyle(
+            style: TextStyle(
               color: _personaStageInk,
               backgroundColor: _personaAccent,
               fontWeight: FontWeight.w700,
@@ -3796,7 +3813,7 @@ class _HighlightedSnippet extends StatelessWidget {
       ),
       maxLines: 3,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
+      style: TextStyle(
         color: _personaTextMuted,
         fontSize: 13.5,
         height: 1.45,
@@ -3825,7 +3842,7 @@ class _SearchEmptyState extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: _personaTextMuted,
               fontSize: 14,
               letterSpacing: 0,
@@ -4046,7 +4063,7 @@ class ConversationCaptureRememberedNotice extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.check_circle_rounded,
                     color: _personaAccent,
                     size: 17,
@@ -4054,7 +4071,7 @@ class ConversationCaptureRememberedNotice extends StatelessWidget {
                   const SizedBox(width: 7),
                   Text(
                     UserStorage.l10n.companionRemembered,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: _personaText,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -4077,7 +4094,7 @@ class ConversationCaptureRememberedNotice extends StatelessWidget {
                     ),
                     child: Text(
                       UserStorage.l10n.undo,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
@@ -4127,6 +4144,9 @@ class _CharacterMessageFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = HereIamThemeRuntime.current;
+    final isDark = tokens.brightness == Brightness.dark;
+
     return Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.sizeOf(context).width * 0.88,
@@ -4140,10 +4160,15 @@ class _CharacterMessageFrame extends StatelessWidget {
           bottomLeft: Radius.circular(18),
           bottomRight: Radius.circular(18),
         ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(
+          color:
+              isDark ? Colors.white.withValues(alpha: 0.1) : tokens.glassStroke,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.34),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.34)
+                : tokens.textSecondary.withValues(alpha: 0.10),
             blurRadius: 24,
             offset: const Offset(0, 12),
           ),
@@ -4217,7 +4242,7 @@ class _FrostedCircleButton extends StatelessWidget {
         ],
       ),
       child: IconTheme(
-        data: const IconThemeData(color: _personaText),
+        data: IconThemeData(color: _personaText),
         child: child,
       ),
     );
@@ -4483,17 +4508,27 @@ class PersonaChatInputBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final hasImages = selectedImages.isNotEmpty || isCompressing;
+    final tokens = HereIamThemeRuntime.current;
+    final isDark = tokens.brightness == Brightness.dark;
+    final composerColor =
+        isDark ? Colors.black.withValues(alpha: 0.62) : tokens.glassFillSoft;
+    final composerBorderColor =
+        isDark ? Colors.white.withValues(alpha: 0.12) : tokens.glassStroke;
+    final composerShadowColor = isDark
+        ? Colors.black.withValues(alpha: 0.5)
+        : tokens.textSecondary.withValues(alpha: 0.12);
+
     return Padding(
       padding: EdgeInsets.fromLTRB(14, 10, 14, bottomPadding + 12),
       child: Container(
         padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.62),
+          color: composerColor,
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          border: Border.all(color: composerBorderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
+              color: composerShadowColor,
               blurRadius: 34,
               offset: const Offset(0, 16),
             ),
@@ -4526,7 +4561,7 @@ class PersonaChatInputBar extends StatelessWidget {
                             itemBuilder: (context, index) {
                               if (isCompressing &&
                                   index == selectedImages.length) {
-                                return const SizedBox(
+                                return SizedBox(
                                   width: 56,
                                   height: 56,
                                   child: Center(
@@ -4566,7 +4601,7 @@ class PersonaChatInputBar extends StatelessWidget {
                                               .withValues(alpha: 0.6),
                                           shape: BoxShape.circle,
                                         ),
-                                        child: const Icon(
+                                        child: Icon(
                                           Icons.close_rounded,
                                           size: 12,
                                           color: Colors.white,
@@ -4602,7 +4637,7 @@ class PersonaChatInputBar extends StatelessWidget {
                         maxLines: 5,
                         decoration: InputDecoration(
                           hintText: hintText,
-                          hintStyle: const TextStyle(
+                          hintStyle: TextStyle(
                             color: _personaTextMuted,
                             fontSize: 15,
                           ),
@@ -4613,7 +4648,7 @@ class PersonaChatInputBar extends StatelessWidget {
                           ),
                           border: InputBorder.none,
                         ),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           height: 1.35,
                           color: _personaText,
@@ -4675,6 +4710,8 @@ class _AddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = HereIamThemeRuntime.current;
+
     return Semantics(
       button: true,
       enabled: enabled,
@@ -4688,11 +4725,11 @@ class _AddButton extends StatelessWidget {
             shape: BoxShape.circle,
             color: active
                 ? _personaAccent.withValues(alpha: 0.18)
-                : Colors.white.withValues(alpha: 0.07),
+                : tokens.glassFillSoft,
             border: Border.all(
               color: active
                   ? _personaAccent.withValues(alpha: 0.52)
-                  : Colors.white.withValues(alpha: 0.1),
+                  : tokens.glassStroke,
             ),
           ),
           child: Icon(
@@ -4734,7 +4771,7 @@ class _ChatVoiceActions extends StatelessWidget {
             controller: voiceController!,
             onTap: onVoiceTap!,
             iconColor: _personaAccent,
-            bgColor: _personaPanelSoft,
+            bgColor: HereIamThemeRuntime.current.glassFillSoft,
             enabled: voiceInputEnabled,
           ),
           const SizedBox(width: 8),
@@ -4796,6 +4833,8 @@ class _VoiceModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = HereIamThemeRuntime.current;
+
     return Semantics(
       button: true,
       enabled: enabled,
@@ -4812,11 +4851,11 @@ class _VoiceModeButton extends StatelessWidget {
             shape: BoxShape.circle,
             color: active
                 ? _personaAccent.withValues(alpha: 0.16)
-                : _personaPanelSoft,
+                : tokens.glassFillSoft,
             border: Border.all(
               color: active
                   ? _personaAccent.withValues(alpha: 0.42)
-                  : Colors.white.withValues(alpha: 0.1),
+                  : tokens.glassStroke,
             ),
           ),
           child: active
@@ -4877,6 +4916,8 @@ class _SendButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = HereIamThemeRuntime.current;
+
     return Semantics(
       button: true,
       enabled: enabled,
@@ -4892,11 +4933,11 @@ class _SendButton extends StatelessWidget {
             shape: BoxShape.circle,
             color: enabled
                 ? _personaAccent.withValues(alpha: 0.78)
-                : Colors.white.withValues(alpha: 0.08),
+                : tokens.glassFillSoft,
             border: Border.all(
               color: enabled
                   ? _personaAccent.withValues(alpha: 0.95)
-                  : Colors.white.withValues(alpha: 0.08),
+                  : tokens.glassStroke,
             ),
             boxShadow: enabled
                 ? [
@@ -4970,7 +5011,7 @@ class _TypingDotsState extends State<_TypingDots>
                 child: Container(
                   width: 7,
                   height: 7,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: _personaAccent,
                     shape: BoxShape.circle,
                   ),
@@ -5050,7 +5091,7 @@ class _CharacterSwitcherSheetState extends State<_CharacterSwitcherSheet> {
             const SizedBox(height: 16),
             Text(
               l10n.switchCompanion,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: _personaText,
@@ -5094,7 +5135,7 @@ class _CharacterSwitcherSheetState extends State<_CharacterSwitcherSheet> {
                     subtitle: char.tags.isNotEmpty
                         ? Text(
                             char.tags.join(' 路 '),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               color: _personaTextMuted,
                             ),
@@ -5103,7 +5144,7 @@ class _CharacterSwitcherSheetState extends State<_CharacterSwitcherSheet> {
                           )
                         : null,
                     trailing: isCurrent
-                        ? const Icon(Icons.check_circle,
+                        ? Icon(Icons.check_circle,
                             color: _personaAccent, size: 20)
                         : null,
                     shape: RoundedRectangleBorder(
