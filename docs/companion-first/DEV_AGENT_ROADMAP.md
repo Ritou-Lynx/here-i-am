@@ -15,18 +15,27 @@
 6. **入口在 Settings / Personal**，不在生活空间内。
 7. **不做访问圈层**：所有角色平等读取 User-truth。私密性来自"用户不主动记录",不来自系统隔离。这与"多个伴侣角色相互知道彼此存在"的产品设定一致。
 
-## 路线图总览
+## 路线图总览（2026-06-21 修订）
 
-| Phase | 范围 | 预估 | 可独立交付 |
-|---|---|---|---|
-| 0 | Bridge 选型与原型 | 2 天 | 是 |
-| 1 | 只读远程台 | 1 周 | 是 |
-| 2 | 写权限 + 审批闭环 | 1 周 | 是 |
-| 3 | Daily Coding Log + 事实卡片 | 3 天 | 是 |
-| 4 | 多项目 + PR 自动开 | 1 周 | 是 |
-| 5 | 双代理协作（CC 实现、Codex review） | 待定 | 是 |
+| Phase | 范围 | 状态 |
+|---|---|---|
+| 0 | Bridge 选型与原型 | ✅ 完成 |
+| 1 | 只读远程台 | ✅ 完成 |
+| 2 | 写权限 + worktree + apply/discard 真做 | ✅ 完成 |
+| 4a | 多项目体验打磨（chip / 摘要 / cleanup / 删除） | ✅ 完成，dogfood 中 |
+| **5** | **CC/Codex 完整聊天角色（一次到位，不切薄片）** | **下一步** |
+| 3 | Daily Coding Log + 署名记忆卡片 | 接在 5 后面 |
+| 4b | PR 自动开（release_ops 真启用） | 后续 |
+| 6 | 语音陪伴（通勤路上 Codex 读文章 + TTS） | 后续 |
 
-每个 Phase 自带"完成判定"和"下一步触发条件"，没做完不进下一阶段。
+**砍掉的**：原 Phase 5 "双代理协作（CC 写 + Codex review）" —— 太 niche，长期都不做。
+
+### 几次重要的方向校正（防止以后忘）
+
+1. **Phase 5 不切薄片**：之前讨论过"5a 派单入口 / 5b 角色绑定 / 5c 多轮 / ..."的渐进方案，被否。原因：CC 是角色就意味着具备 coding 能力，不能拆成"先做聊天入口再加 coding"——那样过渡形态没人会用，纯粹是工程师"小步快跑"心理投射。本项目里 prompt cost 在用户、code cost 在 AI，"先 MVP 再迭代"的传统理由不成立。
+2. **CC/Codex 是角色就拥有完整 coding 能力**：之前讨论过"人格平权但权限不平权"（入口像人，执行像工具），被否。用户的诉求是 Codex 角色 = Codex 本身，写文件 / commit / apply / discard 都在聊天里完成。worktree 隔离和审计日志这套底层 plumbing 继续存在，但 UX 不再有单独的"决策栏页面"——决策以聊天气泡里的按钮形式出现（"已改 3 个文件，要 apply 吗 [应用][丢弃][看 diff]"）。
+3. **绑定用独立表，不污染 CharacterModel**：新增 `DevAgentCharacterBindings` 表（characterId / projectId / agentType / defaultPermissionTier / defaultMode），不在 CharacterModel 上加字段。符合 CLAUDE.md "companion 层可剥离" 红线。
+4. **Phase 3 不能太靠后**：coding_log + 署名是其他伴侣角色"听说过" CC/Codex 的社会基础，必须在 5 之后立刻做，不能拖到末尾。
 
 ---
 
@@ -256,48 +265,130 @@ class DevAgentApprovals extends Table {
 
 ---
 
-## Phase 4 — 多项目 + PR 自动开（1 周）
+## Phase 4a — 多项目体验打磨（已完成）
+
+✅ 项目卡片 ⋮ 菜单（编辑/删除 + 清理 worktree）
+✅ 权限档彩色 chip（只读=蓝 / 写入=绿 / 发布=红）
+✅ 运行摘要（"3 完成 · 上次 12 分钟前"）
+✅ 列表按 createdAt 倒序
+✅ Bridge `POST /v1/cleanup/worktrees` 批量清理
+✅ 项目删除按钮
+
+---
+
+## Phase 5 — CC/Codex 完整聊天角色（下一步）
 
 ### 目标
-管多个仓库，一键开 PR。
+让 CC/Codex 在主聊天里作为完整角色出现，写文件 / commit / apply / discard 都在聊天里完成。不切薄片。
 
-### 做什么
-- `DevProjects` 支持多行，UI 加项目切换
-- `release_ops` 档加 `cc_open_pr` 工具：调 `gh pr create`，需审批
-- PR 链接回写到 `DevAgentRuns.summary`
-- Bridge 端配置 `GH_TOKEN`，App 不碰
+### 数据层
+新增 `DevAgentCharacterBindings` 表：
+```dart
+class DevAgentCharacterBindings extends Table {
+  TextColumn get characterId => text()();             // 主键，对应 CharacterModel.id
+  TextColumn get projectId => text().references(DevProjects, #id)();
+  TextColumn get agentType => text()();               // 'claude_code' | 'codex'
+  TextColumn get defaultPermissionTier => text().withDefault(const Constant('workspace_write'))();
+  TextColumn get defaultMode => text().withDefault(const Constant('workspace_write'))();
+  IntColumn get createdAt => integer()();
+  @override Set<Column> get primaryKey => {characterId};
+}
+```
+
+不污染 CharacterModel，删功能只需删表。
+
+### 角色创建
+- 角色编辑页加"绑定为 Dev Agent"开关
+- 开启后让用户选 project + agentType + 默认权限档
+- 头像可以是 Claude / OpenAI logo，或自己上传
+
+### 聊天集成
+- CC/Codex 角色在主聊天 persona 轮播里正常出现，可 @、进群聊、朋友圈评论
+- 进入聊天后，CompanionAgent 那一层分岔：
+  - 普通角色 → 走 LLM provider（现状）
+  - dev agent 角色 → 走 bridge 多轮会话
+- 复用 PersonaChatScreen，消息气泡里嵌入 tool call（文件操作、diff、命令）
+
+### 多轮会话
+- CC：`claude -p --resume <session_id>` 续接
+- Codex：`codex exec resume <session_id>`
+- bridge 端为每个 character 维护一个活跃 session_id
+- 新消息发来时带上 session_id
+
+### 写操作的决策 UX
+worktree 隔离 / decision 日志 / apply / discard 这些底层 plumbing 全部保留，但 **UX 整合进聊天**：
+
+```
+[Codex] 我给 RecordOrganizerService 加了 12 个单测，覆盖率从 34% → 78%。
+        [应用] [丢弃] [看 diff]
+```
+
+按钮直接调 decideRun，结果作为新消息附在下面：
+
+```
+[系统] 已合并到 personal-lab。
+```
 
 ### 完成判定
-- 同时管 3 个项目，run 不串
-- 一次任务从"补测试" → "开 PR" → "合并"全程在手机完成
+- 主聊天能看到 CC/Codex 角色
+- 跟他们说"看下 X 改成 Y" 真能改，diff 出现，决策按钮可用
+- apply 真合到 default branch，UI 给反馈
+- 多轮：下一句"再加点测试" 接着同个 session，不重新开
+
+### 工程量
+2-4 天，看具体绕路。不再保证 1 周/2 周这种数字。
 
 ---
 
-## Phase 5 — 双代理协作（待定）
+## Phase 3 — Daily Coding Log + 署名记忆卡片（接 5 后面）
 
 ### 目标
-CC 实现、Codex review，或反过来。
+每天自动生成一张 coding 事实卡片，带 CC/Codex 署名，进 `SharedLifeEntities`，让其他伴侣角色自然知道"你今天和 CC 在忙什么"。
 
-### 暂时不做的理由
-- 两个 agent 互看输出 token 爆炸
-- diff 冲突仲裁难
-- 用户审两份意见更累
+（详细数据流见前面 Phase 3 章节，没变。）
 
-### 想做时的方向
-- 不是"实时互看"，而是**接力**：CC 任务结束 → Codex 单独读 diff 出 review → 用户看 review → 决定 apply
-- review 也是一个 `DevAgentRun`，`agentType = 'codex_reviewer'`
-- 不要让两个 agent 在同一 worktree 里同时写
+### 关键
+- 必须在 Phase 5 之后做：5 产生真实 run 数据，3 把它转成可被角色检索的卡片
+- 不能跳过：是 CC/Codex 人格化的社会基础
 
 ---
 
-## 跨阶段：开发助理角色（可选，Phase 2 之后随时做）
+## Phase 4b — PR 自动开（release_ops 真启用）
 
-主聊天里加一个普通 Companion 角色"小开发"（或别的名字）：
-- persona：温和的工程助理，知道你有 Dev Room
-- 工具：仅 `open_dev_room(project_name, task_description)`
-- 行为：用户说"让 CC 帮我看看 X" → 调工具 → 在 Dev Room 创建 run → 返回 runId → 角色回："好，已经派给 CC 了，去 Dev Room 看进度"
+### 目标
+release_ops 项目的 apply 改成"推 dev-agent 分支 + 调 gh pr create"，PR URL 回贴聊天。
 
-这个角色不持有任何 CC 工具，只是入口。
+### 做什么
+- Bridge 配 `GH_TOKEN`（环境变量或 `gh auth`）
+- release_ops 模式下，apply 不再 fast-forward merge 本地 default，改为 `git push origin dev-agent/{short} && gh pr create --title ... --body ...`
+- PR URL 作为 artifact，聊天里给链接
+
+### 完成判定
+- 真实仓库走一次：CC 改 → apply → PR 自动开 → GitHub 上能看到
+
+---
+
+## Phase 6 — 语音陪伴（通勤路上 Codex 读文章）
+
+### 目标
+路上用蓝牙耳机听 Codex 讲解文章 / 汇报项目进度。
+
+### 做什么
+- 复用项目里现有 ElevenLabs TTS
+- Codex 消息自动 TTS 播放
+- 蓝牙耳机控制（下一段、暂停、长按提问）
+- 锁屏播放控制
+
+### 完成判定
+- 通勤路上完全免手能听完一篇小红书归档文章 + 提问 + 听回答
+
+---
+
+## 已砍掉的方向
+
+**原 Phase 5 "双代理协作（CC 写 + Codex review）"** —— 太 niche，token 成本高、仲裁难、用户审两份意见更累。需要时手动派两个 run 就行，不值得做产品化。
+
+**"开发助理"代理角色** —— 之前讨论过加一个普通 Companion 角色，只持 `open_dev_room` 工具作为入口。Phase 5 把 CC/Codex 自己变成角色后，这种代理就没用了，砍掉。
 
 ---
 
