@@ -187,9 +187,20 @@ class SharedLifeMemoryService {
     if (entityType != null) {
       query.where((t) => t.entityType.equals(entityType));
     }
-    query
-      ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
-      ..limit(200);
+    // For schedule/task queries, sort by event time asc (soonest first);
+    // otherwise sort by most recently updated.
+    final timeAscMode = entityType == 'schedule' || entityType == 'task' ||
+        domain == 'schedule' || domain == 'task';
+    if (timeAscMode) {
+      query.orderBy([
+        (t) => OrderingTerm(expression: t.occurredAt, mode: OrderingMode.asc,
+            nulls: NullsOrder.last),
+        (t) => OrderingTerm.desc(t.updatedAt),
+      ]);
+    } else {
+      query.orderBy([(t) => OrderingTerm.desc(t.updatedAt)]);
+    }
+    query.limit(200);
     final rows = await query.get();
     final terms = _searchTerms(text);
     final ranked = rows
@@ -203,9 +214,16 @@ class SharedLifeMemoryService {
         .toList()
       ..sort((a, b) {
         final scoreCompare = b.score.compareTo(a.score);
-        return scoreCompare != 0
-            ? scoreCompare
-            : b.row.updatedAt.compareTo(a.row.updatedAt);
+        if (scoreCompare != 0) return scoreCompare;
+        // Preserve domain-aware secondary order from the DB query
+        if (timeAscMode) {
+          final aTime = a.row.occurredAt;
+          final bTime = b.row.occurredAt;
+          if (aTime != null && bTime != null) return aTime.compareTo(bTime);
+          if (aTime != null) return -1;
+          if (bTime != null) return 1;
+        }
+        return b.row.updatedAt.compareTo(a.row.updatedAt);
       });
 
     final selected = ranked.isEmpty && terms.isNotEmpty

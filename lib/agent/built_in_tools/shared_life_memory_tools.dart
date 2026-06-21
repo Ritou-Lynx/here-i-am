@@ -120,7 +120,8 @@ Tool _buildQueryTool(SharedLifeMemoryService service) {
 
 Use this before answering questions about recorded events, tasks, plans,
 schedules, or durable facts. This store is separate from character-private
-memory. Query first instead of guessing. A blank query returns recent records.''',
+memory. Query first instead of guessing. A blank query returns recent records.
+Narrow results with domain, entity_type, or time_start/time_end filters.''',
     parameters: {
       'type': 'object',
       'properties': {
@@ -128,6 +129,29 @@ memory. Query first instead of guessing. A blank query returns recent records.''
           'type': 'string',
           'description':
               'Keywords or a natural-language question. Omit for recent records.',
+        },
+        'domain': {
+          'type': 'string',
+          'enum': [
+            'health', 'finance', 'schedule', 'task',
+            'social', 'interest', 'clothing', 'general',
+          ],
+          'description': 'Filter to a specific life domain.',
+        },
+        'entity_type': {
+          'type': 'string',
+          'enum': ['event', 'task', 'plan', 'schedule', 'fact'],
+          'description': 'Filter by record type.',
+        },
+        'time_start': {
+          'type': 'string',
+          'description':
+              'ISO 8601 datetime. Only return records whose event time is on or after this.',
+        },
+        'time_end': {
+          'type': 'string',
+          'description':
+              'ISO 8601 datetime. Only return records whose event time is on or before this.',
         },
         'status': {
           'type': 'string',
@@ -146,14 +170,21 @@ memory. Query first instead of guessing. A blank query returns recent records.''
       try {
         final text = _string(args['query']);
         final status = _string(args['status']);
+        final domain = _string(args['domain']);
+        final entityType = _string(args['entity_type']);
+        final timeStart = _parseTimestamp(args['time_start']);
+        final timeEnd = _parseTimestamp(args['time_end']);
         final limit = _limit(args['limit']);
-        final entities = text.isEmpty
-            ? await service.listEntities(limit: limit)
-            : await service.queryRelevantEntities(
-                text,
-                limit: limit,
-                includeCancelled: status == 'cancelled',
-              );
+
+        final entities = await service.queryRelevantEntities(
+          text,
+          limit: limit,
+          includeCancelled: status == 'cancelled',
+          domain: domain.isEmpty ? null : domain,
+          entityType: entityType.isEmpty ? null : entityType,
+          occurredAfter: timeStart,
+          occurredBefore: timeEnd,
+        );
         final filtered = status.isEmpty
             ? entities
             : entities.where((entity) => entity.status == status).toList();
@@ -166,6 +197,14 @@ memory. Query first instead of guessing. A blank query returns recent records.''
       }
     },
   );
+}
+
+int? _parseTimestamp(dynamic value) {
+  if (value == null) return null;
+  final s = value.toString().trim();
+  if (s.isEmpty) return null;
+  final dt = DateTime.tryParse(s);
+  return dt?.microsecondsSinceEpoch;
 }
 
 Tool _buildCreateTool({
