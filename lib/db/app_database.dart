@@ -97,7 +97,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 30;
+  int get schemaVersion => 31;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -415,6 +415,20 @@ class AppDatabase extends _$AppDatabase {
             await customStatement(
               "INSERT OR REPLACE INTO kv_store(key, value, bucket, updated_at) "
               "VALUES ('system_memory_reset_v29', 'pending', "
+              "'data_reset', CAST(strftime('%s', 'now') AS INTEGER))",
+            );
+          }
+          if (from < 31) {
+            // Third reset: clear records auto-generated before LifeMemoryCreate
+            // trigger-phrase guard was added. Character memory also re-cleared.
+            await customStatement('DELETE FROM shared_life_entities');
+            await customStatement('DELETE FROM shared_life_event_operations');
+            try {
+              await customStatement('DELETE FROM shared_life_fts');
+            } catch (_) {}
+            await customStatement(
+              "INSERT OR REPLACE INTO kv_store(key, value, bucket, updated_at) "
+              "VALUES ('character_memory_full_reset_v1', 'pending', "
               "'data_reset', CAST(strftime('%s', 'now') AS INTEGER))",
             );
           }

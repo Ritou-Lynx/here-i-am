@@ -44,7 +44,15 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
   }
 
   void _showQuickSave() {
-    if (!RecordOrganizerService.isInitialized) return;
+    if (!RecordOrganizerService.isInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('记录服务尚未就绪，请稍候'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -55,7 +63,6 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
 
   @override
   Widget build(BuildContext context) {
-    if (!RecordOrganizerService.isInitialized) return const SizedBox.shrink();
     return Positioned(
       right: _right,
       bottom: _bottom,
