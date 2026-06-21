@@ -107,32 +107,24 @@ class _DevRunScreenState extends State<DevRunScreen> {
               ? const Center(child: CircularProgressIndicator())
               : Column(
                   children: [
-                    _RunHeader(run: run),
                     _PendingApprovalBanner(runId: widget.runId),
                     _ArtifactsBar(runId: widget.runId),
-                    if (_isTerminal(status))
-                      _DecisionBar(
-                        run: run,
-                        onDecide: _decide,
-                      ),
                     Expanded(
                       child: StreamBuilder<List<DevAgentEvent>>(
                         stream: DevAgentBridgeService.instance
                             .watchEvents(widget.runId),
                         builder: (context, eventSnapshot) {
                           final events = eventSnapshot.data ?? const [];
-                          if (events.isEmpty) {
-                            return const Center(
-                              child: Text('还没有事件。Bridge 接通后会在这里出现进度。'),
-                            );
-                          }
                           return ListView.separated(
                             padding: const EdgeInsets.all(16),
-                            itemCount: events.length,
+                            itemCount: events.length + 1,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 10),
                             itemBuilder: (context, index) {
-                              return _EventTile(event: events[index]);
+                              if (index == 0) {
+                                return _RunHeader(run: run);
+                              }
+                              return _EventTile(event: events[index - 1]);
                             },
                           );
                         },
@@ -140,6 +132,9 @@ class _DevRunScreenState extends State<DevRunScreen> {
                     ),
                   ],
                 ),
+          bottomNavigationBar: run == null || !_isTerminal(status)
+              ? null
+              : _DecisionBar(run: run, onDecide: _decide),
         );
       },
     );
@@ -247,37 +242,38 @@ class _DecisionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasWorktree =
         run.worktreePath != null && run.worktreePath!.trim().isNotEmpty;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.textTertiary.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.fact_check_outlined, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              hasWorktree ? '决定改动的去向' : '决策入口（写权限尚未启用，discard/apply 会被 Bridge 拒绝）',
-              style: const TextStyle(fontSize: 13),
-            ),
+    return Material(
+      elevation: 8,
+      color: AppColors.cardBackground,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.fact_check_outlined, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  hasWorktree ? '改动的去向' : '决策（无 worktree 时会被 Bridge 拒绝）',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+              TextButton(
+                onPressed: () => onDecide('leave'),
+                child: const Text('留着'),
+              ),
+              TextButton(
+                onPressed: () => onDecide('discard'),
+                child: const Text('丢弃'),
+              ),
+              TextButton(
+                onPressed: () => onDecide('apply'),
+                child: const Text('应用'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => onDecide('leave'),
-            child: const Text('留着'),
-          ),
-          TextButton(
-            onPressed: () => onDecide('discard'),
-            child: const Text('丢弃'),
-          ),
-          TextButton(
-            onPressed: () => onDecide('apply'),
-            child: const Text('应用'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -424,7 +420,6 @@ class _RunHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -458,13 +453,13 @@ class _RunHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
+          SelectableText(
             run.initialPrompt,
             style: const TextStyle(height: 1.4),
           ),
           if (run.summary != null && run.summary!.trim().isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(
+            SelectableText(
               run.summary!,
               style: const TextStyle(
                 color: AppColors.textSecondary,
@@ -542,7 +537,7 @@ class _EventTile extends StatelessWidget {
                 ),
                 if (detail.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  Text(
+                  SelectableText(
                     detail,
                     style: const TextStyle(
                       color: AppColors.textSecondary,

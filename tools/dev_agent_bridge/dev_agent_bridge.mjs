@@ -229,7 +229,9 @@ function normalizeJsonLine(run, rawLine) {
     if (run.transcript[run.transcript.length - 1] === text) return;
     addEvent(run, 'text', { text, role: 'assistant', raw_type: type });
     run.transcript.push(text);
-    run.summary = text.length > 280 ? `${text.slice(0, 277)}...` : text;
+    // Keep summary as the latest full assistant text. Don't truncate — the App
+    // needs the whole thing to render in the run header.
+    run.summary = text;
     return;
   }
 
