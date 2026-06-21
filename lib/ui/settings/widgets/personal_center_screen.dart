@@ -777,6 +777,12 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
             ),
             const SizedBox(height: 12),
             _buildFunctionTab(
+              icon: Icons.developer_mode_outlined,
+              title: 'Dev Room',
+              onTap: () => context.push(AppRoutes.devRoom),
+            ),
+            const SizedBox(height: 12),
+            _buildFunctionTab(
               icon: Icons.memory,
               title: UserStorage.l10n.memoryTitle,
               onTap: () => context.push(AppRoutes.memory),
@@ -810,13 +816,11 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
                   onReprocessComments: () async => _reprocessComments(),
                   onReprocessKnowledgeBase: () async =>
                       _reprocessKnowledgeBase(),
-                  onRebuildSearchIndex: () async =>
-                      _rebuildSearchIndex(),
+                  onRebuildSearchIndex: () async => _rebuildSearchIndex(),
                   isClearingData: _isClearingData,
                   isReprocessingCards: _isReprocessingCards,
                   isReprocessingComments: _isReprocessingComments,
-                  isReprocessingKnowledgeBase:
-                      _isReprocessingKnowledgeBase,
+                  isReprocessingKnowledgeBase: _isReprocessingKnowledgeBase,
                   isRebuildingSearchIndex: _isRebuildingSearchIndex,
                 ));
               },
@@ -872,7 +876,8 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
-                    child: const Icon(Icons.edit, size: 10, color: Colors.white),
+                    child:
+                        const Icon(Icons.edit, size: 10, color: Colors.white),
                   ),
                 ),
               ],
@@ -963,7 +968,9 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
                   title,
                   style: TextStyle(
                     fontSize: 16,
-                    color: isLoading ? AppColors.textTertiary : AppColors.textPrimary,
+                    color: isLoading
+                        ? AppColors.textTertiary
+                        : AppColors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

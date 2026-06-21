@@ -9399,6 +9399,2029 @@ class VoiceCallMessagesCompanion extends UpdateCompanion<VoiceCallMessage> {
   }
 }
 
+class $DevProjectsTable extends DevProjects
+    with TableInfo<$DevProjectsTable, DevProject> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DevProjectsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _rootPathMeta =
+      const VerificationMeta('rootPath');
+  @override
+  late final GeneratedColumn<String> rootPath = GeneratedColumn<String>(
+      'root_path', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _defaultBranchMeta =
+      const VerificationMeta('defaultBranch');
+  @override
+  late final GeneratedColumn<String> defaultBranch = GeneratedColumn<String>(
+      'default_branch', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('main'));
+  static const VerificationMeta _bridgeUrlMeta =
+      const VerificationMeta('bridgeUrl');
+  @override
+  late final GeneratedColumn<String> bridgeUrl = GeneratedColumn<String>(
+      'bridge_url', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _permissionTierMeta =
+      const VerificationMeta('permissionTier');
+  @override
+  late final GeneratedColumn<String> permissionTier = GeneratedColumn<String>(
+      'permission_tier', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('read_only'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, name, rootPath, defaultBranch, bridgeUrl, permissionTier, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dev_projects';
+  @override
+  VerificationContext validateIntegrity(Insertable<DevProject> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('root_path')) {
+      context.handle(_rootPathMeta,
+          rootPath.isAcceptableOrUnknown(data['root_path']!, _rootPathMeta));
+    } else if (isInserting) {
+      context.missing(_rootPathMeta);
+    }
+    if (data.containsKey('default_branch')) {
+      context.handle(
+          _defaultBranchMeta,
+          defaultBranch.isAcceptableOrUnknown(
+              data['default_branch']!, _defaultBranchMeta));
+    }
+    if (data.containsKey('bridge_url')) {
+      context.handle(_bridgeUrlMeta,
+          bridgeUrl.isAcceptableOrUnknown(data['bridge_url']!, _bridgeUrlMeta));
+    } else if (isInserting) {
+      context.missing(_bridgeUrlMeta);
+    }
+    if (data.containsKey('permission_tier')) {
+      context.handle(
+          _permissionTierMeta,
+          permissionTier.isAcceptableOrUnknown(
+              data['permission_tier']!, _permissionTierMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DevProject map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DevProject(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      rootPath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}root_path'])!,
+      defaultBranch: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}default_branch'])!,
+      bridgeUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}bridge_url'])!,
+      permissionTier: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}permission_tier'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $DevProjectsTable createAlias(String alias) {
+    return $DevProjectsTable(attachedDatabase, alias);
+  }
+}
+
+class DevProject extends DataClass implements Insertable<DevProject> {
+  final String id;
+  final String name;
+  final String rootPath;
+  final String defaultBranch;
+  final String bridgeUrl;
+  final String permissionTier;
+  final int createdAt;
+  const DevProject(
+      {required this.id,
+      required this.name,
+      required this.rootPath,
+      required this.defaultBranch,
+      required this.bridgeUrl,
+      required this.permissionTier,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['root_path'] = Variable<String>(rootPath);
+    map['default_branch'] = Variable<String>(defaultBranch);
+    map['bridge_url'] = Variable<String>(bridgeUrl);
+    map['permission_tier'] = Variable<String>(permissionTier);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  DevProjectsCompanion toCompanion(bool nullToAbsent) {
+    return DevProjectsCompanion(
+      id: Value(id),
+      name: Value(name),
+      rootPath: Value(rootPath),
+      defaultBranch: Value(defaultBranch),
+      bridgeUrl: Value(bridgeUrl),
+      permissionTier: Value(permissionTier),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory DevProject.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DevProject(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      rootPath: serializer.fromJson<String>(json['rootPath']),
+      defaultBranch: serializer.fromJson<String>(json['defaultBranch']),
+      bridgeUrl: serializer.fromJson<String>(json['bridgeUrl']),
+      permissionTier: serializer.fromJson<String>(json['permissionTier']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'rootPath': serializer.toJson<String>(rootPath),
+      'defaultBranch': serializer.toJson<String>(defaultBranch),
+      'bridgeUrl': serializer.toJson<String>(bridgeUrl),
+      'permissionTier': serializer.toJson<String>(permissionTier),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  DevProject copyWith(
+          {String? id,
+          String? name,
+          String? rootPath,
+          String? defaultBranch,
+          String? bridgeUrl,
+          String? permissionTier,
+          int? createdAt}) =>
+      DevProject(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        rootPath: rootPath ?? this.rootPath,
+        defaultBranch: defaultBranch ?? this.defaultBranch,
+        bridgeUrl: bridgeUrl ?? this.bridgeUrl,
+        permissionTier: permissionTier ?? this.permissionTier,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  DevProject copyWithCompanion(DevProjectsCompanion data) {
+    return DevProject(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      rootPath: data.rootPath.present ? data.rootPath.value : this.rootPath,
+      defaultBranch: data.defaultBranch.present
+          ? data.defaultBranch.value
+          : this.defaultBranch,
+      bridgeUrl: data.bridgeUrl.present ? data.bridgeUrl.value : this.bridgeUrl,
+      permissionTier: data.permissionTier.present
+          ? data.permissionTier.value
+          : this.permissionTier,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevProject(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('rootPath: $rootPath, ')
+          ..write('defaultBranch: $defaultBranch, ')
+          ..write('bridgeUrl: $bridgeUrl, ')
+          ..write('permissionTier: $permissionTier, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, name, rootPath, defaultBranch, bridgeUrl, permissionTier, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DevProject &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.rootPath == this.rootPath &&
+          other.defaultBranch == this.defaultBranch &&
+          other.bridgeUrl == this.bridgeUrl &&
+          other.permissionTier == this.permissionTier &&
+          other.createdAt == this.createdAt);
+}
+
+class DevProjectsCompanion extends UpdateCompanion<DevProject> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> rootPath;
+  final Value<String> defaultBranch;
+  final Value<String> bridgeUrl;
+  final Value<String> permissionTier;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const DevProjectsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.rootPath = const Value.absent(),
+    this.defaultBranch = const Value.absent(),
+    this.bridgeUrl = const Value.absent(),
+    this.permissionTier = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DevProjectsCompanion.insert({
+    required String id,
+    required String name,
+    required String rootPath,
+    this.defaultBranch = const Value.absent(),
+    required String bridgeUrl,
+    this.permissionTier = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        rootPath = Value(rootPath),
+        bridgeUrl = Value(bridgeUrl),
+        createdAt = Value(createdAt);
+  static Insertable<DevProject> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? rootPath,
+    Expression<String>? defaultBranch,
+    Expression<String>? bridgeUrl,
+    Expression<String>? permissionTier,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (rootPath != null) 'root_path': rootPath,
+      if (defaultBranch != null) 'default_branch': defaultBranch,
+      if (bridgeUrl != null) 'bridge_url': bridgeUrl,
+      if (permissionTier != null) 'permission_tier': permissionTier,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DevProjectsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<String>? rootPath,
+      Value<String>? defaultBranch,
+      Value<String>? bridgeUrl,
+      Value<String>? permissionTier,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return DevProjectsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      rootPath: rootPath ?? this.rootPath,
+      defaultBranch: defaultBranch ?? this.defaultBranch,
+      bridgeUrl: bridgeUrl ?? this.bridgeUrl,
+      permissionTier: permissionTier ?? this.permissionTier,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (rootPath.present) {
+      map['root_path'] = Variable<String>(rootPath.value);
+    }
+    if (defaultBranch.present) {
+      map['default_branch'] = Variable<String>(defaultBranch.value);
+    }
+    if (bridgeUrl.present) {
+      map['bridge_url'] = Variable<String>(bridgeUrl.value);
+    }
+    if (permissionTier.present) {
+      map['permission_tier'] = Variable<String>(permissionTier.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevProjectsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('rootPath: $rootPath, ')
+          ..write('defaultBranch: $defaultBranch, ')
+          ..write('bridgeUrl: $bridgeUrl, ')
+          ..write('permissionTier: $permissionTier, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DevAgentRunsTable extends DevAgentRuns
+    with TableInfo<$DevAgentRunsTable, DevAgentRun> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DevAgentRunsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _projectIdMeta =
+      const VerificationMeta('projectId');
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+      'project_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES dev_projects (id)'));
+  static const VerificationMeta _agentTypeMeta =
+      const VerificationMeta('agentType');
+  @override
+  late final GeneratedColumn<String> agentType = GeneratedColumn<String>(
+      'agent_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sessionIdMeta =
+      const VerificationMeta('sessionId');
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+      'session_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _initialPromptMeta =
+      const VerificationMeta('initialPrompt');
+  @override
+  late final GeneratedColumn<String> initialPrompt = GeneratedColumn<String>(
+      'initial_prompt', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _branchMeta = const VerificationMeta('branch');
+  @override
+  late final GeneratedColumn<String> branch = GeneratedColumn<String>(
+      'branch', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _worktreePathMeta =
+      const VerificationMeta('worktreePath');
+  @override
+  late final GeneratedColumn<String> worktreePath = GeneratedColumn<String>(
+      'worktree_path', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _startedAtMeta =
+      const VerificationMeta('startedAt');
+  @override
+  late final GeneratedColumn<int> startedAt = GeneratedColumn<int>(
+      'started_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _endedAtMeta =
+      const VerificationMeta('endedAt');
+  @override
+  late final GeneratedColumn<int> endedAt = GeneratedColumn<int>(
+      'ended_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _summaryMeta =
+      const VerificationMeta('summary');
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+      'summary', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        projectId,
+        agentType,
+        sessionId,
+        initialPrompt,
+        status,
+        branch,
+        worktreePath,
+        startedAt,
+        endedAt,
+        summary
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dev_agent_runs';
+  @override
+  VerificationContext validateIntegrity(Insertable<DevAgentRun> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(_projectIdMeta,
+          projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta));
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('agent_type')) {
+      context.handle(_agentTypeMeta,
+          agentType.isAcceptableOrUnknown(data['agent_type']!, _agentTypeMeta));
+    } else if (isInserting) {
+      context.missing(_agentTypeMeta);
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(_sessionIdMeta,
+          sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta));
+    }
+    if (data.containsKey('initial_prompt')) {
+      context.handle(
+          _initialPromptMeta,
+          initialPrompt.isAcceptableOrUnknown(
+              data['initial_prompt']!, _initialPromptMeta));
+    } else if (isInserting) {
+      context.missing(_initialPromptMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('branch')) {
+      context.handle(_branchMeta,
+          branch.isAcceptableOrUnknown(data['branch']!, _branchMeta));
+    }
+    if (data.containsKey('worktree_path')) {
+      context.handle(
+          _worktreePathMeta,
+          worktreePath.isAcceptableOrUnknown(
+              data['worktree_path']!, _worktreePathMeta));
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(_startedAtMeta,
+          startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta));
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('ended_at')) {
+      context.handle(_endedAtMeta,
+          endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta));
+    }
+    if (data.containsKey('summary')) {
+      context.handle(_summaryMeta,
+          summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DevAgentRun map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DevAgentRun(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      projectId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}project_id'])!,
+      agentType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}agent_type'])!,
+      sessionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}session_id']),
+      initialPrompt: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}initial_prompt'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      branch: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}branch']),
+      worktreePath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}worktree_path']),
+      startedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}started_at'])!,
+      endedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}ended_at']),
+      summary: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}summary']),
+    );
+  }
+
+  @override
+  $DevAgentRunsTable createAlias(String alias) {
+    return $DevAgentRunsTable(attachedDatabase, alias);
+  }
+}
+
+class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
+  final String id;
+  final String projectId;
+  final String agentType;
+  final String? sessionId;
+  final String initialPrompt;
+  final String status;
+  final String? branch;
+  final String? worktreePath;
+  final int startedAt;
+  final int? endedAt;
+  final String? summary;
+  const DevAgentRun(
+      {required this.id,
+      required this.projectId,
+      required this.agentType,
+      this.sessionId,
+      required this.initialPrompt,
+      required this.status,
+      this.branch,
+      this.worktreePath,
+      required this.startedAt,
+      this.endedAt,
+      this.summary});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['project_id'] = Variable<String>(projectId);
+    map['agent_type'] = Variable<String>(agentType);
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<String>(sessionId);
+    }
+    map['initial_prompt'] = Variable<String>(initialPrompt);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || branch != null) {
+      map['branch'] = Variable<String>(branch);
+    }
+    if (!nullToAbsent || worktreePath != null) {
+      map['worktree_path'] = Variable<String>(worktreePath);
+    }
+    map['started_at'] = Variable<int>(startedAt);
+    if (!nullToAbsent || endedAt != null) {
+      map['ended_at'] = Variable<int>(endedAt);
+    }
+    if (!nullToAbsent || summary != null) {
+      map['summary'] = Variable<String>(summary);
+    }
+    return map;
+  }
+
+  DevAgentRunsCompanion toCompanion(bool nullToAbsent) {
+    return DevAgentRunsCompanion(
+      id: Value(id),
+      projectId: Value(projectId),
+      agentType: Value(agentType),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
+      initialPrompt: Value(initialPrompt),
+      status: Value(status),
+      branch:
+          branch == null && nullToAbsent ? const Value.absent() : Value(branch),
+      worktreePath: worktreePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(worktreePath),
+      startedAt: Value(startedAt),
+      endedAt: endedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endedAt),
+      summary: summary == null && nullToAbsent
+          ? const Value.absent()
+          : Value(summary),
+    );
+  }
+
+  factory DevAgentRun.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DevAgentRun(
+      id: serializer.fromJson<String>(json['id']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      agentType: serializer.fromJson<String>(json['agentType']),
+      sessionId: serializer.fromJson<String?>(json['sessionId']),
+      initialPrompt: serializer.fromJson<String>(json['initialPrompt']),
+      status: serializer.fromJson<String>(json['status']),
+      branch: serializer.fromJson<String?>(json['branch']),
+      worktreePath: serializer.fromJson<String?>(json['worktreePath']),
+      startedAt: serializer.fromJson<int>(json['startedAt']),
+      endedAt: serializer.fromJson<int?>(json['endedAt']),
+      summary: serializer.fromJson<String?>(json['summary']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'projectId': serializer.toJson<String>(projectId),
+      'agentType': serializer.toJson<String>(agentType),
+      'sessionId': serializer.toJson<String?>(sessionId),
+      'initialPrompt': serializer.toJson<String>(initialPrompt),
+      'status': serializer.toJson<String>(status),
+      'branch': serializer.toJson<String?>(branch),
+      'worktreePath': serializer.toJson<String?>(worktreePath),
+      'startedAt': serializer.toJson<int>(startedAt),
+      'endedAt': serializer.toJson<int?>(endedAt),
+      'summary': serializer.toJson<String?>(summary),
+    };
+  }
+
+  DevAgentRun copyWith(
+          {String? id,
+          String? projectId,
+          String? agentType,
+          Value<String?> sessionId = const Value.absent(),
+          String? initialPrompt,
+          String? status,
+          Value<String?> branch = const Value.absent(),
+          Value<String?> worktreePath = const Value.absent(),
+          int? startedAt,
+          Value<int?> endedAt = const Value.absent(),
+          Value<String?> summary = const Value.absent()}) =>
+      DevAgentRun(
+        id: id ?? this.id,
+        projectId: projectId ?? this.projectId,
+        agentType: agentType ?? this.agentType,
+        sessionId: sessionId.present ? sessionId.value : this.sessionId,
+        initialPrompt: initialPrompt ?? this.initialPrompt,
+        status: status ?? this.status,
+        branch: branch.present ? branch.value : this.branch,
+        worktreePath:
+            worktreePath.present ? worktreePath.value : this.worktreePath,
+        startedAt: startedAt ?? this.startedAt,
+        endedAt: endedAt.present ? endedAt.value : this.endedAt,
+        summary: summary.present ? summary.value : this.summary,
+      );
+  DevAgentRun copyWithCompanion(DevAgentRunsCompanion data) {
+    return DevAgentRun(
+      id: data.id.present ? data.id.value : this.id,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      agentType: data.agentType.present ? data.agentType.value : this.agentType,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      initialPrompt: data.initialPrompt.present
+          ? data.initialPrompt.value
+          : this.initialPrompt,
+      status: data.status.present ? data.status.value : this.status,
+      branch: data.branch.present ? data.branch.value : this.branch,
+      worktreePath: data.worktreePath.present
+          ? data.worktreePath.value
+          : this.worktreePath,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
+      summary: data.summary.present ? data.summary.value : this.summary,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentRun(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('agentType: $agentType, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('initialPrompt: $initialPrompt, ')
+          ..write('status: $status, ')
+          ..write('branch: $branch, ')
+          ..write('worktreePath: $worktreePath, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('summary: $summary')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, projectId, agentType, sessionId,
+      initialPrompt, status, branch, worktreePath, startedAt, endedAt, summary);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DevAgentRun &&
+          other.id == this.id &&
+          other.projectId == this.projectId &&
+          other.agentType == this.agentType &&
+          other.sessionId == this.sessionId &&
+          other.initialPrompt == this.initialPrompt &&
+          other.status == this.status &&
+          other.branch == this.branch &&
+          other.worktreePath == this.worktreePath &&
+          other.startedAt == this.startedAt &&
+          other.endedAt == this.endedAt &&
+          other.summary == this.summary);
+}
+
+class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
+  final Value<String> id;
+  final Value<String> projectId;
+  final Value<String> agentType;
+  final Value<String?> sessionId;
+  final Value<String> initialPrompt;
+  final Value<String> status;
+  final Value<String?> branch;
+  final Value<String?> worktreePath;
+  final Value<int> startedAt;
+  final Value<int?> endedAt;
+  final Value<String?> summary;
+  final Value<int> rowid;
+  const DevAgentRunsCompanion({
+    this.id = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.agentType = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.initialPrompt = const Value.absent(),
+    this.status = const Value.absent(),
+    this.branch = const Value.absent(),
+    this.worktreePath = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.endedAt = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DevAgentRunsCompanion.insert({
+    required String id,
+    required String projectId,
+    required String agentType,
+    this.sessionId = const Value.absent(),
+    required String initialPrompt,
+    required String status,
+    this.branch = const Value.absent(),
+    this.worktreePath = const Value.absent(),
+    required int startedAt,
+    this.endedAt = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        projectId = Value(projectId),
+        agentType = Value(agentType),
+        initialPrompt = Value(initialPrompt),
+        status = Value(status),
+        startedAt = Value(startedAt);
+  static Insertable<DevAgentRun> custom({
+    Expression<String>? id,
+    Expression<String>? projectId,
+    Expression<String>? agentType,
+    Expression<String>? sessionId,
+    Expression<String>? initialPrompt,
+    Expression<String>? status,
+    Expression<String>? branch,
+    Expression<String>? worktreePath,
+    Expression<int>? startedAt,
+    Expression<int>? endedAt,
+    Expression<String>? summary,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (projectId != null) 'project_id': projectId,
+      if (agentType != null) 'agent_type': agentType,
+      if (sessionId != null) 'session_id': sessionId,
+      if (initialPrompt != null) 'initial_prompt': initialPrompt,
+      if (status != null) 'status': status,
+      if (branch != null) 'branch': branch,
+      if (worktreePath != null) 'worktree_path': worktreePath,
+      if (startedAt != null) 'started_at': startedAt,
+      if (endedAt != null) 'ended_at': endedAt,
+      if (summary != null) 'summary': summary,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DevAgentRunsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? projectId,
+      Value<String>? agentType,
+      Value<String?>? sessionId,
+      Value<String>? initialPrompt,
+      Value<String>? status,
+      Value<String?>? branch,
+      Value<String?>? worktreePath,
+      Value<int>? startedAt,
+      Value<int?>? endedAt,
+      Value<String?>? summary,
+      Value<int>? rowid}) {
+    return DevAgentRunsCompanion(
+      id: id ?? this.id,
+      projectId: projectId ?? this.projectId,
+      agentType: agentType ?? this.agentType,
+      sessionId: sessionId ?? this.sessionId,
+      initialPrompt: initialPrompt ?? this.initialPrompt,
+      status: status ?? this.status,
+      branch: branch ?? this.branch,
+      worktreePath: worktreePath ?? this.worktreePath,
+      startedAt: startedAt ?? this.startedAt,
+      endedAt: endedAt ?? this.endedAt,
+      summary: summary ?? this.summary,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (agentType.present) {
+      map['agent_type'] = Variable<String>(agentType.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (initialPrompt.present) {
+      map['initial_prompt'] = Variable<String>(initialPrompt.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (branch.present) {
+      map['branch'] = Variable<String>(branch.value);
+    }
+    if (worktreePath.present) {
+      map['worktree_path'] = Variable<String>(worktreePath.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<int>(startedAt.value);
+    }
+    if (endedAt.present) {
+      map['ended_at'] = Variable<int>(endedAt.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentRunsCompanion(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('agentType: $agentType, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('initialPrompt: $initialPrompt, ')
+          ..write('status: $status, ')
+          ..write('branch: $branch, ')
+          ..write('worktreePath: $worktreePath, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('summary: $summary, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DevAgentEventsTable extends DevAgentEvents
+    with TableInfo<$DevAgentEventsTable, DevAgentEvent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DevAgentEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  @override
+  late final GeneratedColumn<String> runId = GeneratedColumn<String>(
+      'run_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES dev_agent_runs (id)'));
+  static const VerificationMeta _tsMeta = const VerificationMeta('ts');
+  @override
+  late final GeneratedColumn<int> ts = GeneratedColumn<int>(
+      'ts', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+      'kind', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _payloadJsonMeta =
+      const VerificationMeta('payloadJson');
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+      'payload_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [id, runId, ts, kind, payloadJson];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dev_agent_events';
+  @override
+  VerificationContext validateIntegrity(Insertable<DevAgentEvent> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+          _runIdMeta, runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta));
+    } else if (isInserting) {
+      context.missing(_runIdMeta);
+    }
+    if (data.containsKey('ts')) {
+      context.handle(_tsMeta, ts.isAcceptableOrUnknown(data['ts']!, _tsMeta));
+    } else if (isInserting) {
+      context.missing(_tsMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+          _kindMeta, kind.isAcceptableOrUnknown(data['kind']!, _kindMeta));
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+          _payloadJsonMeta,
+          payloadJson.isAcceptableOrUnknown(
+              data['payload_json']!, _payloadJsonMeta));
+    } else if (isInserting) {
+      context.missing(_payloadJsonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DevAgentEvent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DevAgentEvent(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      runId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}run_id'])!,
+      ts: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}ts'])!,
+      kind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}kind'])!,
+      payloadJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}payload_json'])!,
+    );
+  }
+
+  @override
+  $DevAgentEventsTable createAlias(String alias) {
+    return $DevAgentEventsTable(attachedDatabase, alias);
+  }
+}
+
+class DevAgentEvent extends DataClass implements Insertable<DevAgentEvent> {
+  final int id;
+  final String runId;
+  final int ts;
+  final String kind;
+  final String payloadJson;
+  const DevAgentEvent(
+      {required this.id,
+      required this.runId,
+      required this.ts,
+      required this.kind,
+      required this.payloadJson});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['run_id'] = Variable<String>(runId);
+    map['ts'] = Variable<int>(ts);
+    map['kind'] = Variable<String>(kind);
+    map['payload_json'] = Variable<String>(payloadJson);
+    return map;
+  }
+
+  DevAgentEventsCompanion toCompanion(bool nullToAbsent) {
+    return DevAgentEventsCompanion(
+      id: Value(id),
+      runId: Value(runId),
+      ts: Value(ts),
+      kind: Value(kind),
+      payloadJson: Value(payloadJson),
+    );
+  }
+
+  factory DevAgentEvent.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DevAgentEvent(
+      id: serializer.fromJson<int>(json['id']),
+      runId: serializer.fromJson<String>(json['runId']),
+      ts: serializer.fromJson<int>(json['ts']),
+      kind: serializer.fromJson<String>(json['kind']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'runId': serializer.toJson<String>(runId),
+      'ts': serializer.toJson<int>(ts),
+      'kind': serializer.toJson<String>(kind),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+    };
+  }
+
+  DevAgentEvent copyWith(
+          {int? id,
+          String? runId,
+          int? ts,
+          String? kind,
+          String? payloadJson}) =>
+      DevAgentEvent(
+        id: id ?? this.id,
+        runId: runId ?? this.runId,
+        ts: ts ?? this.ts,
+        kind: kind ?? this.kind,
+        payloadJson: payloadJson ?? this.payloadJson,
+      );
+  DevAgentEvent copyWithCompanion(DevAgentEventsCompanion data) {
+    return DevAgentEvent(
+      id: data.id.present ? data.id.value : this.id,
+      runId: data.runId.present ? data.runId.value : this.runId,
+      ts: data.ts.present ? data.ts.value : this.ts,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      payloadJson:
+          data.payloadJson.present ? data.payloadJson.value : this.payloadJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentEvent(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('ts: $ts, ')
+          ..write('kind: $kind, ')
+          ..write('payloadJson: $payloadJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, runId, ts, kind, payloadJson);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DevAgentEvent &&
+          other.id == this.id &&
+          other.runId == this.runId &&
+          other.ts == this.ts &&
+          other.kind == this.kind &&
+          other.payloadJson == this.payloadJson);
+}
+
+class DevAgentEventsCompanion extends UpdateCompanion<DevAgentEvent> {
+  final Value<int> id;
+  final Value<String> runId;
+  final Value<int> ts;
+  final Value<String> kind;
+  final Value<String> payloadJson;
+  const DevAgentEventsCompanion({
+    this.id = const Value.absent(),
+    this.runId = const Value.absent(),
+    this.ts = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+  });
+  DevAgentEventsCompanion.insert({
+    this.id = const Value.absent(),
+    required String runId,
+    required int ts,
+    required String kind,
+    required String payloadJson,
+  })  : runId = Value(runId),
+        ts = Value(ts),
+        kind = Value(kind),
+        payloadJson = Value(payloadJson);
+  static Insertable<DevAgentEvent> custom({
+    Expression<int>? id,
+    Expression<String>? runId,
+    Expression<int>? ts,
+    Expression<String>? kind,
+    Expression<String>? payloadJson,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (runId != null) 'run_id': runId,
+      if (ts != null) 'ts': ts,
+      if (kind != null) 'kind': kind,
+      if (payloadJson != null) 'payload_json': payloadJson,
+    });
+  }
+
+  DevAgentEventsCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? runId,
+      Value<int>? ts,
+      Value<String>? kind,
+      Value<String>? payloadJson}) {
+    return DevAgentEventsCompanion(
+      id: id ?? this.id,
+      runId: runId ?? this.runId,
+      ts: ts ?? this.ts,
+      kind: kind ?? this.kind,
+      payloadJson: payloadJson ?? this.payloadJson,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<String>(runId.value);
+    }
+    if (ts.present) {
+      map['ts'] = Variable<int>(ts.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('ts: $ts, ')
+          ..write('kind: $kind, ')
+          ..write('payloadJson: $payloadJson')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DevAgentApprovalsTable extends DevAgentApprovals
+    with TableInfo<$DevAgentApprovalsTable, DevAgentApproval> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DevAgentApprovalsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  @override
+  late final GeneratedColumn<String> runId = GeneratedColumn<String>(
+      'run_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES dev_agent_runs (id)'));
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+      'kind', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _descriptionJsonMeta =
+      const VerificationMeta('descriptionJson');
+  @override
+  late final GeneratedColumn<String> descriptionJson = GeneratedColumn<String>(
+      'description_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _respondedAtMeta =
+      const VerificationMeta('respondedAt');
+  @override
+  late final GeneratedColumn<int> respondedAt = GeneratedColumn<int>(
+      'responded_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, runId, kind, descriptionJson, status, createdAt, respondedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dev_agent_approvals';
+  @override
+  VerificationContext validateIntegrity(Insertable<DevAgentApproval> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+          _runIdMeta, runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta));
+    } else if (isInserting) {
+      context.missing(_runIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+          _kindMeta, kind.isAcceptableOrUnknown(data['kind']!, _kindMeta));
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('description_json')) {
+      context.handle(
+          _descriptionJsonMeta,
+          descriptionJson.isAcceptableOrUnknown(
+              data['description_json']!, _descriptionJsonMeta));
+    } else if (isInserting) {
+      context.missing(_descriptionJsonMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('responded_at')) {
+      context.handle(
+          _respondedAtMeta,
+          respondedAt.isAcceptableOrUnknown(
+              data['responded_at']!, _respondedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DevAgentApproval map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DevAgentApproval(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      runId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}run_id'])!,
+      kind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}kind'])!,
+      descriptionJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}description_json'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      respondedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}responded_at']),
+    );
+  }
+
+  @override
+  $DevAgentApprovalsTable createAlias(String alias) {
+    return $DevAgentApprovalsTable(attachedDatabase, alias);
+  }
+}
+
+class DevAgentApproval extends DataClass
+    implements Insertable<DevAgentApproval> {
+  final String id;
+  final String runId;
+  final String kind;
+  final String descriptionJson;
+  final String status;
+  final int createdAt;
+  final int? respondedAt;
+  const DevAgentApproval(
+      {required this.id,
+      required this.runId,
+      required this.kind,
+      required this.descriptionJson,
+      required this.status,
+      required this.createdAt,
+      this.respondedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['run_id'] = Variable<String>(runId);
+    map['kind'] = Variable<String>(kind);
+    map['description_json'] = Variable<String>(descriptionJson);
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || respondedAt != null) {
+      map['responded_at'] = Variable<int>(respondedAt);
+    }
+    return map;
+  }
+
+  DevAgentApprovalsCompanion toCompanion(bool nullToAbsent) {
+    return DevAgentApprovalsCompanion(
+      id: Value(id),
+      runId: Value(runId),
+      kind: Value(kind),
+      descriptionJson: Value(descriptionJson),
+      status: Value(status),
+      createdAt: Value(createdAt),
+      respondedAt: respondedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(respondedAt),
+    );
+  }
+
+  factory DevAgentApproval.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DevAgentApproval(
+      id: serializer.fromJson<String>(json['id']),
+      runId: serializer.fromJson<String>(json['runId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      descriptionJson: serializer.fromJson<String>(json['descriptionJson']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      respondedAt: serializer.fromJson<int?>(json['respondedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'runId': serializer.toJson<String>(runId),
+      'kind': serializer.toJson<String>(kind),
+      'descriptionJson': serializer.toJson<String>(descriptionJson),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'respondedAt': serializer.toJson<int?>(respondedAt),
+    };
+  }
+
+  DevAgentApproval copyWith(
+          {String? id,
+          String? runId,
+          String? kind,
+          String? descriptionJson,
+          String? status,
+          int? createdAt,
+          Value<int?> respondedAt = const Value.absent()}) =>
+      DevAgentApproval(
+        id: id ?? this.id,
+        runId: runId ?? this.runId,
+        kind: kind ?? this.kind,
+        descriptionJson: descriptionJson ?? this.descriptionJson,
+        status: status ?? this.status,
+        createdAt: createdAt ?? this.createdAt,
+        respondedAt: respondedAt.present ? respondedAt.value : this.respondedAt,
+      );
+  DevAgentApproval copyWithCompanion(DevAgentApprovalsCompanion data) {
+    return DevAgentApproval(
+      id: data.id.present ? data.id.value : this.id,
+      runId: data.runId.present ? data.runId.value : this.runId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      descriptionJson: data.descriptionJson.present
+          ? data.descriptionJson.value
+          : this.descriptionJson,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      respondedAt:
+          data.respondedAt.present ? data.respondedAt.value : this.respondedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentApproval(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('kind: $kind, ')
+          ..write('descriptionJson: $descriptionJson, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('respondedAt: $respondedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, runId, kind, descriptionJson, status, createdAt, respondedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DevAgentApproval &&
+          other.id == this.id &&
+          other.runId == this.runId &&
+          other.kind == this.kind &&
+          other.descriptionJson == this.descriptionJson &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt &&
+          other.respondedAt == this.respondedAt);
+}
+
+class DevAgentApprovalsCompanion extends UpdateCompanion<DevAgentApproval> {
+  final Value<String> id;
+  final Value<String> runId;
+  final Value<String> kind;
+  final Value<String> descriptionJson;
+  final Value<String> status;
+  final Value<int> createdAt;
+  final Value<int?> respondedAt;
+  final Value<int> rowid;
+  const DevAgentApprovalsCompanion({
+    this.id = const Value.absent(),
+    this.runId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.descriptionJson = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.respondedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DevAgentApprovalsCompanion.insert({
+    required String id,
+    required String runId,
+    required String kind,
+    required String descriptionJson,
+    required String status,
+    required int createdAt,
+    this.respondedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        runId = Value(runId),
+        kind = Value(kind),
+        descriptionJson = Value(descriptionJson),
+        status = Value(status),
+        createdAt = Value(createdAt);
+  static Insertable<DevAgentApproval> custom({
+    Expression<String>? id,
+    Expression<String>? runId,
+    Expression<String>? kind,
+    Expression<String>? descriptionJson,
+    Expression<String>? status,
+    Expression<int>? createdAt,
+    Expression<int>? respondedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (runId != null) 'run_id': runId,
+      if (kind != null) 'kind': kind,
+      if (descriptionJson != null) 'description_json': descriptionJson,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (respondedAt != null) 'responded_at': respondedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DevAgentApprovalsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? runId,
+      Value<String>? kind,
+      Value<String>? descriptionJson,
+      Value<String>? status,
+      Value<int>? createdAt,
+      Value<int?>? respondedAt,
+      Value<int>? rowid}) {
+    return DevAgentApprovalsCompanion(
+      id: id ?? this.id,
+      runId: runId ?? this.runId,
+      kind: kind ?? this.kind,
+      descriptionJson: descriptionJson ?? this.descriptionJson,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      respondedAt: respondedAt ?? this.respondedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<String>(runId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (descriptionJson.present) {
+      map['description_json'] = Variable<String>(descriptionJson.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (respondedAt.present) {
+      map['responded_at'] = Variable<int>(respondedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentApprovalsCompanion(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('kind: $kind, ')
+          ..write('descriptionJson: $descriptionJson, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('respondedAt: $respondedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DevAgentArtifactsTable extends DevAgentArtifacts
+    with TableInfo<$DevAgentArtifactsTable, DevAgentArtifact> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DevAgentArtifactsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  @override
+  late final GeneratedColumn<String> runId = GeneratedColumn<String>(
+      'run_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES dev_agent_runs (id)'));
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+      'kind', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _uriMeta = const VerificationMeta('uri');
+  @override
+  late final GeneratedColumn<String> uri = GeneratedColumn<String>(
+      'uri', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, runId, kind, title, content, uri, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dev_agent_artifacts';
+  @override
+  VerificationContext validateIntegrity(Insertable<DevAgentArtifact> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+          _runIdMeta, runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta));
+    } else if (isInserting) {
+      context.missing(_runIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+          _kindMeta, kind.isAcceptableOrUnknown(data['kind']!, _kindMeta));
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    }
+    if (data.containsKey('uri')) {
+      context.handle(
+          _uriMeta, uri.isAcceptableOrUnknown(data['uri']!, _uriMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DevAgentArtifact map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DevAgentArtifact(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      runId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}run_id'])!,
+      kind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}kind'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content']),
+      uri: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}uri']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $DevAgentArtifactsTable createAlias(String alias) {
+    return $DevAgentArtifactsTable(attachedDatabase, alias);
+  }
+}
+
+class DevAgentArtifact extends DataClass
+    implements Insertable<DevAgentArtifact> {
+  final String id;
+  final String runId;
+  final String kind;
+  final String title;
+  final String? content;
+  final String? uri;
+  final int createdAt;
+  const DevAgentArtifact(
+      {required this.id,
+      required this.runId,
+      required this.kind,
+      required this.title,
+      this.content,
+      this.uri,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['run_id'] = Variable<String>(runId);
+    map['kind'] = Variable<String>(kind);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || content != null) {
+      map['content'] = Variable<String>(content);
+    }
+    if (!nullToAbsent || uri != null) {
+      map['uri'] = Variable<String>(uri);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  DevAgentArtifactsCompanion toCompanion(bool nullToAbsent) {
+    return DevAgentArtifactsCompanion(
+      id: Value(id),
+      runId: Value(runId),
+      kind: Value(kind),
+      title: Value(title),
+      content: content == null && nullToAbsent
+          ? const Value.absent()
+          : Value(content),
+      uri: uri == null && nullToAbsent ? const Value.absent() : Value(uri),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory DevAgentArtifact.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DevAgentArtifact(
+      id: serializer.fromJson<String>(json['id']),
+      runId: serializer.fromJson<String>(json['runId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      title: serializer.fromJson<String>(json['title']),
+      content: serializer.fromJson<String?>(json['content']),
+      uri: serializer.fromJson<String?>(json['uri']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'runId': serializer.toJson<String>(runId),
+      'kind': serializer.toJson<String>(kind),
+      'title': serializer.toJson<String>(title),
+      'content': serializer.toJson<String?>(content),
+      'uri': serializer.toJson<String?>(uri),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  DevAgentArtifact copyWith(
+          {String? id,
+          String? runId,
+          String? kind,
+          String? title,
+          Value<String?> content = const Value.absent(),
+          Value<String?> uri = const Value.absent(),
+          int? createdAt}) =>
+      DevAgentArtifact(
+        id: id ?? this.id,
+        runId: runId ?? this.runId,
+        kind: kind ?? this.kind,
+        title: title ?? this.title,
+        content: content.present ? content.value : this.content,
+        uri: uri.present ? uri.value : this.uri,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  DevAgentArtifact copyWithCompanion(DevAgentArtifactsCompanion data) {
+    return DevAgentArtifact(
+      id: data.id.present ? data.id.value : this.id,
+      runId: data.runId.present ? data.runId.value : this.runId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      title: data.title.present ? data.title.value : this.title,
+      content: data.content.present ? data.content.value : this.content,
+      uri: data.uri.present ? data.uri.value : this.uri,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentArtifact(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('kind: $kind, ')
+          ..write('title: $title, ')
+          ..write('content: $content, ')
+          ..write('uri: $uri, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, runId, kind, title, content, uri, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DevAgentArtifact &&
+          other.id == this.id &&
+          other.runId == this.runId &&
+          other.kind == this.kind &&
+          other.title == this.title &&
+          other.content == this.content &&
+          other.uri == this.uri &&
+          other.createdAt == this.createdAt);
+}
+
+class DevAgentArtifactsCompanion extends UpdateCompanion<DevAgentArtifact> {
+  final Value<String> id;
+  final Value<String> runId;
+  final Value<String> kind;
+  final Value<String> title;
+  final Value<String?> content;
+  final Value<String?> uri;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const DevAgentArtifactsCompanion({
+    this.id = const Value.absent(),
+    this.runId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.title = const Value.absent(),
+    this.content = const Value.absent(),
+    this.uri = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DevAgentArtifactsCompanion.insert({
+    required String id,
+    required String runId,
+    required String kind,
+    required String title,
+    this.content = const Value.absent(),
+    this.uri = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        runId = Value(runId),
+        kind = Value(kind),
+        title = Value(title),
+        createdAt = Value(createdAt);
+  static Insertable<DevAgentArtifact> custom({
+    Expression<String>? id,
+    Expression<String>? runId,
+    Expression<String>? kind,
+    Expression<String>? title,
+    Expression<String>? content,
+    Expression<String>? uri,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (runId != null) 'run_id': runId,
+      if (kind != null) 'kind': kind,
+      if (title != null) 'title': title,
+      if (content != null) 'content': content,
+      if (uri != null) 'uri': uri,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DevAgentArtifactsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? runId,
+      Value<String>? kind,
+      Value<String>? title,
+      Value<String?>? content,
+      Value<String?>? uri,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return DevAgentArtifactsCompanion(
+      id: id ?? this.id,
+      runId: runId ?? this.runId,
+      kind: kind ?? this.kind,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      uri: uri ?? this.uri,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<String>(runId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (uri.present) {
+      map['uri'] = Variable<String>(uri.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentArtifactsCompanion(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('kind: $kind, ')
+          ..write('title: $title, ')
+          ..write('content: $content, ')
+          ..write('uri: $uri, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -9433,6 +11456,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $VoiceCallSessionsTable(this);
   late final $VoiceCallMessagesTable voiceCallMessages =
       $VoiceCallMessagesTable(this);
+  late final $DevProjectsTable devProjects = $DevProjectsTable(this);
+  late final $DevAgentRunsTable devAgentRuns = $DevAgentRunsTable(this);
+  late final $DevAgentEventsTable devAgentEvents = $DevAgentEventsTable(this);
+  late final $DevAgentApprovalsTable devAgentApprovals =
+      $DevAgentApprovalsTable(this);
+  late final $DevAgentArtifactsTable devAgentArtifacts =
+      $DevAgentArtifactsTable(this);
   late final CardDao cardDao = CardDao(this as AppDatabase);
   late final AiFinanceDao aiFinanceDao = AiFinanceDao(this as AppDatabase);
   late final AiPurchaseDao aiPurchaseDao = AiPurchaseDao(this as AppDatabase);
@@ -9459,7 +11489,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         aiFinanceLedger,
         aiPurchaseLog,
         voiceCallSessions,
-        voiceCallMessages
+        voiceCallMessages,
+        devProjects,
+        devAgentRuns,
+        devAgentEvents,
+        devAgentApprovals,
+        devAgentArtifacts
       ];
 }
 
@@ -13964,6 +15999,1781 @@ typedef $$VoiceCallMessagesTableProcessedTableManager = ProcessedTableManager<
     ),
     VoiceCallMessage,
     PrefetchHooks Function()>;
+typedef $$DevProjectsTableCreateCompanionBuilder = DevProjectsCompanion
+    Function({
+  required String id,
+  required String name,
+  required String rootPath,
+  Value<String> defaultBranch,
+  required String bridgeUrl,
+  Value<String> permissionTier,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$DevProjectsTableUpdateCompanionBuilder = DevProjectsCompanion
+    Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String> rootPath,
+  Value<String> defaultBranch,
+  Value<String> bridgeUrl,
+  Value<String> permissionTier,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+final class $$DevProjectsTableReferences
+    extends BaseReferences<_$AppDatabase, $DevProjectsTable, DevProject> {
+  $$DevProjectsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$DevAgentRunsTable, List<DevAgentRun>>
+      _devAgentRunsRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.devAgentRuns,
+              aliasName: $_aliasNameGenerator(
+                  db.devProjects.id, db.devAgentRuns.projectId));
+
+  $$DevAgentRunsTableProcessedTableManager get devAgentRunsRefs {
+    final manager = $$DevAgentRunsTableTableManager($_db, $_db.devAgentRuns)
+        .filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_devAgentRunsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
+class $$DevProjectsTableFilterComposer
+    extends Composer<_$AppDatabase, $DevProjectsTable> {
+  $$DevProjectsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get rootPath => $composableBuilder(
+      column: $table.rootPath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get defaultBranch => $composableBuilder(
+      column: $table.defaultBranch, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get bridgeUrl => $composableBuilder(
+      column: $table.bridgeUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get permissionTier => $composableBuilder(
+      column: $table.permissionTier,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  Expression<bool> devAgentRunsRefs(
+      Expression<bool> Function($$DevAgentRunsTableFilterComposer f) f) {
+    final $$DevAgentRunsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.projectId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableFilterComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+}
+
+class $$DevProjectsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DevProjectsTable> {
+  $$DevProjectsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get rootPath => $composableBuilder(
+      column: $table.rootPath, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get defaultBranch => $composableBuilder(
+      column: $table.defaultBranch,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get bridgeUrl => $composableBuilder(
+      column: $table.bridgeUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get permissionTier => $composableBuilder(
+      column: $table.permissionTier,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$DevProjectsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DevProjectsTable> {
+  $$DevProjectsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get rootPath =>
+      $composableBuilder(column: $table.rootPath, builder: (column) => column);
+
+  GeneratedColumn<String> get defaultBranch => $composableBuilder(
+      column: $table.defaultBranch, builder: (column) => column);
+
+  GeneratedColumn<String> get bridgeUrl =>
+      $composableBuilder(column: $table.bridgeUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get permissionTier => $composableBuilder(
+      column: $table.permissionTier, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  Expression<T> devAgentRunsRefs<T extends Object>(
+      Expression<T> Function($$DevAgentRunsTableAnnotationComposer a) f) {
+    final $$DevAgentRunsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.projectId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+}
+
+class $$DevProjectsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $DevProjectsTable,
+    DevProject,
+    $$DevProjectsTableFilterComposer,
+    $$DevProjectsTableOrderingComposer,
+    $$DevProjectsTableAnnotationComposer,
+    $$DevProjectsTableCreateCompanionBuilder,
+    $$DevProjectsTableUpdateCompanionBuilder,
+    (DevProject, $$DevProjectsTableReferences),
+    DevProject,
+    PrefetchHooks Function({bool devAgentRunsRefs})> {
+  $$DevProjectsTableTableManager(_$AppDatabase db, $DevProjectsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DevProjectsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DevProjectsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DevProjectsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String> rootPath = const Value.absent(),
+            Value<String> defaultBranch = const Value.absent(),
+            Value<String> bridgeUrl = const Value.absent(),
+            Value<String> permissionTier = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevProjectsCompanion(
+            id: id,
+            name: name,
+            rootPath: rootPath,
+            defaultBranch: defaultBranch,
+            bridgeUrl: bridgeUrl,
+            permissionTier: permissionTier,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            required String rootPath,
+            Value<String> defaultBranch = const Value.absent(),
+            required String bridgeUrl,
+            Value<String> permissionTier = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevProjectsCompanion.insert(
+            id: id,
+            name: name,
+            rootPath: rootPath,
+            defaultBranch: defaultBranch,
+            bridgeUrl: bridgeUrl,
+            permissionTier: permissionTier,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$DevProjectsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({devAgentRunsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (devAgentRunsRefs) db.devAgentRuns],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (devAgentRunsRefs)
+                    await $_getPrefetchedData<DevProject, $DevProjectsTable,
+                            DevAgentRun>(
+                        currentTable: table,
+                        referencedTable: $$DevProjectsTableReferences
+                            ._devAgentRunsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$DevProjectsTableReferences(db, table, p0)
+                                .devAgentRunsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.projectId == item.id),
+                        typedResults: items)
+                ];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$DevProjectsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $DevProjectsTable,
+    DevProject,
+    $$DevProjectsTableFilterComposer,
+    $$DevProjectsTableOrderingComposer,
+    $$DevProjectsTableAnnotationComposer,
+    $$DevProjectsTableCreateCompanionBuilder,
+    $$DevProjectsTableUpdateCompanionBuilder,
+    (DevProject, $$DevProjectsTableReferences),
+    DevProject,
+    PrefetchHooks Function({bool devAgentRunsRefs})>;
+typedef $$DevAgentRunsTableCreateCompanionBuilder = DevAgentRunsCompanion
+    Function({
+  required String id,
+  required String projectId,
+  required String agentType,
+  Value<String?> sessionId,
+  required String initialPrompt,
+  required String status,
+  Value<String?> branch,
+  Value<String?> worktreePath,
+  required int startedAt,
+  Value<int?> endedAt,
+  Value<String?> summary,
+  Value<int> rowid,
+});
+typedef $$DevAgentRunsTableUpdateCompanionBuilder = DevAgentRunsCompanion
+    Function({
+  Value<String> id,
+  Value<String> projectId,
+  Value<String> agentType,
+  Value<String?> sessionId,
+  Value<String> initialPrompt,
+  Value<String> status,
+  Value<String?> branch,
+  Value<String?> worktreePath,
+  Value<int> startedAt,
+  Value<int?> endedAt,
+  Value<String?> summary,
+  Value<int> rowid,
+});
+
+final class $$DevAgentRunsTableReferences
+    extends BaseReferences<_$AppDatabase, $DevAgentRunsTable, DevAgentRun> {
+  $$DevAgentRunsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $DevProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.devProjects.createAlias(
+          $_aliasNameGenerator(db.devAgentRuns.projectId, db.devProjects.id));
+
+  $$DevProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$DevProjectsTableTableManager($_db, $_db.devProjects)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static MultiTypedResultKey<$DevAgentEventsTable, List<DevAgentEvent>>
+      _devAgentEventsRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.devAgentEvents,
+              aliasName: $_aliasNameGenerator(
+                  db.devAgentRuns.id, db.devAgentEvents.runId));
+
+  $$DevAgentEventsTableProcessedTableManager get devAgentEventsRefs {
+    final manager = $$DevAgentEventsTableTableManager($_db, $_db.devAgentEvents)
+        .filter((f) => f.runId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_devAgentEventsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$DevAgentApprovalsTable, List<DevAgentApproval>>
+      _devAgentApprovalsRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.devAgentApprovals,
+              aliasName: $_aliasNameGenerator(
+                  db.devAgentRuns.id, db.devAgentApprovals.runId));
+
+  $$DevAgentApprovalsTableProcessedTableManager get devAgentApprovalsRefs {
+    final manager =
+        $$DevAgentApprovalsTableTableManager($_db, $_db.devAgentApprovals)
+            .filter((f) => f.runId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache =
+        $_typedResult.readTableOrNull(_devAgentApprovalsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$DevAgentArtifactsTable, List<DevAgentArtifact>>
+      _devAgentArtifactsRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.devAgentArtifacts,
+              aliasName: $_aliasNameGenerator(
+                  db.devAgentRuns.id, db.devAgentArtifacts.runId));
+
+  $$DevAgentArtifactsTableProcessedTableManager get devAgentArtifactsRefs {
+    final manager =
+        $$DevAgentArtifactsTableTableManager($_db, $_db.devAgentArtifacts)
+            .filter((f) => f.runId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache =
+        $_typedResult.readTableOrNull(_devAgentArtifactsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
+class $$DevAgentRunsTableFilterComposer
+    extends Composer<_$AppDatabase, $DevAgentRunsTable> {
+  $$DevAgentRunsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get agentType => $composableBuilder(
+      column: $table.agentType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get initialPrompt => $composableBuilder(
+      column: $table.initialPrompt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get branch => $composableBuilder(
+      column: $table.branch, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get worktreePath => $composableBuilder(
+      column: $table.worktreePath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get startedAt => $composableBuilder(
+      column: $table.startedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get endedAt => $composableBuilder(
+      column: $table.endedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get summary => $composableBuilder(
+      column: $table.summary, builder: (column) => ColumnFilters(column));
+
+  $$DevProjectsTableFilterComposer get projectId {
+    final $$DevProjectsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.projectId,
+        referencedTable: $db.devProjects,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevProjectsTableFilterComposer(
+              $db: $db,
+              $table: $db.devProjects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  Expression<bool> devAgentEventsRefs(
+      Expression<bool> Function($$DevAgentEventsTableFilterComposer f) f) {
+    final $$DevAgentEventsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.devAgentEvents,
+        getReferencedColumn: (t) => t.runId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentEventsTableFilterComposer(
+              $db: $db,
+              $table: $db.devAgentEvents,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> devAgentApprovalsRefs(
+      Expression<bool> Function($$DevAgentApprovalsTableFilterComposer f) f) {
+    final $$DevAgentApprovalsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.devAgentApprovals,
+        getReferencedColumn: (t) => t.runId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentApprovalsTableFilterComposer(
+              $db: $db,
+              $table: $db.devAgentApprovals,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> devAgentArtifactsRefs(
+      Expression<bool> Function($$DevAgentArtifactsTableFilterComposer f) f) {
+    final $$DevAgentArtifactsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.devAgentArtifacts,
+        getReferencedColumn: (t) => t.runId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentArtifactsTableFilterComposer(
+              $db: $db,
+              $table: $db.devAgentArtifacts,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+}
+
+class $$DevAgentRunsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DevAgentRunsTable> {
+  $$DevAgentRunsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get agentType => $composableBuilder(
+      column: $table.agentType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get initialPrompt => $composableBuilder(
+      column: $table.initialPrompt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get branch => $composableBuilder(
+      column: $table.branch, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get worktreePath => $composableBuilder(
+      column: $table.worktreePath,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get startedAt => $composableBuilder(
+      column: $table.startedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get endedAt => $composableBuilder(
+      column: $table.endedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+      column: $table.summary, builder: (column) => ColumnOrderings(column));
+
+  $$DevProjectsTableOrderingComposer get projectId {
+    final $$DevProjectsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.projectId,
+        referencedTable: $db.devProjects,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevProjectsTableOrderingComposer(
+              $db: $db,
+              $table: $db.devProjects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentRunsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DevAgentRunsTable> {
+  $$DevAgentRunsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get agentType =>
+      $composableBuilder(column: $table.agentType, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get initialPrompt => $composableBuilder(
+      column: $table.initialPrompt, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get branch =>
+      $composableBuilder(column: $table.branch, builder: (column) => column);
+
+  GeneratedColumn<String> get worktreePath => $composableBuilder(
+      column: $table.worktreePath, builder: (column) => column);
+
+  GeneratedColumn<int> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get endedAt =>
+      $composableBuilder(column: $table.endedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  $$DevProjectsTableAnnotationComposer get projectId {
+    final $$DevProjectsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.projectId,
+        referencedTable: $db.devProjects,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevProjectsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.devProjects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  Expression<T> devAgentEventsRefs<T extends Object>(
+      Expression<T> Function($$DevAgentEventsTableAnnotationComposer a) f) {
+    final $$DevAgentEventsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.devAgentEvents,
+        getReferencedColumn: (t) => t.runId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentEventsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.devAgentEvents,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<T> devAgentApprovalsRefs<T extends Object>(
+      Expression<T> Function($$DevAgentApprovalsTableAnnotationComposer a) f) {
+    final $$DevAgentApprovalsTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.devAgentApprovals,
+            getReferencedColumn: (t) => t.runId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$DevAgentApprovalsTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.devAgentApprovals,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
+
+  Expression<T> devAgentArtifactsRefs<T extends Object>(
+      Expression<T> Function($$DevAgentArtifactsTableAnnotationComposer a) f) {
+    final $$DevAgentArtifactsTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.devAgentArtifacts,
+            getReferencedColumn: (t) => t.runId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$DevAgentArtifactsTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.devAgentArtifacts,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
+}
+
+class $$DevAgentRunsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $DevAgentRunsTable,
+    DevAgentRun,
+    $$DevAgentRunsTableFilterComposer,
+    $$DevAgentRunsTableOrderingComposer,
+    $$DevAgentRunsTableAnnotationComposer,
+    $$DevAgentRunsTableCreateCompanionBuilder,
+    $$DevAgentRunsTableUpdateCompanionBuilder,
+    (DevAgentRun, $$DevAgentRunsTableReferences),
+    DevAgentRun,
+    PrefetchHooks Function(
+        {bool projectId,
+        bool devAgentEventsRefs,
+        bool devAgentApprovalsRefs,
+        bool devAgentArtifactsRefs})> {
+  $$DevAgentRunsTableTableManager(_$AppDatabase db, $DevAgentRunsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DevAgentRunsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DevAgentRunsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DevAgentRunsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> projectId = const Value.absent(),
+            Value<String> agentType = const Value.absent(),
+            Value<String?> sessionId = const Value.absent(),
+            Value<String> initialPrompt = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String?> branch = const Value.absent(),
+            Value<String?> worktreePath = const Value.absent(),
+            Value<int> startedAt = const Value.absent(),
+            Value<int?> endedAt = const Value.absent(),
+            Value<String?> summary = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentRunsCompanion(
+            id: id,
+            projectId: projectId,
+            agentType: agentType,
+            sessionId: sessionId,
+            initialPrompt: initialPrompt,
+            status: status,
+            branch: branch,
+            worktreePath: worktreePath,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            summary: summary,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String projectId,
+            required String agentType,
+            Value<String?> sessionId = const Value.absent(),
+            required String initialPrompt,
+            required String status,
+            Value<String?> branch = const Value.absent(),
+            Value<String?> worktreePath = const Value.absent(),
+            required int startedAt,
+            Value<int?> endedAt = const Value.absent(),
+            Value<String?> summary = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentRunsCompanion.insert(
+            id: id,
+            projectId: projectId,
+            agentType: agentType,
+            sessionId: sessionId,
+            initialPrompt: initialPrompt,
+            status: status,
+            branch: branch,
+            worktreePath: worktreePath,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            summary: summary,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$DevAgentRunsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: (
+              {projectId = false,
+              devAgentEventsRefs = false,
+              devAgentApprovalsRefs = false,
+              devAgentArtifactsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (devAgentEventsRefs) db.devAgentEvents,
+                if (devAgentApprovalsRefs) db.devAgentApprovals,
+                if (devAgentArtifactsRefs) db.devAgentArtifacts
+              ],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (projectId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.projectId,
+                    referencedTable:
+                        $$DevAgentRunsTableReferences._projectIdTable(db),
+                    referencedColumn:
+                        $$DevAgentRunsTableReferences._projectIdTable(db).id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (devAgentEventsRefs)
+                    await $_getPrefetchedData<DevAgentRun, $DevAgentRunsTable,
+                            DevAgentEvent>(
+                        currentTable: table,
+                        referencedTable: $$DevAgentRunsTableReferences
+                            ._devAgentEventsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$DevAgentRunsTableReferences(db, table, p0)
+                                .devAgentEventsRefs,
+                        referencedItemsForCurrentItem: (item,
+                                referencedItems) =>
+                            referencedItems.where((e) => e.runId == item.id),
+                        typedResults: items),
+                  if (devAgentApprovalsRefs)
+                    await $_getPrefetchedData<DevAgentRun, $DevAgentRunsTable, DevAgentApproval>(
+                        currentTable: table,
+                        referencedTable: $$DevAgentRunsTableReferences
+                            ._devAgentApprovalsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$DevAgentRunsTableReferences(db, table, p0)
+                                .devAgentApprovalsRefs,
+                        referencedItemsForCurrentItem: (item,
+                                referencedItems) =>
+                            referencedItems.where((e) => e.runId == item.id),
+                        typedResults: items),
+                  if (devAgentArtifactsRefs)
+                    await $_getPrefetchedData<DevAgentRun, $DevAgentRunsTable, DevAgentArtifact>(
+                        currentTable: table,
+                        referencedTable: $$DevAgentRunsTableReferences
+                            ._devAgentArtifactsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$DevAgentRunsTableReferences(db, table, p0)
+                                .devAgentArtifactsRefs,
+                        referencedItemsForCurrentItem: (item,
+                                referencedItems) =>
+                            referencedItems.where((e) => e.runId == item.id),
+                        typedResults: items)
+                ];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$DevAgentRunsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $DevAgentRunsTable,
+    DevAgentRun,
+    $$DevAgentRunsTableFilterComposer,
+    $$DevAgentRunsTableOrderingComposer,
+    $$DevAgentRunsTableAnnotationComposer,
+    $$DevAgentRunsTableCreateCompanionBuilder,
+    $$DevAgentRunsTableUpdateCompanionBuilder,
+    (DevAgentRun, $$DevAgentRunsTableReferences),
+    DevAgentRun,
+    PrefetchHooks Function(
+        {bool projectId,
+        bool devAgentEventsRefs,
+        bool devAgentApprovalsRefs,
+        bool devAgentArtifactsRefs})>;
+typedef $$DevAgentEventsTableCreateCompanionBuilder = DevAgentEventsCompanion
+    Function({
+  Value<int> id,
+  required String runId,
+  required int ts,
+  required String kind,
+  required String payloadJson,
+});
+typedef $$DevAgentEventsTableUpdateCompanionBuilder = DevAgentEventsCompanion
+    Function({
+  Value<int> id,
+  Value<String> runId,
+  Value<int> ts,
+  Value<String> kind,
+  Value<String> payloadJson,
+});
+
+final class $$DevAgentEventsTableReferences
+    extends BaseReferences<_$AppDatabase, $DevAgentEventsTable, DevAgentEvent> {
+  $$DevAgentEventsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $DevAgentRunsTable _runIdTable(_$AppDatabase db) =>
+      db.devAgentRuns.createAlias(
+          $_aliasNameGenerator(db.devAgentEvents.runId, db.devAgentRuns.id));
+
+  $$DevAgentRunsTableProcessedTableManager get runId {
+    final $_column = $_itemColumn<String>('run_id')!;
+
+    final manager = $$DevAgentRunsTableTableManager($_db, $_db.devAgentRuns)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_runIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$DevAgentEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $DevAgentEventsTable> {
+  $$DevAgentEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get ts => $composableBuilder(
+      column: $table.ts, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+      column: $table.payloadJson, builder: (column) => ColumnFilters(column));
+
+  $$DevAgentRunsTableFilterComposer get runId {
+    final $$DevAgentRunsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.runId,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableFilterComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DevAgentEventsTable> {
+  $$DevAgentEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get ts => $composableBuilder(
+      column: $table.ts, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+      column: $table.payloadJson, builder: (column) => ColumnOrderings(column));
+
+  $$DevAgentRunsTableOrderingComposer get runId {
+    final $$DevAgentRunsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.runId,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableOrderingComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DevAgentEventsTable> {
+  $$DevAgentEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get ts =>
+      $composableBuilder(column: $table.ts, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+      column: $table.payloadJson, builder: (column) => column);
+
+  $$DevAgentRunsTableAnnotationComposer get runId {
+    final $$DevAgentRunsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.runId,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentEventsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $DevAgentEventsTable,
+    DevAgentEvent,
+    $$DevAgentEventsTableFilterComposer,
+    $$DevAgentEventsTableOrderingComposer,
+    $$DevAgentEventsTableAnnotationComposer,
+    $$DevAgentEventsTableCreateCompanionBuilder,
+    $$DevAgentEventsTableUpdateCompanionBuilder,
+    (DevAgentEvent, $$DevAgentEventsTableReferences),
+    DevAgentEvent,
+    PrefetchHooks Function({bool runId})> {
+  $$DevAgentEventsTableTableManager(
+      _$AppDatabase db, $DevAgentEventsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DevAgentEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DevAgentEventsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DevAgentEventsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> runId = const Value.absent(),
+            Value<int> ts = const Value.absent(),
+            Value<String> kind = const Value.absent(),
+            Value<String> payloadJson = const Value.absent(),
+          }) =>
+              DevAgentEventsCompanion(
+            id: id,
+            runId: runId,
+            ts: ts,
+            kind: kind,
+            payloadJson: payloadJson,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String runId,
+            required int ts,
+            required String kind,
+            required String payloadJson,
+          }) =>
+              DevAgentEventsCompanion.insert(
+            id: id,
+            runId: runId,
+            ts: ts,
+            kind: kind,
+            payloadJson: payloadJson,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$DevAgentEventsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({runId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (runId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.runId,
+                    referencedTable:
+                        $$DevAgentEventsTableReferences._runIdTable(db),
+                    referencedColumn:
+                        $$DevAgentEventsTableReferences._runIdTable(db).id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$DevAgentEventsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $DevAgentEventsTable,
+    DevAgentEvent,
+    $$DevAgentEventsTableFilterComposer,
+    $$DevAgentEventsTableOrderingComposer,
+    $$DevAgentEventsTableAnnotationComposer,
+    $$DevAgentEventsTableCreateCompanionBuilder,
+    $$DevAgentEventsTableUpdateCompanionBuilder,
+    (DevAgentEvent, $$DevAgentEventsTableReferences),
+    DevAgentEvent,
+    PrefetchHooks Function({bool runId})>;
+typedef $$DevAgentApprovalsTableCreateCompanionBuilder
+    = DevAgentApprovalsCompanion Function({
+  required String id,
+  required String runId,
+  required String kind,
+  required String descriptionJson,
+  required String status,
+  required int createdAt,
+  Value<int?> respondedAt,
+  Value<int> rowid,
+});
+typedef $$DevAgentApprovalsTableUpdateCompanionBuilder
+    = DevAgentApprovalsCompanion Function({
+  Value<String> id,
+  Value<String> runId,
+  Value<String> kind,
+  Value<String> descriptionJson,
+  Value<String> status,
+  Value<int> createdAt,
+  Value<int?> respondedAt,
+  Value<int> rowid,
+});
+
+final class $$DevAgentApprovalsTableReferences extends BaseReferences<
+    _$AppDatabase, $DevAgentApprovalsTable, DevAgentApproval> {
+  $$DevAgentApprovalsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $DevAgentRunsTable _runIdTable(_$AppDatabase db) =>
+      db.devAgentRuns.createAlias(
+          $_aliasNameGenerator(db.devAgentApprovals.runId, db.devAgentRuns.id));
+
+  $$DevAgentRunsTableProcessedTableManager get runId {
+    final $_column = $_itemColumn<String>('run_id')!;
+
+    final manager = $$DevAgentRunsTableTableManager($_db, $_db.devAgentRuns)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_runIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$DevAgentApprovalsTableFilterComposer
+    extends Composer<_$AppDatabase, $DevAgentApprovalsTable> {
+  $$DevAgentApprovalsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get descriptionJson => $composableBuilder(
+      column: $table.descriptionJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get respondedAt => $composableBuilder(
+      column: $table.respondedAt, builder: (column) => ColumnFilters(column));
+
+  $$DevAgentRunsTableFilterComposer get runId {
+    final $$DevAgentRunsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.runId,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableFilterComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentApprovalsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DevAgentApprovalsTable> {
+  $$DevAgentApprovalsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get descriptionJson => $composableBuilder(
+      column: $table.descriptionJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get respondedAt => $composableBuilder(
+      column: $table.respondedAt, builder: (column) => ColumnOrderings(column));
+
+  $$DevAgentRunsTableOrderingComposer get runId {
+    final $$DevAgentRunsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.runId,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableOrderingComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentApprovalsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DevAgentApprovalsTable> {
+  $$DevAgentApprovalsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get descriptionJson => $composableBuilder(
+      column: $table.descriptionJson, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get respondedAt => $composableBuilder(
+      column: $table.respondedAt, builder: (column) => column);
+
+  $$DevAgentRunsTableAnnotationComposer get runId {
+    final $$DevAgentRunsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.runId,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentApprovalsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $DevAgentApprovalsTable,
+    DevAgentApproval,
+    $$DevAgentApprovalsTableFilterComposer,
+    $$DevAgentApprovalsTableOrderingComposer,
+    $$DevAgentApprovalsTableAnnotationComposer,
+    $$DevAgentApprovalsTableCreateCompanionBuilder,
+    $$DevAgentApprovalsTableUpdateCompanionBuilder,
+    (DevAgentApproval, $$DevAgentApprovalsTableReferences),
+    DevAgentApproval,
+    PrefetchHooks Function({bool runId})> {
+  $$DevAgentApprovalsTableTableManager(
+      _$AppDatabase db, $DevAgentApprovalsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DevAgentApprovalsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DevAgentApprovalsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DevAgentApprovalsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> runId = const Value.absent(),
+            Value<String> kind = const Value.absent(),
+            Value<String> descriptionJson = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int?> respondedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentApprovalsCompanion(
+            id: id,
+            runId: runId,
+            kind: kind,
+            descriptionJson: descriptionJson,
+            status: status,
+            createdAt: createdAt,
+            respondedAt: respondedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String runId,
+            required String kind,
+            required String descriptionJson,
+            required String status,
+            required int createdAt,
+            Value<int?> respondedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentApprovalsCompanion.insert(
+            id: id,
+            runId: runId,
+            kind: kind,
+            descriptionJson: descriptionJson,
+            status: status,
+            createdAt: createdAt,
+            respondedAt: respondedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$DevAgentApprovalsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({runId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (runId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.runId,
+                    referencedTable:
+                        $$DevAgentApprovalsTableReferences._runIdTable(db),
+                    referencedColumn:
+                        $$DevAgentApprovalsTableReferences._runIdTable(db).id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$DevAgentApprovalsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $DevAgentApprovalsTable,
+    DevAgentApproval,
+    $$DevAgentApprovalsTableFilterComposer,
+    $$DevAgentApprovalsTableOrderingComposer,
+    $$DevAgentApprovalsTableAnnotationComposer,
+    $$DevAgentApprovalsTableCreateCompanionBuilder,
+    $$DevAgentApprovalsTableUpdateCompanionBuilder,
+    (DevAgentApproval, $$DevAgentApprovalsTableReferences),
+    DevAgentApproval,
+    PrefetchHooks Function({bool runId})>;
+typedef $$DevAgentArtifactsTableCreateCompanionBuilder
+    = DevAgentArtifactsCompanion Function({
+  required String id,
+  required String runId,
+  required String kind,
+  required String title,
+  Value<String?> content,
+  Value<String?> uri,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$DevAgentArtifactsTableUpdateCompanionBuilder
+    = DevAgentArtifactsCompanion Function({
+  Value<String> id,
+  Value<String> runId,
+  Value<String> kind,
+  Value<String> title,
+  Value<String?> content,
+  Value<String?> uri,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+final class $$DevAgentArtifactsTableReferences extends BaseReferences<
+    _$AppDatabase, $DevAgentArtifactsTable, DevAgentArtifact> {
+  $$DevAgentArtifactsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $DevAgentRunsTable _runIdTable(_$AppDatabase db) =>
+      db.devAgentRuns.createAlias(
+          $_aliasNameGenerator(db.devAgentArtifacts.runId, db.devAgentRuns.id));
+
+  $$DevAgentRunsTableProcessedTableManager get runId {
+    final $_column = $_itemColumn<String>('run_id')!;
+
+    final manager = $$DevAgentRunsTableTableManager($_db, $_db.devAgentRuns)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_runIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$DevAgentArtifactsTableFilterComposer
+    extends Composer<_$AppDatabase, $DevAgentArtifactsTable> {
+  $$DevAgentArtifactsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get uri => $composableBuilder(
+      column: $table.uri, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  $$DevAgentRunsTableFilterComposer get runId {
+    final $$DevAgentRunsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.runId,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableFilterComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentArtifactsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DevAgentArtifactsTable> {
+  $$DevAgentArtifactsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get uri => $composableBuilder(
+      column: $table.uri, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  $$DevAgentRunsTableOrderingComposer get runId {
+    final $$DevAgentRunsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.runId,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableOrderingComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentArtifactsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DevAgentArtifactsTable> {
+  $$DevAgentArtifactsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get uri =>
+      $composableBuilder(column: $table.uri, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$DevAgentRunsTableAnnotationComposer get runId {
+    final $$DevAgentRunsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.runId,
+        referencedTable: $db.devAgentRuns,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentRunsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentArtifactsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $DevAgentArtifactsTable,
+    DevAgentArtifact,
+    $$DevAgentArtifactsTableFilterComposer,
+    $$DevAgentArtifactsTableOrderingComposer,
+    $$DevAgentArtifactsTableAnnotationComposer,
+    $$DevAgentArtifactsTableCreateCompanionBuilder,
+    $$DevAgentArtifactsTableUpdateCompanionBuilder,
+    (DevAgentArtifact, $$DevAgentArtifactsTableReferences),
+    DevAgentArtifact,
+    PrefetchHooks Function({bool runId})> {
+  $$DevAgentArtifactsTableTableManager(
+      _$AppDatabase db, $DevAgentArtifactsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DevAgentArtifactsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DevAgentArtifactsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DevAgentArtifactsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> runId = const Value.absent(),
+            Value<String> kind = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String?> content = const Value.absent(),
+            Value<String?> uri = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentArtifactsCompanion(
+            id: id,
+            runId: runId,
+            kind: kind,
+            title: title,
+            content: content,
+            uri: uri,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String runId,
+            required String kind,
+            required String title,
+            Value<String?> content = const Value.absent(),
+            Value<String?> uri = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentArtifactsCompanion.insert(
+            id: id,
+            runId: runId,
+            kind: kind,
+            title: title,
+            content: content,
+            uri: uri,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$DevAgentArtifactsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({runId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (runId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.runId,
+                    referencedTable:
+                        $$DevAgentArtifactsTableReferences._runIdTable(db),
+                    referencedColumn:
+                        $$DevAgentArtifactsTableReferences._runIdTable(db).id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$DevAgentArtifactsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $DevAgentArtifactsTable,
+    DevAgentArtifact,
+    $$DevAgentArtifactsTableFilterComposer,
+    $$DevAgentArtifactsTableOrderingComposer,
+    $$DevAgentArtifactsTableAnnotationComposer,
+    $$DevAgentArtifactsTableCreateCompanionBuilder,
+    $$DevAgentArtifactsTableUpdateCompanionBuilder,
+    (DevAgentArtifact, $$DevAgentArtifactsTableReferences),
+    DevAgentArtifact,
+    PrefetchHooks Function({bool runId})>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -14007,4 +17817,14 @@ class $AppDatabaseManager {
       $$VoiceCallSessionsTableTableManager(_db, _db.voiceCallSessions);
   $$VoiceCallMessagesTableTableManager get voiceCallMessages =>
       $$VoiceCallMessagesTableTableManager(_db, _db.voiceCallMessages);
+  $$DevProjectsTableTableManager get devProjects =>
+      $$DevProjectsTableTableManager(_db, _db.devProjects);
+  $$DevAgentRunsTableTableManager get devAgentRuns =>
+      $$DevAgentRunsTableTableManager(_db, _db.devAgentRuns);
+  $$DevAgentEventsTableTableManager get devAgentEvents =>
+      $$DevAgentEventsTableTableManager(_db, _db.devAgentEvents);
+  $$DevAgentApprovalsTableTableManager get devAgentApprovals =>
+      $$DevAgentApprovalsTableTableManager(_db, _db.devAgentApprovals);
+  $$DevAgentArtifactsTableTableManager get devAgentArtifacts =>
+      $$DevAgentArtifactsTableTableManager(_db, _db.devAgentArtifacts);
 }

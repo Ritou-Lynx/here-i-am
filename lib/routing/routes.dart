@@ -15,6 +15,9 @@ abstract final class AppRoutes {
   /// Personal center (settings).
   static const String personalCenter = '/personal-center';
 
+  /// Dev Room.
+  static const String devRoom = '/dev-room';
+
   /// Timeline card detail; push as '/card/$cardId'.
   static const String timelineCardDetail = '/card';
 
