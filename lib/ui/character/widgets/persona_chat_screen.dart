@@ -3039,19 +3039,6 @@ only after you have written the goodbye you want the user to hear.''',
                           const SizedBox(width: 12),
                           Semantics(
                             button: true,
-                            label: 'Record message',
-                            child: GestureDetector(
-                              onTap: () => _recordMessage(userMessage),
-                              child: const Icon(
-                                Icons.bookmark_add_outlined,
-                                size: 15,
-                                color: Color(0xFF8A857C),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Semantics(
-                            button: true,
                             label: 'Recall message',
                             child: GestureDetector(
                               onTap: () =>
@@ -3075,10 +3062,13 @@ only after you have written the goodbye you want the user to hear.''',
             width: 34,
             child: Align(
               alignment: Alignment.topRight,
-              child: _UserAvatar(
+              child: _TappableUserAvatar(
                 avatar: _userAvatar,
                 name: _userId ?? '',
                 size: 34,
+                onTap: userMessage != null
+                    ? () => _recordMessage(userMessage)
+                    : null,
               ),
             ),
           ),
@@ -4362,6 +4352,76 @@ class PersonaAutoReadToggle extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _TappableUserAvatar extends StatefulWidget {
+  const _TappableUserAvatar({
+    required this.avatar,
+    required this.name,
+    required this.size,
+    this.onTap,
+  });
+
+  final String? avatar;
+  final String name;
+  final double size;
+  final VoidCallback? onTap;
+
+  @override
+  State<_TappableUserAvatar> createState() => _TappableUserAvatarState();
+}
+
+class _TappableUserAvatarState extends State<_TappableUserAvatar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 80),
+      reverseDuration: const Duration(milliseconds: 200),
+    );
+    _scale = Tween<double>(begin: 1.0, end: 0.82).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeIn,
+          reverseCurve: Curves.elasticOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails _) => _ctrl.forward();
+
+  void _onTapUp(TapUpDetails _) {
+    _ctrl.reverse();
+    widget.onTap?.call();
+  }
+
+  void _onTapCancel() => _ctrl.reverse();
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.onTap == null) {
+      return _UserAvatar(
+          avatar: widget.avatar, name: widget.name, size: widget.size);
+    }
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: ScaleTransition(
+        scale: _scale,
+        child: _UserAvatar(
+            avatar: widget.avatar, name: widget.name, size: widget.size),
       ),
     );
   }
