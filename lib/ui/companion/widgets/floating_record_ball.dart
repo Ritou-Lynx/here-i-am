@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
+import 'package:memex/ui/character/widgets/persona_chat_screen.dart'
+    show PersonaChatInputBar;
 import 'package:memex/utils/user_storage.dart';
 
 /// Floating action ball that lets the user quickly save a fact, plan, or note
@@ -33,7 +36,7 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
       context: navContext,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const _QuickSaveSheet(),
+      builder: (_) => _QuickSaveSheet(navigatorKey: widget.navigatorKey),
     );
   }
 
@@ -94,10 +97,12 @@ class _BallWidget extends StatelessWidget {
   }
 }
 
-// ─── Quick-save bottom sheet ───────────────────────────────────────────────
+// ─── Quick-save sheet — reuses PersonaChatInputBar ────────────────────────
 
 class _QuickSaveSheet extends StatefulWidget {
-  const _QuickSaveSheet();
+  const _QuickSaveSheet({required this.navigatorKey});
+
+  final GlobalKey<NavigatorState> navigatorKey;
 
   @override
   State<_QuickSaveSheet> createState() => _QuickSaveSheetState();
@@ -105,6 +110,8 @@ class _QuickSaveSheet extends StatefulWidget {
 
 class _QuickSaveSheetState extends State<_QuickSaveSheet> {
   final _controller = TextEditingController();
+  final _picker = ImagePicker();
+  List<XFile> _images = [];
   bool _saving = false;
 
   @override
@@ -113,9 +120,14 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
     super.dispose();
   }
 
+  Future<void> _pickImages() async {
+    final picked = await _picker.pickMultiImage();
+    if (picked.isNotEmpty) setState(() => _images = [..._images, ...picked]);
+  }
+
   Future<void> _save() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _saving) return;
+    if ((text.isEmpty && _images.isEmpty) || _saving) return;
     setState(() => _saving = true);
     try {
       final userId = await UserStorage.getUserId();
@@ -125,21 +137,20 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
       final result = await RecordOrganizerService.instance.recordFromText(
         userId: userId,
         sourceCharacterId: charId ?? '_system',
-        text: text,
+        text: text.isNotEmpty ? text : '[图片记录 ${_images.length} 张]',
       );
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.isEmpty
-                ? '未能提取有效记录'
-                : '已记录：${result.entityTitles.join("、")}',
-          ),
+      final navCtx = widget.navigatorKey.currentContext;
+      if (navCtx != null) {
+        ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(
+          content: Text(result.isEmpty
+              ? '未能提取有效记录'
+              : '已记录：${result.entityTitles.join("、")}'),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
-        ),
-      );
+        ));
+      }
     } catch (_) {
       if (mounted) setState(() => _saving = false);
     }
@@ -147,116 +158,15 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFFAF7F2),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const Text(
-                  '记录一下',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF3D2B1F),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _controller,
-                  autofocus: true,
-                  maxLines: 4,
-                  minLines: 2,
-                  textInputAction: TextInputAction.newline,
-                  decoration: InputDecoration(
-                    hintText: '事实、想法、计划……',
-                    hintStyle: TextStyle(
-                        color: Colors.grey.shade400, fontSize: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: Colors.grey.shade200),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: Colors.grey.shade200),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                          color: Color(0xFF8A6F4E)),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.all(12),
-                  ),
-                  style: const TextStyle(
-                    fontSize: 15,
-                    color: Color(0xFF3D2B1F),
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _saving ? null : _save,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF8A6F4E),
-                      disabledBackgroundColor:
-                          const Color(0xFF8A6F4E).withValues(alpha: 0.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: _saving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            '保存',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return PersonaChatInputBar(
+      controller: _controller,
+      isStreaming: _saving,
+      onSend: _save,
+      hintText: '记录一下……',
+      onAddTap: _pickImages,
+      isAddActive: _images.isNotEmpty,
+      selectedImages: _images,
+      onRemoveImage: (i) => setState(() => _images.removeAt(i)),
     );
   }
 }
