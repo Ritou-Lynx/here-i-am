@@ -61,6 +61,46 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
     }
   }
 
+  Future<void> _cleanupProjectWorktrees(
+    BuildContext context,
+    DevProject project,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('清理 "${project.name}" 的 worktree?'),
+        content: const Text(
+          '会让 Bridge 删除该项目下所有已结束 run 残留的 worktree 和 dev-agent 分支。\n'
+          'run 历史和事件不会被清——只清磁盘上的工作区。',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('清理', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final result =
+          await DevAgentBridgeService.instance.cleanupProjectWorktrees(project.id);
+      if (!context.mounted) return;
+      final text = result.failed == 0
+          ? '已清理 ${result.removed} 个 worktree'
+          : '清理 ${result.removed} 个，${result.failed} 个失败';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
   Future<void> _refreshActiveRuns({bool showResult = false}) async {
     if (_refreshingRuns) return;
     setState(() => _refreshingRuns = true);
@@ -126,6 +166,8 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
                     _startRun(context, project, DevAgentType.claudeCode),
                 onRunCodex: () =>
                     _startRun(context, project, DevAgentType.codex),
+                onCleanup: () =>
+                    _cleanupProjectWorktrees(context, project),
               );
             },
           );
@@ -141,12 +183,14 @@ class _ProjectCard extends StatelessWidget {
     required this.onEdit,
     required this.onRunClaude,
     required this.onRunCodex,
+    required this.onCleanup,
   });
 
   final DevProject project;
   final VoidCallback onEdit;
   final VoidCallback onRunClaude;
   final VoidCallback onRunCodex;
+  final VoidCallback onCleanup;
 
   @override
   Widget build(BuildContext context) {
@@ -177,10 +221,19 @@ class _ProjectCard extends StatelessWidget {
                   ),
                 ),
               ),
-              IconButton(
-                tooltip: '编辑',
-                onPressed: onEdit,
-                icon: const Icon(Icons.settings_outlined),
+              _TierChip(tier: project.permissionTier),
+              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                tooltip: '更多',
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) {
+                  if (value == 'edit') onEdit();
+                  if (value == 'cleanup') onCleanup();
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('编辑 / 删除')),
+                  PopupMenuItem(value: 'cleanup', child: Text('清理所有 worktree')),
+                ],
               ),
             ],
           ),
@@ -192,14 +245,16 @@ class _ProjectCard extends StatelessWidget {
               fontSize: 13,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 2),
           Text(
-            '${project.permissionTier} · ${project.defaultBranch}',
+            project.defaultBranch,
             style: const TextStyle(
               color: AppColors.textTertiary,
               fontSize: 12,
             ),
           ),
+          const SizedBox(height: 8),
+          _ProjectRunsSummary(projectId: project.id),
           const SizedBox(height: 14),
           Row(
             children: [
@@ -225,6 +280,73 @@ class _ProjectCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _TierChip extends StatelessWidget {
+  const _TierChip({required this.tier});
+
+  final String tier;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (tier) {
+      'workspace_write' => ('写入', const Color(0xFF10B981)),
+      'release_ops' => ('发布', const Color(0xFFF43F5E)),
+      _ => ('只读', const Color(0xFF3B82F6)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _ProjectRunsSummary extends StatelessWidget {
+  const _ProjectRunsSummary({required this.projectId});
+
+  final String projectId;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<DevAgentRun>>(
+      stream: DevAgentBridgeService.instance.watchRuns(projectId: projectId),
+      builder: (context, snapshot) {
+        final runs = snapshot.data ?? const [];
+        if (runs.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final running = runs.where((r) => !{'done', 'failed', 'aborted'}.contains(r.status)).length;
+        final done = runs.where((r) => r.status == 'done').length;
+        final failed = runs.where((r) => r.status == 'failed').length;
+        final latest = runs.first;
+        final parts = <String>[];
+        if (running > 0) parts.add('$running 跑中');
+        if (done > 0) parts.add('$done 完成');
+        if (failed > 0) parts.add('$failed 失败');
+        parts.add('上次 ${_relativeTime(latest.startedAt)}');
+        return Text(
+          parts.join(' · '),
+          style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+        );
+      },
+    );
+  }
+
+  static String _relativeTime(int epochSeconds) {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final diff = now - epochSeconds;
+    if (diff < 60) return '刚刚';
+    if (diff < 3600) return '${diff ~/ 60} 分钟前';
+    if (diff < 86400) return '${diff ~/ 3600} 小时前';
+    return '${diff ~/ 86400} 天前';
   }
 }
 

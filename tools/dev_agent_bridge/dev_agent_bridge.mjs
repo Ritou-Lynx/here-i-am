@@ -790,6 +790,42 @@ async function handle(req, res) {
       return;
     }
 
+    if (req.method === 'POST' && path === '/v1/cleanup/worktrees') {
+      const body = await readJson(req);
+      const projectId = String(body.project_id || '').trim();
+      if (!projectId) {
+        json(res, 400, { error: 'project_id is required' });
+        return;
+      }
+      let removed = 0;
+      const failures = [];
+      for (const run of runs.values()) {
+        if (run.project?.id !== projectId) continue;
+        if (!run.worktreePath || !run.branch) continue;
+        if (!terminalStatuses.has(run.status)) continue;
+        try {
+          const result = cleanupWorktree(run, run.project);
+          if (result.ok) {
+            run.worktreePath = null;
+            run.branch = null;
+            addEvent(run, 'decision', {
+              decision: 'discard',
+              status: 'accepted',
+              reason: 'bulk_cleanup',
+            });
+            removed++;
+          } else {
+            failures.push({ run_id: run.id, message: result.message });
+          }
+        } catch (err) {
+          failures.push({ run_id: run.id, message: err.message });
+        }
+      }
+      console.log(`[cleanup] project=${projectId.slice(0, 8)} removed=${removed} failed=${failures.length}`);
+      json(res, 200, { ok: true, removed, failures });
+      return;
+    }
+
     notFound(res);
   } catch (error) {
     json(res, 500, {

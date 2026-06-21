@@ -119,19 +119,13 @@ class DevAgentBridgeService {
 
   Stream<List<DevProject>> watchProjects() {
     final query = _db.select(_db.devProjects)
-      ..orderBy([
-        (t) => OrderingTerm.asc(t.name),
-        (t) => OrderingTerm.desc(t.createdAt),
-      ]);
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
     return query.watch();
   }
 
   Future<List<DevProject>> listProjects() {
     final query = _db.select(_db.devProjects)
-      ..orderBy([
-        (t) => OrderingTerm.asc(t.name),
-        (t) => OrderingTerm.desc(t.createdAt),
-      ]);
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
     return query.get();
   }
 
@@ -171,6 +165,32 @@ class DevAgentBridgeService {
   Future<void> deleteProject(String projectId) async {
     await (_db.delete(_db.devProjects)..where((t) => t.id.equals(projectId)))
         .go();
+  }
+
+  /// Walks all terminal runs of [projectId] that still have a worktree, and
+  /// asks the bridge to clean them up. Returns (removed, failed) counts.
+  Future<({int removed, int failed})> cleanupProjectWorktrees(
+    String projectId,
+  ) async {
+    final project = await getProject(projectId);
+    if (project == null) {
+      throw const DevAgentBridgeException('Dev project not found.');
+    }
+    try {
+      final response = await _dio.postUri<Map<String, dynamic>>(
+        _bridgeUri(project.bridgeUrl, '/v1/cleanup/worktrees'),
+        data: {'project_id': projectId},
+      );
+      final data = response.data ?? const <String, dynamic>{};
+      final failures = data['failures'];
+      return (
+        removed: (data['removed'] as num?)?.toInt() ?? 0,
+        failed: failures is List ? failures.length : 0,
+      );
+    } catch (e, stack) {
+      _logger.warning('Failed to cleanup worktrees', e, stack);
+      rethrow;
+    }
   }
 
   Stream<List<DevAgentRun>> watchRuns({String? projectId}) {
