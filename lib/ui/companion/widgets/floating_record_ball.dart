@@ -16,16 +16,8 @@ class FloatingRecordBall extends StatefulWidget {
 class _FloatingRecordBallState extends State<FloatingRecordBall> {
   double _right = 16;
   double _bottom = 110;
-
-  void _onPanUpdate(DragUpdateDetails d) {
-    final size = MediaQuery.of(context).size;
-    final padding = MediaQuery.of(context).padding;
-    setState(() {
-      _right = (_right - d.delta.dx).clamp(0.0, size.width - 56.0);
-      _bottom = (_bottom - d.delta.dy)
-          .clamp(padding.bottom, size.height - 56.0 - padding.top);
-    });
-  }
+  // Track drag so we can skip _showQuickSave after a real drag gesture
+  bool _dragging = false;
 
   void _showQuickSave() {
     if (!RecordOrganizerService.isInitialized) {
@@ -50,9 +42,24 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
     return Positioned(
       right: _right,
       bottom: _bottom,
-      child: GestureDetector(
-        onTap: _showQuickSave,
-        onPanUpdate: _onPanUpdate,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (_) => _dragging = false,
+        onPointerMove: (e) {
+          if (e.delta.distance > 3) {
+            _dragging = true;
+            final size = MediaQuery.of(context).size;
+            final padding = MediaQuery.of(context).padding;
+            setState(() {
+              _right = (_right - e.delta.dx).clamp(0.0, size.width - 56.0);
+              _bottom = (_bottom - e.delta.dy)
+                  .clamp(padding.bottom, size.height - 56.0 - padding.top);
+            });
+          }
+        },
+        onPointerUp: (_) {
+          if (!_dragging) _showQuickSave();
+        },
         child: const _BallWidget(),
       ),
     );
