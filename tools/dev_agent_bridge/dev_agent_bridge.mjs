@@ -176,7 +176,7 @@ function findText(value, depth = 0) {
     return parts.length ? parts.join('\n') : null;
   }
   if (typeof value === 'object') {
-    for (const key of ['text', 'message', 'delta', 'content', 'summary', 'result']) {
+    for (const key of ['text', 'message', 'delta', 'content', 'summary', 'result', 'item']) {
       const found = findText(value[key], depth + 1);
       if (found) return found;
     }
