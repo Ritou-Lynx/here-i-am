@@ -23,7 +23,7 @@ normalization move forward without waiting for that reinstall/fork.
 ## Run Locally
 
 ```powershell
-node tools\dev_agent_bridge\dev_agent_bridge.mjs
+powershell -File tools\dev_agent_bridge\start_bridge.ps1
 ```
 
 Default URL:
@@ -67,22 +67,7 @@ node tools\dev_agent_bridge\dev_agent_bridge.mjs
 ## Start Run Probe
 
 ```powershell
-$body = @{
-  client_run_id = "probe-1"
-  agent_type = "claude_code"
-  mode = "read_only"
-  prompt = "Read AGENTS.md and summarize the project in one paragraph."
-  project = @{
-    id = "memex"
-    name = "Here I am"
-    root_path = "D:\claude-workspace\memex"
-    default_branch = "personal-lab"
-    permission_tier = "read_only"
-  }
-} | ConvertTo-Json -Depth 5
-
-Invoke-RestMethod http://127.0.0.1:47831/v1/runs -Method Post -Body $body -ContentType "application/json"
-Invoke-RestMethod "http://127.0.0.1:47831/v1/runs/probe-1/events?after=0"
+powershell -File tools\dev_agent_bridge\probe_bridge.ps1
 ```
 
 ## Known Local Issues
