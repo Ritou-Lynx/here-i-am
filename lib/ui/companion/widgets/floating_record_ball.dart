@@ -16,13 +16,6 @@ class FloatingRecordBall extends StatefulWidget {
 class _FloatingRecordBallState extends State<FloatingRecordBall> {
   double _right = 16;
   double _bottom = 110;
-  Offset? _panStart;
-  bool _didMove = false;
-
-  void _onPanStart(DragStartDetails d) {
-    _panStart = d.globalPosition;
-    _didMove = false;
-  }
 
   void _onPanUpdate(DragUpdateDetails d) {
     final size = MediaQuery.of(context).size;
@@ -32,15 +25,6 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
       _bottom = (_bottom - d.delta.dy)
           .clamp(padding.bottom, size.height - 56.0 - padding.top);
     });
-    if (_panStart != null &&
-        (d.globalPosition - _panStart!).distance > 6) {
-      _didMove = true;
-    }
-  }
-
-  void _onPanEnd(DragEndDetails _) {
-    if (!_didMove) _showQuickSave();
-    _panStart = null;
   }
 
   void _showQuickSave() {
@@ -67,9 +51,8 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
       right: _right,
       bottom: _bottom,
       child: GestureDetector(
-        onPanStart: _onPanStart,
+        onTap: _showQuickSave,
         onPanUpdate: _onPanUpdate,
-        onPanEnd: _onPanEnd,
         child: const _BallWidget(),
       ),
     );
