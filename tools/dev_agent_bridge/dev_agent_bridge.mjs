@@ -1,15 +1,26 @@
 import http from 'node:http';
 import https from 'node:https';
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { URL } from 'node:url';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const host = process.env.DEV_AGENT_BRIDGE_HOST || '127.0.0.1';
 const port = Number(process.env.DEV_AGENT_BRIDGE_PORT || 47831);
 const certPath = process.env.DEV_AGENT_BRIDGE_CERT;
 const keyPath = process.env.DEV_AGENT_BRIDGE_KEY;
 const codexModel = process.env.DEV_AGENT_CODEX_MODEL;
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const statePath = process.env.DEV_AGENT_BRIDGE_STATE ||
+  join(scriptDir, '.state', 'runs.json');
 const runs = new Map();
 
 const terminalStatuses = new Set(['done', 'failed', 'aborted']);
@@ -31,6 +42,62 @@ function notFound(res) {
   json(res, 404, { error: 'not_found' });
 }
 
+function serializeRun(run) {
+  return {
+    id: run.id,
+    sessionId: run.sessionId,
+    agentType: run.agentType,
+    project: run.project,
+    status: run.status,
+    summary: run.summary,
+    startedAt: run.startedAt,
+    endedAt: run.endedAt,
+    lastSeq: run.lastSeq,
+    events: run.events,
+    artifacts: Array.from(run.artifacts.values()),
+    transcript: run.transcript,
+  };
+}
+
+function persistState() {
+  mkdirSync(dirname(statePath), { recursive: true });
+  writeFileSync(
+    statePath,
+    JSON.stringify({ runs: Array.from(runs.values()).map(serializeRun) }, null, 2),
+  );
+}
+
+function loadState() {
+  if (!existsSync(statePath)) return;
+  const raw = JSON.parse(readFileSync(statePath, 'utf8'));
+  if (!raw || !Array.isArray(raw.runs)) return;
+  for (const saved of raw.runs) {
+    const run = {
+      id: String(saved.id),
+      sessionId: String(saved.sessionId || saved.id),
+      agentType: String(saved.agentType || ''),
+      project: saved.project || {},
+      status: String(saved.status || 'failed'),
+      summary: saved.summary ?? null,
+      startedAt: Number(saved.startedAt || nowSeconds()),
+      endedAt: saved.endedAt == null ? null : Number(saved.endedAt),
+      lastSeq: Number(saved.lastSeq || 0),
+      events: Array.isArray(saved.events) ? saved.events : [],
+      artifacts: new Map(
+        Array.isArray(saved.artifacts)
+          ? saved.artifacts.map((artifact) => [String(artifact.id), artifact])
+          : [],
+      ),
+      transcript: Array.isArray(saved.transcript) ? saved.transcript : [],
+      child: null,
+    };
+    runs.set(run.id, run);
+    if (!terminalStatuses.has(run.status)) {
+      setStatus(run, 'failed', 'Bridge restarted; the local agent process cannot be resumed.');
+    }
+  }
+}
+
 async function readJson(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -46,6 +113,7 @@ function addEvent(run, kind, payload) {
     payload,
   };
   run.events.push(event);
+  persistState();
   return event;
 }
 
@@ -283,6 +351,7 @@ function startProcess(run, agentType, project, prompt) {
         content: run.transcript.join('\n\n'),
         created_at: nowSeconds(),
       });
+      persistState();
     }
   });
 }
@@ -333,6 +402,7 @@ async function handle(req, res) {
         child: null,
       };
       runs.set(runId, run);
+      persistState();
       addEvent(run, 'status', { status: 'pending', message: 'Run accepted by bridge.' });
       startProcess(run, run.agentType, project, prompt);
       json(res, 200, {
@@ -420,6 +490,13 @@ const server = certPath && keyPath
       handle,
     )
   : http.createServer(handle);
+
+server.on('error', (error) => {
+  console.error(`Dev Agent Bridge failed to start: ${error.message}`);
+  process.exitCode = 1;
+});
+
+loadState();
 
 server.listen(port, host, () => {
   const protocol = certPath && keyPath ? 'https' : 'http';

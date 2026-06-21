@@ -27,7 +27,9 @@ as a project-local bridge:
 - `codex` runs through `codex exec --json --sandbox read-only`.
 - `claude_code` runs through `claude -p --output-format stream-json` with
   read-oriented tools.
-- Runs, events, and artifacts are stored in memory.
+- Runs, events, and artifacts are stored in a local state file by default.
+- Active CLI processes cannot be resumed after a bridge restart; the prototype
+  marks those runs as failed while preserving prior events.
 - It exposes HTTP for local curl probes, but phone testing still needs HTTPS
   via Tailscale Serve or a trusted certificate.
 - It does not create worktrees, write files, commit, push, or perform real

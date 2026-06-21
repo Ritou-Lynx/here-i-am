@@ -125,3 +125,4 @@ _latest_android_logcat.txt
 btdump*/
 magicmotion_apk/
 mm_*.txt
+tools/dev_agent_bridge/.state/

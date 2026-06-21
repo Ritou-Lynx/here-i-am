@@ -10,7 +10,7 @@ Codex on the development machine. The phone remains a controller only.
 
 - Phase: 0/1 prototype
 - Mode: read-only only
-- Storage: in-memory runs/events; restart clears history
+- Storage: local state file at `tools/dev_agent_bridge/.state/runs.json`
 - Agents:
   - `codex` via `codex exec --json --sandbox read-only`
   - `claude_code` via `claude -p --output-format stream-json`
@@ -26,6 +26,12 @@ normalization move forward without waiting for that reinstall/fork.
 powershell -File tools\dev_agent_bridge\start_bridge.ps1
 ```
 
+Stop a background bridge left from local testing:
+
+```powershell
+powershell -File tools\dev_agent_bridge\stop_bridge.ps1
+```
+
 Default URL:
 
 ```text
@@ -36,6 +42,13 @@ Local health check:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:47831/v1/health
+```
+
+The default state file is ignored by git. Override it when needed:
+
+```powershell
+$env:DEV_AGENT_BRIDGE_STATE="D:\path\dev-agent-runs.json"
+powershell -File tools\dev_agent_bridge\start_bridge.ps1
 ```
 
 ## Phone Testing
@@ -76,5 +89,7 @@ powershell -File tools\dev_agent_bridge\probe_bridge.ps1
 - `codex exec` currently fails on this machine with the configured default model
   requiring a newer CLI; setting `DEV_AGENT_CODEX_MODEL` may help after the
   account/model config is corrected.
+- If the bridge restarts while a run is active, the CLI process cannot be
+  resumed. The bridge marks that run as `failed` and keeps its prior events.
 - The prototype intentionally does not create worktrees, write files, commit, or
   push. Those belong to Phase 2 after approval hooks are reliable.
