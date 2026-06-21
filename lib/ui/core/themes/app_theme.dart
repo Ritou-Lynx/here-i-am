@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 
 /// Application theme (Compass-aligned: centralised in ui/core/themes).
 abstract final class AppTheme {
@@ -120,6 +121,9 @@ abstract final class AppTheme {
         brightness: Brightness.light,
       ),
       useMaterial3: true,
+      extensions: const [
+        HereIamThemeTokens.current,
+      ],
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: const Color(0xFFF7F8FA),
@@ -145,6 +149,9 @@ abstract final class AppTheme {
         brightness: Brightness.dark,
       ),
       useMaterial3: true,
+      extensions: const [
+        HereIamThemeTokens.current,
+      ],
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: const Color(0xFF0F172A),

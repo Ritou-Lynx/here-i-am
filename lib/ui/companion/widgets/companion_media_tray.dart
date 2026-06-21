@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/services/photo_suggestion_service.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
-const _trayPanel = Color(0xF0101218);
-const _trayPanelSoft = Color(0xFF1B1D24);
-const _trayText = Color(0xFFF2ECE0);
-const _trayMuted = Color(0xFF9E9A94);
-const _trayAccent = Color(0xFFE4D6BD);
+const _trayPanel = Color(0xF0241319);
+const _trayPanelSoft = AppColors.companionSurface;
+const _trayText = AppColors.companionText;
+const _trayMuted = AppColors.companionTextMuted;
+const _trayAccent = AppColors.companionAccent;
 
 /// Lightweight media picker for companion chat.
 ///

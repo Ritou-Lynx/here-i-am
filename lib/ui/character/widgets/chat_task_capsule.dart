@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/agent_activity_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
 
 /// A slim capsule that appears between the chat header and message list
 /// when the companion has delegated a background task.
@@ -103,10 +104,11 @@ class _ChatTaskCapsuleState extends State<ChatTaskCapsule>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1B1D24).withValues(alpha: 0.92),
+                  color: AppColors.companionSurface.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: const Color(0xFF343A45).withValues(alpha: 0.6),
+                    color:
+                        AppColors.companionSurfaceDeep.withValues(alpha: 0.6),
                   ),
                 ),
                 child: Row(
@@ -121,7 +123,7 @@ class _ChatTaskCapsuleState extends State<ChatTaskCapsule>
                           height: 8,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: const Color(0xFFE4D6BD)
+                            color: AppColors.companionAccent
                                 .withValues(alpha: opacity),
                           ),
                         );
@@ -135,7 +137,7 @@ class _ChatTaskCapsuleState extends State<ChatTaskCapsule>
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 13,
-                          color: Color(0xFFF2ECE0),
+                          color: AppColors.companionText,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -146,7 +148,7 @@ class _ChatTaskCapsuleState extends State<ChatTaskCapsule>
                       child: const Icon(
                         Icons.keyboard_arrow_down_rounded,
                         size: 18,
-                        color: Color(0xFF9E9A94),
+                        color: AppColors.companionTextMuted,
                       ),
                     ),
                   ],
@@ -185,7 +187,7 @@ class ChatTaskCapsuleDetail extends StatelessWidget {
         color: const Color(0xFF101217).withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: const Color(0xFF343A45).withValues(alpha: 0.4),
+          color: AppColors.companionSurfaceDeep.withValues(alpha: 0.4),
         ),
       ),
       child: ConstrainedBox(
@@ -196,7 +198,7 @@ class ChatTaskCapsuleDetail extends StatelessWidget {
             style: const TextStyle(
               fontSize: 13,
               height: 1.5,
-              color: Color(0xFF9E9A94),
+              color: AppColors.companionTextMuted,
             ),
           ),
         ),

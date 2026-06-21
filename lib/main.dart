@@ -75,7 +75,6 @@ import 'package:memex/data/services/quick_action_service.dart';
 import 'package:memex/data/services/speech_transcription_service.dart';
 import 'package:memex/data/services/background_task_drain_service.dart';
 import 'package:memex/ui/companion/widgets/companion_first_shell.dart';
-import 'package:memex/ui/companion/widgets/floating_record_ball.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
@@ -663,8 +662,6 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
                 height: 1,
                 child: XhsHiddenWebViewHost(),
               ),
-            if (AppFlavor.isHereIAm && !(_isLocked && _hasUser))
-              const FloatingRecordBall(),
           ],
         );
       },

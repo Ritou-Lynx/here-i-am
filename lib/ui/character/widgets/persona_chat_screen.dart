@@ -37,24 +37,27 @@ import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dar
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
 import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
+import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
+import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:intl/intl.dart';
 
-const _personaStageInk = Color(0xFF080B12);
-const _personaPanel = Color(0xFF101217);
-const _personaPanelSoft = Color(0xFF1B1D24);
-const _personaText = Color(0xFFF2ECE0);
-const _personaTextMuted = Color(0xFF9E9A94);
-const _personaAccent = Color(0xFFE4D6BD);
-const _personaAccentCool = Color(0xFF6F7E91);
-const _personaLine = Color(0xFF343A45);
-const _personaCharacterBubble = Color(0xD9101115);
-const _personaUserBubble = Color(0xFFE8DEC8);
-const _personaUserBorder = Color(0xFFEFE4CD);
+const _personaStageInk = AppColors.companionBg;
+const _personaPanel = AppColors.companionSurfaceSoft;
+const _personaPanelSoft = AppColors.companionSurface;
+const _personaText = AppColors.companionText;
+const _personaTextMuted = AppColors.companionTextMuted;
+const _personaAccent = AppColors.companionAccent;
+const _personaAccentCool = AppColors.companionAccentSoft;
+const _personaLine = AppColors.companionSurfaceDeep;
+const _personaCharacterBubble = Color(0xD9241319);
+const _personaUserBubble = AppColors.companionAccentSoft;
+const _personaUserBorder = AppColors.companionText;
 const _voiceModeIdleFollowUpSilenceTimeout = Duration(seconds: 60);
 const _voiceModeMaxRecordingDuration = Duration(seconds: 120);
 const _voiceModeMaxSilentFollowUps = 8;
@@ -2413,6 +2416,9 @@ only after you have written the goodbye you want the user to hear.''',
                     _buildInputBar(),
                   ],
                 ),
+                const Positioned.fill(
+                  child: HereIamRainLayer(),
+                ),
                 if (_showJumpToLatest) _buildJumpToLatestButton(),
                 if (_isHeaderActionsOpen)
                   Positioned.fill(
@@ -2977,98 +2983,89 @@ only after you have written the goodbye you want the user to hear.''',
           Flexible(
             child: Align(
               alignment: Alignment.topRight,
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.88,
-                ),
-                padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
-                decoration: BoxDecoration(
-                  color: _personaUserBubble.withValues(alpha: 0.9),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(18),
-                    topRight: Radius.circular(6),
-                    bottomLeft: Radius.circular(18),
-                    bottomRight: Radius.circular(18),
-                  ),
-                  border: Border.all(
-                    color: _personaUserBorder.withValues(alpha: 0.82),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _personaUserBorder.withValues(alpha: 0.12),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (text.isNotEmpty)
-                      SelectionArea(
-                        child: Text(
-                          text,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            height: 1.55,
-                            color: Color(0xFF2D2923),
-                          ),
-                        ),
-                      ),
-                    if (attachmentWidgets.isNotEmpty) ...[
-                      if (text.isNotEmpty) const SizedBox(height: 8),
-                      ...attachmentWidgets,
-                    ],
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onTap: () {
-                            Clipboard.setData(ClipboardData(text: text));
-                            _showCopiedSnackBar();
-                          },
-                          child: const Icon(
-                            Icons.copy_rounded,
-                            size: 14,
-                            color: Color(0xFF8A857C),
-                          ),
-                        ),
-                        if (userMessage != null) ...[
-                          const SizedBox(width: 12),
-                          Semantics(
-                            button: true,
-                            label: 'Recall message',
-                            child: GestureDetector(
-                              onTap: () =>
-                                  _confirmRetractUserMessage(userMessage),
-                              child: const Icon(
-                                Icons.undo_rounded,
-                                size: 15,
-                                color: Color(0xFF8A857C),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 34,
-            child: Align(
-              alignment: Alignment.topRight,
-              child: _TappableUserAvatar(
-                avatar: _userAvatar,
-                name: _userId ?? '',
-                size: 34,
-                onTap: userMessage != null
+              child: GestureDetector(
+                onDoubleTap: userMessage != null
                     ? () => _recordMessage(userMessage)
                     : null,
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.88,
+                  ),
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+                  decoration: BoxDecoration(
+                    color: _personaUserBubble.withValues(alpha: 0.9),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(6),
+                      bottomLeft: Radius.circular(18),
+                      bottomRight: Radius.circular(18),
+                    ),
+                    border: Border.all(
+                      color: _personaUserBorder.withValues(alpha: 0.82),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _personaUserBorder.withValues(alpha: 0.12),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (text.isNotEmpty)
+                        SelectionArea(
+                          child: Text(
+                            text,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              height: 1.55,
+                              color: Color(0xFF2D2923),
+                            ),
+                          ),
+                        ),
+                      if (attachmentWidgets.isNotEmpty) ...[
+                        if (text.isNotEmpty) const SizedBox(height: 8),
+                        ...attachmentWidgets,
+                      ],
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: text));
+                              _showCopiedSnackBar();
+                            },
+                            child: const Icon(
+                              Icons.copy_rounded,
+                              size: 14,
+                              color: Color(0xFF8A857C),
+                            ),
+                          ),
+                          if (userMessage != null) ...[
+                            const SizedBox(width: 12),
+                            Semantics(
+                              button: true,
+                              label: 'Recall message',
+                              child: GestureDetector(
+                                onTap: () =>
+                                    _confirmRetractUserMessage(userMessage),
+                                child: const Icon(
+                                  Icons.undo_rounded,
+                                  size: 15,
+                                  color: Color(0xFF8A857C),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -3213,17 +3210,6 @@ only after you have written the goodbye you want the user to hear.''',
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 40,
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: _FramedCharacterAvatar(
-                avatar: _character?.avatar,
-                name: _character?.name ?? '',
-                size: 32,
-              ),
-            ),
-          ),
           Flexible(
             child: Align(
               alignment: Alignment.topLeft,
@@ -3864,6 +3850,7 @@ class _ChatAtmosphereBackground extends StatelessWidget {
     final bgPath = character?.chatBackground;
     final hasCustomBg =
         bgPath != null && bgPath.isNotEmpty && File(bgPath).existsSync();
+    final tokens = context.hereIamTheme;
 
     return Stack(
       children: [
@@ -3875,17 +3862,17 @@ class _ChatAtmosphereBackground extends StatelessWidget {
             ),
           )
         else
-          const DecoratedBox(
+          DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Color(0xFF070A11),
-                  Color(0xFF131923),
-                  Color(0xFF060607),
+                  tokens.backgroundSoft,
+                  tokens.background,
+                  tokens.surfaceSoft,
                 ],
-                stops: [0, 0.54, 1],
+                stops: const [0, 0.56, 1],
               ),
             ),
           ),
@@ -3920,7 +3907,7 @@ class _ChatAtmosphereBackground extends StatelessWidget {
             left: -72,
             child: _AtmosphereGlow(
               size: 240,
-              color: const Color(0xFF40516A).withValues(alpha: 0.2),
+              color: tokens.accentSoft.withValues(alpha: 0.12),
             ),
           ),
           Positioned(
@@ -3928,7 +3915,7 @@ class _ChatAtmosphereBackground extends StatelessWidget {
             right: -96,
             child: _AtmosphereGlow(
               size: 280,
-              color: _personaAccent.withValues(alpha: 0.08),
+              color: tokens.surfaceDeep.withValues(alpha: 0.18),
             ),
           ),
           Positioned(
@@ -3936,7 +3923,7 @@ class _ChatAtmosphereBackground extends StatelessWidget {
             left: -120,
             child: _AtmosphereGlow(
               size: 320,
-              color: const Color(0xFF334154).withValues(alpha: 0.15),
+              color: tokens.accent.withValues(alpha: 0.10),
             ),
           ),
         ],
@@ -3951,9 +3938,9 @@ class _ChatAtmosphereBackground extends StatelessWidget {
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    const Color(0xFF080B12),
-                    const Color(0xFF080B12).withValues(alpha: 0.92),
-                    const Color(0xFF080B12).withValues(alpha: 0.55),
+                    tokens.backgroundSoft,
+                    tokens.backgroundSoft.withValues(alpha: 0.92),
+                    tokens.backgroundSoft.withValues(alpha: 0.55),
                     Colors.transparent,
                     Colors.transparent,
                   ],
@@ -4388,8 +4375,8 @@ class _TappableUserAvatarState extends State<_TappableUserAvatar>
       reverseDuration: const Duration(milliseconds: 200),
     );
     _scale = Tween<double>(begin: 1.0, end: 0.82).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeIn,
-          reverseCurve: Curves.elasticOut),
+      CurvedAnimation(
+          parent: _ctrl, curve: Curves.easeIn, reverseCurve: Curves.elasticOut),
     );
   }
 
@@ -4924,7 +4911,7 @@ class _SendButton extends StatelessWidget {
           ),
           child: Icon(
             Icons.send_rounded,
-            color: enabled ? const Color(0xFF5B5346) : _personaTextMuted,
+            color: enabled ? _personaStageInk : _personaTextMuted,
             size: 22,
           ),
         ),
