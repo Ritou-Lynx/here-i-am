@@ -129,6 +129,7 @@ class MemexRouter {
         unawaited(XhsCookieRepository.instance.restoreFromPrefs());
         await _resetCharacterMemoryIfNeeded(userId);
         await _resetWorkspaceDirsIfNeeded(userId);
+        await _resetSystemMemoryIfNeeded(userId);
         if (await captureService.needsHistoricalBackfillReset()) {
           await captureService.resetHistoricalBackfill();
         }
@@ -188,6 +189,7 @@ class MemexRouter {
 
   static const _characterMemoryResetMarkerKey = 'character_memory_full_reset_v1';
   static const _workspaceDirsResetMarkerKey = 'workspace_dirs_reset_v25';
+  static const _systemMemoryResetMarkerKey = 'system_memory_reset_v29';
 
   Future<void> _resetCharacterMemoryIfNeeded(String userId) async {
     final db = AppDatabase.instance;
@@ -246,6 +248,38 @@ class MemexRouter {
           ..where((t) => t.key.equals(_workspaceDirsResetMarkerKey)))
         .go();
     _logger.info('Data reset v25 complete — Facts/Cards/KnowledgeInsights/PKM wiped');
+  }
+
+  Future<void> _resetSystemMemoryIfNeeded(String userId) async {
+    final db = AppDatabase.instance;
+    final marker = await (db.select(db.kvStore)
+          ..where((t) => t.key.equals(_systemMemoryResetMarkerKey)))
+        .getSingleOrNull();
+    if (marker == null) return;
+
+    final memDir = Directory(path.join(
+      FileSystemService.instance.getSystemPath(userId),
+      'memory',
+    ));
+    if (await memDir.exists()) {
+      await for (final entry in memDir.list(recursive: false)) {
+        try {
+          if (entry is Directory) {
+            await entry.delete(recursive: true);
+          } else {
+            await entry.delete();
+          }
+        } catch (e) {
+          _logger.warning('system_memory reset: could not delete ${entry.path}: $e');
+        }
+      }
+      _logger.info('Data reset v29: wiped _System/memory/ contents');
+    }
+
+    await (db.delete(db.kvStore)
+          ..where((t) => t.key.equals(_systemMemoryResetMarkerKey)))
+        .go();
+    _logger.info('Data reset v29 complete — settings memory view cleared');
   }
 
   void _registerEventSubscriptions() {

@@ -5,6 +5,8 @@ import 'package:logging/logging.dart';
 
 // Import tables
 import 'tables.dart';
+import 'dev_agent_tables.dart';
+import 'dev_agent_artifact_tables.dart';
 import 'daos/ai_finance_dao.dart';
 import 'daos/ai_purchase_dao.dart';
 import 'daos/card_dao.dart';
@@ -34,6 +36,11 @@ part 'app_database.g.dart';
     AiPurchaseLog,
     VoiceCallSessions,
     VoiceCallMessages,
+    DevProjects,
+    DevAgentRuns,
+    DevAgentEvents,
+    DevAgentApprovals,
+    DevAgentArtifacts,
   ],
   daos: [CardDao, AiFinanceDao, AiPurchaseDao, VoiceCallDao],
 )
@@ -90,7 +97,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 26;
+  int get schemaVersion => 29;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -117,6 +124,7 @@ class AppDatabase extends _$AppDatabase {
           await _createClarificationRequestIndices();
           await _createUserNotificationIndices();
           await _createSharedLifeMemoryIndices();
+          await _createDevAgentIndices();
           // Create FTS5 virtual tables for full-text search
           await searchDao.createFtsTables();
         },
@@ -287,29 +295,23 @@ class AppDatabase extends _$AppDatabase {
             const opTable = 'shared_life_event_operations';
             await _addColumnIfMissing(
                 "$opTable ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'chat_message'");
-            await _addColumnIfMissing(
-                '$opTable ADD COLUMN source_ref TEXT');
-            await _addColumnIfMissing(
-                '$opTable ADD COLUMN raw_input TEXT');
+            await _addColumnIfMissing('$opTable ADD COLUMN source_ref TEXT');
+            await _addColumnIfMissing('$opTable ADD COLUMN raw_input TEXT');
             await _addColumnIfMissing(
                 "$opTable ADD COLUMN primary_domain TEXT NOT NULL DEFAULT 'general'");
-            await _addColumnIfMissing(
-                '$opTable ADD COLUMN facets TEXT');
+            await _addColumnIfMissing('$opTable ADD COLUMN facets TEXT');
 
             // Domain + event-time + emotion fields on SharedLifeEntities
             const entTable = 'shared_life_entities';
             await _addColumnIfMissing(
                 "$entTable ADD COLUMN primary_domain TEXT NOT NULL DEFAULT 'general'");
-            await _addColumnIfMissing(
-                '$entTable ADD COLUMN facets TEXT');
+            await _addColumnIfMissing('$entTable ADD COLUMN facets TEXT');
             await _addColumnIfMissing(
                 '$entTable ADD COLUMN occurred_at INTEGER');
             await _addColumnIfMissing(
                 '$entTable ADD COLUMN occurred_end_at INTEGER');
-            await _addColumnIfMissing(
-                '$entTable ADD COLUMN valence REAL');
-            await _addColumnIfMissing(
-                '$entTable ADD COLUMN arousal REAL');
+            await _addColumnIfMissing('$entTable ADD COLUMN valence REAL');
+            await _addColumnIfMissing('$entTable ADD COLUMN arousal REAL');
             await _addColumnIfMissing(
                 '$entTable ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1');
 
@@ -378,6 +380,22 @@ class AppDatabase extends _$AppDatabase {
             await customStatement('DELETE FROM clarification_requests');
             await customStatement('DELETE FROM system_message_queue');
           }
+          if (from < 27) {
+            await _createDevAgentTables(m);
+          }
+          if (from < 28) {
+            await m.createTable(devAgentArtifacts);
+            await _createDevAgentArtifactIndices();
+          }
+          if (from < 29) {
+            // Clear _System/memory/ (长期记忆 + 近期记忆 shown in settings).
+            // Picked up by MemexRouter._resetSystemMemoryIfNeeded on next startup.
+            await customStatement(
+              "INSERT OR REPLACE INTO kv_store(key, value, bucket, updated_at) "
+              "VALUES ('system_memory_reset_v29', 'pending', "
+              "'data_reset', CAST(strftime('%s', 'now') AS INTEGER))",
+            );
+          }
         },
       );
 
@@ -422,6 +440,37 @@ class AppDatabase extends _$AppDatabase {
         'ON shared_life_entities(updated_at)');
   }
 
+  Future<void> _createDevAgentTables(Migrator m) async {
+    await m.createTable(devProjects);
+    await m.createTable(devAgentRuns);
+    await m.createTable(devAgentEvents);
+    await m.createTable(devAgentApprovals);
+    await m.createTable(devAgentArtifacts);
+    await _createDevAgentIndices();
+    await _createDevAgentArtifactIndices();
+  }
+
+  Future<void> _createDevAgentIndices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_runs_project_status '
+        'ON dev_agent_runs(project_id, status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_runs_started_at '
+        'ON dev_agent_runs(started_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_events_run_ts '
+        'ON dev_agent_events(run_id, ts)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_approvals_run_status '
+        'ON dev_agent_approvals(run_id, status)');
+  }
+
+  Future<void> _createDevAgentArtifactIndices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_artifacts_run_kind '
+        'ON dev_agent_artifacts(run_id, kind)');
+  }
+
   bool _isAlreadyExistsError(Object error, String tableName) {
     final errorStr = error.toString().toLowerCase();
     return errorStr.contains(tableName) &&
@@ -434,7 +483,8 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('ALTER TABLE $alterFragment');
     } catch (e) {
       final msg = e.toString().toLowerCase();
-      if (!msg.contains('duplicate column') && !msg.contains('already exists')) {
+      if (!msg.contains('duplicate column') &&
+          !msg.contains('already exists')) {
         rethrow;
       }
     }
