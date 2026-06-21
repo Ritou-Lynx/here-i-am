@@ -49,6 +49,18 @@ class DevAgentBridgeException implements Exception {
   String toString() => message;
 }
 
+class DevAgentDecisionResult {
+  const DevAgentDecisionResult({
+    required this.accepted,
+    this.reason,
+    this.message,
+  });
+
+  final bool accepted;
+  final String? reason;
+  final String? message;
+}
+
 /// App-side control surface for the remote development bridge.
 ///
 /// The phone never executes Claude Code/Codex itself. This service stores local
@@ -287,11 +299,15 @@ class DevAgentBridgeService {
             'name': project.name,
             'root_path': project.rootPath,
             'default_branch': project.defaultBranch,
-            'permission_tier': 'read_only',
+            'permission_tier': project.permissionTier,
           },
           'agent_type': agentType.value,
           'prompt': trimmedPrompt,
-          'mode': 'read_only',
+          // For MVP, mode follows project's permission tier. release_ops runs
+          // as workspace_write here — actual push/PR is gated separately later.
+          'mode': project.permissionTier == 'read_only'
+              ? 'read_only'
+              : 'workspace_write',
         },
       );
       final data = response.data ?? {};
@@ -316,11 +332,32 @@ class DevAgentBridgeService {
       );
     } catch (e, stack) {
       _logger.warning('Failed to start dev agent run', e, stack);
-      await _markRunFailed(runId, e.toString());
+      await _markRunFailed(runId, _describeError(e));
       rethrow;
     }
 
     return runId;
+  }
+
+  /// Builds a debug-friendly error message. For Dio errors with a JSON body,
+  /// includes the bridge's actual response so the user does not have to
+  /// resort to reading bridge logs to figure out what went wrong.
+  String _describeError(Object e) {
+    if (e is DioException) {
+      final code = e.response?.statusCode;
+      final data = e.response?.data;
+      String? body;
+      if (data is Map) {
+        body = data['message']?.toString() ?? data['error']?.toString();
+      } else if (data is String && data.isNotEmpty) {
+        body = data;
+      }
+      if (code != null && body != null && body.isNotEmpty) {
+        return 'Bridge $code: $body';
+      }
+      if (code != null) return 'Bridge HTTP $code: ${e.message ?? ''}';
+    }
+    return e.toString();
   }
 
   Future<void> refreshRun(String runId) async {
@@ -450,6 +487,10 @@ class DevAgentBridgeService {
     }
   }
 
+  /// Legacy `/actions` shell kept alive while the App still references it. The
+  /// authoritative path is `decideRun()` below — this one POSTs to the bridge's
+  /// stub endpoint which only accepts `leave` (and returns 501 for the rest).
+  /// Slated for removal once all callers move to `decideRun`.
   Future<void> runAction({
     required String runId,
     required String action,
@@ -467,6 +508,71 @@ class DevAgentBridgeService {
       data: {'action': action},
     );
     await refreshRun(runId);
+  }
+
+  /// Send a post-run decision (`leave` / `discard` / `apply`) to the bridge.
+  ///
+  /// The app never executes git/shell itself — this only forwards the user's
+  /// decision. The bridge owns worktrees and is responsible for actually
+  /// applying or discarding changes. Read-only runs (which never produce a
+  /// worktree) get `discard` / `apply` rejected with `no_worktree`.
+  Future<DevAgentDecisionResult> decideRun(
+    String runId,
+    String decision,
+  ) async {
+    const allowed = {'leave', 'discard', 'apply'};
+    if (!allowed.contains(decision)) {
+      throw DevAgentBridgeException('Unknown decision: $decision');
+    }
+    final run = await getRun(runId);
+    if (run == null) {
+      throw const DevAgentBridgeException('Run not found.');
+    }
+    if (run.sessionId == null) {
+      throw const DevAgentBridgeException('Run is not connected to a bridge.');
+    }
+    final project = await getProject(run.projectId);
+    if (project == null) {
+      throw const DevAgentBridgeException('Dev project not found.');
+    }
+
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    try {
+      final response = await _dio.postUri<Map<String, dynamic>>(
+        _bridgeUri(
+          project.bridgeUrl,
+          '/v1/runs/${run.sessionId}/decision',
+        ),
+        data: {
+          'decision': decision,
+          'responded_at': now,
+        },
+        options: Options(
+          validateStatus: (code) => code != null && code < 500,
+        ),
+      );
+      final payload = response.data ?? const <String, dynamic>{};
+      final accepted = response.statusCode == 200 && payload['ok'] == true;
+      await _insertLocalEvent(
+        runId: runId,
+        kind: 'decision',
+        payload: {
+          'decision': decision,
+          'status': accepted ? 'accepted' : 'rejected',
+          if (!accepted && payload['reason'] != null) 'reason': payload['reason'],
+          if (!accepted && payload['message'] != null)
+            'message': payload['message'],
+        },
+      );
+      return DevAgentDecisionResult(
+        accepted: accepted,
+        reason: payload['reason']?.toString(),
+        message: payload['message']?.toString(),
+      );
+    } catch (e, stack) {
+      _logger.warning('Failed to send run decision', e, stack);
+      rethrow;
+    }
   }
 
   Future<void> abort(String runId) async {

@@ -1,14 +1,16 @@
 import http from 'node:http';
 import https from 'node:https';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import { URL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -234,15 +236,17 @@ function normalizeJsonLine(run, rawLine) {
   addEvent(run, 'status', { status: run.status, message: type });
 }
 
-function commandFor(agentType, project, prompt) {
+function commandFor(agentType, project, prompt, mode, cwd) {
+  const isWrite = mode === 'workspace_write';
+
   if (agentType === 'codex') {
     const args = [
       'exec',
       '--json',
       '--sandbox',
-      'read-only',
+      isWrite ? 'workspace-write' : 'read-only',
       '--cd',
-      project.rootPath,
+      cwd,
     ];
     if (codexModel) args.push('-m', codexModel);
     args.push(prompt);
@@ -250,6 +254,9 @@ function commandFor(agentType, project, prompt) {
   }
 
   if (agentType === 'claude_code') {
+    const tools = isWrite
+      ? 'Read,Grep,Glob,LS,Edit,Write,MultiEdit'
+      : 'Read,Grep,Glob,LS';
     return commandSpec(
       'claude',
       [
@@ -259,15 +266,176 @@ function commandFor(agentType, project, prompt) {
         'stream-json',
         '--verbose',
         '--permission-mode',
-        'plan',
+        isWrite ? 'acceptEdits' : 'plan',
         '--tools',
-        'Read,Grep,Glob,LS',
+        tools,
       ],
       'Claude Code',
     );
   }
 
   throw new Error(`Unsupported agent_type: ${agentType}`);
+}
+
+// ---------------------------------------------------------------------------
+// Git / worktree helpers
+// ---------------------------------------------------------------------------
+
+function runGit(cwd, args, { allowFail = false } = {}) {
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  if (result.error) {
+    if (allowFail) return result;
+    throw new Error(`git ${args.join(' ')} failed to spawn: ${result.error.message}`);
+  }
+  if (!allowFail && result.status !== 0) {
+    const stderr = (result.stderr || '').trim();
+    const stdout = (result.stdout || '').trim();
+    throw new Error(
+      `git ${args.join(' ')} exited ${result.status}: ${stderr || stdout || 'unknown error'}`,
+    );
+  }
+  return result;
+}
+
+function ensureGitRepo(rootPath) {
+  const result = runGit(rootPath, ['rev-parse', '--git-dir'], { allowFail: true });
+  if (result.status !== 0) {
+    throw new Error(`project root is not a git repository: ${rootPath}`);
+  }
+}
+
+function shortRunId(runId) {
+  return String(runId).replace(/-/g, '').slice(0, 8);
+}
+
+function createWorktree(project, runId) {
+  ensureGitRepo(project.rootPath);
+  const short = shortRunId(runId);
+  const relPath = path.join('.dev-agent', 'worktrees', short);
+  const absPath = path.join(project.rootPath, relPath);
+  const branch = `dev-agent/${short}`;
+
+  // Make sure parent dir exists; git will create the leaf.
+  mkdirSync(path.dirname(absPath), { recursive: true });
+
+  // If a stale worktree at this path exists, prune first.
+  if (existsSync(absPath)) {
+    runGit(project.rootPath, ['worktree', 'remove', '--force', relPath], {
+      allowFail: true,
+    });
+  }
+  runGit(project.rootPath, ['branch', '-D', branch], { allowFail: true });
+
+  runGit(project.rootPath, [
+    'worktree', 'add', '-b', branch, relPath, project.defaultBranch,
+  ]);
+  return { worktreePath: absPath, branch };
+}
+
+function autoCommitWorktree(run, project) {
+  if (!run.worktreePath || !run.branch) return { committed: false };
+  // Stage everything the agent touched (new, modified, deleted).
+  runGit(run.worktreePath, ['add', '-A'], { allowFail: true });
+  // If there is nothing staged, --cached --quiet exits 0; we skip commit.
+  const dirty = runGit(run.worktreePath, ['diff', '--cached', '--quiet'], {
+    allowFail: true,
+  });
+  if (dirty.status === 0) return { committed: false };
+
+  const shortId = shortRunId(run.id);
+  const summary = (run.summary || '').replace(/\s+/g, ' ').slice(0, 80);
+  const message = summary
+    ? `dev-agent ${shortId}: ${summary}`
+    : `dev-agent run ${shortId}`;
+  const commit = runGit(
+    run.worktreePath,
+    ['commit', '-m', message, '--author=Dev Agent <dev-agent@local>'],
+    { allowFail: true },
+  );
+  if (commit.status !== 0) {
+    addEvent(run, 'error', {
+      message: `auto-commit failed: ${(commit.stderr || '').trim()}`,
+    });
+    return { committed: false };
+  }
+  addEvent(run, 'tool_call', {
+    name: 'git commit',
+    description: `Auto-committed agent changes to ${run.branch}.`,
+    risk: 'low',
+  });
+  return { committed: true };
+}
+
+function generateDiffArtifact(run, project) {
+  if (!run.worktreePath || !run.branch) return;
+  const result = runGit(project.rootPath, [
+    'diff', '--no-color', `${project.defaultBranch}...${run.branch}`,
+  ], { allowFail: true });
+  if (result.status !== 0) return;
+  const diff = (result.stdout || '').trim();
+  if (!diff) return;
+  run.artifacts.set('diff-final', {
+    id: 'diff-final',
+    kind: 'diff',
+    title: `Diff vs ${project.defaultBranch}`,
+    content: diff,
+    created_at: nowSeconds(),
+  });
+}
+
+function cleanupWorktree(run, project) {
+  if (!run.worktreePath || !run.branch) return { ok: true };
+  const relPath = path.relative(project.rootPath, run.worktreePath);
+  const removeResult = runGit(
+    project.rootPath,
+    ['worktree', 'remove', '--force', relPath],
+    { allowFail: true },
+  );
+  // Delete the branch even if worktree-remove had nothing to do.
+  runGit(project.rootPath, ['branch', '-D', run.branch], { allowFail: true });
+  return {
+    ok: removeResult.status === 0 || !existsSync(run.worktreePath),
+    message: (removeResult.stderr || '').trim() || null,
+  };
+}
+
+function applyWorktree(run, project) {
+  if (!run.worktreePath || !run.branch) {
+    return { ok: false, reason: 'no_worktree' };
+  }
+  // Make sure the default branch is checked out and the merge will be ff-only.
+  const checkout = runGit(
+    project.rootPath,
+    ['checkout', project.defaultBranch],
+    { allowFail: true },
+  );
+  if (checkout.status !== 0) {
+    return {
+      ok: false,
+      reason: 'checkout_failed',
+      message: (checkout.stderr || '').trim(),
+    };
+  }
+  const merge = runGit(
+    project.rootPath,
+    ['merge', '--ff-only', run.branch],
+    { allowFail: true },
+  );
+  if (merge.status !== 0) {
+    return {
+      ok: false,
+      reason: 'merge_not_fast_forward',
+      message: (merge.stderr || '').trim() ||
+        'Default branch has moved on; cannot fast-forward.',
+    };
+  }
+  // Merge succeeded — safe to clean up worktree and branch.
+  cleanupWorktree(run, project);
+  return { ok: true };
 }
 
 function commandSpec(name, args, displayName) {
@@ -291,10 +459,30 @@ function commandSpec(name, args, displayName) {
   return { command: name, args, displayName };
 }
 
-function startProcess(run, agentType, project, prompt) {
+function startProcess(run, agentType, project, prompt, mode) {
+  // For write mode we need a worktree before launching the agent so any file
+  // changes are isolated. Read-only runs execute directly in the project root.
+  let cwd = project.rootPath;
+  if (mode === 'workspace_write') {
+    try {
+      const { worktreePath, branch } = createWorktree(project, run.id);
+      run.worktreePath = worktreePath;
+      run.branch = branch;
+      cwd = worktreePath;
+      addEvent(run, 'tool_call', {
+        name: 'git worktree add',
+        description: `Created isolated worktree ${branch} at ${path.relative(project.rootPath, worktreePath)}`,
+        risk: 'low',
+      });
+    } catch (error) {
+      setStatus(run, 'failed', `worktree setup failed: ${error.message}`);
+      return;
+    }
+  }
+
   let spec;
   try {
-    spec = commandFor(agentType, project, prompt);
+    spec = commandFor(agentType, project, prompt, mode, cwd);
   } catch (error) {
     setStatus(run, 'failed', error.message);
     return;
@@ -302,12 +490,12 @@ function startProcess(run, agentType, project, prompt) {
 
   addEvent(run, 'tool_call', {
     name: spec.displayName || spec.command,
-    description: `Start ${spec.displayName || spec.command} read-only run.`,
-    risk: 'low',
+    description: `Start ${spec.displayName || spec.command} ${mode} run.`,
+    risk: mode === 'workspace_write' ? 'medium' : 'low',
   });
 
   const child = spawn(spec.command, spec.args, {
-    cwd: project.rootPath,
+    cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
@@ -353,6 +541,17 @@ function startProcess(run, agentType, project, prompt) {
       });
       persistState();
     }
+    // Write-mode runs: auto-commit whatever the agent left in the worktree, then
+    // produce a diff artifact comparing the dev branch to default. Without the
+    // auto-commit, apply (git merge --ff-only) would have nothing to merge.
+    if (run.mode === 'workspace_write' && run.status === 'done') {
+      try {
+        autoCommitWorktree(run, run.project);
+        generateDiffArtifact(run, run.project);
+      } catch (err) {
+        addEvent(run, 'error', { message: `post-run finalize failed: ${err.message}` });
+      }
+    }
   });
 }
 
@@ -374,8 +573,9 @@ async function handle(req, res) {
 
     if (req.method === 'POST' && path === '/v1/runs') {
       const body = await readJson(req);
-      if (body.mode !== 'read_only') {
-        json(res, 400, { error: 'only read_only mode is supported by this prototype' });
+      const mode = String(body.mode || 'read_only');
+      if (!['read_only', 'workspace_write'].includes(mode)) {
+        json(res, 400, { error: `unsupported mode: ${mode}` });
         return;
       }
       const project = validateProject(body.project);
@@ -391,6 +591,7 @@ async function handle(req, res) {
         sessionId: runId,
         agentType: String(body.agent_type || ''),
         project,
+        mode,
         status: 'pending',
         summary: null,
         startedAt: nowSeconds(),
@@ -400,11 +601,13 @@ async function handle(req, res) {
         artifacts: new Map(),
         transcript: [],
         child: null,
+        worktreePath: null,
+        branch: null,
       };
       runs.set(runId, run);
       persistState();
       addEvent(run, 'status', { status: 'pending', message: 'Run accepted by bridge.' });
-      startProcess(run, run.agentType, project, prompt);
+      startProcess(run, run.agentType, project, prompt, mode);
       json(res, 200, {
         run_id: runId,
         session_id: runId,
@@ -421,8 +624,8 @@ async function handle(req, res) {
         run_id: run.id,
         status: run.status,
         summary: run.summary,
-        branch: null,
-        worktree_path: null,
+        branch: run.branch,
+        worktree_path: run.worktreePath,
       });
       return;
     }
@@ -445,6 +648,111 @@ async function handle(req, res) {
       if (run.child) run.child.kill();
       setStatus(run, 'aborted', 'Run aborted by user.');
       json(res, 200, { ok: true, status: run.status });
+      return;
+    }
+
+    const decisionMatch = path.match(/^\/v1\/runs\/([^/]+)\/decision$/);
+    if (req.method === 'POST' && decisionMatch) {
+      const run = runs.get(decodeURIComponent(decisionMatch[1]));
+      if (!run) return notFound(res);
+      if (!terminalStatuses.has(run.status)) {
+        json(res, 409, {
+          ok: false,
+          error: 'run_not_terminal',
+          message: `Run is still ${run.status}; abort or wait before deciding.`,
+        });
+        return;
+      }
+      const body = await readJson(req);
+      const decision = String(body.decision || '').trim();
+      if (!['leave', 'discard', 'apply'].includes(decision)) {
+        json(res, 400, {
+          ok: false,
+          error: 'invalid_decision',
+          message: 'decision must be one of leave | discard | apply',
+        });
+        return;
+      }
+
+      // discard / apply require a worktree. read-only runs never have one.
+      if ((decision === 'discard' || decision === 'apply') && !run.worktreePath) {
+        addEvent(run, 'decision', {
+          decision,
+          status: 'rejected',
+          reason: 'no_worktree',
+        });
+        json(res, 422, {
+          ok: false,
+          status: 'rejected',
+          reason: 'no_worktree',
+          message: `Run has no worktree to ${decision}. Only write-mode runs produce worktrees.`,
+        });
+        return;
+      }
+
+      try {
+        if (decision === 'discard') {
+          const result = cleanupWorktree(run, run.project);
+          run.worktreePath = null;
+          run.branch = null;
+          addEvent(run, 'decision', {
+            decision,
+            status: result.ok ? 'accepted' : 'rejected',
+            ...(result.message ? { message: result.message } : {}),
+          });
+          if (!result.ok) {
+            json(res, 500, {
+              ok: false,
+              status: 'rejected',
+              reason: 'worktree_cleanup_failed',
+              message: result.message,
+            });
+            return;
+          }
+        } else if (decision === 'apply') {
+          const result = applyWorktree(run, run.project);
+          addEvent(run, 'decision', {
+            decision,
+            status: result.ok ? 'accepted' : 'rejected',
+            ...(result.reason ? { reason: result.reason } : {}),
+            ...(result.message ? { message: result.message } : {}),
+          });
+          if (!result.ok) {
+            json(res, 422, {
+              ok: false,
+              status: 'rejected',
+              reason: result.reason || 'apply_failed',
+              message: result.message ||
+                `Could not apply ${run.branch} onto ${run.project.defaultBranch}.`,
+            });
+            return;
+          }
+          run.worktreePath = null;
+          run.branch = null;
+        } else {
+          // leave — keep worktree and branch around; just record the decision.
+          addEvent(run, 'decision', {
+            decision,
+            status: 'accepted',
+            responded_at: body.responded_at || nowSeconds(),
+          });
+        }
+      } catch (err) {
+        addEvent(run, 'decision', {
+          decision,
+          status: 'rejected',
+          message: err.message,
+        });
+        json(res, 500, {
+          ok: false,
+          status: 'rejected',
+          reason: 'bridge_error',
+          message: err.message,
+        });
+        return;
+      }
+
+      json(res, 200, { ok: true, status: 'accepted', decision });
       return;
     }
 

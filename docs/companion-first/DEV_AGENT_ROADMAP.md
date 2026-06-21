@@ -206,7 +206,21 @@ class DevAgentApprovals extends Table {
 
 1. 扫今天的 `DevAgentRuns`（`startedAt` 在今天）
 2. 拉所有 run 的 summary、参与的 agent、合并/丢弃状态
-3. 喂给一个轻量 agent（复用 `Insights` agent 类别，新 prompt）生成**粗粒度功能描述**（不是技术细节堆砌）
+3. 喂给一个轻量 agent（复用 `Insights` agent 类别，新 prompt）生成**粗粒度功能描述**（不是技术细节堆砌）：
+   ```json
+   {
+     "date": "2026-06-21",
+     "summary": "完成了 Dev Room 的数据层和审批 UI，Phase 2 基本收尾",
+     "highlights": ["接通了 CC Bridge", "审批闭环跑通"],
+     "authors": ["claude_code", "codex"],
+     "contributions": {
+       "claude_code": "实现数据层、Bridge 适配",
+       "codex": "review 了审批流程，提了 3 个改进建议"
+     },
+     "mood_hint": "顺利",
+     "run_ids": ["...", "..."]
+   }
+   ```
 4. 写入两处：
    - **`SharedLifeEntities`**（`entityType = 'coding_log'`,带 `authorCharacterIds`）→ 所有角色平等检索
    - **DEVLOG.md**：人类可读条目（沿用项目现有约定）
@@ -214,15 +228,22 @@ class DevAgentApprovals extends Table {
 ### Coding Log 的关键字段
 
 ```dart
+// SharedLifeEntities 里 coding_log 类型的 stateJson 结构
 {
-  "summary": "...",
-  "highlights": ["...", "..."],
-  "authorCharacterIds": ["claude_code", "codex"],
-  "contributions": { ... },
-  "intensity": "light|normal|heavy",
-  "run_ids": ["..."]
+  "summary": "...",                          // 一句话总结,角色检索主要看这个
+  "highlights": ["...", "..."],              // 2-4 个亮点
+  "authorCharacterIds": ["claude_code", "codex"],  // 署名,UI 显示头像
+  "contributions": { ... },                  // 谁做了什么
+  "intensity": "light|normal|heavy",         // 给角色判断"今天累不累"
+  "run_ids": ["..."]                         // 关联回 DevAgentRuns
 }
 ```
+
+### 署名怎么用
+
+- 卡片 UI 顶部显示 CC/Codex 头像 + "在 X 的帮助下完成"
+- 其他角色检索到这条卡片时,prompt 里带署名信息,他们的回应会自然提到"听说你和 CC 今天搞了..."
+- 未来朋友圈/群聊里,这条卡片可以作为可评论对象,CC/Codex 自己也能在自己写的日志下补充评论
 
 ### UI
 

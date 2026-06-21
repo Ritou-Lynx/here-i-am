@@ -21,22 +21,36 @@ Codex events.
 
 ## Current Local Prototype
 
-`tools/dev_agent_bridge/dev_agent_bridge.mjs` implements the Phase 0/1 contract
+`tools/dev_agent_bridge/dev_agent_bridge.mjs` implements the Phase 0–2 contract
 as a project-local bridge:
 
-- `codex` runs through `codex exec --json --sandbox read-only`.
-- `claude_code` runs through `claude -p --output-format stream-json` with
-  read-oriented tools.
-- Runs, events, and artifacts are stored in a local state file by default.
-- Active CLI processes cannot be resumed after a bridge restart; the prototype
-  marks those runs as failed while preserving prior events.
+- `codex` runs through `codex exec --json` with sandbox `read-only` or
+  `workspace-write` depending on run mode.
+- `claude_code` runs through `claude -p --output-format stream-json` with the
+  tool set and permission mode matched to the run mode (read-only → `plan` +
+  Read/Grep/Glob/LS; write → `acceptEdits` + Read/Grep/Glob/LS/Edit/Write/MultiEdit).
+- Workspace-write runs get an isolated `git worktree` at
+  `{rootPath}/.dev-agent/worktrees/{shortRunId}` on branch
+  `dev-agent/{shortRunId}` before the agent process starts. Read-only runs
+  execute directly in the project root.
+- When a write-mode run finishes cleanly the bridge auto-runs
+  `git add -A && git commit` in the worktree (skipping if nothing changed),
+  then stores a `diff` artifact comparing the dev branch to `default_branch`.
+  Without the auto-commit, `apply` (which uses `git merge --ff-only`) would
+  have no commit to merge.
+- Decisions are real: `discard` runs `git worktree remove --force` + branch
+  delete; `apply` runs `git checkout {default} && git merge --ff-only
+  {devBranch}` then cleans up; `leave` keeps the worktree for later.
+- Runs, events, and artifacts are persisted to a local `runs.json` state file.
+  Bridge restart preserves history; in-flight CLI children cannot be resumed
+  and those runs are marked failed.
 - It exposes HTTP for local curl probes, but phone testing still needs HTTPS
-  via Tailscale Serve or a trusted certificate.
+  via Tailscale Serve, cloudflared tunnel, or a trusted certificate.
 - Debug/dev app builds may use `https://127.0.0.1:<port>` with `adb reverse`
   and a self-signed localhost certificate for USB-only testing. This exception
   is limited to loopback hosts and does not allow plain HTTP.
-- It does not create worktrees, write files, commit, push, or perform real
-  approval-gated writes.
+- It does not yet do commit/push to remote, PR open, mid-run command
+  approvals, or release_ops handling — those land in later phases.
 
 This is a stepping stone while the MyPilot fork path is repaired. The global
 `mypilot` command on the current Windows machine points to a missing
@@ -161,6 +175,62 @@ Response:
 The bridge must treat missing, denied, or expired approvals as rejected. The app
 does not support batch approval.
 
+### Decide Run
+
+`POST /v1/runs/{bridge_run_id}/decision`
+
+Sent after a run reaches a terminal status (`done` / `failed` / `aborted`) so
+the user can tell the bridge what to do with whatever the run produced. The
+app never executes git/shell — it only forwards the decision. The bridge owns
+worktrees and is responsible for actually applying or discarding changes.
+
+Request:
+
+```json
+{
+  "decision": "leave",
+  "responded_at": 1782020500
+}
+```
+
+`decision` must be one of:
+
+| Decision | Meaning |
+|---|---|
+| `leave` | Keep the worktree and artifacts around; the user will decide later |
+| `discard` | Throw away the worktree and any uncommitted changes |
+| `apply` | Merge the worktree branch back into the project's default branch |
+
+Successful response:
+
+```json
+{ "ok": true, "status": "accepted", "decision": "leave" }
+```
+
+`discard` / `apply` require the run to have produced a worktree, i.e. it ran
+in `workspace_write` mode. Read-only runs never have a worktree and the bridge
+MUST reject those decisions with HTTP 422 + `reason: "no_worktree"`:
+
+```json
+{
+  "ok": false,
+  "status": "rejected",
+  "reason": "no_worktree",
+  "message": "Run has no worktree to discard. Only write-mode runs produce worktrees."
+}
+```
+
+`apply` may also fail with `reason: "merge_not_fast_forward"` if the default
+branch moved on while the dev branch was active, or with `reason:
+"checkout_failed"` if the default branch checkout failed. In both cases the
+worktree is left intact so the user can try again or fall back to `discard`.
+
+If the run is still active, the bridge MUST respond with HTTP 409 and reason
+`run_not_terminal`. Unknown decisions return HTTP 400 with `invalid_decision`.
+
+The bridge appends a `decision` event to the run's event stream regardless of
+outcome so the App's local event log stays in sync.
+
 ### List Artifacts
 
 `GET /v1/runs/{bridge_run_id}/artifacts`
@@ -217,6 +287,7 @@ If the run has no isolated worktree, the bridge should reject `apply` and
 | `approval_request` | Bridge is blocked waiting for user approval |
 | `error` | Recoverable or terminal failure |
 | `status` | Run status update |
+| `decision` | User's post-run decision (leave / discard / apply) and bridge's response |
 
 ## Artifacts
 

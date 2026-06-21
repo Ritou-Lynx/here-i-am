@@ -48,6 +48,33 @@ class _DevRunScreenState extends State<DevRunScreen> {
     return status == 'done' || status == 'failed' || status == 'aborted';
   }
 
+  Future<void> _decide(String decision) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result =
+          await DevAgentBridgeService.instance.decideRun(widget.runId, decision);
+      if (!mounted) return;
+      final label = switch (decision) {
+        'leave' => '已留作待办',
+        'discard' => '已请求丢弃',
+        'apply' => '已请求合入',
+        _ => decision,
+      };
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result.accepted
+                ? label
+                : (result.message ?? '$decision 被 Bridge 拒绝：${result.reason ?? "unknown"}'),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('决策失败：$e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DevAgentRun?>(
@@ -83,6 +110,11 @@ class _DevRunScreenState extends State<DevRunScreen> {
                     _RunHeader(run: run),
                     _PendingApprovalBanner(runId: widget.runId),
                     _ArtifactsBar(runId: widget.runId),
+                    if (_isTerminal(status))
+                      _DecisionBar(
+                        run: run,
+                        onDecide: _decide,
+                      ),
                     Expanded(
                       child: StreamBuilder<List<DevAgentEvent>>(
                         stream: DevAgentBridgeService.instance
@@ -201,6 +233,52 @@ class _ArtifactsBar extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _DecisionBar extends StatelessWidget {
+  const _DecisionBar({required this.run, required this.onDecide});
+
+  final DevAgentRun run;
+  final Future<void> Function(String decision) onDecide;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasWorktree =
+        run.worktreePath != null && run.worktreePath!.trim().isNotEmpty;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.textTertiary.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.fact_check_outlined, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              hasWorktree ? '决定改动的去向' : '决策入口（写权限尚未启用，discard/apply 会被 Bridge 拒绝）',
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+          TextButton(
+            onPressed: () => onDecide('leave'),
+            child: const Text('留着'),
+          ),
+          TextButton(
+            onPressed: () => onDecide('discard'),
+            child: const Text('丢弃'),
+          ),
+          TextButton(
+            onPressed: () => onDecide('apply'),
+            child: const Text('应用'),
+          ),
+        ],
+      ),
     );
   }
 }
