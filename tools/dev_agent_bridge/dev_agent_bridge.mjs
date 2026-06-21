@@ -248,6 +248,14 @@ function commandFor(agentType, project, prompt, mode, cwd) {
       '--cd',
       cwd,
     ];
+    if (isWrite) {
+      // Codex 0.140+ still asks for approval on every write even when
+      // sandbox=workspace-write. In --json (non-interactive) mode the lack of
+      // a TTY auto-rejects, surfacing as "writing is blocked by read-only
+      // sandbox; rejected by user approval settings". Bypass via flag so the
+      // worktree isolation is the only gate.
+      args.push('--ask-for-approval', 'never');
+    }
     if (codexModel) args.push('-m', codexModel);
     args.push(prompt);
     return commandSpec('codex', args, 'Codex');
