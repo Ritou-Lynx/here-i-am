@@ -4437,7 +4437,6 @@ class _UserAvatar extends StatelessWidget {
   }
 }
 
-@visibleForTesting
 class PersonaChatInputBar extends StatelessWidget {
   const PersonaChatInputBar({
     super.key,

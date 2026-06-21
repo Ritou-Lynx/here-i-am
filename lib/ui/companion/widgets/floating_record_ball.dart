@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart'
     show PersonaChatInputBar;
+import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/utils/user_storage.dart';
 
 /// Floating action ball that lets the user quickly save a fact, plan, or note
@@ -97,7 +98,7 @@ class _BallWidget extends StatelessWidget {
   }
 }
 
-// ─── Quick-save sheet — reuses PersonaChatInputBar ────────────────────────
+// ─── Quick-save sheet — full chat input experience ────────────────────────────
 
 class _QuickSaveSheet extends StatefulWidget {
   const _QuickSaveSheet({required this.navigatorKey});
@@ -110,9 +111,9 @@ class _QuickSaveSheet extends StatefulWidget {
 
 class _QuickSaveSheetState extends State<_QuickSaveSheet> {
   final _controller = TextEditingController();
-  final _picker = ImagePicker();
-  List<XFile> _images = [];
+  final _images = <XFile>[];
   bool _saving = false;
+  bool _isMediaTrayOpen = false;
 
   @override
   void dispose() {
@@ -120,9 +121,13 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
     super.dispose();
   }
 
-  Future<void> _pickImages() async {
-    final picked = await _picker.pickMultiImage();
-    if (picked.isNotEmpty) setState(() => _images = [..._images, ...picked]);
+  void _onImagesPicked(List<XFile> images) {
+    setState(() {
+      for (final img in images) {
+        if (!_images.any((i) => i.path == img.path)) _images.add(img);
+      }
+      _isMediaTrayOpen = false;
+    });
   }
 
   Future<void> _save() async {
@@ -140,9 +145,9 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
         text: text.isNotEmpty ? text : '[图片记录 ${_images.length} 张]',
       );
       if (!mounted) return;
-      Navigator.pop(context);
       final navCtx = widget.navigatorKey.currentContext;
-      if (navCtx != null) {
+      Navigator.pop(context);
+      if (navCtx != null && navCtx.mounted) {
         ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(
           content: Text(result.isEmpty
               ? '未能提取有效记录'
@@ -158,15 +163,30 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return PersonaChatInputBar(
-      controller: _controller,
-      isStreaming: _saving,
-      onSend: _save,
-      hintText: '记录一下……',
-      onAddTap: _pickImages,
-      isAddActive: _images.isNotEmpty,
-      selectedImages: _images,
-      onRemoveImage: (i) => setState(() => _images.removeAt(i)),
+    // viewInsets.bottom == keyboard height; moves the entire sheet above the keyboard
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboardHeight),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CompanionMediaTray(
+            isOpen: _isMediaTrayOpen,
+            onImagesPicked: _onImagesPicked,
+          ),
+          PersonaChatInputBar(
+            controller: _controller,
+            isStreaming: _saving,
+            onSend: _save,
+            hintText: '记录一下……',
+            onAddTap: () =>
+                setState(() => _isMediaTrayOpen = !_isMediaTrayOpen),
+            isAddActive: _isMediaTrayOpen,
+            selectedImages: _images,
+            onRemoveImage: (i) => setState(() => _images.removeAt(i)),
+          ),
+        ],
+      ),
     );
   }
 }
