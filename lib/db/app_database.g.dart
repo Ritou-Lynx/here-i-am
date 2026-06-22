@@ -4890,6 +4890,12 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(1));
+  static const VerificationMeta _presentationJsonMeta =
+      const VerificationMeta('presentationJson');
+  @override
+  late final GeneratedColumn<String> presentationJson = GeneratedColumn<String>(
+      'presentation_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -4907,7 +4913,8 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
         occurredEndAt,
         valence,
         arousal,
-        schemaVersion
+        schemaVersion,
+        presentationJson
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5012,6 +5019,12 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
           schemaVersion.isAcceptableOrUnknown(
               data['schema_version']!, _schemaVersionMeta));
     }
+    if (data.containsKey('presentation_json')) {
+      context.handle(
+          _presentationJsonMeta,
+          presentationJson.isAcceptableOrUnknown(
+              data['presentation_json']!, _presentationJsonMeta));
+    }
     return context;
   }
 
@@ -5053,6 +5066,8 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
           .read(DriftSqlType.double, data['${effectivePrefix}arousal']),
       schemaVersion: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
+      presentationJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}presentation_json']),
     );
   }
 
@@ -5080,6 +5095,7 @@ class SharedLifeEntity extends DataClass
   final double? valence;
   final double? arousal;
   final int schemaVersion;
+  final String? presentationJson;
   const SharedLifeEntity(
       {required this.id,
       required this.entityType,
@@ -5096,7 +5112,8 @@ class SharedLifeEntity extends DataClass
       this.occurredEndAt,
       this.valence,
       this.arousal,
-      required this.schemaVersion});
+      required this.schemaVersion,
+      this.presentationJson});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -5126,6 +5143,9 @@ class SharedLifeEntity extends DataClass
       map['arousal'] = Variable<double>(arousal);
     }
     map['schema_version'] = Variable<int>(schemaVersion);
+    if (!nullToAbsent || presentationJson != null) {
+      map['presentation_json'] = Variable<String>(presentationJson);
+    }
     return map;
   }
 
@@ -5156,6 +5176,9 @@ class SharedLifeEntity extends DataClass
           ? const Value.absent()
           : Value(arousal),
       schemaVersion: Value(schemaVersion),
+      presentationJson: presentationJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(presentationJson),
     );
   }
 
@@ -5179,6 +5202,7 @@ class SharedLifeEntity extends DataClass
       valence: serializer.fromJson<double?>(json['valence']),
       arousal: serializer.fromJson<double?>(json['arousal']),
       schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      presentationJson: serializer.fromJson<String?>(json['presentationJson']),
     );
   }
   @override
@@ -5201,6 +5225,7 @@ class SharedLifeEntity extends DataClass
       'valence': serializer.toJson<double?>(valence),
       'arousal': serializer.toJson<double?>(arousal),
       'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'presentationJson': serializer.toJson<String?>(presentationJson),
     };
   }
 
@@ -5220,7 +5245,8 @@ class SharedLifeEntity extends DataClass
           Value<int?> occurredEndAt = const Value.absent(),
           Value<double?> valence = const Value.absent(),
           Value<double?> arousal = const Value.absent(),
-          int? schemaVersion}) =>
+          int? schemaVersion,
+          Value<String?> presentationJson = const Value.absent()}) =>
       SharedLifeEntity(
         id: id ?? this.id,
         entityType: entityType ?? this.entityType,
@@ -5239,6 +5265,9 @@ class SharedLifeEntity extends DataClass
         valence: valence.present ? valence.value : this.valence,
         arousal: arousal.present ? arousal.value : this.arousal,
         schemaVersion: schemaVersion ?? this.schemaVersion,
+        presentationJson: presentationJson.present
+            ? presentationJson.value
+            : this.presentationJson,
       );
   SharedLifeEntity copyWithCompanion(SharedLifeEntitiesCompanion data) {
     return SharedLifeEntity(
@@ -5270,6 +5299,9 @@ class SharedLifeEntity extends DataClass
       schemaVersion: data.schemaVersion.present
           ? data.schemaVersion.value
           : this.schemaVersion,
+      presentationJson: data.presentationJson.present
+          ? data.presentationJson.value
+          : this.presentationJson,
     );
   }
 
@@ -5291,7 +5323,8 @@ class SharedLifeEntity extends DataClass
           ..write('occurredEndAt: $occurredEndAt, ')
           ..write('valence: $valence, ')
           ..write('arousal: $arousal, ')
-          ..write('schemaVersion: $schemaVersion')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('presentationJson: $presentationJson')
           ..write(')'))
         .toString();
   }
@@ -5313,7 +5346,8 @@ class SharedLifeEntity extends DataClass
       occurredEndAt,
       valence,
       arousal,
-      schemaVersion);
+      schemaVersion,
+      presentationJson);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5333,7 +5367,8 @@ class SharedLifeEntity extends DataClass
           other.occurredEndAt == this.occurredEndAt &&
           other.valence == this.valence &&
           other.arousal == this.arousal &&
-          other.schemaVersion == this.schemaVersion);
+          other.schemaVersion == this.schemaVersion &&
+          other.presentationJson == this.presentationJson);
 }
 
 class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
@@ -5353,6 +5388,7 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
   final Value<double?> valence;
   final Value<double?> arousal;
   final Value<int> schemaVersion;
+  final Value<String?> presentationJson;
   final Value<int> rowid;
   const SharedLifeEntitiesCompanion({
     this.id = const Value.absent(),
@@ -5371,6 +5407,7 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     this.valence = const Value.absent(),
     this.arousal = const Value.absent(),
     this.schemaVersion = const Value.absent(),
+    this.presentationJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SharedLifeEntitiesCompanion.insert({
@@ -5390,6 +5427,7 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     this.valence = const Value.absent(),
     this.arousal = const Value.absent(),
     this.schemaVersion = const Value.absent(),
+    this.presentationJson = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         entityType = Value(entityType),
@@ -5416,6 +5454,7 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     Expression<double>? valence,
     Expression<double>? arousal,
     Expression<int>? schemaVersion,
+    Expression<String>? presentationJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5435,6 +5474,7 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
       if (valence != null) 'valence': valence,
       if (arousal != null) 'arousal': arousal,
       if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (presentationJson != null) 'presentation_json': presentationJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5456,6 +5496,7 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
       Value<double?>? valence,
       Value<double?>? arousal,
       Value<int>? schemaVersion,
+      Value<String?>? presentationJson,
       Value<int>? rowid}) {
     return SharedLifeEntitiesCompanion(
       id: id ?? this.id,
@@ -5474,6 +5515,7 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
       valence: valence ?? this.valence,
       arousal: arousal ?? this.arousal,
       schemaVersion: schemaVersion ?? this.schemaVersion,
+      presentationJson: presentationJson ?? this.presentationJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5529,6 +5571,9 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     if (schemaVersion.present) {
       map['schema_version'] = Variable<int>(schemaVersion.value);
     }
+    if (presentationJson.present) {
+      map['presentation_json'] = Variable<String>(presentationJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5554,6 +5599,7 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
           ..write('valence: $valence, ')
           ..write('arousal: $arousal, ')
           ..write('schemaVersion: $schemaVersion, ')
+          ..write('presentationJson: $presentationJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -13805,6 +13851,7 @@ typedef $$SharedLifeEntitiesTableCreateCompanionBuilder
   Value<double?> valence,
   Value<double?> arousal,
   Value<int> schemaVersion,
+  Value<String?> presentationJson,
   Value<int> rowid,
 });
 typedef $$SharedLifeEntitiesTableUpdateCompanionBuilder
@@ -13825,6 +13872,7 @@ typedef $$SharedLifeEntitiesTableUpdateCompanionBuilder
   Value<double?> valence,
   Value<double?> arousal,
   Value<int> schemaVersion,
+  Value<String?> presentationJson,
   Value<int> rowid,
 });
 
@@ -13886,6 +13934,10 @@ class $$SharedLifeEntitiesTableFilterComposer
 
   ColumnFilters<int> get schemaVersion => $composableBuilder(
       column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get presentationJson => $composableBuilder(
+      column: $table.presentationJson,
+      builder: (column) => ColumnFilters(column));
 }
 
 class $$SharedLifeEntitiesTableOrderingComposer
@@ -13949,6 +14001,10 @@ class $$SharedLifeEntitiesTableOrderingComposer
   ColumnOrderings<int> get schemaVersion => $composableBuilder(
       column: $table.schemaVersion,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get presentationJson => $composableBuilder(
+      column: $table.presentationJson,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$SharedLifeEntitiesTableAnnotationComposer
@@ -14007,6 +14063,9 @@ class $$SharedLifeEntitiesTableAnnotationComposer
 
   GeneratedColumn<int> get schemaVersion => $composableBuilder(
       column: $table.schemaVersion, builder: (column) => column);
+
+  GeneratedColumn<String> get presentationJson => $composableBuilder(
+      column: $table.presentationJson, builder: (column) => column);
 }
 
 class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
@@ -14053,6 +14112,7 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             Value<double?> valence = const Value.absent(),
             Value<double?> arousal = const Value.absent(),
             Value<int> schemaVersion = const Value.absent(),
+            Value<String?> presentationJson = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SharedLifeEntitiesCompanion(
@@ -14072,6 +14132,7 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             valence: valence,
             arousal: arousal,
             schemaVersion: schemaVersion,
+            presentationJson: presentationJson,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -14091,6 +14152,7 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             Value<double?> valence = const Value.absent(),
             Value<double?> arousal = const Value.absent(),
             Value<int> schemaVersion = const Value.absent(),
+            Value<String?> presentationJson = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SharedLifeEntitiesCompanion.insert(
@@ -14110,6 +14172,7 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             valence: valence,
             arousal: arousal,
             schemaVersion: schemaVersion,
+            presentationJson: presentationJson,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

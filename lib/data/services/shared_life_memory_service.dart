@@ -21,6 +21,7 @@ const _reservedPatchFields = {
   '_valence',
   '_arousal',
   '_schemaVersion',
+  '_presentation',
 };
 
 class SharedLifeOperationDraft {
@@ -88,6 +89,7 @@ class SharedLifeEntitySnapshot {
     this.valence,
     this.arousal,
     this.schemaVersion = 1,
+    this.presentationJson,
   });
 
   final String id;
@@ -104,6 +106,11 @@ class SharedLifeEntitySnapshot {
   final double? valence;
   final double? arousal;
   final int schemaVersion;
+
+  /// Raw PresentationModule JSON. Decode with `PresentationModule.tryParse`.
+  /// Null when the record was created before presentation generation existed
+  /// or the analyzer chose to omit one.
+  final String? presentationJson;
 
   List<String> get tags => _stringList(state['tags']);
 
@@ -125,6 +132,7 @@ class SharedLifeEntitySnapshot {
         'schema_version': schemaVersion,
         'tags': tags,
         'state': state,
+        if (presentationJson != null) 'presentation_json': presentationJson,
         'updated_at': updatedAt,
       };
 }
@@ -574,6 +582,7 @@ class SharedLifeMemoryService {
     double? valence;
     double? arousal;
     int schemaVersion = 1;
+    String? presentationJson;
 
     for (final row in projectionRows) {
       title = row.title.trim().isEmpty ? title : row.title;
@@ -588,6 +597,10 @@ class SharedLifeMemoryService {
       if (reserved['_valence'] case final double v) valence = v;
       if (reserved['_arousal'] case final double v) arousal = v;
       if (reserved['_schemaVersion'] case final int v) schemaVersion = v;
+      // Latest operation that supplies a presentation wins (covers update/correct).
+      if (reserved['_presentation'] case final String json) {
+        presentationJson = json;
+      }
 
       // domain columns on the operation row take precedence if set
       if (row.primaryDomain != 'general') primaryDomain = row.primaryDomain;
@@ -630,6 +643,7 @@ class SharedLifeMemoryService {
             valence: Value(valence),
             arousal: Value(arousal),
             schemaVersion: Value(schemaVersion),
+            presentationJson: Value(presentationJson),
           ),
         );
     _publishEntityChange(
@@ -684,6 +698,7 @@ class SharedLifeMemoryService {
       valence: row.valence,
       arousal: row.arousal,
       schemaVersion: row.schemaVersion,
+      presentationJson: row.presentationJson,
     );
   }
 }
@@ -738,6 +753,12 @@ Map<String, Object> _extractReservedFields(Map<String, dynamic> patch) {
         if (value is num) result[key] = value.toDouble();
       case '_schemaVersion':
         if (value is int) result[key] = value;
+      case '_presentation':
+        if (value is Map) {
+          result[key] = jsonEncode(value);
+        } else if (value is String && value.trim().isNotEmpty) {
+          result[key] = value;
+        }
     }
   }
   return result;

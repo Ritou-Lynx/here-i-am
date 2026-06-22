@@ -16,6 +16,7 @@ import 'package:memex/ui/timeline/widgets/timeline_card_detail_screen.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 
+import 'memory_summary_card.dart';
 import 'shared_life_entity_detail_screen.dart';
 
 /// Clean chronological review feed for the companion-first app.
@@ -197,6 +198,9 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
         ),
       );
     }
+    final entityById = {
+      for (final e in _sharedLifeEntities) e.id: e,
+    };
     return RefreshIndicator(
       onRefresh: () => _refresh(vm),
       child: ListView.builder(
@@ -212,38 +216,45 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
             );
           }
           final card = items[index];
-          // Entity-backed cards (prefixed with "entity:") still open the
-          // shared-life entity detail screen so source evidence is visible.
           final isEntity = card.id.startsWith('entity:');
           final entityId =
               isEntity ? card.id.substring('entity:'.length) : null;
-          return CompanionReviewCard(
-            card: card,
-            onTap: () async {
-              if (isEntity && entityId != null) {
-                final service = _sharedLifeMemory;
-                if (service == null) return;
-                if (!context.mounted) return;
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SharedLifeEntityDetailScreen(
-                      entityId: entityId,
-                      service: service,
-                    ),
-                  ),
-                );
-                return;
-              }
-              final changed = await Navigator.push(
+          final entity = entityId != null ? entityById[entityId] : null;
+
+          Future<void> openDetail() async {
+            if (isEntity && entityId != null) {
+              final service = _sharedLifeMemory;
+              if (service == null) return;
+              if (!context.mounted) return;
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => TimelineCardDetailScreen(cardId: card.id),
+                  builder: (_) => SharedLifeEntityDetailScreen(
+                    entityId: entityId,
+                    service: service,
+                  ),
                 ),
               );
-              if (changed == true) await _refresh(vm);
-            },
-          );
+              await _loadSharedLifeEntities();
+              return;
+            }
+            final changed = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TimelineCardDetailScreen(cardId: card.id),
+              ),
+            );
+            if (changed == true) await _refresh(vm);
+          }
+
+          if (entity != null) {
+            return _EntityReviewItem(
+              entity: entity,
+              displayTime: card.displayTime(UserStorage.l10n),
+              onTap: openDetail,
+            );
+          }
+          return CompanionReviewCard(card: card, onTap: openDetail);
         },
       ),
     );
@@ -339,6 +350,42 @@ class CompanionReviewCard extends StatelessWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _EntityReviewItem extends StatelessWidget {
+  const _EntityReviewItem({
+    required this.entity,
+    required this.displayTime,
+    required this.onTap,
+  });
+
+  final SharedLifeEntitySnapshot entity;
+  final String displayTime;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 9),
+            child: Text(
+              displayTime,
+              style: TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          MemorySummaryCard(entity: entity, onTap: onTap),
+        ],
+      ),
     );
   }
 }

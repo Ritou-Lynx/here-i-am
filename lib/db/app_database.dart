@@ -97,7 +97,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 31;
+  int get schemaVersion => 32;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -431,6 +431,16 @@ class AppDatabase extends _$AppDatabase {
               "VALUES ('character_memory_full_reset_v1', 'pending', "
               "'data_reset', CAST(strftime('%s', 'now') AS INTEGER))",
             );
+          }
+          if (from < 32) {
+            // Memory Card v1: add presentationJson column on SharedLifeEntities.
+            try {
+              await customStatement(
+                  'ALTER TABLE shared_life_entities ADD COLUMN presentation_json TEXT');
+            } catch (e) {
+              _logger.info(
+                  'presentation_json column may already exist, skipping: $e');
+            }
           }
         },
       );
