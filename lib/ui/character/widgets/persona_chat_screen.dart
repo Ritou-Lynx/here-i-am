@@ -1053,7 +1053,7 @@ only after you have written the goodbye you want the user to hear.''',
 
   @override
   void dispose() {
-    if (widget.enableRichCapture) {
+    if (widget.enableRichCapture && !ConversationCaptureService.autoCapturePaused) {
       unawaited(_scheduleConversationCapture(
         force: true,
         trigger: 'leave_chat',

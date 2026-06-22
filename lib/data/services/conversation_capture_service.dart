@@ -409,7 +409,7 @@ class ConversationCaptureService {
         scheduleIfNeeded(
           userId: userId,
           characterId: characterId,
-          force: true,
+          force: autoCapturePaused ? false : true,
           trigger: 'idle',
         ).catchError((Object error, StackTrace stackTrace) {
           _logger.warning(
