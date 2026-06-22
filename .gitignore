@@ -126,3 +126,11 @@ btdump*/
 magicmotion_apk/
 mm_*.txt
 tools/dev_agent_bridge/.state/
+
+# Dev Agent local artifacts
+.tmp-*
+.dev-agent/
+
+# UI design previews (codex 调试用，不是正式产物)
+UI design-here I am/rainy.png
+UI design-here I am/rose-mist-memory-card-preview.html
