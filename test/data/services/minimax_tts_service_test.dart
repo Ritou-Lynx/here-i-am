@@ -37,7 +37,7 @@ void main() {
       expect(speechText, contains('\u6211\u5728'));
     });
 
-    test('uses low and slow settings for strict command scenes', () {
+    test('uses stable pitch and slow settings for strict command scenes', () {
       const source = 'Stop. Put the phone down. I am not asking.';
 
       final script = MiniMaxTtsService.buildSpeechScript(source);
@@ -45,13 +45,13 @@ void main() {
       expect(script.scene, MiniMaxTtsScene.strictCommand);
       expect(script.speed, 0.82);
       expect(script.vol, 1.0);
-      expect(script.pitch, -4);
+      expect(script.pitch, 0);
       expect(script.text, isNot(contains('(laughs)')));
       expect(script.text, isNot(contains('(sniffs)')));
       expect(script.text, contains('<#0.35#>'));
     });
 
-    test('adds one sound event and fragile settings for vulnerable scenes', () {
+    test('adds one sound event with stable pitch for vulnerable scenes', () {
       const source = "(sniffs) I waited so long. (sniffs) Don't laugh at me.";
 
       final script = MiniMaxTtsService.buildSpeechScript(source);
@@ -59,12 +59,12 @@ void main() {
       expect(script.scene, MiniMaxTtsScene.vulnerable);
       expect(script.speed, 0.70);
       expect(script.vol, 0.82);
-      expect(script.pitch, 2);
+      expect(script.pitch, 0);
       expect(RegExp(r'\(sniffs\)').allMatches(script.text), hasLength(1));
       expect(script.text, contains('<#0.50#>'));
     });
 
-    test('uses breath and low volume for flirt scenes', () {
+    test('uses breath and low volume with stable pitch for flirt scenes', () {
       const source = 'Come closer. Just one more time.';
 
       final script = MiniMaxTtsService.buildSpeechScript(source);
@@ -72,7 +72,7 @@ void main() {
       expect(script.scene, MiniMaxTtsScene.flirt);
       expect(script.speed, 0.76);
       expect(script.vol, 0.78);
-      expect(script.pitch, 1);
+      expect(script.pitch, 0);
       expect(script.text, startsWith('<#0.20#> (breath)'));
       expect(script.text, contains('<#0.45#>'));
     });

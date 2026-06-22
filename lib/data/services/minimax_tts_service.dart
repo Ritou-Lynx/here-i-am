@@ -44,6 +44,7 @@ class MiniMaxSpeechScript {
 class MiniMaxTtsService {
   static const _baseUrl = 'https://api.minimax.chat';
   static const _model = 'speech-2.8-hd';
+  static const _stablePitch = 0;
   static final _log = getLogger('MiniMaxTts');
 
   static const _allowedSoundTags = {
@@ -154,7 +155,7 @@ class MiniMaxTtsService {
         scene: MiniMaxTtsScene.neutral,
         speed: 0.94,
         vol: 1.0,
-        pitch: 0,
+        pitch: _stablePitch,
       );
     }
 
@@ -339,28 +340,28 @@ class MiniMaxTtsService {
           scene: MiniMaxTtsScene.strictCommand,
           speed: 0.82,
           vol: 1.0,
-          pitch: -4,
+          pitch: _stablePitch,
         ),
       MiniMaxTtsScene.vulnerable => const MiniMaxSpeechScript(
           text: '',
           scene: MiniMaxTtsScene.vulnerable,
           speed: 0.70,
           vol: 0.82,
-          pitch: 2,
+          pitch: _stablePitch,
         ),
       MiniMaxTtsScene.flirt => const MiniMaxSpeechScript(
           text: '',
           scene: MiniMaxTtsScene.flirt,
           speed: 0.76,
           vol: 0.78,
-          pitch: 1,
+          pitch: _stablePitch,
         ),
       MiniMaxTtsScene.neutral => const MiniMaxSpeechScript(
           text: '',
           scene: MiniMaxTtsScene.neutral,
           speed: 0.94,
           vol: 1.0,
-          pitch: 0,
+          pitch: _stablePitch,
         ),
     };
   }
