@@ -4,6 +4,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_project_settings_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_run_screen.dart';
+import 'package:memex/ui/dev_agent/widgets/dev_session_screen.dart';
 
 class DevRoomScreen extends StatefulWidget {
   const DevRoomScreen({super.key});
@@ -61,6 +62,45 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
     }
   }
 
+  Future<void> _startSession(
+    BuildContext context,
+    DevProject project,
+    DevAgentType agentType,
+  ) async {
+    final prompt = await _PromptDialog.show(context, agentType);
+    if (prompt == null || prompt.trim().isEmpty) return;
+    try {
+      final firstLine = prompt.trim().split('\n').first.trim();
+      final title = firstLine.length > 36
+          ? '${firstLine.substring(0, 36)}...'
+          : firstLine;
+      final sessionId = await DevAgentBridgeService.instance.createSession(
+        projectId: project.id,
+        agentType: agentType,
+        title: title.isEmpty ? 'Dev Session' : title,
+        mode: project.permissionTier == 'read_only'
+            ? 'read_only'
+            : 'workspace_write',
+      );
+      await DevAgentBridgeService.instance.continueSession(
+        sessionId: sessionId,
+        message: prompt,
+      );
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DevSessionScreen(sessionId: sessionId),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
   Future<void> _cleanupProjectWorktrees(
     BuildContext context,
     DevProject project,
@@ -86,8 +126,8 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
     );
     if (confirmed != true) return;
     try {
-      final result =
-          await DevAgentBridgeService.instance.cleanupProjectWorktrees(project.id);
+      final result = await DevAgentBridgeService.instance
+          .cleanupProjectWorktrees(project.id);
       if (!context.mounted) return;
       final text = result.failed == 0
           ? '已清理 ${result.removed} 个 worktree'
@@ -166,8 +206,11 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
                     _startRun(context, project, DevAgentType.claudeCode),
                 onRunCodex: () =>
                     _startRun(context, project, DevAgentType.codex),
-                onCleanup: () =>
-                    _cleanupProjectWorktrees(context, project),
+                onSessionClaude: () =>
+                    _startSession(context, project, DevAgentType.claudeCode),
+                onSessionCodex: () =>
+                    _startSession(context, project, DevAgentType.codex),
+                onCleanup: () => _cleanupProjectWorktrees(context, project),
               );
             },
           );
@@ -183,6 +226,8 @@ class _ProjectCard extends StatelessWidget {
     required this.onEdit,
     required this.onRunClaude,
     required this.onRunCodex,
+    required this.onSessionClaude,
+    required this.onSessionCodex,
     required this.onCleanup,
   });
 
@@ -190,6 +235,8 @@ class _ProjectCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onRunClaude;
   final VoidCallback onRunCodex;
+  final VoidCallback onSessionClaude;
+  final VoidCallback onSessionCodex;
   final VoidCallback onCleanup;
 
   @override
@@ -275,6 +322,28 @@ class _ProjectCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: onSessionClaude,
+                  icon: const Icon(Icons.forum_outlined, size: 18),
+                  label: const Text('Claude 会话'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: onSessionCodex,
+                  icon: const Icon(Icons.forum_outlined, size: 18),
+                  label: const Text('Codex 会话'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _RecentSessions(projectId: project.id),
           const SizedBox(height: 12),
           _RecentRuns(projectId: project.id),
         ],
@@ -303,7 +372,8 @@ class _TierChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+        style:
+            TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -323,7 +393,9 @@ class _ProjectRunsSummary extends StatelessWidget {
         if (runs.isEmpty) {
           return const SizedBox.shrink();
         }
-        final running = runs.where((r) => !{'done', 'failed', 'aborted'}.contains(r.status)).length;
+        final running = runs
+            .where((r) => !{'done', 'failed', 'aborted'}.contains(r.status))
+            .length;
         final done = runs.where((r) => r.status == 'done').length;
         final failed = runs.where((r) => r.status == 'failed').length;
         final latest = runs.first;
@@ -347,6 +419,59 @@ class _ProjectRunsSummary extends StatelessWidget {
     if (diff < 3600) return '${diff ~/ 60} 分钟前';
     if (diff < 86400) return '${diff ~/ 3600} 小时前';
     return '${diff ~/ 86400} 天前';
+  }
+}
+
+class _RecentSessions extends StatelessWidget {
+  const _RecentSessions({required this.projectId});
+
+  final String projectId;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<DevAgentSession>>(
+      stream:
+          DevAgentBridgeService.instance.watchSessions(projectId: projectId),
+      builder: (context, snapshot) {
+        final sessions = (snapshot.data ?? const []).take(2).toList();
+        if (sessions.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '最近会话',
+              style: TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            for (final session in sessions)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.forum_outlined, size: 20),
+                title: Text(
+                  session.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text('${session.agentType} 路 ${session.status}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DevSessionScreen(sessionId: session.id),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 }
 

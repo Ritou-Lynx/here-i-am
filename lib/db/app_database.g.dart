@@ -9860,6 +9860,12 @@ class $DevAgentRunsTable extends DevAgentRuns
   late final GeneratedColumn<String> agentType = GeneratedColumn<String>(
       'agent_type', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _devSessionIdMeta =
+      const VerificationMeta('devSessionId');
+  @override
+  late final GeneratedColumn<String> devSessionId = GeneratedColumn<String>(
+      'dev_session_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _sessionIdMeta =
       const VerificationMeta('sessionId');
   @override
@@ -9911,6 +9917,7 @@ class $DevAgentRunsTable extends DevAgentRuns
         id,
         projectId,
         agentType,
+        devSessionId,
         sessionId,
         initialPrompt,
         status,
@@ -9946,6 +9953,12 @@ class $DevAgentRunsTable extends DevAgentRuns
           agentType.isAcceptableOrUnknown(data['agent_type']!, _agentTypeMeta));
     } else if (isInserting) {
       context.missing(_agentTypeMeta);
+    }
+    if (data.containsKey('dev_session_id')) {
+      context.handle(
+          _devSessionIdMeta,
+          devSessionId.isAcceptableOrUnknown(
+              data['dev_session_id']!, _devSessionIdMeta));
     }
     if (data.containsKey('session_id')) {
       context.handle(_sessionIdMeta,
@@ -10004,6 +10017,8 @@ class $DevAgentRunsTable extends DevAgentRuns
           .read(DriftSqlType.string, data['${effectivePrefix}project_id'])!,
       agentType: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}agent_type'])!,
+      devSessionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}dev_session_id']),
       sessionId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}session_id']),
       initialPrompt: attachedDatabase.typeMapping
@@ -10033,6 +10048,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
   final String id;
   final String projectId;
   final String agentType;
+  final String? devSessionId;
   final String? sessionId;
   final String initialPrompt;
   final String status;
@@ -10045,6 +10061,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       {required this.id,
       required this.projectId,
       required this.agentType,
+      this.devSessionId,
       this.sessionId,
       required this.initialPrompt,
       required this.status,
@@ -10059,6 +10076,9 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
     map['id'] = Variable<String>(id);
     map['project_id'] = Variable<String>(projectId);
     map['agent_type'] = Variable<String>(agentType);
+    if (!nullToAbsent || devSessionId != null) {
+      map['dev_session_id'] = Variable<String>(devSessionId);
+    }
     if (!nullToAbsent || sessionId != null) {
       map['session_id'] = Variable<String>(sessionId);
     }
@@ -10085,6 +10105,9 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       id: Value(id),
       projectId: Value(projectId),
       agentType: Value(agentType),
+      devSessionId: devSessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(devSessionId),
       sessionId: sessionId == null && nullToAbsent
           ? const Value.absent()
           : Value(sessionId),
@@ -10112,6 +10135,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       id: serializer.fromJson<String>(json['id']),
       projectId: serializer.fromJson<String>(json['projectId']),
       agentType: serializer.fromJson<String>(json['agentType']),
+      devSessionId: serializer.fromJson<String?>(json['devSessionId']),
       sessionId: serializer.fromJson<String?>(json['sessionId']),
       initialPrompt: serializer.fromJson<String>(json['initialPrompt']),
       status: serializer.fromJson<String>(json['status']),
@@ -10129,6 +10153,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       'id': serializer.toJson<String>(id),
       'projectId': serializer.toJson<String>(projectId),
       'agentType': serializer.toJson<String>(agentType),
+      'devSessionId': serializer.toJson<String?>(devSessionId),
       'sessionId': serializer.toJson<String?>(sessionId),
       'initialPrompt': serializer.toJson<String>(initialPrompt),
       'status': serializer.toJson<String>(status),
@@ -10144,6 +10169,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
           {String? id,
           String? projectId,
           String? agentType,
+          Value<String?> devSessionId = const Value.absent(),
           Value<String?> sessionId = const Value.absent(),
           String? initialPrompt,
           String? status,
@@ -10156,6 +10182,8 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
         id: id ?? this.id,
         projectId: projectId ?? this.projectId,
         agentType: agentType ?? this.agentType,
+        devSessionId:
+            devSessionId.present ? devSessionId.value : this.devSessionId,
         sessionId: sessionId.present ? sessionId.value : this.sessionId,
         initialPrompt: initialPrompt ?? this.initialPrompt,
         status: status ?? this.status,
@@ -10171,6 +10199,9 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       id: data.id.present ? data.id.value : this.id,
       projectId: data.projectId.present ? data.projectId.value : this.projectId,
       agentType: data.agentType.present ? data.agentType.value : this.agentType,
+      devSessionId: data.devSessionId.present
+          ? data.devSessionId.value
+          : this.devSessionId,
       sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       initialPrompt: data.initialPrompt.present
           ? data.initialPrompt.value
@@ -10192,6 +10223,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
           ..write('id: $id, ')
           ..write('projectId: $projectId, ')
           ..write('agentType: $agentType, ')
+          ..write('devSessionId: $devSessionId, ')
           ..write('sessionId: $sessionId, ')
           ..write('initialPrompt: $initialPrompt, ')
           ..write('status: $status, ')
@@ -10205,8 +10237,19 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
   }
 
   @override
-  int get hashCode => Object.hash(id, projectId, agentType, sessionId,
-      initialPrompt, status, branch, worktreePath, startedAt, endedAt, summary);
+  int get hashCode => Object.hash(
+      id,
+      projectId,
+      agentType,
+      devSessionId,
+      sessionId,
+      initialPrompt,
+      status,
+      branch,
+      worktreePath,
+      startedAt,
+      endedAt,
+      summary);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -10214,6 +10257,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
           other.id == this.id &&
           other.projectId == this.projectId &&
           other.agentType == this.agentType &&
+          other.devSessionId == this.devSessionId &&
           other.sessionId == this.sessionId &&
           other.initialPrompt == this.initialPrompt &&
           other.status == this.status &&
@@ -10228,6 +10272,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
   final Value<String> id;
   final Value<String> projectId;
   final Value<String> agentType;
+  final Value<String?> devSessionId;
   final Value<String?> sessionId;
   final Value<String> initialPrompt;
   final Value<String> status;
@@ -10241,6 +10286,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
     this.id = const Value.absent(),
     this.projectId = const Value.absent(),
     this.agentType = const Value.absent(),
+    this.devSessionId = const Value.absent(),
     this.sessionId = const Value.absent(),
     this.initialPrompt = const Value.absent(),
     this.status = const Value.absent(),
@@ -10255,6 +10301,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
     required String id,
     required String projectId,
     required String agentType,
+    this.devSessionId = const Value.absent(),
     this.sessionId = const Value.absent(),
     required String initialPrompt,
     required String status,
@@ -10274,6 +10321,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
     Expression<String>? id,
     Expression<String>? projectId,
     Expression<String>? agentType,
+    Expression<String>? devSessionId,
     Expression<String>? sessionId,
     Expression<String>? initialPrompt,
     Expression<String>? status,
@@ -10288,6 +10336,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
       if (id != null) 'id': id,
       if (projectId != null) 'project_id': projectId,
       if (agentType != null) 'agent_type': agentType,
+      if (devSessionId != null) 'dev_session_id': devSessionId,
       if (sessionId != null) 'session_id': sessionId,
       if (initialPrompt != null) 'initial_prompt': initialPrompt,
       if (status != null) 'status': status,
@@ -10304,6 +10353,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
       {Value<String>? id,
       Value<String>? projectId,
       Value<String>? agentType,
+      Value<String?>? devSessionId,
       Value<String?>? sessionId,
       Value<String>? initialPrompt,
       Value<String>? status,
@@ -10317,6 +10367,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
       id: id ?? this.id,
       projectId: projectId ?? this.projectId,
       agentType: agentType ?? this.agentType,
+      devSessionId: devSessionId ?? this.devSessionId,
       sessionId: sessionId ?? this.sessionId,
       initialPrompt: initialPrompt ?? this.initialPrompt,
       status: status ?? this.status,
@@ -10340,6 +10391,9 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
     }
     if (agentType.present) {
       map['agent_type'] = Variable<String>(agentType.value);
+    }
+    if (devSessionId.present) {
+      map['dev_session_id'] = Variable<String>(devSessionId.value);
     }
     if (sessionId.present) {
       map['session_id'] = Variable<String>(sessionId.value);
@@ -10377,6 +10431,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
           ..write('id: $id, ')
           ..write('projectId: $projectId, ')
           ..write('agentType: $agentType, ')
+          ..write('devSessionId: $devSessionId, ')
           ..write('sessionId: $sessionId, ')
           ..write('initialPrompt: $initialPrompt, ')
           ..write('status: $status, ')
@@ -10385,6 +10440,1292 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('summary: $summary, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DevAgentSessionsTable extends DevAgentSessions
+    with TableInfo<$DevAgentSessionsTable, DevAgentSession> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DevAgentSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _projectIdMeta =
+      const VerificationMeta('projectId');
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+      'project_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES dev_projects (id)'));
+  static const VerificationMeta _agentTypeMeta =
+      const VerificationMeta('agentType');
+  @override
+  late final GeneratedColumn<String> agentType = GeneratedColumn<String>(
+      'agent_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _goalMeta = const VerificationMeta('goal');
+  @override
+  late final GeneratedColumn<String> goal = GeneratedColumn<String>(
+      'goal', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _modeMeta = const VerificationMeta('mode');
+  @override
+  late final GeneratedColumn<String> mode = GeneratedColumn<String>(
+      'mode', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('read_only'));
+  static const VerificationMeta _ownerCharacterIdMeta =
+      const VerificationMeta('ownerCharacterId');
+  @override
+  late final GeneratedColumn<String> ownerCharacterId = GeneratedColumn<String>(
+      'owner_character_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _providerSessionIdMeta =
+      const VerificationMeta('providerSessionId');
+  @override
+  late final GeneratedColumn<String> providerSessionId =
+      GeneratedColumn<String>('provider_session_id', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        projectId,
+        agentType,
+        title,
+        goal,
+        mode,
+        ownerCharacterId,
+        providerSessionId,
+        status,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dev_agent_sessions';
+  @override
+  VerificationContext validateIntegrity(Insertable<DevAgentSession> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(_projectIdMeta,
+          projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta));
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('agent_type')) {
+      context.handle(_agentTypeMeta,
+          agentType.isAcceptableOrUnknown(data['agent_type']!, _agentTypeMeta));
+    } else if (isInserting) {
+      context.missing(_agentTypeMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('goal')) {
+      context.handle(
+          _goalMeta, goal.isAcceptableOrUnknown(data['goal']!, _goalMeta));
+    }
+    if (data.containsKey('mode')) {
+      context.handle(
+          _modeMeta, mode.isAcceptableOrUnknown(data['mode']!, _modeMeta));
+    }
+    if (data.containsKey('owner_character_id')) {
+      context.handle(
+          _ownerCharacterIdMeta,
+          ownerCharacterId.isAcceptableOrUnknown(
+              data['owner_character_id']!, _ownerCharacterIdMeta));
+    }
+    if (data.containsKey('provider_session_id')) {
+      context.handle(
+          _providerSessionIdMeta,
+          providerSessionId.isAcceptableOrUnknown(
+              data['provider_session_id']!, _providerSessionIdMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DevAgentSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DevAgentSession(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      projectId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}project_id'])!,
+      agentType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}agent_type'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      goal: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}goal']),
+      mode: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}mode'])!,
+      ownerCharacterId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}owner_character_id']),
+      providerSessionId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}provider_session_id']),
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $DevAgentSessionsTable createAlias(String alias) {
+    return $DevAgentSessionsTable(attachedDatabase, alias);
+  }
+}
+
+class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
+  final String id;
+  final String projectId;
+  final String agentType;
+  final String title;
+  final String? goal;
+  final String mode;
+  final String? ownerCharacterId;
+  final String? providerSessionId;
+  final String status;
+  final int createdAt;
+  final int updatedAt;
+  const DevAgentSession(
+      {required this.id,
+      required this.projectId,
+      required this.agentType,
+      required this.title,
+      this.goal,
+      required this.mode,
+      this.ownerCharacterId,
+      this.providerSessionId,
+      required this.status,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['project_id'] = Variable<String>(projectId);
+    map['agent_type'] = Variable<String>(agentType);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || goal != null) {
+      map['goal'] = Variable<String>(goal);
+    }
+    map['mode'] = Variable<String>(mode);
+    if (!nullToAbsent || ownerCharacterId != null) {
+      map['owner_character_id'] = Variable<String>(ownerCharacterId);
+    }
+    if (!nullToAbsent || providerSessionId != null) {
+      map['provider_session_id'] = Variable<String>(providerSessionId);
+    }
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  DevAgentSessionsCompanion toCompanion(bool nullToAbsent) {
+    return DevAgentSessionsCompanion(
+      id: Value(id),
+      projectId: Value(projectId),
+      agentType: Value(agentType),
+      title: Value(title),
+      goal: goal == null && nullToAbsent ? const Value.absent() : Value(goal),
+      mode: Value(mode),
+      ownerCharacterId: ownerCharacterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownerCharacterId),
+      providerSessionId: providerSessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(providerSessionId),
+      status: Value(status),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory DevAgentSession.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DevAgentSession(
+      id: serializer.fromJson<String>(json['id']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      agentType: serializer.fromJson<String>(json['agentType']),
+      title: serializer.fromJson<String>(json['title']),
+      goal: serializer.fromJson<String?>(json['goal']),
+      mode: serializer.fromJson<String>(json['mode']),
+      ownerCharacterId: serializer.fromJson<String?>(json['ownerCharacterId']),
+      providerSessionId:
+          serializer.fromJson<String?>(json['providerSessionId']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'projectId': serializer.toJson<String>(projectId),
+      'agentType': serializer.toJson<String>(agentType),
+      'title': serializer.toJson<String>(title),
+      'goal': serializer.toJson<String?>(goal),
+      'mode': serializer.toJson<String>(mode),
+      'ownerCharacterId': serializer.toJson<String?>(ownerCharacterId),
+      'providerSessionId': serializer.toJson<String?>(providerSessionId),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  DevAgentSession copyWith(
+          {String? id,
+          String? projectId,
+          String? agentType,
+          String? title,
+          Value<String?> goal = const Value.absent(),
+          String? mode,
+          Value<String?> ownerCharacterId = const Value.absent(),
+          Value<String?> providerSessionId = const Value.absent(),
+          String? status,
+          int? createdAt,
+          int? updatedAt}) =>
+      DevAgentSession(
+        id: id ?? this.id,
+        projectId: projectId ?? this.projectId,
+        agentType: agentType ?? this.agentType,
+        title: title ?? this.title,
+        goal: goal.present ? goal.value : this.goal,
+        mode: mode ?? this.mode,
+        ownerCharacterId: ownerCharacterId.present
+            ? ownerCharacterId.value
+            : this.ownerCharacterId,
+        providerSessionId: providerSessionId.present
+            ? providerSessionId.value
+            : this.providerSessionId,
+        status: status ?? this.status,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  DevAgentSession copyWithCompanion(DevAgentSessionsCompanion data) {
+    return DevAgentSession(
+      id: data.id.present ? data.id.value : this.id,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      agentType: data.agentType.present ? data.agentType.value : this.agentType,
+      title: data.title.present ? data.title.value : this.title,
+      goal: data.goal.present ? data.goal.value : this.goal,
+      mode: data.mode.present ? data.mode.value : this.mode,
+      ownerCharacterId: data.ownerCharacterId.present
+          ? data.ownerCharacterId.value
+          : this.ownerCharacterId,
+      providerSessionId: data.providerSessionId.present
+          ? data.providerSessionId.value
+          : this.providerSessionId,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentSession(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('agentType: $agentType, ')
+          ..write('title: $title, ')
+          ..write('goal: $goal, ')
+          ..write('mode: $mode, ')
+          ..write('ownerCharacterId: $ownerCharacterId, ')
+          ..write('providerSessionId: $providerSessionId, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, projectId, agentType, title, goal, mode,
+      ownerCharacterId, providerSessionId, status, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DevAgentSession &&
+          other.id == this.id &&
+          other.projectId == this.projectId &&
+          other.agentType == this.agentType &&
+          other.title == this.title &&
+          other.goal == this.goal &&
+          other.mode == this.mode &&
+          other.ownerCharacterId == this.ownerCharacterId &&
+          other.providerSessionId == this.providerSessionId &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DevAgentSessionsCompanion extends UpdateCompanion<DevAgentSession> {
+  final Value<String> id;
+  final Value<String> projectId;
+  final Value<String> agentType;
+  final Value<String> title;
+  final Value<String?> goal;
+  final Value<String> mode;
+  final Value<String?> ownerCharacterId;
+  final Value<String?> providerSessionId;
+  final Value<String> status;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const DevAgentSessionsCompanion({
+    this.id = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.agentType = const Value.absent(),
+    this.title = const Value.absent(),
+    this.goal = const Value.absent(),
+    this.mode = const Value.absent(),
+    this.ownerCharacterId = const Value.absent(),
+    this.providerSessionId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DevAgentSessionsCompanion.insert({
+    required String id,
+    required String projectId,
+    required String agentType,
+    required String title,
+    this.goal = const Value.absent(),
+    this.mode = const Value.absent(),
+    this.ownerCharacterId = const Value.absent(),
+    this.providerSessionId = const Value.absent(),
+    this.status = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        projectId = Value(projectId),
+        agentType = Value(agentType),
+        title = Value(title),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<DevAgentSession> custom({
+    Expression<String>? id,
+    Expression<String>? projectId,
+    Expression<String>? agentType,
+    Expression<String>? title,
+    Expression<String>? goal,
+    Expression<String>? mode,
+    Expression<String>? ownerCharacterId,
+    Expression<String>? providerSessionId,
+    Expression<String>? status,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (projectId != null) 'project_id': projectId,
+      if (agentType != null) 'agent_type': agentType,
+      if (title != null) 'title': title,
+      if (goal != null) 'goal': goal,
+      if (mode != null) 'mode': mode,
+      if (ownerCharacterId != null) 'owner_character_id': ownerCharacterId,
+      if (providerSessionId != null) 'provider_session_id': providerSessionId,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DevAgentSessionsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? projectId,
+      Value<String>? agentType,
+      Value<String>? title,
+      Value<String?>? goal,
+      Value<String>? mode,
+      Value<String?>? ownerCharacterId,
+      Value<String?>? providerSessionId,
+      Value<String>? status,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return DevAgentSessionsCompanion(
+      id: id ?? this.id,
+      projectId: projectId ?? this.projectId,
+      agentType: agentType ?? this.agentType,
+      title: title ?? this.title,
+      goal: goal ?? this.goal,
+      mode: mode ?? this.mode,
+      ownerCharacterId: ownerCharacterId ?? this.ownerCharacterId,
+      providerSessionId: providerSessionId ?? this.providerSessionId,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (agentType.present) {
+      map['agent_type'] = Variable<String>(agentType.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (goal.present) {
+      map['goal'] = Variable<String>(goal.value);
+    }
+    if (mode.present) {
+      map['mode'] = Variable<String>(mode.value);
+    }
+    if (ownerCharacterId.present) {
+      map['owner_character_id'] = Variable<String>(ownerCharacterId.value);
+    }
+    if (providerSessionId.present) {
+      map['provider_session_id'] = Variable<String>(providerSessionId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('agentType: $agentType, ')
+          ..write('title: $title, ')
+          ..write('goal: $goal, ')
+          ..write('mode: $mode, ')
+          ..write('ownerCharacterId: $ownerCharacterId, ')
+          ..write('providerSessionId: $providerSessionId, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DevAgentSessionMessagesTable extends DevAgentSessionMessages
+    with TableInfo<$DevAgentSessionMessagesTable, DevAgentSessionMessage> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DevAgentSessionMessagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sessionIdMeta =
+      const VerificationMeta('sessionId');
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+      'session_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES dev_agent_sessions (id)'));
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+      'role', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _linkedRunIdMeta =
+      const VerificationMeta('linkedRunId');
+  @override
+  late final GeneratedColumn<String> linkedRunId = GeneratedColumn<String>(
+      'linked_run_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, sessionId, role, content, linkedRunId, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dev_agent_session_messages';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<DevAgentSessionMessage> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(_sessionIdMeta,
+          sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta));
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+          _roleMeta, role.isAcceptableOrUnknown(data['role']!, _roleMeta));
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('linked_run_id')) {
+      context.handle(
+          _linkedRunIdMeta,
+          linkedRunId.isAcceptableOrUnknown(
+              data['linked_run_id']!, _linkedRunIdMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DevAgentSessionMessage map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DevAgentSessionMessage(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      sessionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}session_id'])!,
+      role: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}role'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      linkedRunId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}linked_run_id']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $DevAgentSessionMessagesTable createAlias(String alias) {
+    return $DevAgentSessionMessagesTable(attachedDatabase, alias);
+  }
+}
+
+class DevAgentSessionMessage extends DataClass
+    implements Insertable<DevAgentSessionMessage> {
+  final String id;
+  final String sessionId;
+  final String role;
+  final String content;
+  final String? linkedRunId;
+  final int createdAt;
+  const DevAgentSessionMessage(
+      {required this.id,
+      required this.sessionId,
+      required this.role,
+      required this.content,
+      this.linkedRunId,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['session_id'] = Variable<String>(sessionId);
+    map['role'] = Variable<String>(role);
+    map['content'] = Variable<String>(content);
+    if (!nullToAbsent || linkedRunId != null) {
+      map['linked_run_id'] = Variable<String>(linkedRunId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  DevAgentSessionMessagesCompanion toCompanion(bool nullToAbsent) {
+    return DevAgentSessionMessagesCompanion(
+      id: Value(id),
+      sessionId: Value(sessionId),
+      role: Value(role),
+      content: Value(content),
+      linkedRunId: linkedRunId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedRunId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory DevAgentSessionMessage.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DevAgentSessionMessage(
+      id: serializer.fromJson<String>(json['id']),
+      sessionId: serializer.fromJson<String>(json['sessionId']),
+      role: serializer.fromJson<String>(json['role']),
+      content: serializer.fromJson<String>(json['content']),
+      linkedRunId: serializer.fromJson<String?>(json['linkedRunId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'sessionId': serializer.toJson<String>(sessionId),
+      'role': serializer.toJson<String>(role),
+      'content': serializer.toJson<String>(content),
+      'linkedRunId': serializer.toJson<String?>(linkedRunId),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  DevAgentSessionMessage copyWith(
+          {String? id,
+          String? sessionId,
+          String? role,
+          String? content,
+          Value<String?> linkedRunId = const Value.absent(),
+          int? createdAt}) =>
+      DevAgentSessionMessage(
+        id: id ?? this.id,
+        sessionId: sessionId ?? this.sessionId,
+        role: role ?? this.role,
+        content: content ?? this.content,
+        linkedRunId: linkedRunId.present ? linkedRunId.value : this.linkedRunId,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  DevAgentSessionMessage copyWithCompanion(
+      DevAgentSessionMessagesCompanion data) {
+    return DevAgentSessionMessage(
+      id: data.id.present ? data.id.value : this.id,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      role: data.role.present ? data.role.value : this.role,
+      content: data.content.present ? data.content.value : this.content,
+      linkedRunId:
+          data.linkedRunId.present ? data.linkedRunId.value : this.linkedRunId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentSessionMessage(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('linkedRunId: $linkedRunId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, sessionId, role, content, linkedRunId, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DevAgentSessionMessage &&
+          other.id == this.id &&
+          other.sessionId == this.sessionId &&
+          other.role == this.role &&
+          other.content == this.content &&
+          other.linkedRunId == this.linkedRunId &&
+          other.createdAt == this.createdAt);
+}
+
+class DevAgentSessionMessagesCompanion
+    extends UpdateCompanion<DevAgentSessionMessage> {
+  final Value<String> id;
+  final Value<String> sessionId;
+  final Value<String> role;
+  final Value<String> content;
+  final Value<String?> linkedRunId;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const DevAgentSessionMessagesCompanion({
+    this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.role = const Value.absent(),
+    this.content = const Value.absent(),
+    this.linkedRunId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DevAgentSessionMessagesCompanion.insert({
+    required String id,
+    required String sessionId,
+    required String role,
+    required String content,
+    this.linkedRunId = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        sessionId = Value(sessionId),
+        role = Value(role),
+        content = Value(content),
+        createdAt = Value(createdAt);
+  static Insertable<DevAgentSessionMessage> custom({
+    Expression<String>? id,
+    Expression<String>? sessionId,
+    Expression<String>? role,
+    Expression<String>? content,
+    Expression<String>? linkedRunId,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sessionId != null) 'session_id': sessionId,
+      if (role != null) 'role': role,
+      if (content != null) 'content': content,
+      if (linkedRunId != null) 'linked_run_id': linkedRunId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DevAgentSessionMessagesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? sessionId,
+      Value<String>? role,
+      Value<String>? content,
+      Value<String?>? linkedRunId,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return DevAgentSessionMessagesCompanion(
+      id: id ?? this.id,
+      sessionId: sessionId ?? this.sessionId,
+      role: role ?? this.role,
+      content: content ?? this.content,
+      linkedRunId: linkedRunId ?? this.linkedRunId,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (linkedRunId.present) {
+      map['linked_run_id'] = Variable<String>(linkedRunId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentSessionMessagesCompanion(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('linkedRunId: $linkedRunId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DevAgentToolBindingsTable extends DevAgentToolBindings
+    with TableInfo<$DevAgentToolBindingsTable, DevAgentToolBinding> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DevAgentToolBindingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _characterIdMeta =
+      const VerificationMeta('characterId');
+  @override
+  late final GeneratedColumn<String> characterId = GeneratedColumn<String>(
+      'character_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _projectIdMeta =
+      const VerificationMeta('projectId');
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+      'project_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES dev_projects (id)'));
+  static const VerificationMeta _agentTypeMeta =
+      const VerificationMeta('agentType');
+  @override
+  late final GeneratedColumn<String> agentType = GeneratedColumn<String>(
+      'agent_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _defaultPermissionTierMeta =
+      const VerificationMeta('defaultPermissionTier');
+  @override
+  late final GeneratedColumn<String> defaultPermissionTier =
+      GeneratedColumn<String>('default_permission_tier', aliasedName, false,
+          type: DriftSqlType.string,
+          requiredDuringInsert: false,
+          defaultValue: const Constant('read_only'));
+  static const VerificationMeta _defaultModeMeta =
+      const VerificationMeta('defaultMode');
+  @override
+  late final GeneratedColumn<String> defaultMode = GeneratedColumn<String>(
+      'default_mode', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('read_only'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        characterId,
+        projectId,
+        agentType,
+        defaultPermissionTier,
+        defaultMode,
+        createdAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dev_agent_tool_bindings';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<DevAgentToolBinding> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('character_id')) {
+      context.handle(
+          _characterIdMeta,
+          characterId.isAcceptableOrUnknown(
+              data['character_id']!, _characterIdMeta));
+    } else if (isInserting) {
+      context.missing(_characterIdMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(_projectIdMeta,
+          projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta));
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('agent_type')) {
+      context.handle(_agentTypeMeta,
+          agentType.isAcceptableOrUnknown(data['agent_type']!, _agentTypeMeta));
+    } else if (isInserting) {
+      context.missing(_agentTypeMeta);
+    }
+    if (data.containsKey('default_permission_tier')) {
+      context.handle(
+          _defaultPermissionTierMeta,
+          defaultPermissionTier.isAcceptableOrUnknown(
+              data['default_permission_tier']!, _defaultPermissionTierMeta));
+    }
+    if (data.containsKey('default_mode')) {
+      context.handle(
+          _defaultModeMeta,
+          defaultMode.isAcceptableOrUnknown(
+              data['default_mode']!, _defaultModeMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {characterId, projectId, agentType};
+  @override
+  DevAgentToolBinding map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DevAgentToolBinding(
+      characterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
+      projectId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}project_id'])!,
+      agentType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}agent_type'])!,
+      defaultPermissionTier: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}default_permission_tier'])!,
+      defaultMode: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}default_mode'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $DevAgentToolBindingsTable createAlias(String alias) {
+    return $DevAgentToolBindingsTable(attachedDatabase, alias);
+  }
+}
+
+class DevAgentToolBinding extends DataClass
+    implements Insertable<DevAgentToolBinding> {
+  final String characterId;
+  final String projectId;
+  final String agentType;
+  final String defaultPermissionTier;
+  final String defaultMode;
+  final int createdAt;
+  const DevAgentToolBinding(
+      {required this.characterId,
+      required this.projectId,
+      required this.agentType,
+      required this.defaultPermissionTier,
+      required this.defaultMode,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['character_id'] = Variable<String>(characterId);
+    map['project_id'] = Variable<String>(projectId);
+    map['agent_type'] = Variable<String>(agentType);
+    map['default_permission_tier'] = Variable<String>(defaultPermissionTier);
+    map['default_mode'] = Variable<String>(defaultMode);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  DevAgentToolBindingsCompanion toCompanion(bool nullToAbsent) {
+    return DevAgentToolBindingsCompanion(
+      characterId: Value(characterId),
+      projectId: Value(projectId),
+      agentType: Value(agentType),
+      defaultPermissionTier: Value(defaultPermissionTier),
+      defaultMode: Value(defaultMode),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory DevAgentToolBinding.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DevAgentToolBinding(
+      characterId: serializer.fromJson<String>(json['characterId']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      agentType: serializer.fromJson<String>(json['agentType']),
+      defaultPermissionTier:
+          serializer.fromJson<String>(json['defaultPermissionTier']),
+      defaultMode: serializer.fromJson<String>(json['defaultMode']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'characterId': serializer.toJson<String>(characterId),
+      'projectId': serializer.toJson<String>(projectId),
+      'agentType': serializer.toJson<String>(agentType),
+      'defaultPermissionTier': serializer.toJson<String>(defaultPermissionTier),
+      'defaultMode': serializer.toJson<String>(defaultMode),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  DevAgentToolBinding copyWith(
+          {String? characterId,
+          String? projectId,
+          String? agentType,
+          String? defaultPermissionTier,
+          String? defaultMode,
+          int? createdAt}) =>
+      DevAgentToolBinding(
+        characterId: characterId ?? this.characterId,
+        projectId: projectId ?? this.projectId,
+        agentType: agentType ?? this.agentType,
+        defaultPermissionTier:
+            defaultPermissionTier ?? this.defaultPermissionTier,
+        defaultMode: defaultMode ?? this.defaultMode,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  DevAgentToolBinding copyWithCompanion(DevAgentToolBindingsCompanion data) {
+    return DevAgentToolBinding(
+      characterId:
+          data.characterId.present ? data.characterId.value : this.characterId,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      agentType: data.agentType.present ? data.agentType.value : this.agentType,
+      defaultPermissionTier: data.defaultPermissionTier.present
+          ? data.defaultPermissionTier.value
+          : this.defaultPermissionTier,
+      defaultMode:
+          data.defaultMode.present ? data.defaultMode.value : this.defaultMode,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentToolBinding(')
+          ..write('characterId: $characterId, ')
+          ..write('projectId: $projectId, ')
+          ..write('agentType: $agentType, ')
+          ..write('defaultPermissionTier: $defaultPermissionTier, ')
+          ..write('defaultMode: $defaultMode, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(characterId, projectId, agentType,
+      defaultPermissionTier, defaultMode, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DevAgentToolBinding &&
+          other.characterId == this.characterId &&
+          other.projectId == this.projectId &&
+          other.agentType == this.agentType &&
+          other.defaultPermissionTier == this.defaultPermissionTier &&
+          other.defaultMode == this.defaultMode &&
+          other.createdAt == this.createdAt);
+}
+
+class DevAgentToolBindingsCompanion
+    extends UpdateCompanion<DevAgentToolBinding> {
+  final Value<String> characterId;
+  final Value<String> projectId;
+  final Value<String> agentType;
+  final Value<String> defaultPermissionTier;
+  final Value<String> defaultMode;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const DevAgentToolBindingsCompanion({
+    this.characterId = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.agentType = const Value.absent(),
+    this.defaultPermissionTier = const Value.absent(),
+    this.defaultMode = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DevAgentToolBindingsCompanion.insert({
+    required String characterId,
+    required String projectId,
+    required String agentType,
+    this.defaultPermissionTier = const Value.absent(),
+    this.defaultMode = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : characterId = Value(characterId),
+        projectId = Value(projectId),
+        agentType = Value(agentType),
+        createdAt = Value(createdAt);
+  static Insertable<DevAgentToolBinding> custom({
+    Expression<String>? characterId,
+    Expression<String>? projectId,
+    Expression<String>? agentType,
+    Expression<String>? defaultPermissionTier,
+    Expression<String>? defaultMode,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (characterId != null) 'character_id': characterId,
+      if (projectId != null) 'project_id': projectId,
+      if (agentType != null) 'agent_type': agentType,
+      if (defaultPermissionTier != null)
+        'default_permission_tier': defaultPermissionTier,
+      if (defaultMode != null) 'default_mode': defaultMode,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DevAgentToolBindingsCompanion copyWith(
+      {Value<String>? characterId,
+      Value<String>? projectId,
+      Value<String>? agentType,
+      Value<String>? defaultPermissionTier,
+      Value<String>? defaultMode,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return DevAgentToolBindingsCompanion(
+      characterId: characterId ?? this.characterId,
+      projectId: projectId ?? this.projectId,
+      agentType: agentType ?? this.agentType,
+      defaultPermissionTier:
+          defaultPermissionTier ?? this.defaultPermissionTier,
+      defaultMode: defaultMode ?? this.defaultMode,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (characterId.present) {
+      map['character_id'] = Variable<String>(characterId.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (agentType.present) {
+      map['agent_type'] = Variable<String>(agentType.value);
+    }
+    if (defaultPermissionTier.present) {
+      map['default_permission_tier'] =
+          Variable<String>(defaultPermissionTier.value);
+    }
+    if (defaultMode.present) {
+      map['default_mode'] = Variable<String>(defaultMode.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevAgentToolBindingsCompanion(')
+          ..write('characterId: $characterId, ')
+          ..write('projectId: $projectId, ')
+          ..write('agentType: $agentType, ')
+          ..write('defaultPermissionTier: $defaultPermissionTier, ')
+          ..write('defaultMode: $defaultMode, ')
+          ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -11504,6 +12845,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $VoiceCallMessagesTable(this);
   late final $DevProjectsTable devProjects = $DevProjectsTable(this);
   late final $DevAgentRunsTable devAgentRuns = $DevAgentRunsTable(this);
+  late final $DevAgentSessionsTable devAgentSessions =
+      $DevAgentSessionsTable(this);
+  late final $DevAgentSessionMessagesTable devAgentSessionMessages =
+      $DevAgentSessionMessagesTable(this);
+  late final $DevAgentToolBindingsTable devAgentToolBindings =
+      $DevAgentToolBindingsTable(this);
   late final $DevAgentEventsTable devAgentEvents = $DevAgentEventsTable(this);
   late final $DevAgentApprovalsTable devAgentApprovals =
       $DevAgentApprovalsTable(this);
@@ -11538,6 +12885,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         voiceCallMessages,
         devProjects,
         devAgentRuns,
+        devAgentSessions,
+        devAgentSessionMessages,
+        devAgentToolBindings,
         devAgentEvents,
         devAgentApprovals,
         devAgentArtifacts
@@ -16103,6 +17453,42 @@ final class $$DevProjectsTableReferences
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: cache));
   }
+
+  static MultiTypedResultKey<$DevAgentSessionsTable, List<DevAgentSession>>
+      _devAgentSessionsRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.devAgentSessions,
+              aliasName: $_aliasNameGenerator(
+                  db.devProjects.id, db.devAgentSessions.projectId));
+
+  $$DevAgentSessionsTableProcessedTableManager get devAgentSessionsRefs {
+    final manager = $$DevAgentSessionsTableTableManager(
+            $_db, $_db.devAgentSessions)
+        .filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache =
+        $_typedResult.readTableOrNull(_devAgentSessionsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$DevAgentToolBindingsTable,
+      List<DevAgentToolBinding>> _devAgentToolBindingsRefsTable(
+          _$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.devAgentToolBindings,
+          aliasName: $_aliasNameGenerator(
+              db.devProjects.id, db.devAgentToolBindings.projectId));
+
+  $$DevAgentToolBindingsTableProcessedTableManager
+      get devAgentToolBindingsRefs {
+    final manager = $$DevAgentToolBindingsTableTableManager(
+            $_db, $_db.devAgentToolBindings)
+        .filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache =
+        $_typedResult.readTableOrNull(_devAgentToolBindingsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
 }
 
 class $$DevProjectsTableFilterComposer
@@ -16149,6 +17535,49 @@ class $$DevProjectsTableFilterComposer
             $$DevAgentRunsTableFilterComposer(
               $db: $db,
               $table: $db.devAgentRuns,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> devAgentSessionsRefs(
+      Expression<bool> Function($$DevAgentSessionsTableFilterComposer f) f) {
+    final $$DevAgentSessionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.devAgentSessions,
+        getReferencedColumn: (t) => t.projectId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentSessionsTableFilterComposer(
+              $db: $db,
+              $table: $db.devAgentSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> devAgentToolBindingsRefs(
+      Expression<bool> Function($$DevAgentToolBindingsTableFilterComposer f)
+          f) {
+    final $$DevAgentToolBindingsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.devAgentToolBindings,
+        getReferencedColumn: (t) => t.projectId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentToolBindingsTableFilterComposer(
+              $db: $db,
+              $table: $db.devAgentToolBindings,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -16241,6 +17670,50 @@ class $$DevProjectsTableAnnotationComposer
             ));
     return f(composer);
   }
+
+  Expression<T> devAgentSessionsRefs<T extends Object>(
+      Expression<T> Function($$DevAgentSessionsTableAnnotationComposer a) f) {
+    final $$DevAgentSessionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.devAgentSessions,
+        getReferencedColumn: (t) => t.projectId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentSessionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.devAgentSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<T> devAgentToolBindingsRefs<T extends Object>(
+      Expression<T> Function($$DevAgentToolBindingsTableAnnotationComposer a)
+          f) {
+    final $$DevAgentToolBindingsTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.devAgentToolBindings,
+            getReferencedColumn: (t) => t.projectId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$DevAgentToolBindingsTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.devAgentToolBindings,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
 }
 
 class $$DevProjectsTableTableManager extends RootTableManager<
@@ -16254,7 +17727,10 @@ class $$DevProjectsTableTableManager extends RootTableManager<
     $$DevProjectsTableUpdateCompanionBuilder,
     (DevProject, $$DevProjectsTableReferences),
     DevProject,
-    PrefetchHooks Function({bool devAgentRunsRefs})> {
+    PrefetchHooks Function(
+        {bool devAgentRunsRefs,
+        bool devAgentSessionsRefs,
+        bool devAgentToolBindingsRefs})> {
   $$DevProjectsTableTableManager(_$AppDatabase db, $DevProjectsTable table)
       : super(TableManagerState(
           db: db,
@@ -16311,10 +17787,17 @@ class $$DevProjectsTableTableManager extends RootTableManager<
                     $$DevProjectsTableReferences(db, table, e)
                   ))
               .toList(),
-          prefetchHooksCallback: ({devAgentRunsRefs = false}) {
+          prefetchHooksCallback: (
+              {devAgentRunsRefs = false,
+              devAgentSessionsRefs = false,
+              devAgentToolBindingsRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (devAgentRunsRefs) db.devAgentRuns],
+              explicitlyWatchedTables: [
+                if (devAgentRunsRefs) db.devAgentRuns,
+                if (devAgentSessionsRefs) db.devAgentSessions,
+                if (devAgentToolBindingsRefs) db.devAgentToolBindings
+              ],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
@@ -16327,6 +17810,32 @@ class $$DevProjectsTableTableManager extends RootTableManager<
                         managerFromTypedResult: (p0) =>
                             $$DevProjectsTableReferences(db, table, p0)
                                 .devAgentRunsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.projectId == item.id),
+                        typedResults: items),
+                  if (devAgentSessionsRefs)
+                    await $_getPrefetchedData<DevProject, $DevProjectsTable,
+                            DevAgentSession>(
+                        currentTable: table,
+                        referencedTable: $$DevProjectsTableReferences
+                            ._devAgentSessionsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$DevProjectsTableReferences(db, table, p0)
+                                .devAgentSessionsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.projectId == item.id),
+                        typedResults: items),
+                  if (devAgentToolBindingsRefs)
+                    await $_getPrefetchedData<DevProject, $DevProjectsTable,
+                            DevAgentToolBinding>(
+                        currentTable: table,
+                        referencedTable: $$DevProjectsTableReferences
+                            ._devAgentToolBindingsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$DevProjectsTableReferences(db, table, p0)
+                                .devAgentToolBindingsRefs,
                         referencedItemsForCurrentItem:
                             (item, referencedItems) => referencedItems
                                 .where((e) => e.projectId == item.id),
@@ -16349,12 +17858,16 @@ typedef $$DevProjectsTableProcessedTableManager = ProcessedTableManager<
     $$DevProjectsTableUpdateCompanionBuilder,
     (DevProject, $$DevProjectsTableReferences),
     DevProject,
-    PrefetchHooks Function({bool devAgentRunsRefs})>;
+    PrefetchHooks Function(
+        {bool devAgentRunsRefs,
+        bool devAgentSessionsRefs,
+        bool devAgentToolBindingsRefs})>;
 typedef $$DevAgentRunsTableCreateCompanionBuilder = DevAgentRunsCompanion
     Function({
   required String id,
   required String projectId,
   required String agentType,
+  Value<String?> devSessionId,
   Value<String?> sessionId,
   required String initialPrompt,
   required String status,
@@ -16370,6 +17883,7 @@ typedef $$DevAgentRunsTableUpdateCompanionBuilder = DevAgentRunsCompanion
   Value<String> id,
   Value<String> projectId,
   Value<String> agentType,
+  Value<String?> devSessionId,
   Value<String?> sessionId,
   Value<String> initialPrompt,
   Value<String> status,
@@ -16464,6 +17978,9 @@ class $$DevAgentRunsTableFilterComposer
 
   ColumnFilters<String> get agentType => $composableBuilder(
       column: $table.agentType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get devSessionId => $composableBuilder(
+      column: $table.devSessionId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get sessionId => $composableBuilder(
       column: $table.sessionId, builder: (column) => ColumnFilters(column));
@@ -16588,6 +18105,10 @@ class $$DevAgentRunsTableOrderingComposer
   ColumnOrderings<String> get agentType => $composableBuilder(
       column: $table.agentType, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get devSessionId => $composableBuilder(
+      column: $table.devSessionId,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get sessionId => $composableBuilder(
       column: $table.sessionId, builder: (column) => ColumnOrderings(column));
 
@@ -16649,6 +18170,9 @@ class $$DevAgentRunsTableAnnotationComposer
 
   GeneratedColumn<String> get agentType =>
       $composableBuilder(column: $table.agentType, builder: (column) => column);
+
+  GeneratedColumn<String> get devSessionId => $composableBuilder(
+      column: $table.devSessionId, builder: (column) => column);
 
   GeneratedColumn<String> get sessionId =>
       $composableBuilder(column: $table.sessionId, builder: (column) => column);
@@ -16790,6 +18314,7 @@ class $$DevAgentRunsTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> projectId = const Value.absent(),
             Value<String> agentType = const Value.absent(),
+            Value<String?> devSessionId = const Value.absent(),
             Value<String?> sessionId = const Value.absent(),
             Value<String> initialPrompt = const Value.absent(),
             Value<String> status = const Value.absent(),
@@ -16804,6 +18329,7 @@ class $$DevAgentRunsTableTableManager extends RootTableManager<
             id: id,
             projectId: projectId,
             agentType: agentType,
+            devSessionId: devSessionId,
             sessionId: sessionId,
             initialPrompt: initialPrompt,
             status: status,
@@ -16818,6 +18344,7 @@ class $$DevAgentRunsTableTableManager extends RootTableManager<
             required String id,
             required String projectId,
             required String agentType,
+            Value<String?> devSessionId = const Value.absent(),
             Value<String?> sessionId = const Value.absent(),
             required String initialPrompt,
             required String status,
@@ -16832,6 +18359,7 @@ class $$DevAgentRunsTableTableManager extends RootTableManager<
             id: id,
             projectId: projectId,
             agentType: agentType,
+            devSessionId: devSessionId,
             sessionId: sessionId,
             initialPrompt: initialPrompt,
             status: status,
@@ -16948,6 +18476,1057 @@ typedef $$DevAgentRunsTableProcessedTableManager = ProcessedTableManager<
         bool devAgentEventsRefs,
         bool devAgentApprovalsRefs,
         bool devAgentArtifactsRefs})>;
+typedef $$DevAgentSessionsTableCreateCompanionBuilder
+    = DevAgentSessionsCompanion Function({
+  required String id,
+  required String projectId,
+  required String agentType,
+  required String title,
+  Value<String?> goal,
+  Value<String> mode,
+  Value<String?> ownerCharacterId,
+  Value<String?> providerSessionId,
+  Value<String> status,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$DevAgentSessionsTableUpdateCompanionBuilder
+    = DevAgentSessionsCompanion Function({
+  Value<String> id,
+  Value<String> projectId,
+  Value<String> agentType,
+  Value<String> title,
+  Value<String?> goal,
+  Value<String> mode,
+  Value<String?> ownerCharacterId,
+  Value<String?> providerSessionId,
+  Value<String> status,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+final class $$DevAgentSessionsTableReferences extends BaseReferences<
+    _$AppDatabase, $DevAgentSessionsTable, DevAgentSession> {
+  $$DevAgentSessionsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $DevProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.devProjects.createAlias($_aliasNameGenerator(
+          db.devAgentSessions.projectId, db.devProjects.id));
+
+  $$DevProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$DevProjectsTableTableManager($_db, $_db.devProjects)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static MultiTypedResultKey<$DevAgentSessionMessagesTable,
+      List<DevAgentSessionMessage>> _devAgentSessionMessagesRefsTable(
+          _$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.devAgentSessionMessages,
+          aliasName: $_aliasNameGenerator(
+              db.devAgentSessions.id, db.devAgentSessionMessages.sessionId));
+
+  $$DevAgentSessionMessagesTableProcessedTableManager
+      get devAgentSessionMessagesRefs {
+    final manager = $$DevAgentSessionMessagesTableTableManager(
+            $_db, $_db.devAgentSessionMessages)
+        .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache =
+        $_typedResult.readTableOrNull(_devAgentSessionMessagesRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
+class $$DevAgentSessionsTableFilterComposer
+    extends Composer<_$AppDatabase, $DevAgentSessionsTable> {
+  $$DevAgentSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get agentType => $composableBuilder(
+      column: $table.agentType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get goal => $composableBuilder(
+      column: $table.goal, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mode => $composableBuilder(
+      column: $table.mode, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get ownerCharacterId => $composableBuilder(
+      column: $table.ownerCharacterId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get providerSessionId => $composableBuilder(
+      column: $table.providerSessionId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  $$DevProjectsTableFilterComposer get projectId {
+    final $$DevProjectsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.projectId,
+        referencedTable: $db.devProjects,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevProjectsTableFilterComposer(
+              $db: $db,
+              $table: $db.devProjects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  Expression<bool> devAgentSessionMessagesRefs(
+      Expression<bool> Function($$DevAgentSessionMessagesTableFilterComposer f)
+          f) {
+    final $$DevAgentSessionMessagesTableFilterComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.devAgentSessionMessages,
+            getReferencedColumn: (t) => t.sessionId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$DevAgentSessionMessagesTableFilterComposer(
+                  $db: $db,
+                  $table: $db.devAgentSessionMessages,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
+}
+
+class $$DevAgentSessionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DevAgentSessionsTable> {
+  $$DevAgentSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get agentType => $composableBuilder(
+      column: $table.agentType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get goal => $composableBuilder(
+      column: $table.goal, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mode => $composableBuilder(
+      column: $table.mode, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get ownerCharacterId => $composableBuilder(
+      column: $table.ownerCharacterId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get providerSessionId => $composableBuilder(
+      column: $table.providerSessionId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  $$DevProjectsTableOrderingComposer get projectId {
+    final $$DevProjectsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.projectId,
+        referencedTable: $db.devProjects,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevProjectsTableOrderingComposer(
+              $db: $db,
+              $table: $db.devProjects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentSessionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DevAgentSessionsTable> {
+  $$DevAgentSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get agentType =>
+      $composableBuilder(column: $table.agentType, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get goal =>
+      $composableBuilder(column: $table.goal, builder: (column) => column);
+
+  GeneratedColumn<String> get mode =>
+      $composableBuilder(column: $table.mode, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerCharacterId => $composableBuilder(
+      column: $table.ownerCharacterId, builder: (column) => column);
+
+  GeneratedColumn<String> get providerSessionId => $composableBuilder(
+      column: $table.providerSessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$DevProjectsTableAnnotationComposer get projectId {
+    final $$DevProjectsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.projectId,
+        referencedTable: $db.devProjects,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevProjectsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.devProjects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  Expression<T> devAgentSessionMessagesRefs<T extends Object>(
+      Expression<T> Function($$DevAgentSessionMessagesTableAnnotationComposer a)
+          f) {
+    final $$DevAgentSessionMessagesTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.devAgentSessionMessages,
+            getReferencedColumn: (t) => t.sessionId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$DevAgentSessionMessagesTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.devAgentSessionMessages,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
+}
+
+class $$DevAgentSessionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $DevAgentSessionsTable,
+    DevAgentSession,
+    $$DevAgentSessionsTableFilterComposer,
+    $$DevAgentSessionsTableOrderingComposer,
+    $$DevAgentSessionsTableAnnotationComposer,
+    $$DevAgentSessionsTableCreateCompanionBuilder,
+    $$DevAgentSessionsTableUpdateCompanionBuilder,
+    (DevAgentSession, $$DevAgentSessionsTableReferences),
+    DevAgentSession,
+    PrefetchHooks Function(
+        {bool projectId, bool devAgentSessionMessagesRefs})> {
+  $$DevAgentSessionsTableTableManager(
+      _$AppDatabase db, $DevAgentSessionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DevAgentSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DevAgentSessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DevAgentSessionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> projectId = const Value.absent(),
+            Value<String> agentType = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String?> goal = const Value.absent(),
+            Value<String> mode = const Value.absent(),
+            Value<String?> ownerCharacterId = const Value.absent(),
+            Value<String?> providerSessionId = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentSessionsCompanion(
+            id: id,
+            projectId: projectId,
+            agentType: agentType,
+            title: title,
+            goal: goal,
+            mode: mode,
+            ownerCharacterId: ownerCharacterId,
+            providerSessionId: providerSessionId,
+            status: status,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String projectId,
+            required String agentType,
+            required String title,
+            Value<String?> goal = const Value.absent(),
+            Value<String> mode = const Value.absent(),
+            Value<String?> ownerCharacterId = const Value.absent(),
+            Value<String?> providerSessionId = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentSessionsCompanion.insert(
+            id: id,
+            projectId: projectId,
+            agentType: agentType,
+            title: title,
+            goal: goal,
+            mode: mode,
+            ownerCharacterId: ownerCharacterId,
+            providerSessionId: providerSessionId,
+            status: status,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$DevAgentSessionsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: (
+              {projectId = false, devAgentSessionMessagesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (devAgentSessionMessagesRefs) db.devAgentSessionMessages
+              ],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (projectId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.projectId,
+                    referencedTable:
+                        $$DevAgentSessionsTableReferences._projectIdTable(db),
+                    referencedColumn: $$DevAgentSessionsTableReferences
+                        ._projectIdTable(db)
+                        .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (devAgentSessionMessagesRefs)
+                    await $_getPrefetchedData<DevAgentSession,
+                            $DevAgentSessionsTable, DevAgentSessionMessage>(
+                        currentTable: table,
+                        referencedTable: $$DevAgentSessionsTableReferences
+                            ._devAgentSessionMessagesRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$DevAgentSessionsTableReferences(db, table, p0)
+                                .devAgentSessionMessagesRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.sessionId == item.id),
+                        typedResults: items)
+                ];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$DevAgentSessionsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $DevAgentSessionsTable,
+    DevAgentSession,
+    $$DevAgentSessionsTableFilterComposer,
+    $$DevAgentSessionsTableOrderingComposer,
+    $$DevAgentSessionsTableAnnotationComposer,
+    $$DevAgentSessionsTableCreateCompanionBuilder,
+    $$DevAgentSessionsTableUpdateCompanionBuilder,
+    (DevAgentSession, $$DevAgentSessionsTableReferences),
+    DevAgentSession,
+    PrefetchHooks Function({bool projectId, bool devAgentSessionMessagesRefs})>;
+typedef $$DevAgentSessionMessagesTableCreateCompanionBuilder
+    = DevAgentSessionMessagesCompanion Function({
+  required String id,
+  required String sessionId,
+  required String role,
+  required String content,
+  Value<String?> linkedRunId,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$DevAgentSessionMessagesTableUpdateCompanionBuilder
+    = DevAgentSessionMessagesCompanion Function({
+  Value<String> id,
+  Value<String> sessionId,
+  Value<String> role,
+  Value<String> content,
+  Value<String?> linkedRunId,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+final class $$DevAgentSessionMessagesTableReferences extends BaseReferences<
+    _$AppDatabase, $DevAgentSessionMessagesTable, DevAgentSessionMessage> {
+  $$DevAgentSessionMessagesTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $DevAgentSessionsTable _sessionIdTable(_$AppDatabase db) =>
+      db.devAgentSessions.createAlias($_aliasNameGenerator(
+          db.devAgentSessionMessages.sessionId, db.devAgentSessions.id));
+
+  $$DevAgentSessionsTableProcessedTableManager get sessionId {
+    final $_column = $_itemColumn<String>('session_id')!;
+
+    final manager =
+        $$DevAgentSessionsTableTableManager($_db, $_db.devAgentSessions)
+            .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$DevAgentSessionMessagesTableFilterComposer
+    extends Composer<_$AppDatabase, $DevAgentSessionMessagesTable> {
+  $$DevAgentSessionMessagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get role => $composableBuilder(
+      column: $table.role, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get linkedRunId => $composableBuilder(
+      column: $table.linkedRunId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  $$DevAgentSessionsTableFilterComposer get sessionId {
+    final $$DevAgentSessionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sessionId,
+        referencedTable: $db.devAgentSessions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentSessionsTableFilterComposer(
+              $db: $db,
+              $table: $db.devAgentSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentSessionMessagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DevAgentSessionMessagesTable> {
+  $$DevAgentSessionMessagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get role => $composableBuilder(
+      column: $table.role, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get linkedRunId => $composableBuilder(
+      column: $table.linkedRunId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  $$DevAgentSessionsTableOrderingComposer get sessionId {
+    final $$DevAgentSessionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sessionId,
+        referencedTable: $db.devAgentSessions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentSessionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.devAgentSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentSessionMessagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DevAgentSessionMessagesTable> {
+  $$DevAgentSessionMessagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get linkedRunId => $composableBuilder(
+      column: $table.linkedRunId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$DevAgentSessionsTableAnnotationComposer get sessionId {
+    final $$DevAgentSessionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sessionId,
+        referencedTable: $db.devAgentSessions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevAgentSessionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.devAgentSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentSessionMessagesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $DevAgentSessionMessagesTable,
+    DevAgentSessionMessage,
+    $$DevAgentSessionMessagesTableFilterComposer,
+    $$DevAgentSessionMessagesTableOrderingComposer,
+    $$DevAgentSessionMessagesTableAnnotationComposer,
+    $$DevAgentSessionMessagesTableCreateCompanionBuilder,
+    $$DevAgentSessionMessagesTableUpdateCompanionBuilder,
+    (DevAgentSessionMessage, $$DevAgentSessionMessagesTableReferences),
+    DevAgentSessionMessage,
+    PrefetchHooks Function({bool sessionId})> {
+  $$DevAgentSessionMessagesTableTableManager(
+      _$AppDatabase db, $DevAgentSessionMessagesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DevAgentSessionMessagesTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DevAgentSessionMessagesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DevAgentSessionMessagesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> sessionId = const Value.absent(),
+            Value<String> role = const Value.absent(),
+            Value<String> content = const Value.absent(),
+            Value<String?> linkedRunId = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentSessionMessagesCompanion(
+            id: id,
+            sessionId: sessionId,
+            role: role,
+            content: content,
+            linkedRunId: linkedRunId,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String sessionId,
+            required String role,
+            required String content,
+            Value<String?> linkedRunId = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentSessionMessagesCompanion.insert(
+            id: id,
+            sessionId: sessionId,
+            role: role,
+            content: content,
+            linkedRunId: linkedRunId,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$DevAgentSessionMessagesTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({sessionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (sessionId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.sessionId,
+                    referencedTable: $$DevAgentSessionMessagesTableReferences
+                        ._sessionIdTable(db),
+                    referencedColumn: $$DevAgentSessionMessagesTableReferences
+                        ._sessionIdTable(db)
+                        .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$DevAgentSessionMessagesTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $DevAgentSessionMessagesTable,
+        DevAgentSessionMessage,
+        $$DevAgentSessionMessagesTableFilterComposer,
+        $$DevAgentSessionMessagesTableOrderingComposer,
+        $$DevAgentSessionMessagesTableAnnotationComposer,
+        $$DevAgentSessionMessagesTableCreateCompanionBuilder,
+        $$DevAgentSessionMessagesTableUpdateCompanionBuilder,
+        (DevAgentSessionMessage, $$DevAgentSessionMessagesTableReferences),
+        DevAgentSessionMessage,
+        PrefetchHooks Function({bool sessionId})>;
+typedef $$DevAgentToolBindingsTableCreateCompanionBuilder
+    = DevAgentToolBindingsCompanion Function({
+  required String characterId,
+  required String projectId,
+  required String agentType,
+  Value<String> defaultPermissionTier,
+  Value<String> defaultMode,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$DevAgentToolBindingsTableUpdateCompanionBuilder
+    = DevAgentToolBindingsCompanion Function({
+  Value<String> characterId,
+  Value<String> projectId,
+  Value<String> agentType,
+  Value<String> defaultPermissionTier,
+  Value<String> defaultMode,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+final class $$DevAgentToolBindingsTableReferences extends BaseReferences<
+    _$AppDatabase, $DevAgentToolBindingsTable, DevAgentToolBinding> {
+  $$DevAgentToolBindingsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $DevProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.devProjects.createAlias($_aliasNameGenerator(
+          db.devAgentToolBindings.projectId, db.devProjects.id));
+
+  $$DevProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$DevProjectsTableTableManager($_db, $_db.devProjects)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$DevAgentToolBindingsTableFilterComposer
+    extends Composer<_$AppDatabase, $DevAgentToolBindingsTable> {
+  $$DevAgentToolBindingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get agentType => $composableBuilder(
+      column: $table.agentType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get defaultPermissionTier => $composableBuilder(
+      column: $table.defaultPermissionTier,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get defaultMode => $composableBuilder(
+      column: $table.defaultMode, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  $$DevProjectsTableFilterComposer get projectId {
+    final $$DevProjectsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.projectId,
+        referencedTable: $db.devProjects,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevProjectsTableFilterComposer(
+              $db: $db,
+              $table: $db.devProjects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentToolBindingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DevAgentToolBindingsTable> {
+  $$DevAgentToolBindingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get agentType => $composableBuilder(
+      column: $table.agentType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get defaultPermissionTier => $composableBuilder(
+      column: $table.defaultPermissionTier,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get defaultMode => $composableBuilder(
+      column: $table.defaultMode, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  $$DevProjectsTableOrderingComposer get projectId {
+    final $$DevProjectsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.projectId,
+        referencedTable: $db.devProjects,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevProjectsTableOrderingComposer(
+              $db: $db,
+              $table: $db.devProjects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentToolBindingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DevAgentToolBindingsTable> {
+  $$DevAgentToolBindingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => column);
+
+  GeneratedColumn<String> get agentType =>
+      $composableBuilder(column: $table.agentType, builder: (column) => column);
+
+  GeneratedColumn<String> get defaultPermissionTier => $composableBuilder(
+      column: $table.defaultPermissionTier, builder: (column) => column);
+
+  GeneratedColumn<String> get defaultMode => $composableBuilder(
+      column: $table.defaultMode, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$DevProjectsTableAnnotationComposer get projectId {
+    final $$DevProjectsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.projectId,
+        referencedTable: $db.devProjects,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$DevProjectsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.devProjects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$DevAgentToolBindingsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $DevAgentToolBindingsTable,
+    DevAgentToolBinding,
+    $$DevAgentToolBindingsTableFilterComposer,
+    $$DevAgentToolBindingsTableOrderingComposer,
+    $$DevAgentToolBindingsTableAnnotationComposer,
+    $$DevAgentToolBindingsTableCreateCompanionBuilder,
+    $$DevAgentToolBindingsTableUpdateCompanionBuilder,
+    (DevAgentToolBinding, $$DevAgentToolBindingsTableReferences),
+    DevAgentToolBinding,
+    PrefetchHooks Function({bool projectId})> {
+  $$DevAgentToolBindingsTableTableManager(
+      _$AppDatabase db, $DevAgentToolBindingsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DevAgentToolBindingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DevAgentToolBindingsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DevAgentToolBindingsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> characterId = const Value.absent(),
+            Value<String> projectId = const Value.absent(),
+            Value<String> agentType = const Value.absent(),
+            Value<String> defaultPermissionTier = const Value.absent(),
+            Value<String> defaultMode = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentToolBindingsCompanion(
+            characterId: characterId,
+            projectId: projectId,
+            agentType: agentType,
+            defaultPermissionTier: defaultPermissionTier,
+            defaultMode: defaultMode,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String characterId,
+            required String projectId,
+            required String agentType,
+            Value<String> defaultPermissionTier = const Value.absent(),
+            Value<String> defaultMode = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              DevAgentToolBindingsCompanion.insert(
+            characterId: characterId,
+            projectId: projectId,
+            agentType: agentType,
+            defaultPermissionTier: defaultPermissionTier,
+            defaultMode: defaultMode,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$DevAgentToolBindingsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({projectId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (projectId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.projectId,
+                    referencedTable: $$DevAgentToolBindingsTableReferences
+                        ._projectIdTable(db),
+                    referencedColumn: $$DevAgentToolBindingsTableReferences
+                        ._projectIdTable(db)
+                        .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$DevAgentToolBindingsTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $DevAgentToolBindingsTable,
+        DevAgentToolBinding,
+        $$DevAgentToolBindingsTableFilterComposer,
+        $$DevAgentToolBindingsTableOrderingComposer,
+        $$DevAgentToolBindingsTableAnnotationComposer,
+        $$DevAgentToolBindingsTableCreateCompanionBuilder,
+        $$DevAgentToolBindingsTableUpdateCompanionBuilder,
+        (DevAgentToolBinding, $$DevAgentToolBindingsTableReferences),
+        DevAgentToolBinding,
+        PrefetchHooks Function({bool projectId})>;
 typedef $$DevAgentEventsTableCreateCompanionBuilder = DevAgentEventsCompanion
     Function({
   Value<int> id,
@@ -17884,6 +20463,13 @@ class $AppDatabaseManager {
       $$DevProjectsTableTableManager(_db, _db.devProjects);
   $$DevAgentRunsTableTableManager get devAgentRuns =>
       $$DevAgentRunsTableTableManager(_db, _db.devAgentRuns);
+  $$DevAgentSessionsTableTableManager get devAgentSessions =>
+      $$DevAgentSessionsTableTableManager(_db, _db.devAgentSessions);
+  $$DevAgentSessionMessagesTableTableManager get devAgentSessionMessages =>
+      $$DevAgentSessionMessagesTableTableManager(
+          _db, _db.devAgentSessionMessages);
+  $$DevAgentToolBindingsTableTableManager get devAgentToolBindings =>
+      $$DevAgentToolBindingsTableTableManager(_db, _db.devAgentToolBindings);
   $$DevAgentEventsTableTableManager get devAgentEvents =>
       $$DevAgentEventsTableTableManager(_db, _db.devAgentEvents);
   $$DevAgentApprovalsTableTableManager get devAgentApprovals =>

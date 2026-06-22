@@ -1,21 +1,21 @@
 # Dev Agent Room — 路线图
 
-把 Claude Code 和 Codex 接进 Here I am，作为可远程控制的"开发代理"，而不是普通陪伴角色。
+把 Claude Code 和 Codex 接进 Here I am，作为角色可以召唤的 coding 工具与可多轮 Dev Session，而不是把它们直接做成普通陪伴角色。
 本文是可随时拾起的执行手册，不是产品讨论。
 
 ## 核心原则（决策已锁，不再讨论）
 
-1. **执行隔离，但角色平权**：Dev Room 的工程过程数据（run/diff/审批）独立于陪伴系统；但 CC/Codex 本身是一等公民角色，与其他伴侣角色平权，能被 @、能进群聊、能在朋友圈评论。
+1. **agency 留在角色身上**：真正想替用户做事的是陪伴角色；Claude Code / Codex 是角色可召唤的 coding 能力。Dev Room 承载执行过程、diff、审批和审计，不把工具本身伪装成关系主体。
 2. **手机不执行代理**：手机端只是控制台。真正的 CC / Codex 进程跑在常驻开发机上的 Bridge 里。
 3. **桥接复用现成方案**：Bridge 第一版基于 MyPilot fork,不从零写 hooks/加密/重连。
 4. **数据分层**：
    - **工程过程数据**（run/diff/审批/事件流）→ 专属表 `DevProjects` / `DevAgentRuns` / `DevAgentEvents` / `DevAgentApprovals`,不进 User-truth(它们不是"事实",是过程)
    - **每日工作产出**（coding_log)→ 进 `SharedLifeEntities`,所有角色平等可见,带署名
 5. **权限默认最紧**：新建项目默认 `read_only`。`workspace_write` 和 `release_ops` 必须用户对项目显式升级。
-6. **入口在 Settings / Personal**，不在生活空间内。
+6. **双入口**：Dev Room 仍在 Settings / Personal 作为控制台；Phase 5 后，主聊天里的角色也能创建或继续 Dev Session。
 7. **不做访问圈层**：所有角色平等读取 User-truth。私密性来自"用户不主动记录",不来自系统隔离。这与"多个伴侣角色相互知道彼此存在"的产品设定一致。
 
-## 路线图总览（2026-06-21 修订）
+## 路线图总览（2026-06-22 修订）
 
 | Phase | 范围 | 状态 |
 |---|---|---|
@@ -23,7 +23,7 @@
 | 1 | 只读远程台 | ✅ 完成 |
 | 2 | 写权限 + worktree + apply/discard 真做 | ✅ 完成 |
 | 4a | 多项目体验打磨（chip / 摘要 / cleanup / 删除） | ✅ 完成，dogfood 中 |
-| **5** | **CC/Codex 完整聊天角色（一次到位，不切薄片）** | **下一步** |
+| **5** | **角色可召唤的多轮 Dev Session** | **🚧 已开始：Dev Room 多轮骨架已落地** |
 | 3 | Daily Coding Log + 署名记忆卡片 | 接在 5 后面 |
 | 4b | PR 自动开（release_ops 真启用） | 后续 |
 | 6 | 语音陪伴（通勤路上 Codex 读文章 + TTS） | 后续 |
@@ -32,10 +32,11 @@
 
 ### 几次重要的方向校正（防止以后忘）
 
-1. **Phase 5 不切薄片**：之前讨论过"5a 派单入口 / 5b 角色绑定 / 5c 多轮 / ..."的渐进方案，被否。原因：CC 是角色就意味着具备 coding 能力，不能拆成"先做聊天入口再加 coding"——那样过渡形态没人会用，纯粹是工程师"小步快跑"心理投射。本项目里 prompt cost 在用户、code cost 在 AI，"先 MVP 再迭代"的传统理由不成立。
-2. **CC/Codex 是角色就拥有完整 coding 能力**：之前讨论过"人格平权但权限不平权"（入口像人，执行像工具），被否。用户的诉求是 Codex 角色 = Codex 本身，写文件 / commit / apply / discard 都在聊天里完成。worktree 隔离和审计日志这套底层 plumbing 继续存在，但 UX 不再有单独的"决策栏页面"——决策以聊天气泡里的按钮形式出现（"已改 3 个文件，要 apply 吗 [应用][丢弃][看 diff]"）。
-3. **绑定用独立表，不污染 CharacterModel**：新增 `DevAgentCharacterBindings` 表（characterId / projectId / agentType / defaultPermissionTier / defaultMode），不在 CharacterModel 上加字段。符合 CLAUDE.md "companion 层可剥离" 红线。
-4. **Phase 3 不能太靠后**：coding_log + 署名是其他伴侣角色"听说过" CC/Codex 的社会基础，必须在 5 之后立刻做，不能拖到末尾。
+1. **Phase 5 的主体不是 CC/Codex 人格化，而是角色召唤工具**：用户最终想要的是"某个角色替我叫 Codex/Claude Code 做事"，而不是把 Codex 本身变成伴侣角色。agency 留在角色，工具放大角色能力。
+2. **必须引入 Dev Session**：一次性 run 无法支撑"读第一篇 → 讨论 → 再读第二篇 → 追问 → 改方案"这种场景。Phase 5 的核心数据结构是可多轮 `DevAgentSessions`，run 只是 session 里的执行回合。
+3. **Dev Room 保留为多轮控制台**：用户可以在主聊天里让角色继续一个 Dev Session，也可以自己打开 Dev Room 直接追问、查看 diff、apply/discard。Dev Room 不是主关系入口，但必须是可靠的过程空间。
+4. **绑定仍用独立表，不污染 CharacterModel**：新增 `DevAgentToolBindings` 或 `DevAgentSessionOwners` 这类独立表，记录哪个角色可召唤哪个项目/agent/权限档。普通角色模型不新增 Memex 特有耦合字段。
+5. **Phase 3 不能太靠后**：coding_log + 署名是其他伴侣角色"听说过"这些工程产出的社会基础，必须在 Phase 5 后紧接着做，不能拖到末尾。
 
 ---
 
@@ -252,7 +253,7 @@ class DevAgentApprovals extends Table {
 
 - 卡片 UI 顶部显示 CC/Codex 头像 + "在 X 的帮助下完成"
 - 其他角色检索到这条卡片时,prompt 里带署名信息,他们的回应会自然提到"听说你和 CC 今天搞了..."
-- 未来朋友圈/群聊里,这条卡片可以作为可评论对象,CC/Codex 自己也能在自己写的日志下补充评论
+- 未来朋友圈/群聊里,这条卡片可以作为可评论对象；召唤工具的角色可以补充"我是怎么帮你推进这件事的"
 
 ### UI
 
@@ -276,67 +277,141 @@ class DevAgentApprovals extends Table {
 
 ---
 
-## Phase 5 — CC/Codex 完整聊天角色（下一步）
+## Phase 5 — 角色可召唤的多轮 Dev Session（已开始）
 
 ### 目标
-让 CC/Codex 在主聊天里作为完整角色出现，写文件 / commit / apply / discard 都在聊天里完成。不切薄片。
+让普通陪伴角色可以召唤 Claude Code / Codex 去读资料、改代码、做 review，并把结果带回聊天；同时保留 Dev Room 作为可多轮追问、查看进度、审批、diff、apply/discard 的控制台。
+
+### 当前进度（2026-06-22）
+
+- ✅ 数据层已新增 `DevAgentSessions` / `DevAgentSessionMessages` / `DevAgentToolBindings`
+- ✅ `DevAgentRuns` 已可关联 app 侧 `devSessionId`
+- ✅ Dev Room 已有 Claude/Codex 会话入口、最近会话列表和 `DevSessionScreen`
+- ✅ Bridge 原生 resume 前，App 先用最近会话上下文 + 新 run 模拟多轮
+- ⏭️ 下一步：把主聊天里的 companion 角色接上 `dev_session.start_or_continue` 工具
+
+一句话边界：
+
+> 角色决定要不要召唤工具；Bridge 执行工具；Dev Room 承载过程；聊天承载关系、解释和决策。
+
+### 场景目标
+
+小红书共读应当能这样跑：
+
+1. 用户在主聊天里说："我们读一下这批小红书原文，先从第一篇开始。"
+2. 角色创建一个 `DevAgentSession`，召唤 Codex 读取第一篇 markdown。
+3. Codex 的结果回到这个 session；角色用自己的口吻总结、追问用户。
+4. 用户继续说："第二篇拿来对比一下。"
+5. 系统继续同一个 session，不要求用户新建任务。
+6. 用户也可以打开 Dev Room，直接在这个 session 里输入"继续下一篇"或查看历史、artifact、决策。
 
 ### 数据层
-新增 `DevAgentCharacterBindings` 表：
+
+新增长期会话表。一次性 `DevAgentRuns` 继续存在，但变成 session 下的一次执行回合。
+
 ```dart
-class DevAgentCharacterBindings extends Table {
-  TextColumn get characterId => text()();             // 主键，对应 CharacterModel.id
+class DevAgentSessions extends Table {
+  TextColumn get id => text()();                 // uuid
   TextColumn get projectId => text().references(DevProjects, #id)();
-  TextColumn get agentType => text()();               // 'claude_code' | 'codex'
-  TextColumn get defaultPermissionTier => text().withDefault(const Constant('workspace_write'))();
-  TextColumn get defaultMode => text().withDefault(const Constant('workspace_write'))();
+  TextColumn get agentType => text()();          // 'claude_code' | 'codex'
+  TextColumn get title => text()();
+  TextColumn get goal => text().nullable()();
+  TextColumn get mode => text().withDefault(const Constant('read_only'))();
+  TextColumn get ownerCharacterId => text().nullable()(); // 哪个角色召唤的；用户直接创建则为空
+  TextColumn get providerSessionId => text().nullable()(); // Claude/Codex 侧 session id
+  TextColumn get status => text().withDefault(const Constant('active'))();
   IntColumn get createdAt => integer()();
-  @override Set<Column> get primaryKey => {characterId};
+  IntColumn get updatedAt => integer()();
+  @override Set<Column> get primaryKey => {id};
+}
+
+class DevAgentSessionMessages extends Table {
+  TextColumn get id => text()();
+  TextColumn get sessionId => text().references(DevAgentSessions, #id)();
+  TextColumn get role => text()();               // user|character|agent|system
+  TextColumn get content => text()();
+  TextColumn get linkedRunId => text().nullable()();
+  IntColumn get createdAt => integer()();
+  @override Set<Column> get primaryKey => {id};
+}
+
+class DevAgentToolBindings extends Table {
+  TextColumn get characterId => text()();        // 哪个角色能召唤
+  TextColumn get projectId => text().references(DevProjects, #id)();
+  TextColumn get agentType => text()();          // 默认召唤 Claude Code 还是 Codex
+  TextColumn get defaultPermissionTier => text().withDefault(const Constant('read_only'))();
+  TextColumn get defaultMode => text().withDefault(const Constant('read_only'))();
+  IntColumn get createdAt => integer()();
+  @override Set<Column> get primaryKey => {characterId, projectId, agentType};
 }
 ```
 
-不污染 CharacterModel，删功能只需删表。
+### Bridge 协议
 
-### 角色创建
-- 角色编辑页加"绑定为 Dev Agent"开关
-- 开启后让用户选 project + agentType + 默认权限档
-- 头像可以是 Claude / OpenAI logo，或自己上传
+新增 session 级接口：
+
+- `POST /v1/sessions`：创建长期 Dev Session，返回 `bridge_session_id`
+- `POST /v1/sessions/{id}/messages`：向同一个 session 继续发消息
+- `GET /v1/sessions/{id}`：查 session 状态、当前活跃 run
+- `GET /v1/sessions/{id}/events?after=...`：拉多轮事件流
+
+CLI 侧续接：
+
+- Claude Code：优先验证 `claude -p --resume <session_id>` 或当前版本等价参数
+- Codex：优先验证 `codex exec resume <session_id>` 或 `codex exec resume --last`
+
+如果某个 CLI 的非交互 resume 不稳定，Bridge 仍可用"session transcript + new run"模拟多轮，但必须在 UI 上标注为同一 Dev Session。
 
 ### 聊天集成
-- CC/Codex 角色在主聊天 persona 轮播里正常出现，可 @、进群聊、朋友圈评论
-- 进入聊天后，CompanionAgent 那一层分岔：
-  - 普通角色 → 走 LLM provider（现状）
-  - dev agent 角色 → 走 bridge 多轮会话
-- 复用 PersonaChatScreen，消息气泡里嵌入 tool call（文件操作、diff、命令）
 
-### 多轮会话
-- CC：`claude -p --resume <session_id>` 续接
-- Codex：`codex exec resume <session_id>`
-- bridge 端为每个 character 维护一个活跃 session_id
-- 新消息发来时带上 session_id
+普通 companion 角色新增一个工具：
+
+```text
+dev_session.start_or_continue(project, agent_type, goal, message, mode)
+```
+
+行为：
+
+- 角色根据聊天语境决定是否召唤 Claude Code / Codex。
+- 用户不需要去 Dev Room 新建任务。
+- 角色收到 session 结果后，用自己的口吻解释，而不是把原始事件流直接丢给用户。
+- 如果有 diff / apply / discard / approval，聊天气泡里出现按钮；按钮背后仍调 Dev Room/Bridge 的 decision 接口。
+
+### Dev Room 集成
+
+Dev Room 从"run 列表"升级为"session 列表 + run 历史"：
+
+- 项目下显示活跃 Dev Sessions。
+- 点进 session 后能继续输入消息。
+- session 里显示关联 runs、artifacts、approvals、decisions。
+- 用户可以不经过角色，直接在 Dev Room 里继续追问。
 
 ### 写操作的决策 UX
-worktree 隔离 / decision 日志 / apply / discard 这些底层 plumbing 全部保留，但 **UX 整合进聊天**：
 
-```
-[Codex] 我给 RecordOrganizerService 加了 12 个单测，覆盖率从 34% → 78%。
-        [应用] [丢弃] [看 diff]
+worktree 隔离 / decision 日志 / apply / discard 全部保留，但可以出现在聊天气泡或 Dev Room 两处：
+
+```text
+[角色] Codex 已经按我们的讨论改完了，主要动了 3 个文件。
+       [应用] [丢弃] [看 diff]
 ```
 
-按钮直接调 decideRun，结果作为新消息附在下面：
+按钮直接调 Bridge decision；结果同时写入 session message：
 
-```
+```text
 [系统] 已合并到 personal-lab。
 ```
 
 ### 完成判定
-- 主聊天能看到 CC/Codex 角色
-- 跟他们说"看下 X 改成 Y" 真能改，diff 出现，决策按钮可用
-- apply 真合到 default branch，UI 给反馈
-- 多轮：下一句"再加点测试" 接着同个 session，不重新开
+
+- Dev Room 能创建一个长期 session，并在同一 session 里连续追问，不需要每次新建任务。
+- 主聊天里的普通角色能创建/继续 Dev Session，并把结果用自己的语气带回聊天。
+- 小红书共读场景跑通：第一篇 → 讨论 → 第二篇对比 → 形成产品建议，全程同一 session。
+- 写权限场景跑通：角色召唤 Codex/Claude Code 改代码，diff 出现，聊天或 Dev Room 中可 apply/discard。
+- 手机杀进程重开后，session 历史、关联 run、decision、artifact 仍可恢复。
 
 ### 工程量
-2-4 天，看具体绕路。不再保证 1 周/2 周这种数字。
+
+这是 Phase 5 的主干，不再拆成"假入口"和"真能力"两个产品形态；但工程实现按数据层 → Dev Room 多轮 → 聊天工具 → 回流 UX 顺序推进。
 
 ---
 
@@ -348,8 +423,8 @@ worktree 隔离 / decision 日志 / apply / discard 这些底层 plumbing 全部
 （详细数据流见前面 Phase 3 章节，没变。）
 
 ### 关键
-- 必须在 Phase 5 之后做：5 产生真实 run 数据，3 把它转成可被角色检索的卡片
-- 不能跳过：是 CC/Codex 人格化的社会基础
+- 必须在 Phase 5 之后做：5 产生真实 session/run 数据，3 把它转成可被角色检索的卡片
+- 不能跳过：这是其他角色自然知道"我召唤工具帮你做了什么"的社会基础
 
 ---
 
@@ -388,7 +463,9 @@ release_ops 项目的 apply 改成"推 dev-agent 分支 + 调 gh pr create"，PR
 
 **原 Phase 5 "双代理协作（CC 写 + Codex review）"** —— 太 niche，token 成本高、仲裁难、用户审两份意见更累。需要时手动派两个 run 就行，不值得做产品化。
 
-**"开发助理"代理角色** —— 之前讨论过加一个普通 Companion 角色，只持 `open_dev_room` 工具作为入口。Phase 5 把 CC/Codex 自己变成角色后，这种代理就没用了，砍掉。
+**"CC/Codex 完整人格角色"** —— 改为"角色召唤 coding 工具"。Claude Code / Codex 保持为 Bridge 侧能力，不直接承担关系主体；普通角色负责决定、解释和陪伴。
+
+**"开发助理"代理角色** —— 不单独造一个只负责转发的角色。Phase 5 让所有合适的陪伴角色都能召唤 Dev Session，避免多一层空壳入口。
 
 ---
 

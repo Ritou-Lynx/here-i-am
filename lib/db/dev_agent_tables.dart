@@ -23,6 +23,7 @@ class DevAgentRuns extends Table {
   TextColumn get id => text()();
   TextColumn get projectId => text().references(DevProjects, #id)();
   TextColumn get agentType => text()();
+  TextColumn get devSessionId => text().nullable()();
   TextColumn get sessionId => text().nullable()();
   TextColumn get initialPrompt => text()();
   TextColumn get status => text()();
@@ -34,6 +35,56 @@ class DevAgentRuns extends Table {
 
   @override
   Set<Column> get primaryKey => {id};
+}
+
+/// A multi-turn control thread around one or more remote agent runs.
+///
+/// The provider-side session id still lives on [DevAgentRuns.sessionId]. This
+/// table is the app-side conversation shell used by Dev Room and companion
+/// roles to keep follow-up tasks together.
+class DevAgentSessions extends Table {
+  TextColumn get id => text()();
+  TextColumn get projectId => text().references(DevProjects, #id)();
+  TextColumn get agentType => text()();
+  TextColumn get title => text()();
+  TextColumn get goal => text().nullable()();
+  TextColumn get mode => text().withDefault(const Constant('read_only'))();
+  TextColumn get ownerCharacterId => text().nullable()();
+  TextColumn get providerSessionId => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('active'))();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// User / character / agent messages inside a Dev Session.
+class DevAgentSessionMessages extends Table {
+  TextColumn get id => text()();
+  TextColumn get sessionId => text().references(DevAgentSessions, #id)();
+  TextColumn get role => text()();
+  TextColumn get content => text()();
+  TextColumn get linkedRunId => text().nullable()();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Which companion roles may summon which project agent tool.
+class DevAgentToolBindings extends Table {
+  TextColumn get characterId => text()();
+  TextColumn get projectId => text().references(DevProjects, #id)();
+  TextColumn get agentType => text()();
+  TextColumn get defaultPermissionTier =>
+      text().withDefault(const Constant('read_only'))();
+  TextColumn get defaultMode =>
+      text().withDefault(const Constant('read_only'))();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {characterId, projectId, agentType};
 }
 
 /// Normalized stream events emitted by the bridge.

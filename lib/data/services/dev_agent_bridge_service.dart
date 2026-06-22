@@ -207,6 +207,105 @@ class DevAgentBridgeService {
         .getSingleOrNull();
   }
 
+  Stream<List<DevAgentSession>> watchSessions({String? projectId}) {
+    final query = _db.select(_db.devAgentSessions)
+      ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]);
+    if (projectId != null) {
+      query.where((t) => t.projectId.equals(projectId));
+    }
+    return query.watch();
+  }
+
+  Future<DevAgentSession?> getSession(String sessionId) {
+    return (_db.select(_db.devAgentSessions)
+          ..where((t) => t.id.equals(sessionId)))
+        .getSingleOrNull();
+  }
+
+  Stream<DevAgentSession?> watchSession(String sessionId) {
+    final query = _db.select(_db.devAgentSessions)
+      ..where((t) => t.id.equals(sessionId));
+    return query.watchSingleOrNull();
+  }
+
+  Stream<List<DevAgentSessionMessage>> watchSessionMessages(
+    String sessionId,
+  ) {
+    final query = _db.select(_db.devAgentSessionMessages)
+      ..where((t) => t.sessionId.equals(sessionId))
+      ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]);
+    return query.watch();
+  }
+
+  Future<String> createSession({
+    required String projectId,
+    required DevAgentType agentType,
+    required String title,
+    String? goal,
+    String? ownerCharacterId,
+    String mode = 'read_only',
+  }) async {
+    final project = await getProject(projectId);
+    if (project == null) {
+      throw const DevAgentBridgeException('Dev project not found.');
+    }
+    final trimmedTitle = title.trim().isEmpty ? 'Dev Session' : title.trim();
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final sessionId = _uuid.v4();
+    await _db.into(_db.devAgentSessions).insert(
+          DevAgentSessionsCompanion.insert(
+            id: sessionId,
+            projectId: projectId,
+            agentType: agentType.value,
+            title: trimmedTitle,
+            goal: Value(goal?.trim().isEmpty == true ? null : goal?.trim()),
+            mode: Value(mode),
+            ownerCharacterId: Value(ownerCharacterId),
+            status: const Value('active'),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    return sessionId;
+  }
+
+  Future<String> continueSession({
+    required String sessionId,
+    required String message,
+  }) async {
+    final session = await getSession(sessionId);
+    if (session == null) {
+      throw const DevAgentBridgeException('Dev session not found.');
+    }
+    final trimmed = message.trim();
+    if (trimmed.isEmpty) {
+      throw const DevAgentBridgeException('Message cannot be empty.');
+    }
+    final bridgePrompt = await _buildSessionPrompt(session, trimmed);
+    await _insertSessionMessage(
+      sessionId: sessionId,
+      role: 'user',
+      content: trimmed,
+    );
+    final runId = await startRun(
+      projectId: session.projectId,
+      prompt: trimmed,
+      bridgePrompt: bridgePrompt,
+      agentType: DevAgentType.values.firstWhere(
+        (type) => type.value == session.agentType,
+        orElse: () => DevAgentType.codex,
+      ),
+      devSessionId: sessionId,
+    );
+    await _insertSessionMessage(
+      sessionId: sessionId,
+      role: 'system',
+      content: 'Started a linked run.',
+      linkedRunId: runId,
+    );
+    return runId;
+  }
+
   Stream<DevAgentRun?> watchRun(String runId) {
     final query = _db.select(_db.devAgentRuns)
       ..where((t) => t.id.equals(runId));
@@ -284,6 +383,8 @@ class DevAgentBridgeService {
     required String projectId,
     required String prompt,
     required DevAgentType agentType,
+    String? bridgePrompt,
+    String? devSessionId,
   }) async {
     final project = await getProject(projectId);
     if (project == null) {
@@ -295,6 +396,9 @@ class DevAgentBridgeService {
     if (trimmedPrompt.isEmpty) {
       throw const DevAgentBridgeException('Task prompt cannot be empty.');
     }
+    final promptForBridge = (bridgePrompt?.trim().isNotEmpty == true)
+        ? bridgePrompt!.trim()
+        : trimmedPrompt;
 
     final runId = _uuid.v4();
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -303,6 +407,7 @@ class DevAgentBridgeService {
             id: runId,
             projectId: project.id,
             agentType: agentType.value,
+            devSessionId: Value(devSessionId),
             initialPrompt: trimmedPrompt,
             status: 'pending',
             startedAt: now,
@@ -322,7 +427,7 @@ class DevAgentBridgeService {
             'permission_tier': project.permissionTier,
           },
           'agent_type': agentType.value,
-          'prompt': trimmedPrompt,
+          'prompt': promptForBridge,
           // For MVP, mode follows project's permission tier. release_ops runs
           // as workspace_write here — actual push/PR is gated separately later.
           'mode': project.permissionTier == 'read_only'
@@ -341,6 +446,16 @@ class DevAgentBridgeService {
           status: Value(status),
         ),
       );
+      if (devSessionId != null) {
+        await (_db.update(_db.devAgentSessions)
+              ..where((t) => t.id.equals(devSessionId)))
+            .write(
+          DevAgentSessionsCompanion(
+            providerSessionId: Value(sessionId),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+          ),
+        );
+      }
       await _insertLocalEvent(
         runId: runId,
         kind: 'status',
@@ -556,7 +671,8 @@ class DevAgentBridgeService {
         payload: {
           'decision': decision,
           'status': accepted ? 'accepted' : 'rejected',
-          if (!accepted && payload['reason'] != null) 'reason': payload['reason'],
+          if (!accepted && payload['reason'] != null)
+            'reason': payload['reason'],
           if (!accepted && payload['message'] != null)
             'message': payload['message'],
         },
@@ -603,12 +719,14 @@ class DevAgentBridgeService {
   ) async {
     final status = payload['status']?.toString();
     if (status == null || status.isEmpty) return;
+    final runBeforeUpdate = await getRun(runId);
     final isTerminal = {'done', 'failed', 'aborted'}.contains(status);
+    final summary = payload['summary']?.toString();
     await (_db.update(_db.devAgentRuns)..where((t) => t.id.equals(runId)))
         .write(
       DevAgentRunsCompanion(
         status: Value(status),
-        summary: Value(payload['summary']?.toString()),
+        summary: Value(summary),
         branch: Value(payload['branch']?.toString()),
         worktreePath: Value(payload['worktree_path']?.toString()),
         endedAt: isTerminal
@@ -616,6 +734,14 @@ class DevAgentBridgeService {
             : const Value.absent(),
       ),
     );
+    if (isTerminal && runBeforeUpdate?.devSessionId != null) {
+      await _upsertRunSummaryMessage(
+        sessionId: runBeforeUpdate!.devSessionId!,
+        runId: runId,
+        status: status,
+        summary: summary,
+      );
+    }
   }
 
   Future<void> _persistBridgeEvent(
@@ -694,6 +820,107 @@ class DevAgentBridgeService {
             payloadJson: jsonEncode(payload),
           ),
         );
+  }
+
+  Future<String> _insertSessionMessage({
+    required String sessionId,
+    required String role,
+    required String content,
+    String? linkedRunId,
+  }) async {
+    final id = _uuid.v4();
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    await _db.into(_db.devAgentSessionMessages).insert(
+          DevAgentSessionMessagesCompanion.insert(
+            id: id,
+            sessionId: sessionId,
+            role: role,
+            content: content,
+            linkedRunId: Value(linkedRunId),
+            createdAt: now,
+          ),
+        );
+    await (_db.update(_db.devAgentSessions)
+          ..where((t) => t.id.equals(sessionId)))
+        .write(DevAgentSessionsCompanion(updatedAt: Value(now)));
+    return id;
+  }
+
+  Future<String> _buildSessionPrompt(
+    DevAgentSession session,
+    String newMessage,
+  ) async {
+    final query = _db.select(_db.devAgentSessionMessages)
+      ..where((t) => t.sessionId.equals(session.id))
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+      ..limit(12);
+    final recent = (await query.get()).reversed.toList();
+    if (recent.isEmpty && (session.goal == null || session.goal!.isEmpty)) {
+      return newMessage;
+    }
+    final buffer = StringBuffer()
+      ..writeln('You are continuing an app-side Dev Session.')
+      ..writeln('Session title: ${session.title}');
+    if (session.goal != null && session.goal!.trim().isNotEmpty) {
+      buffer.writeln('Session goal: ${session.goal}');
+    }
+    if (recent.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln('Recent session messages:');
+      for (final message in recent) {
+        buffer.writeln('[${message.role}] ${message.content}');
+      }
+    }
+    buffer
+      ..writeln()
+      ..writeln('New user request:')
+      ..writeln(newMessage)
+      ..writeln()
+      ..writeln(
+        'Continue from the prior session context, inspect the project as needed, '
+        'and keep the final answer concise for the phone UI.',
+      );
+    return buffer.toString();
+  }
+
+  Future<void> _upsertRunSummaryMessage({
+    required String sessionId,
+    required String runId,
+    required String status,
+    String? summary,
+  }) async {
+    final content = summary?.trim().isNotEmpty == true
+        ? summary!.trim()
+        : 'Run finished with status: $status';
+    final existing = await (_db.select(_db.devAgentSessionMessages)
+          ..where(
+            (t) =>
+                t.sessionId.equals(sessionId) &
+                t.linkedRunId.equals(runId) &
+                t.role.equals('agent'),
+          ))
+        .getSingleOrNull();
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (existing == null) {
+      await _insertSessionMessage(
+        sessionId: sessionId,
+        role: 'agent',
+        content: content,
+        linkedRunId: runId,
+      );
+    } else {
+      await (_db.update(_db.devAgentSessionMessages)
+            ..where((t) => t.id.equals(existing.id)))
+          .write(
+        DevAgentSessionMessagesCompanion(
+          content: Value(content),
+          createdAt: Value(now),
+        ),
+      );
+      await (_db.update(_db.devAgentSessions)
+            ..where((t) => t.id.equals(sessionId)))
+          .write(DevAgentSessionsCompanion(updatedAt: Value(now)));
+    }
   }
 
   Future<void> _markRunFailed(String runId, String message) async {

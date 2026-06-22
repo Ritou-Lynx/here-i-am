@@ -38,6 +38,9 @@ part 'app_database.g.dart';
     VoiceCallMessages,
     DevProjects,
     DevAgentRuns,
+    DevAgentSessions,
+    DevAgentSessionMessages,
+    DevAgentToolBindings,
     DevAgentEvents,
     DevAgentApprovals,
     DevAgentArtifacts,
@@ -97,7 +100,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 32;
+  int get schemaVersion => 33;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -125,6 +128,7 @@ class AppDatabase extends _$AppDatabase {
           await _createUserNotificationIndices();
           await _createSharedLifeMemoryIndices();
           await _createDevAgentIndices();
+          await _createDevAgentSessionIndices();
           // Create FTS5 virtual tables for full-text search
           await searchDao.createFtsTables();
         },
@@ -442,6 +446,11 @@ class AppDatabase extends _$AppDatabase {
                   'presentation_json column may already exist, skipping: $e');
             }
           }
+          if (from < 33) {
+            await _addColumnIfMissing(
+                'dev_agent_runs ADD COLUMN dev_session_id TEXT');
+            await _createDevAgentSessionTables(m);
+          }
         },
       );
 
@@ -501,6 +510,9 @@ class AppDatabase extends _$AppDatabase {
         'CREATE INDEX IF NOT EXISTS idx_dev_agent_runs_project_status '
         'ON dev_agent_runs(project_id, status)');
     await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_runs_dev_session '
+        'ON dev_agent_runs(dev_session_id)');
+    await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_dev_agent_runs_started_at '
         'ON dev_agent_runs(started_at)');
     await customStatement(
@@ -511,10 +523,53 @@ class AppDatabase extends _$AppDatabase {
         'ON dev_agent_approvals(run_id, status)');
   }
 
+  Future<void> _createDevAgentSessionTables(Migrator m) async {
+    await _createTableIfMissing(m, devAgentSessions, 'dev_agent_sessions');
+    await _createTableIfMissing(
+        m, devAgentSessionMessages, 'dev_agent_session_messages');
+    await _createTableIfMissing(
+        m, devAgentToolBindings, 'dev_agent_tool_bindings');
+    await _createDevAgentSessionIndices();
+  }
+
+  Future<void> _createDevAgentSessionIndices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_runs_dev_session '
+        'ON dev_agent_runs(dev_session_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_sessions_project_status '
+        'ON dev_agent_sessions(project_id, status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_sessions_updated_at '
+        'ON dev_agent_sessions(updated_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_session_messages_session_created '
+        'ON dev_agent_session_messages(session_id, created_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_dev_agent_tool_bindings_character '
+        'ON dev_agent_tool_bindings(character_id)');
+  }
+
   Future<void> _createDevAgentArtifactIndices() async {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_dev_agent_artifacts_run_kind '
         'ON dev_agent_artifacts(run_id, kind)');
+  }
+
+  Future<void> _createTableIfMissing(
+    Migrator m,
+    TableInfo<Table, dynamic> table,
+    String tableName,
+  ) async {
+    try {
+      await m.createTable(table);
+    } catch (e) {
+      if (_isAlreadyExistsError(e, tableName)) {
+        _logger.info('$tableName table already exists, skipping migration');
+      } else {
+        rethrow;
+      }
+    }
   }
 
   bool _isAlreadyExistsError(Object error, String tableName) {
