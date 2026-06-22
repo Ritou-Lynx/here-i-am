@@ -115,6 +115,8 @@ class ConversationCaptureService {
   /// Auto-capture is disabled pending migration to RecordOrganizerService.
   /// User-truth is now only written via explicit user actions (record button,
   /// floating ball, natural language "记一下", external data streams).
+  /// When true, scheduleIfNeeded() always returns false — force:true is NOT
+  /// a bypass; that loophole was the source of repeated phantom card generation.
   static bool autoCapturePaused = true;
 
   Future<bool> scheduleIfNeeded({
@@ -123,7 +125,7 @@ class ConversationCaptureService {
     bool force = false,
     String trigger = 'message_threshold',
   }) async {
-    if (autoCapturePaused && !force) return false;
+    if (autoCapturePaused) return false;
     var cursor = await _readOrCreateCursor(characterId);
     if (cursor.lastQueuedMessageId > cursor.lastExtractedMessageId) {
       final hasActiveTask = await _hasActiveQueuedCaptureTask(
