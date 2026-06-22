@@ -1,26 +1,37 @@
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/domain/models/presentation_module.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 
-/// 玫瑰雾色板。直接来自 `UI design-here I am/card-visual-mockups-v5.html`。
-/// 暂不接入主题切换 — 不管 Chat 主题是什么，卡片始终用玫瑰雾。
+/// Rose Mist Memory Card color adapter.
+///
+/// Memory Review currently lives on a light observation surface, so the
+/// summary card uses the daytime Rose Mist material even when chat is using a
+/// night skin. Otherwise dark theme tokens turn the card into a low-contrast
+/// grey-purple fog block on a light page.
 class RoseMistPalette {
   const RoseMistPalette._();
 
-  static const ink = Color(0xFF5F4B4A);
-  static const inkMid = Color(0xFF6F5A59);
-  static const inkSoft = Color(0xFFA8908E);
+  static const HereIamThemeTokens _tokens = HereIamThemeTokens.roseMistDay;
 
-  static const rose = Color(0xFFC08E96);
-  static const roseSoft = Color(0xFFE3C2C4);
-  static const roseDeep = Color(0xFFB27D88);
+  static Color get ink => _tokens.textPrimary;
+  static Color get inkMid => _tokens.textSecondary;
+  static Color get inkSoft => _tokens.textMuted;
 
-  static const hairline = Color(0x2475615F);
-  static const glassLine = Color(0x9EFFFFFF);
+  static Color get rose => _tokens.accent;
+  static Color get roseSoft => _tokens.accentSoft;
+  static Color get roseDeep => _tokens.surfaceDeep;
 
+  static Color get hairline => const Color(0xFF75615F).withValues(alpha: 0.14);
+  static Color get glassLine => Colors.white.withValues(alpha: 0.92);
+  static Color get glassFill => const Color(0xFFFFFBFA);
+  static Color get glassFillSoft => const Color(0xFFF8F3F2);
+  static Color get cardTint => const Color(0xFFF2E7E7);
+  static Color get shadow => const Color(0xFF75615F).withValues(alpha: 0.16);
+
+  // Mood colors remain semantic and intentionally independent of skin.
   static const moodExcited = Color(0xFFE89A8E);
   static const moodCalm = Color(0xFFE5C7CB);
   static const moodTense = Color(0xFF9E7A8A);
@@ -83,7 +94,6 @@ class MemorySummaryCard extends StatelessWidget {
     final presentation = PresentationModule.tryParse(entity.presentationJson);
     final mood = resolveMood(valence: entity.valence, arousal: entity.arousal);
     final isCancelled = entity.status == 'cancelled';
-    final isCompleted = entity.status == 'completed';
 
     return GestureDetector(
       onTap: onTap,
@@ -95,13 +105,11 @@ class MemorySummaryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (isCancelled || isCompleted || presentation?.statusLabel != null)
+            if (isCancelled || presentation?.statusLabel != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _StatusPill(
-                  text: isCancelled
-                      ? '已取消'
-                      : (presentation?.statusLabel ?? '已完成'),
+                  text: isCancelled ? '已取消' : presentation!.statusLabel!,
                   cancelled: isCancelled,
                 ),
               ),
@@ -111,7 +119,7 @@ class MemorySummaryCard extends StatelessWidget {
               fallbackText: _fallbackText(entity),
             ),
             const SizedBox(height: 16),
-            _Foot(tags: entity.tags),
+            _Foot(tags: entity.tags, onTap: onTap),
           ],
         ),
       ),
@@ -139,58 +147,38 @@ class _CardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mood = muted ? RoseMistPalette.moodNeutral : moodColor;
     return ClipRRect(
       borderRadius: BorderRadius.circular(28),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: RoseMistPalette.glassLine, width: 1),
-            gradient: LinearGradient(
-              begin: const Alignment(-0.4, -0.7),
-              end: Alignment.bottomRight,
-              colors: [
-                mood.withOpacity(muted ? 0.18 : 0.36),
-                const Color(0xFFFFFFFF).withOpacity(0.32),
-                const Color(0xFFF6E5E5).withOpacity(0.22),
-              ],
-              stops: const [0.0, 0.55, 1.0],
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: RoseMistPalette.glassLine, width: 1),
+          gradient: LinearGradient(
+            begin: const Alignment(-0.4, -0.7),
+            end: Alignment.bottomRight,
+            colors: [
+              RoseMistPalette.glassFill,
+              RoseMistPalette.glassFillSoft,
+              RoseMistPalette.cardTint,
+            ],
+            stops: const [0.0, 0.58, 1.0],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: RoseMistPalette.shadow,
+              blurRadius: 46,
+              offset: const Offset(0, 20),
+              spreadRadius: -10,
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x2D75615F),
-                blurRadius: 62,
-                offset: Offset(0, 26),
-                spreadRadius: -8,
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                left: 0,
-                top: 0,
-                child: Container(
-                  width: 180,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        mood.withOpacity(muted ? 0.18 : 0.44),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              child,
-            ],
-          ),
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.62),
+              blurRadius: 0,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
+        child: child,
       ),
     );
   }
@@ -204,13 +192,14 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = cancelled ? RoseMistPalette.cancelInk : RoseMistPalette.warnInk;
+    final color =
+        cancelled ? RoseMistPalette.cancelInk : RoseMistPalette.warnInk;
     return Container(
       padding: const EdgeInsets.fromLTRB(7, 4, 9, 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: color.withOpacity(0.16),
-        border: Border.all(color: color.withOpacity(0.34)),
+        color: color.withValues(alpha: 0.16),
+        border: Border.all(color: color.withValues(alpha: 0.34)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -315,7 +304,7 @@ class _TitleBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           color: RoseMistPalette.inkMid,
           fontSize: 14,
           fontWeight: FontWeight.w700,
@@ -332,7 +321,7 @@ class _SubjectRef extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 0),
         child: Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             color: RoseMistPalette.inkSoft,
             fontSize: 11,
             letterSpacing: 0.5,
@@ -351,7 +340,7 @@ class _TextBlockView extends StatelessWidget {
       return Text(
         block.text,
         style: TextStyle(
-          color: RoseMistPalette.ink.withOpacity(0.96),
+          color: RoseMistPalette.ink.withValues(alpha: 0.96),
           fontSize: 14.5,
           height: 1.78,
           letterSpacing: 0.15,
@@ -361,7 +350,7 @@ class _TextBlockView extends StatelessWidget {
     return RichText(
       text: TextSpan(
         style: TextStyle(
-          color: RoseMistPalette.ink.withOpacity(0.96),
+          color: RoseMistPalette.ink.withValues(alpha: 0.96),
           fontSize: 14.5,
           height: 1.78,
           letterSpacing: 0.15,
@@ -398,7 +387,8 @@ class _TextBlockView extends StatelessWidget {
         text: bestMatch,
         style: TextStyle(
           color: RoseMistPalette.ink,
-          background: Paint()..color = RoseMistPalette.roseSoft.withOpacity(0.42),
+          background: Paint()
+            ..color = RoseMistPalette.roseSoft.withValues(alpha: 0.42),
         ),
       ));
       remaining = remaining.substring(bestIdx + bestMatch.length);
@@ -418,7 +408,7 @@ class _QuoteBlockView extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           left: BorderSide(
-            color: RoseMistPalette.rose.withOpacity(0.55),
+            color: RoseMistPalette.rose.withValues(alpha: 0.55),
             width: 2,
           ),
         ),
@@ -428,8 +418,8 @@ class _QuoteBlockView extends StatelessWidget {
         children: [
           Text(
             '"${block.text}"',
-            style: const TextStyle(
-              color: Color(0xFF604848),
+            style: TextStyle(
+              color: RoseMistPalette.ink,
               fontSize: 17,
               height: 1.72,
               fontWeight: FontWeight.w400,
@@ -439,7 +429,7 @@ class _QuoteBlockView extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               block.context!,
-              style: const TextStyle(
+              style: TextStyle(
                 color: RoseMistPalette.inkSoft,
                 fontSize: 12,
                 height: 1.65,
@@ -466,7 +456,7 @@ class _NumberBlockView extends StatelessWidget {
             children: [
               TextSpan(
                 text: block.value,
-                style: const TextStyle(
+                style: TextStyle(
                   color: RoseMistPalette.ink,
                   fontSize: 44,
                   height: 1,
@@ -476,7 +466,7 @@ class _NumberBlockView extends StatelessWidget {
               if (block.unit != null)
                 TextSpan(
                   text: '  ${block.unit}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: RoseMistPalette.inkSoft,
                     fontSize: 13,
                     letterSpacing: 0.6,
@@ -493,7 +483,7 @@ class _NumberBlockView extends StatelessWidget {
               child: Text(
                 block.note!,
                 style: TextStyle(
-                  color: RoseMistPalette.ink.withOpacity(0.78),
+                  color: RoseMistPalette.ink.withValues(alpha: 0.78),
                   fontSize: 13.5,
                   height: 1.62,
                 ),
@@ -515,11 +505,11 @@ class _TableBlockView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Divider(height: 1, color: RoseMistPalette.hairline),
+        Divider(height: 1, color: RoseMistPalette.hairline),
         for (final row in block.rows)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 7),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: RoseMistPalette.hairline),
               ),
@@ -531,7 +521,7 @@ class _TableBlockView extends StatelessWidget {
                   width: 60,
                   child: Text(
                     row.label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: RoseMistPalette.inkSoft,
                       fontSize: 12.5,
                       height: 1.4,
@@ -543,7 +533,7 @@ class _TableBlockView extends StatelessWidget {
                   child: Text(
                     row.value,
                     textAlign: TextAlign.right,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: RoseMistPalette.inkMid,
                       fontSize: 13,
                       height: 1.4,
@@ -577,7 +567,7 @@ class _SparklineView extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             block.caption!,
-            style: const TextStyle(
+            style: TextStyle(
               color: RoseMistPalette.inkSoft,
               fontSize: 11,
             ),
@@ -604,7 +594,8 @@ class _SparklinePainter extends CustomPainter {
     final n = points.length;
     for (var i = 0; i < n; i++) {
       final x = (i / (n - 1)) * size.width;
-      final y = size.height - 4 - ((points[i] - minV) / range) * (size.height - 8);
+      final y =
+          size.height - 4 - ((points[i] - minV) / range) * (size.height - 8);
       if (i == 0) {
         path.moveTo(x, y);
         fill.moveTo(x, size.height);
@@ -619,7 +610,7 @@ class _SparklinePainter extends CustomPainter {
 
     canvas.drawPath(
       fill,
-      Paint()..color = RoseMistPalette.rose.withOpacity(0.10),
+      Paint()..color = RoseMistPalette.rose.withValues(alpha: 0.10),
     );
     canvas.drawPath(
       path,
@@ -678,7 +669,7 @@ class _MediaBlockView extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             block.caption!,
-            style: const TextStyle(
+            style: TextStyle(
               color: RoseMistPalette.inkSoft,
               fontSize: 12,
               height: 1.55,
@@ -711,7 +702,6 @@ class _LinkBlockView extends StatelessWidget {
     'xhs': Color(0xFFFE2C55),
     'wechat': Color(0xFF07C160),
     'dianping': Color(0xFFF4A91E),
-    'web': RoseMistPalette.rose,
   };
 
   static const _brandLabels = {
@@ -731,8 +721,8 @@ class _LinkBlockView extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 42),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: Colors.white.withOpacity(0.38),
-        border: Border.all(color: RoseMistPalette.ink.withOpacity(0.10)),
+        color: Colors.white.withValues(alpha: 0.38),
+        border: Border.all(color: RoseMistPalette.ink.withValues(alpha: 0.10)),
       ),
       child: Row(
         children: [
@@ -759,7 +749,7 @@ class _LinkBlockView extends StatelessWidget {
               block.title ?? block.url,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: RoseMistPalette.inkMid,
                 fontSize: 12.5,
                 fontWeight: FontWeight.w500,
@@ -771,15 +761,15 @@ class _LinkBlockView extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(999),
-              color: Colors.white.withOpacity(0.22),
+              color: Colors.white.withValues(alpha: 0.22),
               border: Border.all(
-                color: RoseMistPalette.rose.withOpacity(0.24),
+                color: RoseMistPalette.rose.withValues(alpha: 0.24),
               ),
             ),
-            child: const Text(
+            child: Text(
               '打开',
               style: TextStyle(
-                color: Color(0xFF8E646C),
+                color: RoseMistPalette.rose,
                 fontSize: 11,
                 letterSpacing: 0.8,
               ),
@@ -792,25 +782,55 @@ class _LinkBlockView extends StatelessWidget {
 }
 
 class _Foot extends StatelessWidget {
-  const _Foot({required this.tags});
+  const _Foot({required this.tags, required this.onTap});
+
   final List<String> tags;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    if (tags.isEmpty) return const SizedBox.shrink();
-    return Wrap(
-      spacing: 11,
-      runSpacing: 4,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        for (final tag in tags)
-          Text(
-            tag,
-            style: const TextStyle(
-              color: Color(0xFF8E646C),
-              fontSize: 10.5,
-              letterSpacing: 1.05,
+        Expanded(
+          child: Wrap(
+            spacing: 11,
+            runSpacing: 4,
+            children: [
+              for (final tag in tags.take(3))
+                Text(
+                  tag,
+                  style: TextStyle(
+                    color: RoseMistPalette.roseDeep.withValues(alpha: 0.78),
+                    fontSize: 10.5,
+                    letterSpacing: 1.05,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              color: RoseMistPalette.rose,
+            ),
+            child: const Text(
+              '聊聊',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                letterSpacing: 1.1,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
+        ),
       ],
     );
   }
