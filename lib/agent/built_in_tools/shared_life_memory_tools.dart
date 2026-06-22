@@ -226,7 +226,30 @@ ordinary conversation does NOT qualify — do not call this tool in that case.
 Do not use for casual conversation or character-private memory. Use tags only
 from the user tag list in tags.md; do not invent or translate tags.
 entity_type describes behavior, not topic. Query first if the request may
-refer to an existing record, then update instead of creating a duplicate.''',
+refer to an existing record, then update instead of creating a duplicate.
+
+Patch reserved fields (prefixed with _) are promoted to columns:
+- _primaryDomain: one of health/finance/schedule/task/social/interest/clothing/general
+- _facets: list of secondary domains
+- _occurredAt: ISO 8601 datetime when the event actually happened
+- _valence: -1.0 to 1.0 emotional polarity. Omit when neutral.
+- _arousal: 0.0 to 1.0 emotional intensity. Omit when neutral.
+- _presentation: REQUIRED. The visible Memory Summary Card payload.
+  {
+    "title": "optional short title shown above blocks",
+    "subjectRef": "optional, e.g. 妈妈 · 通话中",
+    "blocks": [
+      { "type": "text", "text": "...", "emphases": ["substring"] },
+      { "type": "quote", "text": "...", "context": "optional tone note" },
+      { "type": "number", "value": "...", "unit": "...", "note": "..." },
+      { "type": "table", "rows": [{ "label": "...", "value": "..." }] },
+      { "type": "sparkline", "points": [..], "caption": "..." },
+      { "type": "media", "assetPath": "...", "kind": "image|audio|video" },
+      { "type": "linkAttachment", "url": "...", "title": "...", "source": "..." }
+    ]
+  }
+  Pick the smallest set of blocks that conveys the essence. Omit empty fields
+  rather than fabricating.''',
     parameters: {
       'type': 'object',
       'properties': {

@@ -262,6 +262,10 @@ class SharedLifeEntities extends Table {
   IntColumn get schemaVersion =>
       integer().withDefault(const Constant(1))();
 
+  // Block-based presentation payload (PresentationModule JSON) used by the
+  // Memory Summary Card. Nullable: older records may not have one yet.
+  TextColumn get presentationJson => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

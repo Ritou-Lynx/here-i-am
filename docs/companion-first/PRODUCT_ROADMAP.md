@@ -147,6 +147,7 @@ Summary Card 不是旧 timeline card，也不是每条原始输入一张卡。�
 | `presentationModule` | 摘要的板块化呈现结果 |
 | `sourceExcerpts` | 原始对话或外部来源证据 |
 | `structuredFields` | 时间、地点、人物、金额、任务状态、健康指标等机器字段 |
+| `emotionCoordinates` | `valence`（-1.0~1.0）+ `arousal`（0.0~1.0），记忆当下的情绪坐标，用于 Summary Card 情绪角晕和未来记忆云可视化 |
 | `operationHistory` | create / append / update / correct / undo 等历史 |
 
 ### 4.3 呈现规则
@@ -436,6 +437,7 @@ Memory Card = 统一凝露外壳 + 活动板块组装。
 - 聊天召回简化形态。
 - Full Detail View 展示来源和历史。
 - 悬浮球修正入口（悬浮球在卡片页面自动关联当前卡片上下文，替代独立”聊聊”按钮）。
+- **情绪坐标标注**：RecordOrganizerAnalyzer 在产出 `memorySummary` / `structuredFields` 时同时输出 `valence` / `arousal`，落入已有的 `SharedLifeEntities.valence` / `arousal` 字段。可视化留到 Phase G，但每条新记忆从 Phase C 开始就带坐标，避免历史空窗。
 
 验收：
 
@@ -515,7 +517,7 @@ Memory Card = 统一凝露外壳 + 活动板块组装。
 - 记忆云。
 - 气泡水珠。
 - 坠落 / 回程动画。
-- 情绪坐标可视化。
+- 情绪坐标可视化（坐标本身在 Phase C 已开始标注，这里做记忆云、角晕等空间化呈现）。
 
 约束：
 
