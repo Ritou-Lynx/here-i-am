@@ -385,6 +385,33 @@ class SharedLifeMemoryService {
     return rows.map(_snapshotFromRow).toList(growable: false);
   }
 
+  /// Batch-fetch entities by ID, preserving the order of [ids] and silently
+  /// dropping any IDs that no longer exist (e.g. the related entity was
+  /// deleted). UI uses this to resolve
+  /// [SharedLifeEntitySnapshot.relatedMemoryIds] (AI soft links) and
+  /// `state.related_entity_ids` (user hard links) into renderable card stubs.
+  Future<List<SharedLifeEntitySnapshot>> getEntitiesByIds(
+    List<String> ids,
+  ) async {
+    if (ids.isEmpty) return const [];
+    // De-dup while preserving first-seen order so the caller's intent stands.
+    final seen = <String>{};
+    final ordered = <String>[
+      for (final id in ids)
+        if (id.isNotEmpty && seen.add(id)) id,
+    ];
+    if (ordered.isEmpty) return const [];
+
+    final rows = await (db.select(db.sharedLifeEntities)
+          ..where((t) => t.id.isIn(ordered)))
+        .get();
+    final byId = {for (final r in rows) r.id: r};
+    return [
+      for (final id in ordered)
+        if (byId[id] != null) _snapshotFromRow(byId[id]!),
+    ];
+  }
+
   Future<SharedLifeEntityDetail?> getEntityDetail(String entityId) async {
     final entityRow = await (db.select(db.sharedLifeEntities)
           ..where((t) => t.id.equals(entityId)))
