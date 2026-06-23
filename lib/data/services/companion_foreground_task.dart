@@ -187,6 +187,18 @@ class CompanionTaskHandler extends TaskHandler {
       }
       debugPrint('[ForegroundTask] running agent as "${character.name}"');
 
+      // Keep the foreground notification in sync with the current primary
+      // companion, so it doesn't show a stale name after the user changes
+      // characters or after a reinstall where defaults were seeded.
+      try {
+        await FlutterForegroundTask.updateService(
+          notificationTitle: character.name,
+          notificationText: '在后台陪着你',
+        );
+      } catch (e) {
+        debugPrint('[ForegroundTask] failed to update notification: $e');
+      }
+
       final resources = await UserStorage.getAgentLLMResources(
         AgentDefinitions.checkinAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
@@ -310,7 +322,16 @@ class CompanionForegroundService {
         return;
       }
       if (owner == _ownerCompanion && version == _configVersion) {
-        debugPrint('[ForegroundTask] persistent service already running');
+        // Service is already running but the notification title may be stale
+        // (user may have changed primary companion or enabled/disabled characters).
+        // FlutterForegroundTask.updateService() refreshes the on-going notification.
+        final title = await _buildNotificationTitle();
+        await FlutterForegroundTask.updateService(
+          notificationTitle: title,
+          notificationText: '在后台陪着你',
+        );
+        debugPrint('[ForegroundTask] persistent service already running, '
+            'notification updated to "$title"');
         return;
       }
       debugPrint(
