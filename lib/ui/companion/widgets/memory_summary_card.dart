@@ -65,8 +65,18 @@ extension MemoryMoodColor on MemoryMood {
 
 /// Map valence (-1..1) + arousal (0..1) to a discrete mood.
 /// 任何一个为 null 都退化为 neutral。
-MemoryMood resolveMood({double? valence, double? arousal}) {
+/// [confidence] 低于 0.35 时也退化为 neutral —— 弱信号不强行定位。
+/// 用户已 override 视为最高置信，跳过门槛。
+MemoryMood resolveMood({
+  double? valence,
+  double? arousal,
+  double? confidence,
+  bool overridden = false,
+}) {
   if (valence == null || arousal == null) return MemoryMood.neutral;
+  if (!overridden && confidence != null && confidence < 0.35) {
+    return MemoryMood.neutral;
+  }
   final v = valence.clamp(-1.0, 1.0);
   final a = arousal.clamp(0.0, 1.0);
 
@@ -92,7 +102,12 @@ class MemorySummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final presentation = PresentationModule.tryParse(entity.presentationJson);
-    final mood = resolveMood(valence: entity.valence, arousal: entity.arousal);
+    final mood = resolveMood(
+      valence: entity.effectiveValence,
+      arousal: entity.effectiveArousal,
+      confidence: entity.emotionConfidence,
+      overridden: entity.emotionOverridden,
+    );
     final isCancelled = entity.status == 'cancelled';
 
     return GestureDetector(
@@ -284,6 +299,7 @@ class _Blocks extends StatelessWidget {
     if (block is SparklineBlock) return _SparklineView(block);
     if (block is MediaBlock) return _MediaBlockView(block);
     if (block is LinkAttachmentBlock) return _LinkBlockView(block);
+    if (block is ProgressBarBlock) return _ProgressBarBlockView(block);
     return const SizedBox.shrink();
   }
 }
@@ -829,6 +845,64 @@ class _Foot extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProgressBarBlockView extends StatelessWidget {
+  const _ProgressBarBlockView(this.block);
+  final ProgressBarBlock block;
+
+  String _fmtNum(double n) {
+    if (n == n.roundToDouble()) return n.toInt().toString();
+    return n.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final unit = block.unit ?? '';
+    final valueText = '${_fmtNum(block.value)}/${_fmtNum(block.max)}'
+        '${unit.isEmpty ? '' : ' $unit'}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (block.label != null) ...[
+          Text(
+            block.label!,
+            style: TextStyle(
+              color: RoseMistPalette.inkMid,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: SizedBox(
+            height: 8,
+            child: Stack(
+              children: [
+                Container(color: RoseMistPalette.roseSoft.withValues(alpha: 0.45)),
+                FractionallySizedBox(
+                  widthFactor: block.fraction,
+                  child: Container(color: RoseMistPalette.rose),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          valueText,
+          style: TextStyle(
+            color: RoseMistPalette.ink,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
       ],

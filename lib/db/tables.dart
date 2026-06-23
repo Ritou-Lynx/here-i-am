@@ -258,6 +258,49 @@ class SharedLifeEntities extends Table {
   RealColumn get valence => real().nullable()(); // -1.0 to 1.0
   RealColumn get arousal => real().nullable()(); // 0.0 to 1.0
 
+  // AI confidence on the (valence, arousal) pair (0.0 to 1.0).
+  // Low confidence → halo/mood rendering should fade toward neutral.
+  RealColumn get emotionConfidence => real().nullable()();
+
+  // Raw source snippet that supports the inferred emotion coords.
+  // Shown in the card detail view to make the inference auditable.
+  TextColumn get emotionEvidence => text().nullable()();
+
+  // User-corrected emotion coords. JSON {"valence": x, "arousal": y}.
+  // When non-null, overrides the AI coords for display & queries.
+  TextColumn get emotionOverride => text().nullable()();
+
+  // Time inference confidence + the raw natural-language fragment that
+  // produced occurredAt (e.g. "上周三"). Both nullable.
+  RealColumn get timeConfidence => real().nullable()();
+  TextColumn get timeSourceText => text().nullable()();
+
+  // Optional place where the event happened. Name is what the user said
+  // ("家"/"望京 SOHO"/"上海中山公园"). lat/lng are optional — only set when
+  // a geocoder or device location supplies them. Coarse hints stay name-only.
+  TextColumn get placeName => text().nullable()();
+  RealColumn get placeLat => real().nullable()();
+  RealColumn get placeLng => real().nullable()();
+
+  // 2-4 char droplet label shown on the timeline water-droplet view
+  // (e.g. "体检" / "搬家"). NOT the same as tags — tags are categories,
+  // dropletLabel is this record's punchy name card.
+  TextColumn get dropletLabel => text().nullable()();
+
+  // Verbatim user-quote snippets that support this record. Shown in the
+  // detail view's evidence panel. JSON array of strings.
+  TextColumn get sourceExcerpts => text().nullable()();
+
+  // Typed atomic fields suitable for cross-record SQL queries.
+  // JSON object, e.g. {"amount_cny": 128, "duration_min": 55}. Distinct
+  // from state.extras (free-form) and presentation_json (display-only).
+  TextColumn get structuredFields => text().nullable()();
+
+  // Soft references to other entity IDs the AI judges related. JSON array
+  // of UUIDs. Distinct from state.related_entity_ids which is reserved for
+  // hard cross-record links the user established.
+  TextColumn get relatedMemoryIds => text().nullable()();
+
   // Domain schema version for future migrations
   IntColumn get schemaVersion =>
       integer().withDefault(const Constant(1))();

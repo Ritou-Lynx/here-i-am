@@ -100,7 +100,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 33;
+  int get schemaVersion => 36;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -450,6 +450,45 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnIfMissing(
                 'dev_agent_runs ADD COLUMN dev_session_id TEXT');
             await _createDevAgentSessionTables(m);
+          }
+          if (from < 34) {
+            // Memory Card v2: emotion-coord confidence/evidence/override
+            // plus the time-inference fields that were already declared as
+            // reserved patch fields but had nowhere to land.
+            const entTable = 'shared_life_entities';
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN emotion_confidence REAL');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN emotion_evidence TEXT');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN emotion_override TEXT');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN time_confidence REAL');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN time_source_text TEXT');
+          }
+          if (from < 35) {
+            // Memory Card v3: place + droplet label.
+            const entTable = 'shared_life_entities';
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN place_name TEXT');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN place_lat REAL');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN place_lng REAL');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN droplet_label TEXT');
+          }
+          if (from < 36) {
+            // Memory Card v4: source excerpts + structured fields +
+            // soft related-memory references.
+            const entTable = 'shared_life_entities';
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN source_excerpts TEXT');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN structured_fields TEXT');
+            await _addColumnIfMissing(
+                '$entTable ADD COLUMN related_memory_ids TEXT');
           }
         },
       );

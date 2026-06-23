@@ -20,6 +20,16 @@ const _reservedPatchFields = {
   '_facets',
   '_valence',
   '_arousal',
+  '_emotionConfidence',
+  '_emotionEvidence',
+  '_emotionOverride',
+  '_placeName',
+  '_placeLat',
+  '_placeLng',
+  '_dropletLabel',
+  '_sourceExcerpts',
+  '_structuredFields',
+  '_relatedMemoryIds',
   '_schemaVersion',
   '_presentation',
 };
@@ -88,6 +98,18 @@ class SharedLifeEntitySnapshot {
     this.occurredEndAt,
     this.valence,
     this.arousal,
+    this.emotionConfidence,
+    this.emotionEvidence,
+    this.emotionOverride,
+    this.timeConfidence,
+    this.timeSourceText,
+    this.placeName,
+    this.placeLat,
+    this.placeLng,
+    this.dropletLabel,
+    this.sourceExcerptsJson,
+    this.structuredFieldsJson,
+    this.relatedMemoryIdsJson,
     this.schemaVersion = 1,
     this.presentationJson,
   });
@@ -105,7 +127,90 @@ class SharedLifeEntitySnapshot {
   final int? occurredEndAt;
   final double? valence;
   final double? arousal;
+
+  /// AI confidence in the (valence, arousal) pair, 0..1. Null when AI did not
+  /// score the record (treat as low confidence in the UI).
+  final double? emotionConfidence;
+
+  /// Raw source snippet supporting the emotion coords. Shown in detail view.
+  final String? emotionEvidence;
+
+  /// JSON `{"valence": x, "arousal": y}` of user-corrected coords, or null.
+  final String? emotionOverride;
+
+  /// Confidence in [occurredAt] inference, 0..1.
+  final double? timeConfidence;
+
+  /// Raw NL fragment that produced [occurredAt] (e.g. "上周三").
+  final String? timeSourceText;
+
+  /// Place name as the user said it ("家"/"望京 SOHO"). Optional.
+  final String? placeName;
+
+  /// Coordinates if a geocoder/device supplied them. Null when name-only.
+  final double? placeLat;
+  final double? placeLng;
+
+  /// 2-4 char droplet label shown on the timeline droplet view. Distinct
+  /// from [tags]: tags categorize, dropletLabel names this single record.
+  final String? dropletLabel;
+
+  /// JSON array of verbatim user-quote snippets supporting this record.
+  /// Decode via [sourceExcerpts].
+  final String? sourceExcerptsJson;
+
+  /// JSON object of typed atomic fields for cross-record SQL queries.
+  /// Decode via [structuredFields].
+  final String? structuredFieldsJson;
+
+  /// JSON array of soft-related entity IDs. Decode via [relatedMemoryIds].
+  final String? relatedMemoryIdsJson;
+
+  /// Convenience: decoded list of source-excerpt strings.
+  List<String> get sourceExcerpts =>
+      _stringList(_decodeJsonList(sourceExcerptsJson));
+
+  /// Convenience: decoded structured-fields map.
+  Map<String, dynamic> get structuredFields {
+    final raw = structuredFieldsJson;
+    if (raw == null || raw.isEmpty) return const {};
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map ? Map<String, dynamic>.from(decoded) : const {};
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Convenience: decoded list of related entity IDs.
+  List<String> get relatedMemoryIds =>
+      _stringList(_decodeJsonList(relatedMemoryIdsJson));
+
   final int schemaVersion;
+
+  /// Effective valence for display: user override (if any) wins over AI coord.
+  double? get effectiveValence => _overridePair?.$1 ?? valence;
+
+  /// Effective arousal for display: user override (if any) wins over AI coord.
+  double? get effectiveArousal => _overridePair?.$2 ?? arousal;
+
+  /// True when the user has manually corrected the emotion coords.
+  bool get emotionOverridden => _overridePair != null;
+
+  (double, double)? get _overridePair {
+    final raw = emotionOverride;
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final v = decoded['valence'];
+      final a = decoded['arousal'];
+      if (v is num && a is num) {
+        return (v.toDouble().clamp(-1.0, 1.0), a.toDouble().clamp(0.0, 1.0));
+      }
+    } catch (_) {}
+    return null;
+  }
 
   /// Raw PresentationModule JSON. Decode with `PresentationModule.tryParse`.
   /// Null when the record was created before presentation generation existed
@@ -129,6 +234,18 @@ class SharedLifeEntitySnapshot {
         'occurred_end_at': occurredEndAt,
         'valence': valence,
         'arousal': arousal,
+        if (emotionConfidence != null) 'emotion_confidence': emotionConfidence,
+        if (emotionEvidence != null) 'emotion_evidence': emotionEvidence,
+        if (emotionOverride != null) 'emotion_override': emotionOverride,
+        if (timeConfidence != null) 'time_confidence': timeConfidence,
+        if (timeSourceText != null) 'time_source_text': timeSourceText,
+        if (placeName != null) 'place_name': placeName,
+        if (placeLat != null) 'place_lat': placeLat,
+        if (placeLng != null) 'place_lng': placeLng,
+        if (dropletLabel != null) 'droplet_label': dropletLabel,
+        if (sourceExcerptsJson != null) 'source_excerpts': sourceExcerpts,
+        if (structuredFieldsJson != null) 'structured_fields': structuredFields,
+        if (relatedMemoryIdsJson != null) 'related_memory_ids': relatedMemoryIds,
         'schema_version': schemaVersion,
         'tags': tags,
         'state': state,
@@ -601,6 +718,18 @@ class SharedLifeMemoryService {
     int? occurredEndAt;
     double? valence;
     double? arousal;
+    double? emotionConfidence;
+    String? emotionEvidence;
+    String? emotionOverride;
+    double? timeConfidence;
+    String? timeSourceText;
+    String? placeName;
+    double? placeLat;
+    double? placeLng;
+    String? dropletLabel;
+    String? sourceExcerptsJson;
+    String? structuredFieldsJson;
+    String? relatedMemoryIdsJson;
     int schemaVersion = 1;
     String? presentationJson;
 
@@ -616,6 +745,30 @@ class SharedLifeMemoryService {
       if (reserved['_occurredEndAt'] case final int ts) occurredEndAt = ts;
       if (reserved['_valence'] case final double v) valence = v;
       if (reserved['_arousal'] case final double v) arousal = v;
+      if (reserved['_emotionConfidence'] case final double v) {
+        emotionConfidence = v;
+      }
+      if (reserved['_emotionEvidence'] case final String s) {
+        emotionEvidence = s;
+      }
+      if (reserved['_emotionOverride'] case final String s) {
+        emotionOverride = s;
+      }
+      if (reserved['_timeConfidence'] case final double v) timeConfidence = v;
+      if (reserved['_timeSourceText'] case final String s) timeSourceText = s;
+      if (reserved['_placeName'] case final String s) placeName = s;
+      if (reserved['_placeLat'] case final double v) placeLat = v;
+      if (reserved['_placeLng'] case final double v) placeLng = v;
+      if (reserved['_dropletLabel'] case final String s) dropletLabel = s;
+      if (reserved['_sourceExcerpts'] case final String s) {
+        sourceExcerptsJson = s;
+      }
+      if (reserved['_structuredFields'] case final String s) {
+        structuredFieldsJson = s;
+      }
+      if (reserved['_relatedMemoryIds'] case final String s) {
+        relatedMemoryIdsJson = s;
+      }
       if (reserved['_schemaVersion'] case final int v) schemaVersion = v;
       // Latest operation that supplies a presentation wins (covers update/correct).
       if (reserved['_presentation'] case final String json) {
@@ -662,6 +815,18 @@ class SharedLifeMemoryService {
             occurredEndAt: Value(occurredEndAt),
             valence: Value(valence),
             arousal: Value(arousal),
+            emotionConfidence: Value(emotionConfidence),
+            emotionEvidence: Value(emotionEvidence),
+            emotionOverride: Value(emotionOverride),
+            timeConfidence: Value(timeConfidence),
+            timeSourceText: Value(timeSourceText),
+            placeName: Value(placeName),
+            placeLat: Value(placeLat),
+            placeLng: Value(placeLng),
+            dropletLabel: Value(dropletLabel),
+            sourceExcerpts: Value(sourceExcerptsJson),
+            structuredFields: Value(structuredFieldsJson),
+            relatedMemoryIds: Value(relatedMemoryIdsJson),
             schemaVersion: Value(schemaVersion),
             presentationJson: Value(presentationJson),
           ),
@@ -717,6 +882,18 @@ class SharedLifeMemoryService {
       occurredEndAt: row.occurredEndAt,
       valence: row.valence,
       arousal: row.arousal,
+      emotionConfidence: row.emotionConfidence,
+      emotionEvidence: row.emotionEvidence,
+      emotionOverride: row.emotionOverride,
+      timeConfidence: row.timeConfidence,
+      timeSourceText: row.timeSourceText,
+      placeName: row.placeName,
+      placeLat: row.placeLat,
+      placeLng: row.placeLng,
+      dropletLabel: row.dropletLabel,
+      sourceExcerptsJson: row.sourceExcerpts,
+      structuredFieldsJson: row.structuredFields,
+      relatedMemoryIdsJson: row.relatedMemoryIds,
       schemaVersion: row.schemaVersion,
       presentationJson: row.presentationJson,
     );
@@ -770,7 +947,42 @@ Map<String, Object> _extractReservedFields(Map<String, dynamic> patch) {
         }
       case '_valence':
       case '_arousal':
+      case '_emotionConfidence':
+      case '_timeConfidence':
+      case '_placeLat':
+      case '_placeLng':
         if (value is num) result[key] = value.toDouble();
+      case '_emotionEvidence':
+      case '_timeSourceText':
+      case '_placeName':
+      case '_dropletLabel':
+        if (value is String && value.trim().isNotEmpty) result[key] = value;
+      case '_sourceExcerpts':
+      case '_relatedMemoryIds':
+        // Both are JSON arrays of strings. Accept list or pre-encoded string.
+        if (value is List) {
+          final cleaned = value
+              .map((e) => e?.toString().trim() ?? '')
+              .where((s) => s.isNotEmpty)
+              .toList(growable: false);
+          if (cleaned.isNotEmpty) result[key] = jsonEncode(cleaned);
+        } else if (value is String && value.trim().isNotEmpty) {
+          result[key] = value;
+        }
+      case '_structuredFields':
+        // JSON object of typed atomic fields. Accept map or pre-encoded string.
+        if (value is Map) {
+          if (value.isNotEmpty) result[key] = jsonEncode(value);
+        } else if (value is String && value.trim().isNotEmpty) {
+          result[key] = value;
+        }
+      case '_emotionOverride':
+        // Expected shape: {"valence": <num>, "arousal": <num>}
+        if (value is Map) {
+          result[key] = jsonEncode(value);
+        } else if (value is String && value.trim().isNotEmpty) {
+          result[key] = value;
+        }
       case '_schemaVersion':
         if (value is int) result[key] = value;
       case '_presentation':

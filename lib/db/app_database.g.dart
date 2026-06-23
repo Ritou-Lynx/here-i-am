@@ -4882,6 +4882,78 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
   late final GeneratedColumn<double> arousal = GeneratedColumn<double>(
       'arousal', aliasedName, true,
       type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _emotionConfidenceMeta =
+      const VerificationMeta('emotionConfidence');
+  @override
+  late final GeneratedColumn<double> emotionConfidence =
+      GeneratedColumn<double>('emotion_confidence', aliasedName, true,
+          type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _emotionEvidenceMeta =
+      const VerificationMeta('emotionEvidence');
+  @override
+  late final GeneratedColumn<String> emotionEvidence = GeneratedColumn<String>(
+      'emotion_evidence', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _emotionOverrideMeta =
+      const VerificationMeta('emotionOverride');
+  @override
+  late final GeneratedColumn<String> emotionOverride = GeneratedColumn<String>(
+      'emotion_override', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _timeConfidenceMeta =
+      const VerificationMeta('timeConfidence');
+  @override
+  late final GeneratedColumn<double> timeConfidence = GeneratedColumn<double>(
+      'time_confidence', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _timeSourceTextMeta =
+      const VerificationMeta('timeSourceText');
+  @override
+  late final GeneratedColumn<String> timeSourceText = GeneratedColumn<String>(
+      'time_source_text', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _placeNameMeta =
+      const VerificationMeta('placeName');
+  @override
+  late final GeneratedColumn<String> placeName = GeneratedColumn<String>(
+      'place_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _placeLatMeta =
+      const VerificationMeta('placeLat');
+  @override
+  late final GeneratedColumn<double> placeLat = GeneratedColumn<double>(
+      'place_lat', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _placeLngMeta =
+      const VerificationMeta('placeLng');
+  @override
+  late final GeneratedColumn<double> placeLng = GeneratedColumn<double>(
+      'place_lng', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _dropletLabelMeta =
+      const VerificationMeta('dropletLabel');
+  @override
+  late final GeneratedColumn<String> dropletLabel = GeneratedColumn<String>(
+      'droplet_label', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sourceExcerptsMeta =
+      const VerificationMeta('sourceExcerpts');
+  @override
+  late final GeneratedColumn<String> sourceExcerpts = GeneratedColumn<String>(
+      'source_excerpts', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _structuredFieldsMeta =
+      const VerificationMeta('structuredFields');
+  @override
+  late final GeneratedColumn<String> structuredFields = GeneratedColumn<String>(
+      'structured_fields', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _relatedMemoryIdsMeta =
+      const VerificationMeta('relatedMemoryIds');
+  @override
+  late final GeneratedColumn<String> relatedMemoryIds = GeneratedColumn<String>(
+      'related_memory_ids', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _schemaVersionMeta =
       const VerificationMeta('schemaVersion');
   @override
@@ -4913,6 +4985,18 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
         occurredEndAt,
         valence,
         arousal,
+        emotionConfidence,
+        emotionEvidence,
+        emotionOverride,
+        timeConfidence,
+        timeSourceText,
+        placeName,
+        placeLat,
+        placeLng,
+        dropletLabel,
+        sourceExcerpts,
+        structuredFields,
+        relatedMemoryIds,
         schemaVersion,
         presentationJson
       ];
@@ -5013,6 +5097,72 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
       context.handle(_arousalMeta,
           arousal.isAcceptableOrUnknown(data['arousal']!, _arousalMeta));
     }
+    if (data.containsKey('emotion_confidence')) {
+      context.handle(
+          _emotionConfidenceMeta,
+          emotionConfidence.isAcceptableOrUnknown(
+              data['emotion_confidence']!, _emotionConfidenceMeta));
+    }
+    if (data.containsKey('emotion_evidence')) {
+      context.handle(
+          _emotionEvidenceMeta,
+          emotionEvidence.isAcceptableOrUnknown(
+              data['emotion_evidence']!, _emotionEvidenceMeta));
+    }
+    if (data.containsKey('emotion_override')) {
+      context.handle(
+          _emotionOverrideMeta,
+          emotionOverride.isAcceptableOrUnknown(
+              data['emotion_override']!, _emotionOverrideMeta));
+    }
+    if (data.containsKey('time_confidence')) {
+      context.handle(
+          _timeConfidenceMeta,
+          timeConfidence.isAcceptableOrUnknown(
+              data['time_confidence']!, _timeConfidenceMeta));
+    }
+    if (data.containsKey('time_source_text')) {
+      context.handle(
+          _timeSourceTextMeta,
+          timeSourceText.isAcceptableOrUnknown(
+              data['time_source_text']!, _timeSourceTextMeta));
+    }
+    if (data.containsKey('place_name')) {
+      context.handle(_placeNameMeta,
+          placeName.isAcceptableOrUnknown(data['place_name']!, _placeNameMeta));
+    }
+    if (data.containsKey('place_lat')) {
+      context.handle(_placeLatMeta,
+          placeLat.isAcceptableOrUnknown(data['place_lat']!, _placeLatMeta));
+    }
+    if (data.containsKey('place_lng')) {
+      context.handle(_placeLngMeta,
+          placeLng.isAcceptableOrUnknown(data['place_lng']!, _placeLngMeta));
+    }
+    if (data.containsKey('droplet_label')) {
+      context.handle(
+          _dropletLabelMeta,
+          dropletLabel.isAcceptableOrUnknown(
+              data['droplet_label']!, _dropletLabelMeta));
+    }
+    if (data.containsKey('source_excerpts')) {
+      context.handle(
+          _sourceExcerptsMeta,
+          sourceExcerpts.isAcceptableOrUnknown(
+              data['source_excerpts']!, _sourceExcerptsMeta));
+    }
+    if (data.containsKey('structured_fields')) {
+      context.handle(
+          _structuredFieldsMeta,
+          structuredFields.isAcceptableOrUnknown(
+              data['structured_fields']!, _structuredFieldsMeta));
+    }
+    if (data.containsKey('related_memory_ids')) {
+      context.handle(
+          _relatedMemoryIdsMeta,
+          relatedMemoryIds.isAcceptableOrUnknown(
+              data['related_memory_ids']!, _relatedMemoryIdsMeta));
+    }
     if (data.containsKey('schema_version')) {
       context.handle(
           _schemaVersionMeta,
@@ -5064,6 +5214,30 @@ class $SharedLifeEntitiesTable extends SharedLifeEntities
           .read(DriftSqlType.double, data['${effectivePrefix}valence']),
       arousal: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}arousal']),
+      emotionConfidence: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}emotion_confidence']),
+      emotionEvidence: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}emotion_evidence']),
+      emotionOverride: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}emotion_override']),
+      timeConfidence: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}time_confidence']),
+      timeSourceText: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}time_source_text']),
+      placeName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}place_name']),
+      placeLat: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}place_lat']),
+      placeLng: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}place_lng']),
+      dropletLabel: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}droplet_label']),
+      sourceExcerpts: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_excerpts']),
+      structuredFields: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}structured_fields']),
+      relatedMemoryIds: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}related_memory_ids']),
       schemaVersion: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
       presentationJson: attachedDatabase.typeMapping.read(
@@ -5094,6 +5268,18 @@ class SharedLifeEntity extends DataClass
   final int? occurredEndAt;
   final double? valence;
   final double? arousal;
+  final double? emotionConfidence;
+  final String? emotionEvidence;
+  final String? emotionOverride;
+  final double? timeConfidence;
+  final String? timeSourceText;
+  final String? placeName;
+  final double? placeLat;
+  final double? placeLng;
+  final String? dropletLabel;
+  final String? sourceExcerpts;
+  final String? structuredFields;
+  final String? relatedMemoryIds;
   final int schemaVersion;
   final String? presentationJson;
   const SharedLifeEntity(
@@ -5112,6 +5298,18 @@ class SharedLifeEntity extends DataClass
       this.occurredEndAt,
       this.valence,
       this.arousal,
+      this.emotionConfidence,
+      this.emotionEvidence,
+      this.emotionOverride,
+      this.timeConfidence,
+      this.timeSourceText,
+      this.placeName,
+      this.placeLat,
+      this.placeLng,
+      this.dropletLabel,
+      this.sourceExcerpts,
+      this.structuredFields,
+      this.relatedMemoryIds,
       required this.schemaVersion,
       this.presentationJson});
   @override
@@ -5141,6 +5339,42 @@ class SharedLifeEntity extends DataClass
     }
     if (!nullToAbsent || arousal != null) {
       map['arousal'] = Variable<double>(arousal);
+    }
+    if (!nullToAbsent || emotionConfidence != null) {
+      map['emotion_confidence'] = Variable<double>(emotionConfidence);
+    }
+    if (!nullToAbsent || emotionEvidence != null) {
+      map['emotion_evidence'] = Variable<String>(emotionEvidence);
+    }
+    if (!nullToAbsent || emotionOverride != null) {
+      map['emotion_override'] = Variable<String>(emotionOverride);
+    }
+    if (!nullToAbsent || timeConfidence != null) {
+      map['time_confidence'] = Variable<double>(timeConfidence);
+    }
+    if (!nullToAbsent || timeSourceText != null) {
+      map['time_source_text'] = Variable<String>(timeSourceText);
+    }
+    if (!nullToAbsent || placeName != null) {
+      map['place_name'] = Variable<String>(placeName);
+    }
+    if (!nullToAbsent || placeLat != null) {
+      map['place_lat'] = Variable<double>(placeLat);
+    }
+    if (!nullToAbsent || placeLng != null) {
+      map['place_lng'] = Variable<double>(placeLng);
+    }
+    if (!nullToAbsent || dropletLabel != null) {
+      map['droplet_label'] = Variable<String>(dropletLabel);
+    }
+    if (!nullToAbsent || sourceExcerpts != null) {
+      map['source_excerpts'] = Variable<String>(sourceExcerpts);
+    }
+    if (!nullToAbsent || structuredFields != null) {
+      map['structured_fields'] = Variable<String>(structuredFields);
+    }
+    if (!nullToAbsent || relatedMemoryIds != null) {
+      map['related_memory_ids'] = Variable<String>(relatedMemoryIds);
     }
     map['schema_version'] = Variable<int>(schemaVersion);
     if (!nullToAbsent || presentationJson != null) {
@@ -5175,6 +5409,42 @@ class SharedLifeEntity extends DataClass
       arousal: arousal == null && nullToAbsent
           ? const Value.absent()
           : Value(arousal),
+      emotionConfidence: emotionConfidence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(emotionConfidence),
+      emotionEvidence: emotionEvidence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(emotionEvidence),
+      emotionOverride: emotionOverride == null && nullToAbsent
+          ? const Value.absent()
+          : Value(emotionOverride),
+      timeConfidence: timeConfidence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timeConfidence),
+      timeSourceText: timeSourceText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timeSourceText),
+      placeName: placeName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(placeName),
+      placeLat: placeLat == null && nullToAbsent
+          ? const Value.absent()
+          : Value(placeLat),
+      placeLng: placeLng == null && nullToAbsent
+          ? const Value.absent()
+          : Value(placeLng),
+      dropletLabel: dropletLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dropletLabel),
+      sourceExcerpts: sourceExcerpts == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceExcerpts),
+      structuredFields: structuredFields == null && nullToAbsent
+          ? const Value.absent()
+          : Value(structuredFields),
+      relatedMemoryIds: relatedMemoryIds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(relatedMemoryIds),
       schemaVersion: Value(schemaVersion),
       presentationJson: presentationJson == null && nullToAbsent
           ? const Value.absent()
@@ -5201,6 +5471,19 @@ class SharedLifeEntity extends DataClass
       occurredEndAt: serializer.fromJson<int?>(json['occurredEndAt']),
       valence: serializer.fromJson<double?>(json['valence']),
       arousal: serializer.fromJson<double?>(json['arousal']),
+      emotionConfidence:
+          serializer.fromJson<double?>(json['emotionConfidence']),
+      emotionEvidence: serializer.fromJson<String?>(json['emotionEvidence']),
+      emotionOverride: serializer.fromJson<String?>(json['emotionOverride']),
+      timeConfidence: serializer.fromJson<double?>(json['timeConfidence']),
+      timeSourceText: serializer.fromJson<String?>(json['timeSourceText']),
+      placeName: serializer.fromJson<String?>(json['placeName']),
+      placeLat: serializer.fromJson<double?>(json['placeLat']),
+      placeLng: serializer.fromJson<double?>(json['placeLng']),
+      dropletLabel: serializer.fromJson<String?>(json['dropletLabel']),
+      sourceExcerpts: serializer.fromJson<String?>(json['sourceExcerpts']),
+      structuredFields: serializer.fromJson<String?>(json['structuredFields']),
+      relatedMemoryIds: serializer.fromJson<String?>(json['relatedMemoryIds']),
       schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
       presentationJson: serializer.fromJson<String?>(json['presentationJson']),
     );
@@ -5224,6 +5507,18 @@ class SharedLifeEntity extends DataClass
       'occurredEndAt': serializer.toJson<int?>(occurredEndAt),
       'valence': serializer.toJson<double?>(valence),
       'arousal': serializer.toJson<double?>(arousal),
+      'emotionConfidence': serializer.toJson<double?>(emotionConfidence),
+      'emotionEvidence': serializer.toJson<String?>(emotionEvidence),
+      'emotionOverride': serializer.toJson<String?>(emotionOverride),
+      'timeConfidence': serializer.toJson<double?>(timeConfidence),
+      'timeSourceText': serializer.toJson<String?>(timeSourceText),
+      'placeName': serializer.toJson<String?>(placeName),
+      'placeLat': serializer.toJson<double?>(placeLat),
+      'placeLng': serializer.toJson<double?>(placeLng),
+      'dropletLabel': serializer.toJson<String?>(dropletLabel),
+      'sourceExcerpts': serializer.toJson<String?>(sourceExcerpts),
+      'structuredFields': serializer.toJson<String?>(structuredFields),
+      'relatedMemoryIds': serializer.toJson<String?>(relatedMemoryIds),
       'schemaVersion': serializer.toJson<int>(schemaVersion),
       'presentationJson': serializer.toJson<String?>(presentationJson),
     };
@@ -5245,6 +5540,18 @@ class SharedLifeEntity extends DataClass
           Value<int?> occurredEndAt = const Value.absent(),
           Value<double?> valence = const Value.absent(),
           Value<double?> arousal = const Value.absent(),
+          Value<double?> emotionConfidence = const Value.absent(),
+          Value<String?> emotionEvidence = const Value.absent(),
+          Value<String?> emotionOverride = const Value.absent(),
+          Value<double?> timeConfidence = const Value.absent(),
+          Value<String?> timeSourceText = const Value.absent(),
+          Value<String?> placeName = const Value.absent(),
+          Value<double?> placeLat = const Value.absent(),
+          Value<double?> placeLng = const Value.absent(),
+          Value<String?> dropletLabel = const Value.absent(),
+          Value<String?> sourceExcerpts = const Value.absent(),
+          Value<String?> structuredFields = const Value.absent(),
+          Value<String?> relatedMemoryIds = const Value.absent(),
           int? schemaVersion,
           Value<String?> presentationJson = const Value.absent()}) =>
       SharedLifeEntity(
@@ -5264,6 +5571,32 @@ class SharedLifeEntity extends DataClass
             occurredEndAt.present ? occurredEndAt.value : this.occurredEndAt,
         valence: valence.present ? valence.value : this.valence,
         arousal: arousal.present ? arousal.value : this.arousal,
+        emotionConfidence: emotionConfidence.present
+            ? emotionConfidence.value
+            : this.emotionConfidence,
+        emotionEvidence: emotionEvidence.present
+            ? emotionEvidence.value
+            : this.emotionEvidence,
+        emotionOverride: emotionOverride.present
+            ? emotionOverride.value
+            : this.emotionOverride,
+        timeConfidence:
+            timeConfidence.present ? timeConfidence.value : this.timeConfidence,
+        timeSourceText:
+            timeSourceText.present ? timeSourceText.value : this.timeSourceText,
+        placeName: placeName.present ? placeName.value : this.placeName,
+        placeLat: placeLat.present ? placeLat.value : this.placeLat,
+        placeLng: placeLng.present ? placeLng.value : this.placeLng,
+        dropletLabel:
+            dropletLabel.present ? dropletLabel.value : this.dropletLabel,
+        sourceExcerpts:
+            sourceExcerpts.present ? sourceExcerpts.value : this.sourceExcerpts,
+        structuredFields: structuredFields.present
+            ? structuredFields.value
+            : this.structuredFields,
+        relatedMemoryIds: relatedMemoryIds.present
+            ? relatedMemoryIds.value
+            : this.relatedMemoryIds,
         schemaVersion: schemaVersion ?? this.schemaVersion,
         presentationJson: presentationJson.present
             ? presentationJson.value
@@ -5296,6 +5629,36 @@ class SharedLifeEntity extends DataClass
           : this.occurredEndAt,
       valence: data.valence.present ? data.valence.value : this.valence,
       arousal: data.arousal.present ? data.arousal.value : this.arousal,
+      emotionConfidence: data.emotionConfidence.present
+          ? data.emotionConfidence.value
+          : this.emotionConfidence,
+      emotionEvidence: data.emotionEvidence.present
+          ? data.emotionEvidence.value
+          : this.emotionEvidence,
+      emotionOverride: data.emotionOverride.present
+          ? data.emotionOverride.value
+          : this.emotionOverride,
+      timeConfidence: data.timeConfidence.present
+          ? data.timeConfidence.value
+          : this.timeConfidence,
+      timeSourceText: data.timeSourceText.present
+          ? data.timeSourceText.value
+          : this.timeSourceText,
+      placeName: data.placeName.present ? data.placeName.value : this.placeName,
+      placeLat: data.placeLat.present ? data.placeLat.value : this.placeLat,
+      placeLng: data.placeLng.present ? data.placeLng.value : this.placeLng,
+      dropletLabel: data.dropletLabel.present
+          ? data.dropletLabel.value
+          : this.dropletLabel,
+      sourceExcerpts: data.sourceExcerpts.present
+          ? data.sourceExcerpts.value
+          : this.sourceExcerpts,
+      structuredFields: data.structuredFields.present
+          ? data.structuredFields.value
+          : this.structuredFields,
+      relatedMemoryIds: data.relatedMemoryIds.present
+          ? data.relatedMemoryIds.value
+          : this.relatedMemoryIds,
       schemaVersion: data.schemaVersion.present
           ? data.schemaVersion.value
           : this.schemaVersion,
@@ -5323,6 +5686,18 @@ class SharedLifeEntity extends DataClass
           ..write('occurredEndAt: $occurredEndAt, ')
           ..write('valence: $valence, ')
           ..write('arousal: $arousal, ')
+          ..write('emotionConfidence: $emotionConfidence, ')
+          ..write('emotionEvidence: $emotionEvidence, ')
+          ..write('emotionOverride: $emotionOverride, ')
+          ..write('timeConfidence: $timeConfidence, ')
+          ..write('timeSourceText: $timeSourceText, ')
+          ..write('placeName: $placeName, ')
+          ..write('placeLat: $placeLat, ')
+          ..write('placeLng: $placeLng, ')
+          ..write('dropletLabel: $dropletLabel, ')
+          ..write('sourceExcerpts: $sourceExcerpts, ')
+          ..write('structuredFields: $structuredFields, ')
+          ..write('relatedMemoryIds: $relatedMemoryIds, ')
           ..write('schemaVersion: $schemaVersion, ')
           ..write('presentationJson: $presentationJson')
           ..write(')'))
@@ -5330,24 +5705,37 @@ class SharedLifeEntity extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
-      id,
-      entityType,
-      title,
-      stateJson,
-      status,
-      sourceCharacterId,
-      lastOperationId,
-      createdAt,
-      updatedAt,
-      primaryDomain,
-      facets,
-      occurredAt,
-      occurredEndAt,
-      valence,
-      arousal,
-      schemaVersion,
-      presentationJson);
+  int get hashCode => Object.hashAll([
+        id,
+        entityType,
+        title,
+        stateJson,
+        status,
+        sourceCharacterId,
+        lastOperationId,
+        createdAt,
+        updatedAt,
+        primaryDomain,
+        facets,
+        occurredAt,
+        occurredEndAt,
+        valence,
+        arousal,
+        emotionConfidence,
+        emotionEvidence,
+        emotionOverride,
+        timeConfidence,
+        timeSourceText,
+        placeName,
+        placeLat,
+        placeLng,
+        dropletLabel,
+        sourceExcerpts,
+        structuredFields,
+        relatedMemoryIds,
+        schemaVersion,
+        presentationJson
+      ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5367,6 +5755,18 @@ class SharedLifeEntity extends DataClass
           other.occurredEndAt == this.occurredEndAt &&
           other.valence == this.valence &&
           other.arousal == this.arousal &&
+          other.emotionConfidence == this.emotionConfidence &&
+          other.emotionEvidence == this.emotionEvidence &&
+          other.emotionOverride == this.emotionOverride &&
+          other.timeConfidence == this.timeConfidence &&
+          other.timeSourceText == this.timeSourceText &&
+          other.placeName == this.placeName &&
+          other.placeLat == this.placeLat &&
+          other.placeLng == this.placeLng &&
+          other.dropletLabel == this.dropletLabel &&
+          other.sourceExcerpts == this.sourceExcerpts &&
+          other.structuredFields == this.structuredFields &&
+          other.relatedMemoryIds == this.relatedMemoryIds &&
           other.schemaVersion == this.schemaVersion &&
           other.presentationJson == this.presentationJson);
 }
@@ -5387,6 +5787,18 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
   final Value<int?> occurredEndAt;
   final Value<double?> valence;
   final Value<double?> arousal;
+  final Value<double?> emotionConfidence;
+  final Value<String?> emotionEvidence;
+  final Value<String?> emotionOverride;
+  final Value<double?> timeConfidence;
+  final Value<String?> timeSourceText;
+  final Value<String?> placeName;
+  final Value<double?> placeLat;
+  final Value<double?> placeLng;
+  final Value<String?> dropletLabel;
+  final Value<String?> sourceExcerpts;
+  final Value<String?> structuredFields;
+  final Value<String?> relatedMemoryIds;
   final Value<int> schemaVersion;
   final Value<String?> presentationJson;
   final Value<int> rowid;
@@ -5406,6 +5818,18 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     this.occurredEndAt = const Value.absent(),
     this.valence = const Value.absent(),
     this.arousal = const Value.absent(),
+    this.emotionConfidence = const Value.absent(),
+    this.emotionEvidence = const Value.absent(),
+    this.emotionOverride = const Value.absent(),
+    this.timeConfidence = const Value.absent(),
+    this.timeSourceText = const Value.absent(),
+    this.placeName = const Value.absent(),
+    this.placeLat = const Value.absent(),
+    this.placeLng = const Value.absent(),
+    this.dropletLabel = const Value.absent(),
+    this.sourceExcerpts = const Value.absent(),
+    this.structuredFields = const Value.absent(),
+    this.relatedMemoryIds = const Value.absent(),
     this.schemaVersion = const Value.absent(),
     this.presentationJson = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5426,6 +5850,18 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     this.occurredEndAt = const Value.absent(),
     this.valence = const Value.absent(),
     this.arousal = const Value.absent(),
+    this.emotionConfidence = const Value.absent(),
+    this.emotionEvidence = const Value.absent(),
+    this.emotionOverride = const Value.absent(),
+    this.timeConfidence = const Value.absent(),
+    this.timeSourceText = const Value.absent(),
+    this.placeName = const Value.absent(),
+    this.placeLat = const Value.absent(),
+    this.placeLng = const Value.absent(),
+    this.dropletLabel = const Value.absent(),
+    this.sourceExcerpts = const Value.absent(),
+    this.structuredFields = const Value.absent(),
+    this.relatedMemoryIds = const Value.absent(),
     this.schemaVersion = const Value.absent(),
     this.presentationJson = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5453,6 +5889,18 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     Expression<int>? occurredEndAt,
     Expression<double>? valence,
     Expression<double>? arousal,
+    Expression<double>? emotionConfidence,
+    Expression<String>? emotionEvidence,
+    Expression<String>? emotionOverride,
+    Expression<double>? timeConfidence,
+    Expression<String>? timeSourceText,
+    Expression<String>? placeName,
+    Expression<double>? placeLat,
+    Expression<double>? placeLng,
+    Expression<String>? dropletLabel,
+    Expression<String>? sourceExcerpts,
+    Expression<String>? structuredFields,
+    Expression<String>? relatedMemoryIds,
     Expression<int>? schemaVersion,
     Expression<String>? presentationJson,
     Expression<int>? rowid,
@@ -5473,6 +5921,18 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
       if (occurredEndAt != null) 'occurred_end_at': occurredEndAt,
       if (valence != null) 'valence': valence,
       if (arousal != null) 'arousal': arousal,
+      if (emotionConfidence != null) 'emotion_confidence': emotionConfidence,
+      if (emotionEvidence != null) 'emotion_evidence': emotionEvidence,
+      if (emotionOverride != null) 'emotion_override': emotionOverride,
+      if (timeConfidence != null) 'time_confidence': timeConfidence,
+      if (timeSourceText != null) 'time_source_text': timeSourceText,
+      if (placeName != null) 'place_name': placeName,
+      if (placeLat != null) 'place_lat': placeLat,
+      if (placeLng != null) 'place_lng': placeLng,
+      if (dropletLabel != null) 'droplet_label': dropletLabel,
+      if (sourceExcerpts != null) 'source_excerpts': sourceExcerpts,
+      if (structuredFields != null) 'structured_fields': structuredFields,
+      if (relatedMemoryIds != null) 'related_memory_ids': relatedMemoryIds,
       if (schemaVersion != null) 'schema_version': schemaVersion,
       if (presentationJson != null) 'presentation_json': presentationJson,
       if (rowid != null) 'rowid': rowid,
@@ -5495,6 +5955,18 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
       Value<int?>? occurredEndAt,
       Value<double?>? valence,
       Value<double?>? arousal,
+      Value<double?>? emotionConfidence,
+      Value<String?>? emotionEvidence,
+      Value<String?>? emotionOverride,
+      Value<double?>? timeConfidence,
+      Value<String?>? timeSourceText,
+      Value<String?>? placeName,
+      Value<double?>? placeLat,
+      Value<double?>? placeLng,
+      Value<String?>? dropletLabel,
+      Value<String?>? sourceExcerpts,
+      Value<String?>? structuredFields,
+      Value<String?>? relatedMemoryIds,
       Value<int>? schemaVersion,
       Value<String?>? presentationJson,
       Value<int>? rowid}) {
@@ -5514,6 +5986,18 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
       occurredEndAt: occurredEndAt ?? this.occurredEndAt,
       valence: valence ?? this.valence,
       arousal: arousal ?? this.arousal,
+      emotionConfidence: emotionConfidence ?? this.emotionConfidence,
+      emotionEvidence: emotionEvidence ?? this.emotionEvidence,
+      emotionOverride: emotionOverride ?? this.emotionOverride,
+      timeConfidence: timeConfidence ?? this.timeConfidence,
+      timeSourceText: timeSourceText ?? this.timeSourceText,
+      placeName: placeName ?? this.placeName,
+      placeLat: placeLat ?? this.placeLat,
+      placeLng: placeLng ?? this.placeLng,
+      dropletLabel: dropletLabel ?? this.dropletLabel,
+      sourceExcerpts: sourceExcerpts ?? this.sourceExcerpts,
+      structuredFields: structuredFields ?? this.structuredFields,
+      relatedMemoryIds: relatedMemoryIds ?? this.relatedMemoryIds,
       schemaVersion: schemaVersion ?? this.schemaVersion,
       presentationJson: presentationJson ?? this.presentationJson,
       rowid: rowid ?? this.rowid,
@@ -5568,6 +6052,42 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
     if (arousal.present) {
       map['arousal'] = Variable<double>(arousal.value);
     }
+    if (emotionConfidence.present) {
+      map['emotion_confidence'] = Variable<double>(emotionConfidence.value);
+    }
+    if (emotionEvidence.present) {
+      map['emotion_evidence'] = Variable<String>(emotionEvidence.value);
+    }
+    if (emotionOverride.present) {
+      map['emotion_override'] = Variable<String>(emotionOverride.value);
+    }
+    if (timeConfidence.present) {
+      map['time_confidence'] = Variable<double>(timeConfidence.value);
+    }
+    if (timeSourceText.present) {
+      map['time_source_text'] = Variable<String>(timeSourceText.value);
+    }
+    if (placeName.present) {
+      map['place_name'] = Variable<String>(placeName.value);
+    }
+    if (placeLat.present) {
+      map['place_lat'] = Variable<double>(placeLat.value);
+    }
+    if (placeLng.present) {
+      map['place_lng'] = Variable<double>(placeLng.value);
+    }
+    if (dropletLabel.present) {
+      map['droplet_label'] = Variable<String>(dropletLabel.value);
+    }
+    if (sourceExcerpts.present) {
+      map['source_excerpts'] = Variable<String>(sourceExcerpts.value);
+    }
+    if (structuredFields.present) {
+      map['structured_fields'] = Variable<String>(structuredFields.value);
+    }
+    if (relatedMemoryIds.present) {
+      map['related_memory_ids'] = Variable<String>(relatedMemoryIds.value);
+    }
     if (schemaVersion.present) {
       map['schema_version'] = Variable<int>(schemaVersion.value);
     }
@@ -5598,6 +6118,18 @@ class SharedLifeEntitiesCompanion extends UpdateCompanion<SharedLifeEntity> {
           ..write('occurredEndAt: $occurredEndAt, ')
           ..write('valence: $valence, ')
           ..write('arousal: $arousal, ')
+          ..write('emotionConfidence: $emotionConfidence, ')
+          ..write('emotionEvidence: $emotionEvidence, ')
+          ..write('emotionOverride: $emotionOverride, ')
+          ..write('timeConfidence: $timeConfidence, ')
+          ..write('timeSourceText: $timeSourceText, ')
+          ..write('placeName: $placeName, ')
+          ..write('placeLat: $placeLat, ')
+          ..write('placeLng: $placeLng, ')
+          ..write('dropletLabel: $dropletLabel, ')
+          ..write('sourceExcerpts: $sourceExcerpts, ')
+          ..write('structuredFields: $structuredFields, ')
+          ..write('relatedMemoryIds: $relatedMemoryIds, ')
           ..write('schemaVersion: $schemaVersion, ')
           ..write('presentationJson: $presentationJson, ')
           ..write('rowid: $rowid')
@@ -15200,6 +15732,18 @@ typedef $$SharedLifeEntitiesTableCreateCompanionBuilder
   Value<int?> occurredEndAt,
   Value<double?> valence,
   Value<double?> arousal,
+  Value<double?> emotionConfidence,
+  Value<String?> emotionEvidence,
+  Value<String?> emotionOverride,
+  Value<double?> timeConfidence,
+  Value<String?> timeSourceText,
+  Value<String?> placeName,
+  Value<double?> placeLat,
+  Value<double?> placeLng,
+  Value<String?> dropletLabel,
+  Value<String?> sourceExcerpts,
+  Value<String?> structuredFields,
+  Value<String?> relatedMemoryIds,
   Value<int> schemaVersion,
   Value<String?> presentationJson,
   Value<int> rowid,
@@ -15221,6 +15765,18 @@ typedef $$SharedLifeEntitiesTableUpdateCompanionBuilder
   Value<int?> occurredEndAt,
   Value<double?> valence,
   Value<double?> arousal,
+  Value<double?> emotionConfidence,
+  Value<String?> emotionEvidence,
+  Value<String?> emotionOverride,
+  Value<double?> timeConfidence,
+  Value<String?> timeSourceText,
+  Value<String?> placeName,
+  Value<double?> placeLat,
+  Value<double?> placeLng,
+  Value<String?> dropletLabel,
+  Value<String?> sourceExcerpts,
+  Value<String?> structuredFields,
+  Value<String?> relatedMemoryIds,
   Value<int> schemaVersion,
   Value<String?> presentationJson,
   Value<int> rowid,
@@ -15281,6 +15837,50 @@ class $$SharedLifeEntitiesTableFilterComposer
 
   ColumnFilters<double> get arousal => $composableBuilder(
       column: $table.arousal, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get emotionConfidence => $composableBuilder(
+      column: $table.emotionConfidence,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get emotionEvidence => $composableBuilder(
+      column: $table.emotionEvidence,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get emotionOverride => $composableBuilder(
+      column: $table.emotionOverride,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get timeConfidence => $composableBuilder(
+      column: $table.timeConfidence,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get timeSourceText => $composableBuilder(
+      column: $table.timeSourceText,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get placeName => $composableBuilder(
+      column: $table.placeName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get placeLat => $composableBuilder(
+      column: $table.placeLat, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get placeLng => $composableBuilder(
+      column: $table.placeLng, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get dropletLabel => $composableBuilder(
+      column: $table.dropletLabel, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceExcerpts => $composableBuilder(
+      column: $table.sourceExcerpts,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get structuredFields => $composableBuilder(
+      column: $table.structuredFields,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get relatedMemoryIds => $composableBuilder(
+      column: $table.relatedMemoryIds,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get schemaVersion => $composableBuilder(
       column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
@@ -15348,6 +15948,51 @@ class $$SharedLifeEntitiesTableOrderingComposer
   ColumnOrderings<double> get arousal => $composableBuilder(
       column: $table.arousal, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get emotionConfidence => $composableBuilder(
+      column: $table.emotionConfidence,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get emotionEvidence => $composableBuilder(
+      column: $table.emotionEvidence,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get emotionOverride => $composableBuilder(
+      column: $table.emotionOverride,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get timeConfidence => $composableBuilder(
+      column: $table.timeConfidence,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get timeSourceText => $composableBuilder(
+      column: $table.timeSourceText,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get placeName => $composableBuilder(
+      column: $table.placeName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get placeLat => $composableBuilder(
+      column: $table.placeLat, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get placeLng => $composableBuilder(
+      column: $table.placeLng, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get dropletLabel => $composableBuilder(
+      column: $table.dropletLabel,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceExcerpts => $composableBuilder(
+      column: $table.sourceExcerpts,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get structuredFields => $composableBuilder(
+      column: $table.structuredFields,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get relatedMemoryIds => $composableBuilder(
+      column: $table.relatedMemoryIds,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get schemaVersion => $composableBuilder(
       column: $table.schemaVersion,
       builder: (column) => ColumnOrderings(column));
@@ -15411,6 +16056,42 @@ class $$SharedLifeEntitiesTableAnnotationComposer
   GeneratedColumn<double> get arousal =>
       $composableBuilder(column: $table.arousal, builder: (column) => column);
 
+  GeneratedColumn<double> get emotionConfidence => $composableBuilder(
+      column: $table.emotionConfidence, builder: (column) => column);
+
+  GeneratedColumn<String> get emotionEvidence => $composableBuilder(
+      column: $table.emotionEvidence, builder: (column) => column);
+
+  GeneratedColumn<String> get emotionOverride => $composableBuilder(
+      column: $table.emotionOverride, builder: (column) => column);
+
+  GeneratedColumn<double> get timeConfidence => $composableBuilder(
+      column: $table.timeConfidence, builder: (column) => column);
+
+  GeneratedColumn<String> get timeSourceText => $composableBuilder(
+      column: $table.timeSourceText, builder: (column) => column);
+
+  GeneratedColumn<String> get placeName =>
+      $composableBuilder(column: $table.placeName, builder: (column) => column);
+
+  GeneratedColumn<double> get placeLat =>
+      $composableBuilder(column: $table.placeLat, builder: (column) => column);
+
+  GeneratedColumn<double> get placeLng =>
+      $composableBuilder(column: $table.placeLng, builder: (column) => column);
+
+  GeneratedColumn<String> get dropletLabel => $composableBuilder(
+      column: $table.dropletLabel, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceExcerpts => $composableBuilder(
+      column: $table.sourceExcerpts, builder: (column) => column);
+
+  GeneratedColumn<String> get structuredFields => $composableBuilder(
+      column: $table.structuredFields, builder: (column) => column);
+
+  GeneratedColumn<String> get relatedMemoryIds => $composableBuilder(
+      column: $table.relatedMemoryIds, builder: (column) => column);
+
   GeneratedColumn<int> get schemaVersion => $composableBuilder(
       column: $table.schemaVersion, builder: (column) => column);
 
@@ -15461,6 +16142,18 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             Value<int?> occurredEndAt = const Value.absent(),
             Value<double?> valence = const Value.absent(),
             Value<double?> arousal = const Value.absent(),
+            Value<double?> emotionConfidence = const Value.absent(),
+            Value<String?> emotionEvidence = const Value.absent(),
+            Value<String?> emotionOverride = const Value.absent(),
+            Value<double?> timeConfidence = const Value.absent(),
+            Value<String?> timeSourceText = const Value.absent(),
+            Value<String?> placeName = const Value.absent(),
+            Value<double?> placeLat = const Value.absent(),
+            Value<double?> placeLng = const Value.absent(),
+            Value<String?> dropletLabel = const Value.absent(),
+            Value<String?> sourceExcerpts = const Value.absent(),
+            Value<String?> structuredFields = const Value.absent(),
+            Value<String?> relatedMemoryIds = const Value.absent(),
             Value<int> schemaVersion = const Value.absent(),
             Value<String?> presentationJson = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -15481,6 +16174,18 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             occurredEndAt: occurredEndAt,
             valence: valence,
             arousal: arousal,
+            emotionConfidence: emotionConfidence,
+            emotionEvidence: emotionEvidence,
+            emotionOverride: emotionOverride,
+            timeConfidence: timeConfidence,
+            timeSourceText: timeSourceText,
+            placeName: placeName,
+            placeLat: placeLat,
+            placeLng: placeLng,
+            dropletLabel: dropletLabel,
+            sourceExcerpts: sourceExcerpts,
+            structuredFields: structuredFields,
+            relatedMemoryIds: relatedMemoryIds,
             schemaVersion: schemaVersion,
             presentationJson: presentationJson,
             rowid: rowid,
@@ -15501,6 +16206,18 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             Value<int?> occurredEndAt = const Value.absent(),
             Value<double?> valence = const Value.absent(),
             Value<double?> arousal = const Value.absent(),
+            Value<double?> emotionConfidence = const Value.absent(),
+            Value<String?> emotionEvidence = const Value.absent(),
+            Value<String?> emotionOverride = const Value.absent(),
+            Value<double?> timeConfidence = const Value.absent(),
+            Value<String?> timeSourceText = const Value.absent(),
+            Value<String?> placeName = const Value.absent(),
+            Value<double?> placeLat = const Value.absent(),
+            Value<double?> placeLng = const Value.absent(),
+            Value<String?> dropletLabel = const Value.absent(),
+            Value<String?> sourceExcerpts = const Value.absent(),
+            Value<String?> structuredFields = const Value.absent(),
+            Value<String?> relatedMemoryIds = const Value.absent(),
             Value<int> schemaVersion = const Value.absent(),
             Value<String?> presentationJson = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -15521,6 +16238,18 @@ class $$SharedLifeEntitiesTableTableManager extends RootTableManager<
             occurredEndAt: occurredEndAt,
             valence: valence,
             arousal: arousal,
+            emotionConfidence: emotionConfidence,
+            emotionEvidence: emotionEvidence,
+            emotionOverride: emotionOverride,
+            timeConfidence: timeConfidence,
+            timeSourceText: timeSourceText,
+            placeName: placeName,
+            placeLat: placeLat,
+            placeLng: placeLng,
+            dropletLabel: dropletLabel,
+            sourceExcerpts: sourceExcerpts,
+            structuredFields: structuredFields,
+            relatedMemoryIds: relatedMemoryIds,
             schemaVersion: schemaVersion,
             presentationJson: presentationJson,
             rowid: rowid,

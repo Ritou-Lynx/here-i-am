@@ -234,6 +234,24 @@ Patch reserved fields (prefixed with _) are promoted to columns:
 - _occurredAt: ISO 8601 datetime when the event actually happened
 - _valence: -1.0 to 1.0 emotional polarity. Omit when neutral.
 - _arousal: 0.0 to 1.0 emotional intensity. Omit when neutral.
+- _emotionConfidence: 0.0 to 1.0 your honest confidence in the (_valence,
+  _arousal) pair. Weak signals score < 0.4. The UI fades low-confidence halos.
+- _emotionEvidence: verbatim source snippet (≤ 60 chars) supporting the coords.
+- _timeConfidence: 0.0 to 1.0 confidence in _occurredAt inference.
+- _timeSourceText: the verbatim NL fragment that produced _occurredAt
+  (e.g. "上周三"). Omit both when _occurredAt is omitted.
+- _placeName: verbatim place phrase from the user ("家"/"望京 SOHO"). Omit
+  when no place is mentioned. Do not invent.
+- _dropletLabel: 2-4 char punchy name for the timeline droplet view
+  ("体检"/"搬家"). NOT a tag. Skip when the title is already this short.
+- _sourceExcerpts: JSON array of 1-3 verbatim user-quote snippets supporting
+  this record. Each ≤ 60 chars. Used for the detail-view evidence panel.
+- _structuredFields: JSON object of typed atomic fields useful for queries
+  (snake_case keys). E.g. {"amount_cny": 128, "duration_min": 30,
+  "distance_km": 5, "with_whom": "妈妈"}. Omit when nothing fits.
+- _relatedMemoryIds: JSON array of existing entity IDs this record meaningfully
+  continues or references. Use only IDs returned by a prior query_shared_life
+  call — never invent IDs. Omit when no clear connection.
 - _presentation: REQUIRED. The visible Memory Summary Card payload.
   {
     "title": "optional short title shown above blocks",
@@ -244,12 +262,14 @@ Patch reserved fields (prefixed with _) are promoted to columns:
       { "type": "number", "value": "...", "unit": "...", "note": "..." },
       { "type": "table", "rows": [{ "label": "...", "value": "..." }] },
       { "type": "sparkline", "points": [..], "caption": "..." },
+      { "type": "progressBar", "value": 5, "max": 10, "unit": "kg", "label": "减肥目标" },
       { "type": "media", "assetPath": "...", "kind": "image|audio|video" },
       { "type": "linkAttachment", "url": "...", "title": "...", "source": "..." }
     ]
   }
   Pick the smallest set of blocks that conveys the essence. Omit empty fields
-  rather than fabricating.''',
+  rather than fabricating. Use progressBar only when there is a clear target
+  ceiling (weight goal, savings target, weekly habit count, reading pages).''',
     parameters: {
       'type': 'object',
       'properties': {

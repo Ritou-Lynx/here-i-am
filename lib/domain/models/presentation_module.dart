@@ -94,6 +94,8 @@ abstract class MemoryBlock {
         return MediaBlock.fromJson(json);
       case LinkAttachmentBlock.kType:
         return LinkAttachmentBlock.fromJson(json);
+      case ProgressBarBlock.kType:
+        return ProgressBarBlock.fromJson(json);
       default:
         return null;
     }
@@ -334,6 +336,63 @@ class LinkAttachmentBlock extends MemoryBlock {
         title: _string(json['title']),
         source: _string(json['source']),
       );
+}
+
+/// Progress toward a goal: weight target, savings goal, weekly habit count,
+/// reading position, etc. Rendered as a horizontal bar + "value/max unit" text.
+class ProgressBarBlock extends MemoryBlock {
+  const ProgressBarBlock({
+    required this.value,
+    required this.max,
+    this.unit,
+    this.label,
+  });
+
+  static const kType = 'progressBar';
+
+  final double value;
+  final double max;
+
+  /// Optional unit string ("kg" / "次" / "页" / "¥"). Shown alongside numbers.
+  final String? unit;
+
+  /// Optional short label above the bar ("减肥目标" / "本周跑步" / "存款").
+  final String? label;
+
+  /// Clamped 0..1 progress fraction. Returns 0 when [max] is non-positive.
+  double get fraction {
+    if (max <= 0) return 0;
+    final f = value / max;
+    if (f.isNaN || f.isInfinite) return 0;
+    return f.clamp(0.0, 1.0);
+  }
+
+  @override
+  String get type => kType;
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': kType,
+        'value': value,
+        'max': max,
+        if (unit != null) 'unit': unit,
+        if (label != null) 'label': label,
+      };
+
+  static ProgressBarBlock fromJson(Map<String, dynamic> json) {
+    double parseNum(dynamic v) {
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v) ?? 0;
+      return 0;
+    }
+
+    return ProgressBarBlock(
+      value: parseNum(json['value']),
+      max: parseNum(json['max']),
+      unit: _string(json['unit']),
+      label: _string(json['label']),
+    );
+  }
 }
 
 String? _string(dynamic value) {
