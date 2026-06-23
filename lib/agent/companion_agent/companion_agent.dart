@@ -11,7 +11,7 @@ import 'package:memex/agent/state_util.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
-import 'package:memex/data/services/conversation_capture_service.dart';
+import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
@@ -163,11 +163,10 @@ class CompanionAgent {
       state.systemReminders['user_knowledge_cards'] =
           '## User Knowledge Cards\n${ctx.knowledgeCards}';
     }
-    if (ConversationCaptureService.isInitialized &&
+    if (SharedLifeMemoryService.isInitialized &&
         queryHint.trim().isNotEmpty) {
       try {
-        final entities = await ConversationCaptureService
-            .instance.sharedLifeMemory
+        final entities = await SharedLifeMemoryService.instance
             .queryRelevantEntities(queryHint, limit: 8);
         if (entities.isNotEmpty) {
           state.systemReminders['shared_life_entities'] =

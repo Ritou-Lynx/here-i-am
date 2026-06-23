@@ -10,7 +10,6 @@ class AgentDefinitions {
   static const String chatAgent = 'chat_agent';
   static const String companionAgent = 'companion_agent';
   static const String checkinAgent = 'checkin_agent';
-  static const String conversationCaptureAgent = 'conversation_capture_agent';
   static const String analyzeAssets = 'analyze_assets';
   static const String clarificationResolutionAgent =
       'clarification_resolution_agent';
@@ -27,7 +26,6 @@ class AgentDefinitions {
     chatAgent: 'Chat',
     companionAgent: 'Companion',
     checkinAgent: 'Companion checkin',
-    conversationCaptureAgent: 'Conversation capture',
     analyzeAssets: 'Media analysis',
     clarificationResolutionAgent: 'Ask resolution',
     recordOrganizerAgent: 'Record organizer',

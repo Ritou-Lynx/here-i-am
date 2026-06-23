@@ -21,7 +21,7 @@ import 'package:memex/agent/skills/comment_agent/tools/comment_tools.dart';
 import 'package:memex/agent/skills/comment_agent/tools/memory_tools.dart';
 import 'package:memex/agent/skills/companion_agent/tools/action_message_tools.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
-import 'package:memex/data/services/conversation_capture_service.dart';
+import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/reading/reading_fetch_coordinator.dart';
 import 'package:memex/data/services/remote_task_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
@@ -103,10 +103,11 @@ class CharacterToolsFactory {
     if (toyControlService != null) {
       tools.add(buildToyControlTool(service: toyControlService));
     }
-    if (ConversationCaptureService.isInitialized) {
+    if (SharedLifeMemoryService.isInitialized) {
+      final sharedLifeMemory = SharedLifeMemoryService.instance;
       tools.addAll(
         buildSharedLifeMemoryTools(
-          service: ConversationCaptureService.instance.sharedLifeMemory,
+          service: sharedLifeMemory,
           sourceCharacterId: characterId,
           userId: userId,
           sourceMessageId: currentUserMessageId,
@@ -114,8 +115,7 @@ class CharacterToolsFactory {
       );
       if (ReadingFetchCoordinator.isInitialized) {
         tools.add(buildLoadReadingContentTool(
-          sharedLifeMemory:
-              ConversationCaptureService.instance.sharedLifeMemory,
+          sharedLifeMemory: sharedLifeMemory,
           fetchCoordinator: ReadingFetchCoordinator.instance,
         ));
       }

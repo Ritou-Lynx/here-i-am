@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:memex/data/repositories/memex_router.dart';
-import 'package:memex/data/services/conversation_capture_service.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/domain/models/card_model.dart';
@@ -40,8 +39,8 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
   List<SharedLifeEntitySnapshot> _sharedLifeEntities = const [];
 
   SharedLifeMemoryService? get _sharedLifeMemory =>
-      ConversationCaptureService.isInitialized
-          ? ConversationCaptureService.instance.sharedLifeMemory
+      SharedLifeMemoryService.isInitialized
+          ? SharedLifeMemoryService.instance
           : null;
 
   @override

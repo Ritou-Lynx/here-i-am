@@ -59,9 +59,8 @@ class ReadingCaptureResult {
 /// MemexRouter, per the architecture guard rules in CLAUDE.md.
 class ReadingCaptureService {
   // ---- static singleton wiring -----------------------------------------
-  // Mirrors ConversationCaptureService's `init`/`instance` pattern so the
-  // service can be reached from Share intent / debug menus without going
-  // through the MemexRouter facade.
+  // Static `init`/`instance` so the service can be reached from Share intent
+  // / debug menus without going through the MemexRouter facade.
   static ReadingCaptureService? _instance;
 
   static bool get isInitialized => _instance != null;

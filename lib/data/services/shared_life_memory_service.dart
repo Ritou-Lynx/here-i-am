@@ -160,6 +160,26 @@ class SharedLifeMemoryService {
   final _logger = getLogger('SharedLifeMemoryService');
   String? _userId;
 
+  static SharedLifeMemoryService? _instance;
+
+  /// Process-wide singleton. Throws when accessed before [init].
+  static SharedLifeMemoryService get instance {
+    final service = _instance;
+    if (service == null) {
+      throw StateError('SharedLifeMemoryService has not been initialized');
+    }
+    return service;
+  }
+
+  static bool get isInitialized => _instance != null;
+
+  /// Initialize the singleton. Safe to call multiple times — replaces the
+  /// previous instance (e.g. after re-login switching userIds).
+  static void init(AppDatabase db, String userId) {
+    _instance = SharedLifeMemoryService(db);
+    _instance!.attachUserId(userId);
+  }
+
   /// Attach the current user ID so the service can publish data-change events
   /// for FTS indexing. Safe to call multiple times (e.g. after re-login).
   void attachUserId(String userId) {

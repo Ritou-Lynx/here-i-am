@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:memex/data/services/conversation_capture_service.dart';
 import 'package:memex/data/services/reading/reading_fetch_coordinator.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 
@@ -80,11 +79,11 @@ class _ReadingCardAddendumWidgetState extends State<ReadingCardAddendumWidget> {
     if (id.isEmpty || id.startsWith('pending-') || id.startsWith('debug-')) {
       return;
     }
-    if (!ConversationCaptureService.isInitialized) return;
+    if (!SharedLifeMemoryService.isInitialized) return;
     _querying = true;
     try {
-      final detail = await ConversationCaptureService.instance.sharedLifeMemory
-          .getEntityDetail(id);
+      final detail =
+          await SharedLifeMemoryService.instance.getEntityDetail(id);
       if (!mounted) return;
       if (detail != null && detail.entity.entityType == 'reading_item') {
         setState(() => _liveEntity = detail.entity);

@@ -14,7 +14,7 @@ import 'package:memex/data/services/table_change_notifier.dart';
 import 'package:memex/data/services/card_attachment_service.dart';
 import 'package:memex/data/services/card_detail_notifier.dart';
 import 'package:memex/data/services/clarification_request_service.dart';
-import 'package:memex/data/services/conversation_capture_service.dart';
+import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/data/services/reading/fetchers/xiaohongshu_fetcher.dart';
 import 'package:memex/data/services/reading/reading_capture_service.dart';
@@ -103,16 +103,14 @@ class MemexRouter {
       _logger.info('Initializing Local DB for user: $userId');
       await AppDatabase.init(userId);
       if (AppFlavor.isHereIAm) {
-        ConversationCaptureService.init(AppDatabase.instance, userId);
-        final captureService = ConversationCaptureService.instance;
+        SharedLifeMemoryService.init(AppDatabase.instance, userId);
+        final sharedLifeMemory = SharedLifeMemoryService.instance;
         // Record Organizer — explicit user-truth write path.
-        RecordOrganizerService.init(captureService.sharedLifeMemory);
+        RecordOrganizerService.init(sharedLifeMemory);
         // Reading Companion: share-intent → reading_item entity pipeline.
-        // Reuses ConversationCapture's sharedLifeMemory instance so userId
-        // is already attached.
         ReadingCaptureService.init(
           db: AppDatabase.instance,
-          sharedLifeMemory: captureService.sharedLifeMemory,
+          sharedLifeMemory: sharedLifeMemory,
         );
         // Reading Companion: platform-aware fetcher pipeline.
         // 微信公众号 HTML fetcher is always available; the 小红书 fetcher
@@ -120,7 +118,7 @@ class MemexRouter {
         // message when there's no live session.
         ReadingFetchCoordinator.init(
           db: AppDatabase.instance,
-          sharedLifeMemory: captureService.sharedLifeMemory,
+          sharedLifeMemory: sharedLifeMemory,
         );
         ReadingFetchCoordinator.instance.registerFetcher(XiaohongshuFetcher());
         // Restore the persisted "user marked connected" bit for 小红书 so
@@ -130,17 +128,11 @@ class MemexRouter {
         await _resetCharacterMemoryIfNeeded(userId);
         await _resetWorkspaceDirsIfNeeded(userId);
         await _resetSystemMemoryIfNeeded(userId);
-        if (await captureService.needsHistoricalBackfillReset()) {
-          await captureService.resetHistoricalBackfill();
-        }
-        await captureService.initializeCaptureBaselines();
-        await captureService.releaseStaleQueuedSlices();
-        await captureService.repairEphemeralBackgroundRecords();
-        await captureService.sharedLifeMemory.repairOrphanedEntities();
+        await sharedLifeMemory.repairOrphanedEntities();
         await FileSystemService.instance.ensureTagsFileInitialized(userId);
         final tagDefinitions =
             await FileSystemService.instance.readTagsFile(userId);
-        await captureService.sharedLifeMemory.repairTagsAgainstKnownTags(
+        await sharedLifeMemory.repairTagsAgainstKnownTags(
           tagDefinitions
               .map((tag) => tag['name']?.toString().trim() ?? '')
               .where((tag) => tag.isNotEmpty)

@@ -30,8 +30,8 @@ import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/character_service.dart';
-import 'package:memex/data/services/conversation_capture_service.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
+import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/reading/reading_capture_service.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
@@ -1070,12 +1070,7 @@ only after you have written the goodbye you want the user to hear.''',
 
   @override
   void dispose() {
-    if (widget.enableRichCapture && !ConversationCaptureService.autoCapturePaused) {
-      unawaited(_scheduleConversationCapture(
-        force: true,
-        trigger: 'leave_chat',
-      ));
-    }
+    // Auto-capture is gone; record button + floating ball are the only paths now.
     unawaited(
       ActivePersonaChatService.instance.clear(
         characterId: _currentCharacterId,
@@ -1174,9 +1169,7 @@ only after you have written the goodbye you want the user to hear.''',
     }
     _showRememberedNotice(
       onUndo: () => unawaited(
-        ConversationCaptureService.instance.undoOperations(
-          message.operationIds,
-        ),
+        SharedLifeMemoryService.instance.undoOperations(message.operationIds),
       ),
     );
   }
@@ -1488,12 +1481,6 @@ only after you have written the goodbye you want the user to hear.''',
       );
     }
 
-    if (widget.enableRichCapture && !isExplicitMemoryRequest) {
-      unawaited(_scheduleConversationCapture(
-        characterId: sendCharacterId,
-        trigger: 'user_message',
-      ));
-    }
 
     // Get LLM resources
     final userId = await UserStorage.getUserId();
@@ -1584,15 +1571,6 @@ only after you have written the goodbye you want the user to hear.''',
           isRead: !_isAppInBackground,
           timestamp: DateTime.now(),
         );
-        if (widget.enableRichCapture) {
-          unawaited(_scheduleConversationCapture(
-            characterId: sendCharacterId,
-            force: isExplicitMemoryRequest,
-            trigger: isExplicitMemoryRequest
-                ? 'explicit_memory_fallback'
-                : 'character_message',
-          ));
-        }
         responsePersisted = true;
 
         if (_isAppInBackground && sendCharacter != null) {
@@ -1670,15 +1648,6 @@ only after you have written the goodbye you want the user to hear.''',
           isRead: !_isAppInBackground,
           timestamp: DateTime.now(),
         );
-        if (widget.enableRichCapture) {
-          unawaited(_scheduleConversationCapture(
-            characterId: sendCharacterId,
-            force: isExplicitMemoryRequest,
-            trigger: isExplicitMemoryRequest
-                ? 'explicit_memory_fallback'
-                : 'character_message',
-          ));
-        }
       }
 
       final updated = await _chatService.getMessages(
@@ -1834,22 +1803,6 @@ only after you have written the goodbye you want the user to hear.''',
       forcedCharacter: pending.character,
       queuedMessage: pending,
     ));
-  }
-
-  Future<void> _scheduleConversationCapture({
-    String? characterId,
-    bool force = false,
-    String trigger = 'message_threshold',
-  }) async {
-    if (!ConversationCaptureService.isInitialized) return;
-    final userId = _userId ?? await UserStorage.getUserId();
-    if (userId == null) return;
-    await ConversationCaptureService.instance.noteConversationActivity(
-      userId: userId,
-      characterId: characterId ?? _currentCharacterId,
-      force: force,
-      trigger: trigger,
-    );
   }
 
   bool _isExplicitMemoryRequest(String text) {
