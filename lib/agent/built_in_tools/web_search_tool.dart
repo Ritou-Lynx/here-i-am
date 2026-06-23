@@ -5,9 +5,9 @@ import 'package:dio/dio.dart';
 
 /// Build a general-purpose web search tool for the companion agent.
 ///
-/// Uses DuckDuckGo's non-JS HTML endpoint (free, no API key required).
-/// Returns structured results with title, URL, and snippet so the LLM can
-/// incorporate current information into its replies.
+/// Uses Bing (cn.bing.com) as the primary provider — accessible in China.
+/// Falls back to DuckDuckGo's Instant Answer API and HTML endpoints, which
+/// may be unreachable depending on network conditions.
 Tool buildWebSearchTool() {
   final dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 10),
@@ -16,7 +16,8 @@ Tool buildWebSearchTool() {
       'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
           '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html',
+      'Accept': 'text/html,application/json',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     },
   ));
 
@@ -59,14 +60,17 @@ Tips:
       final limit = (maxResults ?? 5).clamp(1, 8);
 
       try {
+        // ── Bing HTML search (primary — works in China) ─────────────
+        final bingResults = await _fetchBingSearch(dio, query);
+
         // ── DuckDuckGo Instant Answer API (knowledge graph) ──────────
         final apiResults = await _fetchInstantAnswers(dio, query);
 
-        // ── DuckDuckGo HTML search (web results) ──────────────────────
-        final webResults = await _fetchHtmlSearch(dio, query);
+        // ── DuckDuckGo HTML search (web results, fallback) ───────────
+        final ddgResults = await _fetchHtmlSearch(dio, query);
 
-        // Merge: API results first (higher relevance), then web results
-        final merged = [...apiResults, ...webResults];
+        // Merge: Bing first (best availability), then DDG API, then DDG HTML
+        final merged = [...bingResults, ...apiResults, ...ddgResults];
 
         if (merged.isEmpty) {
           return jsonEncode({
@@ -101,6 +105,87 @@ Tips:
       }
     },
   );
+}
+
+/// Fetch web results from Bing (cn.bing.com) HTML search.
+///
+/// Bing is accessible in China, unlike DuckDuckGo which is often blocked.
+/// Parses the `<li class="b_algo">` result blocks for titles, URLs, and snippets.
+Future<List<Map<String, String>>> _fetchBingSearch(
+  Dio dio,
+  String query,
+) async {
+  final results = <Map<String, String>>[];
+  try {
+    // Use cn.bing.com for China accessibility. For English-heavy queries
+    // the international endpoint still works from within China.
+    final response = await dio.get<String>(
+      'https://cn.bing.com/search',
+      queryParameters: {
+        'q': query,
+        'setlang': 'zh-Hans',
+      },
+      options: Options(responseType: ResponseType.plain),
+    );
+
+    final html = response.data ?? '';
+    if (html.isEmpty) return results;
+
+    // Bing wraps each result in <li class="b_algo">…</li>.
+    // Each block contains:
+    //   <h2><a href="URL">Title</a></h2>
+    //   <div class="b_caption"><p class="b_lineclamp2">snippet</p></div>
+    final blockPattern = RegExp(
+      r'<li\s+class="b_algo"[^>]*>(.*?)</li>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+
+    final titlePattern = RegExp(
+      r'<h2[^>]*>\s*<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+
+    final snippetPattern = RegExp(
+      r'<p\s+class="b_lineclamp2"[^>]*>(.*?)</p>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+
+    final blocks = blockPattern.allMatches(html).take(10);
+    for (final block in blocks) {
+      if (results.length >= 8) break;
+
+      final blockHtml = block.group(1) ?? '';
+      if (blockHtml.isEmpty) continue;
+
+      // Extract title + URL from the first <h2><a> in this block
+      final titleMatch = titlePattern.firstMatch(blockHtml);
+      if (titleMatch == null) continue;
+
+      final url = titleMatch.group(1) ?? '';
+      final title = _stripHtml(titleMatch.group(2) ?? '').trim();
+      if (title.isEmpty || url.isEmpty) continue;
+
+      // Skip Bing's own internal links
+      if (url.contains('bing.com') && !url.contains('//www.bing.com')) continue;
+
+      // Extract snippet from the first b_lineclamp2 <p> in this block
+      final snippetMatch = snippetPattern.firstMatch(blockHtml);
+      final snippet =
+          _stripHtml(snippetMatch?.group(1) ?? '').trim();
+
+      results.add({
+        'title': title,
+        'url': url,
+        'snippet': snippet,
+      });
+    }
+  } catch (_) {
+    // Non-fatal — other providers may still return results.
+  }
+  return results;
 }
 
 /// Fetch structured results from DuckDuckGo Instant Answer API.
