@@ -54,6 +54,17 @@ android {
     }
 
     signingConfigs {
+        // Shared debug keystore committed to the repo so debug APKs built on
+        // any developer machine carry the same signature. Without this, AGP
+        // falls back to ~/.android/debug.keystore which is unique per machine,
+        // forcing uninstall+reinstall (and data loss) when switching machines.
+        // Standard AOSP debug credentials — never use for release.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (hasGlobalKeystore) {
             create("globalRelease") {
                 keyAlias = globalKeystoreProperties["keyAlias"] as String

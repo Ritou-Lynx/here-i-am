@@ -12,3 +12,5 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+# Exception: shared debug keystore (see root .gitignore for rationale)
+!app/debug.keystore

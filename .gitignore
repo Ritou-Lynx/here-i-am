@@ -91,6 +91,9 @@ android/key-*.properties
 android/app/*.keystore
 android/app/*.jks
 android/local.properties
+# Exception: shared debug keystore is intentionally committed so debug APKs
+# built on different developer machines carry the same signature.
+!android/app/debug.keystore
 
 # Private credentials and provisioning files
 *.key
