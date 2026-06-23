@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/record_organizer_agent/prompt.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
+import 'package:memex/utils/logger.dart';
+
+final _logger = getLogger('RecordOrganizerAnalyzer');
 
 class RecordOrganizerAnalysis {
   const RecordOrganizerAnalysis({required this.operations});
@@ -28,31 +31,61 @@ class RecordOrganizerAnalyzer {
         .map((e) => '[${e.id}] ${e.entityType}: ${e.title}')
         .toList();
 
-    final response = await client.generate(
-      [
-        SystemMessage(recordOrganizerSystemPrompt(
-          knownTags: knownTags,
-          relevantEntitySummaries: entitySummaries,
-        )),
-        UserMessage([
-          TextPart(jsonEncode({
-            'current_time': now.toIso8601String(),
-            'content': rawInput,
-          })),
-        ]),
-      ],
-      modelConfig: ModelConfig(
-        model: modelConfig.model,
-        maxTokens: 2000,
-        extra: modelConfig.extra,
-      ),
+    final messages = [
+      SystemMessage(recordOrganizerSystemPrompt(
+        knownTags: knownTags,
+        relevantEntitySummaries: entitySummaries,
+      )),
+      UserMessage([
+        TextPart(jsonEncode({
+          'current_time': now.toIso8601String(),
+          'content': rawInput,
+        })),
+      ]),
+    ];
+    final mc = ModelConfig(
+      model: modelConfig.model,
+      maxTokens: 2000,
+      extra: modelConfig.extra,
     );
 
-    final text = response.textOutput;
-    if (text == null || text.trim().isEmpty) {
+    // First attempt.
+    final firstText = (await client.generate(messages, modelConfig: mc))
+        .textOutput;
+    if (firstText == null || firstText.trim().isEmpty) {
       throw const FormatException('Record organizer returned no output');
     }
-    return _parse(text, rawInput: rawInput, sourceKind: sourceKind);
+    try {
+      return _parse(firstText, rawInput: rawInput, sourceKind: sourceKind);
+    } on FormatException catch (e) {
+      _logger.warning('First parse failed ($e); retrying with hardened reminder');
+    }
+
+    // Retry once with a hardened reminder appended. LLMs occasionally emit
+    // markdown fences or trailing prose; one nudge usually fixes it.
+    final hardenedMessages = [
+      SystemMessage(recordOrganizerSystemPrompt(
+        knownTags: knownTags,
+        relevantEntitySummaries: entitySummaries,
+      )),
+      UserMessage([
+        TextPart(jsonEncode({
+          'current_time': now.toIso8601String(),
+          'content': rawInput,
+        })),
+        TextPart(
+          'STRICT: Reply with ONLY a single JSON object. '
+          'No ```json fences, no commentary before or after, no trailing comma. '
+          'The first character of your response must be "{".',
+        ),
+      ]),
+    ];
+    final retryText = (await client.generate(hardenedMessages, modelConfig: mc))
+        .textOutput;
+    if (retryText == null || retryText.trim().isEmpty) {
+      throw const FormatException('Record organizer retry returned no output');
+    }
+    return _parse(retryText, rawInput: rawInput, sourceKind: sourceKind);
   }
 }
 
@@ -61,7 +94,15 @@ RecordOrganizerAnalysis _parse(
   required String rawInput,
   required String sourceKind,
 }) {
-  final trimmed = raw.trim();
+  // Strip common markdown wrappers before slicing braces. LLMs frequently
+  // wrap JSON in ```json … ``` even when told not to.
+  var trimmed = raw.trim();
+  final fenceMatch = RegExp(
+    r'^```(?:json|JSON)?\s*\n?([\s\S]*?)\n?```\s*$',
+  ).firstMatch(trimmed);
+  if (fenceMatch != null) {
+    trimmed = fenceMatch.group(1)!.trim();
+  }
   final start = trimmed.indexOf('{');
   final end = trimmed.lastIndexOf('}');
   if (start < 0 || end <= start) {

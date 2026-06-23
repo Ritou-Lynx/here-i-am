@@ -176,6 +176,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   String? _activeStreamingCharacterId;
   final Set<int> _canceledSendSerials = {};
   final Set<int> _retractedUserMessageIds = {};
+  final Set<int> _recordingMessageIds = {};
 
   // Pending message queue: user can compose the next message while the
   // character is still generating a response. It auto-sends when streaming ends.
@@ -1950,47 +1951,60 @@ only after you have written the goodbye you want the user to hear.''',
 
   Future<void> _recordMessage(PersonaChatMessage message) async {
     if (!RecordOrganizerService.isInitialized) return;
+    // Guard against rapid double-taps re-firing while a record is in flight.
+    if (!_recordingMessageIds.add(message.id)) return;
+
     final userId = _userId ?? await UserStorage.getUserId();
-    if (userId == null) return;
+    if (userId == null) {
+      _recordingMessageIds.remove(message.id);
+      return;
+    }
     final characterId = _currentCharacterId;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    // Show a long-lived "recording" snackbar; replaced when the result lands.
+    final progress = messenger.showSnackBar(
       SnackBar(
         content: Text(_chatUiText(zh: '正在记录…', en: 'Recording…')),
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 30),
         behavior: SnackBarBehavior.floating,
         width: 160,
       ),
     );
 
-    final result = await RecordOrganizerService.instance.recordFromMessage(
-      userId: userId,
-      sourceCharacterId: characterId,
-      messageId: message.id,
-      content: message.content,
-    );
+    try {
+      final result = await RecordOrganizerService.instance.recordFromMessage(
+        userId: userId,
+        sourceCharacterId: characterId,
+        messageId: message.id,
+        content: message.content,
+      );
 
-    if (!mounted) return;
-    if (result.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_chatUiText(zh: '未识别到可记录内容', en: 'Nothing to record')),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } else {
-      final titles = result.entityTitles.take(2).join('、');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_chatUiText(
-            zh: '已记录：$titles',
-            en: 'Recorded: $titles',
-          )),
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      progress.close();
+      if (!mounted) return;
+      if (result.isEmpty) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(_chatUiText(zh: '未识别到可记录内容', en: 'Nothing to record')),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        final titles = result.entityTitles.take(2).join('、');
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(_chatUiText(
+              zh: '已记录：$titles',
+              en: 'Recorded: $titles',
+            )),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      _recordingMessageIds.remove(message.id);
     }
   }
 
