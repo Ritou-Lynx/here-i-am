@@ -250,6 +250,17 @@ class BackupService {
       path.join(appDir.path, dbName),
       path.join((await getApplicationSupportDirectory()).path, dbName),
     ];
+
+    // Flush WAL into the main .db file so the snapshot we ship is complete.
+    // Without this, recent writes still sitting in `*-wal` are silently lost.
+    if (AppDatabase.isInitialized) {
+      try {
+        await AppDatabase.instance
+            .customStatement('PRAGMA wal_checkpoint(TRUNCATE)');
+      } catch (e) {
+        _logger.warning('WAL checkpoint before backup failed: $e');
+      }
+    }
     // SharedPreferences are plugin-backed, so collect them before hopping
     // isolates.
 
@@ -411,6 +422,19 @@ class BackupService {
             if (await File(p).exists()) {
               targetPath = p;
               break;
+            }
+          }
+          // Delete stale WAL/SHM siblings before overwriting the .db file.
+          // Otherwise SQLite reads the previous open's wal against the new
+          // db file and errors out with "database disk image is malformed".
+          for (final suffix in const ['-wal', '-shm', '-journal']) {
+            final sidecar = File('$targetPath$suffix');
+            if (await sidecar.exists()) {
+              try {
+                await sidecar.delete();
+              } catch (e) {
+                _logger.warning('Failed to delete $sidecar before restore: $e');
+              }
             }
           }
           await File(targetPath).writeAsBytes(_archiveFileBytes(file));
