@@ -446,14 +446,21 @@ class SharedLifeMemoryService {
           continue;
         }
 
-        // Determine validated source message IDs for back-compat storage
-        final sourceIds = draft.sourceKind == 'chat_message'
-            ? (draft.sourceMessageIds
-                .where(allowedSourceMessageIds.contains)
-                .toSet()
-                .toList()
-              ..sort())
-            : <int>[];
+        // Source message IDs are stored as evidence for the detail view.
+        // 'chat_message' originates from AI auto-capture and must be filtered
+        // against allowedSourceMessageIds to block hallucinated IDs.
+        // Other sourceKinds (record_button, floating_ball, manual_edit…)
+        // carry IDs the user/UI supplied directly — trust those as-is.
+        final List<int> sourceIds;
+        if (draft.sourceKind == 'chat_message') {
+          sourceIds = draft.sourceMessageIds
+              .where(allowedSourceMessageIds.contains)
+              .toSet()
+              .toList()
+            ..sort();
+        } else {
+          sourceIds = draft.sourceMessageIds.toSet().toList()..sort();
+        }
 
         final existingEntity = draft.entityId == null
             ? null

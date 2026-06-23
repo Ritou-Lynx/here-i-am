@@ -69,6 +69,7 @@ class RecordOrganizerService {
       rawInput: content,
       sourceKind: 'record_button',
       sourceRef: messageId.toString(),
+      sourceMessageIds: [messageId],
     );
   }
 
@@ -93,6 +94,7 @@ class RecordOrganizerService {
     required String rawInput,
     required String sourceKind,
     String? sourceRef,
+    List<int> sourceMessageIds = const [],
   }) async {
     final trimmed = rawInput.trim();
     if (trimmed.isEmpty) {
@@ -151,6 +153,7 @@ class RecordOrganizerService {
         sourceKind: op.sourceKind,
         sourceRef: op.sourceRef,
         rawInput: op.rawInput,
+        sourceMessageIds: sourceMessageIds,
         entityId: op.entityId,
       );
     }).toList(growable: false);
@@ -224,6 +227,7 @@ List<SharedLifeOperationDraft> _restrictTagsToKnownTags(
       sourceKind: op.sourceKind,
       sourceRef: op.sourceRef,
       rawInput: op.rawInput,
+      sourceMessageIds: op.sourceMessageIds,
       entityId: op.entityId,
     );
   }).toList(growable: false);
