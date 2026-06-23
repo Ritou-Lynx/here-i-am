@@ -129,6 +129,21 @@ Rules:
   - Omit blocks rather than fabricating: empty/uncertain → leave out.
   - subjectRef is optional. Use it only when the record clearly originates
     from another person or external work (e.g. a call, a book, an article).
+- When the input includes a "media" array, each entry represents user-provided
+  image (or audio/video) content. You MUST:
+  1. Incorporate each image's "analysis" text into the entity's semantic
+     content (title, summary, _sourceExcerpts, and structured fields) as if
+     the user had described the image in words.
+  2. For EVERY entry in the media array, include a corresponding MediaBlock in
+     _presentation.blocks:
+       { "type": "media", "assetPath": "<use the exact assetPath from media>",
+         "caption": "<one-sentence Chinese summary from the analysis>",
+         "kind": "<same kind from media, e.g. image>" }
+  3. If the "content" field is empty or minimal, the image analysis IS the
+     primary content — derive the entity entirely from the analysis text.
+     Do NOT invent unrelated content when text is empty.
+  4. The image itself is the evidence. Use verbatim relevant fragments from
+     the analysis text as _sourceExcerpts.
 
 $entityContext
 
@@ -160,7 +175,8 @@ Output schema:
         "_presentation": {
           "title": "跑步",
           "blocks": [
-            { "type": "number", "value": "5", "unit": "公里", "note": "比上次快了 40 秒" }
+            { "type": "number", "value": "5", "unit": "公里", "note": "比上次快了 40 秒" },
+            { "type": "media", "assetPath": "Facts/assets/img_...webp", "caption": "奥森南园的跑道，天气晴朗", "kind": "image" }
           ]
         },
         "summary": "...",

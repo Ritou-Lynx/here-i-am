@@ -2,6 +2,7 @@ import 'package:memex/agent/record_organizer_agent/record_organizer_analyzer.dar
 import 'package:memex/data/services/domain_schema_validator.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/services/media_input_attachment.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
@@ -57,11 +58,13 @@ class RecordOrganizerService {
   /// [sourceCharacterId]: the character whose chat session the message came from.
   /// [messageId]: the database ID of the PersonaChatMessage.
   /// [content]: the message text.
+  /// [media]: pre-processed media attachments (saved + analyzed).
   Future<RecordResult> recordFromMessage({
     required String userId,
     required String sourceCharacterId,
     required int messageId,
     required String content,
+    List<MediaInputAttachment>? media,
   }) async {
     return _organize(
       userId: userId,
@@ -70,6 +73,7 @@ class RecordOrganizerService {
       sourceKind: 'record_button',
       sourceRef: messageId.toString(),
       sourceMessageIds: [messageId],
+      media: media,
     );
   }
 
@@ -79,12 +83,14 @@ class RecordOrganizerService {
     required String sourceCharacterId,
     required String text,
     String sourceKind = 'floating_ball',
+    List<MediaInputAttachment>? media,
   }) async {
     return _organize(
       userId: userId,
       sourceCharacterId: sourceCharacterId,
       rawInput: text,
       sourceKind: sourceKind,
+      media: media,
     );
   }
 
@@ -95,6 +101,7 @@ class RecordOrganizerService {
     required String sourceKind,
     String? sourceRef,
     List<int> sourceMessageIds = const [],
+    List<MediaInputAttachment>? media,
   }) async {
     final trimmed = rawInput.trim();
     if (trimmed.isEmpty) {
@@ -119,6 +126,16 @@ class RecordOrganizerService {
       defaultClientKey: LLMConfig.defaultClientKey,
     );
 
+    // Build media context for the LLM from usable attachments
+    final inputMedia = (media ?? [])
+        .where((m) => m.isUsable)
+        .map((m) => <String, String>{
+              'assetPath': m.savedRelativePath!,
+              if (m.analysisText != null) 'analysis': m.analysisText!,
+              'kind': m.kind,
+            })
+        .toList(growable: false);
+
     RecordOrganizerAnalysis analysis;
     try {
       analysis = await const RecordOrganizerAnalyzer().analyze(
@@ -129,6 +146,7 @@ class RecordOrganizerService {
         knownTags: knownTags,
         relevantEntities: relevantEntities,
         now: DateTime.now(),
+        inputMedia: inputMedia.isNotEmpty ? inputMedia : null,
       );
     } catch (e) {
       _logger.warning('RecordOrganizerAnalyzer failed: $e');

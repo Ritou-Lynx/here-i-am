@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/models/presentation_module.dart';
 import 'package:memex/ui/companion/widgets/shared_life_review_section.dart';
 import 'package:memex/ui/core/cards/ui/timeline_common.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -206,6 +209,9 @@ class _SharedLifeEntityDetailScreenState
                 entity.tags.map((tag) => TimelineTag(label: tag)).toList(),
           ),
         ],
+        // ── Presentation preview (renders MediaBlock etc.) ──────────
+        if (entity.presentationJson != null)
+          _buildPresentationSection(entity.presentationJson!),
         const SizedBox(height: 24),
         _DetailSection(
           title: UserStorage.l10n.companionSharedLifeCurrentState,
@@ -249,6 +255,129 @@ class _SharedLifeEntityDetailScreenState
     );
   }
 
+  /// Renders the [PresentationModule] from [presentationJson] as a preview
+  /// section showing text, media, numbers, etc.  Falls back to nothing if the
+  /// JSON is malformed or has no blocks.
+  Widget _buildPresentationSection(String presentationJson) {
+    final presentation = PresentationModule.tryParse(presentationJson);
+    if (presentation == null || presentation.blocks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: _DetailSection(
+        title: '内容预览',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: _withBlockGap(
+            presentation.blocks.map(_buildPresentationBlock).toList(),
+            10,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPresentationBlock(MemoryBlock block) {
+    if (block is TextBlock) {
+      return Text(
+        block.text,
+        style: const TextStyle(
+          color: Color(0xFF596579),
+          fontSize: 14,
+          height: 1.65,
+        ),
+      );
+    }
+    if (block is NumberBlock) {
+      final unitStr = block.unit ?? '';
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            block.value,
+            style: const TextStyle(
+              color: Color(0xFF24272C),
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (unitStr.isNotEmpty) ...[
+            const SizedBox(width: 4),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                unitStr,
+                style: const TextStyle(
+                  color: Color(0xFF7C8490),
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+    if (block is MediaBlock) {
+      return _DetailMediaBlock(block: block);
+    }
+    if (block is TableBlock) {
+      return Table(
+        border: TableBorder.all(
+          color: const Color(0xFFE8E5DF),
+          width: 0.5,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        children: block.rows.map((row) {
+          return TableRow(
+            children: [
+              TableCell(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Text(
+                    row.label,
+                    style: const TextStyle(
+                      color: Color(0xFF7C8490),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              TableCell(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Text(
+                    row.value,
+                    style: const TextStyle(
+                      color: Color(0xFF24272C),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      );
+    }
+    // Fallback: show raw type for unknown blocks
+    return Text(
+      '[${block.type}]',
+      style: const TextStyle(color: Color(0xFFA0A7B0), fontSize: 12),
+    );
+  }
+
+  List<Widget> _withBlockGap(List<Widget> items, double gap) {
+    if (items.isEmpty) return items;
+    final out = <Widget>[];
+    for (var i = 0; i < items.length; i++) {
+      if (i > 0) out.add(SizedBox(height: gap));
+      out.add(items[i]);
+    }
+    return out;
+  }
+
   Widget _relatedRow(String id) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -263,6 +392,65 @@ class _SharedLifeEntityDetailScreenState
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Renders a [MediaBlock] in the detail view using the filesystem path.
+class _DetailMediaBlock extends StatelessWidget {
+  const _DetailMediaBlock({required this.block});
+  final MediaBlock block;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: AspectRatio(
+            aspectRatio: 16 / 10,
+            child: _buildImage(),
+          ),
+        ),
+        if (block.caption != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            block.caption!,
+            style: const TextStyle(
+              color: Color(0xFF7C8490),
+              fontSize: 12,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildImage() {
+    try {
+      final absPath = FileSystemService.instance.toAbsolutePath(block.assetPath);
+      final file = File(absPath);
+      if (file.existsSync()) {
+        return Image.file(file, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _placeholder(),
+        );
+      }
+    } catch (_) {}
+    return _placeholder();
+  }
+
+  Widget _placeholder() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFCDB8C8), Color(0xFFD9B5AF), Color(0xFF8FA7A0)],
+          stops: [0.0, 0.38, 1.0],
+        ),
       ),
     );
   }

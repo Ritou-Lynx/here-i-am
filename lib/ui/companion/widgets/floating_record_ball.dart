@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
+import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/services/media_input_attachment.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
+import 'package:memex/domain/models/agent_definitions.dart';
+import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart'
     show PersonaChatInputBar;
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
@@ -137,12 +142,68 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
     try {
       final userId = await UserStorage.getUserId();
       if (userId == null || !mounted) return;
+
+      // ── Pre-process selected images ──────────────────────────
+      final media = <MediaInputAttachment>[];
+      if (_images.isNotEmpty) {
+        final fsService = FileSystemService.instance;
+        for (var i = 0; i < _images.length; i++) {
+          final xFile = _images[i];
+          try {
+            // Save to Facts/assets/
+            final ext = xFile.path.split('.').lastOrNull ?? 'jpg';
+            final (filename, relativePath) = await fsService.saveAssetFromFile(
+              userId: userId,
+              sourcePath: xFile.path,
+              assetType: 'img',
+              index: i + 1,
+              format: ext,
+            );
+
+            // Run inline image analysis
+            String? analysisText;
+            try {
+              final analysisResources = await UserStorage.getAgentLLMResources(
+                AgentDefinitions.analyzeAssets,
+                defaultClientKey: LLMConfig.defaultClientKey,
+              );
+              final analysisTool = AssetAnalysisTool(
+                client: analysisResources.client,
+                modelConfig: analysisResources.modelConfig,
+              );
+              final absPath = fsService.toAbsolutePath(relativePath);
+              final result = await analysisTool.tool(
+                assetPath: absPath,
+                prompt: 'Describe this image briefly in 1-2 sentences. '
+                    'Focus on what is visible: people, objects, text, scenes. '
+                    'Be concise and objective.',
+              );
+              analysisText = result
+                  .replaceFirst(RegExp(r'^#Asset .+ analysis result\n:'), '')
+                  .trim();
+            } catch (e) {
+              debugPrint('Image analysis failed in floating ball: $e');
+            }
+
+            media.add(MediaInputAttachment(
+              savedRelativePath: relativePath,
+              analysisText: analysisText,
+              kind: 'image',
+            ));
+          } catch (e) {
+            debugPrint('Failed to save image in floating ball: $e');
+            media.add(MediaInputAttachment(error: e.toString()));
+          }
+        }
+      }
+
       final charId =
           await UserStorage.getLastActiveCompanionCharacterId(userId);
       final result = await RecordOrganizerService.instance.recordFromText(
         userId: userId,
         sourceCharacterId: charId ?? '_system',
-        text: text.isNotEmpty ? text : '[图片记录 ${_images.length} 张]',
+        text: text,
+        media: media.isNotEmpty ? media : null,
       );
       if (!mounted) return;
       final navCtx = widget.navigatorKey.currentContext;

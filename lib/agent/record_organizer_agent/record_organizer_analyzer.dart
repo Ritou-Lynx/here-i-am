@@ -26,10 +26,19 @@ class RecordOrganizerAnalyzer {
     required List<String> knownTags,
     required List<SharedLifeEntitySnapshot> relevantEntities,
     required DateTime now,
+    List<Map<String, String>>? inputMedia,
   }) async {
     final entitySummaries = relevantEntities
         .map((e) => '[${e.id}] ${e.entityType}: ${e.title}')
         .toList();
+
+    final userPayload = <String, dynamic>{
+      'current_time': now.toIso8601String(),
+      'content': rawInput,
+    };
+    if (inputMedia != null && inputMedia.isNotEmpty) {
+      userPayload['media'] = inputMedia;
+    }
 
     final messages = [
       SystemMessage(recordOrganizerSystemPrompt(
@@ -37,10 +46,7 @@ class RecordOrganizerAnalyzer {
         relevantEntitySummaries: entitySummaries,
       )),
       UserMessage([
-        TextPart(jsonEncode({
-          'current_time': now.toIso8601String(),
-          'content': rawInput,
-        })),
+        TextPart(jsonEncode(userPayload)),
       ]),
     ];
     final mc = ModelConfig(
@@ -63,16 +69,20 @@ class RecordOrganizerAnalyzer {
 
     // Retry once with a hardened reminder appended. LLMs occasionally emit
     // markdown fences or trailing prose; one nudge usually fixes it.
+    final retryPayload = <String, dynamic>{
+      'current_time': now.toIso8601String(),
+      'content': rawInput,
+    };
+    if (inputMedia != null && inputMedia.isNotEmpty) {
+      retryPayload['media'] = inputMedia;
+    }
     final hardenedMessages = [
       SystemMessage(recordOrganizerSystemPrompt(
         knownTags: knownTags,
         relevantEntitySummaries: entitySummaries,
       )),
       UserMessage([
-        TextPart(jsonEncode({
-          'current_time': now.toIso8601String(),
-          'content': rawInput,
-        })),
+        TextPart(jsonEncode(retryPayload)),
         TextPart(
           'STRICT: Reply with ONLY a single JSON object. '
           'No ```json fences, no commentary before or after, no trailing comma. '

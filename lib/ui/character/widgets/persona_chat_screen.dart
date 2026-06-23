@@ -30,6 +30,8 @@ import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/services/media_input_attachment.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/reading/reading_capture_service.dart';
@@ -1973,14 +1975,132 @@ only after you have written the goodbye you want the user to hear.''',
     );
 
     try {
+      // ── Pre-process media attachments ──────────────────────────
+      final media = <MediaInputAttachment>[];
+      final attachmentsJson = message.attachmentsJson;
+      if (attachmentsJson != null && attachmentsJson.trim().isNotEmpty) {
+        try {
+          final List<dynamic> attachments = jsonDecode(attachmentsJson);
+          // Extract existing analysis text from the [Image analysis: ...] prefix
+          // that was injected into message.content during send.
+          final existingAnalyses = _extractImageAnalyses(message.content);
+          final fsService = FileSystemService.instance;
+
+          for (var i = 0; i < attachments.length; i++) {
+            final att = attachments[i];
+            if (att is! Map) continue;
+            final mimeType = att['mimeType']?.toString() ?? '';
+            if (!mimeType.startsWith('image/')) continue;
+            final base64 = att['base64']?.toString();
+            if (base64 == null || base64.isEmpty) continue;
+
+            try {
+              progress.close();
+              final analyzing = messenger.showSnackBar(
+                SnackBar(
+                  content: Text(_chatUiText(
+                    zh: '正在分析图片${attachments.length > 1 ? "(${i + 1}/${attachments.length})" : ""}…',
+                    en: 'Analyzing image${attachments.length > 1 ? " (${i + 1}/${attachments.length})" : ""}…',
+                  )),
+                  duration: const Duration(seconds: 25),
+                  behavior: SnackBarBehavior.floating,
+                  width: 200,
+                ),
+              );
+
+              // 1. Decode base64 → write temp file
+              final bytes = base64Decode(base64);
+              final ext = mimeType.endsWith('webp') ? 'webp' : 'jpg';
+              final tempDir = Directory.systemTemp;
+              final tempFile = File(
+                '${tempDir.path}${Platform.pathSeparator}record_${message.id}_$i.$ext',
+              );
+              await tempFile.writeAsBytes(bytes);
+
+              // 2. Save to Facts/assets/
+              final (filename, relativePath) = await fsService.saveAssetFromFile(
+                userId: userId,
+                sourcePath: tempFile.path,
+                assetType: 'img',
+                index: i + 1,
+                format: ext,
+              );
+
+              // Clean up temp file
+              try { await tempFile.delete(); } catch (_) {}
+
+              // 3. Get or run image analysis
+              String? analysisText;
+              if (i < existingAnalyses.length) {
+                analysisText = existingAnalyses[i];
+              } else {
+                // Run inline analysis
+                try {
+                  final analysisResources = await UserStorage.getAgentLLMResources(
+                    AgentDefinitions.analyzeAssets,
+                    defaultClientKey: LLMConfig.defaultClientKey,
+                  );
+                  final analysisTool = AssetAnalysisTool(
+                    client: analysisResources.client,
+                    modelConfig: analysisResources.modelConfig,
+                  );
+                  final absPath = fsService.toAbsolutePath(relativePath);
+                  final result = await analysisTool.tool(
+                    assetPath: absPath,
+                    prompt: 'Describe this image briefly in 1-2 sentences. '
+                        'Focus on what is visible: people, objects, text, scenes. '
+                        'Be concise and objective.',
+                  );
+                  // Strip the "#Asset ... analysis result\n:" prefix
+                  analysisText = result
+                      .replaceFirst(RegExp(r'^#Asset .+ analysis result\n:'), '')
+                      .trim();
+                } catch (e) {
+                  debugPrint('Inline image analysis failed in _recordMessage: $e');
+                }
+              }
+
+              analyzing.close();
+              media.add(MediaInputAttachment(
+                savedRelativePath: relativePath,
+                analysisText: analysisText,
+                kind: 'image',
+              ));
+            } catch (e) {
+              debugPrint('Failed to process image attachment in _recordMessage: $e');
+              media.add(MediaInputAttachment(error: e.toString()));
+            }
+          }
+        } catch (e) {
+          debugPrint('Failed to parse attachmentsJson in _recordMessage: $e');
+        }
+      }
+
+      // ── Strip [Image analysis: ...] prefix from content ────────
+      final cleanedContent = message.content
+          .replaceFirst(RegExp(r'^\[Image analysis:.*?\](\n\n?)?'), '')
+          .trim();
+
+      // Restore progress snackbar before the LLM call
+      try { progress.close(); } catch (_) {}
+      final recordProgress = messenger.showSnackBar(
+        SnackBar(
+          content: Text(_chatUiText(zh: '正在记录…', en: 'Recording…')),
+          duration: const Duration(seconds: 30),
+          behavior: SnackBarBehavior.floating,
+          width: 160,
+        ),
+      );
+
       final result = await RecordOrganizerService.instance.recordFromMessage(
         userId: userId,
         sourceCharacterId: characterId,
         messageId: message.id,
-        content: message.content,
+        content: cleanedContent.isNotEmpty ? cleanedContent : message.content,
+        media: media.isNotEmpty ? media : null,
       );
 
-      progress.close();
+      recordProgress.close();
       if (!mounted) return;
       if (result.isEmpty) {
         messenger.showSnackBar(
@@ -2006,6 +2126,17 @@ only after you have written the goodbye you want the user to hear.''',
     } finally {
       _recordingMessageIds.remove(message.id);
     }
+  }
+
+  /// Extracts per-image analysis texts from the [Image analysis: ...] prefix
+  /// that was injected into message content during send.  Analyses are joined
+  /// by " | " so we split on that delimiter.
+  List<String> _extractImageAnalyses(String content) {
+    final match = RegExp(r'^\[Image analysis:\s*(.*?)\]').firstMatch(content);
+    if (match == null) return const [];
+    final body = match.group(1)?.trim() ?? '';
+    if (body.isEmpty) return const [];
+    return body.split(' | ').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
   }
 
   bool _isSendCanceled(int sendSerial, int userMessageId) {

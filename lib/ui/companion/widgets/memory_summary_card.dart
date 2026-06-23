@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/domain/models/presentation_module.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
@@ -674,11 +676,7 @@ class _MediaBlockView extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           child: AspectRatio(
             aspectRatio: 16 / 10,
-            child: Image.asset(
-              block.assetPath,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _mediaPlaceholder(),
-            ),
+            child: _buildMediaImage(block.assetPath),
           ),
         ),
         if (block.caption != null) ...[
@@ -694,6 +692,21 @@ class _MediaBlockView extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  Widget _buildMediaImage(String assetPath) {
+    try {
+      final absPath = FileSystemService.instance.toAbsolutePath(assetPath);
+      final file = File(absPath);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _mediaPlaceholder(),
+        );
+      }
+    } catch (_) {}
+    return _mediaPlaceholder();
   }
 
   Widget _mediaPlaceholder() {
