@@ -36,32 +36,6 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
     );
   }
 
-  Future<void> _startRun(
-    BuildContext context,
-    DevProject project,
-    DevAgentType agentType,
-  ) async {
-    final prompt = await _PromptDialog.show(context, agentType);
-    if (prompt == null || prompt.trim().isEmpty) return;
-    try {
-      final runId = await DevAgentBridgeService.instance.startRun(
-        projectId: project.id,
-        prompt: prompt,
-        agentType: agentType,
-      );
-      if (!context.mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => DevRunScreen(runId: runId)),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    }
-  }
-
   Future<void> _startSession(
     BuildContext context,
     DevProject project,
@@ -202,10 +176,6 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
               return _ProjectCard(
                 project: project,
                 onEdit: () => _openProjectSettings(context, project: project),
-                onRunClaude: () =>
-                    _startRun(context, project, DevAgentType.claudeCode),
-                onRunCodex: () =>
-                    _startRun(context, project, DevAgentType.codex),
                 onSessionClaude: () =>
                     _startSession(context, project, DevAgentType.claudeCode),
                 onSessionCodex: () =>
@@ -224,8 +194,6 @@ class _ProjectCard extends StatelessWidget {
   const _ProjectCard({
     required this.project,
     required this.onEdit,
-    required this.onRunClaude,
-    required this.onRunCodex,
     required this.onSessionClaude,
     required this.onSessionCodex,
     required this.onCleanup,
@@ -233,8 +201,6 @@ class _ProjectCard extends StatelessWidget {
 
   final DevProject project;
   final VoidCallback onEdit;
-  final VoidCallback onRunClaude;
-  final VoidCallback onRunCodex;
   final VoidCallback onSessionClaude;
   final VoidCallback onSessionCodex;
   final VoidCallback onCleanup;
@@ -307,37 +273,17 @@ class _ProjectCard extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: onRunClaude,
-                  icon: const Icon(Icons.terminal_outlined, size: 18),
+                  onPressed: onSessionClaude,
+                  icon: const Icon(Icons.forum_outlined, size: 18),
                   label: const Text('Claude Code'),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: onRunCodex,
-                  icon: const Icon(Icons.code_outlined, size: 18),
-                  label: const Text('Codex'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: TextButton.icon(
-                  onPressed: onSessionClaude,
-                  icon: const Icon(Icons.forum_outlined, size: 18),
-                  label: const Text('Claude 会话'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextButton.icon(
                   onPressed: onSessionCodex,
                   icon: const Icon(Icons.forum_outlined, size: 18),
-                  label: const Text('Codex 会话'),
+                  label: const Text('Codex'),
                 ),
               ),
             ],

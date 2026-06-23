@@ -237,11 +237,11 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
                 ),
                 DropdownMenuItem(
                   value: 'workspace_write',
-                  child: Text('写入工作区（后续）'),
+                  child: Text('写入工作区'),
                 ),
                 DropdownMenuItem(
                   value: 'release_ops',
-                  child: Text('发布操作（后续）'),
+                  child: Text('发布操作（未启用）'),
                 ),
               ],
               onChanged: (value) {
@@ -264,7 +264,7 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Text(
-                'Phase 1 会强制以 read_only 启动远程任务。Token、GitHub 权限和代理进程都只放在 Bridge 端。',
+                'Token、GitHub 权限和代理进程都只放在 Bridge 端。写入档会在隔离 worktree 里改文件，commit / 网络等动作仍逐条审批。',
                 style: TextStyle(
                   height: 1.4,
                   color: AppColors.textSecondary,
@@ -279,8 +279,8 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
 
   String _permissionDescription(String tier) {
     return switch (tier) {
-      'workspace_write' => '后续允许代理在隔离 worktree 里改文件；commit、网络等高风险动作仍要逐条审批。',
-      'release_ops' => '后续允许进入发布流程；commit、push、PR 等动作仍要逐条审批。',
+      'workspace_write' => '允许代理在隔离 worktree 里改文件；commit、网络等高风险动作仍要逐条审批。',
+      'release_ops' => '尚未启用：将允许进入发布流程（push、开 PR），逐条审批。当前选择与「写入工作区」效果一致。',
       _ => '当前只允许读取项目和汇报进度，不允许写文件、提交、推送或联网操作。',
     };
   }
