@@ -603,4 +603,10 @@ Memory Card = 统一凝露外壳 + 活动板块组装。
 - Memory Card 的 `presentationModule` 是否缓存，还是运行时从 stateJson 生成
 - 每日出门提醒第一版选高德还是和风天气作为默认 API
 - 通勤推算是否先只支持用户设置的固定地点，不做自动定位
+- **聊天消息环境元数据（候补，未排期）**：在每条用户消息气泡下附"时间 · 地点"标签。
+  时间来自 `PersonaChatMessage.timestamp`（已有，免费）。地点需要：
+  发消息时记录 GPS → 用 OpenStreetMap Nominatim 反向地理编码成地名 →
+  缓存复用。涉及位置权限、网络节流（公共 Nominatim 1 req/s）、隐私权衡。
+  价值：给角色一种"知道你在哪"的环境感，比强制用户写地点自然。
+  开口要谨慎，建议先做用户开关 + 同地点 dedup 才开放。
 
