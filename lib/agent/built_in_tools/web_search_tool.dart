@@ -5,9 +5,9 @@ import 'package:dio/dio.dart';
 
 /// Build a general-purpose web search tool for the companion agent.
 ///
-/// Uses Bing (cn.bing.com) as the primary provider — accessible in China.
-/// Falls back to DuckDuckGo's Instant Answer API and HTML endpoints, which
-/// may be unreachable depending on network conditions.
+/// Uses Bing (cn.bing.com) HTML search — accessible in China, no API key required.
+/// Returns structured results with title, URL, and snippet so the LLM can
+/// incorporate current information into its replies.
 Tool buildWebSearchTool() {
   final dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 10),
@@ -16,7 +16,6 @@ Tool buildWebSearchTool() {
       'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
           '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/json',
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     },
   ));
@@ -60,19 +59,9 @@ Tips:
       final limit = (maxResults ?? 5).clamp(1, 8);
 
       try {
-        // ── Bing HTML search (primary — works in China) ─────────────
-        final bingResults = await _fetchBingSearch(dio, query);
+        final results = await _fetchBingSearch(dio, query);
 
-        // ── DuckDuckGo Instant Answer API (knowledge graph) ──────────
-        final apiResults = await _fetchInstantAnswers(dio, query);
-
-        // ── DuckDuckGo HTML search (web results, fallback) ───────────
-        final ddgResults = await _fetchHtmlSearch(dio, query);
-
-        // Merge: Bing first (best availability), then DDG API, then DDG HTML
-        final merged = [...bingResults, ...apiResults, ...ddgResults];
-
-        if (merged.isEmpty) {
+        if (results.isEmpty) {
           return jsonEncode({
             'query': query,
             'results': [],
@@ -80,13 +69,12 @@ Tips:
           });
         }
 
-        // Deduplicate by URL, keep first occurrence
+        // Deduplicate by URL and trim to requested limit
         final seen = <String>{};
         final deduped = <Map<String, String>>[];
-        for (final r in merged) {
+        for (final r in results) {
           final url = (r['url'] ?? '').trim();
-          if (url.isEmpty) continue;
-          if (seen.contains(url)) continue;
+          if (url.isEmpty || seen.contains(url)) continue;
           seen.add(url);
           deduped.add(r);
           if (deduped.length >= limit) break;
@@ -109,16 +97,13 @@ Tips:
 
 /// Fetch web results from Bing (cn.bing.com) HTML search.
 ///
-/// Bing is accessible in China, unlike DuckDuckGo which is often blocked.
-/// Parses the `<li class="b_algo">` result blocks for titles, URLs, and snippets.
+/// Parses `<li class="b_algo">` result blocks for titles, URLs, and snippets.
 Future<List<Map<String, String>>> _fetchBingSearch(
   Dio dio,
   String query,
 ) async {
   final results = <Map<String, String>>[];
   try {
-    // Use cn.bing.com for China accessibility. For English-heavy queries
-    // the international endpoint still works from within China.
     final response = await dio.get<String>(
       'https://cn.bing.com/search',
       queryParameters: {
@@ -168,7 +153,7 @@ Future<List<Map<String, String>>> _fetchBingSearch(
       final title = _stripHtml(titleMatch.group(2) ?? '').trim();
       if (title.isEmpty || url.isEmpty) continue;
 
-      // Skip Bing's own internal links
+      // Skip Bing's own internal links (ads, related searches, etc.)
       if (url.contains('bing.com') && !url.contains('//www.bing.com')) continue;
 
       // Extract snippet from the first b_lineclamp2 <p> in this block
@@ -183,148 +168,12 @@ Future<List<Map<String, String>>> _fetchBingSearch(
       });
     }
   } catch (_) {
-    // Non-fatal — other providers may still return results.
+    // Let the error surface through the tool's return value.
   }
   return results;
 }
 
-/// Fetch structured results from DuckDuckGo Instant Answer API.
-Future<List<Map<String, String>>> _fetchInstantAnswers(
-  Dio dio,
-  String query,
-) async {
-  final results = <Map<String, String>>[];
-  try {
-    final response = await dio.get<dynamic>(
-      'https://api.duckduckgo.com/',
-      queryParameters: {
-        'q': query,
-        'format': 'json',
-        'no_html': '1',
-        'no_redirect': '1',
-        'skip_disambig': '1',
-      },
-    );
-
-    final data = response.data;
-    if (data is! Map<String, dynamic>) return results;
-
-    // Abstract (knowledge graph entry)
-    final abstract = (data['Abstract'] ?? '').toString().trim();
-    final abstractUrl = (data['AbstractURL'] ?? '').toString().trim();
-    if (abstract.isNotEmpty && abstractUrl.isNotEmpty) {
-      results.add({
-        'title': (data['Heading'] ?? '').toString().trim(),
-        'url': abstractUrl,
-        'snippet': abstract,
-      });
-    }
-
-    // Related Topics
-    final relatedTopics = data['RelatedTopics'];
-    if (relatedTopics is List) {
-      for (final topic in relatedTopics) {
-        if (topic is Map<String, dynamic>) {
-          final text = (topic['Text'] ?? '').toString().trim();
-          final url = (topic['FirstURL'] ?? '').toString().trim();
-          if (text.isNotEmpty && url.isNotEmpty) {
-            results.add({
-              'title': '',
-              'url': url,
-              'snippet': text,
-            });
-          }
-        }
-      }
-    }
-
-    // External Results
-    final extResults = data['Results'];
-    if (extResults is List) {
-      for (final r in extResults) {
-        if (r is Map<String, dynamic>) {
-          final text = (r['Text'] ?? '').toString().trim();
-          final url = (r['FirstURL'] ?? '').toString().trim();
-          if (text.isNotEmpty && url.isNotEmpty) {
-            results.add({
-              'title': '',
-              'url': url,
-              'snippet': text,
-            });
-          }
-        }
-      }
-    }
-  } catch (_) {
-    // API failure is non-fatal — HTML search may still return results.
-  }
-  return results;
-}
-
-/// Fetch web results from DuckDuckGo's non-JS HTML endpoint.
-Future<List<Map<String, String>>> _fetchHtmlSearch(
-  Dio dio,
-  String query,
-) async {
-  final results = <Map<String, String>>[];
-  try {
-    final response = await dio.get<String>(
-      'https://html.duckduckgo.com/html/',
-      queryParameters: {'q': query},
-      options: Options(responseType: ResponseType.plain),
-    );
-
-    final html = response.data ?? '';
-    if (html.isEmpty) return results;
-
-    // Parse result blocks: each result has a link (class="result__a") and
-    // a snippet (class="result__snippet").
-    // The HTML structure is simple and consistent enough for regex.
-
-    // Find all result links: <a ... class="result__a" href="URL">Title</a>
-    final linkPattern = RegExp(
-      r'<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*(?:<[^/][^>]*>[^<]*</[^>]*>)?[^<]*)</a>',
-      caseSensitive: false,
-    );
-    final snippetPattern = RegExp(
-      r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>',
-      caseSensitive: false,
-      dotAll: true,
-    );
-
-    final linkMatches = linkPattern.allMatches(html).toList();
-    final snippetMatches = snippetPattern.allMatches(html).toList();
-
-    for (var i = 0; i < linkMatches.length && i < 8; i++) {
-      final linkMatch = linkMatches[i];
-      var url = linkMatch.group(1) ?? '';
-      var title = linkMatch.group(2) ?? '';
-
-      // Clean up the URL (DuckDuckGo wraps URLs in redirects)
-      url = _cleanUrl(url);
-      title = _stripHtml(title).trim();
-
-      // Get corresponding snippet
-      var snippet = '';
-      if (i < snippetMatches.length) {
-        snippet = _stripHtml(snippetMatches[i].group(1) ?? '').trim();
-      }
-
-      if (title.isNotEmpty && url.isNotEmpty) {
-        results.add({
-          'title': title,
-          'url': url,
-          'snippet': snippet,
-        });
-      }
-    }
-  } catch (_) {
-    // Non-fatal — API results may still be available.
-  }
-  return results;
-}
-
-/// Strip HTML tags from a string.
+/// Strip HTML tags and common entities from a string.
 String _stripHtml(String input) {
   return input
       .replaceAll(RegExp(r'<[^>]*>'), '')
@@ -335,14 +184,4 @@ String _stripHtml(String input) {
       .replaceAll('&#x27;', "'")
       .replaceAll('&nbsp;', ' ')
       .trim();
-}
-
-/// Extract the real URL from DuckDuckGo's redirect wrapper.
-String _cleanUrl(String url) {
-  // DuckDuckGo wraps external URLs like: //duckduckgo.com/l/?uddg=REAL_URL&rut=...
-  final uddgMatch = RegExp(r'uddg=([^&]+)').firstMatch(url);
-  if (uddgMatch != null) {
-    return Uri.decodeComponent(uddgMatch.group(1)!);
-  }
-  return url;
 }
