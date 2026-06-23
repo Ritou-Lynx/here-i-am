@@ -23,9 +23,10 @@
 | 1 | 只读远程台 | ✅ 完成 |
 | 2 | 写权限 + worktree + apply/discard 真做 | ✅ 完成 |
 | 4a | 多项目体验打磨（chip / 摘要 / cleanup / 删除） | ✅ 完成，dogfood 中 |
+| 4a+ | 项目级 Git 操作（Pull / Push） | 📋 设计已确认，待实现 |
 | **5** | **角色可召唤的多轮 Dev Session** | **🚧 已开始：Dev Room 多轮骨架已落地** |
 | 3 | Daily Coding Log + 署名记忆卡片 | 接在 5 后面 |
-| 4b | PR 自动开（release_ops 真启用） | 后续 |
+| 4b | PR 自动开（release_ops 真启用） | 依赖 4a+ Push |
 | 6 | 语音陪伴（通勤路上 Codex 读文章 + TTS） | 后续 |
 
 **砍掉的**：原 Phase 5 "双代理协作（CC 写 + Codex review）" —— 太 niche，长期都不做。
@@ -274,6 +275,128 @@ class DevAgentApprovals extends Table {
 ✅ 列表按 createdAt 倒序
 ✅ Bridge `POST /v1/cleanup/worktrees` 批量清理
 ✅ 项目删除按钮
+
+---
+
+## Phase 4a+ — 项目级 Git 操作：Pull / Push（设计已确认，待实现）
+
+### 目标
+
+让用户在 Dev Room 里直接同步主工作副本的 Git 状态——pull 拉取远程、push 推送本地改动。这两个操作**不经过 agent、不进 worktree**，是确定性的 Bridge 端点 + 审批按钮。
+
+Agent 改代码产生的 commit 仍然走 Phase 2 的 worktree → Apply 流程，不在本 Phase 范围内。
+
+### 三个 Git 动作的归属
+
+| 动作 | 触发方式 | 谁决策 | 经不经过 agent |
+|---|---|---|---|
+| 🔄 Pull | Dev Room 按钮 / 看到角标提醒 | 用户 | ❌ 固定 Bridge 端点 |
+| ✅ Commit | agent run → review diff → Apply | 用户（审批 diff 后合并） | agent 在 worktree 里已 commit |
+| 📤 Push | Apply 后，用户决定同步到远程 | 用户 | ❌ 固定 Bridge 端点 |
+
+关键原则：**Pull 和 Push 是人对代码状态的判断，不是 agent 的决策。不交给 LLM。**
+
+### 用户场景
+
+**场景 A — 出门前同步**：打开 Dev Room，项目卡片角标显示"远程领先 3 commits"→ 点「拉取最新」→ 审批弹窗显示具体命令 → 确认 → 几秒后完成。
+
+**场景 B — agent 改完代码后推送**：agent run 完成 → 看 diff → Apply（merge 到 personal-lab）→ 项目卡片显示"本地领先 1 commit"+「推送到远程」按钮 → 点按钮 → 审批弹窗 → 确认 → push 完成。
+
+### Bridge 新增端点
+
+```
+POST /v1/projects/{id}/git-pull
+  行为: cd {rootPath} && git fetch origin {defaultBranch} && git merge --ff-only origin/{defaultBranch}
+  返回: { pulled: int, commits: [{hash, message}], currentHash: string }
+  错误: 非 fast-forward / 有本地未提交改动 / fetch 失败 → 返回错误描述，不回滚
+  
+POST /v1/projects/{id}/git-push
+  行为: cd {rootPath} && git push origin {defaultBranch}
+  返回: { pushed: int, commits: [{hash, message}], remoteUrl: string }
+  错误: 非 fast-forward / 无推送权限 / 网络错误 → 返回错误描述
+
+GET /v1/projects/{id}/git-status
+  返回: {
+    branch: string,
+    ahead: int,          // 本地领先远程的 commit 数
+    behind: int,         // 远程领先本地的 commit 数
+    lastFetch: int?,     // 上次 fetch 时间戳
+    recentApplies: [{runId, summary, agentType, timestamp}],  // 最近 Apply 记录
+    hasUncommittedChanges: bool
+  }
+```
+
+### App 侧审批
+
+Pull 和 Push 各产生一条 `DevAgentApprovals`，kind 分别为 `git_pull` / `git_push`：
+
+```
+┌──────────────────────────────────┐
+│ 审批：拉取远程代码                 │
+│                                  │
+│ 将在 D:\鱼\here-i-am 执行：       │
+│ git fetch && git merge --ff-only │
+│ origin/personal-lab              │
+│                                  │
+│ 预计快进合并 3 个 commit。         │
+│                                  │
+│       [取消]    [确认拉取]         │
+└──────────────────────────────────┘
+```
+
+与 agent run 审批一致：5 分钟未响应 → `expired`，Bridge 不执行。
+
+### Dev Room UI 改动
+
+项目卡片增加 Git 状态行和操作按钮：
+
+```
+┌──────────────────────────────────┐
+│ 🔴 here-i-am                📋  │
+│ personal-lab                     │
+│                                  │
+│ ⚠ 远程领先 3 commits · 2h 前     │  ← 仅 behind > 0 时显示
+│                                  │
+│ 3 完成 · 上次 12 分钟前           │  ← 现有运行摘要
+│                                  │
+│ 📤 本地领先 1 commit              │  ← 仅 ahead > 0 时显示
+│    [📤 推送到远程]                │
+│                                  │
+│ 最近合并:                        │
+│ ✅ "加 RecordOrganizer 重试上限"  │
+│    (Claude Code, 5 分钟前)       │
+│ ⏳ "重构 handler"                │
+│    (Codex, 运行中)               │
+└──────────────────────────────────┘
+```
+
+Pull 按钮仅 behind > 0 时显示。Push 按钮仅 ahead > 0 时显示。两者可同时出现（本地和远程各自有新 commit）。
+
+### 权限档行为
+
+| 档位 | git-pull | git-push |
+|---|---|---|
+| `read_only` | ❌ | ❌ |
+| `workspace_write` | ⚠️ 审批 | ❌ |
+| `release_ops` | ⚠️ 审批 | ⚠️ 审批 |
+
+`workspace_write` 可以 pull 但不能 push——push 需要 `release_ops`。这与 Phase 2 原有权限表一致：`workspace_write` 允许本地 commit，但不允许远程推送。
+
+### 与 Phase 4b（PR 自动开）的关系
+
+Phase 4b 的 `release_ops` 模式下，Apply 不再直接 fast-forward merge 到 `personal-lab`，而是 `git push origin dev-agent/{short} && gh pr create`。此时：
+- Push 按钮操作的不是 worktree 分支，而是主分支 `personal-lab`
+- 如果用户想手动 push 主分支（不走 PR），仍然可以用 Push 按钮
+- Phase 4b 不改本 Phase 的端点，只在 Apply 逻辑里加分支
+
+### 完成判定
+
+- `read_only` 项目不显示 pull/push 按钮
+- `workspace_write` 项目能 pull，push 按钮不显示
+- `release_ops` 项目能 pull 且能 push
+- pull 非 fast-forward 时弹错误提示，不损坏本地
+- push 被远程拒绝时弹错误提示
+- git-status 在项目卡片打开时自动刷新，角标准确
 
 ---
 

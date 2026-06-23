@@ -251,6 +251,98 @@ Response:
 }
 ```
 
+## Project-Level Git Operations (Phase 4a+)
+
+These endpoints operate on the main working copy (not worktrees). They are
+independent of agent runs — the bridge executes deterministic git commands
+and returns structured results. The app gates these behind permission tiers.
+
+### Git Status
+
+`GET /v1/projects/{project_id}/git-status`
+
+Returns the git status of the project's working copy. Requires at least one
+agent run to have been started for the project (the bridge discovers project
+config from existing runs).
+
+Response:
+
+```json
+{
+  "branch": "personal-lab",
+  "ahead": 0,
+  "behind": 3,
+  "lastFetch": null,
+  "hasUncommittedChanges": false
+}
+```
+
+- `ahead` / `behind` are relative to `origin/{defaultBranch}`. If no remote
+  tracking branch exists, both default to 0.
+- `hasUncommittedChanges` is true when `git status --porcelain` is non-empty.
+
+### Git Pull
+
+`POST /v1/projects/{project_id}/git-pull`
+
+Executes `git checkout {defaultBranch}` then `git fetch origin {defaultBranch}`
+then `git merge --ff-only origin/{defaultBranch}`. Non-fast-forward merges are
+rejected and returned as `ok: false` without side effects.
+
+Requires `workspace_write` or higher permission tier (enforced by the app, not
+the bridge).
+
+Response (success):
+
+```json
+{
+  "ok": true,
+  "message": "Pulled 3 commit(s).",
+  "commits": [
+    { "hash": "abc123def", "message": "fix: RecordOrganizer retry limit" }
+  ]
+}
+```
+
+Response (non-ff or other failure):
+
+```json
+{
+  "ok": false,
+  "message": "fatal: Not possible to fast-forward, aborting.",
+  "commits": []
+}
+```
+
+### Git Push
+
+`POST /v1/projects/{project_id}/git-push`
+
+Executes `git push origin {defaultBranch}`. Requires `release_ops` permission
+tier (enforced by the app, not the bridge).
+
+Response (success):
+
+```json
+{
+  "ok": true,
+  "message": "Pushed 2 commit(s).",
+  "commits": [
+    { "hash": "def456abc", "message": "feat: Dev Room git operations" }
+  ]
+}
+```
+
+Response (rejected by remote):
+
+```json
+{
+  "ok": false,
+  "message": "error: failed to push some refs to 'origin'",
+  "commits": []
+}
+```
+
 ## Event Kinds
 
 | Kind | Purpose |

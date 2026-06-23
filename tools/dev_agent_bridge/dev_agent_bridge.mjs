@@ -321,6 +321,26 @@ function shortRunId(runId) {
   return String(runId).replace(/-/g, '').slice(0, 8);
 }
 
+function findProject(projectId) {
+  for (const run of runs.values()) {
+    if (run.project?.id === projectId) return run.project;
+  }
+  return null;
+}
+
+function getCommitList(cwd, range) {
+  if (!range || range === '..') return [];
+  const result = runGit(cwd, ['log', '--format=%H %s', range], { allowFail: true });
+  if (result.status !== 0) return [];
+  return (result.stdout || '').trim().split('\n').filter(Boolean).map((line) => {
+    const space = line.indexOf(' ');
+    return {
+      hash: space > 0 ? line.slice(0, space) : line,
+      message: space > 0 ? line.slice(space + 1) : '',
+    };
+  });
+}
+
 function createWorktree(project, runId) {
   ensureGitRepo(project.rootPath);
   const short = shortRunId(runId);
@@ -575,6 +595,7 @@ async function handle(req, res) {
         bridge_id: 'local-dev-agent-bridge',
         version: '0.1.0',
         agents: ['claude_code', 'codex'],
+        features: ['git_status', 'git_pull', 'git_push'],
         transport: certPath && keyPath ? 'https' : 'http-local',
       });
       return;
@@ -825,6 +846,114 @@ async function handle(req, res) {
       }
       console.log(`[cleanup] project=${projectId.slice(0, 8)} removed=${removed} failed=${failures.length}`);
       json(res, 200, { ok: true, removed, failures });
+      return;
+    }
+
+    // -----------------------------------------------------------------------
+    // Project-level git operations (Phase 4a+)
+    // These operate on the main working copy, not on worktrees.
+    // -----------------------------------------------------------------------
+
+    const gitStatusMatch = path.match(/^\/v1\/projects\/([^/]+)\/git-status$/);
+    if (req.method === 'GET' && gitStatusMatch) {
+      const projectId = decodeURIComponent(gitStatusMatch[1]);
+      const project = findProject(projectId);
+      if (!project) return json(res, 404, { error: 'project_not_found', message: `No runs recorded for project ${projectId.slice(0, 8)}. Start an agent run first.` });
+      try {
+        ensureGitRepo(project.rootPath);
+        const branch = runGit(project.rootPath, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
+        let ahead = 0;
+        let behind = 0;
+        // rev-list --left-right --count: first column = behind, second = ahead
+        try {
+          const counts = runGit(project.rootPath, [
+            'rev-list', '--left-right', '--count',
+            `origin/${project.defaultBranch}...HEAD`,
+          ]).stdout.trim().split(/\s+/);
+          behind = parseInt(counts[0] || '0', 10);
+          ahead = parseInt(counts[1] || '0', 10);
+        } catch (_) {
+          // No remote tracking branch yet — both remain 0.
+        }
+        const statusCheck = runGit(project.rootPath, ['status', '--porcelain'], { allowFail: true });
+        const hasUncommittedChanges = (statusCheck.stdout || '').trim().length > 0;
+        json(res, 200, {
+          branch,
+          ahead,
+          behind,
+          lastFetch: null,
+          hasUncommittedChanges,
+        });
+      } catch (err) {
+        json(res, 500, { error: 'git_status_error', message: err.message });
+      }
+      return;
+    }
+
+    const gitPullMatch = path.match(/^\/v1\/projects\/([^/]+)\/git-pull$/);
+    if (req.method === 'POST' && gitPullMatch) {
+      const projectId = decodeURIComponent(gitPullMatch[1]);
+      const project = findProject(projectId);
+      if (!project) return json(res, 404, { error: 'project_not_found', message: `No runs recorded for project ${projectId.slice(0, 8)}.` });
+      try {
+        ensureGitRepo(project.rootPath);
+        const before = runGit(project.rootPath, ['rev-parse', 'HEAD']).stdout.trim();
+        // Ensure we are on the default branch so merge targets the right ref.
+        runGit(project.rootPath, ['checkout', project.defaultBranch], { allowFail: true });
+        runGit(project.rootPath, ['fetch', 'origin', project.defaultBranch]);
+        const merge = runGit(project.rootPath, [
+          'merge', '--ff-only', `origin/${project.defaultBranch}`,
+        ], { allowFail: true });
+        if (merge.status === 0) {
+          const after = runGit(project.rootPath, ['rev-parse', 'HEAD']).stdout.trim();
+          const commits = getCommitList(project.rootPath, `${before}..${after}`);
+          const msg = commits.length
+            ? `Pulled ${commits.length} commit(s).`
+            : 'Already up to date.';
+          console.log(`[git-pull] project=${projectId.slice(0, 8)} branch=${project.defaultBranch} commits=${commits.length}`);
+          json(res, 200, { ok: true, message: msg, commits });
+        } else {
+          const stderr = (merge.stderr || '').trim();
+          json(res, 200, {
+            ok: false,
+            message: stderr || 'Pull failed: not fast-forward.',
+            commits: [],
+          });
+        }
+      } catch (err) {
+        json(res, 200, { ok: false, message: err.message, commits: [] });
+      }
+      return;
+    }
+
+    const gitPushMatch = path.match(/^\/v1\/projects\/([^/]+)\/git-push$/);
+    if (req.method === 'POST' && gitPushMatch) {
+      const projectId = decodeURIComponent(gitPushMatch[1]);
+      const project = findProject(projectId);
+      if (!project) return json(res, 404, { error: 'project_not_found', message: `No runs recorded for project ${projectId.slice(0, 8)}.` });
+      try {
+        ensureGitRepo(project.rootPath);
+        // Snapshot the remote ref before pushing so we can report what was sent.
+        const beforeResult = runGit(project.rootPath, [
+          'rev-parse', `origin/${project.defaultBranch}`,
+        ], { allowFail: true });
+        runGit(project.rootPath, ['push', 'origin', project.defaultBranch]);
+        let commits = [];
+        if (beforeResult.status === 0) {
+          const beforeHash = beforeResult.stdout.trim();
+          const afterResult = runGit(project.rootPath, [
+            'rev-parse', `origin/${project.defaultBranch}`,
+          ]);
+          commits = getCommitList(project.rootPath, `${beforeHash}..${afterResult.stdout.trim()}`);
+        }
+        const msg = commits.length
+          ? `Pushed ${commits.length} commit(s).`
+          : 'Push completed.';
+        console.log(`[git-push] project=${projectId.slice(0, 8)} branch=${project.defaultBranch} commits=${commits.length}`);
+        json(res, 200, { ok: true, message: msg, commits });
+      } catch (err) {
+        json(res, 200, { ok: false, message: err.message, commits: [] });
+      }
       return;
     }
 

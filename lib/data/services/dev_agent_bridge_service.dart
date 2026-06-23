@@ -34,12 +34,16 @@ class DevAgentBridgeHealth {
     required this.bridgeId,
     required this.version,
     required this.agents,
+    this.features = const [],
   });
 
   final bool ok;
   final String bridgeId;
   final String version;
   final List<String> agents;
+  final List<String> features;
+
+  bool get supportsGitOps => features.contains('git_pull');
 }
 
 class DevAgentBridgeException implements Exception {
@@ -60,6 +64,55 @@ class DevAgentDecisionResult {
   final bool accepted;
   final String? reason;
   final String? message;
+}
+
+class DevProjectGitStatus {
+  const DevProjectGitStatus({
+    required this.branch,
+    required this.ahead,
+    required this.behind,
+    this.lastFetch,
+    this.hasUncommittedChanges = false,
+  });
+
+  final String branch;
+  final int ahead;
+  final int behind;
+  final int? lastFetch;
+  final bool hasUncommittedChanges;
+
+  factory DevProjectGitStatus.fromJson(Map<String, dynamic> json) {
+    return DevProjectGitStatus(
+      branch: json['branch']?.toString() ?? '',
+      ahead: (json['ahead'] as num?)?.toInt() ?? 0,
+      behind: (json['behind'] as num?)?.toInt() ?? 0,
+      lastFetch: (json['lastFetch'] as num?)?.toInt(),
+      hasUncommittedChanges: json['hasUncommittedChanges'] == true,
+    );
+  }
+}
+
+class DevGitOperationResult {
+  const DevGitOperationResult({
+    required this.ok,
+    this.message,
+    this.commits,
+  });
+
+  final bool ok;
+  final String? message;
+  final List<Map<String, dynamic>>? commits;
+
+  factory DevGitOperationResult.fromJson(Map<String, dynamic> json) {
+    final rawCommits = json['commits'];
+    return DevGitOperationResult(
+      ok: json['ok'] == true,
+      message: json['message']?.toString(),
+      commits: rawCommits is List
+          ? rawCommits.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : null,
+    );
+  }
 }
 
 /// App-side control surface for the remote development bridge.
@@ -190,6 +243,102 @@ class DevAgentBridgeService {
       );
     } catch (e, stack) {
       _logger.warning('Failed to cleanup worktrees', e, stack);
+      rethrow;
+    }
+  }
+
+  /// Fetches git status from the bridge for a project.
+  ///
+  /// Returns ahead/behind counts and branch info. The bridge runs
+  /// `git fetch` (if configured) and `git status` on the main working copy.
+  Future<DevProjectGitStatus> getGitStatus(String projectId) async {
+    final project = await getProject(projectId);
+    if (project == null) {
+      throw const DevAgentBridgeException('Dev project not found.');
+    }
+    try {
+      final response = await _dio.getUri<Map<String, dynamic>>(
+        _bridgeUri(project.bridgeUrl, '/v1/projects/$projectId/git-status'),
+      );
+      return DevProjectGitStatus.fromJson(response.data ?? {});
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        throw const DevAgentBridgeException(
+          'Bridge does not support git operations. Update the bridge to the latest version.',
+        );
+      }
+      rethrow;
+    } catch (e, stack) {
+      _logger.warning('Failed to fetch git status for $projectId', e, stack);
+      rethrow;
+    }
+  }
+
+  /// Pulls remote changes for a project's default branch (fast-forward only).
+  ///
+  /// Requires [DevProjectPermissionTier.workspaceWrite] or higher.
+  /// The bridge executes `git fetch && git merge --ff-only origin/<branch>`
+  /// on the main working copy (not a worktree).
+  Future<DevGitOperationResult> pullGit(String projectId) async {
+    final project = await getProject(projectId);
+    if (project == null) {
+      throw const DevAgentBridgeException('Dev project not found.');
+    }
+    _validateBridgeUrl(project.bridgeUrl);
+    final tier = project.permissionTier;
+    if (tier == 'read_only') {
+      throw const DevAgentBridgeException(
+        'Git pull requires workspace_write or higher permission tier.',
+      );
+    }
+    try {
+      final response = await _dio.postUri<Map<String, dynamic>>(
+        _bridgeUri(project.bridgeUrl, '/v1/projects/$projectId/git-pull'),
+      );
+      return DevGitOperationResult.fromJson(response.data ?? {});
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        throw const DevAgentBridgeException(
+          'Bridge does not support git operations. Update the bridge to the latest version.',
+        );
+      }
+      rethrow;
+    } catch (e, stack) {
+      _logger.warning('Failed to pull git for $projectId', e, stack);
+      rethrow;
+    }
+  }
+
+  /// Pushes local commits for a project's default branch.
+  ///
+  /// Requires [DevProjectPermissionTier.releaseOps]. The bridge executes
+  /// `git push origin <branch>` on the main working copy.
+  Future<DevGitOperationResult> pushGit(String projectId) async {
+    final project = await getProject(projectId);
+    if (project == null) {
+      throw const DevAgentBridgeException('Dev project not found.');
+    }
+    _validateBridgeUrl(project.bridgeUrl);
+    final tier = project.permissionTier;
+    if (tier != 'release_ops') {
+      throw const DevAgentBridgeException(
+        'Git push requires release_ops permission tier.',
+      );
+    }
+    try {
+      final response = await _dio.postUri<Map<String, dynamic>>(
+        _bridgeUri(project.bridgeUrl, '/v1/projects/$projectId/git-push'),
+      );
+      return DevGitOperationResult.fromJson(response.data ?? {});
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        throw const DevAgentBridgeException(
+          'Bridge does not support git operations. Update the bridge to the latest version.',
+        );
+      }
+      rethrow;
+    } catch (e, stack) {
+      _logger.warning('Failed to push git for $projectId', e, stack);
       rethrow;
     }
   }
@@ -380,11 +529,15 @@ class DevAgentBridgeService {
     );
     final data = response.data ?? {};
     final agents = data['agents'];
+    final features = data['features'];
     return DevAgentBridgeHealth(
       ok: data['ok'] == true,
       bridgeId: data['bridge_id']?.toString() ?? 'unknown',
       version: data['version']?.toString() ?? 'unknown',
       agents: agents is List ? agents.map((e) => e.toString()).toList() : [],
+      features: features is List
+          ? features.map((e) => e.toString()).toList()
+          : const [],
     );
   }
 

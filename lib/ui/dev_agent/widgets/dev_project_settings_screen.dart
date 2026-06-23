@@ -241,7 +241,7 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
                 ),
                 DropdownMenuItem(
                   value: 'release_ops',
-                  child: Text('发布操作（未启用）'),
+                  child: Text('发布操作'),
                 ),
               ],
               onChanged: (value) {
@@ -279,8 +279,8 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
 
   String _permissionDescription(String tier) {
     return switch (tier) {
-      'workspace_write' => '允许代理在隔离 worktree 里改文件；commit、网络等高风险动作仍要逐条审批。',
-      'release_ops' => '尚未启用：将允许进入发布流程（push、开 PR），逐条审批。当前选择与「写入工作区」效果一致。',
+      'workspace_write' => '允许代理在隔离 worktree 里改文件；commit、网络等高风险动作仍要逐条审批。可以 pull 主分支。',
+      'release_ops' => '在写入工作区基础上增加 push 权限。可以推送本地 commit 到远程仓库，逐条审批。',
       _ => '当前只允许读取项目和汇报进度，不允许写文件、提交、推送或联网操作。',
     };
   }

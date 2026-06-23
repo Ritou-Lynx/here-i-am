@@ -268,6 +268,10 @@ class _ProjectCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _ProjectRunsSummary(projectId: project.id),
+          if (project.permissionTier != 'read_only') ...[
+            const SizedBox(height: 8),
+            _GitStatusBar(project: project),
+          ],
           const SizedBox(height: 14),
           Row(
             children: [
@@ -365,6 +369,344 @@ class _ProjectRunsSummary extends StatelessWidget {
     if (diff < 3600) return '${diff ~/ 60} 分钟前';
     if (diff < 86400) return '${diff ~/ 3600} 小时前';
     return '${diff ~/ 86400} 天前';
+  }
+}
+
+class _GitStatusBar extends StatefulWidget {
+  const _GitStatusBar({required this.project});
+
+  final DevProject project;
+
+  @override
+  State<_GitStatusBar> createState() => _GitStatusBarState();
+}
+
+class _GitStatusBarState extends State<_GitStatusBar> {
+  DevProjectGitStatus? _status;
+  bool _loading = false;
+  String? _error;
+  bool _operating = false;
+  bool _bridgeUnsupported = false;
+
+  DevProject get _project => widget.project;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStatus();
+  }
+
+  Future<void> _fetchStatus() async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final status =
+          await DevAgentBridgeService.instance.getGitStatus(_project.id);
+      if (!mounted) return;
+      setState(() {
+        _status = status;
+        _loading = false;
+        _bridgeUnsupported = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      if (msg.contains('Bridge does not support git')) {
+        setState(() {
+          _bridgeUnsupported = true;
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _error = msg;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _pull() async {
+    final status = _status;
+    if (status == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('拉取远程代码'),
+        content: Text(
+          '将在 ${_project.rootPath} 执行：\n'
+          'git fetch && git merge --ff-only\n'
+          'origin/${_project.defaultBranch}\n\n'
+          '预计快进合并 ${status.behind} 个 commit。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('确认拉取'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _operating = true);
+    try {
+      final result =
+          await DevAgentBridgeService.instance.pullGit(_project.id);
+      if (!mounted) return;
+      if (result.ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.message ?? '已拉取 ${status.behind} 个 commit。',
+            ),
+          ),
+        );
+        await _fetchStatus();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? '拉取失败。'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('拉取失败：$e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _operating = false);
+    }
+  }
+
+  Future<void> _push() async {
+    final status = _status;
+    if (status == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('推送到远程仓库'),
+        content: Text(
+          '将在 ${_project.rootPath} 执行：\n'
+          'git push origin ${_project.defaultBranch}\n\n'
+          '将推送 ${status.ahead} 个 commit。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('确认推送'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _operating = true);
+    try {
+      final result =
+          await DevAgentBridgeService.instance.pushGit(_project.id);
+      if (!mounted) return;
+      if (result.ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? '已推送 ${status.ahead} 个 commit。'),
+          ),
+        );
+        await _fetchStatus();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? '推送失败。'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('推送失败：$e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _operating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_bridgeUnsupported) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.textTertiary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: _buildContent(),
+    );
+  }
+
+  Widget _buildContent() {
+    if (_loading && _status == null) {
+      return const Row(
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 8),
+          Text(
+            '检查 Git 状态...',
+            style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
+          ),
+        ],
+      );
+    }
+
+    if (_error != null && _status == null) {
+      return Row(
+        children: [
+          const Icon(Icons.error_outline, size: 14, color: Colors.red),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              _error!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ),
+          GestureDetector(
+            onTap: _fetchStatus,
+            child: const Icon(Icons.refresh, size: 16, color: AppColors.textTertiary),
+          ),
+        ],
+      );
+    }
+
+    final status = _status;
+    final showPull = status != null && status.behind > 0;
+    final canPush = _project.permissionTier == 'release_ops';
+    final showPush = status != null && status.ahead > 0 && canPush;
+
+    if (status == null) return const SizedBox.shrink();
+    if (!showPull && !showPush && status.ahead == 0 && status.behind == 0) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              _error!,
+              style: const TextStyle(color: Colors.red, fontSize: 11),
+            ),
+          ),
+        if (showPull || showPush)
+          Row(
+            children: [
+              if (showPull) ...[
+                Icon(Icons.cloud_download_outlined,
+                    size: 14, color: Colors.orange.shade700),
+                const SizedBox(width: 4),
+                Text(
+                  '远程领先 ${status.behind} 个 commit',
+                  style: TextStyle(
+                    color: Colors.orange.shade700,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              if (showPull && showPush) ...[
+                const SizedBox(width: 10),
+                Container(
+                  width: 1,
+                  height: 14,
+                  color: AppColors.textTertiary.withValues(alpha: 0.3),
+                ),
+                const SizedBox(width: 10),
+              ],
+              if (showPush) ...[
+                const Icon(Icons.cloud_upload_outlined,
+                    size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  '本地领先 ${status.ahead} 个 commit',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              if (_operating)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else ...[
+                if (showPull)
+                  TextButton.icon(
+                    onPressed: _operating ? null : _pull,
+                    icon: const Icon(Icons.download, size: 14),
+                    label: const Text('拉取', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                if (showPush)
+                  TextButton.icon(
+                    onPressed: _operating ? null : _push,
+                    icon: const Icon(Icons.upload, size: 14),
+                    label: const Text('推送', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        if (_loading && _status != null)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+      ],
+    );
   }
 }
 
