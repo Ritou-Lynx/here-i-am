@@ -4,6 +4,7 @@ import 'package:memex/agent/built_in_tools/ai_shopping_tools.dart';
 import 'package:memex/agent/built_in_tools/checkin_tool.dart';
 import 'package:memex/agent/built_in_tools/coros_mcp_tool.dart';
 import 'package:memex/agent/built_in_tools/delegate_task_tool.dart';
+import 'package:memex/agent/built_in_tools/dev_session_tool.dart';
 import 'package:memex/agent/built_in_tools/device_app_blocker_tool.dart';
 import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
@@ -63,6 +64,10 @@ class CharacterToolsFactory {
       buildReminderTool(characterId: characterId, characterName: characterName),
       buildDelegateTaskTool(
         userId: userId,
+        characterId: characterId,
+        characterName: characterName ?? 'Companion',
+      ),
+      buildDevSessionStartOrContinueTool(
         characterId: characterId,
         characterName: characterName ?? 'Companion',
       ),

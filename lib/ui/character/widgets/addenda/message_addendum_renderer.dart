@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'dev_session_addendum_widget.dart';
 import 'image_addendum_widget.dart';
 import 'reading_card_addendum_widget.dart';
 
@@ -14,6 +14,7 @@ import 'reading_card_addendum_widget.dart';
 ///
 ///   - `image`        — base64-encoded image (legacy: missing `type` ⇒ image)
 ///   - `reading_card` — a saved article preview (Reading Companion)
+///   - `dev_session`  — a Dev Room session result / continuation card
 ///
 /// New addendum types should be added by:
 ///   1. Creating a dedicated widget under `lib/ui/character/widgets/addenda/`
@@ -69,9 +70,8 @@ class MessageAddendumRenderer extends StatelessWidget {
     if (widgets.isEmpty) return const SizedBox.shrink();
 
     return Column(
-      crossAxisAlignment: isCharacterBubble
-          ? CrossAxisAlignment.start
-          : CrossAxisAlignment.end,
+      crossAxisAlignment:
+          isCharacterBubble ? CrossAxisAlignment.start : CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: widgets,
     );
@@ -89,6 +89,11 @@ class MessageAddendumRenderer extends StatelessWidget {
         return ImageAddendumWidget(data: data);
       case 'reading_card':
         return ReadingCardAddendumWidget(
+          data: data,
+          isCharacterBubble: isCharacterBubble,
+        );
+      case 'dev_session':
+        return DevSessionAddendumWidget(
           data: data,
           isCharacterBubble: isCharacterBubble,
         );

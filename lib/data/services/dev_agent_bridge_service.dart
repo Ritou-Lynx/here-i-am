@@ -7,6 +7,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:uuid/uuid.dart';
 
@@ -220,6 +221,31 @@ class DevAgentBridgeService {
     return (_db.select(_db.devAgentSessions)
           ..where((t) => t.id.equals(sessionId)))
         .getSingleOrNull();
+  }
+
+  Future<List<DevAgentSession>> listSessions({
+    String? projectId,
+    String? ownerCharacterId,
+    String? agentType,
+    String? status,
+    int limit = 20,
+  }) {
+    final query = _db.select(_db.devAgentSessions)
+      ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+      ..limit(limit);
+    if (projectId != null) {
+      query.where((t) => t.projectId.equals(projectId));
+    }
+    if (ownerCharacterId != null) {
+      query.where((t) => t.ownerCharacterId.equals(ownerCharacterId));
+    }
+    if (agentType != null) {
+      query.where((t) => t.agentType.equals(agentType));
+    }
+    if (status != null) {
+      query.where((t) => t.status.equals(status));
+    }
+    return query.get();
   }
 
   Stream<DevAgentSession?> watchSession(String sessionId) {
@@ -908,6 +934,12 @@ class DevAgentBridgeService {
         content: content,
         linkedRunId: runId,
       );
+      await _postRunSummaryToOwnerChat(
+        sessionId: sessionId,
+        runId: runId,
+        status: status,
+        summary: content,
+      );
     } else {
       await (_db.update(_db.devAgentSessionMessages)
             ..where((t) => t.id.equals(existing.id)))
@@ -921,6 +953,71 @@ class DevAgentBridgeService {
             ..where((t) => t.id.equals(sessionId)))
           .write(DevAgentSessionsCompanion(updatedAt: Value(now)));
     }
+  }
+
+  Future<void> _postRunSummaryToOwnerChat({
+    required String sessionId,
+    required String runId,
+    required String status,
+    required String summary,
+  }) async {
+    final session = await getSession(sessionId);
+    final characterId = session?.ownerCharacterId;
+    if (session == null || characterId == null || characterId.isEmpty) {
+      return;
+    }
+    final run = await getRun(runId);
+    final content = _buildOwnerChatMessage(
+      agentType: session.agentType,
+      status: status,
+      summary: summary,
+    );
+    try {
+      await PersonaChatService.instance.addCharacterMessage(
+        characterId,
+        content,
+        isRead: false,
+        timestamp: DateTime.now(),
+        addenda: [
+          {
+            'type': 'dev_session',
+            'sessionId': session.id,
+            'runId': runId,
+            'title': session.title,
+            'agentType': session.agentType,
+            'status': status,
+            if (run?.branch != null) 'branch': run!.branch,
+            if (run?.worktreePath != null) 'worktreePath': run!.worktreePath,
+          },
+        ],
+      );
+      await _insertSessionMessage(
+        sessionId: sessionId,
+        role: 'character',
+        content: content,
+        linkedRunId: runId,
+      );
+    } catch (e, stack) {
+      _logger.warning('Failed to post dev session result to chat', e, stack);
+    }
+  }
+
+  String _buildOwnerChatMessage({
+    required String agentType,
+    required String status,
+    required String summary,
+  }) {
+    final agentName =
+        agentType == DevAgentType.claudeCode.value ? 'Claude Code' : 'Codex';
+    final trimmed = summary.trim();
+    final body = trimmed.isEmpty ? '这轮没有返回摘要。' : trimmed;
+    if (status == 'done') {
+      return '我让 $agentName 跑完了，结果回来了：\n\n$body\n\n详情我放在下面这张 Dev Session 卡片里了，你可以点进去继续追问。';
+    }
+    if (status == 'aborted') {
+      return '$agentName 这轮已经停止了：\n\n$body\n\n我把现场留在 Dev Room 里了。';
+    }
+    return '$agentName 这轮没有顺利完成：\n\n$body\n\n我把详情放在 Dev Room 里了，我们可以点进去看哪里卡住。';
   }
 
   Future<void> _markRunFailed(String runId, String message) async {

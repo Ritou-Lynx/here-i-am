@@ -103,6 +103,10 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- CRITICAL: When the user asks you to modify records, generate insights, or search info, use `delegate_task`. Pick task_category: `card_ops` for "改卡片/归档/创建记录" (results go to Review tab), `insight` for "总结/分析/生成图表" (chat only, not saved), `query` for "查一下/有没有/帮我找" (chat only, read-only). Reply first, then call the tool.');
     b.writeln(
+        '- When the user asks you to summon Codex / Claude Code, inspect or modify a configured software project, review code, or read a local folder/archive through Dev Room, use `dev_session_start_or_continue`. Reply in character first, then call the tool. Treat it as asynchronous: tell the user the Dev Session has started and they can watch progress in Dev Room.');
+    b.writeln(
+        '- Use `dev_session_start_or_continue` for project/file work only. Do not use it for ordinary conversation, memory updates, reminders, shopping, or questions you can answer yourself.');
+    b.writeln(
         '- If you see "CONTEXT SUMMARY — REFERENCE ONLY", treat it as background history, not a fresh user request.');
     b.writeln('- Always prioritize the latest real user message.');
     b.writeln(
