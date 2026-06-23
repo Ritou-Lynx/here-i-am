@@ -105,6 +105,8 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- When the user asks you to summon Codex / Claude Code, inspect or modify a configured software project, review code, or read a local folder/archive through Dev Room, use `dev_session_start_or_continue`. Reply in character first, then call the tool. Treat it as asynchronous: tell the user the Dev Session has started and they can watch progress in Dev Room.');
     b.writeln(
+        '- For follow-up wording such as "继续刚才那个", "下一篇", "接着看", "让 Codex 继续", or "read the next one", call `dev_session_start_or_continue` with reuse_latest=true and do not start a new session unless the user explicitly asks to switch project or start over.');
+    b.writeln(
         '- Use `dev_session_start_or_continue` for project/file work only. Do not use it for ordinary conversation, memory updates, reminders, shopping, or questions you can answer yourself.');
     b.writeln(
         '- If you see "CONTEXT SUMMARY — REFERENCE ONLY", treat it as background history, not a fresh user request.');

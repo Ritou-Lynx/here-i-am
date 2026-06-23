@@ -6,9 +6,11 @@ import 'package:dio/io.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
-import 'package:memex/db/app_database.dart';
+import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
+import 'package:memex/utils/user_storage.dart';
 import 'package:uuid/uuid.dart';
 
 enum DevAgentType {
@@ -1120,39 +1122,87 @@ class DevAgentBridgeService {
       return;
     }
     final run = await getRun(runId);
+    final userId = await UserStorage.getUserId();
+    if (userId == null || userId.isEmpty) {
+      await _postTemplateRunSummaryToOwnerChat(
+        characterId: characterId,
+        session: session,
+        run: run,
+        runId: runId,
+        status: status,
+        summary: summary,
+      );
+      return;
+    }
+    try {
+      await LocalTaskExecutor.instance.enqueueTask(
+        userId: userId,
+        taskType: 'dev_session_followup',
+        payload: {
+          'character_id': characterId,
+          'session_id': session.id,
+          'run_id': runId,
+          'session_title': session.title,
+          'agent_type': session.agentType,
+          'status': status,
+          'summary': summary,
+          if (run?.branch != null) 'branch': run!.branch,
+          if (run?.worktreePath != null) 'worktree_path': run!.worktreePath,
+        },
+        priority: 1,
+        maxRetries: 2,
+        bizId: 'dev_session_followup:$runId',
+      );
+    } catch (e, stack) {
+      _logger.warning('Failed to enqueue dev session follow-up', e, stack);
+      await _postTemplateRunSummaryToOwnerChat(
+        characterId: characterId,
+        session: session,
+        run: run,
+        runId: runId,
+        status: status,
+        summary: summary,
+      );
+    }
+  }
+
+  Future<void> _postTemplateRunSummaryToOwnerChat({
+    required String characterId,
+    required DevAgentSession session,
+    required DevAgentRun? run,
+    required String runId,
+    required String status,
+    required String summary,
+  }) async {
     final content = _buildOwnerChatMessage(
       agentType: session.agentType,
       status: status,
       summary: summary,
     );
-    try {
-      await PersonaChatService.instance.addCharacterMessage(
-        characterId,
-        content,
-        isRead: false,
-        timestamp: DateTime.now(),
-        addenda: [
-          {
-            'type': 'dev_session',
-            'sessionId': session.id,
-            'runId': runId,
-            'title': session.title,
-            'agentType': session.agentType,
-            'status': status,
-            if (run?.branch != null) 'branch': run!.branch,
-            if (run?.worktreePath != null) 'worktreePath': run!.worktreePath,
-          },
-        ],
-      );
-      await _insertSessionMessage(
-        sessionId: sessionId,
-        role: 'character',
-        content: content,
-        linkedRunId: runId,
-      );
-    } catch (e, stack) {
-      _logger.warning('Failed to post dev session result to chat', e, stack);
-    }
+    await PersonaChatService.instance.addCharacterMessage(
+      characterId,
+      content,
+      isRead: false,
+      timestamp: DateTime.now(),
+      addenda: [
+        {
+          'type': 'dev_session',
+          'sessionId': session.id,
+          'runId': runId,
+          'title': session.title,
+          'agentType': session.agentType,
+          'status': status,
+          if (run?.branch != null) 'branch': run!.branch,
+          if (run?.worktreePath != null) 'worktreePath': run!.worktreePath,
+        },
+      ],
+    );
+    await _insertSessionMessage(
+      sessionId: session.id,
+      role: 'character',
+      content: content,
+      linkedRunId: runId,
+    );
   }
 
   String _buildOwnerChatMessage({

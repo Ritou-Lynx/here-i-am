@@ -23,6 +23,10 @@ Tool buildDevSessionStartOrContinueTool({
         'articles, review a repo, or continue a prior Dev Session. The tool '
         'starts work asynchronously; you must still reply in your own '
         'character voice and tell the user that the Dev Session has started. '
+        'If the user says things like "continue", "next one", "read the next '
+        'article", "接着", "下一篇", "继续刚才那个", or otherwise refers to prior '
+        'Dev Room work, reuse the latest active Dev Session for this character '
+        'unless the user clearly asks to start a new task. '
         'Do not use it for ordinary emotional chat, memory writes, reminders, '
         'shopping, or questions you can answer directly.',
     parameters: {
@@ -67,7 +71,8 @@ Tool buildDevSessionStartOrContinueTool({
           'description':
               'If true and session_id is omitted, continue the latest active '
                   'session for this character/project/agent instead of '
-                  'creating a new one.',
+                  'creating a new one. Set this for "继续", "下一篇", "接着看", '
+                  '"刚才那个", or similar follow-up requests.',
         },
         'title': {
           'type': 'string',
@@ -118,10 +123,53 @@ Tool buildDevSessionStartOrContinueTool({
         }
 
         final projects = await bridgeService.listProjects();
+        final requestedProjectId = (args['project_id'] as String?)?.trim();
+        final requestedProjectName = (args['project_name'] as String?)?.trim();
+        final explicitAgentType = _tryParseAgentType(args['agent_type']);
+        final requestedAgentType = explicitAgentType ?? DevAgentType.codex;
+        final reuseLatest = args['reuse_latest'] == true ||
+            _looksLikeSessionContinuation(message);
+
+        DevAgentSession? session;
+        if (reuseLatest) {
+          session = await _findLatestReusableSession(
+            service: bridgeService,
+            characterId: characterId,
+            agentType: explicitAgentType?.value,
+            projectId: requestedProjectId,
+            projectName: requestedProjectName,
+            projects: projects,
+          );
+          if (session != null) {
+            final project = await bridgeService.getProject(session.projectId);
+            if (project == null) {
+              throw const DevAgentBridgeException(
+                'Dev session project not found.',
+              );
+            }
+            final runId = await bridgeService.continueSession(
+              sessionId: session.id,
+              message: message,
+            );
+            return jsonEncode({
+              'success': true,
+              'action': 'reused_session',
+              'session_id': session.id,
+              'run_id': runId,
+              'project_id': session.projectId,
+              'project_name': project.name,
+              'agent_type': session.agentType,
+              'project_permission_tier': project.permissionTier,
+              'message':
+                  '$characterName continued the existing Dev Session. Tell the user it is underway.',
+            });
+          }
+        }
+
         final project = _resolveProject(
           projects: projects,
-          projectId: (args['project_id'] as String?)?.trim(),
-          projectName: (args['project_name'] as String?)?.trim(),
+          projectId: requestedProjectId,
+          projectName: requestedProjectName,
         );
         if (project == null) {
           return jsonEncode({
@@ -140,26 +188,10 @@ Tool buildDevSessionStartOrContinueTool({
           });
         }
 
-        final agentType = _parseAgentType(args['agent_type']);
-        final reuseLatest = args['reuse_latest'] == true;
-        DevAgentSession? session;
-        if (reuseLatest) {
-          final sessions = await bridgeService.listSessions(
-            projectId: project.id,
-            ownerCharacterId: characterId,
-            agentType: agentType.value,
-            status: 'active',
-            limit: 1,
-          );
-          if (sessions.isNotEmpty) {
-            session = sessions.first;
-          }
-        }
-
         session ??= await _createSession(
           service: bridgeService,
           project: project,
-          agentType: agentType,
+          agentType: requestedAgentType,
           title: (args['title'] as String?)?.trim(),
           goal: (args['goal'] as String?)?.trim(),
           message: message,
@@ -179,7 +211,7 @@ Tool buildDevSessionStartOrContinueTool({
           'run_id': runId,
           'project_id': project.id,
           'project_name': project.name,
-          'agent_type': agentType.value,
+          'agent_type': requestedAgentType.value,
           'project_permission_tier': project.permissionTier,
           'message':
               '$characterName started a Dev Session. Tell the user it is underway and they can inspect it in Dev Room.',
@@ -223,12 +255,80 @@ DevProject? _resolveProject({
   return null;
 }
 
-DevAgentType _parseAgentType(Object? raw) {
+DevAgentType? _tryParseAgentType(Object? raw) {
   final value = raw?.toString().trim();
-  return DevAgentType.values.firstWhere(
-    (type) => type.value == value,
-    orElse: () => DevAgentType.codex,
+  if (value == null || value.isEmpty) return null;
+  for (final type in DevAgentType.values) {
+    if (type.value == value) return type;
+  }
+  return null;
+}
+
+Future<DevAgentSession?> _findLatestReusableSession({
+  required DevAgentBridgeService service,
+  required String characterId,
+  required List<DevProject> projects,
+  String? agentType,
+  String? projectId,
+  String? projectName,
+}) async {
+  String? resolvedProjectId =
+      projectId?.trim().isEmpty == true ? null : projectId?.trim();
+  if ((resolvedProjectId == null || resolvedProjectId.isEmpty) &&
+      projectName != null &&
+      projectName.trim().isNotEmpty) {
+    resolvedProjectId = _resolveProject(
+      projects: projects,
+      projectName: projectName.trim(),
+    )?.id;
+    if (resolvedProjectId == null) return null;
+  }
+
+  var sessions = await service.listSessions(
+    projectId: resolvedProjectId,
+    ownerCharacterId: characterId,
+    agentType: agentType,
+    status: 'active',
+    limit: 1,
   );
+  if (sessions.isNotEmpty) return sessions.first;
+
+  if (agentType != null && agentType.isNotEmpty) {
+    sessions = await service.listSessions(
+      projectId: resolvedProjectId,
+      ownerCharacterId: characterId,
+      status: 'active',
+      limit: 1,
+    );
+    if (sessions.isNotEmpty) return sessions.first;
+  }
+  return null;
+}
+
+bool _looksLikeSessionContinuation(String message) {
+  final text = message.toLowerCase();
+  const markers = [
+    '继续',
+    '接着',
+    '刚才',
+    '上一个',
+    '上次',
+    '下一篇',
+    '下一条',
+    '下一段',
+    '下一个',
+    '再读',
+    '继续看',
+    '接着看',
+    'next',
+    'continue',
+    'keep going',
+    'the next',
+    'next one',
+    'same session',
+    'previous session',
+  ];
+  return markers.any(text.contains);
 }
 
 Future<DevAgentSession> _createSession({

@@ -413,7 +413,9 @@ Phase 4b 的 `release_ops` 模式下，Apply 不再直接 fast-forward merge 到
 - ✅ Bridge 原生 resume 前，App 先用最近会话上下文 + 新 run 模拟多轮
 - ✅ 主聊天 companion 角色已接入 `dev_session_start_or_continue` 工具，可异步创建/继续 Dev Session
 - ✅ Dev Session 完成后可回流到召唤角色聊天，并带可打开 Dev Room 的结果卡片
-- ⏭️ 下一步：让角色在结果回流后自动二次整理，用自己的口吻做更完整解释/下一步建议
+- ✅ 结果回流后会排 `dev_session_followup` 后台任务，让召唤角色用自己的口吻解释结果/建议下一步
+- ✅ 主聊天里“继续刚才那个 / 下一篇 / 接着看”会自动复用该角色最近 active Dev Session
+- ⏭️ 下一步：角色工具绑定 UI（默认项目 / 默认 agent / 权限档），收紧哪些角色能召唤哪些工具
 
 一句话边界：
 
