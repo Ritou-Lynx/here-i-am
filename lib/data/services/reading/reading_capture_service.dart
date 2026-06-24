@@ -41,12 +41,12 @@ class ReadingCaptureResult {
   bool get success => status == ReadingCaptureStatus.captured;
 }
 
-/// Coordinates the "user shares a 小红书 / 微信公众号 / web link → companion
+/// Coordinates the "user shares a 小红书 / 微信公众号 / web link -> companion
 /// catches it" flow.
 ///
 /// Pipeline:
-///   1. parse share text → {platform, url, title?}
-///   2. follow short link to real URL (HEAD) — best-effort
+///   1. parse share text -> {platform, url, title?}
+///   2. follow short link to real URL (HEAD), best-effort
 ///   3. pick the companion to route the capture to
 ///        a) active persona chat (within 2-min freshness window), or
 ///        b) primary companion
@@ -55,7 +55,7 @@ class ReadingCaptureResult {
 ///   5. persist a `reading_item` entity via SharedLifeMemoryService using
 ///      that chat message as the source-of-evidence message
 ///
-/// Constructor-injected dependencies — no AppDatabase.instance, no
+/// Constructor-injected dependencies: no AppDatabase.instance, no
 /// MemexRouter, per the architecture guard rules in CLAUDE.md.
 class ReadingCaptureService {
   // ---- static singleton wiring -----------------------------------------
@@ -115,7 +115,7 @@ class ReadingCaptureService {
 
   /// Main entry point for system Share Intent. Pass the raw text that landed
   /// in `SharedMedia.content`. The originating action has no chat message of
-  /// its own — the only sourceMessage will be the "收到了" character message
+  /// its own; the only sourceMessage will be the "收到了" character message
   /// emitted by this service.
   Future<ReadingCaptureResult> captureFromShare(String? rawShareText) async {
     final parsed = parseReadingShare(rawShareText);
@@ -126,33 +126,7 @@ class ReadingCaptureService {
     return _capture(parsed, originatingUserMessageId: null);
   }
 
-  /// Entry point for "user pasted a reading link into the chat input and
-  /// hit send". The originating chat message is already persisted; pass its
-  /// id so it can be recorded as part of the reading_item's source
-  /// evidence (anything the user typed alongside the link becomes
-  /// `captured_note`).
-  ///
-  /// Failures fall back to `notRecognised` silently — the chat send path
-  /// fires this fire-and-forget for every message; if the text isn't a
-  /// reading link we don't want noise.
-  Future<ReadingCaptureResult> captureFromUserMessage({
-    required String text,
-    required int userMessageId,
-    String? preferredCharacterId,
-  }) async {
-    final parsed = parseReadingShare(text, extractCapturedNote: true);
-    if (parsed == null) {
-      return const ReadingCaptureResult(
-          status: ReadingCaptureStatus.notRecognised);
-    }
-    return _capture(
-      parsed,
-      originatingUserMessageId: userMessageId,
-      preferredCharacterId: preferredCharacterId,
-    );
-  }
-
-  /// Debug entry point — accepts an already-parsed sample, skipping share
+  /// Debug entry point: accepts an already-parsed sample, skipping share
   /// intent altogether. Used by the in-app debug menu (kDebugMode).
   Future<ReadingCaptureResult> captureForDebug(ReadingShareParseResult sample) {
     return _capture(sample, originatingUserMessageId: null);
@@ -166,7 +140,7 @@ class ReadingCaptureService {
     try {
       final userId = await UserStorage.getUserId();
       if (userId == null || userId.isEmpty) {
-        _logger.warning('No userId — cannot capture reading share');
+        _logger.warning('No userId; cannot capture reading share');
         return const ReadingCaptureResult(status: ReadingCaptureStatus.failed);
       }
 
@@ -194,6 +168,7 @@ class ReadingCaptureService {
             entityId: placeholderEntityId,
             title: title,
             platform: parsed.platform,
+            url: resolvedUrl,
           ),
         ],
       );
@@ -201,7 +176,7 @@ class ReadingCaptureService {
       // Step 2: persist the reading_item entity. Source evidence includes
       // the "收到了" character message we just emitted AND, if the capture
       // was kicked off by a user typing a link into the chat input, the
-      // user's original message — so the reading_item naturally remembers
+      // user's original message, so the reading_item naturally remembers
       // what the user said alongside the link.
       //
       // patch fields end up flattened into the entity's stateJson via
@@ -252,6 +227,7 @@ class ReadingCaptureService {
             entityId: entityId,
             title: title,
             platform: parsed.platform,
+            url: resolvedUrl,
           ),
         ],
       );
@@ -263,7 +239,7 @@ class ReadingCaptureService {
       // user sees the "收到了" placeholder card immediately. The card
       // re-renders when the fetch coordinator patches the entity (chat
       // screens listen to PersonaChatService change notifications, which
-      // re-fire when we updateMessageAddenda below — but a separate flow
+      // re-fire when we updateMessageAddenda below, but a separate flow
       // listens to SharedLifeEntities changes for the card itself).
       if (ReadingFetchCoordinator.isInitialized) {
         // ignore: unawaited_futures
@@ -297,7 +273,7 @@ class ReadingCaptureService {
   }
 
   /// HEAD-follows a short link (xhslink, etc.) to the final URL. Returns
-  /// the original URL on any failure — the user gets a working
+  /// the original URL on any failure; the user gets a working
   /// reading_item either way; the resolved URL is only nice-to-have for
   /// later WebView fetching.
   Future<String> _expandShortLink(String url) async {
@@ -330,12 +306,14 @@ class ReadingCaptureService {
     required String entityId,
     required String title,
     required String platform,
+    String? url,
   }) {
     return <String, dynamic>{
       'type': 'reading_card',
       'entityId': entityId,
       'title': title,
       'source': platform,
+      if (url != null && url.isNotEmpty) 'url': url,
     };
   }
 }

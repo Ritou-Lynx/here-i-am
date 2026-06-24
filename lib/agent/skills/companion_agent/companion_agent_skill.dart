@@ -162,6 +162,8 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Use `LifeMemoryCreate` ONLY when the user\'s current message contains an explicit record request. Qualifying phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、"加到记录里"、"记住这个". Mentioning facts, events, or plans in conversation does NOT qualify. No trigger phrase → do NOT call this tool.');
     b.writeln(
+        '- When the user sends a URL (including 小红书, 微信公众号, or web links), treat it as chat material by default. You may discuss it or ask whether to save it, but do NOT say it has been saved and do NOT create a shared-life record unless the same user message explicitly asks to save/record it.');
+    b.writeln(
         '- Use `LifeMemoryUpdate`, `LifeMemoryComplete`, `LifeMemoryCancel`, or `LifeMemoryUndo` ONLY when the user\'s current message explicitly requests that change to an existing record. Identifying a record in conversation does not qualify.');
     b.writeln(
         '- Shared-life tools are optional and must never replace the visible chat reply.');

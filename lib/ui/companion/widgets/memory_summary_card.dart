@@ -6,6 +6,7 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/domain/models/presentation_module.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Rose Mist Memory Card color adapter.
 ///
@@ -745,68 +746,79 @@ class _LinkBlockView extends StatelessWidget {
     final source = block.source ?? 'web';
     final color = _brandColors[source] ?? RoseMistPalette.rose;
     final label = _brandLabels[source] ?? 'W';
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
-      constraints: const BoxConstraints(minHeight: 42),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: Colors.white.withValues(alpha: 0.38),
-        border: Border.all(color: RoseMistPalette.ink.withValues(alpha: 0.10)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(7),
-              color: color,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
+    return InkWell(
+      onTap: () => _openUrl(block.url),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+        constraints: const BoxConstraints(minHeight: 42),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.white.withValues(alpha: 0.38),
+          border:
+              Border.all(color: RoseMistPalette.ink.withValues(alpha: 0.10)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(7),
+                color: color,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              block.title ?? block.url,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: RoseMistPalette.inkMid,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                block.title ?? block.url,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: RoseMistPalette.inkMid,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              color: Colors.white.withValues(alpha: 0.22),
-              border: Border.all(
-                color: RoseMistPalette.rose.withValues(alpha: 0.24),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                color: Colors.white.withValues(alpha: 0.22),
+                border: Border.all(
+                  color: RoseMistPalette.rose.withValues(alpha: 0.24),
+                ),
+              ),
+              child: Text(
+                '打开',
+                style: TextStyle(
+                  color: RoseMistPalette.rose,
+                  fontSize: 11,
+                  letterSpacing: 0.8,
+                ),
               ),
             ),
-            child: Text(
-              '打开',
-              style: TextStyle(
-                color: RoseMistPalette.rose,
-                fontSize: 11,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
 
@@ -899,7 +911,8 @@ class _ProgressBarBlockView extends StatelessWidget {
             height: 8,
             child: Stack(
               children: [
-                Container(color: RoseMistPalette.roseSoft.withValues(alpha: 0.45)),
+                Container(
+                    color: RoseMistPalette.roseSoft.withValues(alpha: 0.45)),
                 FractionallySizedBox(
                   widthFactor: block.fraction,
                   child: Container(color: RoseMistPalette.rose),

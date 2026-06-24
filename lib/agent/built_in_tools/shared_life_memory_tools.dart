@@ -133,8 +133,14 @@ Narrow results with domain, entity_type, or time_start/time_end filters.''',
         'domain': {
           'type': 'string',
           'enum': [
-            'health', 'finance', 'schedule', 'task',
-            'social', 'interest', 'clothing', 'general',
+            'health',
+            'finance',
+            'schedule',
+            'task',
+            'social',
+            'interest',
+            'clothing',
+            'general',
           ],
           'description': 'Filter to a specific life domain.',
         },
@@ -225,6 +231,9 @@ ordinary conversation does NOT qualify — do not call this tool in that case.
 
 Do not use for casual conversation or character-private memory. Use tags only
 from the user tag list in tags.md; do not invent or translate tags.
+Bare URLs, 小红书 links, 微信公众号 links, and generic web links are chat
+material by default, not record requests. Create a record for a link only when
+the same user message explicitly asks to save/record/remember/add it.
 entity_type describes behavior, not topic. Query first if the request may
 refer to an existing record, then update instead of creating a duplicate.
 

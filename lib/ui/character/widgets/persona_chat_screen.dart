@@ -34,7 +34,7 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/media_input_attachment.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
-import 'package:memex/data/services/reading/reading_capture_service.dart';
+import 'package:memex/data/services/reading/reading_share_parser.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
 import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
@@ -1342,8 +1342,6 @@ only after you have written the goodbye you want the user to hear.''',
     await _stopTtsPlayback();
 
     final userMessageTime = queuedMessage?.timestamp ?? DateTime.now();
-    final isExplicitMemoryRequest =
-        hasText && _isExplicitMemoryRequest(textToSend);
 
     // Compress images for chat bubble display and DB storage.
     List<Map<String, String>>? compressedAttachments;
@@ -1407,8 +1405,8 @@ only after you have written the goodbye you want the user to hear.''',
     // 鈹€鈹€ Image analysis via vision model 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // Uses the analyze_assets agent's separately-configured model so
     // the character (e.g. text-only DeepSeek) can understand images.
-    // Analysis runs once; results feed both the chat context and the
-    // background card pipeline.
+    // Analysis runs once and feeds the chat context. Explicit recording uses
+    // RecordOrganizerService so media lands in the SharedLife card system.
     String? imageAnalysisText;
     if (hasImages && imagesToSend.isNotEmpty) {
       try {
@@ -1454,37 +1452,6 @@ only after you have written the goodbye you want the user to hear.''',
       return;
     }
 
-    // Fire background Memex processing for images (fire-and-forget)
-    if (hasImages) {
-      unawaited(
-        MemexRouter()
-            .submitInput(text: textToSend, images: imagesToSend)
-            .then<void>((_) {})
-            .catchError((e) => debugPrint('Background submitInput failed: $e')),
-      );
-    }
-
-    // Reading Companion: if the user's message contains a recognised
-    // reading link (xiaohongshu / wechat / generic article), capture it as
-    // a reading_item entity in the background. The companion will emit a
-    // separate confirmation message with a reading_card addendum on success.
-    // Failures and non-reading messages are silent; most chat messages
-    // aren't reading links.
-    if (textToSend.trim().isNotEmpty && ReadingCaptureService.isInitialized) {
-      unawaited(
-        ReadingCaptureService.instance
-            .captureFromUserMessage(
-              text: textToSend,
-              userMessageId: userMessageId,
-              preferredCharacterId: sendCharacterId,
-            )
-            .then<void>((_) {})
-            .catchError(
-                (e) => debugPrint('Background reading capture failed: $e')),
-      );
-    }
-
-
     // Get LLM resources
     final userId = await UserStorage.getUserId();
     if (userId == null) {
@@ -1519,6 +1486,9 @@ only after you have written the goodbye you want the user to hear.''',
       } else {
         chatMessage = textToSend;
       }
+      final linkContext = _buildLinkConversationContext(textToSend);
+      final chatMessageWithContext =
+          linkContext == null ? chatMessage : '$linkContext\n\n$chatMessage';
 
       final toyControlService = _readyToyControlService();
       if (toyControlService == null) {
@@ -1530,7 +1500,7 @@ only after you have written the goodbye you want the user to hear.''',
         modelConfig: resources.modelConfig,
         userId: userId,
         characterId: sendCharacterId,
-        userMessage: chatMessage,
+        userMessage: chatMessageWithContext,
         // Images are only passed to the LLM when it supports vision.
         // For text-only models, the image hint above lets the character
         // acknowledge the images without seeing their contents.
@@ -1808,14 +1778,6 @@ only after you have written the goodbye you want the user to hear.''',
     ));
   }
 
-  bool _isExplicitMemoryRequest(String text) {
-    final normalized = text.toLowerCase();
-    return normalized.contains('记住') ||
-        normalized.contains('记下来') ||
-        normalized.contains('remember this') ||
-        normalized.contains('remember that');
-  }
-
   // 鈹€鈹€ Image selection management 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
   void _onImagesPicked(List<XFile> images) {
@@ -2018,7 +1980,8 @@ only after you have written the goodbye you want the user to hear.''',
               await tempFile.writeAsBytes(bytes);
 
               // 2. Save to Facts/assets/
-              final (filename, relativePath) = await fsService.saveAssetFromFile(
+              final (filename, relativePath) =
+                  await fsService.saveAssetFromFile(
                 userId: userId,
                 sourcePath: tempFile.path,
                 assetType: 'img',
@@ -2027,7 +1990,9 @@ only after you have written the goodbye you want the user to hear.''',
               );
 
               // Clean up temp file
-              try { await tempFile.delete(); } catch (_) {}
+              try {
+                await tempFile.delete();
+              } catch (_) {}
 
               // 3. Get or run image analysis
               String? analysisText;
@@ -2036,7 +2001,8 @@ only after you have written the goodbye you want the user to hear.''',
               } else {
                 // Run inline analysis
                 try {
-                  final analysisResources = await UserStorage.getAgentLLMResources(
+                  final analysisResources =
+                      await UserStorage.getAgentLLMResources(
                     AgentDefinitions.analyzeAssets,
                     defaultClientKey: LLMConfig.defaultClientKey,
                   );
@@ -2053,10 +2019,12 @@ only after you have written the goodbye you want the user to hear.''',
                   );
                   // Strip the "#Asset ... analysis result\n:" prefix
                   analysisText = result
-                      .replaceFirst(RegExp(r'^#Asset .+ analysis result\n:'), '')
+                      .replaceFirst(
+                          RegExp(r'^#Asset .+ analysis result\n:'), '')
                       .trim();
                 } catch (e) {
-                  debugPrint('Inline image analysis failed in _recordMessage: $e');
+                  debugPrint(
+                      'Inline image analysis failed in _recordMessage: $e');
                 }
               }
 
@@ -2067,7 +2035,8 @@ only after you have written the goodbye you want the user to hear.''',
                 kind: 'image',
               ));
             } catch (e) {
-              debugPrint('Failed to process image attachment in _recordMessage: $e');
+              debugPrint(
+                  'Failed to process image attachment in _recordMessage: $e');
               media.add(MediaInputAttachment(error: e.toString()));
             }
           }
@@ -2082,7 +2051,9 @@ only after you have written the goodbye you want the user to hear.''',
           .trim();
 
       // Restore progress snackbar before the LLM call
-      try { progress.close(); } catch (_) {}
+      try {
+        progress.close();
+      } catch (_) {}
       final recordProgress = messenger.showSnackBar(
         SnackBar(
           content: Text(_chatUiText(zh: '正在记录…', en: 'Recording…')),
@@ -2105,7 +2076,8 @@ only after you have written the goodbye you want the user to hear.''',
       if (result.isEmpty) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text(_chatUiText(zh: '未识别到可记录内容', en: 'Nothing to record')),
+            content:
+                Text(_chatUiText(zh: '未识别到可记录内容', en: 'Nothing to record')),
             duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
@@ -2136,7 +2108,41 @@ only after you have written the goodbye you want the user to hear.''',
     if (match == null) return const [];
     final body = match.group(1)?.trim() ?? '';
     if (body.isEmpty) return const [];
-    return body.split(' | ').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    return body
+        .split(' | ')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  String? _buildLinkConversationContext(String text) {
+    final parsed = parseReadingShare(text, extractCapturedNote: true);
+    if (parsed == null) return null;
+
+    final label = switch (parsed.platform) {
+      'xiaohongshu' => '小红书',
+      'wechat_mp' => '微信公众号',
+      _ => '网页',
+    };
+    final title = parsed.title?.trim();
+    final note = parsed.capturedNote?.trim();
+
+    final buffer = StringBuffer()
+      ..writeln('[Link context]')
+      ..writeln('The user sent a $label link: ${parsed.url}.');
+    if (title != null && title.isNotEmpty) {
+      buffer.writeln('Parsed title: $title.');
+    }
+    if (note != null && note.isNotEmpty) {
+      buffer.writeln('User note around the link: $note.');
+    }
+    buffer
+      ..writeln('Treat this as chat material, not as a save request.')
+      ..writeln('Do not say it has been saved or recorded.')
+      ..write(
+        'If saving would be useful, ask whether the user wants it saved.',
+      );
+    return buffer.toString();
   }
 
   bool _isSendCanceled(int sendSerial, int userMessageId) {

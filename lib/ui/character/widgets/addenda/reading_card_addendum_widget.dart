@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:memex/data/services/reading/reading_fetch_coordinator.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
@@ -66,8 +67,7 @@ class _ReadingCardAddendumWidgetState extends State<ReadingCardAddendumWidget> {
   }
 
   void _onFetchUpdate() {
-    final updatedId =
-        ReadingFetchCoordinator.instance.entityFetchUpdates.value;
+    final updatedId = ReadingFetchCoordinator.instance.entityFetchUpdates.value;
     if (updatedId == _entityId) {
       _refreshEntity();
     }
@@ -82,8 +82,7 @@ class _ReadingCardAddendumWidgetState extends State<ReadingCardAddendumWidget> {
     if (!SharedLifeMemoryService.isInitialized) return;
     _querying = true;
     try {
-      final detail =
-          await SharedLifeMemoryService.instance.getEntityDetail(id);
+      final detail = await SharedLifeMemoryService.instance.getEntityDetail(id);
       if (!mounted) return;
       if (detail != null && detail.entity.entityType == 'reading_item') {
         setState(() => _liveEntity = detail.entity);
@@ -135,11 +134,14 @@ class _ReadingCardAddendumWidgetState extends State<ReadingCardAddendumWidget> {
         (widget.data['coverUrl'] as String?)?.trim();
     final excerpt = (state['content_excerpt'] as String?)?.trim();
     final fetchStatus = _fetchStatusOf(entity);
+    final url = (state['url'] as String?)?.trim() ??
+        (state['original_share_url'] as String?)?.trim() ??
+        (widget.data['url'] as String?)?.trim();
 
     final hasCover = coverUrl != null && coverUrl.isNotEmpty;
     final meta = _metaLine(source, author);
 
-    return Container(
+    final card = Container(
       constraints: const BoxConstraints(maxWidth: 320),
       decoration: BoxDecoration(
         color: const Color(0xFF1B1D24).withValues(alpha: 0.72),
@@ -233,6 +235,12 @@ class _ReadingCardAddendumWidgetState extends State<ReadingCardAddendumWidget> {
         ),
       ),
     );
+    if (url == null || url.isEmpty) return card;
+    return InkWell(
+      onTap: () => _openUrl(url),
+      borderRadius: BorderRadius.circular(12),
+      child: card,
+    );
   }
 
   String _metaLine(String source, String? author) {
@@ -254,5 +262,11 @@ class _ReadingCardAddendumWidgetState extends State<ReadingCardAddendumWidget> {
       default:
         return null;
     }
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
