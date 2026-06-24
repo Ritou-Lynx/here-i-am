@@ -3085,11 +3085,16 @@ only after you have written the goodbye you want the user to hear.''',
       );
     }
 
+    final userMessage = message;
     final attachmentWidgets =
         attachmentsJson != null && attachmentsJson.isNotEmpty
-            ? _buildAttachmentWidgets(attachmentsJson)
+            ? _buildAttachmentWidgets(
+                attachmentsJson,
+                onRecord: userMessage != null
+                    ? () => _recordMessage(userMessage)
+                    : null,
+              )
             : <Widget>[];
-    final userMessage = message;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
@@ -3152,6 +3157,17 @@ only after you have written the goodbye you want the user to hear.''',
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (userMessage != null) ...[
+                            GestureDetector(
+                              onTap: () => _recordMessage(userMessage),
+                              child: Icon(
+                                Icons.bookmark_add_outlined,
+                                size: 15,
+                                color: _personaTextMuted,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                          ],
                           GestureDetector(
                             onTap: () {
                               Clipboard.setData(ClipboardData(text: text));
@@ -3288,7 +3304,10 @@ only after you have written the goodbye you want the user to hear.''',
   /// Renders image attachments from a JSON-encoded attachments list below
   /// the text in a user's chat bubble. Each attachment has `base64` (WebP)
   /// and `mimeType` fields.
-  List<Widget> _buildAttachmentWidgets(String attachmentsJson) {
+  List<Widget> _buildAttachmentWidgets(
+    String attachmentsJson, {
+    VoidCallback? onRecord,
+  }) {
     try {
       final List<dynamic> attachments = jsonDecode(attachmentsJson);
       return attachments.map((att) {
@@ -3298,10 +3317,38 @@ only after you have written the goodbye you want the user to hear.''',
           padding: const EdgeInsets.only(bottom: 6),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Image.memory(
-              Uint8List.fromList(bytes),
-              fit: BoxFit.cover,
-              width: double.infinity,
+            child: GestureDetector(
+              onDoubleTap: onRecord,
+              child: Stack(
+                children: [
+                  Image.memory(
+                    Uint8List.fromList(bytes),
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                  ),
+                  if (onRecord != null)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Material(
+                        color: Colors.black.withValues(alpha: 0.36),
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: onRecord,
+                          child: const Padding(
+                            padding: EdgeInsets.all(6),
+                            child: Icon(
+                              Icons.bookmark_add_outlined,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         );
