@@ -10,7 +10,12 @@ import 'package:memex/data/services/persona_chat_service.dart';
 /// When the user asks the character to create an image, the agent calls this
 /// tool.  The generated image is attached as an addendum to a character message
 /// and rendered inline in the chat via [ImageAddendumWidget].
+///
+/// Includes a 30-second cooldown to prevent the agent from burning tokens by
+/// calling the tool 7-8 times in a single turn for the same request.
 Tool buildGenerateImageTool({required String characterId}) {
+  DateTime _lastCallAt = DateTime(2000); // epoch-ish, always allows first call
+
   return Tool(
     name: 'generate_image',
     description: '''Generate an AI image and send it as a message attachment.
@@ -18,6 +23,11 @@ Tool buildGenerateImageTool({required String characterId}) {
 Use this when the user asks you to draw, create, or generate an image / picture /
 illustration / artwork.  This is for CREATING new images — NOT for searching the
 web for existing images.
+
+CRITICAL: Call this tool EXACTLY ONCE per user image request.  If the user wants
+multiple variations, describe ALL of them in a single prompt.  Calling this
+tool multiple times in rapid succession wastes tokens and generates duplicate
+images.  You will receive an error if you call it again within 30 seconds.
 
 IMPORTANT — always write your spoken text reply BEFORE calling this tool.  The
 generated image will appear as a separate message right after your text.
@@ -54,6 +64,14 @@ Parameters:
       'required': ['prompt'],
     },
     executable: (String prompt, [String? style, String? size]) async {
+      // Rate-limit: at most one call per 30 seconds.
+      final now = DateTime.now();
+      if (now.difference(_lastCallAt) < const Duration(seconds: 30)) {
+        return 'Error: generate_image was already called recently. '
+            'Wait at least 30 seconds between image generation requests. '
+            'Do NOT call this tool again in this turn.';
+      }
+      _lastCallAt = now;
       try {
         if (prompt.trim().isEmpty) {
           return 'Error: prompt cannot be empty.';

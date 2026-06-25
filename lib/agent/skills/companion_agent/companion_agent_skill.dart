@@ -559,6 +559,12 @@ class CompanionAgentSkill extends Skill {
     b.writeln('- Write the prompt in the user\'s language with rich detail.');
     b.writeln('- After the image appears, comment on it naturally.');
     b.writeln(
+        '- CRITICAL: Call generate_image EXACTLY ONCE per user request. '
+        'If you want multiple images, put the request ("两张"/"three pictures") '
+        'into a SINGLE prompt. NEVER call this tool more than ONCE in a turn — '
+        'each call costs tokens and generates a separate image. '
+        'Calling it 7-8 times for the same request is wasteful.');
+    b.writeln(
         '- Be honest: say "我试着生成了一下～" not "我画的". But ALWAYS call the tool.');
 
     return b.toString();
