@@ -86,7 +86,9 @@ class MiniMaxImageService {
     );
 
     final data = response.data as Map<String, dynamic>;
-    debugPrint('[ImageGen] MiniMax raw response: ${jsonEncode(data).substring(0, 500)}');
+    final rawJson = jsonEncode(data);
+    debugPrint('[ImageGen] MiniMax raw response (${rawJson.length} chars): '
+        '${rawJson.length > 500 ? rawJson.substring(0, 500) : rawJson}');
 
     final baseResp = data['base_resp'] as Map<String, dynamic>?;
     if (baseResp != null) {
@@ -128,10 +130,14 @@ class MiniMaxImageService {
       throw Exception('Failed to extract generated images');
     }
 
-    // 5. Cache & return
+    // 5. Cache (best-effort) & return
     debugPrint('[ImageGen] MiniMax success: ${images.length} image(s), ${images.first.length} bytes each');
     for (final img in images) {
-      await ImageGenCache.store(key, img);
+      try {
+        await ImageGenCache.store(key, img);
+      } catch (e) {
+        debugPrint('[ImageGen] MiniMax cache store failed (non-fatal): $e');
+      }
     }
     return ImageGenerationResult(
       images: images,

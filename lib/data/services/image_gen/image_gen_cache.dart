@@ -12,7 +12,7 @@ class ImageGenCache {
 
   static Future<String> _cacheDir() async {
     final appSupport = await FileSystemService.getAppSupportDir();
-    final dir = Directory('$appSupport${Platform.pathSeparator}image_gen_cache');
+    final dir = Directory('${appSupport.path}${Platform.pathSeparator}image_gen_cache');
     if (!dir.existsSync()) {
       dir.createSync(recursive: true);
     }

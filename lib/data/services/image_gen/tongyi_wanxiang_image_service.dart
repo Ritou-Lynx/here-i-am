@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:memex/data/services/image_gen/image_gen_cache.dart';
 import 'package:memex/data/services/image_gen/image_gen_provider.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -123,9 +124,13 @@ class TongyiWanxiangImageService {
       throw Exception('Failed to download generated images');
     }
 
-    // 5. Cache & return
+    // 5. Cache (best-effort) & return
     for (final img in images) {
-      await ImageGenCache.store(key, img);
+      try {
+        await ImageGenCache.store(key, img);
+      } catch (e) {
+        debugPrint('[ImageGen] Tongyi cache store failed (non-fatal): $e');
+      }
     }
     return ImageGenerationResult(
       images: images,
