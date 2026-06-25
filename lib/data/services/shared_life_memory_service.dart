@@ -807,6 +807,11 @@ class SharedLifeMemoryService {
       // Latest operation that supplies a presentation wins (covers update/correct).
       if (reserved['_presentation'] case final String json) {
         presentationJson = json;
+        final blockCount =
+            RegExp(r'"type"\s*:\s*"').allMatches(json).length;
+        _logger.info(
+            'Rebuild entity $entityId: presentationJson set ($blockCount block(s), '
+            '${json.length} chars)');
       }
 
       // domain columns on the operation row take precedence if set

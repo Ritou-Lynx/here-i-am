@@ -116,7 +116,11 @@ class RecordOrganizerService {
     final trimmed = rawInput.trim();
     final usableMedia =
         (media ?? []).where((m) => m.isUsable).toList(growable: false);
+    _logger.info(
+        'Organize: rawInput="${trimmed.length > 60 ? '${trimmed.substring(0, 60)}...' : trimmed}", '
+        'mediaIn=${media?.length ?? 0}, usableMedia=${usableMedia.length}');
     if (trimmed.isEmpty && usableMedia.isEmpty) {
+      _logger.info('Organize: bail — no content and no usable media');
       return const RecordResult(entityIds: [], entityTitles: [], isEmpty: true);
     }
     final mediaSearchText = _mediaSearchText(usableMedia);
@@ -182,15 +186,27 @@ class RecordOrganizerService {
     final analyzedOps = analysis.isEmpty
         ? [_fallbackMediaOperation(trimmed, usableMedia)]
         : analysis.operations;
+    _logger.info(
+        'Organize: ${analysis.isEmpty ? "fallback" : "LLM"} produced ${analyzedOps.length} op(s), '
+        'pre-ensureMediaBlocks');
 
     // Validate and normalize each operation's patch against its domain schema
     const validator = DomainSchemaValidator();
     final schemaValidatedOps = analyzedOps.map((op) {
       final domain = (op.patch['_primaryDomain'] as String?) ?? 'general';
+      final before = (op.patch['_presentation'] as Map?)?['blocks'];
+      final beforeCount = before is List ? before.length : 0;
       final normalized = _ensureMediaBlocks(
         validator.validate(domain, op.patch).normalizedPatch,
         usableMedia,
       );
+      final after = (normalized['_presentation'] as Map?)?['blocks'];
+      final afterCount = after is List ? after.length : 0;
+      if (usableMedia.isNotEmpty && afterCount <= beforeCount) {
+        _logger.warning(
+            'Organize: _ensureMediaBlocks may NOT have added blocks! '
+            'before=$beforeCount after=$afterCount usableMedia=${usableMedia.length}');
+      }
       return SharedLifeOperationDraft(
         operationType: op.operationType,
         entityType: op.entityType,
@@ -251,13 +267,20 @@ class RecordOrganizerService {
         .getSingleOrNull();
     final attachmentsJson = message?.attachmentsJson;
     if (attachmentsJson == null || attachmentsJson.trim().isEmpty) {
+      _logger.info(
+          '_ensureMessageMedia: no attachmentsJson for msg#$messageId, '
+          'returning ${media != null ? 'original media' : 'null'}');
       return media;
     }
 
     final recovered = <MediaInputAttachment>[...current];
     try {
       final raw = jsonDecode(attachmentsJson);
-      if (raw is! List) return media;
+      if (raw is! List) {
+        _logger.warning(
+            '_ensureMessageMedia: attachmentsJson for msg#$messageId is not a List');
+        return recovered.isEmpty ? media : recovered;
+      }
 
       final analyses = _extractImageAnalyses(content);
       for (var i = 0; i < raw.length; i++) {
@@ -267,7 +290,12 @@ class RecordOrganizerService {
         final mimeType = attachment['mimeType']?.toString() ?? '';
         if (!mimeType.startsWith('image/')) continue;
         final base64 = attachment['base64']?.toString();
-        if (base64 == null || base64.isEmpty) continue;
+        if (base64 == null || base64.isEmpty) {
+          // Could be a compression-fallback stub; skip — nothing to save.
+          _logger.info(
+              '_ensureMessageMedia: msg#$messageId image#$i has empty base64, skipped');
+          continue;
+        }
 
         try {
           final saved = await _saveChatImageAttachment(
@@ -277,9 +305,23 @@ class RecordOrganizerService {
             mimeType: mimeType,
             base64: base64,
           );
-          final analysisText = i < analyses.length
-              ? analyses[i]
-              : await _analyzeSavedImage(saved.absolutePath);
+          // 3-tier analysis priority (same as chat screen _recordMessage):
+          // Tier 1: from [Image analysis: ...] prefix in message content
+          // Tier 2: from attachment.analysis stored during send
+          // Tier 3: run inline AssetAnalysisTool
+          String? analysisText;
+          if (i < analyses.length) {
+            analysisText = analyses[i];
+          }
+          if (analysisText == null || analysisText.trim().isEmpty) {
+            final storedAnalysis = attachment['analysis']?.toString();
+            if (storedAnalysis != null && storedAnalysis.trim().isNotEmpty) {
+              analysisText = storedAnalysis.trim();
+            }
+          }
+          if (analysisText == null || analysisText.trim().isEmpty) {
+            analysisText = await _analyzeSavedImage(saved.absolutePath);
+          }
           recovered.add(MediaInputAttachment(
             savedRelativePath: saved.relativePath,
             analysisText: analysisText,
@@ -322,6 +364,10 @@ class RecordOrganizerService {
         assetType: 'img',
         index: index + 1,
         format: ext,
+        factId: '${DateTime.now().year}/'
+            '${DateTime.now().month.toString().padLeft(2, '0')}/'
+            '${DateTime.now().day.toString().padLeft(2, '0')}.md'
+            '#ts_${DateTime.now().microsecondsSinceEpoch}',
       );
       return (
         relativePath: relativePath,
@@ -345,9 +391,9 @@ class RecordOrganizerService {
         modelConfig: resources.modelConfig,
       ).tool(
         assetPath: absolutePath,
-        prompt: 'Describe this image briefly in 1-2 sentences. '
-            'Focus on what is visible: people, objects, text, scenes. '
-            'Be concise and objective.',
+        prompt: '用1-2句中文简要描述这张图片的内容。'
+            '关注画面中可见的人、物体、文字、场景。'
+            '简洁客观。',
       );
       return result
           .replaceFirst(RegExp(r'^#Asset .+ analysis result\n:'), '')
@@ -477,7 +523,11 @@ Map<String, dynamic> _ensureMediaBlocks(
   Map<String, dynamic> patch,
   List<MediaInputAttachment> media,
 ) {
-  if (media.isEmpty) return patch;
+  if (media.isEmpty) {
+    RecordOrganizerService._logger.info(
+        '_ensureMediaBlocks: no usable media — returning patch unchanged');
+    return patch;
+  }
 
   final normalized = Map<String, dynamic>.from(patch);
   final presentation = _presentationMap(normalized['_presentation']) ??
@@ -488,7 +538,7 @@ Map<String, dynamic> _ensureMediaBlocks(
       };
 
   final rawBlocks = presentation['blocks'];
-  final blocks = rawBlocks is List
+  var blocks = rawBlocks is List
       ? rawBlocks
           .whereType<Object>()
           .map((item) => item is Map
@@ -498,16 +548,79 @@ Map<String, dynamic> _ensureMediaBlocks(
           .toList()
       : <Map<String, dynamic>>[];
 
-  for (final block in _mediaBlocks(media)) {
-    final assetPath = block['assetPath'];
-    final alreadyPresent = blocks.any((existing) =>
-        existing['type'] == 'media' && existing['assetPath'] == assetPath);
-    if (!alreadyPresent) blocks.add(block);
+  // Remove ALL existing media blocks — the LLM may have generated blocks
+  // with wrong assetPaths that would render as broken-image placeholders.
+  // Replace them with the ground-truth blocks built from saved media.
+  final beforeMediaCount =
+      blocks.where((b) => b['type'] == 'media').length;
+  blocks.removeWhere((b) => b['type'] == 'media');
+
+  final mediaBlockDefs = _mediaBlocks(media);
+  blocks.addAll(mediaBlockDefs);
+  if (mediaBlockDefs.isNotEmpty) {
+    RecordOrganizerService._logger.info(
+        '_ensureMediaBlocks: replaced $beforeMediaCount LLM media block(s) '
+        'with ${mediaBlockDefs.length} ground-truth block(s), '
+        'total blocks now ${blocks.length}');
   }
+
+  // Merge adjacent text blocks so the card shows ONE unified description
+  // instead of fragmented LLM output.
+  blocks = _mergeAdjacentTextBlocks(blocks);
 
   presentation['blocks'] = blocks;
   normalized['_presentation'] = presentation;
   return normalized;
+}
+
+/// Merges consecutive blocks of type 'text' into a single text block,
+/// joining their text with newlines.  Non-text blocks break the merge.
+List<Map<String, dynamic>> _mergeAdjacentTextBlocks(
+    List<Map<String, dynamic>> blocks) {
+  if (blocks.length < 2) return blocks;
+  final result = <Map<String, dynamic>>[];
+  String? pendingText;
+  List<String>? pendingEmphases;
+
+  void flush() {
+    if (pendingText != null) {
+      final merged = <String, dynamic>{
+        'type': 'text',
+        'text': pendingText!,
+      };
+      if (pendingEmphases != null && pendingEmphases!.isNotEmpty) {
+        merged['emphases'] = pendingEmphases;
+      }
+      result.add(merged);
+      pendingText = null;
+      pendingEmphases = null;
+    }
+  }
+
+  for (final block in blocks) {
+    if (block['type'] == 'text') {
+      final text = (block['text'] as String?) ?? '';
+      final emphases =
+          (block['emphases'] as List?)?.map((e) => e.toString()).toList();
+      if (pendingText == null) {
+        pendingText = text;
+        pendingEmphases = emphases;
+      } else {
+        pendingText = '$pendingText\n$text';
+        if (emphases != null && emphases.isNotEmpty) {
+          pendingEmphases = [
+            if (pendingEmphases != null) ...pendingEmphases!,
+            ...emphases,
+          ];
+        }
+      }
+    } else {
+      flush();
+      result.add(block);
+    }
+  }
+  flush();
+  return result;
 }
 
 Map<String, dynamic>? _presentationMap(Object? raw) {
@@ -534,9 +647,9 @@ List<Map<String, dynamic>> _mediaBlocks(List<MediaInputAttachment> media) {
 }
 
 String _captionFor(MediaInputAttachment media) {
-  final analysis = media.analysisText?.replaceAll(RegExp(r'\s+'), ' ').trim();
-  if (analysis != null && analysis.isNotEmpty) {
-    return analysis.length <= 80 ? analysis : '${analysis.substring(0, 80)}...';
-  }
-  return media.kind == 'image' ? '图片记录' : '媒体记录';
+  // The full image analysis is already incorporated into the text block
+  // above by the LLM.  The caption here is a minimal visual label only —
+  // repeating the analysis here would duplicate the text block content.
+  return const {'image': '图片', 'audio': '音频', 'video': '视频'}[media.kind] ??
+      '媒体';
 }

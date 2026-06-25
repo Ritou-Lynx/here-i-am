@@ -24,6 +24,11 @@ Your job is to extract structured life records from it.
 
 Return JSON only. No markdown, no explanation.
 
+LANGUAGE: The user writes in Chinese. ALL text fields in your output (title,
+summary, _sourceExcerpts, _dropletLabel, block text, captions, _placeName,
+_emotionEvidence, _timeSourceText, note, label, unit descriptions) MUST be
+in Chinese. Do not emit English unless the user's own input contains English.
+
 Rules:
 - Split content into independent life atoms when they have different lifecycles,
   subjects, or would be searched/updated separately.
@@ -129,21 +134,16 @@ Rules:
   - Omit blocks rather than fabricating: empty/uncertain → leave out.
   - subjectRef is optional. Use it only when the record clearly originates
     from another person or external work (e.g. a call, a book, an article).
-- When the input includes a "media" array, each entry represents user-provided
-  image (or audio/video) content. You MUST:
-  1. Incorporate each image's "analysis" text into the entity's semantic
-     content (title, summary, _sourceExcerpts, and structured fields) as if
-     the user had described the image in words.
-  2. For EVERY entry in the media array, include a corresponding MediaBlock in
-     _presentation.blocks:
-       { "type": "media", "assetPath": "<use the exact assetPath from media>",
-         "caption": "<one-sentence Chinese summary from the analysis>",
-         "kind": "<same kind from media, e.g. image>" }
-  3. If the "content" field is empty or minimal, the image analysis IS the
-     primary content — derive the entity entirely from the analysis text.
-     Do NOT invent unrelated content when text is empty.
-  4. The image itself is the evidence. Use verbatim relevant fragments from
-     the analysis text as _sourceExcerpts.
+- When the input includes a "media" array, the image analysis and any
+  user-written text together form ONE unified record. Do NOT write separate
+  text blocks for the image — fold the image's content into the same text
+  block as the user's words. The text block comes FIRST, then the media
+  block(s) as visual evidence.
+- For EVERY media entry, include a MediaBlock placeholder. The code will
+  fill in the correct assetPath and caption; just ensure the slot exists:
+    { "type": "media", "assetPath": ".", "caption": "", "kind": "image" }
+- If the user wrote no text, derive title, summary, and the text block
+  entirely from the image analysis. Do NOT invent unrelated content.
 
 $entityContext
 

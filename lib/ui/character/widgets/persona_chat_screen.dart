@@ -1347,12 +1347,9 @@ only after you have written the goodbye you want the user to hear.''',
     List<Map<String, String>>? compressedAttachments;
     if (hasImages && !isQueuedMessage) {
       setState(() => _isCompressingImages = true);
-      compressedAttachments = [];
+      compressedAttachments = <Map<String, String>>[];
       for (final image in imagesToSend) {
-        final compressed = await _compressImageForChat(image);
-        if (compressed != null) {
-          compressedAttachments.add(compressed);
-        }
+        compressedAttachments.add(await _compressImageForChat(image));
       }
       if (mounted) setState(() => _isCompressingImages = false);
     }
@@ -1430,9 +1427,9 @@ only after you have written the goodbye you want the user to hear.''',
           }
           final result = await analysisTool.tool(
             assetPath: image.path,
-            prompt: 'Describe this image briefly in 1-2 sentences. '
-                'Focus on what is visible: people, objects, text, scenes. '
-                'Be concise and objective.',
+            prompt: '用1-2句中文简要描述这张图片的内容。'
+                '关注画面中可见的人、物体、文字、场景。'
+                '简洁客观。',
           );
           // Strip the "#Asset ... analysis result\n:" prefix.
           final cleaned = result
@@ -1442,6 +1439,17 @@ only after you have written the goodbye you want the user to hear.''',
         }
         if (analyses.isNotEmpty) {
           imageAnalysisText = analyses.join(' | ');
+          // Persist each analysis into the attachments so Record Organizer
+          // can reuse them later instead of re-running the vision model.
+          try {
+            await _chatService.enrichAttachmentsWithAnalysis(
+              userMessageId,
+              analyses,
+            );
+          } catch (e) {
+            debugPrint(
+                'Failed to persist image analyses to attachments: $e');
+          }
         }
       } catch (e) {
         debugPrint('Image analysis failed, falling back to hint: $e');
@@ -1726,12 +1734,9 @@ only after you have written the goodbye you want the user to hear.''',
     List<Map<String, String>>? compressedAttachments;
     if (images.isNotEmpty) {
       setState(() => _isCompressingImages = true);
-      compressedAttachments = [];
+      compressedAttachments = <Map<String, String>>[];
       for (final image in images) {
-        final compressed = await _compressImageForChat(image);
-        if (compressed != null) {
-          compressedAttachments.add(compressed);
-        }
+        compressedAttachments.add(await _compressImageForChat(image));
       }
       if (mounted) setState(() => _isCompressingImages = false);
     }
@@ -1802,9 +1807,12 @@ only after you have written the goodbye you want the user to hear.''',
 
   /// Compresses an image for chat display and LLM vision input.
   ///
-  /// Follows the pattern from [AssetAnalysisTool]: resize to max 2048px,
-  /// WebP quality 85, then base64-encode. Returns null on failure.
-  Future<Map<String, String>?> _compressImageForChat(XFile image) async {
+  /// Tries WebP compression at 2048px first. If that fails (common on certain
+  /// Android devices or HEIC images), falls back to reading the raw file bytes
+  /// so [attachmentsJson] is always populated — without it the Record Organizer
+  /// cannot save media blocks.
+  Future<Map<String, String>> _compressImageForChat(XFile image) async {
+    // --- primary path: WebP compression ---
     try {
       final compressed = await FlutterImageCompress.compressWithFile(
         image.path,
@@ -1815,13 +1823,39 @@ only after you have written the goodbye you want the user to hear.''',
         autoCorrectionAngle: true,
         keepExif: false,
       );
-      if (compressed == null) return null;
-      // Use direct encode instead of compute() to avoid isolate issues on Android.
-      final base64 = base64Encode(compressed);
-      return {'mimeType': 'image/webp', 'base64': base64};
+      if (compressed != null) {
+        final base64 = base64Encode(compressed);
+        return {'mimeType': 'image/webp', 'base64': base64};
+      }
     } catch (e) {
-      debugPrint('Failed to compress image for chat: $e');
-      return null;
+      debugPrint('Image compress failed, falling back to raw bytes: $e');
+    }
+
+    // --- fallback: read raw file bytes ---
+    try {
+      final file = File(image.path);
+      if (!file.existsSync()) {
+        debugPrint('Image file not found for fallback: ${image.path}');
+        // Return a stub entry so the record path can still attempt recovery.
+        return {'mimeType': 'image/jpeg', 'base64': ''};
+      }
+      final bytes = await file.readAsBytes();
+      final base64 = base64Encode(bytes);
+      final ext = image.path.split('.').last.toLowerCase();
+      final mimeType = switch (ext) {
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'gif' => 'image/gif',
+        'heic' => 'image/heic',
+        'heif' => 'image/heif',
+        'bmp' => 'image/bmp',
+        _ => 'image/jpeg',
+      };
+      debugPrint('Image fallback: read ${bytes.length} raw bytes, mime=$mimeType');
+      return {'mimeType': mimeType, 'base64': base64};
+    } catch (e) {
+      debugPrint('Image raw fallback also failed: $e');
+      return {'mimeType': 'image/jpeg', 'base64': ''};
     }
   }
 
@@ -1940,13 +1974,21 @@ only after you have written the goodbye you want the user to hear.''',
       // ── Pre-process media attachments ──────────────────────────
       final media = <MediaInputAttachment>[];
       final attachmentsJson = message.attachmentsJson;
+      debugPrint(
+          '[Record] msg#${message.id} attachmentsJson '
+          '${attachmentsJson != null ? "present (${attachmentsJson.length} chars)" : "null"}');
       if (attachmentsJson != null && attachmentsJson.trim().isNotEmpty) {
         try {
           final List<dynamic> attachments = jsonDecode(attachmentsJson);
+          debugPrint('[Record] msg#${message.id} parsed ${attachments.length} attachment(s)');
           // Extract existing analysis text from the [Image analysis: ...] prefix
           // that was injected into message.content during send.
           final existingAnalyses = _extractImageAnalyses(message.content);
+          debugPrint('[Record] msg#${message.id} prefix analyses extracted: ${existingAnalyses.length}');
           final fsService = FileSystemService.instance;
+
+          // Close the initial "Recording…" snackbar once before processing images.
+          try { progress.close(); } catch (_) {}
 
           for (var i = 0; i < attachments.length; i++) {
             final att = attachments[i];
@@ -1957,7 +1999,6 @@ only after you have written the goodbye you want the user to hear.''',
             if (base64 == null || base64.isEmpty) continue;
 
             try {
-              progress.close();
               final analyzing = messenger.showSnackBar(
                 SnackBar(
                   content: Text(_chatUiText(
@@ -1972,7 +2013,7 @@ only after you have written the goodbye you want the user to hear.''',
 
               // 1. Decode base64 → write temp file
               final bytes = base64Decode(base64);
-              final ext = mimeType.endsWith('webp') ? 'webp' : 'jpg';
+              final ext = _imageExtForMime(mimeType);
               final tempDir = Directory.systemTemp;
               final tempFile = File(
                 '${tempDir.path}${Platform.pathSeparator}record_${message.id}_$i.$ext',
@@ -1980,6 +2021,13 @@ only after you have written the goodbye you want the user to hear.''',
               await tempFile.writeAsBytes(bytes);
 
               // 2. Save to Facts/assets/
+              // factId is required by saveAssetFromFile for filename generation.
+              // Use a synthetic factId from the current timestamp since the
+              // companion-first record path does not own a Memex factId.
+              final now = DateTime.now();
+              final factId =
+                  '${now.year}/${now.month.toString().padLeft(2, '0')}/${now.day.toString().padLeft(2, '0')}.md'
+                  '#ts_${now.microsecondsSinceEpoch}';
               final (filename, relativePath) =
                   await fsService.saveAssetFromFile(
                 userId: userId,
@@ -1987,20 +2035,36 @@ only after you have written the goodbye you want the user to hear.''',
                 assetType: 'img',
                 index: i + 1,
                 format: ext,
+                factId: factId,
               );
+              debugPrint('[Record] msg#${message.id} image#$i saved: $relativePath');
 
               // Clean up temp file
               try {
                 await tempFile.delete();
               } catch (_) {}
 
-              // 3. Get or run image analysis
+              // 3. Get or run image analysis (3-tier priority)
               String? analysisText;
+              // Tier 1: from the [Image analysis: ...] prefix in message content
               if (i < existingAnalyses.length) {
                 analysisText = existingAnalyses[i];
-              } else {
-                // Run inline analysis
+                debugPrint('[Record] msg#${message.id} image#$i analysis from prefix');
+              }
+              // Tier 2: from attachment.analysis stored during send
+              if (analysisText == null || analysisText!.trim().isEmpty) {
+                final storedAnalysis = att['analysis']?.toString();
+                if (storedAnalysis != null && storedAnalysis.trim().isNotEmpty) {
+                  analysisText = storedAnalysis.trim();
+                  debugPrint(
+                      '[Record] msg#${message.id} image#$i analysis from attachment '
+                      '(${analysisText!.length} chars)');
+                }
+              }
+              // Tier 3: run inline AssetAnalysisTool
+              if (analysisText == null || analysisText!.trim().isEmpty) {
                 try {
+                  debugPrint('[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…');
                   final analysisResources =
                       await UserStorage.getAgentLLMResources(
                     AgentDefinitions.analyzeAssets,
@@ -2013,18 +2077,21 @@ only after you have written the goodbye you want the user to hear.''',
                   final absPath = fsService.toAbsolutePath(relativePath);
                   final result = await analysisTool.tool(
                     assetPath: absPath,
-                    prompt: 'Describe this image briefly in 1-2 sentences. '
-                        'Focus on what is visible: people, objects, text, scenes. '
-                        'Be concise and objective.',
+                    prompt: '用1-2句中文简要描述这张图片的内容。'
+                        '关注画面中可见的人、物体、文字、场景。'
+                        '简洁客观。',
                   );
                   // Strip the "#Asset ... analysis result\n:" prefix
                   analysisText = result
                       .replaceFirst(
                           RegExp(r'^#Asset .+ analysis result\n:'), '')
                       .trim();
+                  debugPrint(
+                      '[Record] msg#${message.id} image#$i inline analysis done '
+                      '(${analysisText!.length} chars)');
                 } catch (e) {
                   debugPrint(
-                      'Inline image analysis failed in _recordMessage: $e');
+                      '[Record] msg#${message.id} image#$i inline analysis FAILED: $e');
                 }
               }
 
@@ -2034,14 +2101,17 @@ only after you have written the goodbye you want the user to hear.''',
                 analysisText: analysisText,
                 kind: 'image',
               ));
+              debugPrint(
+                  '[Record] msg#${message.id} image#$i → media (usable=${media.last.isUsable}, '
+                  'hasAnalysis=${analysisText != null && analysisText!.isNotEmpty})');
             } catch (e) {
               debugPrint(
-                  'Failed to process image attachment in _recordMessage: $e');
+                  '[Record] msg#${message.id} image#$i PROCESSING FAILED: $e');
               media.add(MediaInputAttachment(error: e.toString()));
             }
           }
         } catch (e) {
-          debugPrint('Failed to parse attachmentsJson in _recordMessage: $e');
+          debugPrint('[Record] msg#${message.id} parse attachmentsJson FAILED: $e');
         }
       }
 
@@ -2049,6 +2119,9 @@ only after you have written the goodbye you want the user to hear.''',
       final cleanedContent = message.content
           .replaceFirst(RegExp(r'^\[Image analysis:.*?\](\n\n?)?'), '')
           .trim();
+      debugPrint(
+          '[Record] msg#${message.id} content="${cleanedContent}", '
+          'mediaCount=${media.where((m) => m.isUsable).length}');
 
       // Restore progress snackbar before the LLM call
       try {
@@ -2098,6 +2171,18 @@ only after you have written the goodbye you want the user to hear.''',
     } finally {
       _recordingMessageIds.remove(message.id);
     }
+  }
+
+  /// Maps a mime type (e.g. "image/png") to a file extension (e.g. "png").
+  /// Keep consistent with [RecordOrganizerService._imageExtensionForMime].
+  String _imageExtForMime(String mimeType) {
+    final lower = mimeType.toLowerCase();
+    if (lower.contains('webp')) return 'webp';
+    if (lower.contains('png')) return 'png';
+    if (lower.contains('gif')) return 'gif';
+    if (lower.contains('heic')) return 'heic';
+    if (lower.contains('heif')) return 'heif';
+    return 'jpg';
   }
 
   /// Extracts per-image analysis texts from the [Image analysis: ...] prefix
@@ -3107,6 +3192,11 @@ only after you have written the goodbye you want the user to hear.''',
             child: Align(
               alignment: Alignment.topRight,
               child: GestureDetector(
+                // translucent: participate in the gesture arena even when
+                // children like SelectionArea or inner GestureDetectors
+                // also try to claim the event.  _recordingMessageIds guard
+                // prevents double-processing if both inner and outer fire.
+                behavior: HitTestBehavior.translucent,
                 onDoubleTap: userMessage != null
                     ? () => _recordMessage(userMessage)
                     : null,
@@ -3157,17 +3247,6 @@ only after you have written the goodbye you want the user to hear.''',
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (userMessage != null) ...[
-                            GestureDetector(
-                              onTap: () => _recordMessage(userMessage),
-                              child: Icon(
-                                Icons.bookmark_add_outlined,
-                                size: 15,
-                                color: _personaTextMuted,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                          ],
                           GestureDetector(
                             onTap: () {
                               Clipboard.setData(ClipboardData(text: text));
@@ -3304,6 +3383,7 @@ only after you have written the goodbye you want the user to hear.''',
   /// Renders image attachments from a JSON-encoded attachments list below
   /// the text in a user's chat bubble. Each attachment has `base64` (WebP)
   /// and `mimeType` fields.
+  /// Double-tap on an image triggers recording via [onRecord].
   List<Widget> _buildAttachmentWidgets(
     String attachmentsJson, {
     VoidCallback? onRecord,
@@ -3319,35 +3399,10 @@ only after you have written the goodbye you want the user to hear.''',
             borderRadius: BorderRadius.circular(10),
             child: GestureDetector(
               onDoubleTap: onRecord,
-              child: Stack(
-                children: [
-                  Image.memory(
-                    Uint8List.fromList(bytes),
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                  ),
-                  if (onRecord != null)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Material(
-                        color: Colors.black.withValues(alpha: 0.36),
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: onRecord,
-                          child: const Padding(
-                            padding: EdgeInsets.all(6),
-                            child: Icon(
-                              Icons.bookmark_add_outlined,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+              child: Image.memory(
+                Uint8List.fromList(bytes),
+                fit: BoxFit.cover,
+                width: double.infinity,
               ),
             ),
           ),

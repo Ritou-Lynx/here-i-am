@@ -174,9 +174,9 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
               final absPath = fsService.toAbsolutePath(relativePath);
               final result = await analysisTool.tool(
                 assetPath: absPath,
-                prompt: 'Describe this image briefly in 1-2 sentences. '
-                    'Focus on what is visible: people, objects, text, scenes. '
-                    'Be concise and objective.',
+                prompt: '用1-2句中文简要描述这张图片的内容。'
+                    '关注画面中可见的人、物体、文字、场景。'
+                    '简洁客观。',
               );
               analysisText = result
                   .replaceFirst(RegExp(r'^#Asset .+ analysis result\n:'), '')

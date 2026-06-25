@@ -180,6 +180,40 @@ class PersonaChatService {
     return id;
   }
 
+  /// Writes per-image vision analysis text back into the attachmentsJson
+  /// so the Record Organizer can reuse it later without re-running the
+  /// vision model. Each [analyses][i] corresponds to the i-th attachment.
+  Future<void> enrichAttachmentsWithAnalysis(
+    int messageId,
+    List<String> analyses,
+  ) async {
+    if (analyses.isEmpty) return;
+    try {
+      final message = await (_db.select(_db.personaChatMessages)
+            ..where((t) => t.id.equals(messageId)))
+          .getSingleOrNull();
+      final raw = message?.attachmentsJson;
+      if (raw == null || raw.trim().isEmpty) return;
+      final attachments = jsonDecode(raw) as List;
+      if (attachments.isEmpty) return;
+      var dirty = false;
+      for (var i = 0; i < attachments.length && i < analyses.length; i++) {
+        final att = attachments[i];
+        if (att is! Map || analyses[i].trim().isEmpty) continue;
+        att['analysis'] = analyses[i].trim();
+        dirty = true;
+      }
+      if (!dirty) return;
+      await (_db.update(_db.personaChatMessages)
+            ..where((t) => t.id.equals(messageId)))
+          .write(PersonaChatMessagesCompanion(
+            attachmentsJson: Value(jsonEncode(attachments)),
+          ));
+    } catch (e) {
+      // Best-effort; analysis can still run inline during record.
+    }
+  }
+
   /// Replaces the addenda list on an existing message. Used by features that
   /// emit a message first (to get a real messageId) and then patch in
   /// addenda referencing the just-created entity (e.g. ReadingCaptureService).
