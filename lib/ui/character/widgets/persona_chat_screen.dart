@@ -1102,6 +1102,7 @@ only after you have written the goodbye you want the user to hear.''',
     _audioPlayer.dispose();
     _voiceController.dispose();
     _toyControlService?.dispose();
+    _imageByteCache.clear();
     super.dispose();
   }
 
@@ -2391,7 +2392,42 @@ only after you have written the goodbye you want the user to hear.''',
 
     final message = candidates.first;
     final messageId = personaChatTtsPlaybackIdForMessage(message);
-    _advanceAutoReadWatermark(updatedMessages);
+    // Only advance the watermark past THIS message so the remaining
+    // candidates stay visible for the follow-up play-on-completion chain.
+    _advanceReadWatermarkForMessage(message);
+    if (_lastAutoReadMessageId == messageId) return;
+    _lastAutoReadMessageId = messageId;
+    unawaited(_handleTtsPlay(messageId, message.content, autoTriggered: true));
+  }
+
+  /// Sets the auto-read watermark to just past [message] so queued messages
+  /// after it remain eligible for the next TTS pass.
+  void _advanceReadWatermarkForMessage(PersonaChatMessage message) {
+    _autoReadWatermarkAt = message.timestamp;
+    _autoReadWatermarkId = message.id;
+  }
+
+  /// Called after each TTS message finishes. If there are still unread
+  /// character messages after the watermark, plays the next one in order.
+  void _autoReadNextMessageIfAny() {
+    if (_playingMessageId != null) return; // still playing
+    if (!_shouldAutoReadCurrentReply) return;
+
+    final candidates = _messages
+        .where(_isUnreadableAutoReadCandidate)
+        .where(_isAfterAutoReadWatermark)
+        .toList();
+
+    if (candidates.isEmpty) return;
+
+    candidates.sort((a, b) {
+      final byTime = a.timestamp.compareTo(b.timestamp);
+      return byTime != 0 ? byTime : a.id.compareTo(b.id);
+    });
+
+    final message = candidates.first;
+    final messageId = personaChatTtsPlaybackIdForMessage(message);
+    _advanceReadWatermarkForMessage(message);
     if (_lastAutoReadMessageId == messageId) return;
     _lastAutoReadMessageId = messageId;
     unawaited(_handleTtsPlay(messageId, message.content, autoTriggered: true));
@@ -2505,6 +2541,8 @@ only after you have written the goodbye you want the user to hear.''',
       return;
     }
     _queueVoiceModeRecordingStart();
+    // Chain to the next unread message when running in auto-read / voice mode.
+    _autoReadNextMessageIfAny();
   }
 
   Future<void> _watchTtsPlaybackCompletion(
@@ -2572,9 +2610,11 @@ only after you have written the goodbye you want the user to hear.''',
           await _stopTtsPlayback();
           return;
         }
+        _audioCompleteSub?.cancel();
         _audioCompleteSub = _audioPlayer.onPlayerComplete.listen((_) {
           _handleTtsPlaybackCompleted(requestSerial, messageId);
         });
+        _audioStateSub?.cancel();
         _audioStateSub = _audioPlayer.onPlayerStateChanged.listen((state) {
           if (state == PlayerState.completed) {
             _handleTtsPlaybackCompleted(requestSerial, messageId);
@@ -3187,6 +3227,7 @@ only after you have written the goodbye you want the user to hear.''',
         attachmentsJson != null && attachmentsJson.isNotEmpty
             ? _buildAttachmentWidgets(
                 attachmentsJson,
+                message!.id,
                 onRecord: userMessage != null
                     ? () => _recordMessage(userMessage)
                     : null,
@@ -3392,34 +3433,51 @@ only after you have written the goodbye you want the user to hear.''',
     );
   }
 
+  /// Per-message image byte cache so base64 is decoded once and reused
+  /// across ListView rebuilds instead of re-decoding every frame on scroll.
+  final Map<int, Uint8List> _imageByteCache = {};
+
   /// Renders image attachments from a JSON-encoded attachments list below
   /// the text in a user's chat bubble. Each attachment has `base64` (WebP)
   /// and `mimeType` fields.
   /// Double-tap on an image triggers recording via [onRecord].
   List<Widget> _buildAttachmentWidgets(
-    String attachmentsJson, {
+    String attachmentsJson,
+    int messageId, {
     VoidCallback? onRecord,
   }) {
     try {
       final List<dynamic> attachments = jsonDecode(attachmentsJson);
-      return attachments.map((att) {
+      final widgets = <Widget>[];
+      for (var i = 0; i < attachments.length; i++) {
+        final att = attachments[i];
         final base64 = att['base64'] as String;
-        final bytes = base64Decode(base64);
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: GestureDetector(
-              onDoubleTap: onRecord,
-              child: Image.memory(
-                Uint8List.fromList(bytes),
-                fit: BoxFit.cover,
-                width: double.infinity,
+        final cacheKey = messageId * 1000 + i;
+        Uint8List? bytes = _imageByteCache[cacheKey];
+        if (bytes == null) {
+          bytes = Uint8List.fromList(base64Decode(base64));
+          _imageByteCache[cacheKey] = bytes;
+        }
+        widgets.add(
+          Padding(
+            key: ValueKey('chat-img-$messageId-$i'),
+            padding: const EdgeInsets.only(bottom: 6),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: GestureDetector(
+                onDoubleTap: onRecord,
+                child: Image.memory(
+                  bytes,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  gaplessPlayback: true,
+                ),
               ),
             ),
           ),
         );
-      }).toList();
+      }
+      return widgets;
     } catch (e) {
       debugPrint('Failed to decode chat attachments: $e');
       return [];
