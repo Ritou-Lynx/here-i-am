@@ -495,17 +495,16 @@ SharedLifeOperationDraft _fallbackMediaOperation(
   String text,
   List<MediaInputAttachment> media,
 ) {
-  final caption = _captionFor(media.first);
   return SharedLifeOperationDraft(
     operationType: 'create',
     entityType: 'event',
-    title: text.isNotEmpty ? text : caption,
+    title: text.isNotEmpty ? text : '图片记录',
     patch: {
       '_primaryDomain': 'general',
       '_facets': const [],
       '_dropletLabel': '图片',
       '_sourceExcerpts': [
-        if (text.isNotEmpty) text else caption,
+        if (text.isNotEmpty) text else '图片记录',
       ],
       '_presentation': {
         'title': text.isNotEmpty ? text : '图片记录',
@@ -514,7 +513,7 @@ SharedLifeOperationDraft _fallbackMediaOperation(
           ..._mediaBlocks(media),
         ],
       },
-      'summary': text.isNotEmpty ? text : caption,
+      'summary': text.isNotEmpty ? text : '图片记录',
     },
   );
 }
@@ -640,16 +639,7 @@ List<Map<String, dynamic>> _mediaBlocks(List<MediaInputAttachment> media) {
       .map((m) => <String, dynamic>{
             'type': 'media',
             'assetPath': m.savedRelativePath!,
-            'caption': _captionFor(m),
             'kind': m.kind,
           })
       .toList(growable: false);
-}
-
-String _captionFor(MediaInputAttachment media) {
-  // The full image analysis is already incorporated into the text block
-  // above by the LLM.  The caption here is a minimal visual label only —
-  // repeating the analysis here would duplicate the text block content.
-  return const {'image': '图片', 'audio': '音频', 'video': '视频'}[media.kind] ??
-      '媒体';
 }
