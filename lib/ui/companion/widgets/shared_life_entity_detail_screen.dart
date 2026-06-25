@@ -191,15 +191,17 @@ class _SharedLifeEntityDetailScreenState
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 10),
-        Text(
-          sharedLifeStatusLabel(entity.status),
-          style: const TextStyle(
-            color: Color(0xFF596579),
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+        if (entity.status == 'completed' || entity.status == 'cancelled') ...[
+          const SizedBox(height: 10),
+          Text(
+            sharedLifeStatusLabel(entity.status),
+            style: const TextStyle(
+              color: Color(0xFF596579),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
+        ],
         if (entity.tags.isNotEmpty) ...[
           const SizedBox(height: 12),
           Wrap(
@@ -757,11 +759,28 @@ class _StateTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final visible = state.entries.where(
-      (entry) => !const {
-        'tags',
-        'related_entity_ids',
-        'related_fact_ids',
-      }.contains(entry.key),
+      (entry) {
+        final key = entry.key;
+        if (const {
+          'tags',
+          'related_entity_ids',
+          'related_fact_ids',
+          'schema_version',
+          'source_character_id',
+          'source_message_id',
+          'source_kind',
+          'entity_id',
+        }.contains(key)) {
+          return false;
+        }
+        // Skip internal / empty / null values
+        final value = entry.value;
+        if (value == null) return false;
+        if (value is String && value.trim().isEmpty) return false;
+        if (value is List && value.isEmpty) return false;
+        if (value is Map && value.isEmpty) return false;
+        return true;
+      },
     );
     if (visible.isEmpty) return Text(UserStorage.l10n.nothingHere);
     return Column(

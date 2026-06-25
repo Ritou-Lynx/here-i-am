@@ -90,6 +90,8 @@ class _SharedLifeStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final label = _statusLabel(status);
+    if (label.isEmpty) return const SizedBox.shrink();
     final color = switch (status) {
       'completed' => TimelineTheme.colors.success,
       'cancelled' => TimelineTheme.colors.textTertiary,
@@ -102,7 +104,7 @@ class _SharedLifeStatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        _statusLabel(status),
+        label,
         style: TextStyle(
           color: color,
           fontSize: 10,
@@ -168,7 +170,7 @@ String _statusLabel(String status) {
   return switch (status) {
     'completed' => UserStorage.l10n.companionLifeCompleted,
     'cancelled' => UserStorage.l10n.companionLifeCancelled,
-    _ => UserStorage.l10n.companionLifeActive,
+    _ => '', // "active" is the default — don't show a label for normal records
   };
 }
 
