@@ -12,7 +12,7 @@ import 'package:memex/utils/user_storage.dart';
 class MiniMaxImageService {
   MiniMaxImageService._();
 
-  static const _baseUrl = 'https://api.minimax.chat/v1/image/generation';
+  static const _baseUrl = 'https://api.minimax.chat/v1/image_generation';
   static const _model = 'image-01';
   static const _timeout = Duration(seconds: 45);
 
@@ -20,6 +20,18 @@ class MiniMaxImageService {
     connectTimeout: _timeout,
     receiveTimeout: _timeout,
   ));
+
+  /// Maps our size string to MiniMax aspect_ratio format.
+  static String _aspectRatio(String size) {
+    switch (size) {
+      case '1792x1024':
+        return '16:9';
+      case '1024x1792':
+        return '9:16';
+      default:
+        return '1:1';
+    }
+  }
 
   static Future<ImageGenerationResult> generate(
     ImageGenerationRequest request,
@@ -34,11 +46,12 @@ class MiniMaxImageService {
     }
 
     // 2. Check cache
+    final aspectR = _aspectRatio(request.size);
     final key = ImageGenCache.cacheKey(
       prompt: request.prompt,
       provider: 'minimax',
       model: _model,
-      size: request.size,
+      size: aspectR,
       style: request.style,
     );
     final cached = await ImageGenCache.lookup(key);
@@ -52,12 +65,13 @@ class MiniMaxImageService {
     }
 
     // 3. Call API
-    debugPrint('[ImageGen] MiniMax API call: model=$_model size=${request.size}');
+    debugPrint('[ImageGen] MiniMax API call: model=$_model aspect_ratio=$aspectR');
     final body = {
       'model': _model,
       'prompt': request.prompt,
+      'aspect_ratio': aspectR,
       'n': request.numImages,
-      'size': request.size,
+      'prompt_optimizer': true,
     };
 
     final response = await _dio.post(
