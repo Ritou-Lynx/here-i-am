@@ -2500,10 +2500,19 @@ only after you have written the goodbye you want the user to hear.''',
       _voiceModeIdleFollowUpSerial++;
       _voiceModeOpeningInProgress = false;
       _voiceModeStartQueued = false;
+      final wasAgentEnded = _endVoiceModeAfterCurrentReply;
       _endVoiceModeAfterCurrentReply = false;
       _voiceModeSilentFollowUps = 0;
       await _voiceController.cancel();
       await _stopTtsPlayback();
+      // Notify the character that the user hung up (unless the agent ended it).
+      if (!wasAgentEnded) {
+        unawaited(_chatService.addCharacterMessage(
+          _currentCharacterId,
+          '📵 用户挂断了语音通话。',
+          isRead: true,
+        ));
+      }
     }
   }
 

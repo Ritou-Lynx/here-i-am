@@ -214,12 +214,13 @@ void main() async {
     _openPersonaChatVoiceModeFromRoot(characterId);
   };
   CallkitService.instance.onDecline = (String characterId) {
-    // Record a missed/declined-call memory so the companion remembers.
+    // The CallKit service fires onDecline for BOTH explicit rejection
+    // and timeout (missed).  Record it so the companion notices next turn.
     PersonaChatService.instance.addCharacterMessage(
       characterId,
-      '（你拒接了一通来电）',
+      '📵 用户没有接你的电话。下次聊天时可以提一下。',
       timestamp: DateTime.now(),
-      isRead: true,
+      isRead: false,
     );
   };
 
