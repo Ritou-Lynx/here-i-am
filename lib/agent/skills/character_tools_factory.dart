@@ -15,6 +15,7 @@ import 'package:memex/agent/built_in_tools/toy_control_tool.dart';
 import 'package:memex/agent/built_in_tools/transit_companion_tools.dart';
 import 'package:memex/agent/built_in_tools/user_knowledge_query_tool.dart';
 import 'package:memex/agent/built_in_tools/web_search_tool.dart';
+import 'package:memex/agent/built_in_tools/generate_image_tool.dart';
 import 'package:memex/agent/built_in_tools/weread_tool.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
 import 'package:memex/agent/skills/comment_agent/tools/comment_tools.dart';
@@ -83,6 +84,7 @@ class CharacterToolsFactory {
       buildWereadTool(userId: userId),
       buildPhoneUsageQueryTool(),
       buildWebSearchTool(),
+      buildGenerateImageTool(characterId: characterId),
       // Autonomous shopping tools (budget gate enforced in service, not just prompt)
       buildShoppingBudgetTool(characterId: characterId),
       buildShoppingSearchTool(),

@@ -533,6 +533,26 @@ class CompanionAgentSkill extends Skill {
       b.writeln(
           '- You sense discomfort or the conversation shifts to something serious');
     }
+    b.writeln('');
+    b.writeln('## Image Generation (generate_image)');
+    b.writeln(
+        'You can create AI-generated images for the user. Call `generate_image` when:');
+    b.writeln(
+        '- The user asks you to "draw", "generate", "create an image", "画一张", "生成一张图", "帮我画"');
+    b.writeln(
+        '- The user describes a scene and wants to see what it looks like');
+    b.writeln(
+        '- The user wants a visual illustration of a concept, story, or idea');
+    b.writeln('');
+    b.writeln('Rules:');
+    b.writeln('- ALWAYS write spoken text BEFORE calling this tool. '
+        'The image will appear as a separate message after your text.');
+    b.writeln('- Write the prompt in natural language (Chinese for Chinese-speaking users). '
+        'Be detailed: subject, setting, composition, colors, mood, lighting, style.');
+    b.writeln('- After the image appears, comment on it naturally. '
+        'If it does not match what the user wanted, offer to regenerate with a refined prompt.');
+    b.writeln(
+        '- Be honest — do not claim to be a visual artist. Say things like "我试着画了一下～" or "这是我根据你的描述生成的".');
 
     return b.toString();
   }

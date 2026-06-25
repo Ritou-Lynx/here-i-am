@@ -49,6 +49,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _miniMaxApiKeyController = TextEditingController();
   final _miniMaxGroupIdController = TextEditingController();
   String _ttsProvider = 'elevenlabs';
+  String _imageGenProvider = 'tongyi_wanxiang';
 
   @override
   void initState() {
@@ -79,6 +80,8 @@ class _SettingsPageState extends State<SettingsPage> {
         _miniMaxGroupIdController.text = miniMaxGroupId;
       }
       if (mounted) setState(() => _ttsProvider = ttsProvider);
+      final imageGenProvider = await UserStorage.getImageGenProvider();
+      if (mounted) setState(() => _imageGenProvider = imageGenProvider);
     }
     if (mounted) {
       setState(() {
@@ -166,6 +169,11 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _setTtsProvider(String provider) async {
     setState(() => _ttsProvider = provider);
     await UserStorage.setTtsProvider(provider);
+  }
+
+  Future<void> _setImageGenProvider(String provider) async {
+    setState(() => _imageGenProvider = provider);
+    await UserStorage.setImageGenProvider(provider);
   }
 
   Future<void> _saveMiniMaxApiKey() async {
@@ -404,6 +412,59 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // ── Image Generation ─────────────────────────────────────────
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.image_outlined,
+                        size: 20, color: AppColors.textPrimary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '图片生成',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '在角色对话中启用 AI 图像生成，复用已有 API key',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    _imageGenProviderChip('通义万相', 'tongyi_wanxiang'),
+                    const SizedBox(width: 8),
+                    _imageGenProviderChip('MiniMax', 'minimax'),
+                  ],
+                ),
               ],
             ),
           ),
@@ -1749,6 +1810,32 @@ class _SettingsPageState extends State<SettingsPage> {
     final isSelected = _currentLang == langCode;
     return GestureDetector(
       onTap: () => _changeLanguage(langCode),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : Colors.grey[300]!,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isSelected ? Colors.white : Colors.grey[600],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _imageGenProviderChip(String label, String provider) {
+    final isSelected = _imageGenProvider == provider;
+    return GestureDetector(
+      onTap: () => _setImageGenProvider(provider),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),

@@ -353,6 +353,7 @@ class UserStorage {
   static const String _keyTtsProvider = 'tts_provider';
   static const String _keyMiniMaxApiKey = 'minimax_api_key';
   static const String _keyMiniMaxGroupId = 'minimax_group_id';
+  static const String _keyImageGenProvider = 'image_gen_provider';
 
   /// Get specified agent config
   static Future<AgentConfig> getAgentConfig(String agentId) async {
@@ -457,6 +458,40 @@ class UserStorage {
       await prefs.setString(_keyTtsProvider, provider);
     } catch (e) {
       throw Exception('Failed to save TTS provider: $e');
+    }
+  }
+
+  static Future<String> getImageGenProvider() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyImageGenProvider) ?? 'tongyi_wanxiang';
+    } catch (e) {
+      return 'tongyi_wanxiang';
+    }
+  }
+
+  static Future<void> setImageGenProvider(String provider) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyImageGenProvider, provider);
+    } catch (e) {
+      throw Exception('Failed to save image gen provider: $e');
+    }
+  }
+
+  /// Derives the DashScope API key from the first Qwen LLM config that has one.
+  static Future<String?> getDashScopeApiKey() async {
+    try {
+      final configs = await getLLMConfigs();
+      for (final config in configs) {
+        if (config.type == LLMConfig.typeQwen &&
+            (config.apiKey ?? '').isNotEmpty) {
+          return config.apiKey;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 
