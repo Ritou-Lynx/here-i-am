@@ -71,7 +71,7 @@ Color get _personaUserBubble {
 }
 
 Color get _personaUserBorder => HereIamThemeRuntime.current.glassEdge;
-const _voiceModeIdleFollowUpSilenceTimeout = Duration(seconds: 60);
+const _voiceModeIdleFollowUpSilenceTimeout = Duration(seconds: 10);
 const _voiceModeMaxRecordingDuration = Duration(seconds: 120);
 const _voiceModeMaxSilentFollowUps = 8;
 

@@ -16,9 +16,9 @@ enum VoiceInputState { idle, recording, processing }
 
 const _voiceEndpointPollInterval = Duration(milliseconds: 200);
 const _voiceEndpointInitialSilenceTimeout = Duration(seconds: 4);
-const _voiceEndpointTrailingSilenceTimeout = Duration(milliseconds: 1100);
+const _voiceEndpointTrailingSilenceTimeout = Duration(milliseconds: 1500);
 const _voiceEndpointMaxRecordingDuration = Duration(seconds: 60);
-const _voiceEndpointSpeechThresholdDb = -38.0;
+const _voiceEndpointSpeechThresholdDb = -45.0;
 
 /// Drives the press-to-talk recording → ASR pipeline.
 ///
