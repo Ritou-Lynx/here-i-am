@@ -212,11 +212,33 @@ class _SharedLifeEntityDetailScreenState
         // ── Presentation preview (renders MediaBlock etc.) ──────────
         if (entity.presentationJson != null)
           _buildPresentationSection(entity.presentationJson!),
+        // ── Time ───────────────────────────────────────────────────
+        if (entity.occurredAt != null ||
+            entity.timeSourceText != null)
+          _buildTimeSection(entity),
+        // ── Location ───────────────────────────────────────────────
+        if (entity.placeName != null && entity.placeName!.isNotEmpty)
+          _buildLocationSection(entity),
+        // ── Emotion ────────────────────────────────────────────────
+        if (entity.valence != null || entity.emotionEvidence != null)
+          _buildEmotionSection(entity),
+        // ── Classification ─────────────────────────────────────────
+        if (entity.primaryDomain != 'general' ||
+            entity.facets.isNotEmpty ||
+            (entity.dropletLabel != null && entity.dropletLabel!.isNotEmpty))
+          _buildClassificationSection(entity),
         const SizedBox(height: 24),
+        // ── Source excerpts ──────────────────────────────────────────
+        if (entity.sourceExcerptsJson != null)
+          _buildSourceExcerptsSection(entity),
         _DetailSection(
           title: UserStorage.l10n.companionSharedLifeCurrentState,
           child: _StateTable(state: entity.state),
         ),
+        // ── Structured fields ───────────────────────────────────────
+        if (entity.structuredFieldsJson != null &&
+            entity.structuredFieldsJson!.trim().isNotEmpty)
+          _buildStructuredFieldsSection(entity),
         if (entity.relatedEntityIds.isNotEmpty ||
             entity.relatedFactIds.isNotEmpty) ...[
           const SizedBox(height: 18),
@@ -252,6 +274,233 @@ class _SharedLifeEntityDetailScreenState
           ),
         ),
       ],
+    );
+  }
+
+  static final _timeFmt = DateFormat('yyyy-MM-dd HH:mm');
+
+  Widget _buildTimeSection(SharedLifeEntitySnapshot entity) {
+    final parts = <Widget>[];
+    if (entity.occurredAt != null) {
+      parts.add(_labeledRow(
+        '发生时间',
+        _timeFmt.format(
+            DateTime.fromMillisecondsSinceEpoch(entity.occurredAt!)),
+      ));
+      if (entity.occurredEndAt != null) {
+        parts.add(_labeledRow(
+          '结束时间',
+          _timeFmt.format(
+              DateTime.fromMillisecondsSinceEpoch(entity.occurredEndAt!)),
+        ));
+      }
+      if (entity.timeConfidence != null) {
+        parts.add(_labeledRow(
+          '置信度',
+          '${(entity.timeConfidence! * 100).toStringAsFixed(0)}%',
+        ));
+      }
+    }
+    if (entity.timeSourceText != null &&
+        entity.timeSourceText!.trim().isNotEmpty) {
+      parts.add(_labeledRow('时间来源', entity.timeSourceText!));
+    }
+    if (parts.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: _DetailSection(title: '时间', child: Column(children: parts)),
+    );
+  }
+
+  Widget _buildLocationSection(SharedLifeEntitySnapshot entity) {
+    final parts = <Widget>[
+      _labeledRow('地点', entity.placeName!),
+    ];
+    if (entity.placeLat != null && entity.placeLng != null) {
+      parts.add(_labeledRow(
+        '坐标',
+        '${entity.placeLat!.toStringAsFixed(4)}, ${entity.placeLng!.toStringAsFixed(4)}',
+      ));
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: _DetailSection(
+        title: '地点',
+        child: Column(children: parts),
+      ),
+    );
+  }
+
+  Widget _buildEmotionSection(SharedLifeEntitySnapshot entity) {
+    final parts = <Widget>[];
+    if (entity.valence != null && entity.arousal != null) {
+      final v = entity.valence!;
+      final a = entity.arousal!;
+      String valenceLabel;
+      if (v >= 0.6) {
+        valenceLabel = '正面 😊';
+      } else if (v <= 0.4) {
+        valenceLabel = '负面 😔';
+      } else {
+        valenceLabel = '中性 😐';
+      }
+      String arousalLabel;
+      if (a >= 0.6) {
+        arousalLabel = '高唤醒 ⚡';
+      } else if (a <= 0.4) {
+        arousalLabel = '低唤醒 💤';
+      } else {
+        arousalLabel = '中等';
+      }
+      parts.add(_labeledRow('情绪', '$valenceLabel · $arousalLabel'));
+      parts.add(_labeledRow(
+        '数值',
+        'valence=${v.toStringAsFixed(2)} arousal=${a.toStringAsFixed(2)}',
+      ));
+      if (entity.emotionConfidence != null) {
+        parts.add(_labeledRow(
+          '置信度',
+          '${(entity.emotionConfidence! * 100).toStringAsFixed(0)}%',
+        ));
+      }
+    }
+    if (entity.emotionEvidence != null &&
+        entity.emotionEvidence!.trim().isNotEmpty) {
+      parts.add(Text(
+        entity.emotionEvidence!,
+        style: const TextStyle(
+          color: Color(0xFF7C8490),
+          fontSize: 13,
+          fontStyle: FontStyle.italic,
+        ),
+      ));
+    }
+    if (parts.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: _DetailSection(title: '情绪', child: Column(children: parts)),
+    );
+  }
+
+  Widget _buildClassificationSection(SharedLifeEntitySnapshot entity) {
+    final parts = <Widget>[];
+    if (entity.primaryDomain != 'general') {
+      parts.add(_labeledRow('领域', entity.primaryDomain));
+    }
+    if (entity.facets.isNotEmpty) {
+      parts.add(_labeledRow('分类', entity.facets.join('、')));
+    }
+    if (entity.dropletLabel != null && entity.dropletLabel!.isNotEmpty) {
+      parts.add(_labeledRow('标签', entity.dropletLabel!));
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: _DetailSection(
+        title: '分类信息',
+        child: Column(children: parts),
+      ),
+    );
+  }
+
+  Widget _buildSourceExcerptsSection(SharedLifeEntitySnapshot entity) {
+    List<dynamic> excerpts;
+    try {
+      excerpts = jsonDecode(entity.sourceExcerptsJson!) as List;
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+    if (excerpts.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: _DetailSection(
+        title: '来源摘录',
+        child: Column(
+          children: excerpts
+              .map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('" ',
+                            style: TextStyle(
+                                color: Color(0xFFCDB8C8),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700)),
+                        Expanded(
+                          child: Text(
+                            e.toString(),
+                            style: const TextStyle(
+                              color: Color(0xFF596579),
+                              fontSize: 13,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStructuredFieldsSection(SharedLifeEntitySnapshot entity) {
+    Map<String, dynamic> fields;
+    try {
+      fields = jsonDecode(entity.structuredFieldsJson!) as Map<String, dynamic>;
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+    if (fields.isEmpty) return const SizedBox.shrink();
+    // Use the detail state table style for structured fields
+    final visible = fields.entries
+        .where((e) =>
+            !const {'_primaryDomain', '_facets', '_dropletLabel'}
+                .contains(e.key))
+        .toList();
+    if (visible.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: _DetailSection(
+        title: '结构化字段',
+        child: Column(
+          children: visible
+              .map((e) => _labeledRow(e.key, _displayValue(e.value)))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _labeledRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF7C8490),
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Color(0xFF34383E),
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
