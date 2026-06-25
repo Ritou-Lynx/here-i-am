@@ -31,6 +31,7 @@ class _SharedLifeEntityDetailScreenState
   SharedLifeEntityDetail? _detail;
   Object? _error;
   bool _isDeleting = false;
+  bool _showAdvanced = false;
 
   @override
   void initState() {
@@ -169,11 +170,15 @@ class _SharedLifeEntityDetailScreenState
     );
   }
 
+  static final _timeFmt = DateFormat('yyyy-MM-dd HH:mm');
+
   Widget _buildDetail(SharedLifeEntityDetail detail) {
     final entity = detail.entity;
+    final hasAdvanced = _hasAdvancedData(entity);
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
       children: [
+        // ── Header ──────────────────────────────────────────────────
         Text(
           sharedLifeTypeLabel(entity.entityType),
           style: const TextStyle(
@@ -193,14 +198,7 @@ class _SharedLifeEntityDetailScreenState
         ),
         if (entity.status == 'completed' || entity.status == 'cancelled') ...[
           const SizedBox(height: 10),
-          Text(
-            sharedLifeStatusLabel(entity.status),
-            style: const TextStyle(
-              color: Color(0xFF596579),
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          _StatusChip(status: entity.status),
         ],
         if (entity.tags.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -211,36 +209,27 @@ class _SharedLifeEntityDetailScreenState
                 entity.tags.map((tag) => TimelineTag(label: tag)).toList(),
           ),
         ],
-        // ── Presentation preview (renders MediaBlock etc.) ──────────
+        // ── Content preview (text, images, numbers) ─────────────────
         if (entity.presentationJson != null)
           _buildPresentationSection(entity.presentationJson!),
-        // ── Time ───────────────────────────────────────────────────
-        if (entity.occurredAt != null ||
-            entity.timeSourceText != null)
-          _buildTimeSection(entity),
-        // ── Location ───────────────────────────────────────────────
-        if (entity.placeName != null && entity.placeName!.isNotEmpty)
-          _buildLocationSection(entity),
-        // ── Emotion ────────────────────────────────────────────────
-        if (entity.valence != null || entity.emotionEvidence != null)
-          _buildEmotionSection(entity),
-        // ── Classification ─────────────────────────────────────────
-        if (entity.primaryDomain != 'general' ||
-            entity.facets.isNotEmpty ||
-            (entity.dropletLabel != null && entity.dropletLabel!.isNotEmpty))
-          _buildClassificationSection(entity),
-        const SizedBox(height: 24),
-        // ── Source excerpts ──────────────────────────────────────────
-        if (entity.sourceExcerptsJson != null)
-          _buildSourceExcerptsSection(entity),
+        // ── Source messages (most important!) ───────────────────────
+        const SizedBox(height: 18),
         _DetailSection(
-          title: UserStorage.l10n.companionSharedLifeCurrentState,
-          child: _StateTable(state: entity.state),
+          title: '原始对话',
+          child: detail.sourceMessages.isEmpty
+              ? Text(UserStorage.l10n.nothingHere)
+              : Column(
+                  children: detail.sourceMessages
+                      .map((message) => _MessageEvidenceRow(message: message))
+                      .toList(),
+                ),
         ),
-        // ── Structured fields ───────────────────────────────────────
-        if (entity.structuredFieldsJson != null &&
-            entity.structuredFieldsJson!.trim().isNotEmpty)
-          _buildStructuredFieldsSection(entity),
+        // ── Time ────────────────────────────────────────────────────
+        if (entity.occurredAt != null) _buildTimeRow(entity),
+        // ── Location ────────────────────────────────────────────────
+        if (entity.placeName != null && entity.placeName!.isNotEmpty)
+          _buildLocationRow(entity),
+        // ── Related ─────────────────────────────────────────────────
         if (entity.relatedEntityIds.isNotEmpty ||
             entity.relatedFactIds.isNotEmpty) ...[
           const SizedBox(height: 18),
@@ -255,17 +244,7 @@ class _SharedLifeEntityDetailScreenState
             ),
           ),
         ],
-        const SizedBox(height: 18),
-        _DetailSection(
-          title: UserStorage.l10n.companionSharedLifeEvidence,
-          child: detail.sourceMessages.isEmpty
-              ? Text(UserStorage.l10n.nothingHere)
-              : Column(
-                  children: detail.sourceMessages
-                      .map((message) => _MessageEvidenceRow(message: message))
-                      .toList(),
-                ),
-        ),
+        // ── History ─────────────────────────────────────────────────
         const SizedBox(height: 18),
         _DetailSection(
           title: UserStorage.l10n.companionSharedLifeHistory,
@@ -275,202 +254,221 @@ class _SharedLifeEntityDetailScreenState
                 .toList(),
           ),
         ),
+        // ── Advanced (collapsible) ──────────────────────────────────
+        if (hasAdvanced) ...[
+          const SizedBox(height: 18),
+          _buildAdvancedSection(entity),
+        ],
       ],
     );
   }
 
-  static final _timeFmt = DateFormat('yyyy-MM-dd HH:mm');
+  bool _hasAdvancedData(SharedLifeEntitySnapshot entity) {
+    if (entity.valence != null || entity.emotionEvidence != null) return true;
+    if (entity.timeConfidence != null || entity.timeSourceText != null) return true;
+    if (entity.sourceExcerptsJson != null) return true;
+    if (entity.structuredFieldsJson != null &&
+        entity.structuredFieldsJson!.trim().isNotEmpty) return true;
+    if (entity.primaryDomain != 'general' ||
+        entity.facets.isNotEmpty ||
+        (entity.dropletLabel != null && entity.dropletLabel!.isNotEmpty)) return true;
+    // Also check state for non-empty visible entries
+    final stateVisible = entity.state.entries.where((e) {
+      final key = e.key;
+      if (const {
+        'tags', 'related_entity_ids', 'related_fact_ids',
+        'schema_version', 'source_character_id', 'source_message_id',
+        'source_kind', 'entity_id',
+      }.contains(key)) return false;
+      final v = e.value;
+      if (v == null) return false;
+      if (v is String && v.trim().isEmpty) return false;
+      if (v is List && v.isEmpty) return false;
+      if (v is Map && v.isEmpty) return false;
+      return true;
+    });
+    if (stateVisible.isNotEmpty) return true;
+    return false;
+  }
 
-  Widget _buildTimeSection(SharedLifeEntitySnapshot entity) {
-    final parts = <Widget>[];
-    if (entity.occurredAt != null) {
-      parts.add(_labeledRow(
-        '发生时间',
-        _timeFmt.format(
-            DateTime.fromMillisecondsSinceEpoch(entity.occurredAt!)),
-      ));
-      if (entity.occurredEndAt != null) {
-        parts.add(_labeledRow(
-          '结束时间',
-          _timeFmt.format(
-              DateTime.fromMillisecondsSinceEpoch(entity.occurredEndAt!)),
+  Widget _buildAdvancedSection(SharedLifeEntitySnapshot entity) {
+    final children = <Widget>[];
+    // Emotion
+    if (entity.valence != null || entity.emotionEvidence != null) {
+      final parts = <Widget>[];
+      if (entity.valence != null && entity.arousal != null) {
+        final v = entity.valence!;
+        final a = entity.arousal!;
+        final vLabel = v >= 0.6 ? '正面 😊' : (v <= 0.4 ? '负面 😔' : '中性 😐');
+        final aLabel =
+            a >= 0.6 ? '高唤醒 ⚡' : (a <= 0.4 ? '低唤醒 💤' : '中等');
+        parts.add(_labeledRow('情绪坐标', '$vLabel · $aLabel (v=${v.toStringAsFixed(2)} a=${a.toStringAsFixed(2)})'));
+        if (entity.emotionConfidence != null) {
+          parts.add(_labeledRow(
+            '情绪置信度',
+            '${(entity.emotionConfidence! * 100).toStringAsFixed(0)}%',
+          ));
+        }
+      }
+      if (entity.emotionEvidence != null &&
+          entity.emotionEvidence!.trim().isNotEmpty) {
+        parts.add(Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            '依据：${entity.emotionEvidence!}',
+            style: const TextStyle(color: Color(0xFF7C8490), fontSize: 13),
+          ),
         ));
       }
+      children.add(_DetailSection(title: '情绪分析', child: Column(children: parts)));
+    }
+    // Classification
+    if (entity.primaryDomain != 'general' ||
+        entity.facets.isNotEmpty ||
+        (entity.dropletLabel != null && entity.dropletLabel!.isNotEmpty)) {
+      final parts = <Widget>[];
+      if (entity.primaryDomain != 'general') {
+        parts.add(_labeledRow('领域', entity.primaryDomain));
+      }
+      if (entity.facets.isNotEmpty) {
+        parts.add(_labeledRow('自动分类', entity.facets.join('、')));
+      }
+      if (entity.dropletLabel != null && entity.dropletLabel!.isNotEmpty) {
+        parts.add(_labeledRow('摘要标签', entity.dropletLabel!));
+      }
+      parts.add(const Padding(
+        padding: EdgeInsets.only(top: 6),
+        child: Text('以上由 AI 自动生成，仅供参考',
+            style: TextStyle(color: Color(0xFFA0A7B0), fontSize: 12)),
+      ));
+      children.add(_DetailSection(
+          title: 'AI 分类', child: Column(children: parts)));
+    }
+    // Time metadata
+    if (entity.timeConfidence != null || entity.timeSourceText != null) {
+      final parts = <Widget>[];
       if (entity.timeConfidence != null) {
         parts.add(_labeledRow(
-          '置信度',
+          '时间置信度',
           '${(entity.timeConfidence! * 100).toStringAsFixed(0)}%',
         ));
       }
-    }
-    if (entity.timeSourceText != null &&
-        entity.timeSourceText!.trim().isNotEmpty) {
-      parts.add(_labeledRow('时间来源', entity.timeSourceText!));
-    }
-    if (parts.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: _DetailSection(title: '时间', child: Column(children: parts)),
-    );
-  }
-
-  Widget _buildLocationSection(SharedLifeEntitySnapshot entity) {
-    final parts = <Widget>[
-      _labeledRow('地点', entity.placeName!),
-    ];
-    if (entity.placeLat != null && entity.placeLng != null) {
-      parts.add(_labeledRow(
-        '坐标',
-        '${entity.placeLat!.toStringAsFixed(4)}, ${entity.placeLng!.toStringAsFixed(4)}',
-      ));
-    }
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: _DetailSection(
-        title: '地点',
-        child: Column(children: parts),
-      ),
-    );
-  }
-
-  Widget _buildEmotionSection(SharedLifeEntitySnapshot entity) {
-    final parts = <Widget>[];
-    if (entity.valence != null && entity.arousal != null) {
-      final v = entity.valence!;
-      final a = entity.arousal!;
-      String valenceLabel;
-      if (v >= 0.6) {
-        valenceLabel = '正面 😊';
-      } else if (v <= 0.4) {
-        valenceLabel = '负面 😔';
-      } else {
-        valenceLabel = '中性 😐';
+      if (entity.timeSourceText != null &&
+          entity.timeSourceText!.trim().isNotEmpty) {
+        parts.add(_labeledRow('时间依据', entity.timeSourceText!));
       }
-      String arousalLabel;
-      if (a >= 0.6) {
-        arousalLabel = '高唤醒 ⚡';
-      } else if (a <= 0.4) {
-        arousalLabel = '低唤醒 💤';
-      } else {
-        arousalLabel = '中等';
-      }
-      parts.add(_labeledRow('情绪', '$valenceLabel · $arousalLabel'));
-      parts.add(_labeledRow(
-        '数值',
-        'valence=${v.toStringAsFixed(2)} arousal=${a.toStringAsFixed(2)}',
-      ));
-      if (entity.emotionConfidence != null) {
-        parts.add(_labeledRow(
-          '置信度',
-          '${(entity.emotionConfidence! * 100).toStringAsFixed(0)}%',
+      children.add(
+          _DetailSection(title: '时间推断', child: Column(children: parts)));
+    }
+    // Source excerpts
+    if (entity.sourceExcerptsJson != null) {
+      try {
+        final excerpts = jsonDecode(entity.sourceExcerptsJson!) as List;
+        if (excerpts.isNotEmpty) {
+          children.add(_DetailSection(
+            title: '原文摘录',
+            child: Column(
+              children: excerpts
+                  .map((e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text('"${e.toString()}"',
+                            style: const TextStyle(
+                                color: Color(0xFF596579),
+                                fontSize: 13,
+                                height: 1.5)),
+                      ))
+                  .toList(),
+            ),
+          ));
+        }
+      } catch (_) {}
+    }
+    // Structured fields
+    if (entity.structuredFieldsJson != null &&
+        entity.structuredFieldsJson!.trim().isNotEmpty) {
+      try {
+        final fields =
+            jsonDecode(entity.structuredFieldsJson!) as Map<String, dynamic>;
+        final visible = fields.entries
+            .where((e) =>
+                !const {'_primaryDomain', '_facets', '_dropletLabel'}
+                    .contains(e.key))
+            .toList();
+        if (visible.isNotEmpty) {
+          children.add(_DetailSection(
+            title: '结构化数据',
+            child: Column(
+              children: visible
+                  .map((e) => _labeledRow(e.key, _displayValue(e.value)))
+                  .toList(),
+            ),
+          ));
+        }
+      } catch (_) {}
+    }
+    // Raw state
+    {
+      final stateVisible = entity.state.entries.where((e) {
+        final key = e.key;
+        if (const {
+          'tags', 'related_entity_ids', 'related_fact_ids',
+          'schema_version', 'source_character_id', 'source_message_id',
+          'source_kind', 'entity_id',
+        }.contains(key)) return false;
+        final v = e.value;
+        if (v == null) return false;
+        if (v is String && v.trim().isEmpty) return false;
+        if (v is List && v.isEmpty) return false;
+        if (v is Map && v.isEmpty) return false;
+        return true;
+      });
+      if (stateVisible.isNotEmpty) {
+        children.add(_DetailSection(
+          title: '原始状态（调试用）',
+          child: Column(
+            children: stateVisible
+                .map((e) => _labeledRow(e.key, _displayValue(e.value)))
+                .toList(),
+          ),
         ));
       }
     }
-    if (entity.emotionEvidence != null &&
-        entity.emotionEvidence!.trim().isNotEmpty) {
-      parts.add(Text(
-        entity.emotionEvidence!,
-        style: const TextStyle(
-          color: Color(0xFF7C8490),
-          fontSize: 13,
-          fontStyle: FontStyle.italic,
-        ),
-      ));
-    }
-    if (parts.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: _DetailSection(title: '情绪', child: Column(children: parts)),
-    );
+
+    if (children.isEmpty) return const SizedBox.shrink();
+    return _AdvancedExpansionTile(children: children);
   }
 
-  Widget _buildClassificationSection(SharedLifeEntitySnapshot entity) {
-    final parts = <Widget>[];
-    if (entity.primaryDomain != 'general') {
-      parts.add(_labeledRow('领域', entity.primaryDomain));
-    }
-    if (entity.facets.isNotEmpty) {
-      parts.add(_labeledRow('分类', entity.facets.join('、')));
-    }
-    if (entity.dropletLabel != null && entity.dropletLabel!.isNotEmpty) {
-      parts.add(_labeledRow('标签', entity.dropletLabel!));
-    }
+  // ── Compact row helpers (replacing full sections) ────────────────
+
+  Widget _buildTimeRow(SharedLifeEntitySnapshot entity) {
+    final label =
+        _timeFmt.format(DateTime.fromMillisecondsSinceEpoch(entity.occurredAt!));
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: _DetailSection(
-        title: '分类信息',
-        child: Column(children: parts),
+      padding: const EdgeInsets.only(top: 14),
+      child: Row(
+        children: [
+          const Icon(Icons.schedule_rounded, size: 16, color: Color(0xFF7C8490)),
+          const SizedBox(width: 8),
+          Text(label,
+              style:
+                  const TextStyle(color: Color(0xFF34383E), fontSize: 14)),
+        ],
       ),
     );
   }
 
-  Widget _buildSourceExcerptsSection(SharedLifeEntitySnapshot entity) {
-    List<dynamic> excerpts;
-    try {
-      excerpts = jsonDecode(entity.sourceExcerptsJson!) as List;
-    } catch (_) {
-      return const SizedBox.shrink();
-    }
-    if (excerpts.isEmpty) return const SizedBox.shrink();
+  Widget _buildLocationRow(SharedLifeEntitySnapshot entity) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: _DetailSection(
-        title: '来源摘录',
-        child: Column(
-          children: excerpts
-              .map((e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('" ',
-                            style: TextStyle(
-                                color: Color(0xFFCDB8C8),
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700)),
-                        Expanded(
-                          child: Text(
-                            e.toString(),
-                            style: const TextStyle(
-                              color: Color(0xFF596579),
-                              fontSize: 13,
-                              height: 1.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ))
-              .toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStructuredFieldsSection(SharedLifeEntitySnapshot entity) {
-    Map<String, dynamic> fields;
-    try {
-      fields = jsonDecode(entity.structuredFieldsJson!) as Map<String, dynamic>;
-    } catch (_) {
-      return const SizedBox.shrink();
-    }
-    if (fields.isEmpty) return const SizedBox.shrink();
-    // Use the detail state table style for structured fields
-    final visible = fields.entries
-        .where((e) =>
-            !const {'_primaryDomain', '_facets', '_dropletLabel'}
-                .contains(e.key))
-        .toList();
-    if (visible.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: _DetailSection(
-        title: '结构化字段',
-        child: Column(
-          children: visible
-              .map((e) => _labeledRow(e.key, _displayValue(e.value)))
-              .toList(),
-        ),
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on_outlined,
+              size: 16, color: Color(0xFF7C8490)),
+          const SizedBox(width: 8),
+          Text(entity.placeName!,
+              style:
+                  const TextStyle(color: Color(0xFF34383E), fontSize: 14)),
+        ],
       ),
     );
   }
@@ -751,71 +749,89 @@ class _DetailSection extends StatelessWidget {
   }
 }
 
-class _StateTable extends StatelessWidget {
-  const _StateTable({required this.state});
-
-  final Map<String, dynamic> state;
-
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.status});
+  final String status;
   @override
   Widget build(BuildContext context) {
-    final visible = state.entries.where(
-      (entry) {
-        final key = entry.key;
-        if (const {
-          'tags',
-          'related_entity_ids',
-          'related_fact_ids',
-          'schema_version',
-          'source_character_id',
-          'source_message_id',
-          'source_kind',
-          'entity_id',
-        }.contains(key)) {
-          return false;
-        }
-        // Skip internal / empty / null values
-        final value = entry.value;
-        if (value == null) return false;
-        if (value is String && value.trim().isEmpty) return false;
-        if (value is List && value.isEmpty) return false;
-        if (value is Map && value.isEmpty) return false;
-        return true;
-      },
+    final label = sharedLifeStatusLabel(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: status == 'completed'
+            ? const Color(0xFF2E7D32).withValues(alpha: 0.1)
+            : const Color(0xFF7C8490).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(label,
+          style: TextStyle(
+            color: status == 'completed'
+                ? const Color(0xFF2E7D32)
+                : const Color(0xFF7C8490),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          )),
     );
-    if (visible.isEmpty) return Text(UserStorage.l10n.nothingHere);
+  }
+}
+
+class _AdvancedExpansionTile extends StatefulWidget {
+  const _AdvancedExpansionTile({required this.children});
+  final List<Widget> children;
+  @override
+  State<_AdvancedExpansionTile> createState() => _AdvancedExpansionTileState();
+}
+
+class _AdvancedExpansionTileState extends State<_AdvancedExpansionTile> {
+  bool _expanded = false;
+  @override
+  Widget build(BuildContext context) {
     return Column(
-      children: visible
-          .map(
-            (entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 92,
-                    child: Text(
-                      entry.key,
-                      style: const TextStyle(
-                        color: Color(0xFF7C8490),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      _displayValue(entry.value),
-                      style: const TextStyle(
-                        color: Color(0xFF34383E),
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0D000000),
+                  blurRadius: 14,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
-          )
-          .toList(),
+            child: Row(
+              children: [
+                const Icon(Icons.tune_rounded,
+                    size: 18, color: Color(0xFF7C8490)),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('AI 标注详情',
+                      style: TextStyle(
+                          color: Color(0xFF434950),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700)),
+                ),
+                Icon(
+                  _expanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: const Color(0xFF7C8490),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: 12),
+          ...widget.children,
+        ],
+      ],
     );
   }
 }
