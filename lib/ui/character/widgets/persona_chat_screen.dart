@@ -1112,6 +1112,9 @@ only after you have written the goodbye you want the user to hear.''',
     final pos = _scrollController.position;
     final shouldShowJump = pos.pixels > 180;
     if (shouldShowJump != _showJumpToLatest && mounted) {
+      debugPrint(
+          '[JumpButton] _onScroll pixels=${pos.pixels.toStringAsFixed(0)} '
+          'shouldShow=$shouldShowJump was=$_showJumpToLatest');
       setState(() => _showJumpToLatest = shouldShowJump);
     }
     if (!_hasMoreHistory || _isLoadingMore) return;
@@ -2616,6 +2619,7 @@ only after you have written the goodbye you want the user to hear.''',
                     _buildHeader(),
                     const ChatTaskCapsule(),
                     Expanded(child: _buildMessageList()),
+                    if (_showJumpToLatest) _buildJumpToLatestPill(),
                     if (widget.enableRichCapture)
                       CompanionMediaTray(
                         isOpen: _isMediaTrayOpen,
@@ -2624,7 +2628,6 @@ only after you have written the goodbye you want the user to hear.''',
                     _buildInputBar(),
                   ],
                 ),
-                if (_showJumpToLatest) _buildJumpToLatestButton(),
                 if (_isHeaderActionsOpen)
                   Positioned.fill(
                     child: GestureDetector(
@@ -2826,48 +2829,55 @@ only after you have written the goodbye you want the user to hear.''',
     );
   }
 
-  Widget _buildJumpToLatestButton() {
-    return Positioned(
-      right: 18,
-      bottom: MediaQuery.of(context).padding.bottom + 102,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 130),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) => Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 8 * (1 - value)),
-            child: child,
-          ),
+  Widget _buildJumpToLatestPill() {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, 6 * (1 - value)),
+          child: child,
         ),
-        child: Tooltip(
-          message: _chatUiText(zh: '回到最新消息', en: 'Back to latest'),
-          child: GestureDetector(
-            onTap: _scrollToBottom,
-            child: Container(
-              width: 42,
-              height: 42,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _personaPanel.withValues(alpha: 0.78),
-                border: Border.all(
-                  color: _personaAccent.withValues(alpha: 0.26),
+      ),
+      child: Center(
+        child: GestureDetector(
+          onTap: _scrollToBottom,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            margin: const EdgeInsets.only(bottom: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: _personaPanel.withValues(alpha: 0.82),
+              border: Border.all(
+                color: _personaAccent.withValues(alpha: 0.2),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.36),
-                    blurRadius: 18,
-                    offset: const Offset(0, 10),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: _personaAccent,
+                  size: 18,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _chatUiText(zh: '回到最新', en: 'Back to latest'),
+                  style: TextStyle(
+                    color: _personaAccent,
+                    fontSize: 13,
                   ),
-                ],
-              ),
-              child: Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: _personaAccent,
-                size: 24,
-              ),
+                ),
+              ],
             ),
           ),
         ),
