@@ -1108,6 +1108,7 @@ only after you have written the goodbye you want the user to hear.''',
   /// Triggered when user scrolls toward the top (older messages).
   /// Since the list is reversed, maxScrollExtent = oldest direction.
   void _onScroll() {
+    if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
     final shouldShowJump = pos.pixels > 180;
     if (shouldShowJump != _showJumpToLatest && mounted) {
