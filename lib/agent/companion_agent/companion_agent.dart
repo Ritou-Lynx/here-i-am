@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
 import 'package:memex/agent/context/character_context_assembler.dart';
@@ -82,6 +81,31 @@ class CompanionAgent {
       'in reminder_create. Without action="call" the system will send a '
       'notification instead of actually calling — a broken experience.\n'
       'If unsure of the exact time, ask — but NEVER promise without scheduling.';
+
+  // ── Image generation request detection & directive ──────────────────────
+
+  static final List<RegExp> _imageRequestPatterns = [
+    RegExp(r'(画|生成|做|来|给[我你]|帮[我你]).{0,4}(一张|一个|张图|个图|图片|照片|自拍|画像|插画)'),
+    RegExp(r'(发张|发一张|拍张|拍一张|来张|来一张|看看|看一下|看看你|给我看)'),
+    RegExp(r'(你长|长什么|你穿|你那边|什么样子|的样子|自拍)'),
+    RegExp(r'(帮我画|给我画|画一张|画个|生成一张|生成个|做一张)'),
+    RegExp(r'(image|picture|photo|draw|generate).{0,10}(me|for|of)'),
+  ];
+
+  static bool _containsImageRequest(String text) =>
+      _imageRequestPatterns.any((p) => p.hasMatch(text));
+
+  static const _imageRequestDirective =
+      '⛔ SYSTEM DIRECTIVE (enforced — not advice):\n'
+      'The user just asked to SEE something visually — a photo, picture, '
+      'selfie, drawing, or image. You MUST call `generate_image` in THIS turn '
+      'alongside your text reply.\n'
+      'Text-roleplaying a photo ("发了！看吧👀") without calling the tool '
+      'is a HARD ERROR. The user will see NOTHING unless you actually call '
+      '`generate_image`.\n'
+      'Write a short text reply first (e.g. "好的，我生成一下～"), then '
+      'call `generate_image` with a detailed Chinese prompt describing the '
+      'image the user wants to see.';
 
   // ---------------------------------------------------------------------------
 
@@ -208,16 +232,6 @@ class CompanionAgent {
     final controller = AgentController();
     addAgentLogger(controller);
     addAgentActivityCollector(controller);
-
-    // Debug: log available tools
-    final allToolNames = [
-      ...(skill.tools ?? []).map((t) => t.name),
-      ...extraTools.map((t) => t.name),
-    ];
-    debugPrint('[ImageGen] Agent tools (${allToolNames.length}): '
-        '${allToolNames.join(", ")}');
-    debugPrint('[ImageGen] generate_image present: '
-        '${allToolNames.contains("generate_image")}');
 
     return StatefulAgent(
       name: 'companion_agent',
@@ -767,6 +781,15 @@ class CompanionAgent {
       final hasTimeRequest = _containsTimeRequest(userMessage);
       if (hasTimeRequest) {
         state.systemReminders['time_request_directive'] = _timeRequestDirective;
+      }
+
+      // Detect image generation requests and inject a hard directive.
+      // MiniMax models tend to roleplay sending photos in text instead of
+      // actually calling the tool — this directive makes it non-optional.
+      final hasImageRequest = _containsImageRequest(userMessage);
+      if (hasImageRequest) {
+        state.systemReminders['image_request_directive'] =
+            _imageRequestDirective;
       }
 
       final List<UserContentPart> userParts = [TextPart(timedUserMessage)];
