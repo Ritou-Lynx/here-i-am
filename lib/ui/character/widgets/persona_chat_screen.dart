@@ -2762,7 +2762,7 @@ only after you have written the goodbye you want the user to hear.''',
     final actions = <Widget>[
       _HeaderActionButton(
         icon: Icons.search_rounded,
-        label: _chatUiText(zh: '鎼滅储', en: 'Search'),
+        label: _chatUiText(zh: '搜索', en: 'Search'),
         onTap: () {
           setState(() => _isHeaderActionsOpen = false);
           unawaited(_openChatSearch());
@@ -3789,7 +3789,7 @@ class _PersonaChatSearchSheetState extends State<_PersonaChatSearchSheet> {
                                       },
                                     ),
                               hintText: _chatUiText(
-                                zh: '鎼滅储鑱婂ぉ璁板綍',
+                                zh: '搜索聊天记录',
                                 en: 'Search chat history',
                               ),
                               hintStyle: TextStyle(
