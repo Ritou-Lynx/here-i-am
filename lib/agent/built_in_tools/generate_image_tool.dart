@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:memex/data/services/image_gen/image_gen_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 
@@ -58,14 +59,17 @@ Parameters:
           return 'Error: prompt cannot be empty.';
         }
 
+        debugPrint('[ImageGen] Tool called: prompt="$prompt" style=$style size=$size');
         final result = await ImageGenService.generateImage(
           prompt: prompt.trim(),
           style: style?.trim(),
           size: size?.trim() ?? '1024x1024',
         );
+        debugPrint('[ImageGen] Tool result: ${result.images.length} image(s) from ${result.providerModel}');
 
         for (final bytes in result.images) {
           final base64 = base64Encode(bytes);
+          debugPrint('[ImageGen] Storing image as character message (base64 ${base64.length} chars)');
           await PersonaChatService.instance.addCharacterMessage(
             characterId,
             '', // image-only message — text is the agent's spoken reply
@@ -86,6 +90,7 @@ Parameters:
             'Prompt: "$prompt"';
       } catch (e) {
         final msg = e.toString().replaceFirst('Exception: ', '');
+        debugPrint('[ImageGen] FAILED: $msg');
         return 'Error generating image: $msg';
       }
     },

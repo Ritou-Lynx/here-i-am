@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:memex/data/services/image_gen/image_gen_cache.dart';
 import 'package:memex/data/services/image_gen/image_gen_provider.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -42,6 +43,7 @@ class MiniMaxImageService {
     );
     final cached = await ImageGenCache.lookup(key);
     if (cached != null) {
+      debugPrint('[ImageGen] MiniMax cache HIT key=$key');
       final file = await File(cached).readAsBytes();
       return ImageGenerationResult(
         images: [Uint8List.sublistView(file)],
@@ -50,6 +52,7 @@ class MiniMaxImageService {
     }
 
     // 3. Call API
+    debugPrint('[ImageGen] MiniMax API call: model=$_model size=${request.size}');
     final body = {
       'model': _model,
       'prompt': request.prompt,
@@ -69,6 +72,8 @@ class MiniMaxImageService {
     );
 
     final data = response.data as Map<String, dynamic>;
+    debugPrint('[ImageGen] MiniMax raw response: ${jsonEncode(data).substring(0, 500)}');
+
     final baseResp = data['base_resp'] as Map<String, dynamic>?;
     if (baseResp != null) {
       final statusCode = baseResp['status_code'] as int? ?? 0;
@@ -81,7 +86,9 @@ class MiniMaxImageService {
     // 4. Extract image data
     final imageUrls = data['data']?['image_urls'] as List?;
     if (imageUrls == null || imageUrls.isEmpty) {
-      throw Exception('MiniMax returned no images');
+      // Fallback: check alternative response shapes
+      debugPrint('[ImageGen] MiniMax: no data.image_urls, raw keys: ${data.keys}');
+      throw Exception('MiniMax returned no images. Response keys: ${data.keys}');
     }
 
     final images = <Uint8List>[];
@@ -89,6 +96,7 @@ class MiniMaxImageService {
       if (url is String) {
         // MiniMax may return base64-encoded images or URLs
         if (url.startsWith('http')) {
+          debugPrint('[ImageGen] MiniMax downloading image from URL: ${url.substring(0, 80)}...');
           final imgResp = await _dio.get(
             url,
             options: Options(responseType: ResponseType.bytes),
@@ -96,6 +104,7 @@ class MiniMaxImageService {
           images.add(Uint8List.fromList(imgResp.data as List<int>));
         } else {
           // Base64-encoded image
+          debugPrint('[ImageGen] MiniMax decoding base64 image (${url.length} chars)');
           images.add(base64Decode(url));
         }
       }
@@ -106,6 +115,7 @@ class MiniMaxImageService {
     }
 
     // 5. Cache & return
+    debugPrint('[ImageGen] MiniMax success: ${images.length} image(s), ${images.first.length} bytes each');
     for (final img in images) {
       await ImageGenCache.store(key, img);
     }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:memex/data/services/image_gen/image_gen_provider.dart';
 import 'package:memex/data/services/image_gen/minimax_image_service.dart';
 import 'package:memex/data/services/image_gen/tongyi_wanxiang_image_service.dart';
@@ -16,6 +17,7 @@ class ImageGenService {
   }) async {
     final providerStr = await UserStorage.getImageGenProvider();
     final provider = ImageGenProvider.fromString(providerStr);
+    debugPrint('[ImageGen] Router: provider=$providerStr → ${provider.displayName}');
     final request = ImageGenerationRequest(
       prompt: prompt,
       negativePrompt: negativePrompt,
