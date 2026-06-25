@@ -1555,9 +1555,10 @@ only after you have written the goodbye you want the user to hear.''',
         responsePersisted = true;
 
         if (_isAppInBackground && sendCharacter != null) {
-          final preview = fullResponse.length > 100
-              ? '${fullResponse.substring(0, 100)}...'
-              : fullResponse;
+          final visible = PersonaReplySanitizer.stripLeakedReasoning(fullResponse);
+          final preview = visible.length > 100
+              ? '${visible.substring(0, 100)}...'
+              : visible;
           await NotificationService.instance.showAgentNotification(
             title: sendCharacter.name,
             body: preview,
