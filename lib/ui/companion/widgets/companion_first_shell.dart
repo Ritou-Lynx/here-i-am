@@ -21,16 +21,53 @@ class CompanionFirstShell extends StatefulWidget {
   const CompanionFirstShell({super.key});
 
   @override
-  State<CompanionFirstShell> createState() => _CompanionFirstShellState();
+  State<CompanionFirstShell> createState() => CompanionFirstShellState();
 }
 
-class _CompanionFirstShellState extends State<CompanionFirstShell> {
+class CompanionFirstShellState extends State<CompanionFirstShell> {
   final _logger = getLogger('CompanionFirstShell');
   String? _characterId;
   PersonaChatOpenRequest? _pendingOpenRequest;
   bool _startVoiceMode = false;
   bool _isLoading = true;
   StreamSubscription<PersonaChatOpenRequest>? _openChatSub;
+
+  /// Called from [handleNotificationPayload] to bypass the async stream path.
+  /// Directly sets the character (the caller has already validated the ID).
+  Future<void> switchToCharacter(String characterId,
+      {bool startVoiceMode = false}) async {
+    _pendingOpenRequest = PersonaChatOpenRequest(
+      characterId: characterId,
+      startVoiceMode: startVoiceMode,
+    );
+    if (_isLoading) return; // _loadInitialCharacter will pick it up
+
+    final userId = await UserStorage.getUserId();
+    if (userId == null) return;
+
+    try {
+      final characters = (await MemexRouter().fetchCharacters()).valueOrThrow;
+      final enabledIds = characters
+          .where((c) => c.enabled)
+          .map((c) => c.id)
+          .toSet();
+      if (!enabledIds.contains(characterId)) {
+        _logger.warning('switchToCharacter: $characterId not in enabled set');
+        return;
+      }
+
+      await UserStorage.setLastActiveCompanionCharacterId(userId, characterId);
+      if (!mounted) return;
+      _pendingOpenRequest = null;
+      setState(() {
+        _startVoiceMode = startVoiceMode;
+        _characterId = characterId;
+      });
+      _logger.info('switchToCharacter: switched to $characterId');
+    } catch (e, stackTrace) {
+      _logger.warning('switchToCharacter failed', e, stackTrace);
+    }
+  }
 
   @override
   void initState() {

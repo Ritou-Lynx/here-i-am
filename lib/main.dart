@@ -48,7 +48,6 @@ import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/data/services/callkit_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
-import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
@@ -82,17 +81,17 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 final GlobalKey<RootShellState> rootShellKey = GlobalKey<RootShellState>();
+final GlobalKey<CompanionFirstShellState> companionFirstShellKey =
+    GlobalKey<CompanionFirstShellState>();
 
 void _openPersonaChatVoiceModeFromRoot(String characterId) {
   final context = rootNavigatorKey.currentContext;
   if (context == null) return;
   if (AppFlavor.isHereIAm) {
-    PersonaChatOpenService.instance.requestOpen(
-      characterId,
-      startVoiceMode: true,
-    );
     rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
     GoRouter.of(context).go(AppRoutes.home);
+    companionFirstShellKey.currentState
+        ?.switchToCharacter(characterId, startVoiceMode: true);
     return;
   }
   openPersonaChat(
@@ -177,9 +176,10 @@ void main() async {
     } else {
       unawaited(NotificationService.instance.cancelAgentNotification());
       if (AppFlavor.isHereIAm) {
-        PersonaChatOpenService.instance.requestOpen(payload);
         rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
         GoRouter.of(context).go(AppRoutes.home);
+        companionFirstShellKey.currentState
+            ?.switchToCharacter(payload);
         return;
       }
       openPersonaChat(context, characterId: payload, rootNavigator: true);
@@ -248,7 +248,13 @@ void main() async {
   );
 
   final appRouter =
-      createAppRouter(rootNavigatorKey, () => RootShell(key: rootShellKey));
+      createAppRouter(
+        rootNavigatorKey,
+        () => RootShell(
+          key: rootShellKey,
+          companionShellKey: companionFirstShellKey,
+        ),
+      );
 
   // Initialize quick actions (app icon long-press shortcuts).
   const QuickActions quickActions = QuickActions();
@@ -264,7 +270,9 @@ void main() async {
 
 /// Root route content: user check then loading / UserSetupScreen / MainScreen (Compass-style).
 class RootShell extends StatefulWidget {
-  const RootShell({super.key});
+  const RootShell({super.key, required this.companionShellKey});
+
+  final GlobalKey<CompanionFirstShellState> companionShellKey;
 
   @override
   State<RootShell> createState() => RootShellState();
@@ -414,7 +422,7 @@ class RootShellState extends State<RootShell> {
             ..fetchData(),
         ),
       ],
-      child: const MainScreen(),
+      child: MainScreen(companionShellKey: widget.companionShellKey),
     );
   }
 }
@@ -682,7 +690,9 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  const MainScreen({super.key, required this.companionShellKey});
+
+  final GlobalKey<CompanionFirstShellState> companionShellKey;
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -1790,7 +1800,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_useCompanionFirstShell) {
-      return const CompanionFirstShell();
+      return CompanionFirstShell(key: widget.companionShellKey);
     }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
