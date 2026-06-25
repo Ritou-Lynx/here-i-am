@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
 import 'package:memex/agent/context/character_context_assembler.dart';
@@ -207,6 +208,16 @@ class CompanionAgent {
     final controller = AgentController();
     addAgentLogger(controller);
     addAgentActivityCollector(controller);
+
+    // Debug: log available tools
+    final allToolNames = [
+      ...(skill.tools ?? []).map((t) => t.name),
+      ...extraTools.map((t) => t.name),
+    ];
+    debugPrint('[ImageGen] Agent tools (${allToolNames.length}): '
+        '${allToolNames.join(", ")}');
+    debugPrint('[ImageGen] generate_image present: '
+        '${allToolNames.contains("generate_image")}');
 
     return StatefulAgent(
       name: 'companion_agent',
