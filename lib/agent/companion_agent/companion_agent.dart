@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
 import 'package:memex/agent/context/character_context_assembler.dart';
@@ -787,9 +788,11 @@ class CompanionAgent {
       // MiniMax models tend to roleplay sending photos in text instead of
       // actually calling the tool — this directive makes it non-optional.
       final hasImageRequest = _containsImageRequest(userMessage);
+      debugPrint('[ImageGen] _containsImageRequest("${userMessage.length > 40 ? userMessage.substring(0, 40) : userMessage}...") = $hasImageRequest');
       if (hasImageRequest) {
         state.systemReminders['image_request_directive'] =
             _imageRequestDirective;
+        debugPrint('[ImageGen] Injected image_request_directive into systemReminders');
       }
 
       final List<UserContentPart> userParts = [TextPart(timedUserMessage)];
