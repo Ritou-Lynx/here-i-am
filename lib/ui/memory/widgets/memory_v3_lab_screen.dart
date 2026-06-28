@@ -88,6 +88,11 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         defaultClientKey: LLMConfig.defaultClientKey,
       );
 
+      // Pass recent cards as context so the agent can suggest merges
+      // (V3 § 9.6). We keep the summary short to control tokens.
+      final summaries = await _recentCardSummaries(limit: 20);
+      final entityNames = await _recentActiveEntityNames(limit: 20);
+
       final result = await RecordOrganizerServiceV3.instance.organizeAndPersist(
         client: resources.client,
         modelConfig: resources.modelConfig,
@@ -95,6 +100,8 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
           sourceKind: 'dev_screen',
           rawInput: input,
         ),
+        relevantExistingCardSummaries: summaries,
+        recentEntityNames: entityNames,
       );
 
       _inputController.clear();
@@ -115,6 +122,38 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       }
     }
   }
+
+  /// Compact one-line summaries of the most recent N cards, for feeding to
+  /// the Record Organizer as merge-suggestion context.
+  Future<List<String>> _recentCardSummaries({required int limit}) async {
+    final db = AppDatabase.instance;
+    final rows = await (db.select(db.memoryCards)
+          ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)])
+          ..limit(limit))
+        .get();
+    return rows
+        .map((c) =>
+            '[${c.id.substring(0, 8)}] ${c.type} · ${c.title} · ${_truncate(c.retrievalText, 60)}')
+        .toList(growable: false);
+  }
+
+  /// Names of recently mentioned active entities, for the agent to prefer
+  /// reusing names instead of inventing new ones.
+  Future<List<String>> _recentActiveEntityNames({required int limit}) async {
+    final db = AppDatabase.instance;
+    final rows = await (db.select(db.memoryEntities)
+          ..where((t) => t.status.equals('active'))
+          ..orderBy([
+            (t) => drift.OrderingTerm.desc(t.lastMentionedAt),
+            (t) => drift.OrderingTerm.desc(t.firstMentionedAt),
+          ])
+          ..limit(limit))
+        .get();
+    return rows.map((e) => e.name).toList(growable: false);
+  }
+
+  String _truncate(String text, int max) =>
+      text.length <= max ? text : '${text.substring(0, max)}…';
 
   Future<void> _deleteCard(MemoryCard card) async {
     final confirmed = await showDialog<bool>(

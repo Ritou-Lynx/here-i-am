@@ -53,6 +53,36 @@ CORE CONSTRAINTS
 - Subject is not restricted. User may record facts about herself, her mom,
   a friend, a product, a place — all valid User-truth.
 
+FINAL CHECK — BEFORE RETURNING THE JSON, YOU MUST:
+
+1. **NAME SCAN**: Read every `retrievalText`, every `presentationModule
+   .blocks[].text`, every `presentationModule.blocks[].caption`, and every
+   `title`. If any contains the literal string "用户" (or "用户的"),
+   REWRITE that string to omit it. The user is the default subject; no
+   word is needed. Do NOT replace "用户" with "她" — replace with NOTHING.
+
+   Bad → Good:
+   "用户和室友挤在一个房间"  →  "和室友挤在一个房间"
+   "用户的妈妈住在杭州"      →  "妈妈住在杭州"
+   "用户已经睡了半个月窗台"  →  "已经睡了半个月窗台"
+   "用户说花了 83 块"        →  "记账时总共 83 块"
+   "她和室友挤在一个房间"    →  "和室友挤在一个房间" （"她"指用户也要去掉）
+
+2. **ENTITY SWEEP**: Re-scan the raw input. For EVERY proper noun naming a
+   person, place, project, work, brand, or illness, verify there is a
+   corresponding entry in `entityLinks`. Do not skip even if the entity
+   appears only once.
+
+3. **TYPE PRIORITY** for time-bearing content:
+   - Has explicit future date/time AND describes something that will happen
+     AT that time → `schedule`
+   - Has explicit deadline AND user must act → `task`
+   - Past or ongoing state → `event` or `fact`
+   - "7 月 1 号搬走" → schedule (NOT event)
+   - "明天 10 点开会" → schedule
+   - "睡了半个月窗台" → event (ongoing state)
+   - "妈妈住杭州" → fact (stable)
+
 TIME INFERENCE
 - The JSON input includes `current_time` (ISO 8601). USE IT to resolve all
   relative natural-language times:
@@ -72,11 +102,16 @@ TIME INFERENCE
 NUMBERS — PRESERVE ORIGINAL, COMPUTE AS AUXILIARY (boundary B)
 - The numeric values the user said are first-hand evidence. Always emit them
   verbatim in the presentationModule and structuredFields.
-- You MAY emit additional computed numbers (e.g. per-person split, monthly
-  total) ONLY as auxiliary blocks with a caption that names the derivation:
-  - Good: number block `{value: 12, caption: "她说的人均"}` + another
-    `{value: 41.5, caption: "按 83 / 2 推算"}`
-  - Bad: silently replacing 12 with 41.5
+- When the user mentions multiple related numbers and a derivation is
+  informative (per-person split, monthly total, per-unit cost, percent
+  change, etc.), you SHOULD emit one additional computed number block.
+  Use a `caption` that names the derivation in natural Chinese — never
+  use "她说" / "用户说" / "原话":
+  - ✅ {value: 83,   caption: "总消费"}
+  - ✅ {value: 12,   caption: "记账时人均"}
+  - ✅ {value: 41.5, caption: "按 83/2 推算的人均"}
+  - ❌ silently replacing 12 with 41.5
+  - ❌ {value: 83, caption: "用户说花了 83 块"}
 - Computed numbers must never go into structuredFields. structuredFields
   carries the original values only.
 
@@ -255,7 +290,14 @@ entityLinks — extract STABLE entities only.
   tracks is)
   - User-explicit records bypass `seed` status: backend will set entity to
     `active` directly.
-  - `relation` values: mentioned / about / with / caused_by / located_at
+  - `relation` MUST be EXACTLY ONE OF:
+      mentioned / about / with / caused_by / located_at
+    Use full forms, no abbreviations. "at" is NOT a valid relation —
+    use "located_at" when the card describes something happening AT a
+    place; use "mentioned" when the place is only named in passing.
+  - **EVERY** proper name in the input must produce an entityLink. If you
+    split one input into multiple cards, each card should link to the
+    entities actually referenced in THAT card.
   - `relationshipToUser` (person only) — preferred values:
     family / friend / colleague / self / classmate / teacher / roommate /
     neighbor / partner / acquaintance / other
