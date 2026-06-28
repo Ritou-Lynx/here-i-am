@@ -13341,6 +13341,8267 @@ class DevAgentArtifactsCompanion extends UpdateCompanion<DevAgentArtifact> {
   }
 }
 
+class $MemoryCardsTable extends memory_v3.MemoryCards
+    with TableInfo<$MemoryCardsTable, MemoryCard> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryCardsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _memoryScopeMeta =
+      const VerificationMeta('memoryScope');
+  @override
+  late final GeneratedColumn<String> memoryScope = GeneratedColumn<String>(
+      'memory_scope', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('user_truth'));
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+      'type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _dropletLabelMeta =
+      const VerificationMeta('dropletLabel');
+  @override
+  late final GeneratedColumn<String> dropletLabel = GeneratedColumn<String>(
+      'droplet_label', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _presentationModuleMeta =
+      const VerificationMeta('presentationModule');
+  @override
+  late final GeneratedColumn<String> presentationModule =
+      GeneratedColumn<String>('presentation_module', aliasedName, false,
+          type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _retrievalTextMeta =
+      const VerificationMeta('retrievalText');
+  @override
+  late final GeneratedColumn<String> retrievalText = GeneratedColumn<String>(
+      'retrieval_text', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _valenceMeta =
+      const VerificationMeta('valence');
+  @override
+  late final GeneratedColumn<double> valence = GeneratedColumn<double>(
+      'valence', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _arousalMeta =
+      const VerificationMeta('arousal');
+  @override
+  late final GeneratedColumn<double> arousal = GeneratedColumn<double>(
+      'arousal', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _confidenceMeta =
+      const VerificationMeta('confidence');
+  @override
+  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
+      'confidence', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1.0));
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _needsFollowUpMeta =
+      const VerificationMeta('needsFollowUp');
+  @override
+  late final GeneratedColumn<String> needsFollowUp = GeneratedColumn<String>(
+      'needs_follow_up', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _schemaVersionMeta =
+      const VerificationMeta('schemaVersion');
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+      'schema_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        memoryScope,
+        type,
+        title,
+        dropletLabel,
+        presentationModule,
+        retrievalText,
+        valence,
+        arousal,
+        confidence,
+        status,
+        needsFollowUp,
+        schemaVersion,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_cards';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemoryCard> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('memory_scope')) {
+      context.handle(
+          _memoryScopeMeta,
+          memoryScope.isAcceptableOrUnknown(
+              data['memory_scope']!, _memoryScopeMeta));
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+          _typeMeta, type.isAcceptableOrUnknown(data['type']!, _typeMeta));
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('droplet_label')) {
+      context.handle(
+          _dropletLabelMeta,
+          dropletLabel.isAcceptableOrUnknown(
+              data['droplet_label']!, _dropletLabelMeta));
+    } else if (isInserting) {
+      context.missing(_dropletLabelMeta);
+    }
+    if (data.containsKey('presentation_module')) {
+      context.handle(
+          _presentationModuleMeta,
+          presentationModule.isAcceptableOrUnknown(
+              data['presentation_module']!, _presentationModuleMeta));
+    } else if (isInserting) {
+      context.missing(_presentationModuleMeta);
+    }
+    if (data.containsKey('retrieval_text')) {
+      context.handle(
+          _retrievalTextMeta,
+          retrievalText.isAcceptableOrUnknown(
+              data['retrieval_text']!, _retrievalTextMeta));
+    } else if (isInserting) {
+      context.missing(_retrievalTextMeta);
+    }
+    if (data.containsKey('valence')) {
+      context.handle(_valenceMeta,
+          valence.isAcceptableOrUnknown(data['valence']!, _valenceMeta));
+    } else if (isInserting) {
+      context.missing(_valenceMeta);
+    }
+    if (data.containsKey('arousal')) {
+      context.handle(_arousalMeta,
+          arousal.isAcceptableOrUnknown(data['arousal']!, _arousalMeta));
+    } else if (isInserting) {
+      context.missing(_arousalMeta);
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+          _confidenceMeta,
+          confidence.isAcceptableOrUnknown(
+              data['confidence']!, _confidenceMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('needs_follow_up')) {
+      context.handle(
+          _needsFollowUpMeta,
+          needsFollowUp.isAcceptableOrUnknown(
+              data['needs_follow_up']!, _needsFollowUpMeta));
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+          _schemaVersionMeta,
+          schemaVersion.isAcceptableOrUnknown(
+              data['schema_version']!, _schemaVersionMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemoryCard map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryCard(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      memoryScope: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}memory_scope'])!,
+      type: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}type'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      dropletLabel: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}droplet_label'])!,
+      presentationModule: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}presentation_module'])!,
+      retrievalText: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}retrieval_text'])!,
+      valence: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}valence'])!,
+      arousal: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}arousal'])!,
+      confidence: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}confidence'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status']),
+      needsFollowUp: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}needs_follow_up']),
+      schemaVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $MemoryCardsTable createAlias(String alias) {
+    return $MemoryCardsTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryCard extends DataClass implements Insertable<MemoryCard> {
+  final String id;
+  final String memoryScope;
+  final String type;
+  final String title;
+  final String dropletLabel;
+  final String presentationModule;
+  final String retrievalText;
+  final double valence;
+  final double arousal;
+  final double confidence;
+  final String? status;
+  final String? needsFollowUp;
+  final int schemaVersion;
+  final int createdAt;
+  final int updatedAt;
+  const MemoryCard(
+      {required this.id,
+      required this.memoryScope,
+      required this.type,
+      required this.title,
+      required this.dropletLabel,
+      required this.presentationModule,
+      required this.retrievalText,
+      required this.valence,
+      required this.arousal,
+      required this.confidence,
+      this.status,
+      this.needsFollowUp,
+      required this.schemaVersion,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['memory_scope'] = Variable<String>(memoryScope);
+    map['type'] = Variable<String>(type);
+    map['title'] = Variable<String>(title);
+    map['droplet_label'] = Variable<String>(dropletLabel);
+    map['presentation_module'] = Variable<String>(presentationModule);
+    map['retrieval_text'] = Variable<String>(retrievalText);
+    map['valence'] = Variable<double>(valence);
+    map['arousal'] = Variable<double>(arousal);
+    map['confidence'] = Variable<double>(confidence);
+    if (!nullToAbsent || status != null) {
+      map['status'] = Variable<String>(status);
+    }
+    if (!nullToAbsent || needsFollowUp != null) {
+      map['needs_follow_up'] = Variable<String>(needsFollowUp);
+    }
+    map['schema_version'] = Variable<int>(schemaVersion);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  MemoryCardsCompanion toCompanion(bool nullToAbsent) {
+    return MemoryCardsCompanion(
+      id: Value(id),
+      memoryScope: Value(memoryScope),
+      type: Value(type),
+      title: Value(title),
+      dropletLabel: Value(dropletLabel),
+      presentationModule: Value(presentationModule),
+      retrievalText: Value(retrievalText),
+      valence: Value(valence),
+      arousal: Value(arousal),
+      confidence: Value(confidence),
+      status:
+          status == null && nullToAbsent ? const Value.absent() : Value(status),
+      needsFollowUp: needsFollowUp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(needsFollowUp),
+      schemaVersion: Value(schemaVersion),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory MemoryCard.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryCard(
+      id: serializer.fromJson<String>(json['id']),
+      memoryScope: serializer.fromJson<String>(json['memoryScope']),
+      type: serializer.fromJson<String>(json['type']),
+      title: serializer.fromJson<String>(json['title']),
+      dropletLabel: serializer.fromJson<String>(json['dropletLabel']),
+      presentationModule:
+          serializer.fromJson<String>(json['presentationModule']),
+      retrievalText: serializer.fromJson<String>(json['retrievalText']),
+      valence: serializer.fromJson<double>(json['valence']),
+      arousal: serializer.fromJson<double>(json['arousal']),
+      confidence: serializer.fromJson<double>(json['confidence']),
+      status: serializer.fromJson<String?>(json['status']),
+      needsFollowUp: serializer.fromJson<String?>(json['needsFollowUp']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'memoryScope': serializer.toJson<String>(memoryScope),
+      'type': serializer.toJson<String>(type),
+      'title': serializer.toJson<String>(title),
+      'dropletLabel': serializer.toJson<String>(dropletLabel),
+      'presentationModule': serializer.toJson<String>(presentationModule),
+      'retrievalText': serializer.toJson<String>(retrievalText),
+      'valence': serializer.toJson<double>(valence),
+      'arousal': serializer.toJson<double>(arousal),
+      'confidence': serializer.toJson<double>(confidence),
+      'status': serializer.toJson<String?>(status),
+      'needsFollowUp': serializer.toJson<String?>(needsFollowUp),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  MemoryCard copyWith(
+          {String? id,
+          String? memoryScope,
+          String? type,
+          String? title,
+          String? dropletLabel,
+          String? presentationModule,
+          String? retrievalText,
+          double? valence,
+          double? arousal,
+          double? confidence,
+          Value<String?> status = const Value.absent(),
+          Value<String?> needsFollowUp = const Value.absent(),
+          int? schemaVersion,
+          int? createdAt,
+          int? updatedAt}) =>
+      MemoryCard(
+        id: id ?? this.id,
+        memoryScope: memoryScope ?? this.memoryScope,
+        type: type ?? this.type,
+        title: title ?? this.title,
+        dropletLabel: dropletLabel ?? this.dropletLabel,
+        presentationModule: presentationModule ?? this.presentationModule,
+        retrievalText: retrievalText ?? this.retrievalText,
+        valence: valence ?? this.valence,
+        arousal: arousal ?? this.arousal,
+        confidence: confidence ?? this.confidence,
+        status: status.present ? status.value : this.status,
+        needsFollowUp:
+            needsFollowUp.present ? needsFollowUp.value : this.needsFollowUp,
+        schemaVersion: schemaVersion ?? this.schemaVersion,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  MemoryCard copyWithCompanion(MemoryCardsCompanion data) {
+    return MemoryCard(
+      id: data.id.present ? data.id.value : this.id,
+      memoryScope:
+          data.memoryScope.present ? data.memoryScope.value : this.memoryScope,
+      type: data.type.present ? data.type.value : this.type,
+      title: data.title.present ? data.title.value : this.title,
+      dropletLabel: data.dropletLabel.present
+          ? data.dropletLabel.value
+          : this.dropletLabel,
+      presentationModule: data.presentationModule.present
+          ? data.presentationModule.value
+          : this.presentationModule,
+      retrievalText: data.retrievalText.present
+          ? data.retrievalText.value
+          : this.retrievalText,
+      valence: data.valence.present ? data.valence.value : this.valence,
+      arousal: data.arousal.present ? data.arousal.value : this.arousal,
+      confidence:
+          data.confidence.present ? data.confidence.value : this.confidence,
+      status: data.status.present ? data.status.value : this.status,
+      needsFollowUp: data.needsFollowUp.present
+          ? data.needsFollowUp.value
+          : this.needsFollowUp,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCard(')
+          ..write('id: $id, ')
+          ..write('memoryScope: $memoryScope, ')
+          ..write('type: $type, ')
+          ..write('title: $title, ')
+          ..write('dropletLabel: $dropletLabel, ')
+          ..write('presentationModule: $presentationModule, ')
+          ..write('retrievalText: $retrievalText, ')
+          ..write('valence: $valence, ')
+          ..write('arousal: $arousal, ')
+          ..write('confidence: $confidence, ')
+          ..write('status: $status, ')
+          ..write('needsFollowUp: $needsFollowUp, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      memoryScope,
+      type,
+      title,
+      dropletLabel,
+      presentationModule,
+      retrievalText,
+      valence,
+      arousal,
+      confidence,
+      status,
+      needsFollowUp,
+      schemaVersion,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryCard &&
+          other.id == this.id &&
+          other.memoryScope == this.memoryScope &&
+          other.type == this.type &&
+          other.title == this.title &&
+          other.dropletLabel == this.dropletLabel &&
+          other.presentationModule == this.presentationModule &&
+          other.retrievalText == this.retrievalText &&
+          other.valence == this.valence &&
+          other.arousal == this.arousal &&
+          other.confidence == this.confidence &&
+          other.status == this.status &&
+          other.needsFollowUp == this.needsFollowUp &&
+          other.schemaVersion == this.schemaVersion &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class MemoryCardsCompanion extends UpdateCompanion<MemoryCard> {
+  final Value<String> id;
+  final Value<String> memoryScope;
+  final Value<String> type;
+  final Value<String> title;
+  final Value<String> dropletLabel;
+  final Value<String> presentationModule;
+  final Value<String> retrievalText;
+  final Value<double> valence;
+  final Value<double> arousal;
+  final Value<double> confidence;
+  final Value<String?> status;
+  final Value<String?> needsFollowUp;
+  final Value<int> schemaVersion;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const MemoryCardsCompanion({
+    this.id = const Value.absent(),
+    this.memoryScope = const Value.absent(),
+    this.type = const Value.absent(),
+    this.title = const Value.absent(),
+    this.dropletLabel = const Value.absent(),
+    this.presentationModule = const Value.absent(),
+    this.retrievalText = const Value.absent(),
+    this.valence = const Value.absent(),
+    this.arousal = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.status = const Value.absent(),
+    this.needsFollowUp = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryCardsCompanion.insert({
+    required String id,
+    this.memoryScope = const Value.absent(),
+    required String type,
+    required String title,
+    required String dropletLabel,
+    required String presentationModule,
+    required String retrievalText,
+    required double valence,
+    required double arousal,
+    this.confidence = const Value.absent(),
+    this.status = const Value.absent(),
+    this.needsFollowUp = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        type = Value(type),
+        title = Value(title),
+        dropletLabel = Value(dropletLabel),
+        presentationModule = Value(presentationModule),
+        retrievalText = Value(retrievalText),
+        valence = Value(valence),
+        arousal = Value(arousal),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<MemoryCard> custom({
+    Expression<String>? id,
+    Expression<String>? memoryScope,
+    Expression<String>? type,
+    Expression<String>? title,
+    Expression<String>? dropletLabel,
+    Expression<String>? presentationModule,
+    Expression<String>? retrievalText,
+    Expression<double>? valence,
+    Expression<double>? arousal,
+    Expression<double>? confidence,
+    Expression<String>? status,
+    Expression<String>? needsFollowUp,
+    Expression<int>? schemaVersion,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (memoryScope != null) 'memory_scope': memoryScope,
+      if (type != null) 'type': type,
+      if (title != null) 'title': title,
+      if (dropletLabel != null) 'droplet_label': dropletLabel,
+      if (presentationModule != null) 'presentation_module': presentationModule,
+      if (retrievalText != null) 'retrieval_text': retrievalText,
+      if (valence != null) 'valence': valence,
+      if (arousal != null) 'arousal': arousal,
+      if (confidence != null) 'confidence': confidence,
+      if (status != null) 'status': status,
+      if (needsFollowUp != null) 'needs_follow_up': needsFollowUp,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryCardsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? memoryScope,
+      Value<String>? type,
+      Value<String>? title,
+      Value<String>? dropletLabel,
+      Value<String>? presentationModule,
+      Value<String>? retrievalText,
+      Value<double>? valence,
+      Value<double>? arousal,
+      Value<double>? confidence,
+      Value<String?>? status,
+      Value<String?>? needsFollowUp,
+      Value<int>? schemaVersion,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return MemoryCardsCompanion(
+      id: id ?? this.id,
+      memoryScope: memoryScope ?? this.memoryScope,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      dropletLabel: dropletLabel ?? this.dropletLabel,
+      presentationModule: presentationModule ?? this.presentationModule,
+      retrievalText: retrievalText ?? this.retrievalText,
+      valence: valence ?? this.valence,
+      arousal: arousal ?? this.arousal,
+      confidence: confidence ?? this.confidence,
+      status: status ?? this.status,
+      needsFollowUp: needsFollowUp ?? this.needsFollowUp,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (memoryScope.present) {
+      map['memory_scope'] = Variable<String>(memoryScope.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (dropletLabel.present) {
+      map['droplet_label'] = Variable<String>(dropletLabel.value);
+    }
+    if (presentationModule.present) {
+      map['presentation_module'] = Variable<String>(presentationModule.value);
+    }
+    if (retrievalText.present) {
+      map['retrieval_text'] = Variable<String>(retrievalText.value);
+    }
+    if (valence.present) {
+      map['valence'] = Variable<double>(valence.value);
+    }
+    if (arousal.present) {
+      map['arousal'] = Variable<double>(arousal.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<double>(confidence.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (needsFollowUp.present) {
+      map['needs_follow_up'] = Variable<String>(needsFollowUp.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardsCompanion(')
+          ..write('id: $id, ')
+          ..write('memoryScope: $memoryScope, ')
+          ..write('type: $type, ')
+          ..write('title: $title, ')
+          ..write('dropletLabel: $dropletLabel, ')
+          ..write('presentationModule: $presentationModule, ')
+          ..write('retrievalText: $retrievalText, ')
+          ..write('valence: $valence, ')
+          ..write('arousal: $arousal, ')
+          ..write('confidence: $confidence, ')
+          ..write('status: $status, ')
+          ..write('needsFollowUp: $needsFollowUp, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryCardSourcesTable extends memory_v3.MemoryCardSources
+    with TableInfo<$MemoryCardSourcesTable, MemoryCardSource> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryCardSourcesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _cardIdMeta = const VerificationMeta('cardId');
+  @override
+  late final GeneratedColumn<String> cardId = GeneratedColumn<String>(
+      'card_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _rawInputMeta =
+      const VerificationMeta('rawInput');
+  @override
+  late final GeneratedColumn<String> rawInput = GeneratedColumn<String>(
+      'raw_input', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _recordedAtMeta =
+      const VerificationMeta('recordedAt');
+  @override
+  late final GeneratedColumn<int> recordedAt = GeneratedColumn<int>(
+      'recorded_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _recordedPlaceMeta =
+      const VerificationMeta('recordedPlace');
+  @override
+  late final GeneratedColumn<String> recordedPlace = GeneratedColumn<String>(
+      'recorded_place', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sourceRefMeta =
+      const VerificationMeta('sourceRef');
+  @override
+  late final GeneratedColumn<String> sourceRef = GeneratedColumn<String>(
+      'source_ref', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sourceKindMeta =
+      const VerificationMeta('sourceKind');
+  @override
+  late final GeneratedColumn<String> sourceKind = GeneratedColumn<String>(
+      'source_kind', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _schemaVersionMeta =
+      const VerificationMeta('schemaVersion');
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+      'schema_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  @override
+  List<GeneratedColumn> get $columns => [
+        cardId,
+        rawInput,
+        recordedAt,
+        recordedPlace,
+        sourceRef,
+        sourceKind,
+        schemaVersion
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_card_sources';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemoryCardSource> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('card_id')) {
+      context.handle(_cardIdMeta,
+          cardId.isAcceptableOrUnknown(data['card_id']!, _cardIdMeta));
+    } else if (isInserting) {
+      context.missing(_cardIdMeta);
+    }
+    if (data.containsKey('raw_input')) {
+      context.handle(_rawInputMeta,
+          rawInput.isAcceptableOrUnknown(data['raw_input']!, _rawInputMeta));
+    } else if (isInserting) {
+      context.missing(_rawInputMeta);
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+          _recordedAtMeta,
+          recordedAt.isAcceptableOrUnknown(
+              data['recorded_at']!, _recordedAtMeta));
+    } else if (isInserting) {
+      context.missing(_recordedAtMeta);
+    }
+    if (data.containsKey('recorded_place')) {
+      context.handle(
+          _recordedPlaceMeta,
+          recordedPlace.isAcceptableOrUnknown(
+              data['recorded_place']!, _recordedPlaceMeta));
+    }
+    if (data.containsKey('source_ref')) {
+      context.handle(_sourceRefMeta,
+          sourceRef.isAcceptableOrUnknown(data['source_ref']!, _sourceRefMeta));
+    }
+    if (data.containsKey('source_kind')) {
+      context.handle(
+          _sourceKindMeta,
+          sourceKind.isAcceptableOrUnknown(
+              data['source_kind']!, _sourceKindMeta));
+    } else if (isInserting) {
+      context.missing(_sourceKindMeta);
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+          _schemaVersionMeta,
+          schemaVersion.isAcceptableOrUnknown(
+              data['schema_version']!, _schemaVersionMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {cardId};
+  @override
+  MemoryCardSource map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryCardSource(
+      cardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}card_id'])!,
+      rawInput: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}raw_input'])!,
+      recordedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}recorded_at'])!,
+      recordedPlace: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}recorded_place']),
+      sourceRef: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_ref']),
+      sourceKind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_kind'])!,
+      schemaVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
+    );
+  }
+
+  @override
+  $MemoryCardSourcesTable createAlias(String alias) {
+    return $MemoryCardSourcesTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryCardSource extends DataClass
+    implements Insertable<MemoryCardSource> {
+  final String cardId;
+  final String rawInput;
+  final int recordedAt;
+  final String? recordedPlace;
+
+  /// 指向 asset.id / chat_message.id / 外部批次 id 等。
+  /// 软引用，不写 FK 约束。
+  final String? sourceRef;
+
+  /// 记录方式元数据：record_button / fab / natural_command / import / system 等。
+  final String sourceKind;
+  final int schemaVersion;
+  const MemoryCardSource(
+      {required this.cardId,
+      required this.rawInput,
+      required this.recordedAt,
+      this.recordedPlace,
+      this.sourceRef,
+      required this.sourceKind,
+      required this.schemaVersion});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['card_id'] = Variable<String>(cardId);
+    map['raw_input'] = Variable<String>(rawInput);
+    map['recorded_at'] = Variable<int>(recordedAt);
+    if (!nullToAbsent || recordedPlace != null) {
+      map['recorded_place'] = Variable<String>(recordedPlace);
+    }
+    if (!nullToAbsent || sourceRef != null) {
+      map['source_ref'] = Variable<String>(sourceRef);
+    }
+    map['source_kind'] = Variable<String>(sourceKind);
+    map['schema_version'] = Variable<int>(schemaVersion);
+    return map;
+  }
+
+  MemoryCardSourcesCompanion toCompanion(bool nullToAbsent) {
+    return MemoryCardSourcesCompanion(
+      cardId: Value(cardId),
+      rawInput: Value(rawInput),
+      recordedAt: Value(recordedAt),
+      recordedPlace: recordedPlace == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recordedPlace),
+      sourceRef: sourceRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceRef),
+      sourceKind: Value(sourceKind),
+      schemaVersion: Value(schemaVersion),
+    );
+  }
+
+  factory MemoryCardSource.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryCardSource(
+      cardId: serializer.fromJson<String>(json['cardId']),
+      rawInput: serializer.fromJson<String>(json['rawInput']),
+      recordedAt: serializer.fromJson<int>(json['recordedAt']),
+      recordedPlace: serializer.fromJson<String?>(json['recordedPlace']),
+      sourceRef: serializer.fromJson<String?>(json['sourceRef']),
+      sourceKind: serializer.fromJson<String>(json['sourceKind']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'cardId': serializer.toJson<String>(cardId),
+      'rawInput': serializer.toJson<String>(rawInput),
+      'recordedAt': serializer.toJson<int>(recordedAt),
+      'recordedPlace': serializer.toJson<String?>(recordedPlace),
+      'sourceRef': serializer.toJson<String?>(sourceRef),
+      'sourceKind': serializer.toJson<String>(sourceKind),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+    };
+  }
+
+  MemoryCardSource copyWith(
+          {String? cardId,
+          String? rawInput,
+          int? recordedAt,
+          Value<String?> recordedPlace = const Value.absent(),
+          Value<String?> sourceRef = const Value.absent(),
+          String? sourceKind,
+          int? schemaVersion}) =>
+      MemoryCardSource(
+        cardId: cardId ?? this.cardId,
+        rawInput: rawInput ?? this.rawInput,
+        recordedAt: recordedAt ?? this.recordedAt,
+        recordedPlace:
+            recordedPlace.present ? recordedPlace.value : this.recordedPlace,
+        sourceRef: sourceRef.present ? sourceRef.value : this.sourceRef,
+        sourceKind: sourceKind ?? this.sourceKind,
+        schemaVersion: schemaVersion ?? this.schemaVersion,
+      );
+  MemoryCardSource copyWithCompanion(MemoryCardSourcesCompanion data) {
+    return MemoryCardSource(
+      cardId: data.cardId.present ? data.cardId.value : this.cardId,
+      rawInput: data.rawInput.present ? data.rawInput.value : this.rawInput,
+      recordedAt:
+          data.recordedAt.present ? data.recordedAt.value : this.recordedAt,
+      recordedPlace: data.recordedPlace.present
+          ? data.recordedPlace.value
+          : this.recordedPlace,
+      sourceRef: data.sourceRef.present ? data.sourceRef.value : this.sourceRef,
+      sourceKind:
+          data.sourceKind.present ? data.sourceKind.value : this.sourceKind,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardSource(')
+          ..write('cardId: $cardId, ')
+          ..write('rawInput: $rawInput, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('recordedPlace: $recordedPlace, ')
+          ..write('sourceRef: $sourceRef, ')
+          ..write('sourceKind: $sourceKind, ')
+          ..write('schemaVersion: $schemaVersion')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(cardId, rawInput, recordedAt, recordedPlace,
+      sourceRef, sourceKind, schemaVersion);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryCardSource &&
+          other.cardId == this.cardId &&
+          other.rawInput == this.rawInput &&
+          other.recordedAt == this.recordedAt &&
+          other.recordedPlace == this.recordedPlace &&
+          other.sourceRef == this.sourceRef &&
+          other.sourceKind == this.sourceKind &&
+          other.schemaVersion == this.schemaVersion);
+}
+
+class MemoryCardSourcesCompanion extends UpdateCompanion<MemoryCardSource> {
+  final Value<String> cardId;
+  final Value<String> rawInput;
+  final Value<int> recordedAt;
+  final Value<String?> recordedPlace;
+  final Value<String?> sourceRef;
+  final Value<String> sourceKind;
+  final Value<int> schemaVersion;
+  final Value<int> rowid;
+  const MemoryCardSourcesCompanion({
+    this.cardId = const Value.absent(),
+    this.rawInput = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+    this.recordedPlace = const Value.absent(),
+    this.sourceRef = const Value.absent(),
+    this.sourceKind = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryCardSourcesCompanion.insert({
+    required String cardId,
+    required String rawInput,
+    required int recordedAt,
+    this.recordedPlace = const Value.absent(),
+    this.sourceRef = const Value.absent(),
+    required String sourceKind,
+    this.schemaVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : cardId = Value(cardId),
+        rawInput = Value(rawInput),
+        recordedAt = Value(recordedAt),
+        sourceKind = Value(sourceKind);
+  static Insertable<MemoryCardSource> custom({
+    Expression<String>? cardId,
+    Expression<String>? rawInput,
+    Expression<int>? recordedAt,
+    Expression<String>? recordedPlace,
+    Expression<String>? sourceRef,
+    Expression<String>? sourceKind,
+    Expression<int>? schemaVersion,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (cardId != null) 'card_id': cardId,
+      if (rawInput != null) 'raw_input': rawInput,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+      if (recordedPlace != null) 'recorded_place': recordedPlace,
+      if (sourceRef != null) 'source_ref': sourceRef,
+      if (sourceKind != null) 'source_kind': sourceKind,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryCardSourcesCompanion copyWith(
+      {Value<String>? cardId,
+      Value<String>? rawInput,
+      Value<int>? recordedAt,
+      Value<String?>? recordedPlace,
+      Value<String?>? sourceRef,
+      Value<String>? sourceKind,
+      Value<int>? schemaVersion,
+      Value<int>? rowid}) {
+    return MemoryCardSourcesCompanion(
+      cardId: cardId ?? this.cardId,
+      rawInput: rawInput ?? this.rawInput,
+      recordedAt: recordedAt ?? this.recordedAt,
+      recordedPlace: recordedPlace ?? this.recordedPlace,
+      sourceRef: sourceRef ?? this.sourceRef,
+      sourceKind: sourceKind ?? this.sourceKind,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (cardId.present) {
+      map['card_id'] = Variable<String>(cardId.value);
+    }
+    if (rawInput.present) {
+      map['raw_input'] = Variable<String>(rawInput.value);
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<int>(recordedAt.value);
+    }
+    if (recordedPlace.present) {
+      map['recorded_place'] = Variable<String>(recordedPlace.value);
+    }
+    if (sourceRef.present) {
+      map['source_ref'] = Variable<String>(sourceRef.value);
+    }
+    if (sourceKind.present) {
+      map['source_kind'] = Variable<String>(sourceKind.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardSourcesCompanion(')
+          ..write('cardId: $cardId, ')
+          ..write('rawInput: $rawInput, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('recordedPlace: $recordedPlace, ')
+          ..write('sourceRef: $sourceRef, ')
+          ..write('sourceKind: $sourceKind, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryCardStructuredFieldsTable
+    extends memory_v3.MemoryCardStructuredFields
+    with
+        TableInfo<$MemoryCardStructuredFieldsTable, MemoryCardStructuredField> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryCardStructuredFieldsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _cardIdMeta = const VerificationMeta('cardId');
+  @override
+  late final GeneratedColumn<String> cardId = GeneratedColumn<String>(
+      'card_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _structuredFieldsTypeMeta =
+      const VerificationMeta('structuredFieldsType');
+  @override
+  late final GeneratedColumn<String> structuredFieldsType =
+      GeneratedColumn<String>('structured_fields_type', aliasedName, false,
+          type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _fieldsJsonMeta =
+      const VerificationMeta('fieldsJson');
+  @override
+  late final GeneratedColumn<String> fieldsJson = GeneratedColumn<String>(
+      'fields_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _userCorrectedMeta =
+      const VerificationMeta('userCorrected');
+  @override
+  late final GeneratedColumn<bool> userCorrected = GeneratedColumn<bool>(
+      'user_corrected', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("user_corrected" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _schemaVersionMeta =
+      const VerificationMeta('schemaVersion');
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+      'schema_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _generatedByVersionMeta =
+      const VerificationMeta('generatedByVersion');
+  @override
+  late final GeneratedColumn<String> generatedByVersion =
+      GeneratedColumn<String>('generated_by_version', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        cardId,
+        structuredFieldsType,
+        fieldsJson,
+        userCorrected,
+        schemaVersion,
+        generatedByVersion,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_card_structured_fields';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<MemoryCardStructuredField> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('card_id')) {
+      context.handle(_cardIdMeta,
+          cardId.isAcceptableOrUnknown(data['card_id']!, _cardIdMeta));
+    } else if (isInserting) {
+      context.missing(_cardIdMeta);
+    }
+    if (data.containsKey('structured_fields_type')) {
+      context.handle(
+          _structuredFieldsTypeMeta,
+          structuredFieldsType.isAcceptableOrUnknown(
+              data['structured_fields_type']!, _structuredFieldsTypeMeta));
+    } else if (isInserting) {
+      context.missing(_structuredFieldsTypeMeta);
+    }
+    if (data.containsKey('fields_json')) {
+      context.handle(
+          _fieldsJsonMeta,
+          fieldsJson.isAcceptableOrUnknown(
+              data['fields_json']!, _fieldsJsonMeta));
+    } else if (isInserting) {
+      context.missing(_fieldsJsonMeta);
+    }
+    if (data.containsKey('user_corrected')) {
+      context.handle(
+          _userCorrectedMeta,
+          userCorrected.isAcceptableOrUnknown(
+              data['user_corrected']!, _userCorrectedMeta));
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+          _schemaVersionMeta,
+          schemaVersion.isAcceptableOrUnknown(
+              data['schema_version']!, _schemaVersionMeta));
+    }
+    if (data.containsKey('generated_by_version')) {
+      context.handle(
+          _generatedByVersionMeta,
+          generatedByVersion.isAcceptableOrUnknown(
+              data['generated_by_version']!, _generatedByVersionMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {cardId};
+  @override
+  MemoryCardStructuredField map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryCardStructuredField(
+      cardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}card_id'])!,
+      structuredFieldsType: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}structured_fields_type'])!,
+      fieldsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}fields_json'])!,
+      userCorrected: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}user_corrected'])!,
+      schemaVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
+      generatedByVersion: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}generated_by_version']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $MemoryCardStructuredFieldsTable createAlias(String alias) {
+    return $MemoryCardStructuredFieldsTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryCardStructuredField extends DataClass
+    implements Insertable<MemoryCardStructuredField> {
+  final String cardId;
+  final String structuredFieldsType;
+
+  /// JSON object。业务时间字段 (occurredAt / nextActionAt / dueAt / startAt /
+  /// remindAt / paidAt / sleepStart 等) 都在这里。
+  final String fieldsJson;
+  final bool userCorrected;
+  final int schemaVersion;
+  final String? generatedByVersion;
+  final int createdAt;
+  final int updatedAt;
+  const MemoryCardStructuredField(
+      {required this.cardId,
+      required this.structuredFieldsType,
+      required this.fieldsJson,
+      required this.userCorrected,
+      required this.schemaVersion,
+      this.generatedByVersion,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['card_id'] = Variable<String>(cardId);
+    map['structured_fields_type'] = Variable<String>(structuredFieldsType);
+    map['fields_json'] = Variable<String>(fieldsJson);
+    map['user_corrected'] = Variable<bool>(userCorrected);
+    map['schema_version'] = Variable<int>(schemaVersion);
+    if (!nullToAbsent || generatedByVersion != null) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  MemoryCardStructuredFieldsCompanion toCompanion(bool nullToAbsent) {
+    return MemoryCardStructuredFieldsCompanion(
+      cardId: Value(cardId),
+      structuredFieldsType: Value(structuredFieldsType),
+      fieldsJson: Value(fieldsJson),
+      userCorrected: Value(userCorrected),
+      schemaVersion: Value(schemaVersion),
+      generatedByVersion: generatedByVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(generatedByVersion),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory MemoryCardStructuredField.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryCardStructuredField(
+      cardId: serializer.fromJson<String>(json['cardId']),
+      structuredFieldsType:
+          serializer.fromJson<String>(json['structuredFieldsType']),
+      fieldsJson: serializer.fromJson<String>(json['fieldsJson']),
+      userCorrected: serializer.fromJson<bool>(json['userCorrected']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      generatedByVersion:
+          serializer.fromJson<String?>(json['generatedByVersion']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'cardId': serializer.toJson<String>(cardId),
+      'structuredFieldsType': serializer.toJson<String>(structuredFieldsType),
+      'fieldsJson': serializer.toJson<String>(fieldsJson),
+      'userCorrected': serializer.toJson<bool>(userCorrected),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'generatedByVersion': serializer.toJson<String?>(generatedByVersion),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  MemoryCardStructuredField copyWith(
+          {String? cardId,
+          String? structuredFieldsType,
+          String? fieldsJson,
+          bool? userCorrected,
+          int? schemaVersion,
+          Value<String?> generatedByVersion = const Value.absent(),
+          int? createdAt,
+          int? updatedAt}) =>
+      MemoryCardStructuredField(
+        cardId: cardId ?? this.cardId,
+        structuredFieldsType: structuredFieldsType ?? this.structuredFieldsType,
+        fieldsJson: fieldsJson ?? this.fieldsJson,
+        userCorrected: userCorrected ?? this.userCorrected,
+        schemaVersion: schemaVersion ?? this.schemaVersion,
+        generatedByVersion: generatedByVersion.present
+            ? generatedByVersion.value
+            : this.generatedByVersion,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  MemoryCardStructuredField copyWithCompanion(
+      MemoryCardStructuredFieldsCompanion data) {
+    return MemoryCardStructuredField(
+      cardId: data.cardId.present ? data.cardId.value : this.cardId,
+      structuredFieldsType: data.structuredFieldsType.present
+          ? data.structuredFieldsType.value
+          : this.structuredFieldsType,
+      fieldsJson:
+          data.fieldsJson.present ? data.fieldsJson.value : this.fieldsJson,
+      userCorrected: data.userCorrected.present
+          ? data.userCorrected.value
+          : this.userCorrected,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+      generatedByVersion: data.generatedByVersion.present
+          ? data.generatedByVersion.value
+          : this.generatedByVersion,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardStructuredField(')
+          ..write('cardId: $cardId, ')
+          ..write('structuredFieldsType: $structuredFieldsType, ')
+          ..write('fieldsJson: $fieldsJson, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(cardId, structuredFieldsType, fieldsJson,
+      userCorrected, schemaVersion, generatedByVersion, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryCardStructuredField &&
+          other.cardId == this.cardId &&
+          other.structuredFieldsType == this.structuredFieldsType &&
+          other.fieldsJson == this.fieldsJson &&
+          other.userCorrected == this.userCorrected &&
+          other.schemaVersion == this.schemaVersion &&
+          other.generatedByVersion == this.generatedByVersion &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class MemoryCardStructuredFieldsCompanion
+    extends UpdateCompanion<MemoryCardStructuredField> {
+  final Value<String> cardId;
+  final Value<String> structuredFieldsType;
+  final Value<String> fieldsJson;
+  final Value<bool> userCorrected;
+  final Value<int> schemaVersion;
+  final Value<String?> generatedByVersion;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const MemoryCardStructuredFieldsCompanion({
+    this.cardId = const Value.absent(),
+    this.structuredFieldsType = const Value.absent(),
+    this.fieldsJson = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryCardStructuredFieldsCompanion.insert({
+    required String cardId,
+    required String structuredFieldsType,
+    required String fieldsJson,
+    this.userCorrected = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : cardId = Value(cardId),
+        structuredFieldsType = Value(structuredFieldsType),
+        fieldsJson = Value(fieldsJson),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<MemoryCardStructuredField> custom({
+    Expression<String>? cardId,
+    Expression<String>? structuredFieldsType,
+    Expression<String>? fieldsJson,
+    Expression<bool>? userCorrected,
+    Expression<int>? schemaVersion,
+    Expression<String>? generatedByVersion,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (cardId != null) 'card_id': cardId,
+      if (structuredFieldsType != null)
+        'structured_fields_type': structuredFieldsType,
+      if (fieldsJson != null) 'fields_json': fieldsJson,
+      if (userCorrected != null) 'user_corrected': userCorrected,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (generatedByVersion != null)
+        'generated_by_version': generatedByVersion,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryCardStructuredFieldsCompanion copyWith(
+      {Value<String>? cardId,
+      Value<String>? structuredFieldsType,
+      Value<String>? fieldsJson,
+      Value<bool>? userCorrected,
+      Value<int>? schemaVersion,
+      Value<String?>? generatedByVersion,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return MemoryCardStructuredFieldsCompanion(
+      cardId: cardId ?? this.cardId,
+      structuredFieldsType: structuredFieldsType ?? this.structuredFieldsType,
+      fieldsJson: fieldsJson ?? this.fieldsJson,
+      userCorrected: userCorrected ?? this.userCorrected,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      generatedByVersion: generatedByVersion ?? this.generatedByVersion,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (cardId.present) {
+      map['card_id'] = Variable<String>(cardId.value);
+    }
+    if (structuredFieldsType.present) {
+      map['structured_fields_type'] =
+          Variable<String>(structuredFieldsType.value);
+    }
+    if (fieldsJson.present) {
+      map['fields_json'] = Variable<String>(fieldsJson.value);
+    }
+    if (userCorrected.present) {
+      map['user_corrected'] = Variable<bool>(userCorrected.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (generatedByVersion.present) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardStructuredFieldsCompanion(')
+          ..write('cardId: $cardId, ')
+          ..write('structuredFieldsType: $structuredFieldsType, ')
+          ..write('fieldsJson: $fieldsJson, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryCardRelationsTable extends memory_v3.MemoryCardRelations
+    with TableInfo<$MemoryCardRelationsTable, MemoryCardRelation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryCardRelationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _fromCardIdMeta =
+      const VerificationMeta('fromCardId');
+  @override
+  late final GeneratedColumn<String> fromCardId = GeneratedColumn<String>(
+      'from_card_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _toCardIdMeta =
+      const VerificationMeta('toCardId');
+  @override
+  late final GeneratedColumn<String> toCardId = GeneratedColumn<String>(
+      'to_card_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _userCorrectedMeta =
+      const VerificationMeta('userCorrected');
+  @override
+  late final GeneratedColumn<bool> userCorrected = GeneratedColumn<bool>(
+      'user_corrected', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("user_corrected" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, fromCardId, toCardId, userCorrected, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_card_relations';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemoryCardRelation> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('from_card_id')) {
+      context.handle(
+          _fromCardIdMeta,
+          fromCardId.isAcceptableOrUnknown(
+              data['from_card_id']!, _fromCardIdMeta));
+    } else if (isInserting) {
+      context.missing(_fromCardIdMeta);
+    }
+    if (data.containsKey('to_card_id')) {
+      context.handle(_toCardIdMeta,
+          toCardId.isAcceptableOrUnknown(data['to_card_id']!, _toCardIdMeta));
+    } else if (isInserting) {
+      context.missing(_toCardIdMeta);
+    }
+    if (data.containsKey('user_corrected')) {
+      context.handle(
+          _userCorrectedMeta,
+          userCorrected.isAcceptableOrUnknown(
+              data['user_corrected']!, _userCorrectedMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemoryCardRelation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryCardRelation(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      fromCardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}from_card_id'])!,
+      toCardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}to_card_id'])!,
+      userCorrected: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}user_corrected'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $MemoryCardRelationsTable createAlias(String alias) {
+    return $MemoryCardRelationsTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryCardRelation extends DataClass
+    implements Insertable<MemoryCardRelation> {
+  final String id;
+  final String fromCardId;
+  final String toCardId;
+  final bool userCorrected;
+  final int createdAt;
+  const MemoryCardRelation(
+      {required this.id,
+      required this.fromCardId,
+      required this.toCardId,
+      required this.userCorrected,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['from_card_id'] = Variable<String>(fromCardId);
+    map['to_card_id'] = Variable<String>(toCardId);
+    map['user_corrected'] = Variable<bool>(userCorrected);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  MemoryCardRelationsCompanion toCompanion(bool nullToAbsent) {
+    return MemoryCardRelationsCompanion(
+      id: Value(id),
+      fromCardId: Value(fromCardId),
+      toCardId: Value(toCardId),
+      userCorrected: Value(userCorrected),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory MemoryCardRelation.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryCardRelation(
+      id: serializer.fromJson<String>(json['id']),
+      fromCardId: serializer.fromJson<String>(json['fromCardId']),
+      toCardId: serializer.fromJson<String>(json['toCardId']),
+      userCorrected: serializer.fromJson<bool>(json['userCorrected']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'fromCardId': serializer.toJson<String>(fromCardId),
+      'toCardId': serializer.toJson<String>(toCardId),
+      'userCorrected': serializer.toJson<bool>(userCorrected),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  MemoryCardRelation copyWith(
+          {String? id,
+          String? fromCardId,
+          String? toCardId,
+          bool? userCorrected,
+          int? createdAt}) =>
+      MemoryCardRelation(
+        id: id ?? this.id,
+        fromCardId: fromCardId ?? this.fromCardId,
+        toCardId: toCardId ?? this.toCardId,
+        userCorrected: userCorrected ?? this.userCorrected,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  MemoryCardRelation copyWithCompanion(MemoryCardRelationsCompanion data) {
+    return MemoryCardRelation(
+      id: data.id.present ? data.id.value : this.id,
+      fromCardId:
+          data.fromCardId.present ? data.fromCardId.value : this.fromCardId,
+      toCardId: data.toCardId.present ? data.toCardId.value : this.toCardId,
+      userCorrected: data.userCorrected.present
+          ? data.userCorrected.value
+          : this.userCorrected,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardRelation(')
+          ..write('id: $id, ')
+          ..write('fromCardId: $fromCardId, ')
+          ..write('toCardId: $toCardId, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, fromCardId, toCardId, userCorrected, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryCardRelation &&
+          other.id == this.id &&
+          other.fromCardId == this.fromCardId &&
+          other.toCardId == this.toCardId &&
+          other.userCorrected == this.userCorrected &&
+          other.createdAt == this.createdAt);
+}
+
+class MemoryCardRelationsCompanion extends UpdateCompanion<MemoryCardRelation> {
+  final Value<String> id;
+  final Value<String> fromCardId;
+  final Value<String> toCardId;
+  final Value<bool> userCorrected;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const MemoryCardRelationsCompanion({
+    this.id = const Value.absent(),
+    this.fromCardId = const Value.absent(),
+    this.toCardId = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryCardRelationsCompanion.insert({
+    required String id,
+    required String fromCardId,
+    required String toCardId,
+    this.userCorrected = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        fromCardId = Value(fromCardId),
+        toCardId = Value(toCardId),
+        createdAt = Value(createdAt);
+  static Insertable<MemoryCardRelation> custom({
+    Expression<String>? id,
+    Expression<String>? fromCardId,
+    Expression<String>? toCardId,
+    Expression<bool>? userCorrected,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (fromCardId != null) 'from_card_id': fromCardId,
+      if (toCardId != null) 'to_card_id': toCardId,
+      if (userCorrected != null) 'user_corrected': userCorrected,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryCardRelationsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? fromCardId,
+      Value<String>? toCardId,
+      Value<bool>? userCorrected,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return MemoryCardRelationsCompanion(
+      id: id ?? this.id,
+      fromCardId: fromCardId ?? this.fromCardId,
+      toCardId: toCardId ?? this.toCardId,
+      userCorrected: userCorrected ?? this.userCorrected,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (fromCardId.present) {
+      map['from_card_id'] = Variable<String>(fromCardId.value);
+    }
+    if (toCardId.present) {
+      map['to_card_id'] = Variable<String>(toCardId.value);
+    }
+    if (userCorrected.present) {
+      map['user_corrected'] = Variable<bool>(userCorrected.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardRelationsCompanion(')
+          ..write('id: $id, ')
+          ..write('fromCardId: $fromCardId, ')
+          ..write('toCardId: $toCardId, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryCardAssetsTable extends memory_v3.MemoryCardAssets
+    with TableInfo<$MemoryCardAssetsTable, MemoryCardAsset> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryCardAssetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _cardIdMeta = const VerificationMeta('cardId');
+  @override
+  late final GeneratedColumn<String> cardId = GeneratedColumn<String>(
+      'card_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _assetIdMeta =
+      const VerificationMeta('assetId');
+  @override
+  late final GeneratedColumn<String> assetId = GeneratedColumn<String>(
+      'asset_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+      'role', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [id, cardId, assetId, role, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_card_assets';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemoryCardAsset> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('card_id')) {
+      context.handle(_cardIdMeta,
+          cardId.isAcceptableOrUnknown(data['card_id']!, _cardIdMeta));
+    } else if (isInserting) {
+      context.missing(_cardIdMeta);
+    }
+    if (data.containsKey('asset_id')) {
+      context.handle(_assetIdMeta,
+          assetId.isAcceptableOrUnknown(data['asset_id']!, _assetIdMeta));
+    } else if (isInserting) {
+      context.missing(_assetIdMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+          _roleMeta, role.isAcceptableOrUnknown(data['role']!, _roleMeta));
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemoryCardAsset map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryCardAsset(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      cardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}card_id'])!,
+      assetId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}asset_id'])!,
+      role: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}role'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $MemoryCardAssetsTable createAlias(String alias) {
+    return $MemoryCardAssetsTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryCardAsset extends DataClass implements Insertable<MemoryCardAsset> {
+  final String id;
+  final String cardId;
+  final String assetId;
+  final String role;
+  final int createdAt;
+  const MemoryCardAsset(
+      {required this.id,
+      required this.cardId,
+      required this.assetId,
+      required this.role,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['card_id'] = Variable<String>(cardId);
+    map['asset_id'] = Variable<String>(assetId);
+    map['role'] = Variable<String>(role);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  MemoryCardAssetsCompanion toCompanion(bool nullToAbsent) {
+    return MemoryCardAssetsCompanion(
+      id: Value(id),
+      cardId: Value(cardId),
+      assetId: Value(assetId),
+      role: Value(role),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory MemoryCardAsset.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryCardAsset(
+      id: serializer.fromJson<String>(json['id']),
+      cardId: serializer.fromJson<String>(json['cardId']),
+      assetId: serializer.fromJson<String>(json['assetId']),
+      role: serializer.fromJson<String>(json['role']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'cardId': serializer.toJson<String>(cardId),
+      'assetId': serializer.toJson<String>(assetId),
+      'role': serializer.toJson<String>(role),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  MemoryCardAsset copyWith(
+          {String? id,
+          String? cardId,
+          String? assetId,
+          String? role,
+          int? createdAt}) =>
+      MemoryCardAsset(
+        id: id ?? this.id,
+        cardId: cardId ?? this.cardId,
+        assetId: assetId ?? this.assetId,
+        role: role ?? this.role,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  MemoryCardAsset copyWithCompanion(MemoryCardAssetsCompanion data) {
+    return MemoryCardAsset(
+      id: data.id.present ? data.id.value : this.id,
+      cardId: data.cardId.present ? data.cardId.value : this.cardId,
+      assetId: data.assetId.present ? data.assetId.value : this.assetId,
+      role: data.role.present ? data.role.value : this.role,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardAsset(')
+          ..write('id: $id, ')
+          ..write('cardId: $cardId, ')
+          ..write('assetId: $assetId, ')
+          ..write('role: $role, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, cardId, assetId, role, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryCardAsset &&
+          other.id == this.id &&
+          other.cardId == this.cardId &&
+          other.assetId == this.assetId &&
+          other.role == this.role &&
+          other.createdAt == this.createdAt);
+}
+
+class MemoryCardAssetsCompanion extends UpdateCompanion<MemoryCardAsset> {
+  final Value<String> id;
+  final Value<String> cardId;
+  final Value<String> assetId;
+  final Value<String> role;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const MemoryCardAssetsCompanion({
+    this.id = const Value.absent(),
+    this.cardId = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.role = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryCardAssetsCompanion.insert({
+    required String id,
+    required String cardId,
+    required String assetId,
+    required String role,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        cardId = Value(cardId),
+        assetId = Value(assetId),
+        role = Value(role),
+        createdAt = Value(createdAt);
+  static Insertable<MemoryCardAsset> custom({
+    Expression<String>? id,
+    Expression<String>? cardId,
+    Expression<String>? assetId,
+    Expression<String>? role,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (cardId != null) 'card_id': cardId,
+      if (assetId != null) 'asset_id': assetId,
+      if (role != null) 'role': role,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryCardAssetsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? cardId,
+      Value<String>? assetId,
+      Value<String>? role,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return MemoryCardAssetsCompanion(
+      id: id ?? this.id,
+      cardId: cardId ?? this.cardId,
+      assetId: assetId ?? this.assetId,
+      role: role ?? this.role,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (cardId.present) {
+      map['card_id'] = Variable<String>(cardId.value);
+    }
+    if (assetId.present) {
+      map['asset_id'] = Variable<String>(assetId.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardAssetsCompanion(')
+          ..write('id: $id, ')
+          ..write('cardId: $cardId, ')
+          ..write('assetId: $assetId, ')
+          ..write('role: $role, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryFragmentsTable extends memory_v3.MemoryFragments
+    with TableInfo<$MemoryFragmentsTable, MemoryFragment> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryFragmentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceMessageIdsMeta =
+      const VerificationMeta('sourceMessageIds');
+  @override
+  late final GeneratedColumn<String> sourceMessageIds = GeneratedColumn<String>(
+      'source_message_ids', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sourceScopeMeta =
+      const VerificationMeta('sourceScope');
+  @override
+  late final GeneratedColumn<String> sourceScope = GeneratedColumn<String>(
+      'source_scope', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('main_chat'));
+  static const VerificationMeta _emotionalWeightMeta =
+      const VerificationMeta('emotionalWeight');
+  @override
+  late final GeneratedColumn<double> emotionalWeight = GeneratedColumn<double>(
+      'emotional_weight', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _isUserTruthCandidateMeta =
+      const VerificationMeta('isUserTruthCandidate');
+  @override
+  late final GeneratedColumn<bool> isUserTruthCandidate = GeneratedColumn<bool>(
+      'is_user_truth_candidate', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("is_user_truth_candidate" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _generatedByVersionMeta =
+      const VerificationMeta('generatedByVersion');
+  @override
+  late final GeneratedColumn<String> generatedByVersion =
+      GeneratedColumn<String>('generated_by_version', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _userCorrectedMeta =
+      const VerificationMeta('userCorrected');
+  @override
+  late final GeneratedColumn<bool> userCorrected = GeneratedColumn<bool>(
+      'user_corrected', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("user_corrected" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _schemaVersionMeta =
+      const VerificationMeta('schemaVersion');
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+      'schema_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        content,
+        sourceMessageIds,
+        sourceScope,
+        emotionalWeight,
+        status,
+        isUserTruthCandidate,
+        generatedByVersion,
+        userCorrected,
+        schemaVersion,
+        createdAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_fragments';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemoryFragment> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('source_message_ids')) {
+      context.handle(
+          _sourceMessageIdsMeta,
+          sourceMessageIds.isAcceptableOrUnknown(
+              data['source_message_ids']!, _sourceMessageIdsMeta));
+    }
+    if (data.containsKey('source_scope')) {
+      context.handle(
+          _sourceScopeMeta,
+          sourceScope.isAcceptableOrUnknown(
+              data['source_scope']!, _sourceScopeMeta));
+    }
+    if (data.containsKey('emotional_weight')) {
+      context.handle(
+          _emotionalWeightMeta,
+          emotionalWeight.isAcceptableOrUnknown(
+              data['emotional_weight']!, _emotionalWeightMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('is_user_truth_candidate')) {
+      context.handle(
+          _isUserTruthCandidateMeta,
+          isUserTruthCandidate.isAcceptableOrUnknown(
+              data['is_user_truth_candidate']!, _isUserTruthCandidateMeta));
+    }
+    if (data.containsKey('generated_by_version')) {
+      context.handle(
+          _generatedByVersionMeta,
+          generatedByVersion.isAcceptableOrUnknown(
+              data['generated_by_version']!, _generatedByVersionMeta));
+    }
+    if (data.containsKey('user_corrected')) {
+      context.handle(
+          _userCorrectedMeta,
+          userCorrected.isAcceptableOrUnknown(
+              data['user_corrected']!, _userCorrectedMeta));
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+          _schemaVersionMeta,
+          schemaVersion.isAcceptableOrUnknown(
+              data['schema_version']!, _schemaVersionMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemoryFragment map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryFragment(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      sourceMessageIds: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_message_ids']),
+      sourceScope: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_scope'])!,
+      emotionalWeight: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}emotional_weight'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      isUserTruthCandidate: attachedDatabase.typeMapping.read(DriftSqlType.bool,
+          data['${effectivePrefix}is_user_truth_candidate'])!,
+      generatedByVersion: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}generated_by_version']),
+      userCorrected: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}user_corrected'])!,
+      schemaVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $MemoryFragmentsTable createAlias(String alias) {
+    return $MemoryFragmentsTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
+  final String id;
+  final String content;
+  final String? sourceMessageIds;
+  final String sourceScope;
+  final double emotionalWeight;
+  final String status;
+  final bool isUserTruthCandidate;
+  final String? generatedByVersion;
+  final bool userCorrected;
+  final int schemaVersion;
+  final int createdAt;
+  const MemoryFragment(
+      {required this.id,
+      required this.content,
+      this.sourceMessageIds,
+      required this.sourceScope,
+      required this.emotionalWeight,
+      required this.status,
+      required this.isUserTruthCandidate,
+      this.generatedByVersion,
+      required this.userCorrected,
+      required this.schemaVersion,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['content'] = Variable<String>(content);
+    if (!nullToAbsent || sourceMessageIds != null) {
+      map['source_message_ids'] = Variable<String>(sourceMessageIds);
+    }
+    map['source_scope'] = Variable<String>(sourceScope);
+    map['emotional_weight'] = Variable<double>(emotionalWeight);
+    map['status'] = Variable<String>(status);
+    map['is_user_truth_candidate'] = Variable<bool>(isUserTruthCandidate);
+    if (!nullToAbsent || generatedByVersion != null) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion);
+    }
+    map['user_corrected'] = Variable<bool>(userCorrected);
+    map['schema_version'] = Variable<int>(schemaVersion);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  MemoryFragmentsCompanion toCompanion(bool nullToAbsent) {
+    return MemoryFragmentsCompanion(
+      id: Value(id),
+      content: Value(content),
+      sourceMessageIds: sourceMessageIds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceMessageIds),
+      sourceScope: Value(sourceScope),
+      emotionalWeight: Value(emotionalWeight),
+      status: Value(status),
+      isUserTruthCandidate: Value(isUserTruthCandidate),
+      generatedByVersion: generatedByVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(generatedByVersion),
+      userCorrected: Value(userCorrected),
+      schemaVersion: Value(schemaVersion),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory MemoryFragment.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryFragment(
+      id: serializer.fromJson<String>(json['id']),
+      content: serializer.fromJson<String>(json['content']),
+      sourceMessageIds: serializer.fromJson<String?>(json['sourceMessageIds']),
+      sourceScope: serializer.fromJson<String>(json['sourceScope']),
+      emotionalWeight: serializer.fromJson<double>(json['emotionalWeight']),
+      status: serializer.fromJson<String>(json['status']),
+      isUserTruthCandidate:
+          serializer.fromJson<bool>(json['isUserTruthCandidate']),
+      generatedByVersion:
+          serializer.fromJson<String?>(json['generatedByVersion']),
+      userCorrected: serializer.fromJson<bool>(json['userCorrected']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'content': serializer.toJson<String>(content),
+      'sourceMessageIds': serializer.toJson<String?>(sourceMessageIds),
+      'sourceScope': serializer.toJson<String>(sourceScope),
+      'emotionalWeight': serializer.toJson<double>(emotionalWeight),
+      'status': serializer.toJson<String>(status),
+      'isUserTruthCandidate': serializer.toJson<bool>(isUserTruthCandidate),
+      'generatedByVersion': serializer.toJson<String?>(generatedByVersion),
+      'userCorrected': serializer.toJson<bool>(userCorrected),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  MemoryFragment copyWith(
+          {String? id,
+          String? content,
+          Value<String?> sourceMessageIds = const Value.absent(),
+          String? sourceScope,
+          double? emotionalWeight,
+          String? status,
+          bool? isUserTruthCandidate,
+          Value<String?> generatedByVersion = const Value.absent(),
+          bool? userCorrected,
+          int? schemaVersion,
+          int? createdAt}) =>
+      MemoryFragment(
+        id: id ?? this.id,
+        content: content ?? this.content,
+        sourceMessageIds: sourceMessageIds.present
+            ? sourceMessageIds.value
+            : this.sourceMessageIds,
+        sourceScope: sourceScope ?? this.sourceScope,
+        emotionalWeight: emotionalWeight ?? this.emotionalWeight,
+        status: status ?? this.status,
+        isUserTruthCandidate: isUserTruthCandidate ?? this.isUserTruthCandidate,
+        generatedByVersion: generatedByVersion.present
+            ? generatedByVersion.value
+            : this.generatedByVersion,
+        userCorrected: userCorrected ?? this.userCorrected,
+        schemaVersion: schemaVersion ?? this.schemaVersion,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  MemoryFragment copyWithCompanion(MemoryFragmentsCompanion data) {
+    return MemoryFragment(
+      id: data.id.present ? data.id.value : this.id,
+      content: data.content.present ? data.content.value : this.content,
+      sourceMessageIds: data.sourceMessageIds.present
+          ? data.sourceMessageIds.value
+          : this.sourceMessageIds,
+      sourceScope:
+          data.sourceScope.present ? data.sourceScope.value : this.sourceScope,
+      emotionalWeight: data.emotionalWeight.present
+          ? data.emotionalWeight.value
+          : this.emotionalWeight,
+      status: data.status.present ? data.status.value : this.status,
+      isUserTruthCandidate: data.isUserTruthCandidate.present
+          ? data.isUserTruthCandidate.value
+          : this.isUserTruthCandidate,
+      generatedByVersion: data.generatedByVersion.present
+          ? data.generatedByVersion.value
+          : this.generatedByVersion,
+      userCorrected: data.userCorrected.present
+          ? data.userCorrected.value
+          : this.userCorrected,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryFragment(')
+          ..write('id: $id, ')
+          ..write('content: $content, ')
+          ..write('sourceMessageIds: $sourceMessageIds, ')
+          ..write('sourceScope: $sourceScope, ')
+          ..write('emotionalWeight: $emotionalWeight, ')
+          ..write('status: $status, ')
+          ..write('isUserTruthCandidate: $isUserTruthCandidate, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      content,
+      sourceMessageIds,
+      sourceScope,
+      emotionalWeight,
+      status,
+      isUserTruthCandidate,
+      generatedByVersion,
+      userCorrected,
+      schemaVersion,
+      createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryFragment &&
+          other.id == this.id &&
+          other.content == this.content &&
+          other.sourceMessageIds == this.sourceMessageIds &&
+          other.sourceScope == this.sourceScope &&
+          other.emotionalWeight == this.emotionalWeight &&
+          other.status == this.status &&
+          other.isUserTruthCandidate == this.isUserTruthCandidate &&
+          other.generatedByVersion == this.generatedByVersion &&
+          other.userCorrected == this.userCorrected &&
+          other.schemaVersion == this.schemaVersion &&
+          other.createdAt == this.createdAt);
+}
+
+class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
+  final Value<String> id;
+  final Value<String> content;
+  final Value<String?> sourceMessageIds;
+  final Value<String> sourceScope;
+  final Value<double> emotionalWeight;
+  final Value<String> status;
+  final Value<bool> isUserTruthCandidate;
+  final Value<String?> generatedByVersion;
+  final Value<bool> userCorrected;
+  final Value<int> schemaVersion;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const MemoryFragmentsCompanion({
+    this.id = const Value.absent(),
+    this.content = const Value.absent(),
+    this.sourceMessageIds = const Value.absent(),
+    this.sourceScope = const Value.absent(),
+    this.emotionalWeight = const Value.absent(),
+    this.status = const Value.absent(),
+    this.isUserTruthCandidate = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryFragmentsCompanion.insert({
+    required String id,
+    required String content,
+    this.sourceMessageIds = const Value.absent(),
+    this.sourceScope = const Value.absent(),
+    this.emotionalWeight = const Value.absent(),
+    this.status = const Value.absent(),
+    this.isUserTruthCandidate = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        content = Value(content),
+        createdAt = Value(createdAt);
+  static Insertable<MemoryFragment> custom({
+    Expression<String>? id,
+    Expression<String>? content,
+    Expression<String>? sourceMessageIds,
+    Expression<String>? sourceScope,
+    Expression<double>? emotionalWeight,
+    Expression<String>? status,
+    Expression<bool>? isUserTruthCandidate,
+    Expression<String>? generatedByVersion,
+    Expression<bool>? userCorrected,
+    Expression<int>? schemaVersion,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (content != null) 'content': content,
+      if (sourceMessageIds != null) 'source_message_ids': sourceMessageIds,
+      if (sourceScope != null) 'source_scope': sourceScope,
+      if (emotionalWeight != null) 'emotional_weight': emotionalWeight,
+      if (status != null) 'status': status,
+      if (isUserTruthCandidate != null)
+        'is_user_truth_candidate': isUserTruthCandidate,
+      if (generatedByVersion != null)
+        'generated_by_version': generatedByVersion,
+      if (userCorrected != null) 'user_corrected': userCorrected,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryFragmentsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? content,
+      Value<String?>? sourceMessageIds,
+      Value<String>? sourceScope,
+      Value<double>? emotionalWeight,
+      Value<String>? status,
+      Value<bool>? isUserTruthCandidate,
+      Value<String?>? generatedByVersion,
+      Value<bool>? userCorrected,
+      Value<int>? schemaVersion,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return MemoryFragmentsCompanion(
+      id: id ?? this.id,
+      content: content ?? this.content,
+      sourceMessageIds: sourceMessageIds ?? this.sourceMessageIds,
+      sourceScope: sourceScope ?? this.sourceScope,
+      emotionalWeight: emotionalWeight ?? this.emotionalWeight,
+      status: status ?? this.status,
+      isUserTruthCandidate: isUserTruthCandidate ?? this.isUserTruthCandidate,
+      generatedByVersion: generatedByVersion ?? this.generatedByVersion,
+      userCorrected: userCorrected ?? this.userCorrected,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (sourceMessageIds.present) {
+      map['source_message_ids'] = Variable<String>(sourceMessageIds.value);
+    }
+    if (sourceScope.present) {
+      map['source_scope'] = Variable<String>(sourceScope.value);
+    }
+    if (emotionalWeight.present) {
+      map['emotional_weight'] = Variable<double>(emotionalWeight.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (isUserTruthCandidate.present) {
+      map['is_user_truth_candidate'] =
+          Variable<bool>(isUserTruthCandidate.value);
+    }
+    if (generatedByVersion.present) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion.value);
+    }
+    if (userCorrected.present) {
+      map['user_corrected'] = Variable<bool>(userCorrected.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryFragmentsCompanion(')
+          ..write('id: $id, ')
+          ..write('content: $content, ')
+          ..write('sourceMessageIds: $sourceMessageIds, ')
+          ..write('sourceScope: $sourceScope, ')
+          ..write('emotionalWeight: $emotionalWeight, ')
+          ..write('status: $status, ')
+          ..write('isUserTruthCandidate: $isUserTruthCandidate, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryEntitiesTable extends memory_v3.MemoryEntities
+    with TableInfo<$MemoryEntitiesTable, MemoryEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryEntitiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _categoryMeta =
+      const VerificationMeta('category');
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+      'category', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('seed'));
+  static const VerificationMeta _aliasesMeta =
+      const VerificationMeta('aliases');
+  @override
+  late final GeneratedColumn<String> aliases = GeneratedColumn<String>(
+      'aliases', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _overviewMeta =
+      const VerificationMeta('overview');
+  @override
+  late final GeneratedColumn<String> overview = GeneratedColumn<String>(
+      'overview', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _relationshipToUserMeta =
+      const VerificationMeta('relationshipToUser');
+  @override
+  late final GeneratedColumn<String> relationshipToUser =
+      GeneratedColumn<String>('relationship_to_user', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _firstMentionedAtMeta =
+      const VerificationMeta('firstMentionedAt');
+  @override
+  late final GeneratedColumn<int> firstMentionedAt = GeneratedColumn<int>(
+      'first_mentioned_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _lastMentionedAtMeta =
+      const VerificationMeta('lastMentionedAt');
+  @override
+  late final GeneratedColumn<int> lastMentionedAt = GeneratedColumn<int>(
+      'last_mentioned_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _fragmentCountMeta =
+      const VerificationMeta('fragmentCount');
+  @override
+  late final GeneratedColumn<int> fragmentCount = GeneratedColumn<int>(
+      'fragment_count', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _mergedIntoIdMeta =
+      const VerificationMeta('mergedIntoId');
+  @override
+  late final GeneratedColumn<String> mergedIntoId = GeneratedColumn<String>(
+      'merged_into_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _generatedByVersionMeta =
+      const VerificationMeta('generatedByVersion');
+  @override
+  late final GeneratedColumn<String> generatedByVersion =
+      GeneratedColumn<String>('generated_by_version', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _userCorrectedMeta =
+      const VerificationMeta('userCorrected');
+  @override
+  late final GeneratedColumn<bool> userCorrected = GeneratedColumn<bool>(
+      'user_corrected', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("user_corrected" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _schemaVersionMeta =
+      const VerificationMeta('schemaVersion');
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+      'schema_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        name,
+        category,
+        status,
+        aliases,
+        overview,
+        relationshipToUser,
+        firstMentionedAt,
+        lastMentionedAt,
+        fragmentCount,
+        mergedIntoId,
+        generatedByVersion,
+        userCorrected,
+        schemaVersion
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_entities';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemoryEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(_categoryMeta,
+          category.isAcceptableOrUnknown(data['category']!, _categoryMeta));
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('aliases')) {
+      context.handle(_aliasesMeta,
+          aliases.isAcceptableOrUnknown(data['aliases']!, _aliasesMeta));
+    }
+    if (data.containsKey('overview')) {
+      context.handle(_overviewMeta,
+          overview.isAcceptableOrUnknown(data['overview']!, _overviewMeta));
+    }
+    if (data.containsKey('relationship_to_user')) {
+      context.handle(
+          _relationshipToUserMeta,
+          relationshipToUser.isAcceptableOrUnknown(
+              data['relationship_to_user']!, _relationshipToUserMeta));
+    }
+    if (data.containsKey('first_mentioned_at')) {
+      context.handle(
+          _firstMentionedAtMeta,
+          firstMentionedAt.isAcceptableOrUnknown(
+              data['first_mentioned_at']!, _firstMentionedAtMeta));
+    }
+    if (data.containsKey('last_mentioned_at')) {
+      context.handle(
+          _lastMentionedAtMeta,
+          lastMentionedAt.isAcceptableOrUnknown(
+              data['last_mentioned_at']!, _lastMentionedAtMeta));
+    }
+    if (data.containsKey('fragment_count')) {
+      context.handle(
+          _fragmentCountMeta,
+          fragmentCount.isAcceptableOrUnknown(
+              data['fragment_count']!, _fragmentCountMeta));
+    }
+    if (data.containsKey('merged_into_id')) {
+      context.handle(
+          _mergedIntoIdMeta,
+          mergedIntoId.isAcceptableOrUnknown(
+              data['merged_into_id']!, _mergedIntoIdMeta));
+    }
+    if (data.containsKey('generated_by_version')) {
+      context.handle(
+          _generatedByVersionMeta,
+          generatedByVersion.isAcceptableOrUnknown(
+              data['generated_by_version']!, _generatedByVersionMeta));
+    }
+    if (data.containsKey('user_corrected')) {
+      context.handle(
+          _userCorrectedMeta,
+          userCorrected.isAcceptableOrUnknown(
+              data['user_corrected']!, _userCorrectedMeta));
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+          _schemaVersionMeta,
+          schemaVersion.isAcceptableOrUnknown(
+              data['schema_version']!, _schemaVersionMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemoryEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      category: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}category'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      aliases: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}aliases']),
+      overview: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}overview']),
+      relationshipToUser: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}relationship_to_user']),
+      firstMentionedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}first_mentioned_at']),
+      lastMentionedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}last_mentioned_at']),
+      fragmentCount: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}fragment_count'])!,
+      mergedIntoId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}merged_into_id']),
+      generatedByVersion: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}generated_by_version']),
+      userCorrected: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}user_corrected'])!,
+      schemaVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
+    );
+  }
+
+  @override
+  $MemoryEntitiesTable createAlias(String alias) {
+    return $MemoryEntitiesTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryEntity extends DataClass implements Insertable<MemoryEntity> {
+  final String id;
+  final String name;
+  final String category;
+  final String status;
+  final String? aliases;
+  final String? overview;
+  final String? relationshipToUser;
+  final int? firstMentionedAt;
+  final int? lastMentionedAt;
+  final int fragmentCount;
+  final String? mergedIntoId;
+  final String? generatedByVersion;
+  final bool userCorrected;
+  final int schemaVersion;
+  const MemoryEntity(
+      {required this.id,
+      required this.name,
+      required this.category,
+      required this.status,
+      this.aliases,
+      this.overview,
+      this.relationshipToUser,
+      this.firstMentionedAt,
+      this.lastMentionedAt,
+      required this.fragmentCount,
+      this.mergedIntoId,
+      this.generatedByVersion,
+      required this.userCorrected,
+      required this.schemaVersion});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['category'] = Variable<String>(category);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || aliases != null) {
+      map['aliases'] = Variable<String>(aliases);
+    }
+    if (!nullToAbsent || overview != null) {
+      map['overview'] = Variable<String>(overview);
+    }
+    if (!nullToAbsent || relationshipToUser != null) {
+      map['relationship_to_user'] = Variable<String>(relationshipToUser);
+    }
+    if (!nullToAbsent || firstMentionedAt != null) {
+      map['first_mentioned_at'] = Variable<int>(firstMentionedAt);
+    }
+    if (!nullToAbsent || lastMentionedAt != null) {
+      map['last_mentioned_at'] = Variable<int>(lastMentionedAt);
+    }
+    map['fragment_count'] = Variable<int>(fragmentCount);
+    if (!nullToAbsent || mergedIntoId != null) {
+      map['merged_into_id'] = Variable<String>(mergedIntoId);
+    }
+    if (!nullToAbsent || generatedByVersion != null) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion);
+    }
+    map['user_corrected'] = Variable<bool>(userCorrected);
+    map['schema_version'] = Variable<int>(schemaVersion);
+    return map;
+  }
+
+  MemoryEntitiesCompanion toCompanion(bool nullToAbsent) {
+    return MemoryEntitiesCompanion(
+      id: Value(id),
+      name: Value(name),
+      category: Value(category),
+      status: Value(status),
+      aliases: aliases == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aliases),
+      overview: overview == null && nullToAbsent
+          ? const Value.absent()
+          : Value(overview),
+      relationshipToUser: relationshipToUser == null && nullToAbsent
+          ? const Value.absent()
+          : Value(relationshipToUser),
+      firstMentionedAt: firstMentionedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(firstMentionedAt),
+      lastMentionedAt: lastMentionedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastMentionedAt),
+      fragmentCount: Value(fragmentCount),
+      mergedIntoId: mergedIntoId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mergedIntoId),
+      generatedByVersion: generatedByVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(generatedByVersion),
+      userCorrected: Value(userCorrected),
+      schemaVersion: Value(schemaVersion),
+    );
+  }
+
+  factory MemoryEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryEntity(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      category: serializer.fromJson<String>(json['category']),
+      status: serializer.fromJson<String>(json['status']),
+      aliases: serializer.fromJson<String?>(json['aliases']),
+      overview: serializer.fromJson<String?>(json['overview']),
+      relationshipToUser:
+          serializer.fromJson<String?>(json['relationshipToUser']),
+      firstMentionedAt: serializer.fromJson<int?>(json['firstMentionedAt']),
+      lastMentionedAt: serializer.fromJson<int?>(json['lastMentionedAt']),
+      fragmentCount: serializer.fromJson<int>(json['fragmentCount']),
+      mergedIntoId: serializer.fromJson<String?>(json['mergedIntoId']),
+      generatedByVersion:
+          serializer.fromJson<String?>(json['generatedByVersion']),
+      userCorrected: serializer.fromJson<bool>(json['userCorrected']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'category': serializer.toJson<String>(category),
+      'status': serializer.toJson<String>(status),
+      'aliases': serializer.toJson<String?>(aliases),
+      'overview': serializer.toJson<String?>(overview),
+      'relationshipToUser': serializer.toJson<String?>(relationshipToUser),
+      'firstMentionedAt': serializer.toJson<int?>(firstMentionedAt),
+      'lastMentionedAt': serializer.toJson<int?>(lastMentionedAt),
+      'fragmentCount': serializer.toJson<int>(fragmentCount),
+      'mergedIntoId': serializer.toJson<String?>(mergedIntoId),
+      'generatedByVersion': serializer.toJson<String?>(generatedByVersion),
+      'userCorrected': serializer.toJson<bool>(userCorrected),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+    };
+  }
+
+  MemoryEntity copyWith(
+          {String? id,
+          String? name,
+          String? category,
+          String? status,
+          Value<String?> aliases = const Value.absent(),
+          Value<String?> overview = const Value.absent(),
+          Value<String?> relationshipToUser = const Value.absent(),
+          Value<int?> firstMentionedAt = const Value.absent(),
+          Value<int?> lastMentionedAt = const Value.absent(),
+          int? fragmentCount,
+          Value<String?> mergedIntoId = const Value.absent(),
+          Value<String?> generatedByVersion = const Value.absent(),
+          bool? userCorrected,
+          int? schemaVersion}) =>
+      MemoryEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        category: category ?? this.category,
+        status: status ?? this.status,
+        aliases: aliases.present ? aliases.value : this.aliases,
+        overview: overview.present ? overview.value : this.overview,
+        relationshipToUser: relationshipToUser.present
+            ? relationshipToUser.value
+            : this.relationshipToUser,
+        firstMentionedAt: firstMentionedAt.present
+            ? firstMentionedAt.value
+            : this.firstMentionedAt,
+        lastMentionedAt: lastMentionedAt.present
+            ? lastMentionedAt.value
+            : this.lastMentionedAt,
+        fragmentCount: fragmentCount ?? this.fragmentCount,
+        mergedIntoId:
+            mergedIntoId.present ? mergedIntoId.value : this.mergedIntoId,
+        generatedByVersion: generatedByVersion.present
+            ? generatedByVersion.value
+            : this.generatedByVersion,
+        userCorrected: userCorrected ?? this.userCorrected,
+        schemaVersion: schemaVersion ?? this.schemaVersion,
+      );
+  MemoryEntity copyWithCompanion(MemoryEntitiesCompanion data) {
+    return MemoryEntity(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      category: data.category.present ? data.category.value : this.category,
+      status: data.status.present ? data.status.value : this.status,
+      aliases: data.aliases.present ? data.aliases.value : this.aliases,
+      overview: data.overview.present ? data.overview.value : this.overview,
+      relationshipToUser: data.relationshipToUser.present
+          ? data.relationshipToUser.value
+          : this.relationshipToUser,
+      firstMentionedAt: data.firstMentionedAt.present
+          ? data.firstMentionedAt.value
+          : this.firstMentionedAt,
+      lastMentionedAt: data.lastMentionedAt.present
+          ? data.lastMentionedAt.value
+          : this.lastMentionedAt,
+      fragmentCount: data.fragmentCount.present
+          ? data.fragmentCount.value
+          : this.fragmentCount,
+      mergedIntoId: data.mergedIntoId.present
+          ? data.mergedIntoId.value
+          : this.mergedIntoId,
+      generatedByVersion: data.generatedByVersion.present
+          ? data.generatedByVersion.value
+          : this.generatedByVersion,
+      userCorrected: data.userCorrected.present
+          ? data.userCorrected.value
+          : this.userCorrected,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryEntity(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('category: $category, ')
+          ..write('status: $status, ')
+          ..write('aliases: $aliases, ')
+          ..write('overview: $overview, ')
+          ..write('relationshipToUser: $relationshipToUser, ')
+          ..write('firstMentionedAt: $firstMentionedAt, ')
+          ..write('lastMentionedAt: $lastMentionedAt, ')
+          ..write('fragmentCount: $fragmentCount, ')
+          ..write('mergedIntoId: $mergedIntoId, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('schemaVersion: $schemaVersion')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      name,
+      category,
+      status,
+      aliases,
+      overview,
+      relationshipToUser,
+      firstMentionedAt,
+      lastMentionedAt,
+      fragmentCount,
+      mergedIntoId,
+      generatedByVersion,
+      userCorrected,
+      schemaVersion);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryEntity &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.category == this.category &&
+          other.status == this.status &&
+          other.aliases == this.aliases &&
+          other.overview == this.overview &&
+          other.relationshipToUser == this.relationshipToUser &&
+          other.firstMentionedAt == this.firstMentionedAt &&
+          other.lastMentionedAt == this.lastMentionedAt &&
+          other.fragmentCount == this.fragmentCount &&
+          other.mergedIntoId == this.mergedIntoId &&
+          other.generatedByVersion == this.generatedByVersion &&
+          other.userCorrected == this.userCorrected &&
+          other.schemaVersion == this.schemaVersion);
+}
+
+class MemoryEntitiesCompanion extends UpdateCompanion<MemoryEntity> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> category;
+  final Value<String> status;
+  final Value<String?> aliases;
+  final Value<String?> overview;
+  final Value<String?> relationshipToUser;
+  final Value<int?> firstMentionedAt;
+  final Value<int?> lastMentionedAt;
+  final Value<int> fragmentCount;
+  final Value<String?> mergedIntoId;
+  final Value<String?> generatedByVersion;
+  final Value<bool> userCorrected;
+  final Value<int> schemaVersion;
+  final Value<int> rowid;
+  const MemoryEntitiesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.category = const Value.absent(),
+    this.status = const Value.absent(),
+    this.aliases = const Value.absent(),
+    this.overview = const Value.absent(),
+    this.relationshipToUser = const Value.absent(),
+    this.firstMentionedAt = const Value.absent(),
+    this.lastMentionedAt = const Value.absent(),
+    this.fragmentCount = const Value.absent(),
+    this.mergedIntoId = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryEntitiesCompanion.insert({
+    required String id,
+    required String name,
+    required String category,
+    this.status = const Value.absent(),
+    this.aliases = const Value.absent(),
+    this.overview = const Value.absent(),
+    this.relationshipToUser = const Value.absent(),
+    this.firstMentionedAt = const Value.absent(),
+    this.lastMentionedAt = const Value.absent(),
+    this.fragmentCount = const Value.absent(),
+    this.mergedIntoId = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        category = Value(category);
+  static Insertable<MemoryEntity> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? category,
+    Expression<String>? status,
+    Expression<String>? aliases,
+    Expression<String>? overview,
+    Expression<String>? relationshipToUser,
+    Expression<int>? firstMentionedAt,
+    Expression<int>? lastMentionedAt,
+    Expression<int>? fragmentCount,
+    Expression<String>? mergedIntoId,
+    Expression<String>? generatedByVersion,
+    Expression<bool>? userCorrected,
+    Expression<int>? schemaVersion,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (category != null) 'category': category,
+      if (status != null) 'status': status,
+      if (aliases != null) 'aliases': aliases,
+      if (overview != null) 'overview': overview,
+      if (relationshipToUser != null)
+        'relationship_to_user': relationshipToUser,
+      if (firstMentionedAt != null) 'first_mentioned_at': firstMentionedAt,
+      if (lastMentionedAt != null) 'last_mentioned_at': lastMentionedAt,
+      if (fragmentCount != null) 'fragment_count': fragmentCount,
+      if (mergedIntoId != null) 'merged_into_id': mergedIntoId,
+      if (generatedByVersion != null)
+        'generated_by_version': generatedByVersion,
+      if (userCorrected != null) 'user_corrected': userCorrected,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryEntitiesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<String>? category,
+      Value<String>? status,
+      Value<String?>? aliases,
+      Value<String?>? overview,
+      Value<String?>? relationshipToUser,
+      Value<int?>? firstMentionedAt,
+      Value<int?>? lastMentionedAt,
+      Value<int>? fragmentCount,
+      Value<String?>? mergedIntoId,
+      Value<String?>? generatedByVersion,
+      Value<bool>? userCorrected,
+      Value<int>? schemaVersion,
+      Value<int>? rowid}) {
+    return MemoryEntitiesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      category: category ?? this.category,
+      status: status ?? this.status,
+      aliases: aliases ?? this.aliases,
+      overview: overview ?? this.overview,
+      relationshipToUser: relationshipToUser ?? this.relationshipToUser,
+      firstMentionedAt: firstMentionedAt ?? this.firstMentionedAt,
+      lastMentionedAt: lastMentionedAt ?? this.lastMentionedAt,
+      fragmentCount: fragmentCount ?? this.fragmentCount,
+      mergedIntoId: mergedIntoId ?? this.mergedIntoId,
+      generatedByVersion: generatedByVersion ?? this.generatedByVersion,
+      userCorrected: userCorrected ?? this.userCorrected,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (aliases.present) {
+      map['aliases'] = Variable<String>(aliases.value);
+    }
+    if (overview.present) {
+      map['overview'] = Variable<String>(overview.value);
+    }
+    if (relationshipToUser.present) {
+      map['relationship_to_user'] = Variable<String>(relationshipToUser.value);
+    }
+    if (firstMentionedAt.present) {
+      map['first_mentioned_at'] = Variable<int>(firstMentionedAt.value);
+    }
+    if (lastMentionedAt.present) {
+      map['last_mentioned_at'] = Variable<int>(lastMentionedAt.value);
+    }
+    if (fragmentCount.present) {
+      map['fragment_count'] = Variable<int>(fragmentCount.value);
+    }
+    if (mergedIntoId.present) {
+      map['merged_into_id'] = Variable<String>(mergedIntoId.value);
+    }
+    if (generatedByVersion.present) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion.value);
+    }
+    if (userCorrected.present) {
+      map['user_corrected'] = Variable<bool>(userCorrected.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryEntitiesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('category: $category, ')
+          ..write('status: $status, ')
+          ..write('aliases: $aliases, ')
+          ..write('overview: $overview, ')
+          ..write('relationshipToUser: $relationshipToUser, ')
+          ..write('firstMentionedAt: $firstMentionedAt, ')
+          ..write('lastMentionedAt: $lastMentionedAt, ')
+          ..write('fragmentCount: $fragmentCount, ')
+          ..write('mergedIntoId: $mergedIntoId, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryEntityLinksTable extends memory_v3.MemoryEntityLinks
+    with TableInfo<$MemoryEntityLinksTable, MemoryEntityLink> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryEntityLinksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceTableMeta =
+      const VerificationMeta('sourceTable');
+  @override
+  late final GeneratedColumn<String> sourceTable = GeneratedColumn<String>(
+      'source_table', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceIdMeta =
+      const VerificationMeta('sourceId');
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+      'source_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _entityIdMeta =
+      const VerificationMeta('entityId');
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+      'entity_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _relationMeta =
+      const VerificationMeta('relation');
+  @override
+  late final GeneratedColumn<String> relation = GeneratedColumn<String>(
+      'relation', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _confidenceMeta =
+      const VerificationMeta('confidence');
+  @override
+  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
+      'confidence', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1.0));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, sourceTable, sourceId, entityId, relation, confidence, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_entity_links';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemoryEntityLink> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('source_table')) {
+      context.handle(
+          _sourceTableMeta,
+          sourceTable.isAcceptableOrUnknown(
+              data['source_table']!, _sourceTableMeta));
+    } else if (isInserting) {
+      context.missing(_sourceTableMeta);
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(_sourceIdMeta,
+          sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta));
+    } else if (isInserting) {
+      context.missing(_sourceIdMeta);
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(_entityIdMeta,
+          entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta));
+    } else if (isInserting) {
+      context.missing(_entityIdMeta);
+    }
+    if (data.containsKey('relation')) {
+      context.handle(_relationMeta,
+          relation.isAcceptableOrUnknown(data['relation']!, _relationMeta));
+    } else if (isInserting) {
+      context.missing(_relationMeta);
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+          _confidenceMeta,
+          confidence.isAcceptableOrUnknown(
+              data['confidence']!, _confidenceMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemoryEntityLink map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryEntityLink(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      sourceTable: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_table'])!,
+      sourceId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_id'])!,
+      entityId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}entity_id'])!,
+      relation: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}relation'])!,
+      confidence: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}confidence'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $MemoryEntityLinksTable createAlias(String alias) {
+    return $MemoryEntityLinksTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryEntityLink extends DataClass
+    implements Insertable<MemoryEntityLink> {
+  final String id;
+  final String sourceTable;
+  final String sourceId;
+  final String entityId;
+  final String relation;
+  final double confidence;
+  final int createdAt;
+  const MemoryEntityLink(
+      {required this.id,
+      required this.sourceTable,
+      required this.sourceId,
+      required this.entityId,
+      required this.relation,
+      required this.confidence,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['source_table'] = Variable<String>(sourceTable);
+    map['source_id'] = Variable<String>(sourceId);
+    map['entity_id'] = Variable<String>(entityId);
+    map['relation'] = Variable<String>(relation);
+    map['confidence'] = Variable<double>(confidence);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  MemoryEntityLinksCompanion toCompanion(bool nullToAbsent) {
+    return MemoryEntityLinksCompanion(
+      id: Value(id),
+      sourceTable: Value(sourceTable),
+      sourceId: Value(sourceId),
+      entityId: Value(entityId),
+      relation: Value(relation),
+      confidence: Value(confidence),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory MemoryEntityLink.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryEntityLink(
+      id: serializer.fromJson<String>(json['id']),
+      sourceTable: serializer.fromJson<String>(json['sourceTable']),
+      sourceId: serializer.fromJson<String>(json['sourceId']),
+      entityId: serializer.fromJson<String>(json['entityId']),
+      relation: serializer.fromJson<String>(json['relation']),
+      confidence: serializer.fromJson<double>(json['confidence']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'sourceTable': serializer.toJson<String>(sourceTable),
+      'sourceId': serializer.toJson<String>(sourceId),
+      'entityId': serializer.toJson<String>(entityId),
+      'relation': serializer.toJson<String>(relation),
+      'confidence': serializer.toJson<double>(confidence),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  MemoryEntityLink copyWith(
+          {String? id,
+          String? sourceTable,
+          String? sourceId,
+          String? entityId,
+          String? relation,
+          double? confidence,
+          int? createdAt}) =>
+      MemoryEntityLink(
+        id: id ?? this.id,
+        sourceTable: sourceTable ?? this.sourceTable,
+        sourceId: sourceId ?? this.sourceId,
+        entityId: entityId ?? this.entityId,
+        relation: relation ?? this.relation,
+        confidence: confidence ?? this.confidence,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  MemoryEntityLink copyWithCompanion(MemoryEntityLinksCompanion data) {
+    return MemoryEntityLink(
+      id: data.id.present ? data.id.value : this.id,
+      sourceTable:
+          data.sourceTable.present ? data.sourceTable.value : this.sourceTable,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      relation: data.relation.present ? data.relation.value : this.relation,
+      confidence:
+          data.confidence.present ? data.confidence.value : this.confidence,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryEntityLink(')
+          ..write('id: $id, ')
+          ..write('sourceTable: $sourceTable, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('entityId: $entityId, ')
+          ..write('relation: $relation, ')
+          ..write('confidence: $confidence, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, sourceTable, sourceId, entityId, relation, confidence, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryEntityLink &&
+          other.id == this.id &&
+          other.sourceTable == this.sourceTable &&
+          other.sourceId == this.sourceId &&
+          other.entityId == this.entityId &&
+          other.relation == this.relation &&
+          other.confidence == this.confidence &&
+          other.createdAt == this.createdAt);
+}
+
+class MemoryEntityLinksCompanion extends UpdateCompanion<MemoryEntityLink> {
+  final Value<String> id;
+  final Value<String> sourceTable;
+  final Value<String> sourceId;
+  final Value<String> entityId;
+  final Value<String> relation;
+  final Value<double> confidence;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const MemoryEntityLinksCompanion({
+    this.id = const Value.absent(),
+    this.sourceTable = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.relation = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryEntityLinksCompanion.insert({
+    required String id,
+    required String sourceTable,
+    required String sourceId,
+    required String entityId,
+    required String relation,
+    this.confidence = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        sourceTable = Value(sourceTable),
+        sourceId = Value(sourceId),
+        entityId = Value(entityId),
+        relation = Value(relation),
+        createdAt = Value(createdAt);
+  static Insertable<MemoryEntityLink> custom({
+    Expression<String>? id,
+    Expression<String>? sourceTable,
+    Expression<String>? sourceId,
+    Expression<String>? entityId,
+    Expression<String>? relation,
+    Expression<double>? confidence,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sourceTable != null) 'source_table': sourceTable,
+      if (sourceId != null) 'source_id': sourceId,
+      if (entityId != null) 'entity_id': entityId,
+      if (relation != null) 'relation': relation,
+      if (confidence != null) 'confidence': confidence,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryEntityLinksCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? sourceTable,
+      Value<String>? sourceId,
+      Value<String>? entityId,
+      Value<String>? relation,
+      Value<double>? confidence,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return MemoryEntityLinksCompanion(
+      id: id ?? this.id,
+      sourceTable: sourceTable ?? this.sourceTable,
+      sourceId: sourceId ?? this.sourceId,
+      entityId: entityId ?? this.entityId,
+      relation: relation ?? this.relation,
+      confidence: confidence ?? this.confidence,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (sourceTable.present) {
+      map['source_table'] = Variable<String>(sourceTable.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (relation.present) {
+      map['relation'] = Variable<String>(relation.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<double>(confidence.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryEntityLinksCompanion(')
+          ..write('id: $id, ')
+          ..write('sourceTable: $sourceTable, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('entityId: $entityId, ')
+          ..write('relation: $relation, ')
+          ..write('confidence: $confidence, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryEpisodesTable extends memory_v3.MemoryEpisodes
+    with TableInfo<$MemoryEpisodesTable, MemoryEpisode> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryEpisodesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _primaryEntityIdMeta =
+      const VerificationMeta('primaryEntityId');
+  @override
+  late final GeneratedColumn<String> primaryEntityId = GeneratedColumn<String>(
+      'primary_entity_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _narrativeMeta =
+      const VerificationMeta('narrative');
+  @override
+  late final GeneratedColumn<String> narrative = GeneratedColumn<String>(
+      'narrative', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceFragmentIdsMeta =
+      const VerificationMeta('sourceFragmentIds');
+  @override
+  late final GeneratedColumn<String> sourceFragmentIds =
+      GeneratedColumn<String>('source_fragment_ids', aliasedName, false,
+          type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _significanceMeta =
+      const VerificationMeta('significance');
+  @override
+  late final GeneratedColumn<int> significance = GeneratedColumn<int>(
+      'significance', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _confidenceMeta =
+      const VerificationMeta('confidence');
+  @override
+  late final GeneratedColumn<String> confidence = GeneratedColumn<String>(
+      'confidence', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _valenceMeta =
+      const VerificationMeta('valence');
+  @override
+  late final GeneratedColumn<double> valence = GeneratedColumn<double>(
+      'valence', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _arousalMeta =
+      const VerificationMeta('arousal');
+  @override
+  late final GeneratedColumn<double> arousal = GeneratedColumn<double>(
+      'arousal', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _occurredAtRangeMeta =
+      const VerificationMeta('occurredAtRange');
+  @override
+  late final GeneratedColumn<String> occurredAtRange = GeneratedColumn<String>(
+      'occurred_at_range', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _generatedByVersionMeta =
+      const VerificationMeta('generatedByVersion');
+  @override
+  late final GeneratedColumn<String> generatedByVersion =
+      GeneratedColumn<String>('generated_by_version', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _userCorrectedMeta =
+      const VerificationMeta('userCorrected');
+  @override
+  late final GeneratedColumn<bool> userCorrected = GeneratedColumn<bool>(
+      'user_corrected', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("user_corrected" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _schemaVersionMeta =
+      const VerificationMeta('schemaVersion');
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+      'schema_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        primaryEntityId,
+        narrative,
+        sourceFragmentIds,
+        significance,
+        confidence,
+        valence,
+        arousal,
+        occurredAtRange,
+        status,
+        generatedByVersion,
+        userCorrected,
+        schemaVersion,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_episodes';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemoryEpisode> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('primary_entity_id')) {
+      context.handle(
+          _primaryEntityIdMeta,
+          primaryEntityId.isAcceptableOrUnknown(
+              data['primary_entity_id']!, _primaryEntityIdMeta));
+    } else if (isInserting) {
+      context.missing(_primaryEntityIdMeta);
+    }
+    if (data.containsKey('narrative')) {
+      context.handle(_narrativeMeta,
+          narrative.isAcceptableOrUnknown(data['narrative']!, _narrativeMeta));
+    } else if (isInserting) {
+      context.missing(_narrativeMeta);
+    }
+    if (data.containsKey('source_fragment_ids')) {
+      context.handle(
+          _sourceFragmentIdsMeta,
+          sourceFragmentIds.isAcceptableOrUnknown(
+              data['source_fragment_ids']!, _sourceFragmentIdsMeta));
+    } else if (isInserting) {
+      context.missing(_sourceFragmentIdsMeta);
+    }
+    if (data.containsKey('significance')) {
+      context.handle(
+          _significanceMeta,
+          significance.isAcceptableOrUnknown(
+              data['significance']!, _significanceMeta));
+    } else if (isInserting) {
+      context.missing(_significanceMeta);
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+          _confidenceMeta,
+          confidence.isAcceptableOrUnknown(
+              data['confidence']!, _confidenceMeta));
+    } else if (isInserting) {
+      context.missing(_confidenceMeta);
+    }
+    if (data.containsKey('valence')) {
+      context.handle(_valenceMeta,
+          valence.isAcceptableOrUnknown(data['valence']!, _valenceMeta));
+    } else if (isInserting) {
+      context.missing(_valenceMeta);
+    }
+    if (data.containsKey('arousal')) {
+      context.handle(_arousalMeta,
+          arousal.isAcceptableOrUnknown(data['arousal']!, _arousalMeta));
+    } else if (isInserting) {
+      context.missing(_arousalMeta);
+    }
+    if (data.containsKey('occurred_at_range')) {
+      context.handle(
+          _occurredAtRangeMeta,
+          occurredAtRange.isAcceptableOrUnknown(
+              data['occurred_at_range']!, _occurredAtRangeMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('generated_by_version')) {
+      context.handle(
+          _generatedByVersionMeta,
+          generatedByVersion.isAcceptableOrUnknown(
+              data['generated_by_version']!, _generatedByVersionMeta));
+    }
+    if (data.containsKey('user_corrected')) {
+      context.handle(
+          _userCorrectedMeta,
+          userCorrected.isAcceptableOrUnknown(
+              data['user_corrected']!, _userCorrectedMeta));
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+          _schemaVersionMeta,
+          schemaVersion.isAcceptableOrUnknown(
+              data['schema_version']!, _schemaVersionMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemoryEpisode map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryEpisode(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      primaryEntityId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}primary_entity_id'])!,
+      narrative: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}narrative'])!,
+      sourceFragmentIds: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_fragment_ids'])!,
+      significance: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}significance'])!,
+      confidence: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}confidence'])!,
+      valence: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}valence'])!,
+      arousal: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}arousal'])!,
+      occurredAtRange: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}occurred_at_range']),
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      generatedByVersion: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}generated_by_version']),
+      userCorrected: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}user_corrected'])!,
+      schemaVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $MemoryEpisodesTable createAlias(String alias) {
+    return $MemoryEpisodesTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
+  final String id;
+  final String primaryEntityId;
+  final String narrative;
+  final String sourceFragmentIds;
+  final int significance;
+  final String confidence;
+  final double valence;
+  final double arousal;
+  final String? occurredAtRange;
+  final String status;
+  final String? generatedByVersion;
+  final bool userCorrected;
+  final int schemaVersion;
+  final int createdAt;
+  final int updatedAt;
+  const MemoryEpisode(
+      {required this.id,
+      required this.primaryEntityId,
+      required this.narrative,
+      required this.sourceFragmentIds,
+      required this.significance,
+      required this.confidence,
+      required this.valence,
+      required this.arousal,
+      this.occurredAtRange,
+      required this.status,
+      this.generatedByVersion,
+      required this.userCorrected,
+      required this.schemaVersion,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['primary_entity_id'] = Variable<String>(primaryEntityId);
+    map['narrative'] = Variable<String>(narrative);
+    map['source_fragment_ids'] = Variable<String>(sourceFragmentIds);
+    map['significance'] = Variable<int>(significance);
+    map['confidence'] = Variable<String>(confidence);
+    map['valence'] = Variable<double>(valence);
+    map['arousal'] = Variable<double>(arousal);
+    if (!nullToAbsent || occurredAtRange != null) {
+      map['occurred_at_range'] = Variable<String>(occurredAtRange);
+    }
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || generatedByVersion != null) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion);
+    }
+    map['user_corrected'] = Variable<bool>(userCorrected);
+    map['schema_version'] = Variable<int>(schemaVersion);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  MemoryEpisodesCompanion toCompanion(bool nullToAbsent) {
+    return MemoryEpisodesCompanion(
+      id: Value(id),
+      primaryEntityId: Value(primaryEntityId),
+      narrative: Value(narrative),
+      sourceFragmentIds: Value(sourceFragmentIds),
+      significance: Value(significance),
+      confidence: Value(confidence),
+      valence: Value(valence),
+      arousal: Value(arousal),
+      occurredAtRange: occurredAtRange == null && nullToAbsent
+          ? const Value.absent()
+          : Value(occurredAtRange),
+      status: Value(status),
+      generatedByVersion: generatedByVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(generatedByVersion),
+      userCorrected: Value(userCorrected),
+      schemaVersion: Value(schemaVersion),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory MemoryEpisode.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryEpisode(
+      id: serializer.fromJson<String>(json['id']),
+      primaryEntityId: serializer.fromJson<String>(json['primaryEntityId']),
+      narrative: serializer.fromJson<String>(json['narrative']),
+      sourceFragmentIds: serializer.fromJson<String>(json['sourceFragmentIds']),
+      significance: serializer.fromJson<int>(json['significance']),
+      confidence: serializer.fromJson<String>(json['confidence']),
+      valence: serializer.fromJson<double>(json['valence']),
+      arousal: serializer.fromJson<double>(json['arousal']),
+      occurredAtRange: serializer.fromJson<String?>(json['occurredAtRange']),
+      status: serializer.fromJson<String>(json['status']),
+      generatedByVersion:
+          serializer.fromJson<String?>(json['generatedByVersion']),
+      userCorrected: serializer.fromJson<bool>(json['userCorrected']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'primaryEntityId': serializer.toJson<String>(primaryEntityId),
+      'narrative': serializer.toJson<String>(narrative),
+      'sourceFragmentIds': serializer.toJson<String>(sourceFragmentIds),
+      'significance': serializer.toJson<int>(significance),
+      'confidence': serializer.toJson<String>(confidence),
+      'valence': serializer.toJson<double>(valence),
+      'arousal': serializer.toJson<double>(arousal),
+      'occurredAtRange': serializer.toJson<String?>(occurredAtRange),
+      'status': serializer.toJson<String>(status),
+      'generatedByVersion': serializer.toJson<String?>(generatedByVersion),
+      'userCorrected': serializer.toJson<bool>(userCorrected),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  MemoryEpisode copyWith(
+          {String? id,
+          String? primaryEntityId,
+          String? narrative,
+          String? sourceFragmentIds,
+          int? significance,
+          String? confidence,
+          double? valence,
+          double? arousal,
+          Value<String?> occurredAtRange = const Value.absent(),
+          String? status,
+          Value<String?> generatedByVersion = const Value.absent(),
+          bool? userCorrected,
+          int? schemaVersion,
+          int? createdAt,
+          int? updatedAt}) =>
+      MemoryEpisode(
+        id: id ?? this.id,
+        primaryEntityId: primaryEntityId ?? this.primaryEntityId,
+        narrative: narrative ?? this.narrative,
+        sourceFragmentIds: sourceFragmentIds ?? this.sourceFragmentIds,
+        significance: significance ?? this.significance,
+        confidence: confidence ?? this.confidence,
+        valence: valence ?? this.valence,
+        arousal: arousal ?? this.arousal,
+        occurredAtRange: occurredAtRange.present
+            ? occurredAtRange.value
+            : this.occurredAtRange,
+        status: status ?? this.status,
+        generatedByVersion: generatedByVersion.present
+            ? generatedByVersion.value
+            : this.generatedByVersion,
+        userCorrected: userCorrected ?? this.userCorrected,
+        schemaVersion: schemaVersion ?? this.schemaVersion,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  MemoryEpisode copyWithCompanion(MemoryEpisodesCompanion data) {
+    return MemoryEpisode(
+      id: data.id.present ? data.id.value : this.id,
+      primaryEntityId: data.primaryEntityId.present
+          ? data.primaryEntityId.value
+          : this.primaryEntityId,
+      narrative: data.narrative.present ? data.narrative.value : this.narrative,
+      sourceFragmentIds: data.sourceFragmentIds.present
+          ? data.sourceFragmentIds.value
+          : this.sourceFragmentIds,
+      significance: data.significance.present
+          ? data.significance.value
+          : this.significance,
+      confidence:
+          data.confidence.present ? data.confidence.value : this.confidence,
+      valence: data.valence.present ? data.valence.value : this.valence,
+      arousal: data.arousal.present ? data.arousal.value : this.arousal,
+      occurredAtRange: data.occurredAtRange.present
+          ? data.occurredAtRange.value
+          : this.occurredAtRange,
+      status: data.status.present ? data.status.value : this.status,
+      generatedByVersion: data.generatedByVersion.present
+          ? data.generatedByVersion.value
+          : this.generatedByVersion,
+      userCorrected: data.userCorrected.present
+          ? data.userCorrected.value
+          : this.userCorrected,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryEpisode(')
+          ..write('id: $id, ')
+          ..write('primaryEntityId: $primaryEntityId, ')
+          ..write('narrative: $narrative, ')
+          ..write('sourceFragmentIds: $sourceFragmentIds, ')
+          ..write('significance: $significance, ')
+          ..write('confidence: $confidence, ')
+          ..write('valence: $valence, ')
+          ..write('arousal: $arousal, ')
+          ..write('occurredAtRange: $occurredAtRange, ')
+          ..write('status: $status, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      primaryEntityId,
+      narrative,
+      sourceFragmentIds,
+      significance,
+      confidence,
+      valence,
+      arousal,
+      occurredAtRange,
+      status,
+      generatedByVersion,
+      userCorrected,
+      schemaVersion,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryEpisode &&
+          other.id == this.id &&
+          other.primaryEntityId == this.primaryEntityId &&
+          other.narrative == this.narrative &&
+          other.sourceFragmentIds == this.sourceFragmentIds &&
+          other.significance == this.significance &&
+          other.confidence == this.confidence &&
+          other.valence == this.valence &&
+          other.arousal == this.arousal &&
+          other.occurredAtRange == this.occurredAtRange &&
+          other.status == this.status &&
+          other.generatedByVersion == this.generatedByVersion &&
+          other.userCorrected == this.userCorrected &&
+          other.schemaVersion == this.schemaVersion &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class MemoryEpisodesCompanion extends UpdateCompanion<MemoryEpisode> {
+  final Value<String> id;
+  final Value<String> primaryEntityId;
+  final Value<String> narrative;
+  final Value<String> sourceFragmentIds;
+  final Value<int> significance;
+  final Value<String> confidence;
+  final Value<double> valence;
+  final Value<double> arousal;
+  final Value<String?> occurredAtRange;
+  final Value<String> status;
+  final Value<String?> generatedByVersion;
+  final Value<bool> userCorrected;
+  final Value<int> schemaVersion;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const MemoryEpisodesCompanion({
+    this.id = const Value.absent(),
+    this.primaryEntityId = const Value.absent(),
+    this.narrative = const Value.absent(),
+    this.sourceFragmentIds = const Value.absent(),
+    this.significance = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.valence = const Value.absent(),
+    this.arousal = const Value.absent(),
+    this.occurredAtRange = const Value.absent(),
+    this.status = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryEpisodesCompanion.insert({
+    required String id,
+    required String primaryEntityId,
+    required String narrative,
+    required String sourceFragmentIds,
+    required int significance,
+    required String confidence,
+    required double valence,
+    required double arousal,
+    this.occurredAtRange = const Value.absent(),
+    this.status = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        primaryEntityId = Value(primaryEntityId),
+        narrative = Value(narrative),
+        sourceFragmentIds = Value(sourceFragmentIds),
+        significance = Value(significance),
+        confidence = Value(confidence),
+        valence = Value(valence),
+        arousal = Value(arousal),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<MemoryEpisode> custom({
+    Expression<String>? id,
+    Expression<String>? primaryEntityId,
+    Expression<String>? narrative,
+    Expression<String>? sourceFragmentIds,
+    Expression<int>? significance,
+    Expression<String>? confidence,
+    Expression<double>? valence,
+    Expression<double>? arousal,
+    Expression<String>? occurredAtRange,
+    Expression<String>? status,
+    Expression<String>? generatedByVersion,
+    Expression<bool>? userCorrected,
+    Expression<int>? schemaVersion,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (primaryEntityId != null) 'primary_entity_id': primaryEntityId,
+      if (narrative != null) 'narrative': narrative,
+      if (sourceFragmentIds != null) 'source_fragment_ids': sourceFragmentIds,
+      if (significance != null) 'significance': significance,
+      if (confidence != null) 'confidence': confidence,
+      if (valence != null) 'valence': valence,
+      if (arousal != null) 'arousal': arousal,
+      if (occurredAtRange != null) 'occurred_at_range': occurredAtRange,
+      if (status != null) 'status': status,
+      if (generatedByVersion != null)
+        'generated_by_version': generatedByVersion,
+      if (userCorrected != null) 'user_corrected': userCorrected,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryEpisodesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? primaryEntityId,
+      Value<String>? narrative,
+      Value<String>? sourceFragmentIds,
+      Value<int>? significance,
+      Value<String>? confidence,
+      Value<double>? valence,
+      Value<double>? arousal,
+      Value<String?>? occurredAtRange,
+      Value<String>? status,
+      Value<String?>? generatedByVersion,
+      Value<bool>? userCorrected,
+      Value<int>? schemaVersion,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return MemoryEpisodesCompanion(
+      id: id ?? this.id,
+      primaryEntityId: primaryEntityId ?? this.primaryEntityId,
+      narrative: narrative ?? this.narrative,
+      sourceFragmentIds: sourceFragmentIds ?? this.sourceFragmentIds,
+      significance: significance ?? this.significance,
+      confidence: confidence ?? this.confidence,
+      valence: valence ?? this.valence,
+      arousal: arousal ?? this.arousal,
+      occurredAtRange: occurredAtRange ?? this.occurredAtRange,
+      status: status ?? this.status,
+      generatedByVersion: generatedByVersion ?? this.generatedByVersion,
+      userCorrected: userCorrected ?? this.userCorrected,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (primaryEntityId.present) {
+      map['primary_entity_id'] = Variable<String>(primaryEntityId.value);
+    }
+    if (narrative.present) {
+      map['narrative'] = Variable<String>(narrative.value);
+    }
+    if (sourceFragmentIds.present) {
+      map['source_fragment_ids'] = Variable<String>(sourceFragmentIds.value);
+    }
+    if (significance.present) {
+      map['significance'] = Variable<int>(significance.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<String>(confidence.value);
+    }
+    if (valence.present) {
+      map['valence'] = Variable<double>(valence.value);
+    }
+    if (arousal.present) {
+      map['arousal'] = Variable<double>(arousal.value);
+    }
+    if (occurredAtRange.present) {
+      map['occurred_at_range'] = Variable<String>(occurredAtRange.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (generatedByVersion.present) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion.value);
+    }
+    if (userCorrected.present) {
+      map['user_corrected'] = Variable<bool>(userCorrected.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryEpisodesCompanion(')
+          ..write('id: $id, ')
+          ..write('primaryEntityId: $primaryEntityId, ')
+          ..write('narrative: $narrative, ')
+          ..write('sourceFragmentIds: $sourceFragmentIds, ')
+          ..write('significance: $significance, ')
+          ..write('confidence: $confidence, ')
+          ..write('valence: $valence, ')
+          ..write('arousal: $arousal, ')
+          ..write('occurredAtRange: $occurredAtRange, ')
+          ..write('status: $status, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemorySagasTable extends memory_v3.MemorySagas
+    with TableInfo<$MemorySagasTable, MemorySaga> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemorySagasTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _descriptionMeta =
+      const VerificationMeta('description');
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+      'description', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _episodeIdsMeta =
+      const VerificationMeta('episodeIds');
+  @override
+  late final GeneratedColumn<String> episodeIds = GeneratedColumn<String>(
+      'episode_ids', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _emotionalAxisMeta =
+      const VerificationMeta('emotionalAxis');
+  @override
+  late final GeneratedColumn<String> emotionalAxis = GeneratedColumn<String>(
+      'emotional_axis', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _generatedByVersionMeta =
+      const VerificationMeta('generatedByVersion');
+  @override
+  late final GeneratedColumn<String> generatedByVersion =
+      GeneratedColumn<String>('generated_by_version', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _userCorrectedMeta =
+      const VerificationMeta('userCorrected');
+  @override
+  late final GeneratedColumn<bool> userCorrected = GeneratedColumn<bool>(
+      'user_corrected', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("user_corrected" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _schemaVersionMeta =
+      const VerificationMeta('schemaVersion');
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+      'schema_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        title,
+        description,
+        episodeIds,
+        emotionalAxis,
+        status,
+        generatedByVersion,
+        userCorrected,
+        schemaVersion,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_sagas';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemorySaga> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+          _descriptionMeta,
+          description.isAcceptableOrUnknown(
+              data['description']!, _descriptionMeta));
+    } else if (isInserting) {
+      context.missing(_descriptionMeta);
+    }
+    if (data.containsKey('episode_ids')) {
+      context.handle(
+          _episodeIdsMeta,
+          episodeIds.isAcceptableOrUnknown(
+              data['episode_ids']!, _episodeIdsMeta));
+    } else if (isInserting) {
+      context.missing(_episodeIdsMeta);
+    }
+    if (data.containsKey('emotional_axis')) {
+      context.handle(
+          _emotionalAxisMeta,
+          emotionalAxis.isAcceptableOrUnknown(
+              data['emotional_axis']!, _emotionalAxisMeta));
+    } else if (isInserting) {
+      context.missing(_emotionalAxisMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('generated_by_version')) {
+      context.handle(
+          _generatedByVersionMeta,
+          generatedByVersion.isAcceptableOrUnknown(
+              data['generated_by_version']!, _generatedByVersionMeta));
+    }
+    if (data.containsKey('user_corrected')) {
+      context.handle(
+          _userCorrectedMeta,
+          userCorrected.isAcceptableOrUnknown(
+              data['user_corrected']!, _userCorrectedMeta));
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+          _schemaVersionMeta,
+          schemaVersion.isAcceptableOrUnknown(
+              data['schema_version']!, _schemaVersionMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemorySaga map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemorySaga(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      description: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+      episodeIds: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}episode_ids'])!,
+      emotionalAxis: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}emotional_axis'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      generatedByVersion: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}generated_by_version']),
+      userCorrected: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}user_corrected'])!,
+      schemaVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $MemorySagasTable createAlias(String alias) {
+    return $MemorySagasTable(attachedDatabase, alias);
+  }
+}
+
+class MemorySaga extends DataClass implements Insertable<MemorySaga> {
+  final String id;
+  final String title;
+  final String description;
+  final String episodeIds;
+
+  /// JSON {valence, arousal, connection}
+  final String emotionalAxis;
+  final String status;
+  final String? generatedByVersion;
+  final bool userCorrected;
+  final int schemaVersion;
+  final int createdAt;
+  final int updatedAt;
+  const MemorySaga(
+      {required this.id,
+      required this.title,
+      required this.description,
+      required this.episodeIds,
+      required this.emotionalAxis,
+      required this.status,
+      this.generatedByVersion,
+      required this.userCorrected,
+      required this.schemaVersion,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    map['description'] = Variable<String>(description);
+    map['episode_ids'] = Variable<String>(episodeIds);
+    map['emotional_axis'] = Variable<String>(emotionalAxis);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || generatedByVersion != null) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion);
+    }
+    map['user_corrected'] = Variable<bool>(userCorrected);
+    map['schema_version'] = Variable<int>(schemaVersion);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  MemorySagasCompanion toCompanion(bool nullToAbsent) {
+    return MemorySagasCompanion(
+      id: Value(id),
+      title: Value(title),
+      description: Value(description),
+      episodeIds: Value(episodeIds),
+      emotionalAxis: Value(emotionalAxis),
+      status: Value(status),
+      generatedByVersion: generatedByVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(generatedByVersion),
+      userCorrected: Value(userCorrected),
+      schemaVersion: Value(schemaVersion),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory MemorySaga.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemorySaga(
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      description: serializer.fromJson<String>(json['description']),
+      episodeIds: serializer.fromJson<String>(json['episodeIds']),
+      emotionalAxis: serializer.fromJson<String>(json['emotionalAxis']),
+      status: serializer.fromJson<String>(json['status']),
+      generatedByVersion:
+          serializer.fromJson<String?>(json['generatedByVersion']),
+      userCorrected: serializer.fromJson<bool>(json['userCorrected']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'description': serializer.toJson<String>(description),
+      'episodeIds': serializer.toJson<String>(episodeIds),
+      'emotionalAxis': serializer.toJson<String>(emotionalAxis),
+      'status': serializer.toJson<String>(status),
+      'generatedByVersion': serializer.toJson<String?>(generatedByVersion),
+      'userCorrected': serializer.toJson<bool>(userCorrected),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  MemorySaga copyWith(
+          {String? id,
+          String? title,
+          String? description,
+          String? episodeIds,
+          String? emotionalAxis,
+          String? status,
+          Value<String?> generatedByVersion = const Value.absent(),
+          bool? userCorrected,
+          int? schemaVersion,
+          int? createdAt,
+          int? updatedAt}) =>
+      MemorySaga(
+        id: id ?? this.id,
+        title: title ?? this.title,
+        description: description ?? this.description,
+        episodeIds: episodeIds ?? this.episodeIds,
+        emotionalAxis: emotionalAxis ?? this.emotionalAxis,
+        status: status ?? this.status,
+        generatedByVersion: generatedByVersion.present
+            ? generatedByVersion.value
+            : this.generatedByVersion,
+        userCorrected: userCorrected ?? this.userCorrected,
+        schemaVersion: schemaVersion ?? this.schemaVersion,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  MemorySaga copyWithCompanion(MemorySagasCompanion data) {
+    return MemorySaga(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      description:
+          data.description.present ? data.description.value : this.description,
+      episodeIds:
+          data.episodeIds.present ? data.episodeIds.value : this.episodeIds,
+      emotionalAxis: data.emotionalAxis.present
+          ? data.emotionalAxis.value
+          : this.emotionalAxis,
+      status: data.status.present ? data.status.value : this.status,
+      generatedByVersion: data.generatedByVersion.present
+          ? data.generatedByVersion.value
+          : this.generatedByVersion,
+      userCorrected: data.userCorrected.present
+          ? data.userCorrected.value
+          : this.userCorrected,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemorySaga(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('episodeIds: $episodeIds, ')
+          ..write('emotionalAxis: $emotionalAxis, ')
+          ..write('status: $status, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      title,
+      description,
+      episodeIds,
+      emotionalAxis,
+      status,
+      generatedByVersion,
+      userCorrected,
+      schemaVersion,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemorySaga &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.description == this.description &&
+          other.episodeIds == this.episodeIds &&
+          other.emotionalAxis == this.emotionalAxis &&
+          other.status == this.status &&
+          other.generatedByVersion == this.generatedByVersion &&
+          other.userCorrected == this.userCorrected &&
+          other.schemaVersion == this.schemaVersion &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class MemorySagasCompanion extends UpdateCompanion<MemorySaga> {
+  final Value<String> id;
+  final Value<String> title;
+  final Value<String> description;
+  final Value<String> episodeIds;
+  final Value<String> emotionalAxis;
+  final Value<String> status;
+  final Value<String?> generatedByVersion;
+  final Value<bool> userCorrected;
+  final Value<int> schemaVersion;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const MemorySagasCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.episodeIds = const Value.absent(),
+    this.emotionalAxis = const Value.absent(),
+    this.status = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemorySagasCompanion.insert({
+    required String id,
+    required String title,
+    required String description,
+    required String episodeIds,
+    required String emotionalAxis,
+    this.status = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        title = Value(title),
+        description = Value(description),
+        episodeIds = Value(episodeIds),
+        emotionalAxis = Value(emotionalAxis),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<MemorySaga> custom({
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<String>? episodeIds,
+    Expression<String>? emotionalAxis,
+    Expression<String>? status,
+    Expression<String>? generatedByVersion,
+    Expression<bool>? userCorrected,
+    Expression<int>? schemaVersion,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (episodeIds != null) 'episode_ids': episodeIds,
+      if (emotionalAxis != null) 'emotional_axis': emotionalAxis,
+      if (status != null) 'status': status,
+      if (generatedByVersion != null)
+        'generated_by_version': generatedByVersion,
+      if (userCorrected != null) 'user_corrected': userCorrected,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemorySagasCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? title,
+      Value<String>? description,
+      Value<String>? episodeIds,
+      Value<String>? emotionalAxis,
+      Value<String>? status,
+      Value<String?>? generatedByVersion,
+      Value<bool>? userCorrected,
+      Value<int>? schemaVersion,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return MemorySagasCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      episodeIds: episodeIds ?? this.episodeIds,
+      emotionalAxis: emotionalAxis ?? this.emotionalAxis,
+      status: status ?? this.status,
+      generatedByVersion: generatedByVersion ?? this.generatedByVersion,
+      userCorrected: userCorrected ?? this.userCorrected,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (episodeIds.present) {
+      map['episode_ids'] = Variable<String>(episodeIds.value);
+    }
+    if (emotionalAxis.present) {
+      map['emotional_axis'] = Variable<String>(emotionalAxis.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (generatedByVersion.present) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion.value);
+    }
+    if (userCorrected.present) {
+      map['user_corrected'] = Variable<bool>(userCorrected.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemorySagasCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('episodeIds: $episodeIds, ')
+          ..write('emotionalAxis: $emotionalAxis, ')
+          ..write('status: $status, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemorySagaSnapshotsTable extends memory_v3.MemorySagaSnapshots
+    with TableInfo<$MemorySagaSnapshotsTable, MemorySagaSnapshot> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemorySagaSnapshotsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sagaIdMeta = const VerificationMeta('sagaId');
+  @override
+  late final GeneratedColumn<String> sagaId = GeneratedColumn<String>(
+      'saga_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _descriptionMeta =
+      const VerificationMeta('description');
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+      'description', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _episodeIdsMeta =
+      const VerificationMeta('episodeIds');
+  @override
+  late final GeneratedColumn<String> episodeIds = GeneratedColumn<String>(
+      'episode_ids', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _emotionalAxisMeta =
+      const VerificationMeta('emotionalAxis');
+  @override
+  late final GeneratedColumn<String> emotionalAxis = GeneratedColumn<String>(
+      'emotional_axis', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _generatedByVersionMeta =
+      const VerificationMeta('generatedByVersion');
+  @override
+  late final GeneratedColumn<String> generatedByVersion =
+      GeneratedColumn<String>('generated_by_version', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _snapshotAtMeta =
+      const VerificationMeta('snapshotAt');
+  @override
+  late final GeneratedColumn<int> snapshotAt = GeneratedColumn<int>(
+      'snapshot_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        sagaId,
+        title,
+        description,
+        episodeIds,
+        emotionalAxis,
+        generatedByVersion,
+        snapshotAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_saga_snapshots';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemorySagaSnapshot> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('saga_id')) {
+      context.handle(_sagaIdMeta,
+          sagaId.isAcceptableOrUnknown(data['saga_id']!, _sagaIdMeta));
+    } else if (isInserting) {
+      context.missing(_sagaIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+          _descriptionMeta,
+          description.isAcceptableOrUnknown(
+              data['description']!, _descriptionMeta));
+    } else if (isInserting) {
+      context.missing(_descriptionMeta);
+    }
+    if (data.containsKey('episode_ids')) {
+      context.handle(
+          _episodeIdsMeta,
+          episodeIds.isAcceptableOrUnknown(
+              data['episode_ids']!, _episodeIdsMeta));
+    } else if (isInserting) {
+      context.missing(_episodeIdsMeta);
+    }
+    if (data.containsKey('emotional_axis')) {
+      context.handle(
+          _emotionalAxisMeta,
+          emotionalAxis.isAcceptableOrUnknown(
+              data['emotional_axis']!, _emotionalAxisMeta));
+    } else if (isInserting) {
+      context.missing(_emotionalAxisMeta);
+    }
+    if (data.containsKey('generated_by_version')) {
+      context.handle(
+          _generatedByVersionMeta,
+          generatedByVersion.isAcceptableOrUnknown(
+              data['generated_by_version']!, _generatedByVersionMeta));
+    }
+    if (data.containsKey('snapshot_at')) {
+      context.handle(
+          _snapshotAtMeta,
+          snapshotAt.isAcceptableOrUnknown(
+              data['snapshot_at']!, _snapshotAtMeta));
+    } else if (isInserting) {
+      context.missing(_snapshotAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemorySagaSnapshot map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemorySagaSnapshot(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      sagaId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}saga_id'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      description: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+      episodeIds: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}episode_ids'])!,
+      emotionalAxis: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}emotional_axis'])!,
+      generatedByVersion: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}generated_by_version']),
+      snapshotAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}snapshot_at'])!,
+    );
+  }
+
+  @override
+  $MemorySagaSnapshotsTable createAlias(String alias) {
+    return $MemorySagaSnapshotsTable(attachedDatabase, alias);
+  }
+}
+
+class MemorySagaSnapshot extends DataClass
+    implements Insertable<MemorySagaSnapshot> {
+  final String id;
+  final String sagaId;
+  final String title;
+  final String description;
+  final String episodeIds;
+  final String emotionalAxis;
+  final String? generatedByVersion;
+  final int snapshotAt;
+  const MemorySagaSnapshot(
+      {required this.id,
+      required this.sagaId,
+      required this.title,
+      required this.description,
+      required this.episodeIds,
+      required this.emotionalAxis,
+      this.generatedByVersion,
+      required this.snapshotAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['saga_id'] = Variable<String>(sagaId);
+    map['title'] = Variable<String>(title);
+    map['description'] = Variable<String>(description);
+    map['episode_ids'] = Variable<String>(episodeIds);
+    map['emotional_axis'] = Variable<String>(emotionalAxis);
+    if (!nullToAbsent || generatedByVersion != null) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion);
+    }
+    map['snapshot_at'] = Variable<int>(snapshotAt);
+    return map;
+  }
+
+  MemorySagaSnapshotsCompanion toCompanion(bool nullToAbsent) {
+    return MemorySagaSnapshotsCompanion(
+      id: Value(id),
+      sagaId: Value(sagaId),
+      title: Value(title),
+      description: Value(description),
+      episodeIds: Value(episodeIds),
+      emotionalAxis: Value(emotionalAxis),
+      generatedByVersion: generatedByVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(generatedByVersion),
+      snapshotAt: Value(snapshotAt),
+    );
+  }
+
+  factory MemorySagaSnapshot.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemorySagaSnapshot(
+      id: serializer.fromJson<String>(json['id']),
+      sagaId: serializer.fromJson<String>(json['sagaId']),
+      title: serializer.fromJson<String>(json['title']),
+      description: serializer.fromJson<String>(json['description']),
+      episodeIds: serializer.fromJson<String>(json['episodeIds']),
+      emotionalAxis: serializer.fromJson<String>(json['emotionalAxis']),
+      generatedByVersion:
+          serializer.fromJson<String?>(json['generatedByVersion']),
+      snapshotAt: serializer.fromJson<int>(json['snapshotAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'sagaId': serializer.toJson<String>(sagaId),
+      'title': serializer.toJson<String>(title),
+      'description': serializer.toJson<String>(description),
+      'episodeIds': serializer.toJson<String>(episodeIds),
+      'emotionalAxis': serializer.toJson<String>(emotionalAxis),
+      'generatedByVersion': serializer.toJson<String?>(generatedByVersion),
+      'snapshotAt': serializer.toJson<int>(snapshotAt),
+    };
+  }
+
+  MemorySagaSnapshot copyWith(
+          {String? id,
+          String? sagaId,
+          String? title,
+          String? description,
+          String? episodeIds,
+          String? emotionalAxis,
+          Value<String?> generatedByVersion = const Value.absent(),
+          int? snapshotAt}) =>
+      MemorySagaSnapshot(
+        id: id ?? this.id,
+        sagaId: sagaId ?? this.sagaId,
+        title: title ?? this.title,
+        description: description ?? this.description,
+        episodeIds: episodeIds ?? this.episodeIds,
+        emotionalAxis: emotionalAxis ?? this.emotionalAxis,
+        generatedByVersion: generatedByVersion.present
+            ? generatedByVersion.value
+            : this.generatedByVersion,
+        snapshotAt: snapshotAt ?? this.snapshotAt,
+      );
+  MemorySagaSnapshot copyWithCompanion(MemorySagaSnapshotsCompanion data) {
+    return MemorySagaSnapshot(
+      id: data.id.present ? data.id.value : this.id,
+      sagaId: data.sagaId.present ? data.sagaId.value : this.sagaId,
+      title: data.title.present ? data.title.value : this.title,
+      description:
+          data.description.present ? data.description.value : this.description,
+      episodeIds:
+          data.episodeIds.present ? data.episodeIds.value : this.episodeIds,
+      emotionalAxis: data.emotionalAxis.present
+          ? data.emotionalAxis.value
+          : this.emotionalAxis,
+      generatedByVersion: data.generatedByVersion.present
+          ? data.generatedByVersion.value
+          : this.generatedByVersion,
+      snapshotAt:
+          data.snapshotAt.present ? data.snapshotAt.value : this.snapshotAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemorySagaSnapshot(')
+          ..write('id: $id, ')
+          ..write('sagaId: $sagaId, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('episodeIds: $episodeIds, ')
+          ..write('emotionalAxis: $emotionalAxis, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('snapshotAt: $snapshotAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, sagaId, title, description, episodeIds,
+      emotionalAxis, generatedByVersion, snapshotAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemorySagaSnapshot &&
+          other.id == this.id &&
+          other.sagaId == this.sagaId &&
+          other.title == this.title &&
+          other.description == this.description &&
+          other.episodeIds == this.episodeIds &&
+          other.emotionalAxis == this.emotionalAxis &&
+          other.generatedByVersion == this.generatedByVersion &&
+          other.snapshotAt == this.snapshotAt);
+}
+
+class MemorySagaSnapshotsCompanion extends UpdateCompanion<MemorySagaSnapshot> {
+  final Value<String> id;
+  final Value<String> sagaId;
+  final Value<String> title;
+  final Value<String> description;
+  final Value<String> episodeIds;
+  final Value<String> emotionalAxis;
+  final Value<String?> generatedByVersion;
+  final Value<int> snapshotAt;
+  final Value<int> rowid;
+  const MemorySagaSnapshotsCompanion({
+    this.id = const Value.absent(),
+    this.sagaId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.episodeIds = const Value.absent(),
+    this.emotionalAxis = const Value.absent(),
+    this.generatedByVersion = const Value.absent(),
+    this.snapshotAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemorySagaSnapshotsCompanion.insert({
+    required String id,
+    required String sagaId,
+    required String title,
+    required String description,
+    required String episodeIds,
+    required String emotionalAxis,
+    this.generatedByVersion = const Value.absent(),
+    required int snapshotAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        sagaId = Value(sagaId),
+        title = Value(title),
+        description = Value(description),
+        episodeIds = Value(episodeIds),
+        emotionalAxis = Value(emotionalAxis),
+        snapshotAt = Value(snapshotAt);
+  static Insertable<MemorySagaSnapshot> custom({
+    Expression<String>? id,
+    Expression<String>? sagaId,
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<String>? episodeIds,
+    Expression<String>? emotionalAxis,
+    Expression<String>? generatedByVersion,
+    Expression<int>? snapshotAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sagaId != null) 'saga_id': sagaId,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (episodeIds != null) 'episode_ids': episodeIds,
+      if (emotionalAxis != null) 'emotional_axis': emotionalAxis,
+      if (generatedByVersion != null)
+        'generated_by_version': generatedByVersion,
+      if (snapshotAt != null) 'snapshot_at': snapshotAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemorySagaSnapshotsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? sagaId,
+      Value<String>? title,
+      Value<String>? description,
+      Value<String>? episodeIds,
+      Value<String>? emotionalAxis,
+      Value<String?>? generatedByVersion,
+      Value<int>? snapshotAt,
+      Value<int>? rowid}) {
+    return MemorySagaSnapshotsCompanion(
+      id: id ?? this.id,
+      sagaId: sagaId ?? this.sagaId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      episodeIds: episodeIds ?? this.episodeIds,
+      emotionalAxis: emotionalAxis ?? this.emotionalAxis,
+      generatedByVersion: generatedByVersion ?? this.generatedByVersion,
+      snapshotAt: snapshotAt ?? this.snapshotAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (sagaId.present) {
+      map['saga_id'] = Variable<String>(sagaId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (episodeIds.present) {
+      map['episode_ids'] = Variable<String>(episodeIds.value);
+    }
+    if (emotionalAxis.present) {
+      map['emotional_axis'] = Variable<String>(emotionalAxis.value);
+    }
+    if (generatedByVersion.present) {
+      map['generated_by_version'] = Variable<String>(generatedByVersion.value);
+    }
+    if (snapshotAt.present) {
+      map['snapshot_at'] = Variable<int>(snapshotAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemorySagaSnapshotsCompanion(')
+          ..write('id: $id, ')
+          ..write('sagaId: $sagaId, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('episodeIds: $episodeIds, ')
+          ..write('emotionalAxis: $emotionalAxis, ')
+          ..write('generatedByVersion: $generatedByVersion, ')
+          ..write('snapshotAt: $snapshotAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AssetsTable extends memory_v3.Assets
+    with TableInfo<$AssetsTable, Asset> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _assetTypeMeta =
+      const VerificationMeta('assetType');
+  @override
+  late final GeneratedColumn<String> assetType = GeneratedColumn<String>(
+      'asset_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _storagePathMeta =
+      const VerificationMeta('storagePath');
+  @override
+  late final GeneratedColumn<String> storagePath = GeneratedColumn<String>(
+      'storage_path', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _urlMeta = const VerificationMeta('url');
+  @override
+  late final GeneratedColumn<String> url = GeneratedColumn<String>(
+      'url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _mimeTypeMeta =
+      const VerificationMeta('mimeType');
+  @override
+  late final GeneratedColumn<String> mimeType = GeneratedColumn<String>(
+      'mime_type', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _originatorRefMeta =
+      const VerificationMeta('originatorRef');
+  @override
+  late final GeneratedColumn<String> originatorRef = GeneratedColumn<String>(
+      'originator_ref', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _schemaVersionMeta =
+      const VerificationMeta('schemaVersion');
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+      'schema_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _deletedAtMeta =
+      const VerificationMeta('deletedAt');
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+      'deleted_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        assetType,
+        storagePath,
+        url,
+        mimeType,
+        originatorRef,
+        schemaVersion,
+        createdAt,
+        deletedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assets';
+  @override
+  VerificationContext validateIntegrity(Insertable<Asset> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('asset_type')) {
+      context.handle(_assetTypeMeta,
+          assetType.isAcceptableOrUnknown(data['asset_type']!, _assetTypeMeta));
+    } else if (isInserting) {
+      context.missing(_assetTypeMeta);
+    }
+    if (data.containsKey('storage_path')) {
+      context.handle(
+          _storagePathMeta,
+          storagePath.isAcceptableOrUnknown(
+              data['storage_path']!, _storagePathMeta));
+    }
+    if (data.containsKey('url')) {
+      context.handle(
+          _urlMeta, url.isAcceptableOrUnknown(data['url']!, _urlMeta));
+    }
+    if (data.containsKey('mime_type')) {
+      context.handle(_mimeTypeMeta,
+          mimeType.isAcceptableOrUnknown(data['mime_type']!, _mimeTypeMeta));
+    }
+    if (data.containsKey('originator_ref')) {
+      context.handle(
+          _originatorRefMeta,
+          originatorRef.isAcceptableOrUnknown(
+              data['originator_ref']!, _originatorRefMeta));
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+          _schemaVersionMeta,
+          schemaVersion.isAcceptableOrUnknown(
+              data['schema_version']!, _schemaVersionMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(_deletedAtMeta,
+          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Asset map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Asset(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      assetType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}asset_type'])!,
+      storagePath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}storage_path']),
+      url: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}url']),
+      mimeType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}mime_type']),
+      originatorRef: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}originator_ref']),
+      schemaVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      deletedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}deleted_at']),
+    );
+  }
+
+  @override
+  $AssetsTable createAlias(String alias) {
+    return $AssetsTable(attachedDatabase, alias);
+  }
+}
+
+class Asset extends DataClass implements Insertable<Asset> {
+  final String id;
+  final String assetType;
+  final String? storagePath;
+  final String? url;
+  final String? mimeType;
+  final String? originatorRef;
+  final int schemaVersion;
+  final int createdAt;
+  final int? deletedAt;
+  const Asset(
+      {required this.id,
+      required this.assetType,
+      this.storagePath,
+      this.url,
+      this.mimeType,
+      this.originatorRef,
+      required this.schemaVersion,
+      required this.createdAt,
+      this.deletedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['asset_type'] = Variable<String>(assetType);
+    if (!nullToAbsent || storagePath != null) {
+      map['storage_path'] = Variable<String>(storagePath);
+    }
+    if (!nullToAbsent || url != null) {
+      map['url'] = Variable<String>(url);
+    }
+    if (!nullToAbsent || mimeType != null) {
+      map['mime_type'] = Variable<String>(mimeType);
+    }
+    if (!nullToAbsent || originatorRef != null) {
+      map['originator_ref'] = Variable<String>(originatorRef);
+    }
+    map['schema_version'] = Variable<int>(schemaVersion);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  AssetsCompanion toCompanion(bool nullToAbsent) {
+    return AssetsCompanion(
+      id: Value(id),
+      assetType: Value(assetType),
+      storagePath: storagePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(storagePath),
+      url: url == null && nullToAbsent ? const Value.absent() : Value(url),
+      mimeType: mimeType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mimeType),
+      originatorRef: originatorRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originatorRef),
+      schemaVersion: Value(schemaVersion),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory Asset.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Asset(
+      id: serializer.fromJson<String>(json['id']),
+      assetType: serializer.fromJson<String>(json['assetType']),
+      storagePath: serializer.fromJson<String?>(json['storagePath']),
+      url: serializer.fromJson<String?>(json['url']),
+      mimeType: serializer.fromJson<String?>(json['mimeType']),
+      originatorRef: serializer.fromJson<String?>(json['originatorRef']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'assetType': serializer.toJson<String>(assetType),
+      'storagePath': serializer.toJson<String?>(storagePath),
+      'url': serializer.toJson<String?>(url),
+      'mimeType': serializer.toJson<String?>(mimeType),
+      'originatorRef': serializer.toJson<String?>(originatorRef),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  Asset copyWith(
+          {String? id,
+          String? assetType,
+          Value<String?> storagePath = const Value.absent(),
+          Value<String?> url = const Value.absent(),
+          Value<String?> mimeType = const Value.absent(),
+          Value<String?> originatorRef = const Value.absent(),
+          int? schemaVersion,
+          int? createdAt,
+          Value<int?> deletedAt = const Value.absent()}) =>
+      Asset(
+        id: id ?? this.id,
+        assetType: assetType ?? this.assetType,
+        storagePath: storagePath.present ? storagePath.value : this.storagePath,
+        url: url.present ? url.value : this.url,
+        mimeType: mimeType.present ? mimeType.value : this.mimeType,
+        originatorRef:
+            originatorRef.present ? originatorRef.value : this.originatorRef,
+        schemaVersion: schemaVersion ?? this.schemaVersion,
+        createdAt: createdAt ?? this.createdAt,
+        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+      );
+  Asset copyWithCompanion(AssetsCompanion data) {
+    return Asset(
+      id: data.id.present ? data.id.value : this.id,
+      assetType: data.assetType.present ? data.assetType.value : this.assetType,
+      storagePath:
+          data.storagePath.present ? data.storagePath.value : this.storagePath,
+      url: data.url.present ? data.url.value : this.url,
+      mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
+      originatorRef: data.originatorRef.present
+          ? data.originatorRef.value
+          : this.originatorRef,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Asset(')
+          ..write('id: $id, ')
+          ..write('assetType: $assetType, ')
+          ..write('storagePath: $storagePath, ')
+          ..write('url: $url, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('originatorRef: $originatorRef, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, assetType, storagePath, url, mimeType,
+      originatorRef, schemaVersion, createdAt, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Asset &&
+          other.id == this.id &&
+          other.assetType == this.assetType &&
+          other.storagePath == this.storagePath &&
+          other.url == this.url &&
+          other.mimeType == this.mimeType &&
+          other.originatorRef == this.originatorRef &&
+          other.schemaVersion == this.schemaVersion &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class AssetsCompanion extends UpdateCompanion<Asset> {
+  final Value<String> id;
+  final Value<String> assetType;
+  final Value<String?> storagePath;
+  final Value<String?> url;
+  final Value<String?> mimeType;
+  final Value<String?> originatorRef;
+  final Value<int> schemaVersion;
+  final Value<int> createdAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const AssetsCompanion({
+    this.id = const Value.absent(),
+    this.assetType = const Value.absent(),
+    this.storagePath = const Value.absent(),
+    this.url = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.originatorRef = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssetsCompanion.insert({
+    required String id,
+    required String assetType,
+    this.storagePath = const Value.absent(),
+    this.url = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.originatorRef = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    required int createdAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        assetType = Value(assetType),
+        createdAt = Value(createdAt);
+  static Insertable<Asset> custom({
+    Expression<String>? id,
+    Expression<String>? assetType,
+    Expression<String>? storagePath,
+    Expression<String>? url,
+    Expression<String>? mimeType,
+    Expression<String>? originatorRef,
+    Expression<int>? schemaVersion,
+    Expression<int>? createdAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (assetType != null) 'asset_type': assetType,
+      if (storagePath != null) 'storage_path': storagePath,
+      if (url != null) 'url': url,
+      if (mimeType != null) 'mime_type': mimeType,
+      if (originatorRef != null) 'originator_ref': originatorRef,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssetsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? assetType,
+      Value<String?>? storagePath,
+      Value<String?>? url,
+      Value<String?>? mimeType,
+      Value<String?>? originatorRef,
+      Value<int>? schemaVersion,
+      Value<int>? createdAt,
+      Value<int?>? deletedAt,
+      Value<int>? rowid}) {
+    return AssetsCompanion(
+      id: id ?? this.id,
+      assetType: assetType ?? this.assetType,
+      storagePath: storagePath ?? this.storagePath,
+      url: url ?? this.url,
+      mimeType: mimeType ?? this.mimeType,
+      originatorRef: originatorRef ?? this.originatorRef,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (assetType.present) {
+      map['asset_type'] = Variable<String>(assetType.value);
+    }
+    if (storagePath.present) {
+      map['storage_path'] = Variable<String>(storagePath.value);
+    }
+    if (url.present) {
+      map['url'] = Variable<String>(url.value);
+    }
+    if (mimeType.present) {
+      map['mime_type'] = Variable<String>(mimeType.value);
+    }
+    if (originatorRef.present) {
+      map['originator_ref'] = Variable<String>(originatorRef.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssetsCompanion(')
+          ..write('id: $id, ')
+          ..write('assetType: $assetType, ')
+          ..write('storagePath: $storagePath, ')
+          ..write('url: $url, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('originatorRef: $originatorRef, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AssetAnalysisTable extends memory_v3.AssetAnalysis
+    with TableInfo<$AssetAnalysisTable, AssetAnalysi> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssetAnalysisTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _assetIdMeta =
+      const VerificationMeta('assetId');
+  @override
+  late final GeneratedColumn<String> assetId = GeneratedColumn<String>(
+      'asset_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _analysisTypeMeta =
+      const VerificationMeta('analysisType');
+  @override
+  late final GeneratedColumn<String> analysisType = GeneratedColumn<String>(
+      'analysis_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _modelProviderMeta =
+      const VerificationMeta('modelProvider');
+  @override
+  late final GeneratedColumn<String> modelProvider = GeneratedColumn<String>(
+      'model_provider', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _modelNameMeta =
+      const VerificationMeta('modelName');
+  @override
+  late final GeneratedColumn<String> modelName = GeneratedColumn<String>(
+      'model_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _userCorrectedMeta =
+      const VerificationMeta('userCorrected');
+  @override
+  late final GeneratedColumn<bool> userCorrected = GeneratedColumn<bool>(
+      'user_corrected', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("user_corrected" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        assetId,
+        analysisType,
+        content,
+        modelProvider,
+        modelName,
+        userCorrected,
+        createdAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'asset_analysis';
+  @override
+  VerificationContext validateIntegrity(Insertable<AssetAnalysi> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('asset_id')) {
+      context.handle(_assetIdMeta,
+          assetId.isAcceptableOrUnknown(data['asset_id']!, _assetIdMeta));
+    } else if (isInserting) {
+      context.missing(_assetIdMeta);
+    }
+    if (data.containsKey('analysis_type')) {
+      context.handle(
+          _analysisTypeMeta,
+          analysisType.isAcceptableOrUnknown(
+              data['analysis_type']!, _analysisTypeMeta));
+    } else if (isInserting) {
+      context.missing(_analysisTypeMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('model_provider')) {
+      context.handle(
+          _modelProviderMeta,
+          modelProvider.isAcceptableOrUnknown(
+              data['model_provider']!, _modelProviderMeta));
+    }
+    if (data.containsKey('model_name')) {
+      context.handle(_modelNameMeta,
+          modelName.isAcceptableOrUnknown(data['model_name']!, _modelNameMeta));
+    }
+    if (data.containsKey('user_corrected')) {
+      context.handle(
+          _userCorrectedMeta,
+          userCorrected.isAcceptableOrUnknown(
+              data['user_corrected']!, _userCorrectedMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssetAnalysi map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssetAnalysi(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      assetId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}asset_id'])!,
+      analysisType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}analysis_type'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      modelProvider: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}model_provider']),
+      modelName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}model_name']),
+      userCorrected: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}user_corrected'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $AssetAnalysisTable createAlias(String alias) {
+    return $AssetAnalysisTable(attachedDatabase, alias);
+  }
+}
+
+class AssetAnalysi extends DataClass implements Insertable<AssetAnalysi> {
+  final String id;
+  final String assetId;
+  final String analysisType;
+  final String content;
+  final String? modelProvider;
+  final String? modelName;
+  final bool userCorrected;
+  final int createdAt;
+  const AssetAnalysi(
+      {required this.id,
+      required this.assetId,
+      required this.analysisType,
+      required this.content,
+      this.modelProvider,
+      this.modelName,
+      required this.userCorrected,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['asset_id'] = Variable<String>(assetId);
+    map['analysis_type'] = Variable<String>(analysisType);
+    map['content'] = Variable<String>(content);
+    if (!nullToAbsent || modelProvider != null) {
+      map['model_provider'] = Variable<String>(modelProvider);
+    }
+    if (!nullToAbsent || modelName != null) {
+      map['model_name'] = Variable<String>(modelName);
+    }
+    map['user_corrected'] = Variable<bool>(userCorrected);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  AssetAnalysisCompanion toCompanion(bool nullToAbsent) {
+    return AssetAnalysisCompanion(
+      id: Value(id),
+      assetId: Value(assetId),
+      analysisType: Value(analysisType),
+      content: Value(content),
+      modelProvider: modelProvider == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modelProvider),
+      modelName: modelName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modelName),
+      userCorrected: Value(userCorrected),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory AssetAnalysi.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssetAnalysi(
+      id: serializer.fromJson<String>(json['id']),
+      assetId: serializer.fromJson<String>(json['assetId']),
+      analysisType: serializer.fromJson<String>(json['analysisType']),
+      content: serializer.fromJson<String>(json['content']),
+      modelProvider: serializer.fromJson<String?>(json['modelProvider']),
+      modelName: serializer.fromJson<String?>(json['modelName']),
+      userCorrected: serializer.fromJson<bool>(json['userCorrected']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'assetId': serializer.toJson<String>(assetId),
+      'analysisType': serializer.toJson<String>(analysisType),
+      'content': serializer.toJson<String>(content),
+      'modelProvider': serializer.toJson<String?>(modelProvider),
+      'modelName': serializer.toJson<String?>(modelName),
+      'userCorrected': serializer.toJson<bool>(userCorrected),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  AssetAnalysi copyWith(
+          {String? id,
+          String? assetId,
+          String? analysisType,
+          String? content,
+          Value<String?> modelProvider = const Value.absent(),
+          Value<String?> modelName = const Value.absent(),
+          bool? userCorrected,
+          int? createdAt}) =>
+      AssetAnalysi(
+        id: id ?? this.id,
+        assetId: assetId ?? this.assetId,
+        analysisType: analysisType ?? this.analysisType,
+        content: content ?? this.content,
+        modelProvider:
+            modelProvider.present ? modelProvider.value : this.modelProvider,
+        modelName: modelName.present ? modelName.value : this.modelName,
+        userCorrected: userCorrected ?? this.userCorrected,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  AssetAnalysi copyWithCompanion(AssetAnalysisCompanion data) {
+    return AssetAnalysi(
+      id: data.id.present ? data.id.value : this.id,
+      assetId: data.assetId.present ? data.assetId.value : this.assetId,
+      analysisType: data.analysisType.present
+          ? data.analysisType.value
+          : this.analysisType,
+      content: data.content.present ? data.content.value : this.content,
+      modelProvider: data.modelProvider.present
+          ? data.modelProvider.value
+          : this.modelProvider,
+      modelName: data.modelName.present ? data.modelName.value : this.modelName,
+      userCorrected: data.userCorrected.present
+          ? data.userCorrected.value
+          : this.userCorrected,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssetAnalysi(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('analysisType: $analysisType, ')
+          ..write('content: $content, ')
+          ..write('modelProvider: $modelProvider, ')
+          ..write('modelName: $modelName, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, assetId, analysisType, content,
+      modelProvider, modelName, userCorrected, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssetAnalysi &&
+          other.id == this.id &&
+          other.assetId == this.assetId &&
+          other.analysisType == this.analysisType &&
+          other.content == this.content &&
+          other.modelProvider == this.modelProvider &&
+          other.modelName == this.modelName &&
+          other.userCorrected == this.userCorrected &&
+          other.createdAt == this.createdAt);
+}
+
+class AssetAnalysisCompanion extends UpdateCompanion<AssetAnalysi> {
+  final Value<String> id;
+  final Value<String> assetId;
+  final Value<String> analysisType;
+  final Value<String> content;
+  final Value<String?> modelProvider;
+  final Value<String?> modelName;
+  final Value<bool> userCorrected;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const AssetAnalysisCompanion({
+    this.id = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.analysisType = const Value.absent(),
+    this.content = const Value.absent(),
+    this.modelProvider = const Value.absent(),
+    this.modelName = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssetAnalysisCompanion.insert({
+    required String id,
+    required String assetId,
+    required String analysisType,
+    required String content,
+    this.modelProvider = const Value.absent(),
+    this.modelName = const Value.absent(),
+    this.userCorrected = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        assetId = Value(assetId),
+        analysisType = Value(analysisType),
+        content = Value(content),
+        createdAt = Value(createdAt);
+  static Insertable<AssetAnalysi> custom({
+    Expression<String>? id,
+    Expression<String>? assetId,
+    Expression<String>? analysisType,
+    Expression<String>? content,
+    Expression<String>? modelProvider,
+    Expression<String>? modelName,
+    Expression<bool>? userCorrected,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (assetId != null) 'asset_id': assetId,
+      if (analysisType != null) 'analysis_type': analysisType,
+      if (content != null) 'content': content,
+      if (modelProvider != null) 'model_provider': modelProvider,
+      if (modelName != null) 'model_name': modelName,
+      if (userCorrected != null) 'user_corrected': userCorrected,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssetAnalysisCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? assetId,
+      Value<String>? analysisType,
+      Value<String>? content,
+      Value<String?>? modelProvider,
+      Value<String?>? modelName,
+      Value<bool>? userCorrected,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return AssetAnalysisCompanion(
+      id: id ?? this.id,
+      assetId: assetId ?? this.assetId,
+      analysisType: analysisType ?? this.analysisType,
+      content: content ?? this.content,
+      modelProvider: modelProvider ?? this.modelProvider,
+      modelName: modelName ?? this.modelName,
+      userCorrected: userCorrected ?? this.userCorrected,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (assetId.present) {
+      map['asset_id'] = Variable<String>(assetId.value);
+    }
+    if (analysisType.present) {
+      map['analysis_type'] = Variable<String>(analysisType.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (modelProvider.present) {
+      map['model_provider'] = Variable<String>(modelProvider.value);
+    }
+    if (modelName.present) {
+      map['model_name'] = Variable<String>(modelName.value);
+    }
+    if (userCorrected.present) {
+      map['user_corrected'] = Variable<bool>(userCorrected.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssetAnalysisCompanion(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('analysisType: $analysisType, ')
+          ..write('content: $content, ')
+          ..write('modelProvider: $modelProvider, ')
+          ..write('modelName: $modelName, ')
+          ..write('userCorrected: $userCorrected, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $UserCorrectionsTable extends memory_v3.UserCorrections
+    with TableInfo<$UserCorrectionsTable, UserCorrection> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UserCorrectionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _targetTableMeta =
+      const VerificationMeta('targetTable');
+  @override
+  late final GeneratedColumn<String> targetTable = GeneratedColumn<String>(
+      'target_table', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _targetIdMeta =
+      const VerificationMeta('targetId');
+  @override
+  late final GeneratedColumn<String> targetId = GeneratedColumn<String>(
+      'target_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _fieldMeta = const VerificationMeta('field');
+  @override
+  late final GeneratedColumn<String> field = GeneratedColumn<String>(
+      'field', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _oldValueMeta =
+      const VerificationMeta('oldValue');
+  @override
+  late final GeneratedColumn<String> oldValue = GeneratedColumn<String>(
+      'old_value', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _newValueMeta =
+      const VerificationMeta('newValue');
+  @override
+  late final GeneratedColumn<String> newValue = GeneratedColumn<String>(
+      'new_value', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _correctionTypeMeta =
+      const VerificationMeta('correctionType');
+  @override
+  late final GeneratedColumn<String> correctionType = GeneratedColumn<String>(
+      'correction_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        targetTable,
+        targetId,
+        field,
+        oldValue,
+        newValue,
+        correctionType,
+        createdAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'user_corrections';
+  @override
+  VerificationContext validateIntegrity(Insertable<UserCorrection> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('target_table')) {
+      context.handle(
+          _targetTableMeta,
+          targetTable.isAcceptableOrUnknown(
+              data['target_table']!, _targetTableMeta));
+    } else if (isInserting) {
+      context.missing(_targetTableMeta);
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(_targetIdMeta,
+          targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta));
+    } else if (isInserting) {
+      context.missing(_targetIdMeta);
+    }
+    if (data.containsKey('field')) {
+      context.handle(
+          _fieldMeta, field.isAcceptableOrUnknown(data['field']!, _fieldMeta));
+    } else if (isInserting) {
+      context.missing(_fieldMeta);
+    }
+    if (data.containsKey('old_value')) {
+      context.handle(_oldValueMeta,
+          oldValue.isAcceptableOrUnknown(data['old_value']!, _oldValueMeta));
+    }
+    if (data.containsKey('new_value')) {
+      context.handle(_newValueMeta,
+          newValue.isAcceptableOrUnknown(data['new_value']!, _newValueMeta));
+    } else if (isInserting) {
+      context.missing(_newValueMeta);
+    }
+    if (data.containsKey('correction_type')) {
+      context.handle(
+          _correctionTypeMeta,
+          correctionType.isAcceptableOrUnknown(
+              data['correction_type']!, _correctionTypeMeta));
+    } else if (isInserting) {
+      context.missing(_correctionTypeMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  UserCorrection map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UserCorrection(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      targetTable: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}target_table'])!,
+      targetId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}target_id'])!,
+      field: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}field'])!,
+      oldValue: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}old_value']),
+      newValue: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}new_value'])!,
+      correctionType: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}correction_type'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $UserCorrectionsTable createAlias(String alias) {
+    return $UserCorrectionsTable(attachedDatabase, alias);
+  }
+}
+
+class UserCorrection extends DataClass implements Insertable<UserCorrection> {
+  final String id;
+  final String targetTable;
+  final String targetId;
+  final String field;
+  final String? oldValue;
+  final String newValue;
+  final String correctionType;
+  final int createdAt;
+  const UserCorrection(
+      {required this.id,
+      required this.targetTable,
+      required this.targetId,
+      required this.field,
+      this.oldValue,
+      required this.newValue,
+      required this.correctionType,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['target_table'] = Variable<String>(targetTable);
+    map['target_id'] = Variable<String>(targetId);
+    map['field'] = Variable<String>(field);
+    if (!nullToAbsent || oldValue != null) {
+      map['old_value'] = Variable<String>(oldValue);
+    }
+    map['new_value'] = Variable<String>(newValue);
+    map['correction_type'] = Variable<String>(correctionType);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  UserCorrectionsCompanion toCompanion(bool nullToAbsent) {
+    return UserCorrectionsCompanion(
+      id: Value(id),
+      targetTable: Value(targetTable),
+      targetId: Value(targetId),
+      field: Value(field),
+      oldValue: oldValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(oldValue),
+      newValue: Value(newValue),
+      correctionType: Value(correctionType),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory UserCorrection.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UserCorrection(
+      id: serializer.fromJson<String>(json['id']),
+      targetTable: serializer.fromJson<String>(json['targetTable']),
+      targetId: serializer.fromJson<String>(json['targetId']),
+      field: serializer.fromJson<String>(json['field']),
+      oldValue: serializer.fromJson<String?>(json['oldValue']),
+      newValue: serializer.fromJson<String>(json['newValue']),
+      correctionType: serializer.fromJson<String>(json['correctionType']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'targetTable': serializer.toJson<String>(targetTable),
+      'targetId': serializer.toJson<String>(targetId),
+      'field': serializer.toJson<String>(field),
+      'oldValue': serializer.toJson<String?>(oldValue),
+      'newValue': serializer.toJson<String>(newValue),
+      'correctionType': serializer.toJson<String>(correctionType),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  UserCorrection copyWith(
+          {String? id,
+          String? targetTable,
+          String? targetId,
+          String? field,
+          Value<String?> oldValue = const Value.absent(),
+          String? newValue,
+          String? correctionType,
+          int? createdAt}) =>
+      UserCorrection(
+        id: id ?? this.id,
+        targetTable: targetTable ?? this.targetTable,
+        targetId: targetId ?? this.targetId,
+        field: field ?? this.field,
+        oldValue: oldValue.present ? oldValue.value : this.oldValue,
+        newValue: newValue ?? this.newValue,
+        correctionType: correctionType ?? this.correctionType,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  UserCorrection copyWithCompanion(UserCorrectionsCompanion data) {
+    return UserCorrection(
+      id: data.id.present ? data.id.value : this.id,
+      targetTable:
+          data.targetTable.present ? data.targetTable.value : this.targetTable,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+      field: data.field.present ? data.field.value : this.field,
+      oldValue: data.oldValue.present ? data.oldValue.value : this.oldValue,
+      newValue: data.newValue.present ? data.newValue.value : this.newValue,
+      correctionType: data.correctionType.present
+          ? data.correctionType.value
+          : this.correctionType,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserCorrection(')
+          ..write('id: $id, ')
+          ..write('targetTable: $targetTable, ')
+          ..write('targetId: $targetId, ')
+          ..write('field: $field, ')
+          ..write('oldValue: $oldValue, ')
+          ..write('newValue: $newValue, ')
+          ..write('correctionType: $correctionType, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, targetTable, targetId, field, oldValue,
+      newValue, correctionType, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UserCorrection &&
+          other.id == this.id &&
+          other.targetTable == this.targetTable &&
+          other.targetId == this.targetId &&
+          other.field == this.field &&
+          other.oldValue == this.oldValue &&
+          other.newValue == this.newValue &&
+          other.correctionType == this.correctionType &&
+          other.createdAt == this.createdAt);
+}
+
+class UserCorrectionsCompanion extends UpdateCompanion<UserCorrection> {
+  final Value<String> id;
+  final Value<String> targetTable;
+  final Value<String> targetId;
+  final Value<String> field;
+  final Value<String?> oldValue;
+  final Value<String> newValue;
+  final Value<String> correctionType;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const UserCorrectionsCompanion({
+    this.id = const Value.absent(),
+    this.targetTable = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.field = const Value.absent(),
+    this.oldValue = const Value.absent(),
+    this.newValue = const Value.absent(),
+    this.correctionType = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  UserCorrectionsCompanion.insert({
+    required String id,
+    required String targetTable,
+    required String targetId,
+    required String field,
+    this.oldValue = const Value.absent(),
+    required String newValue,
+    required String correctionType,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        targetTable = Value(targetTable),
+        targetId = Value(targetId),
+        field = Value(field),
+        newValue = Value(newValue),
+        correctionType = Value(correctionType),
+        createdAt = Value(createdAt);
+  static Insertable<UserCorrection> custom({
+    Expression<String>? id,
+    Expression<String>? targetTable,
+    Expression<String>? targetId,
+    Expression<String>? field,
+    Expression<String>? oldValue,
+    Expression<String>? newValue,
+    Expression<String>? correctionType,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (targetTable != null) 'target_table': targetTable,
+      if (targetId != null) 'target_id': targetId,
+      if (field != null) 'field': field,
+      if (oldValue != null) 'old_value': oldValue,
+      if (newValue != null) 'new_value': newValue,
+      if (correctionType != null) 'correction_type': correctionType,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  UserCorrectionsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? targetTable,
+      Value<String>? targetId,
+      Value<String>? field,
+      Value<String?>? oldValue,
+      Value<String>? newValue,
+      Value<String>? correctionType,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return UserCorrectionsCompanion(
+      id: id ?? this.id,
+      targetTable: targetTable ?? this.targetTable,
+      targetId: targetId ?? this.targetId,
+      field: field ?? this.field,
+      oldValue: oldValue ?? this.oldValue,
+      newValue: newValue ?? this.newValue,
+      correctionType: correctionType ?? this.correctionType,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (targetTable.present) {
+      map['target_table'] = Variable<String>(targetTable.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<String>(targetId.value);
+    }
+    if (field.present) {
+      map['field'] = Variable<String>(field.value);
+    }
+    if (oldValue.present) {
+      map['old_value'] = Variable<String>(oldValue.value);
+    }
+    if (newValue.present) {
+      map['new_value'] = Variable<String>(newValue.value);
+    }
+    if (correctionType.present) {
+      map['correction_type'] = Variable<String>(correctionType.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserCorrectionsCompanion(')
+          ..write('id: $id, ')
+          ..write('targetTable: $targetTable, ')
+          ..write('targetId: $targetId, ')
+          ..write('field: $field, ')
+          ..write('oldValue: $oldValue, ')
+          ..write('newValue: $newValue, ')
+          ..write('correctionType: $correctionType, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryCardOperationsTable extends memory_v3.MemoryCardOperations
+    with TableInfo<$MemoryCardOperationsTable, MemoryCardOperation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryCardOperationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _cardIdMeta = const VerificationMeta('cardId');
+  @override
+  late final GeneratedColumn<String> cardId = GeneratedColumn<String>(
+      'card_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _operationTypeMeta =
+      const VerificationMeta('operationType');
+  @override
+  late final GeneratedColumn<String> operationType = GeneratedColumn<String>(
+      'operation_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _payloadMeta =
+      const VerificationMeta('payload');
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+      'payload', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceKindMeta =
+      const VerificationMeta('sourceKind');
+  @override
+  late final GeneratedColumn<String> sourceKind = GeneratedColumn<String>(
+      'source_kind', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, cardId, operationType, payload, sourceKind, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_card_operations';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<MemoryCardOperation> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('card_id')) {
+      context.handle(_cardIdMeta,
+          cardId.isAcceptableOrUnknown(data['card_id']!, _cardIdMeta));
+    } else if (isInserting) {
+      context.missing(_cardIdMeta);
+    }
+    if (data.containsKey('operation_type')) {
+      context.handle(
+          _operationTypeMeta,
+          operationType.isAcceptableOrUnknown(
+              data['operation_type']!, _operationTypeMeta));
+    } else if (isInserting) {
+      context.missing(_operationTypeMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(_payloadMeta,
+          payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta));
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('source_kind')) {
+      context.handle(
+          _sourceKindMeta,
+          sourceKind.isAcceptableOrUnknown(
+              data['source_kind']!, _sourceKindMeta));
+    } else if (isInserting) {
+      context.missing(_sourceKindMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemoryCardOperation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryCardOperation(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      cardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}card_id'])!,
+      operationType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}operation_type'])!,
+      payload: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}payload'])!,
+      sourceKind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_kind'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $MemoryCardOperationsTable createAlias(String alias) {
+    return $MemoryCardOperationsTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryCardOperation extends DataClass
+    implements Insertable<MemoryCardOperation> {
+  final String id;
+  final String cardId;
+  final String operationType;
+  final String payload;
+  final String sourceKind;
+  final int createdAt;
+  const MemoryCardOperation(
+      {required this.id,
+      required this.cardId,
+      required this.operationType,
+      required this.payload,
+      required this.sourceKind,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['card_id'] = Variable<String>(cardId);
+    map['operation_type'] = Variable<String>(operationType);
+    map['payload'] = Variable<String>(payload);
+    map['source_kind'] = Variable<String>(sourceKind);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  MemoryCardOperationsCompanion toCompanion(bool nullToAbsent) {
+    return MemoryCardOperationsCompanion(
+      id: Value(id),
+      cardId: Value(cardId),
+      operationType: Value(operationType),
+      payload: Value(payload),
+      sourceKind: Value(sourceKind),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory MemoryCardOperation.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryCardOperation(
+      id: serializer.fromJson<String>(json['id']),
+      cardId: serializer.fromJson<String>(json['cardId']),
+      operationType: serializer.fromJson<String>(json['operationType']),
+      payload: serializer.fromJson<String>(json['payload']),
+      sourceKind: serializer.fromJson<String>(json['sourceKind']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'cardId': serializer.toJson<String>(cardId),
+      'operationType': serializer.toJson<String>(operationType),
+      'payload': serializer.toJson<String>(payload),
+      'sourceKind': serializer.toJson<String>(sourceKind),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  MemoryCardOperation copyWith(
+          {String? id,
+          String? cardId,
+          String? operationType,
+          String? payload,
+          String? sourceKind,
+          int? createdAt}) =>
+      MemoryCardOperation(
+        id: id ?? this.id,
+        cardId: cardId ?? this.cardId,
+        operationType: operationType ?? this.operationType,
+        payload: payload ?? this.payload,
+        sourceKind: sourceKind ?? this.sourceKind,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  MemoryCardOperation copyWithCompanion(MemoryCardOperationsCompanion data) {
+    return MemoryCardOperation(
+      id: data.id.present ? data.id.value : this.id,
+      cardId: data.cardId.present ? data.cardId.value : this.cardId,
+      operationType: data.operationType.present
+          ? data.operationType.value
+          : this.operationType,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      sourceKind:
+          data.sourceKind.present ? data.sourceKind.value : this.sourceKind,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardOperation(')
+          ..write('id: $id, ')
+          ..write('cardId: $cardId, ')
+          ..write('operationType: $operationType, ')
+          ..write('payload: $payload, ')
+          ..write('sourceKind: $sourceKind, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, cardId, operationType, payload, sourceKind, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryCardOperation &&
+          other.id == this.id &&
+          other.cardId == this.cardId &&
+          other.operationType == this.operationType &&
+          other.payload == this.payload &&
+          other.sourceKind == this.sourceKind &&
+          other.createdAt == this.createdAt);
+}
+
+class MemoryCardOperationsCompanion
+    extends UpdateCompanion<MemoryCardOperation> {
+  final Value<String> id;
+  final Value<String> cardId;
+  final Value<String> operationType;
+  final Value<String> payload;
+  final Value<String> sourceKind;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const MemoryCardOperationsCompanion({
+    this.id = const Value.absent(),
+    this.cardId = const Value.absent(),
+    this.operationType = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.sourceKind = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryCardOperationsCompanion.insert({
+    required String id,
+    required String cardId,
+    required String operationType,
+    required String payload,
+    required String sourceKind,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        cardId = Value(cardId),
+        operationType = Value(operationType),
+        payload = Value(payload),
+        sourceKind = Value(sourceKind),
+        createdAt = Value(createdAt);
+  static Insertable<MemoryCardOperation> custom({
+    Expression<String>? id,
+    Expression<String>? cardId,
+    Expression<String>? operationType,
+    Expression<String>? payload,
+    Expression<String>? sourceKind,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (cardId != null) 'card_id': cardId,
+      if (operationType != null) 'operation_type': operationType,
+      if (payload != null) 'payload': payload,
+      if (sourceKind != null) 'source_kind': sourceKind,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryCardOperationsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? cardId,
+      Value<String>? operationType,
+      Value<String>? payload,
+      Value<String>? sourceKind,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return MemoryCardOperationsCompanion(
+      id: id ?? this.id,
+      cardId: cardId ?? this.cardId,
+      operationType: operationType ?? this.operationType,
+      payload: payload ?? this.payload,
+      sourceKind: sourceKind ?? this.sourceKind,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (cardId.present) {
+      map['card_id'] = Variable<String>(cardId.value);
+    }
+    if (operationType.present) {
+      map['operation_type'] = Variable<String>(operationType.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (sourceKind.present) {
+      map['source_kind'] = Variable<String>(sourceKind.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryCardOperationsCompanion(')
+          ..write('id: $id, ')
+          ..write('cardId: $cardId, ')
+          ..write('operationType: $operationType, ')
+          ..write('payload: $payload, ')
+          ..write('sourceKind: $sourceKind, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryRecallEventsTable extends memory_v3.MemoryRecallEvents
+    with TableInfo<$MemoryRecallEventsTable, MemoryRecallEvent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryRecallEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _targetTableMeta =
+      const VerificationMeta('targetTable');
+  @override
+  late final GeneratedColumn<String> targetTable = GeneratedColumn<String>(
+      'target_table', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _targetIdMeta =
+      const VerificationMeta('targetId');
+  @override
+  late final GeneratedColumn<String> targetId = GeneratedColumn<String>(
+      'target_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _chatMessageIdMeta =
+      const VerificationMeta('chatMessageId');
+  @override
+  late final GeneratedColumn<String> chatMessageId = GeneratedColumn<String>(
+      'chat_message_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _queryMeta = const VerificationMeta('query');
+  @override
+  late final GeneratedColumn<String> query = GeneratedColumn<String>(
+      'query', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _scoreMeta = const VerificationMeta('score');
+  @override
+  late final GeneratedColumn<double> score = GeneratedColumn<double>(
+      'score', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, targetTable, targetId, chatMessageId, query, score, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_recall_events';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemoryRecallEvent> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('target_table')) {
+      context.handle(
+          _targetTableMeta,
+          targetTable.isAcceptableOrUnknown(
+              data['target_table']!, _targetTableMeta));
+    } else if (isInserting) {
+      context.missing(_targetTableMeta);
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(_targetIdMeta,
+          targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta));
+    } else if (isInserting) {
+      context.missing(_targetIdMeta);
+    }
+    if (data.containsKey('chat_message_id')) {
+      context.handle(
+          _chatMessageIdMeta,
+          chatMessageId.isAcceptableOrUnknown(
+              data['chat_message_id']!, _chatMessageIdMeta));
+    }
+    if (data.containsKey('query')) {
+      context.handle(
+          _queryMeta, query.isAcceptableOrUnknown(data['query']!, _queryMeta));
+    }
+    if (data.containsKey('score')) {
+      context.handle(
+          _scoreMeta, score.isAcceptableOrUnknown(data['score']!, _scoreMeta));
+    } else if (isInserting) {
+      context.missing(_scoreMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MemoryRecallEvent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryRecallEvent(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      targetTable: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}target_table'])!,
+      targetId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}target_id'])!,
+      chatMessageId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}chat_message_id']),
+      query: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}query']),
+      score: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}score'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $MemoryRecallEventsTable createAlias(String alias) {
+    return $MemoryRecallEventsTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryRecallEvent extends DataClass
+    implements Insertable<MemoryRecallEvent> {
+  final String id;
+  final String targetTable;
+  final String targetId;
+  final String? chatMessageId;
+  final String? query;
+  final double score;
+  final int createdAt;
+  const MemoryRecallEvent(
+      {required this.id,
+      required this.targetTable,
+      required this.targetId,
+      this.chatMessageId,
+      this.query,
+      required this.score,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['target_table'] = Variable<String>(targetTable);
+    map['target_id'] = Variable<String>(targetId);
+    if (!nullToAbsent || chatMessageId != null) {
+      map['chat_message_id'] = Variable<String>(chatMessageId);
+    }
+    if (!nullToAbsent || query != null) {
+      map['query'] = Variable<String>(query);
+    }
+    map['score'] = Variable<double>(score);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  MemoryRecallEventsCompanion toCompanion(bool nullToAbsent) {
+    return MemoryRecallEventsCompanion(
+      id: Value(id),
+      targetTable: Value(targetTable),
+      targetId: Value(targetId),
+      chatMessageId: chatMessageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(chatMessageId),
+      query:
+          query == null && nullToAbsent ? const Value.absent() : Value(query),
+      score: Value(score),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory MemoryRecallEvent.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryRecallEvent(
+      id: serializer.fromJson<String>(json['id']),
+      targetTable: serializer.fromJson<String>(json['targetTable']),
+      targetId: serializer.fromJson<String>(json['targetId']),
+      chatMessageId: serializer.fromJson<String?>(json['chatMessageId']),
+      query: serializer.fromJson<String?>(json['query']),
+      score: serializer.fromJson<double>(json['score']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'targetTable': serializer.toJson<String>(targetTable),
+      'targetId': serializer.toJson<String>(targetId),
+      'chatMessageId': serializer.toJson<String?>(chatMessageId),
+      'query': serializer.toJson<String?>(query),
+      'score': serializer.toJson<double>(score),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  MemoryRecallEvent copyWith(
+          {String? id,
+          String? targetTable,
+          String? targetId,
+          Value<String?> chatMessageId = const Value.absent(),
+          Value<String?> query = const Value.absent(),
+          double? score,
+          int? createdAt}) =>
+      MemoryRecallEvent(
+        id: id ?? this.id,
+        targetTable: targetTable ?? this.targetTable,
+        targetId: targetId ?? this.targetId,
+        chatMessageId:
+            chatMessageId.present ? chatMessageId.value : this.chatMessageId,
+        query: query.present ? query.value : this.query,
+        score: score ?? this.score,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  MemoryRecallEvent copyWithCompanion(MemoryRecallEventsCompanion data) {
+    return MemoryRecallEvent(
+      id: data.id.present ? data.id.value : this.id,
+      targetTable:
+          data.targetTable.present ? data.targetTable.value : this.targetTable,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+      chatMessageId: data.chatMessageId.present
+          ? data.chatMessageId.value
+          : this.chatMessageId,
+      query: data.query.present ? data.query.value : this.query,
+      score: data.score.present ? data.score.value : this.score,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryRecallEvent(')
+          ..write('id: $id, ')
+          ..write('targetTable: $targetTable, ')
+          ..write('targetId: $targetId, ')
+          ..write('chatMessageId: $chatMessageId, ')
+          ..write('query: $query, ')
+          ..write('score: $score, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, targetTable, targetId, chatMessageId, query, score, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryRecallEvent &&
+          other.id == this.id &&
+          other.targetTable == this.targetTable &&
+          other.targetId == this.targetId &&
+          other.chatMessageId == this.chatMessageId &&
+          other.query == this.query &&
+          other.score == this.score &&
+          other.createdAt == this.createdAt);
+}
+
+class MemoryRecallEventsCompanion extends UpdateCompanion<MemoryRecallEvent> {
+  final Value<String> id;
+  final Value<String> targetTable;
+  final Value<String> targetId;
+  final Value<String?> chatMessageId;
+  final Value<String?> query;
+  final Value<double> score;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const MemoryRecallEventsCompanion({
+    this.id = const Value.absent(),
+    this.targetTable = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.chatMessageId = const Value.absent(),
+    this.query = const Value.absent(),
+    this.score = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryRecallEventsCompanion.insert({
+    required String id,
+    required String targetTable,
+    required String targetId,
+    this.chatMessageId = const Value.absent(),
+    this.query = const Value.absent(),
+    required double score,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        targetTable = Value(targetTable),
+        targetId = Value(targetId),
+        score = Value(score),
+        createdAt = Value(createdAt);
+  static Insertable<MemoryRecallEvent> custom({
+    Expression<String>? id,
+    Expression<String>? targetTable,
+    Expression<String>? targetId,
+    Expression<String>? chatMessageId,
+    Expression<String>? query,
+    Expression<double>? score,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (targetTable != null) 'target_table': targetTable,
+      if (targetId != null) 'target_id': targetId,
+      if (chatMessageId != null) 'chat_message_id': chatMessageId,
+      if (query != null) 'query': query,
+      if (score != null) 'score': score,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryRecallEventsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? targetTable,
+      Value<String>? targetId,
+      Value<String?>? chatMessageId,
+      Value<String?>? query,
+      Value<double>? score,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return MemoryRecallEventsCompanion(
+      id: id ?? this.id,
+      targetTable: targetTable ?? this.targetTable,
+      targetId: targetId ?? this.targetId,
+      chatMessageId: chatMessageId ?? this.chatMessageId,
+      query: query ?? this.query,
+      score: score ?? this.score,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (targetTable.present) {
+      map['target_table'] = Variable<String>(targetTable.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<String>(targetId.value);
+    }
+    if (chatMessageId.present) {
+      map['chat_message_id'] = Variable<String>(chatMessageId.value);
+    }
+    if (query.present) {
+      map['query'] = Variable<String>(query.value);
+    }
+    if (score.present) {
+      map['score'] = Variable<double>(score.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryRecallEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('targetTable: $targetTable, ')
+          ..write('targetId: $targetId, ')
+          ..write('chatMessageId: $chatMessageId, ')
+          ..write('query: $query, ')
+          ..write('score: $score, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MemoryEmbeddingsTable extends memory_v3.MemoryEmbeddings
+    with TableInfo<$MemoryEmbeddingsTable, MemoryEmbedding> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MemoryEmbeddingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _targetTableMeta =
+      const VerificationMeta('targetTable');
+  @override
+  late final GeneratedColumn<String> targetTable = GeneratedColumn<String>(
+      'target_table', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _targetIdMeta =
+      const VerificationMeta('targetId');
+  @override
+  late final GeneratedColumn<String> targetId = GeneratedColumn<String>(
+      'target_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _vectorMeta = const VerificationMeta('vector');
+  @override
+  late final GeneratedColumn<Uint8List> vector = GeneratedColumn<Uint8List>(
+      'vector', aliasedName, false,
+      type: DriftSqlType.blob, requiredDuringInsert: true);
+  static const VerificationMeta _providerMeta =
+      const VerificationMeta('provider');
+  @override
+  late final GeneratedColumn<String> provider = GeneratedColumn<String>(
+      'provider', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+      'model', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _dimensionMeta =
+      const VerificationMeta('dimension');
+  @override
+  late final GeneratedColumn<int> dimension = GeneratedColumn<int>(
+      'dimension', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _contentHashMeta =
+      const VerificationMeta('contentHash');
+  @override
+  late final GeneratedColumn<String> contentHash = GeneratedColumn<String>(
+      'content_hash', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        targetTable,
+        targetId,
+        vector,
+        provider,
+        model,
+        dimension,
+        contentHash,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'memory_embeddings';
+  @override
+  VerificationContext validateIntegrity(Insertable<MemoryEmbedding> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('target_table')) {
+      context.handle(
+          _targetTableMeta,
+          targetTable.isAcceptableOrUnknown(
+              data['target_table']!, _targetTableMeta));
+    } else if (isInserting) {
+      context.missing(_targetTableMeta);
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(_targetIdMeta,
+          targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta));
+    } else if (isInserting) {
+      context.missing(_targetIdMeta);
+    }
+    if (data.containsKey('vector')) {
+      context.handle(_vectorMeta,
+          vector.isAcceptableOrUnknown(data['vector']!, _vectorMeta));
+    } else if (isInserting) {
+      context.missing(_vectorMeta);
+    }
+    if (data.containsKey('provider')) {
+      context.handle(_providerMeta,
+          provider.isAcceptableOrUnknown(data['provider']!, _providerMeta));
+    } else if (isInserting) {
+      context.missing(_providerMeta);
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+          _modelMeta, model.isAcceptableOrUnknown(data['model']!, _modelMeta));
+    } else if (isInserting) {
+      context.missing(_modelMeta);
+    }
+    if (data.containsKey('dimension')) {
+      context.handle(_dimensionMeta,
+          dimension.isAcceptableOrUnknown(data['dimension']!, _dimensionMeta));
+    } else if (isInserting) {
+      context.missing(_dimensionMeta);
+    }
+    if (data.containsKey('content_hash')) {
+      context.handle(
+          _contentHashMeta,
+          contentHash.isAcceptableOrUnknown(
+              data['content_hash']!, _contentHashMeta));
+    } else if (isInserting) {
+      context.missing(_contentHashMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {targetTable, targetId};
+  @override
+  MemoryEmbedding map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MemoryEmbedding(
+      targetTable: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}target_table'])!,
+      targetId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}target_id'])!,
+      vector: attachedDatabase.typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}vector'])!,
+      provider: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}provider'])!,
+      model: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}model'])!,
+      dimension: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}dimension'])!,
+      contentHash: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content_hash'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $MemoryEmbeddingsTable createAlias(String alias) {
+    return $MemoryEmbeddingsTable(attachedDatabase, alias);
+  }
+}
+
+class MemoryEmbedding extends DataClass implements Insertable<MemoryEmbedding> {
+  final String targetTable;
+  final String targetId;
+  final Uint8List vector;
+  final String provider;
+  final String model;
+  final int dimension;
+  final String contentHash;
+  final int updatedAt;
+  const MemoryEmbedding(
+      {required this.targetTable,
+      required this.targetId,
+      required this.vector,
+      required this.provider,
+      required this.model,
+      required this.dimension,
+      required this.contentHash,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['target_table'] = Variable<String>(targetTable);
+    map['target_id'] = Variable<String>(targetId);
+    map['vector'] = Variable<Uint8List>(vector);
+    map['provider'] = Variable<String>(provider);
+    map['model'] = Variable<String>(model);
+    map['dimension'] = Variable<int>(dimension);
+    map['content_hash'] = Variable<String>(contentHash);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  MemoryEmbeddingsCompanion toCompanion(bool nullToAbsent) {
+    return MemoryEmbeddingsCompanion(
+      targetTable: Value(targetTable),
+      targetId: Value(targetId),
+      vector: Value(vector),
+      provider: Value(provider),
+      model: Value(model),
+      dimension: Value(dimension),
+      contentHash: Value(contentHash),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory MemoryEmbedding.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MemoryEmbedding(
+      targetTable: serializer.fromJson<String>(json['targetTable']),
+      targetId: serializer.fromJson<String>(json['targetId']),
+      vector: serializer.fromJson<Uint8List>(json['vector']),
+      provider: serializer.fromJson<String>(json['provider']),
+      model: serializer.fromJson<String>(json['model']),
+      dimension: serializer.fromJson<int>(json['dimension']),
+      contentHash: serializer.fromJson<String>(json['contentHash']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'targetTable': serializer.toJson<String>(targetTable),
+      'targetId': serializer.toJson<String>(targetId),
+      'vector': serializer.toJson<Uint8List>(vector),
+      'provider': serializer.toJson<String>(provider),
+      'model': serializer.toJson<String>(model),
+      'dimension': serializer.toJson<int>(dimension),
+      'contentHash': serializer.toJson<String>(contentHash),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  MemoryEmbedding copyWith(
+          {String? targetTable,
+          String? targetId,
+          Uint8List? vector,
+          String? provider,
+          String? model,
+          int? dimension,
+          String? contentHash,
+          int? updatedAt}) =>
+      MemoryEmbedding(
+        targetTable: targetTable ?? this.targetTable,
+        targetId: targetId ?? this.targetId,
+        vector: vector ?? this.vector,
+        provider: provider ?? this.provider,
+        model: model ?? this.model,
+        dimension: dimension ?? this.dimension,
+        contentHash: contentHash ?? this.contentHash,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  MemoryEmbedding copyWithCompanion(MemoryEmbeddingsCompanion data) {
+    return MemoryEmbedding(
+      targetTable:
+          data.targetTable.present ? data.targetTable.value : this.targetTable,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+      vector: data.vector.present ? data.vector.value : this.vector,
+      provider: data.provider.present ? data.provider.value : this.provider,
+      model: data.model.present ? data.model.value : this.model,
+      dimension: data.dimension.present ? data.dimension.value : this.dimension,
+      contentHash:
+          data.contentHash.present ? data.contentHash.value : this.contentHash,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryEmbedding(')
+          ..write('targetTable: $targetTable, ')
+          ..write('targetId: $targetId, ')
+          ..write('vector: $vector, ')
+          ..write('provider: $provider, ')
+          ..write('model: $model, ')
+          ..write('dimension: $dimension, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      targetTable,
+      targetId,
+      $driftBlobEquality.hash(vector),
+      provider,
+      model,
+      dimension,
+      contentHash,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MemoryEmbedding &&
+          other.targetTable == this.targetTable &&
+          other.targetId == this.targetId &&
+          $driftBlobEquality.equals(other.vector, this.vector) &&
+          other.provider == this.provider &&
+          other.model == this.model &&
+          other.dimension == this.dimension &&
+          other.contentHash == this.contentHash &&
+          other.updatedAt == this.updatedAt);
+}
+
+class MemoryEmbeddingsCompanion extends UpdateCompanion<MemoryEmbedding> {
+  final Value<String> targetTable;
+  final Value<String> targetId;
+  final Value<Uint8List> vector;
+  final Value<String> provider;
+  final Value<String> model;
+  final Value<int> dimension;
+  final Value<String> contentHash;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const MemoryEmbeddingsCompanion({
+    this.targetTable = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.vector = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.model = const Value.absent(),
+    this.dimension = const Value.absent(),
+    this.contentHash = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MemoryEmbeddingsCompanion.insert({
+    required String targetTable,
+    required String targetId,
+    required Uint8List vector,
+    required String provider,
+    required String model,
+    required int dimension,
+    required String contentHash,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : targetTable = Value(targetTable),
+        targetId = Value(targetId),
+        vector = Value(vector),
+        provider = Value(provider),
+        model = Value(model),
+        dimension = Value(dimension),
+        contentHash = Value(contentHash),
+        updatedAt = Value(updatedAt);
+  static Insertable<MemoryEmbedding> custom({
+    Expression<String>? targetTable,
+    Expression<String>? targetId,
+    Expression<Uint8List>? vector,
+    Expression<String>? provider,
+    Expression<String>? model,
+    Expression<int>? dimension,
+    Expression<String>? contentHash,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (targetTable != null) 'target_table': targetTable,
+      if (targetId != null) 'target_id': targetId,
+      if (vector != null) 'vector': vector,
+      if (provider != null) 'provider': provider,
+      if (model != null) 'model': model,
+      if (dimension != null) 'dimension': dimension,
+      if (contentHash != null) 'content_hash': contentHash,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MemoryEmbeddingsCompanion copyWith(
+      {Value<String>? targetTable,
+      Value<String>? targetId,
+      Value<Uint8List>? vector,
+      Value<String>? provider,
+      Value<String>? model,
+      Value<int>? dimension,
+      Value<String>? contentHash,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return MemoryEmbeddingsCompanion(
+      targetTable: targetTable ?? this.targetTable,
+      targetId: targetId ?? this.targetId,
+      vector: vector ?? this.vector,
+      provider: provider ?? this.provider,
+      model: model ?? this.model,
+      dimension: dimension ?? this.dimension,
+      contentHash: contentHash ?? this.contentHash,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (targetTable.present) {
+      map['target_table'] = Variable<String>(targetTable.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<String>(targetId.value);
+    }
+    if (vector.present) {
+      map['vector'] = Variable<Uint8List>(vector.value);
+    }
+    if (provider.present) {
+      map['provider'] = Variable<String>(provider.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (dimension.present) {
+      map['dimension'] = Variable<int>(dimension.value);
+    }
+    if (contentHash.present) {
+      map['content_hash'] = Variable<String>(contentHash.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MemoryEmbeddingsCompanion(')
+          ..write('targetTable: $targetTable, ')
+          ..write('targetId: $targetId, ')
+          ..write('vector: $vector, ')
+          ..write('provider: $provider, ')
+          ..write('model: $model, ')
+          ..write('dimension: $dimension, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -13388,6 +21649,34 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $DevAgentApprovalsTable(this);
   late final $DevAgentArtifactsTable devAgentArtifacts =
       $DevAgentArtifactsTable(this);
+  late final $MemoryCardsTable memoryCards = $MemoryCardsTable(this);
+  late final $MemoryCardSourcesTable memoryCardSources =
+      $MemoryCardSourcesTable(this);
+  late final $MemoryCardStructuredFieldsTable memoryCardStructuredFields =
+      $MemoryCardStructuredFieldsTable(this);
+  late final $MemoryCardRelationsTable memoryCardRelations =
+      $MemoryCardRelationsTable(this);
+  late final $MemoryCardAssetsTable memoryCardAssets =
+      $MemoryCardAssetsTable(this);
+  late final $MemoryFragmentsTable memoryFragments =
+      $MemoryFragmentsTable(this);
+  late final $MemoryEntitiesTable memoryEntities = $MemoryEntitiesTable(this);
+  late final $MemoryEntityLinksTable memoryEntityLinks =
+      $MemoryEntityLinksTable(this);
+  late final $MemoryEpisodesTable memoryEpisodes = $MemoryEpisodesTable(this);
+  late final $MemorySagasTable memorySagas = $MemorySagasTable(this);
+  late final $MemorySagaSnapshotsTable memorySagaSnapshots =
+      $MemorySagaSnapshotsTable(this);
+  late final $AssetsTable assets = $AssetsTable(this);
+  late final $AssetAnalysisTable assetAnalysis = $AssetAnalysisTable(this);
+  late final $UserCorrectionsTable userCorrections =
+      $UserCorrectionsTable(this);
+  late final $MemoryCardOperationsTable memoryCardOperations =
+      $MemoryCardOperationsTable(this);
+  late final $MemoryRecallEventsTable memoryRecallEvents =
+      $MemoryRecallEventsTable(this);
+  late final $MemoryEmbeddingsTable memoryEmbeddings =
+      $MemoryEmbeddingsTable(this);
   late final CardDao cardDao = CardDao(this as AppDatabase);
   late final AiFinanceDao aiFinanceDao = AiFinanceDao(this as AppDatabase);
   late final AiPurchaseDao aiPurchaseDao = AiPurchaseDao(this as AppDatabase);
@@ -13422,7 +21711,24 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         devAgentToolBindings,
         devAgentEvents,
         devAgentApprovals,
-        devAgentArtifacts
+        devAgentArtifacts,
+        memoryCards,
+        memoryCardSources,
+        memoryCardStructuredFields,
+        memoryCardRelations,
+        memoryCardAssets,
+        memoryFragments,
+        memoryEntities,
+        memoryEntityLinks,
+        memoryEpisodes,
+        memorySagas,
+        memorySagaSnapshots,
+        assets,
+        assetAnalysis,
+        userCorrections,
+        memoryCardOperations,
+        memoryRecallEvents,
+        memoryEmbeddings
       ];
 }
 
@@ -21145,6 +29451,4032 @@ typedef $$DevAgentArtifactsTableProcessedTableManager = ProcessedTableManager<
     (DevAgentArtifact, $$DevAgentArtifactsTableReferences),
     DevAgentArtifact,
     PrefetchHooks Function({bool runId})>;
+typedef $$MemoryCardsTableCreateCompanionBuilder = MemoryCardsCompanion
+    Function({
+  required String id,
+  Value<String> memoryScope,
+  required String type,
+  required String title,
+  required String dropletLabel,
+  required String presentationModule,
+  required String retrievalText,
+  required double valence,
+  required double arousal,
+  Value<double> confidence,
+  Value<String?> status,
+  Value<String?> needsFollowUp,
+  Value<int> schemaVersion,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$MemoryCardsTableUpdateCompanionBuilder = MemoryCardsCompanion
+    Function({
+  Value<String> id,
+  Value<String> memoryScope,
+  Value<String> type,
+  Value<String> title,
+  Value<String> dropletLabel,
+  Value<String> presentationModule,
+  Value<String> retrievalText,
+  Value<double> valence,
+  Value<double> arousal,
+  Value<double> confidence,
+  Value<String?> status,
+  Value<String?> needsFollowUp,
+  Value<int> schemaVersion,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$MemoryCardsTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryCardsTable> {
+  $$MemoryCardsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get memoryScope => $composableBuilder(
+      column: $table.memoryScope, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get dropletLabel => $composableBuilder(
+      column: $table.dropletLabel, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get presentationModule => $composableBuilder(
+      column: $table.presentationModule,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get retrievalText => $composableBuilder(
+      column: $table.retrievalText, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get valence => $composableBuilder(
+      column: $table.valence, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get arousal => $composableBuilder(
+      column: $table.arousal, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get needsFollowUp => $composableBuilder(
+      column: $table.needsFollowUp, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryCardsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryCardsTable> {
+  $$MemoryCardsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get memoryScope => $composableBuilder(
+      column: $table.memoryScope, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get dropletLabel => $composableBuilder(
+      column: $table.dropletLabel,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get presentationModule => $composableBuilder(
+      column: $table.presentationModule,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get retrievalText => $composableBuilder(
+      column: $table.retrievalText,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get valence => $composableBuilder(
+      column: $table.valence, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get arousal => $composableBuilder(
+      column: $table.arousal, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get needsFollowUp => $composableBuilder(
+      column: $table.needsFollowUp,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryCardsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryCardsTable> {
+  $$MemoryCardsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get memoryScope => $composableBuilder(
+      column: $table.memoryScope, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get dropletLabel => $composableBuilder(
+      column: $table.dropletLabel, builder: (column) => column);
+
+  GeneratedColumn<String> get presentationModule => $composableBuilder(
+      column: $table.presentationModule, builder: (column) => column);
+
+  GeneratedColumn<String> get retrievalText => $composableBuilder(
+      column: $table.retrievalText, builder: (column) => column);
+
+  GeneratedColumn<double> get valence =>
+      $composableBuilder(column: $table.valence, builder: (column) => column);
+
+  GeneratedColumn<double> get arousal =>
+      $composableBuilder(column: $table.arousal, builder: (column) => column);
+
+  GeneratedColumn<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get needsFollowUp => $composableBuilder(
+      column: $table.needsFollowUp, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$MemoryCardsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryCardsTable,
+    MemoryCard,
+    $$MemoryCardsTableFilterComposer,
+    $$MemoryCardsTableOrderingComposer,
+    $$MemoryCardsTableAnnotationComposer,
+    $$MemoryCardsTableCreateCompanionBuilder,
+    $$MemoryCardsTableUpdateCompanionBuilder,
+    (MemoryCard, BaseReferences<_$AppDatabase, $MemoryCardsTable, MemoryCard>),
+    MemoryCard,
+    PrefetchHooks Function()> {
+  $$MemoryCardsTableTableManager(_$AppDatabase db, $MemoryCardsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryCardsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryCardsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryCardsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> memoryScope = const Value.absent(),
+            Value<String> type = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> dropletLabel = const Value.absent(),
+            Value<String> presentationModule = const Value.absent(),
+            Value<String> retrievalText = const Value.absent(),
+            Value<double> valence = const Value.absent(),
+            Value<double> arousal = const Value.absent(),
+            Value<double> confidence = const Value.absent(),
+            Value<String?> status = const Value.absent(),
+            Value<String?> needsFollowUp = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardsCompanion(
+            id: id,
+            memoryScope: memoryScope,
+            type: type,
+            title: title,
+            dropletLabel: dropletLabel,
+            presentationModule: presentationModule,
+            retrievalText: retrievalText,
+            valence: valence,
+            arousal: arousal,
+            confidence: confidence,
+            status: status,
+            needsFollowUp: needsFollowUp,
+            schemaVersion: schemaVersion,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            Value<String> memoryScope = const Value.absent(),
+            required String type,
+            required String title,
+            required String dropletLabel,
+            required String presentationModule,
+            required String retrievalText,
+            required double valence,
+            required double arousal,
+            Value<double> confidence = const Value.absent(),
+            Value<String?> status = const Value.absent(),
+            Value<String?> needsFollowUp = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardsCompanion.insert(
+            id: id,
+            memoryScope: memoryScope,
+            type: type,
+            title: title,
+            dropletLabel: dropletLabel,
+            presentationModule: presentationModule,
+            retrievalText: retrievalText,
+            valence: valence,
+            arousal: arousal,
+            confidence: confidence,
+            status: status,
+            needsFollowUp: needsFollowUp,
+            schemaVersion: schemaVersion,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryCardsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemoryCardsTable,
+    MemoryCard,
+    $$MemoryCardsTableFilterComposer,
+    $$MemoryCardsTableOrderingComposer,
+    $$MemoryCardsTableAnnotationComposer,
+    $$MemoryCardsTableCreateCompanionBuilder,
+    $$MemoryCardsTableUpdateCompanionBuilder,
+    (MemoryCard, BaseReferences<_$AppDatabase, $MemoryCardsTable, MemoryCard>),
+    MemoryCard,
+    PrefetchHooks Function()>;
+typedef $$MemoryCardSourcesTableCreateCompanionBuilder
+    = MemoryCardSourcesCompanion Function({
+  required String cardId,
+  required String rawInput,
+  required int recordedAt,
+  Value<String?> recordedPlace,
+  Value<String?> sourceRef,
+  required String sourceKind,
+  Value<int> schemaVersion,
+  Value<int> rowid,
+});
+typedef $$MemoryCardSourcesTableUpdateCompanionBuilder
+    = MemoryCardSourcesCompanion Function({
+  Value<String> cardId,
+  Value<String> rawInput,
+  Value<int> recordedAt,
+  Value<String?> recordedPlace,
+  Value<String?> sourceRef,
+  Value<String> sourceKind,
+  Value<int> schemaVersion,
+  Value<int> rowid,
+});
+
+class $$MemoryCardSourcesTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryCardSourcesTable> {
+  $$MemoryCardSourcesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get rawInput => $composableBuilder(
+      column: $table.rawInput, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get recordedAt => $composableBuilder(
+      column: $table.recordedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get recordedPlace => $composableBuilder(
+      column: $table.recordedPlace, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceRef => $composableBuilder(
+      column: $table.sourceRef, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceKind => $composableBuilder(
+      column: $table.sourceKind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryCardSourcesTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryCardSourcesTable> {
+  $$MemoryCardSourcesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get rawInput => $composableBuilder(
+      column: $table.rawInput, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get recordedAt => $composableBuilder(
+      column: $table.recordedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get recordedPlace => $composableBuilder(
+      column: $table.recordedPlace,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceRef => $composableBuilder(
+      column: $table.sourceRef, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceKind => $composableBuilder(
+      column: $table.sourceKind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryCardSourcesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryCardSourcesTable> {
+  $$MemoryCardSourcesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get cardId =>
+      $composableBuilder(column: $table.cardId, builder: (column) => column);
+
+  GeneratedColumn<String> get rawInput =>
+      $composableBuilder(column: $table.rawInput, builder: (column) => column);
+
+  GeneratedColumn<int> get recordedAt => $composableBuilder(
+      column: $table.recordedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get recordedPlace => $composableBuilder(
+      column: $table.recordedPlace, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceRef =>
+      $composableBuilder(column: $table.sourceRef, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceKind => $composableBuilder(
+      column: $table.sourceKind, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => column);
+}
+
+class $$MemoryCardSourcesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryCardSourcesTable,
+    MemoryCardSource,
+    $$MemoryCardSourcesTableFilterComposer,
+    $$MemoryCardSourcesTableOrderingComposer,
+    $$MemoryCardSourcesTableAnnotationComposer,
+    $$MemoryCardSourcesTableCreateCompanionBuilder,
+    $$MemoryCardSourcesTableUpdateCompanionBuilder,
+    (
+      MemoryCardSource,
+      BaseReferences<_$AppDatabase, $MemoryCardSourcesTable, MemoryCardSource>
+    ),
+    MemoryCardSource,
+    PrefetchHooks Function()> {
+  $$MemoryCardSourcesTableTableManager(
+      _$AppDatabase db, $MemoryCardSourcesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryCardSourcesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryCardSourcesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryCardSourcesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> cardId = const Value.absent(),
+            Value<String> rawInput = const Value.absent(),
+            Value<int> recordedAt = const Value.absent(),
+            Value<String?> recordedPlace = const Value.absent(),
+            Value<String?> sourceRef = const Value.absent(),
+            Value<String> sourceKind = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardSourcesCompanion(
+            cardId: cardId,
+            rawInput: rawInput,
+            recordedAt: recordedAt,
+            recordedPlace: recordedPlace,
+            sourceRef: sourceRef,
+            sourceKind: sourceKind,
+            schemaVersion: schemaVersion,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String cardId,
+            required String rawInput,
+            required int recordedAt,
+            Value<String?> recordedPlace = const Value.absent(),
+            Value<String?> sourceRef = const Value.absent(),
+            required String sourceKind,
+            Value<int> schemaVersion = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardSourcesCompanion.insert(
+            cardId: cardId,
+            rawInput: rawInput,
+            recordedAt: recordedAt,
+            recordedPlace: recordedPlace,
+            sourceRef: sourceRef,
+            sourceKind: sourceKind,
+            schemaVersion: schemaVersion,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryCardSourcesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemoryCardSourcesTable,
+    MemoryCardSource,
+    $$MemoryCardSourcesTableFilterComposer,
+    $$MemoryCardSourcesTableOrderingComposer,
+    $$MemoryCardSourcesTableAnnotationComposer,
+    $$MemoryCardSourcesTableCreateCompanionBuilder,
+    $$MemoryCardSourcesTableUpdateCompanionBuilder,
+    (
+      MemoryCardSource,
+      BaseReferences<_$AppDatabase, $MemoryCardSourcesTable, MemoryCardSource>
+    ),
+    MemoryCardSource,
+    PrefetchHooks Function()>;
+typedef $$MemoryCardStructuredFieldsTableCreateCompanionBuilder
+    = MemoryCardStructuredFieldsCompanion Function({
+  required String cardId,
+  required String structuredFieldsType,
+  required String fieldsJson,
+  Value<bool> userCorrected,
+  Value<int> schemaVersion,
+  Value<String?> generatedByVersion,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$MemoryCardStructuredFieldsTableUpdateCompanionBuilder
+    = MemoryCardStructuredFieldsCompanion Function({
+  Value<String> cardId,
+  Value<String> structuredFieldsType,
+  Value<String> fieldsJson,
+  Value<bool> userCorrected,
+  Value<int> schemaVersion,
+  Value<String?> generatedByVersion,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$MemoryCardStructuredFieldsTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryCardStructuredFieldsTable> {
+  $$MemoryCardStructuredFieldsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get structuredFieldsType => $composableBuilder(
+      column: $table.structuredFieldsType,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get fieldsJson => $composableBuilder(
+      column: $table.fieldsJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryCardStructuredFieldsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryCardStructuredFieldsTable> {
+  $$MemoryCardStructuredFieldsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get structuredFieldsType => $composableBuilder(
+      column: $table.structuredFieldsType,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get fieldsJson => $composableBuilder(
+      column: $table.fieldsJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryCardStructuredFieldsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryCardStructuredFieldsTable> {
+  $$MemoryCardStructuredFieldsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get cardId =>
+      $composableBuilder(column: $table.cardId, builder: (column) => column);
+
+  GeneratedColumn<String> get structuredFieldsType => $composableBuilder(
+      column: $table.structuredFieldsType, builder: (column) => column);
+
+  GeneratedColumn<String> get fieldsJson => $composableBuilder(
+      column: $table.fieldsJson, builder: (column) => column);
+
+  GeneratedColumn<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => column);
+
+  GeneratedColumn<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$MemoryCardStructuredFieldsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryCardStructuredFieldsTable,
+    MemoryCardStructuredField,
+    $$MemoryCardStructuredFieldsTableFilterComposer,
+    $$MemoryCardStructuredFieldsTableOrderingComposer,
+    $$MemoryCardStructuredFieldsTableAnnotationComposer,
+    $$MemoryCardStructuredFieldsTableCreateCompanionBuilder,
+    $$MemoryCardStructuredFieldsTableUpdateCompanionBuilder,
+    (
+      MemoryCardStructuredField,
+      BaseReferences<_$AppDatabase, $MemoryCardStructuredFieldsTable,
+          MemoryCardStructuredField>
+    ),
+    MemoryCardStructuredField,
+    PrefetchHooks Function()> {
+  $$MemoryCardStructuredFieldsTableTableManager(
+      _$AppDatabase db, $MemoryCardStructuredFieldsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryCardStructuredFieldsTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryCardStructuredFieldsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryCardStructuredFieldsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> cardId = const Value.absent(),
+            Value<String> structuredFieldsType = const Value.absent(),
+            Value<String> fieldsJson = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardStructuredFieldsCompanion(
+            cardId: cardId,
+            structuredFieldsType: structuredFieldsType,
+            fieldsJson: fieldsJson,
+            userCorrected: userCorrected,
+            schemaVersion: schemaVersion,
+            generatedByVersion: generatedByVersion,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String cardId,
+            required String structuredFieldsType,
+            required String fieldsJson,
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardStructuredFieldsCompanion.insert(
+            cardId: cardId,
+            structuredFieldsType: structuredFieldsType,
+            fieldsJson: fieldsJson,
+            userCorrected: userCorrected,
+            schemaVersion: schemaVersion,
+            generatedByVersion: generatedByVersion,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryCardStructuredFieldsTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $MemoryCardStructuredFieldsTable,
+        MemoryCardStructuredField,
+        $$MemoryCardStructuredFieldsTableFilterComposer,
+        $$MemoryCardStructuredFieldsTableOrderingComposer,
+        $$MemoryCardStructuredFieldsTableAnnotationComposer,
+        $$MemoryCardStructuredFieldsTableCreateCompanionBuilder,
+        $$MemoryCardStructuredFieldsTableUpdateCompanionBuilder,
+        (
+          MemoryCardStructuredField,
+          BaseReferences<_$AppDatabase, $MemoryCardStructuredFieldsTable,
+              MemoryCardStructuredField>
+        ),
+        MemoryCardStructuredField,
+        PrefetchHooks Function()>;
+typedef $$MemoryCardRelationsTableCreateCompanionBuilder
+    = MemoryCardRelationsCompanion Function({
+  required String id,
+  required String fromCardId,
+  required String toCardId,
+  Value<bool> userCorrected,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$MemoryCardRelationsTableUpdateCompanionBuilder
+    = MemoryCardRelationsCompanion Function({
+  Value<String> id,
+  Value<String> fromCardId,
+  Value<String> toCardId,
+  Value<bool> userCorrected,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$MemoryCardRelationsTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryCardRelationsTable> {
+  $$MemoryCardRelationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get fromCardId => $composableBuilder(
+      column: $table.fromCardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get toCardId => $composableBuilder(
+      column: $table.toCardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryCardRelationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryCardRelationsTable> {
+  $$MemoryCardRelationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get fromCardId => $composableBuilder(
+      column: $table.fromCardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get toCardId => $composableBuilder(
+      column: $table.toCardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryCardRelationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryCardRelationsTable> {
+  $$MemoryCardRelationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get fromCardId => $composableBuilder(
+      column: $table.fromCardId, builder: (column) => column);
+
+  GeneratedColumn<String> get toCardId =>
+      $composableBuilder(column: $table.toCardId, builder: (column) => column);
+
+  GeneratedColumn<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$MemoryCardRelationsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryCardRelationsTable,
+    MemoryCardRelation,
+    $$MemoryCardRelationsTableFilterComposer,
+    $$MemoryCardRelationsTableOrderingComposer,
+    $$MemoryCardRelationsTableAnnotationComposer,
+    $$MemoryCardRelationsTableCreateCompanionBuilder,
+    $$MemoryCardRelationsTableUpdateCompanionBuilder,
+    (
+      MemoryCardRelation,
+      BaseReferences<_$AppDatabase, $MemoryCardRelationsTable,
+          MemoryCardRelation>
+    ),
+    MemoryCardRelation,
+    PrefetchHooks Function()> {
+  $$MemoryCardRelationsTableTableManager(
+      _$AppDatabase db, $MemoryCardRelationsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryCardRelationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryCardRelationsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryCardRelationsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> fromCardId = const Value.absent(),
+            Value<String> toCardId = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardRelationsCompanion(
+            id: id,
+            fromCardId: fromCardId,
+            toCardId: toCardId,
+            userCorrected: userCorrected,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String fromCardId,
+            required String toCardId,
+            Value<bool> userCorrected = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardRelationsCompanion.insert(
+            id: id,
+            fromCardId: fromCardId,
+            toCardId: toCardId,
+            userCorrected: userCorrected,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryCardRelationsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemoryCardRelationsTable,
+    MemoryCardRelation,
+    $$MemoryCardRelationsTableFilterComposer,
+    $$MemoryCardRelationsTableOrderingComposer,
+    $$MemoryCardRelationsTableAnnotationComposer,
+    $$MemoryCardRelationsTableCreateCompanionBuilder,
+    $$MemoryCardRelationsTableUpdateCompanionBuilder,
+    (
+      MemoryCardRelation,
+      BaseReferences<_$AppDatabase, $MemoryCardRelationsTable,
+          MemoryCardRelation>
+    ),
+    MemoryCardRelation,
+    PrefetchHooks Function()>;
+typedef $$MemoryCardAssetsTableCreateCompanionBuilder
+    = MemoryCardAssetsCompanion Function({
+  required String id,
+  required String cardId,
+  required String assetId,
+  required String role,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$MemoryCardAssetsTableUpdateCompanionBuilder
+    = MemoryCardAssetsCompanion Function({
+  Value<String> id,
+  Value<String> cardId,
+  Value<String> assetId,
+  Value<String> role,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$MemoryCardAssetsTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryCardAssetsTable> {
+  $$MemoryCardAssetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get assetId => $composableBuilder(
+      column: $table.assetId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get role => $composableBuilder(
+      column: $table.role, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryCardAssetsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryCardAssetsTable> {
+  $$MemoryCardAssetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get assetId => $composableBuilder(
+      column: $table.assetId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get role => $composableBuilder(
+      column: $table.role, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryCardAssetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryCardAssetsTable> {
+  $$MemoryCardAssetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get cardId =>
+      $composableBuilder(column: $table.cardId, builder: (column) => column);
+
+  GeneratedColumn<String> get assetId =>
+      $composableBuilder(column: $table.assetId, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$MemoryCardAssetsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryCardAssetsTable,
+    MemoryCardAsset,
+    $$MemoryCardAssetsTableFilterComposer,
+    $$MemoryCardAssetsTableOrderingComposer,
+    $$MemoryCardAssetsTableAnnotationComposer,
+    $$MemoryCardAssetsTableCreateCompanionBuilder,
+    $$MemoryCardAssetsTableUpdateCompanionBuilder,
+    (
+      MemoryCardAsset,
+      BaseReferences<_$AppDatabase, $MemoryCardAssetsTable, MemoryCardAsset>
+    ),
+    MemoryCardAsset,
+    PrefetchHooks Function()> {
+  $$MemoryCardAssetsTableTableManager(
+      _$AppDatabase db, $MemoryCardAssetsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryCardAssetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryCardAssetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryCardAssetsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> cardId = const Value.absent(),
+            Value<String> assetId = const Value.absent(),
+            Value<String> role = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardAssetsCompanion(
+            id: id,
+            cardId: cardId,
+            assetId: assetId,
+            role: role,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String cardId,
+            required String assetId,
+            required String role,
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardAssetsCompanion.insert(
+            id: id,
+            cardId: cardId,
+            assetId: assetId,
+            role: role,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryCardAssetsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemoryCardAssetsTable,
+    MemoryCardAsset,
+    $$MemoryCardAssetsTableFilterComposer,
+    $$MemoryCardAssetsTableOrderingComposer,
+    $$MemoryCardAssetsTableAnnotationComposer,
+    $$MemoryCardAssetsTableCreateCompanionBuilder,
+    $$MemoryCardAssetsTableUpdateCompanionBuilder,
+    (
+      MemoryCardAsset,
+      BaseReferences<_$AppDatabase, $MemoryCardAssetsTable, MemoryCardAsset>
+    ),
+    MemoryCardAsset,
+    PrefetchHooks Function()>;
+typedef $$MemoryFragmentsTableCreateCompanionBuilder = MemoryFragmentsCompanion
+    Function({
+  required String id,
+  required String content,
+  Value<String?> sourceMessageIds,
+  Value<String> sourceScope,
+  Value<double> emotionalWeight,
+  Value<String> status,
+  Value<bool> isUserTruthCandidate,
+  Value<String?> generatedByVersion,
+  Value<bool> userCorrected,
+  Value<int> schemaVersion,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$MemoryFragmentsTableUpdateCompanionBuilder = MemoryFragmentsCompanion
+    Function({
+  Value<String> id,
+  Value<String> content,
+  Value<String?> sourceMessageIds,
+  Value<String> sourceScope,
+  Value<double> emotionalWeight,
+  Value<String> status,
+  Value<bool> isUserTruthCandidate,
+  Value<String?> generatedByVersion,
+  Value<bool> userCorrected,
+  Value<int> schemaVersion,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$MemoryFragmentsTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryFragmentsTable> {
+  $$MemoryFragmentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceMessageIds => $composableBuilder(
+      column: $table.sourceMessageIds,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceScope => $composableBuilder(
+      column: $table.sourceScope, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get emotionalWeight => $composableBuilder(
+      column: $table.emotionalWeight,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isUserTruthCandidate => $composableBuilder(
+      column: $table.isUserTruthCandidate,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryFragmentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryFragmentsTable> {
+  $$MemoryFragmentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceMessageIds => $composableBuilder(
+      column: $table.sourceMessageIds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceScope => $composableBuilder(
+      column: $table.sourceScope, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get emotionalWeight => $composableBuilder(
+      column: $table.emotionalWeight,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isUserTruthCandidate => $composableBuilder(
+      column: $table.isUserTruthCandidate,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryFragmentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryFragmentsTable> {
+  $$MemoryFragmentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceMessageIds => $composableBuilder(
+      column: $table.sourceMessageIds, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceScope => $composableBuilder(
+      column: $table.sourceScope, builder: (column) => column);
+
+  GeneratedColumn<double> get emotionalWeight => $composableBuilder(
+      column: $table.emotionalWeight, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<bool> get isUserTruthCandidate => $composableBuilder(
+      column: $table.isUserTruthCandidate, builder: (column) => column);
+
+  GeneratedColumn<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion, builder: (column) => column);
+
+  GeneratedColumn<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$MemoryFragmentsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryFragmentsTable,
+    MemoryFragment,
+    $$MemoryFragmentsTableFilterComposer,
+    $$MemoryFragmentsTableOrderingComposer,
+    $$MemoryFragmentsTableAnnotationComposer,
+    $$MemoryFragmentsTableCreateCompanionBuilder,
+    $$MemoryFragmentsTableUpdateCompanionBuilder,
+    (
+      MemoryFragment,
+      BaseReferences<_$AppDatabase, $MemoryFragmentsTable, MemoryFragment>
+    ),
+    MemoryFragment,
+    PrefetchHooks Function()> {
+  $$MemoryFragmentsTableTableManager(
+      _$AppDatabase db, $MemoryFragmentsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryFragmentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryFragmentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryFragmentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> content = const Value.absent(),
+            Value<String?> sourceMessageIds = const Value.absent(),
+            Value<String> sourceScope = const Value.absent(),
+            Value<double> emotionalWeight = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<bool> isUserTruthCandidate = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryFragmentsCompanion(
+            id: id,
+            content: content,
+            sourceMessageIds: sourceMessageIds,
+            sourceScope: sourceScope,
+            emotionalWeight: emotionalWeight,
+            status: status,
+            isUserTruthCandidate: isUserTruthCandidate,
+            generatedByVersion: generatedByVersion,
+            userCorrected: userCorrected,
+            schemaVersion: schemaVersion,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String content,
+            Value<String?> sourceMessageIds = const Value.absent(),
+            Value<String> sourceScope = const Value.absent(),
+            Value<double> emotionalWeight = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<bool> isUserTruthCandidate = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryFragmentsCompanion.insert(
+            id: id,
+            content: content,
+            sourceMessageIds: sourceMessageIds,
+            sourceScope: sourceScope,
+            emotionalWeight: emotionalWeight,
+            status: status,
+            isUserTruthCandidate: isUserTruthCandidate,
+            generatedByVersion: generatedByVersion,
+            userCorrected: userCorrected,
+            schemaVersion: schemaVersion,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryFragmentsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemoryFragmentsTable,
+    MemoryFragment,
+    $$MemoryFragmentsTableFilterComposer,
+    $$MemoryFragmentsTableOrderingComposer,
+    $$MemoryFragmentsTableAnnotationComposer,
+    $$MemoryFragmentsTableCreateCompanionBuilder,
+    $$MemoryFragmentsTableUpdateCompanionBuilder,
+    (
+      MemoryFragment,
+      BaseReferences<_$AppDatabase, $MemoryFragmentsTable, MemoryFragment>
+    ),
+    MemoryFragment,
+    PrefetchHooks Function()>;
+typedef $$MemoryEntitiesTableCreateCompanionBuilder = MemoryEntitiesCompanion
+    Function({
+  required String id,
+  required String name,
+  required String category,
+  Value<String> status,
+  Value<String?> aliases,
+  Value<String?> overview,
+  Value<String?> relationshipToUser,
+  Value<int?> firstMentionedAt,
+  Value<int?> lastMentionedAt,
+  Value<int> fragmentCount,
+  Value<String?> mergedIntoId,
+  Value<String?> generatedByVersion,
+  Value<bool> userCorrected,
+  Value<int> schemaVersion,
+  Value<int> rowid,
+});
+typedef $$MemoryEntitiesTableUpdateCompanionBuilder = MemoryEntitiesCompanion
+    Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String> category,
+  Value<String> status,
+  Value<String?> aliases,
+  Value<String?> overview,
+  Value<String?> relationshipToUser,
+  Value<int?> firstMentionedAt,
+  Value<int?> lastMentionedAt,
+  Value<int> fragmentCount,
+  Value<String?> mergedIntoId,
+  Value<String?> generatedByVersion,
+  Value<bool> userCorrected,
+  Value<int> schemaVersion,
+  Value<int> rowid,
+});
+
+class $$MemoryEntitiesTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryEntitiesTable> {
+  $$MemoryEntitiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get category => $composableBuilder(
+      column: $table.category, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get aliases => $composableBuilder(
+      column: $table.aliases, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get overview => $composableBuilder(
+      column: $table.overview, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get relationshipToUser => $composableBuilder(
+      column: $table.relationshipToUser,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get firstMentionedAt => $composableBuilder(
+      column: $table.firstMentionedAt,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get lastMentionedAt => $composableBuilder(
+      column: $table.lastMentionedAt,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get fragmentCount => $composableBuilder(
+      column: $table.fragmentCount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mergedIntoId => $composableBuilder(
+      column: $table.mergedIntoId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryEntitiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryEntitiesTable> {
+  $$MemoryEntitiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get category => $composableBuilder(
+      column: $table.category, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get aliases => $composableBuilder(
+      column: $table.aliases, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get overview => $composableBuilder(
+      column: $table.overview, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get relationshipToUser => $composableBuilder(
+      column: $table.relationshipToUser,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get firstMentionedAt => $composableBuilder(
+      column: $table.firstMentionedAt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get lastMentionedAt => $composableBuilder(
+      column: $table.lastMentionedAt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get fragmentCount => $composableBuilder(
+      column: $table.fragmentCount,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mergedIntoId => $composableBuilder(
+      column: $table.mergedIntoId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryEntitiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryEntitiesTable> {
+  $$MemoryEntitiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get aliases =>
+      $composableBuilder(column: $table.aliases, builder: (column) => column);
+
+  GeneratedColumn<String> get overview =>
+      $composableBuilder(column: $table.overview, builder: (column) => column);
+
+  GeneratedColumn<String> get relationshipToUser => $composableBuilder(
+      column: $table.relationshipToUser, builder: (column) => column);
+
+  GeneratedColumn<int> get firstMentionedAt => $composableBuilder(
+      column: $table.firstMentionedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get lastMentionedAt => $composableBuilder(
+      column: $table.lastMentionedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get fragmentCount => $composableBuilder(
+      column: $table.fragmentCount, builder: (column) => column);
+
+  GeneratedColumn<String> get mergedIntoId => $composableBuilder(
+      column: $table.mergedIntoId, builder: (column) => column);
+
+  GeneratedColumn<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion, builder: (column) => column);
+
+  GeneratedColumn<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => column);
+}
+
+class $$MemoryEntitiesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryEntitiesTable,
+    MemoryEntity,
+    $$MemoryEntitiesTableFilterComposer,
+    $$MemoryEntitiesTableOrderingComposer,
+    $$MemoryEntitiesTableAnnotationComposer,
+    $$MemoryEntitiesTableCreateCompanionBuilder,
+    $$MemoryEntitiesTableUpdateCompanionBuilder,
+    (
+      MemoryEntity,
+      BaseReferences<_$AppDatabase, $MemoryEntitiesTable, MemoryEntity>
+    ),
+    MemoryEntity,
+    PrefetchHooks Function()> {
+  $$MemoryEntitiesTableTableManager(
+      _$AppDatabase db, $MemoryEntitiesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryEntitiesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryEntitiesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryEntitiesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String> category = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String?> aliases = const Value.absent(),
+            Value<String?> overview = const Value.absent(),
+            Value<String?> relationshipToUser = const Value.absent(),
+            Value<int?> firstMentionedAt = const Value.absent(),
+            Value<int?> lastMentionedAt = const Value.absent(),
+            Value<int> fragmentCount = const Value.absent(),
+            Value<String?> mergedIntoId = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryEntitiesCompanion(
+            id: id,
+            name: name,
+            category: category,
+            status: status,
+            aliases: aliases,
+            overview: overview,
+            relationshipToUser: relationshipToUser,
+            firstMentionedAt: firstMentionedAt,
+            lastMentionedAt: lastMentionedAt,
+            fragmentCount: fragmentCount,
+            mergedIntoId: mergedIntoId,
+            generatedByVersion: generatedByVersion,
+            userCorrected: userCorrected,
+            schemaVersion: schemaVersion,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            required String category,
+            Value<String> status = const Value.absent(),
+            Value<String?> aliases = const Value.absent(),
+            Value<String?> overview = const Value.absent(),
+            Value<String?> relationshipToUser = const Value.absent(),
+            Value<int?> firstMentionedAt = const Value.absent(),
+            Value<int?> lastMentionedAt = const Value.absent(),
+            Value<int> fragmentCount = const Value.absent(),
+            Value<String?> mergedIntoId = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryEntitiesCompanion.insert(
+            id: id,
+            name: name,
+            category: category,
+            status: status,
+            aliases: aliases,
+            overview: overview,
+            relationshipToUser: relationshipToUser,
+            firstMentionedAt: firstMentionedAt,
+            lastMentionedAt: lastMentionedAt,
+            fragmentCount: fragmentCount,
+            mergedIntoId: mergedIntoId,
+            generatedByVersion: generatedByVersion,
+            userCorrected: userCorrected,
+            schemaVersion: schemaVersion,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryEntitiesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemoryEntitiesTable,
+    MemoryEntity,
+    $$MemoryEntitiesTableFilterComposer,
+    $$MemoryEntitiesTableOrderingComposer,
+    $$MemoryEntitiesTableAnnotationComposer,
+    $$MemoryEntitiesTableCreateCompanionBuilder,
+    $$MemoryEntitiesTableUpdateCompanionBuilder,
+    (
+      MemoryEntity,
+      BaseReferences<_$AppDatabase, $MemoryEntitiesTable, MemoryEntity>
+    ),
+    MemoryEntity,
+    PrefetchHooks Function()>;
+typedef $$MemoryEntityLinksTableCreateCompanionBuilder
+    = MemoryEntityLinksCompanion Function({
+  required String id,
+  required String sourceTable,
+  required String sourceId,
+  required String entityId,
+  required String relation,
+  Value<double> confidence,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$MemoryEntityLinksTableUpdateCompanionBuilder
+    = MemoryEntityLinksCompanion Function({
+  Value<String> id,
+  Value<String> sourceTable,
+  Value<String> sourceId,
+  Value<String> entityId,
+  Value<String> relation,
+  Value<double> confidence,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$MemoryEntityLinksTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryEntityLinksTable> {
+  $$MemoryEntityLinksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceTable => $composableBuilder(
+      column: $table.sourceTable, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+      column: $table.sourceId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+      column: $table.entityId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get relation => $composableBuilder(
+      column: $table.relation, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryEntityLinksTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryEntityLinksTable> {
+  $$MemoryEntityLinksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceTable => $composableBuilder(
+      column: $table.sourceTable, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+      column: $table.sourceId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+      column: $table.entityId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get relation => $composableBuilder(
+      column: $table.relation, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryEntityLinksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryEntityLinksTable> {
+  $$MemoryEntityLinksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceTable => $composableBuilder(
+      column: $table.sourceTable, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<String> get relation =>
+      $composableBuilder(column: $table.relation, builder: (column) => column);
+
+  GeneratedColumn<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$MemoryEntityLinksTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryEntityLinksTable,
+    MemoryEntityLink,
+    $$MemoryEntityLinksTableFilterComposer,
+    $$MemoryEntityLinksTableOrderingComposer,
+    $$MemoryEntityLinksTableAnnotationComposer,
+    $$MemoryEntityLinksTableCreateCompanionBuilder,
+    $$MemoryEntityLinksTableUpdateCompanionBuilder,
+    (
+      MemoryEntityLink,
+      BaseReferences<_$AppDatabase, $MemoryEntityLinksTable, MemoryEntityLink>
+    ),
+    MemoryEntityLink,
+    PrefetchHooks Function()> {
+  $$MemoryEntityLinksTableTableManager(
+      _$AppDatabase db, $MemoryEntityLinksTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryEntityLinksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryEntityLinksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryEntityLinksTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> sourceTable = const Value.absent(),
+            Value<String> sourceId = const Value.absent(),
+            Value<String> entityId = const Value.absent(),
+            Value<String> relation = const Value.absent(),
+            Value<double> confidence = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryEntityLinksCompanion(
+            id: id,
+            sourceTable: sourceTable,
+            sourceId: sourceId,
+            entityId: entityId,
+            relation: relation,
+            confidence: confidence,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String sourceTable,
+            required String sourceId,
+            required String entityId,
+            required String relation,
+            Value<double> confidence = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryEntityLinksCompanion.insert(
+            id: id,
+            sourceTable: sourceTable,
+            sourceId: sourceId,
+            entityId: entityId,
+            relation: relation,
+            confidence: confidence,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryEntityLinksTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemoryEntityLinksTable,
+    MemoryEntityLink,
+    $$MemoryEntityLinksTableFilterComposer,
+    $$MemoryEntityLinksTableOrderingComposer,
+    $$MemoryEntityLinksTableAnnotationComposer,
+    $$MemoryEntityLinksTableCreateCompanionBuilder,
+    $$MemoryEntityLinksTableUpdateCompanionBuilder,
+    (
+      MemoryEntityLink,
+      BaseReferences<_$AppDatabase, $MemoryEntityLinksTable, MemoryEntityLink>
+    ),
+    MemoryEntityLink,
+    PrefetchHooks Function()>;
+typedef $$MemoryEpisodesTableCreateCompanionBuilder = MemoryEpisodesCompanion
+    Function({
+  required String id,
+  required String primaryEntityId,
+  required String narrative,
+  required String sourceFragmentIds,
+  required int significance,
+  required String confidence,
+  required double valence,
+  required double arousal,
+  Value<String?> occurredAtRange,
+  Value<String> status,
+  Value<String?> generatedByVersion,
+  Value<bool> userCorrected,
+  Value<int> schemaVersion,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$MemoryEpisodesTableUpdateCompanionBuilder = MemoryEpisodesCompanion
+    Function({
+  Value<String> id,
+  Value<String> primaryEntityId,
+  Value<String> narrative,
+  Value<String> sourceFragmentIds,
+  Value<int> significance,
+  Value<String> confidence,
+  Value<double> valence,
+  Value<double> arousal,
+  Value<String?> occurredAtRange,
+  Value<String> status,
+  Value<String?> generatedByVersion,
+  Value<bool> userCorrected,
+  Value<int> schemaVersion,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$MemoryEpisodesTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryEpisodesTable> {
+  $$MemoryEpisodesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get primaryEntityId => $composableBuilder(
+      column: $table.primaryEntityId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get narrative => $composableBuilder(
+      column: $table.narrative, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceFragmentIds => $composableBuilder(
+      column: $table.sourceFragmentIds,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get significance => $composableBuilder(
+      column: $table.significance, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get valence => $composableBuilder(
+      column: $table.valence, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get arousal => $composableBuilder(
+      column: $table.arousal, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get occurredAtRange => $composableBuilder(
+      column: $table.occurredAtRange,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryEpisodesTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryEpisodesTable> {
+  $$MemoryEpisodesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get primaryEntityId => $composableBuilder(
+      column: $table.primaryEntityId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get narrative => $composableBuilder(
+      column: $table.narrative, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceFragmentIds => $composableBuilder(
+      column: $table.sourceFragmentIds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get significance => $composableBuilder(
+      column: $table.significance,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get valence => $composableBuilder(
+      column: $table.valence, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get arousal => $composableBuilder(
+      column: $table.arousal, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get occurredAtRange => $composableBuilder(
+      column: $table.occurredAtRange,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryEpisodesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryEpisodesTable> {
+  $$MemoryEpisodesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get primaryEntityId => $composableBuilder(
+      column: $table.primaryEntityId, builder: (column) => column);
+
+  GeneratedColumn<String> get narrative =>
+      $composableBuilder(column: $table.narrative, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceFragmentIds => $composableBuilder(
+      column: $table.sourceFragmentIds, builder: (column) => column);
+
+  GeneratedColumn<int> get significance => $composableBuilder(
+      column: $table.significance, builder: (column) => column);
+
+  GeneratedColumn<String> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => column);
+
+  GeneratedColumn<double> get valence =>
+      $composableBuilder(column: $table.valence, builder: (column) => column);
+
+  GeneratedColumn<double> get arousal =>
+      $composableBuilder(column: $table.arousal, builder: (column) => column);
+
+  GeneratedColumn<String> get occurredAtRange => $composableBuilder(
+      column: $table.occurredAtRange, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion, builder: (column) => column);
+
+  GeneratedColumn<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$MemoryEpisodesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryEpisodesTable,
+    MemoryEpisode,
+    $$MemoryEpisodesTableFilterComposer,
+    $$MemoryEpisodesTableOrderingComposer,
+    $$MemoryEpisodesTableAnnotationComposer,
+    $$MemoryEpisodesTableCreateCompanionBuilder,
+    $$MemoryEpisodesTableUpdateCompanionBuilder,
+    (
+      MemoryEpisode,
+      BaseReferences<_$AppDatabase, $MemoryEpisodesTable, MemoryEpisode>
+    ),
+    MemoryEpisode,
+    PrefetchHooks Function()> {
+  $$MemoryEpisodesTableTableManager(
+      _$AppDatabase db, $MemoryEpisodesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryEpisodesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryEpisodesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryEpisodesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> primaryEntityId = const Value.absent(),
+            Value<String> narrative = const Value.absent(),
+            Value<String> sourceFragmentIds = const Value.absent(),
+            Value<int> significance = const Value.absent(),
+            Value<String> confidence = const Value.absent(),
+            Value<double> valence = const Value.absent(),
+            Value<double> arousal = const Value.absent(),
+            Value<String?> occurredAtRange = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryEpisodesCompanion(
+            id: id,
+            primaryEntityId: primaryEntityId,
+            narrative: narrative,
+            sourceFragmentIds: sourceFragmentIds,
+            significance: significance,
+            confidence: confidence,
+            valence: valence,
+            arousal: arousal,
+            occurredAtRange: occurredAtRange,
+            status: status,
+            generatedByVersion: generatedByVersion,
+            userCorrected: userCorrected,
+            schemaVersion: schemaVersion,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String primaryEntityId,
+            required String narrative,
+            required String sourceFragmentIds,
+            required int significance,
+            required String confidence,
+            required double valence,
+            required double arousal,
+            Value<String?> occurredAtRange = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryEpisodesCompanion.insert(
+            id: id,
+            primaryEntityId: primaryEntityId,
+            narrative: narrative,
+            sourceFragmentIds: sourceFragmentIds,
+            significance: significance,
+            confidence: confidence,
+            valence: valence,
+            arousal: arousal,
+            occurredAtRange: occurredAtRange,
+            status: status,
+            generatedByVersion: generatedByVersion,
+            userCorrected: userCorrected,
+            schemaVersion: schemaVersion,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryEpisodesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemoryEpisodesTable,
+    MemoryEpisode,
+    $$MemoryEpisodesTableFilterComposer,
+    $$MemoryEpisodesTableOrderingComposer,
+    $$MemoryEpisodesTableAnnotationComposer,
+    $$MemoryEpisodesTableCreateCompanionBuilder,
+    $$MemoryEpisodesTableUpdateCompanionBuilder,
+    (
+      MemoryEpisode,
+      BaseReferences<_$AppDatabase, $MemoryEpisodesTable, MemoryEpisode>
+    ),
+    MemoryEpisode,
+    PrefetchHooks Function()>;
+typedef $$MemorySagasTableCreateCompanionBuilder = MemorySagasCompanion
+    Function({
+  required String id,
+  required String title,
+  required String description,
+  required String episodeIds,
+  required String emotionalAxis,
+  Value<String> status,
+  Value<String?> generatedByVersion,
+  Value<bool> userCorrected,
+  Value<int> schemaVersion,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$MemorySagasTableUpdateCompanionBuilder = MemorySagasCompanion
+    Function({
+  Value<String> id,
+  Value<String> title,
+  Value<String> description,
+  Value<String> episodeIds,
+  Value<String> emotionalAxis,
+  Value<String> status,
+  Value<String?> generatedByVersion,
+  Value<bool> userCorrected,
+  Value<int> schemaVersion,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$MemorySagasTableFilterComposer
+    extends Composer<_$AppDatabase, $MemorySagasTable> {
+  $$MemorySagasTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get episodeIds => $composableBuilder(
+      column: $table.episodeIds, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get emotionalAxis => $composableBuilder(
+      column: $table.emotionalAxis, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemorySagasTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemorySagasTable> {
+  $$MemorySagasTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get episodeIds => $composableBuilder(
+      column: $table.episodeIds, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get emotionalAxis => $composableBuilder(
+      column: $table.emotionalAxis,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemorySagasTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemorySagasTable> {
+  $$MemorySagasTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<String> get episodeIds => $composableBuilder(
+      column: $table.episodeIds, builder: (column) => column);
+
+  GeneratedColumn<String> get emotionalAxis => $composableBuilder(
+      column: $table.emotionalAxis, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion, builder: (column) => column);
+
+  GeneratedColumn<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$MemorySagasTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemorySagasTable,
+    MemorySaga,
+    $$MemorySagasTableFilterComposer,
+    $$MemorySagasTableOrderingComposer,
+    $$MemorySagasTableAnnotationComposer,
+    $$MemorySagasTableCreateCompanionBuilder,
+    $$MemorySagasTableUpdateCompanionBuilder,
+    (MemorySaga, BaseReferences<_$AppDatabase, $MemorySagasTable, MemorySaga>),
+    MemorySaga,
+    PrefetchHooks Function()> {
+  $$MemorySagasTableTableManager(_$AppDatabase db, $MemorySagasTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemorySagasTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemorySagasTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemorySagasTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> description = const Value.absent(),
+            Value<String> episodeIds = const Value.absent(),
+            Value<String> emotionalAxis = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemorySagasCompanion(
+            id: id,
+            title: title,
+            description: description,
+            episodeIds: episodeIds,
+            emotionalAxis: emotionalAxis,
+            status: status,
+            generatedByVersion: generatedByVersion,
+            userCorrected: userCorrected,
+            schemaVersion: schemaVersion,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String title,
+            required String description,
+            required String episodeIds,
+            required String emotionalAxis,
+            Value<String> status = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemorySagasCompanion.insert(
+            id: id,
+            title: title,
+            description: description,
+            episodeIds: episodeIds,
+            emotionalAxis: emotionalAxis,
+            status: status,
+            generatedByVersion: generatedByVersion,
+            userCorrected: userCorrected,
+            schemaVersion: schemaVersion,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemorySagasTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemorySagasTable,
+    MemorySaga,
+    $$MemorySagasTableFilterComposer,
+    $$MemorySagasTableOrderingComposer,
+    $$MemorySagasTableAnnotationComposer,
+    $$MemorySagasTableCreateCompanionBuilder,
+    $$MemorySagasTableUpdateCompanionBuilder,
+    (MemorySaga, BaseReferences<_$AppDatabase, $MemorySagasTable, MemorySaga>),
+    MemorySaga,
+    PrefetchHooks Function()>;
+typedef $$MemorySagaSnapshotsTableCreateCompanionBuilder
+    = MemorySagaSnapshotsCompanion Function({
+  required String id,
+  required String sagaId,
+  required String title,
+  required String description,
+  required String episodeIds,
+  required String emotionalAxis,
+  Value<String?> generatedByVersion,
+  required int snapshotAt,
+  Value<int> rowid,
+});
+typedef $$MemorySagaSnapshotsTableUpdateCompanionBuilder
+    = MemorySagaSnapshotsCompanion Function({
+  Value<String> id,
+  Value<String> sagaId,
+  Value<String> title,
+  Value<String> description,
+  Value<String> episodeIds,
+  Value<String> emotionalAxis,
+  Value<String?> generatedByVersion,
+  Value<int> snapshotAt,
+  Value<int> rowid,
+});
+
+class $$MemorySagaSnapshotsTableFilterComposer
+    extends Composer<_$AppDatabase, $MemorySagaSnapshotsTable> {
+  $$MemorySagaSnapshotsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sagaId => $composableBuilder(
+      column: $table.sagaId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get episodeIds => $composableBuilder(
+      column: $table.episodeIds, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get emotionalAxis => $composableBuilder(
+      column: $table.emotionalAxis, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get snapshotAt => $composableBuilder(
+      column: $table.snapshotAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemorySagaSnapshotsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemorySagaSnapshotsTable> {
+  $$MemorySagaSnapshotsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sagaId => $composableBuilder(
+      column: $table.sagaId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get episodeIds => $composableBuilder(
+      column: $table.episodeIds, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get emotionalAxis => $composableBuilder(
+      column: $table.emotionalAxis,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get snapshotAt => $composableBuilder(
+      column: $table.snapshotAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemorySagaSnapshotsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemorySagaSnapshotsTable> {
+  $$MemorySagaSnapshotsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sagaId =>
+      $composableBuilder(column: $table.sagaId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<String> get episodeIds => $composableBuilder(
+      column: $table.episodeIds, builder: (column) => column);
+
+  GeneratedColumn<String> get emotionalAxis => $composableBuilder(
+      column: $table.emotionalAxis, builder: (column) => column);
+
+  GeneratedColumn<String> get generatedByVersion => $composableBuilder(
+      column: $table.generatedByVersion, builder: (column) => column);
+
+  GeneratedColumn<int> get snapshotAt => $composableBuilder(
+      column: $table.snapshotAt, builder: (column) => column);
+}
+
+class $$MemorySagaSnapshotsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemorySagaSnapshotsTable,
+    MemorySagaSnapshot,
+    $$MemorySagaSnapshotsTableFilterComposer,
+    $$MemorySagaSnapshotsTableOrderingComposer,
+    $$MemorySagaSnapshotsTableAnnotationComposer,
+    $$MemorySagaSnapshotsTableCreateCompanionBuilder,
+    $$MemorySagaSnapshotsTableUpdateCompanionBuilder,
+    (
+      MemorySagaSnapshot,
+      BaseReferences<_$AppDatabase, $MemorySagaSnapshotsTable,
+          MemorySagaSnapshot>
+    ),
+    MemorySagaSnapshot,
+    PrefetchHooks Function()> {
+  $$MemorySagaSnapshotsTableTableManager(
+      _$AppDatabase db, $MemorySagaSnapshotsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemorySagaSnapshotsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemorySagaSnapshotsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemorySagaSnapshotsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> sagaId = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> description = const Value.absent(),
+            Value<String> episodeIds = const Value.absent(),
+            Value<String> emotionalAxis = const Value.absent(),
+            Value<String?> generatedByVersion = const Value.absent(),
+            Value<int> snapshotAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemorySagaSnapshotsCompanion(
+            id: id,
+            sagaId: sagaId,
+            title: title,
+            description: description,
+            episodeIds: episodeIds,
+            emotionalAxis: emotionalAxis,
+            generatedByVersion: generatedByVersion,
+            snapshotAt: snapshotAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String sagaId,
+            required String title,
+            required String description,
+            required String episodeIds,
+            required String emotionalAxis,
+            Value<String?> generatedByVersion = const Value.absent(),
+            required int snapshotAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemorySagaSnapshotsCompanion.insert(
+            id: id,
+            sagaId: sagaId,
+            title: title,
+            description: description,
+            episodeIds: episodeIds,
+            emotionalAxis: emotionalAxis,
+            generatedByVersion: generatedByVersion,
+            snapshotAt: snapshotAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemorySagaSnapshotsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemorySagaSnapshotsTable,
+    MemorySagaSnapshot,
+    $$MemorySagaSnapshotsTableFilterComposer,
+    $$MemorySagaSnapshotsTableOrderingComposer,
+    $$MemorySagaSnapshotsTableAnnotationComposer,
+    $$MemorySagaSnapshotsTableCreateCompanionBuilder,
+    $$MemorySagaSnapshotsTableUpdateCompanionBuilder,
+    (
+      MemorySagaSnapshot,
+      BaseReferences<_$AppDatabase, $MemorySagaSnapshotsTable,
+          MemorySagaSnapshot>
+    ),
+    MemorySagaSnapshot,
+    PrefetchHooks Function()>;
+typedef $$AssetsTableCreateCompanionBuilder = AssetsCompanion Function({
+  required String id,
+  required String assetType,
+  Value<String?> storagePath,
+  Value<String?> url,
+  Value<String?> mimeType,
+  Value<String?> originatorRef,
+  Value<int> schemaVersion,
+  required int createdAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+typedef $$AssetsTableUpdateCompanionBuilder = AssetsCompanion Function({
+  Value<String> id,
+  Value<String> assetType,
+  Value<String?> storagePath,
+  Value<String?> url,
+  Value<String?> mimeType,
+  Value<String?> originatorRef,
+  Value<int> schemaVersion,
+  Value<int> createdAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+
+class $$AssetsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssetsTable> {
+  $$AssetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get assetType => $composableBuilder(
+      column: $table.assetType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get storagePath => $composableBuilder(
+      column: $table.storagePath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get url => $composableBuilder(
+      column: $table.url, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mimeType => $composableBuilder(
+      column: $table.mimeType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get originatorRef => $composableBuilder(
+      column: $table.originatorRef, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$AssetsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssetsTable> {
+  $$AssetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get assetType => $composableBuilder(
+      column: $table.assetType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get storagePath => $composableBuilder(
+      column: $table.storagePath, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get url => $composableBuilder(
+      column: $table.url, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mimeType => $composableBuilder(
+      column: $table.mimeType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get originatorRef => $composableBuilder(
+      column: $table.originatorRef,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$AssetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssetsTable> {
+  $$AssetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get assetType =>
+      $composableBuilder(column: $table.assetType, builder: (column) => column);
+
+  GeneratedColumn<String> get storagePath => $composableBuilder(
+      column: $table.storagePath, builder: (column) => column);
+
+  GeneratedColumn<String> get url =>
+      $composableBuilder(column: $table.url, builder: (column) => column);
+
+  GeneratedColumn<String> get mimeType =>
+      $composableBuilder(column: $table.mimeType, builder: (column) => column);
+
+  GeneratedColumn<String> get originatorRef => $composableBuilder(
+      column: $table.originatorRef, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$AssetsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $AssetsTable,
+    Asset,
+    $$AssetsTableFilterComposer,
+    $$AssetsTableOrderingComposer,
+    $$AssetsTableAnnotationComposer,
+    $$AssetsTableCreateCompanionBuilder,
+    $$AssetsTableUpdateCompanionBuilder,
+    (Asset, BaseReferences<_$AppDatabase, $AssetsTable, Asset>),
+    Asset,
+    PrefetchHooks Function()> {
+  $$AssetsTableTableManager(_$AppDatabase db, $AssetsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AssetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AssetsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> assetType = const Value.absent(),
+            Value<String?> storagePath = const Value.absent(),
+            Value<String?> url = const Value.absent(),
+            Value<String?> mimeType = const Value.absent(),
+            Value<String?> originatorRef = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AssetsCompanion(
+            id: id,
+            assetType: assetType,
+            storagePath: storagePath,
+            url: url,
+            mimeType: mimeType,
+            originatorRef: originatorRef,
+            schemaVersion: schemaVersion,
+            createdAt: createdAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String assetType,
+            Value<String?> storagePath = const Value.absent(),
+            Value<String?> url = const Value.absent(),
+            Value<String?> mimeType = const Value.absent(),
+            Value<String?> originatorRef = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            required int createdAt,
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AssetsCompanion.insert(
+            id: id,
+            assetType: assetType,
+            storagePath: storagePath,
+            url: url,
+            mimeType: mimeType,
+            originatorRef: originatorRef,
+            schemaVersion: schemaVersion,
+            createdAt: createdAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$AssetsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $AssetsTable,
+    Asset,
+    $$AssetsTableFilterComposer,
+    $$AssetsTableOrderingComposer,
+    $$AssetsTableAnnotationComposer,
+    $$AssetsTableCreateCompanionBuilder,
+    $$AssetsTableUpdateCompanionBuilder,
+    (Asset, BaseReferences<_$AppDatabase, $AssetsTable, Asset>),
+    Asset,
+    PrefetchHooks Function()>;
+typedef $$AssetAnalysisTableCreateCompanionBuilder = AssetAnalysisCompanion
+    Function({
+  required String id,
+  required String assetId,
+  required String analysisType,
+  required String content,
+  Value<String?> modelProvider,
+  Value<String?> modelName,
+  Value<bool> userCorrected,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$AssetAnalysisTableUpdateCompanionBuilder = AssetAnalysisCompanion
+    Function({
+  Value<String> id,
+  Value<String> assetId,
+  Value<String> analysisType,
+  Value<String> content,
+  Value<String?> modelProvider,
+  Value<String?> modelName,
+  Value<bool> userCorrected,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$AssetAnalysisTableFilterComposer
+    extends Composer<_$AppDatabase, $AssetAnalysisTable> {
+  $$AssetAnalysisTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get assetId => $composableBuilder(
+      column: $table.assetId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get analysisType => $composableBuilder(
+      column: $table.analysisType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get modelProvider => $composableBuilder(
+      column: $table.modelProvider, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get modelName => $composableBuilder(
+      column: $table.modelName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$AssetAnalysisTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssetAnalysisTable> {
+  $$AssetAnalysisTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get assetId => $composableBuilder(
+      column: $table.assetId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get analysisType => $composableBuilder(
+      column: $table.analysisType,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get modelProvider => $composableBuilder(
+      column: $table.modelProvider,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get modelName => $composableBuilder(
+      column: $table.modelName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$AssetAnalysisTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssetAnalysisTable> {
+  $$AssetAnalysisTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get assetId =>
+      $composableBuilder(column: $table.assetId, builder: (column) => column);
+
+  GeneratedColumn<String> get analysisType => $composableBuilder(
+      column: $table.analysisType, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get modelProvider => $composableBuilder(
+      column: $table.modelProvider, builder: (column) => column);
+
+  GeneratedColumn<String> get modelName =>
+      $composableBuilder(column: $table.modelName, builder: (column) => column);
+
+  GeneratedColumn<bool> get userCorrected => $composableBuilder(
+      column: $table.userCorrected, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$AssetAnalysisTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $AssetAnalysisTable,
+    AssetAnalysi,
+    $$AssetAnalysisTableFilterComposer,
+    $$AssetAnalysisTableOrderingComposer,
+    $$AssetAnalysisTableAnnotationComposer,
+    $$AssetAnalysisTableCreateCompanionBuilder,
+    $$AssetAnalysisTableUpdateCompanionBuilder,
+    (
+      AssetAnalysi,
+      BaseReferences<_$AppDatabase, $AssetAnalysisTable, AssetAnalysi>
+    ),
+    AssetAnalysi,
+    PrefetchHooks Function()> {
+  $$AssetAnalysisTableTableManager(_$AppDatabase db, $AssetAnalysisTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssetAnalysisTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AssetAnalysisTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AssetAnalysisTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> assetId = const Value.absent(),
+            Value<String> analysisType = const Value.absent(),
+            Value<String> content = const Value.absent(),
+            Value<String?> modelProvider = const Value.absent(),
+            Value<String?> modelName = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AssetAnalysisCompanion(
+            id: id,
+            assetId: assetId,
+            analysisType: analysisType,
+            content: content,
+            modelProvider: modelProvider,
+            modelName: modelName,
+            userCorrected: userCorrected,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String assetId,
+            required String analysisType,
+            required String content,
+            Value<String?> modelProvider = const Value.absent(),
+            Value<String?> modelName = const Value.absent(),
+            Value<bool> userCorrected = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AssetAnalysisCompanion.insert(
+            id: id,
+            assetId: assetId,
+            analysisType: analysisType,
+            content: content,
+            modelProvider: modelProvider,
+            modelName: modelName,
+            userCorrected: userCorrected,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$AssetAnalysisTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $AssetAnalysisTable,
+    AssetAnalysi,
+    $$AssetAnalysisTableFilterComposer,
+    $$AssetAnalysisTableOrderingComposer,
+    $$AssetAnalysisTableAnnotationComposer,
+    $$AssetAnalysisTableCreateCompanionBuilder,
+    $$AssetAnalysisTableUpdateCompanionBuilder,
+    (
+      AssetAnalysi,
+      BaseReferences<_$AppDatabase, $AssetAnalysisTable, AssetAnalysi>
+    ),
+    AssetAnalysi,
+    PrefetchHooks Function()>;
+typedef $$UserCorrectionsTableCreateCompanionBuilder = UserCorrectionsCompanion
+    Function({
+  required String id,
+  required String targetTable,
+  required String targetId,
+  required String field,
+  Value<String?> oldValue,
+  required String newValue,
+  required String correctionType,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$UserCorrectionsTableUpdateCompanionBuilder = UserCorrectionsCompanion
+    Function({
+  Value<String> id,
+  Value<String> targetTable,
+  Value<String> targetId,
+  Value<String> field,
+  Value<String?> oldValue,
+  Value<String> newValue,
+  Value<String> correctionType,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$UserCorrectionsTableFilterComposer
+    extends Composer<_$AppDatabase, $UserCorrectionsTable> {
+  $$UserCorrectionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get targetTable => $composableBuilder(
+      column: $table.targetTable, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get targetId => $composableBuilder(
+      column: $table.targetId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get field => $composableBuilder(
+      column: $table.field, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get oldValue => $composableBuilder(
+      column: $table.oldValue, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get newValue => $composableBuilder(
+      column: $table.newValue, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get correctionType => $composableBuilder(
+      column: $table.correctionType,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$UserCorrectionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $UserCorrectionsTable> {
+  $$UserCorrectionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get targetTable => $composableBuilder(
+      column: $table.targetTable, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get targetId => $composableBuilder(
+      column: $table.targetId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get field => $composableBuilder(
+      column: $table.field, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get oldValue => $composableBuilder(
+      column: $table.oldValue, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get newValue => $composableBuilder(
+      column: $table.newValue, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get correctionType => $composableBuilder(
+      column: $table.correctionType,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$UserCorrectionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $UserCorrectionsTable> {
+  $$UserCorrectionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get targetTable => $composableBuilder(
+      column: $table.targetTable, builder: (column) => column);
+
+  GeneratedColumn<String> get targetId =>
+      $composableBuilder(column: $table.targetId, builder: (column) => column);
+
+  GeneratedColumn<String> get field =>
+      $composableBuilder(column: $table.field, builder: (column) => column);
+
+  GeneratedColumn<String> get oldValue =>
+      $composableBuilder(column: $table.oldValue, builder: (column) => column);
+
+  GeneratedColumn<String> get newValue =>
+      $composableBuilder(column: $table.newValue, builder: (column) => column);
+
+  GeneratedColumn<String> get correctionType => $composableBuilder(
+      column: $table.correctionType, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$UserCorrectionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $UserCorrectionsTable,
+    UserCorrection,
+    $$UserCorrectionsTableFilterComposer,
+    $$UserCorrectionsTableOrderingComposer,
+    $$UserCorrectionsTableAnnotationComposer,
+    $$UserCorrectionsTableCreateCompanionBuilder,
+    $$UserCorrectionsTableUpdateCompanionBuilder,
+    (
+      UserCorrection,
+      BaseReferences<_$AppDatabase, $UserCorrectionsTable, UserCorrection>
+    ),
+    UserCorrection,
+    PrefetchHooks Function()> {
+  $$UserCorrectionsTableTableManager(
+      _$AppDatabase db, $UserCorrectionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UserCorrectionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UserCorrectionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UserCorrectionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> targetTable = const Value.absent(),
+            Value<String> targetId = const Value.absent(),
+            Value<String> field = const Value.absent(),
+            Value<String?> oldValue = const Value.absent(),
+            Value<String> newValue = const Value.absent(),
+            Value<String> correctionType = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              UserCorrectionsCompanion(
+            id: id,
+            targetTable: targetTable,
+            targetId: targetId,
+            field: field,
+            oldValue: oldValue,
+            newValue: newValue,
+            correctionType: correctionType,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String targetTable,
+            required String targetId,
+            required String field,
+            Value<String?> oldValue = const Value.absent(),
+            required String newValue,
+            required String correctionType,
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              UserCorrectionsCompanion.insert(
+            id: id,
+            targetTable: targetTable,
+            targetId: targetId,
+            field: field,
+            oldValue: oldValue,
+            newValue: newValue,
+            correctionType: correctionType,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$UserCorrectionsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $UserCorrectionsTable,
+    UserCorrection,
+    $$UserCorrectionsTableFilterComposer,
+    $$UserCorrectionsTableOrderingComposer,
+    $$UserCorrectionsTableAnnotationComposer,
+    $$UserCorrectionsTableCreateCompanionBuilder,
+    $$UserCorrectionsTableUpdateCompanionBuilder,
+    (
+      UserCorrection,
+      BaseReferences<_$AppDatabase, $UserCorrectionsTable, UserCorrection>
+    ),
+    UserCorrection,
+    PrefetchHooks Function()>;
+typedef $$MemoryCardOperationsTableCreateCompanionBuilder
+    = MemoryCardOperationsCompanion Function({
+  required String id,
+  required String cardId,
+  required String operationType,
+  required String payload,
+  required String sourceKind,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$MemoryCardOperationsTableUpdateCompanionBuilder
+    = MemoryCardOperationsCompanion Function({
+  Value<String> id,
+  Value<String> cardId,
+  Value<String> operationType,
+  Value<String> payload,
+  Value<String> sourceKind,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$MemoryCardOperationsTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryCardOperationsTable> {
+  $$MemoryCardOperationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get operationType => $composableBuilder(
+      column: $table.operationType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get payload => $composableBuilder(
+      column: $table.payload, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceKind => $composableBuilder(
+      column: $table.sourceKind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryCardOperationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryCardOperationsTable> {
+  $$MemoryCardOperationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get operationType => $composableBuilder(
+      column: $table.operationType,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+      column: $table.payload, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceKind => $composableBuilder(
+      column: $table.sourceKind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryCardOperationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryCardOperationsTable> {
+  $$MemoryCardOperationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get cardId =>
+      $composableBuilder(column: $table.cardId, builder: (column) => column);
+
+  GeneratedColumn<String> get operationType => $composableBuilder(
+      column: $table.operationType, builder: (column) => column);
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceKind => $composableBuilder(
+      column: $table.sourceKind, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$MemoryCardOperationsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryCardOperationsTable,
+    MemoryCardOperation,
+    $$MemoryCardOperationsTableFilterComposer,
+    $$MemoryCardOperationsTableOrderingComposer,
+    $$MemoryCardOperationsTableAnnotationComposer,
+    $$MemoryCardOperationsTableCreateCompanionBuilder,
+    $$MemoryCardOperationsTableUpdateCompanionBuilder,
+    (
+      MemoryCardOperation,
+      BaseReferences<_$AppDatabase, $MemoryCardOperationsTable,
+          MemoryCardOperation>
+    ),
+    MemoryCardOperation,
+    PrefetchHooks Function()> {
+  $$MemoryCardOperationsTableTableManager(
+      _$AppDatabase db, $MemoryCardOperationsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryCardOperationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryCardOperationsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryCardOperationsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> cardId = const Value.absent(),
+            Value<String> operationType = const Value.absent(),
+            Value<String> payload = const Value.absent(),
+            Value<String> sourceKind = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardOperationsCompanion(
+            id: id,
+            cardId: cardId,
+            operationType: operationType,
+            payload: payload,
+            sourceKind: sourceKind,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String cardId,
+            required String operationType,
+            required String payload,
+            required String sourceKind,
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryCardOperationsCompanion.insert(
+            id: id,
+            cardId: cardId,
+            operationType: operationType,
+            payload: payload,
+            sourceKind: sourceKind,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryCardOperationsTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $MemoryCardOperationsTable,
+        MemoryCardOperation,
+        $$MemoryCardOperationsTableFilterComposer,
+        $$MemoryCardOperationsTableOrderingComposer,
+        $$MemoryCardOperationsTableAnnotationComposer,
+        $$MemoryCardOperationsTableCreateCompanionBuilder,
+        $$MemoryCardOperationsTableUpdateCompanionBuilder,
+        (
+          MemoryCardOperation,
+          BaseReferences<_$AppDatabase, $MemoryCardOperationsTable,
+              MemoryCardOperation>
+        ),
+        MemoryCardOperation,
+        PrefetchHooks Function()>;
+typedef $$MemoryRecallEventsTableCreateCompanionBuilder
+    = MemoryRecallEventsCompanion Function({
+  required String id,
+  required String targetTable,
+  required String targetId,
+  Value<String?> chatMessageId,
+  Value<String?> query,
+  required double score,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$MemoryRecallEventsTableUpdateCompanionBuilder
+    = MemoryRecallEventsCompanion Function({
+  Value<String> id,
+  Value<String> targetTable,
+  Value<String> targetId,
+  Value<String?> chatMessageId,
+  Value<String?> query,
+  Value<double> score,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$MemoryRecallEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryRecallEventsTable> {
+  $$MemoryRecallEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get targetTable => $composableBuilder(
+      column: $table.targetTable, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get targetId => $composableBuilder(
+      column: $table.targetId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get chatMessageId => $composableBuilder(
+      column: $table.chatMessageId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get query => $composableBuilder(
+      column: $table.query, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get score => $composableBuilder(
+      column: $table.score, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryRecallEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryRecallEventsTable> {
+  $$MemoryRecallEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get targetTable => $composableBuilder(
+      column: $table.targetTable, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get targetId => $composableBuilder(
+      column: $table.targetId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get chatMessageId => $composableBuilder(
+      column: $table.chatMessageId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get query => $composableBuilder(
+      column: $table.query, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get score => $composableBuilder(
+      column: $table.score, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryRecallEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryRecallEventsTable> {
+  $$MemoryRecallEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get targetTable => $composableBuilder(
+      column: $table.targetTable, builder: (column) => column);
+
+  GeneratedColumn<String> get targetId =>
+      $composableBuilder(column: $table.targetId, builder: (column) => column);
+
+  GeneratedColumn<String> get chatMessageId => $composableBuilder(
+      column: $table.chatMessageId, builder: (column) => column);
+
+  GeneratedColumn<String> get query =>
+      $composableBuilder(column: $table.query, builder: (column) => column);
+
+  GeneratedColumn<double> get score =>
+      $composableBuilder(column: $table.score, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$MemoryRecallEventsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryRecallEventsTable,
+    MemoryRecallEvent,
+    $$MemoryRecallEventsTableFilterComposer,
+    $$MemoryRecallEventsTableOrderingComposer,
+    $$MemoryRecallEventsTableAnnotationComposer,
+    $$MemoryRecallEventsTableCreateCompanionBuilder,
+    $$MemoryRecallEventsTableUpdateCompanionBuilder,
+    (
+      MemoryRecallEvent,
+      BaseReferences<_$AppDatabase, $MemoryRecallEventsTable, MemoryRecallEvent>
+    ),
+    MemoryRecallEvent,
+    PrefetchHooks Function()> {
+  $$MemoryRecallEventsTableTableManager(
+      _$AppDatabase db, $MemoryRecallEventsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryRecallEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryRecallEventsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryRecallEventsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> targetTable = const Value.absent(),
+            Value<String> targetId = const Value.absent(),
+            Value<String?> chatMessageId = const Value.absent(),
+            Value<String?> query = const Value.absent(),
+            Value<double> score = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryRecallEventsCompanion(
+            id: id,
+            targetTable: targetTable,
+            targetId: targetId,
+            chatMessageId: chatMessageId,
+            query: query,
+            score: score,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String targetTable,
+            required String targetId,
+            Value<String?> chatMessageId = const Value.absent(),
+            Value<String?> query = const Value.absent(),
+            required double score,
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryRecallEventsCompanion.insert(
+            id: id,
+            targetTable: targetTable,
+            targetId: targetId,
+            chatMessageId: chatMessageId,
+            query: query,
+            score: score,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryRecallEventsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemoryRecallEventsTable,
+    MemoryRecallEvent,
+    $$MemoryRecallEventsTableFilterComposer,
+    $$MemoryRecallEventsTableOrderingComposer,
+    $$MemoryRecallEventsTableAnnotationComposer,
+    $$MemoryRecallEventsTableCreateCompanionBuilder,
+    $$MemoryRecallEventsTableUpdateCompanionBuilder,
+    (
+      MemoryRecallEvent,
+      BaseReferences<_$AppDatabase, $MemoryRecallEventsTable, MemoryRecallEvent>
+    ),
+    MemoryRecallEvent,
+    PrefetchHooks Function()>;
+typedef $$MemoryEmbeddingsTableCreateCompanionBuilder
+    = MemoryEmbeddingsCompanion Function({
+  required String targetTable,
+  required String targetId,
+  required Uint8List vector,
+  required String provider,
+  required String model,
+  required int dimension,
+  required String contentHash,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$MemoryEmbeddingsTableUpdateCompanionBuilder
+    = MemoryEmbeddingsCompanion Function({
+  Value<String> targetTable,
+  Value<String> targetId,
+  Value<Uint8List> vector,
+  Value<String> provider,
+  Value<String> model,
+  Value<int> dimension,
+  Value<String> contentHash,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$MemoryEmbeddingsTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryEmbeddingsTable> {
+  $$MemoryEmbeddingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get targetTable => $composableBuilder(
+      column: $table.targetTable, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get targetId => $composableBuilder(
+      column: $table.targetId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<Uint8List> get vector => $composableBuilder(
+      column: $table.vector, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get provider => $composableBuilder(
+      column: $table.provider, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get model => $composableBuilder(
+      column: $table.model, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get dimension => $composableBuilder(
+      column: $table.dimension, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$MemoryEmbeddingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryEmbeddingsTable> {
+  $$MemoryEmbeddingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get targetTable => $composableBuilder(
+      column: $table.targetTable, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get targetId => $composableBuilder(
+      column: $table.targetId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<Uint8List> get vector => $composableBuilder(
+      column: $table.vector, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get provider => $composableBuilder(
+      column: $table.provider, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get model => $composableBuilder(
+      column: $table.model, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get dimension => $composableBuilder(
+      column: $table.dimension, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MemoryEmbeddingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryEmbeddingsTable> {
+  $$MemoryEmbeddingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get targetTable => $composableBuilder(
+      column: $table.targetTable, builder: (column) => column);
+
+  GeneratedColumn<String> get targetId =>
+      $composableBuilder(column: $table.targetId, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get vector =>
+      $composableBuilder(column: $table.vector, builder: (column) => column);
+
+  GeneratedColumn<String> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<int> get dimension =>
+      $composableBuilder(column: $table.dimension, builder: (column) => column);
+
+  GeneratedColumn<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$MemoryEmbeddingsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MemoryEmbeddingsTable,
+    MemoryEmbedding,
+    $$MemoryEmbeddingsTableFilterComposer,
+    $$MemoryEmbeddingsTableOrderingComposer,
+    $$MemoryEmbeddingsTableAnnotationComposer,
+    $$MemoryEmbeddingsTableCreateCompanionBuilder,
+    $$MemoryEmbeddingsTableUpdateCompanionBuilder,
+    (
+      MemoryEmbedding,
+      BaseReferences<_$AppDatabase, $MemoryEmbeddingsTable, MemoryEmbedding>
+    ),
+    MemoryEmbedding,
+    PrefetchHooks Function()> {
+  $$MemoryEmbeddingsTableTableManager(
+      _$AppDatabase db, $MemoryEmbeddingsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MemoryEmbeddingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MemoryEmbeddingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MemoryEmbeddingsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> targetTable = const Value.absent(),
+            Value<String> targetId = const Value.absent(),
+            Value<Uint8List> vector = const Value.absent(),
+            Value<String> provider = const Value.absent(),
+            Value<String> model = const Value.absent(),
+            Value<int> dimension = const Value.absent(),
+            Value<String> contentHash = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryEmbeddingsCompanion(
+            targetTable: targetTable,
+            targetId: targetId,
+            vector: vector,
+            provider: provider,
+            model: model,
+            dimension: dimension,
+            contentHash: contentHash,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String targetTable,
+            required String targetId,
+            required Uint8List vector,
+            required String provider,
+            required String model,
+            required int dimension,
+            required String contentHash,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MemoryEmbeddingsCompanion.insert(
+            targetTable: targetTable,
+            targetId: targetId,
+            vector: vector,
+            provider: provider,
+            model: model,
+            dimension: dimension,
+            contentHash: contentHash,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MemoryEmbeddingsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MemoryEmbeddingsTable,
+    MemoryEmbedding,
+    $$MemoryEmbeddingsTableFilterComposer,
+    $$MemoryEmbeddingsTableOrderingComposer,
+    $$MemoryEmbeddingsTableAnnotationComposer,
+    $$MemoryEmbeddingsTableCreateCompanionBuilder,
+    $$MemoryEmbeddingsTableUpdateCompanionBuilder,
+    (
+      MemoryEmbedding,
+      BaseReferences<_$AppDatabase, $MemoryEmbeddingsTable, MemoryEmbedding>
+    ),
+    MemoryEmbedding,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -21205,4 +33537,40 @@ class $AppDatabaseManager {
       $$DevAgentApprovalsTableTableManager(_db, _db.devAgentApprovals);
   $$DevAgentArtifactsTableTableManager get devAgentArtifacts =>
       $$DevAgentArtifactsTableTableManager(_db, _db.devAgentArtifacts);
+  $$MemoryCardsTableTableManager get memoryCards =>
+      $$MemoryCardsTableTableManager(_db, _db.memoryCards);
+  $$MemoryCardSourcesTableTableManager get memoryCardSources =>
+      $$MemoryCardSourcesTableTableManager(_db, _db.memoryCardSources);
+  $$MemoryCardStructuredFieldsTableTableManager
+      get memoryCardStructuredFields =>
+          $$MemoryCardStructuredFieldsTableTableManager(
+              _db, _db.memoryCardStructuredFields);
+  $$MemoryCardRelationsTableTableManager get memoryCardRelations =>
+      $$MemoryCardRelationsTableTableManager(_db, _db.memoryCardRelations);
+  $$MemoryCardAssetsTableTableManager get memoryCardAssets =>
+      $$MemoryCardAssetsTableTableManager(_db, _db.memoryCardAssets);
+  $$MemoryFragmentsTableTableManager get memoryFragments =>
+      $$MemoryFragmentsTableTableManager(_db, _db.memoryFragments);
+  $$MemoryEntitiesTableTableManager get memoryEntities =>
+      $$MemoryEntitiesTableTableManager(_db, _db.memoryEntities);
+  $$MemoryEntityLinksTableTableManager get memoryEntityLinks =>
+      $$MemoryEntityLinksTableTableManager(_db, _db.memoryEntityLinks);
+  $$MemoryEpisodesTableTableManager get memoryEpisodes =>
+      $$MemoryEpisodesTableTableManager(_db, _db.memoryEpisodes);
+  $$MemorySagasTableTableManager get memorySagas =>
+      $$MemorySagasTableTableManager(_db, _db.memorySagas);
+  $$MemorySagaSnapshotsTableTableManager get memorySagaSnapshots =>
+      $$MemorySagaSnapshotsTableTableManager(_db, _db.memorySagaSnapshots);
+  $$AssetsTableTableManager get assets =>
+      $$AssetsTableTableManager(_db, _db.assets);
+  $$AssetAnalysisTableTableManager get assetAnalysis =>
+      $$AssetAnalysisTableTableManager(_db, _db.assetAnalysis);
+  $$UserCorrectionsTableTableManager get userCorrections =>
+      $$UserCorrectionsTableTableManager(_db, _db.userCorrections);
+  $$MemoryCardOperationsTableTableManager get memoryCardOperations =>
+      $$MemoryCardOperationsTableTableManager(_db, _db.memoryCardOperations);
+  $$MemoryRecallEventsTableTableManager get memoryRecallEvents =>
+      $$MemoryRecallEventsTableTableManager(_db, _db.memoryRecallEvents);
+  $$MemoryEmbeddingsTableTableManager get memoryEmbeddings =>
+      $$MemoryEmbeddingsTableTableManager(_db, _db.memoryEmbeddings);
 }

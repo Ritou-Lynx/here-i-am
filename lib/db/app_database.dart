@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'tables.dart';
 import 'dev_agent_tables.dart';
 import 'dev_agent_artifact_tables.dart';
+import '../data/memory_v3/db/tables.dart' as memory_v3;
 import 'daos/ai_finance_dao.dart';
 import 'daos/ai_purchase_dao.dart';
 import 'daos/card_dao.dart';
@@ -44,6 +45,24 @@ part 'app_database.g.dart';
     DevAgentEvents,
     DevAgentApprovals,
     DevAgentArtifacts,
+    // Memory V3 tables — see docs/memory-research/MEMORY_PROPOSAL_V3.md
+    memory_v3.MemoryCards,
+    memory_v3.MemoryCardSources,
+    memory_v3.MemoryCardStructuredFields,
+    memory_v3.MemoryCardRelations,
+    memory_v3.MemoryCardAssets,
+    memory_v3.MemoryFragments,
+    memory_v3.MemoryEntities,
+    memory_v3.MemoryEntityLinks,
+    memory_v3.MemoryEpisodes,
+    memory_v3.MemorySagas,
+    memory_v3.MemorySagaSnapshots,
+    memory_v3.Assets,
+    memory_v3.AssetAnalysis,
+    memory_v3.UserCorrections,
+    memory_v3.MemoryCardOperations,
+    memory_v3.MemoryRecallEvents,
+    memory_v3.MemoryEmbeddings,
   ],
   daos: [CardDao, AiFinanceDao, AiPurchaseDao, VoiceCallDao],
 )
@@ -100,7 +119,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 36;
+  int get schemaVersion => 37;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -129,6 +148,8 @@ class AppDatabase extends _$AppDatabase {
           await _createSharedLifeMemoryIndices();
           await _createDevAgentIndices();
           await _createDevAgentSessionIndices();
+          // Memory V3 indices (tables already created by createAll above)
+          await _createMemoryV3Indices();
           // Create FTS5 virtual tables for full-text search
           await searchDao.createFtsTables();
         },
@@ -490,8 +511,87 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnIfMissing(
                 '$entTable ADD COLUMN related_memory_ids TEXT');
           }
+          if (from < 37) {
+            // Memory V3: new table family (memory_cards / Dreaming / Asset / 等)
+            // See docs/memory-research/MEMORY_PROPOSAL_V3.md
+            await _createMemoryV3Tables(m);
+          }
         },
       );
+
+  Future<void> _createMemoryV3Tables(Migrator m) async {
+    // 用户确认资料层
+    await m.createTable(memoryCards);
+    await m.createTable(memoryCardSources);
+    await m.createTable(memoryCardStructuredFields);
+    await m.createTable(memoryCardRelations);
+    await m.createTable(memoryCardAssets);
+    // Dreaming 自动产物层
+    await m.createTable(memoryFragments);
+    await m.createTable(memoryEntities);
+    await m.createTable(memoryEntityLinks);
+    await m.createTable(memoryEpisodes);
+    await m.createTable(memorySagas);
+    await m.createTable(memorySagaSnapshots);
+    // 原始资料与审计层
+    await m.createTable(assets);
+    await m.createTable(assetAnalysis);
+    await m.createTable(userCorrections);
+    await m.createTable(memoryCardOperations);
+    // 索引 / 召回辅助
+    await m.createTable(memoryRecallEvents);
+    await m.createTable(memoryEmbeddings);
+
+    await _createMemoryV3Indices();
+  }
+
+  Future<void> _createMemoryV3Indices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_cards_scope_type '
+        'ON memory_cards(memory_scope, type)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_cards_updated '
+        'ON memory_cards(updated_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_card_sources_kind '
+        'ON memory_card_sources(source_kind)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_fragments_status '
+        'ON memory_fragments(status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_entities_status_category '
+        'ON memory_entities(status, category)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_entity_links_entity '
+        'ON memory_entity_links(entity_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_entity_links_source '
+        'ON memory_entity_links(source_table, source_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_episodes_entity_status '
+        'ON memory_episodes(primary_entity_id, status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_sagas_status '
+        'ON memory_sagas(status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_assets_type_created '
+        'ON assets(asset_type, created_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_asset_analysis_asset '
+        'ON asset_analysis(asset_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_user_corrections_target '
+        'ON user_corrections(target_table, target_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_card_operations_card '
+        'ON memory_card_operations(card_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_recall_events_target '
+        'ON memory_recall_events(target_table, target_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_embeddings_updated '
+        'ON memory_embeddings(updated_at)');
+  }
 
   Future<void> _createClarificationRequestsTable(Migrator m) async {
     try {
