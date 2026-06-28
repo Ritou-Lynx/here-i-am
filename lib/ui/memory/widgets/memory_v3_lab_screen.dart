@@ -11,6 +11,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
@@ -21,6 +22,7 @@ import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:path_provider/path_provider.dart';
 
 final _logger = getLogger('MemoryV3LabScreen');
 
@@ -265,12 +267,147 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     }
   }
 
+  /// Dump all current memory_cards (plus source / structured / entity links)
+  /// to a JSON file in the app's external dir. Returns the absolute path
+  /// on success.
+  ///
+  /// Path layout on Android (no permissions needed):
+  ///   /sdcard/Android/data/com.memexlab.hereiam.v3/files/v3_dump.json
+  /// Pull with:
+  ///   adb pull <that path> ./v3_dump.json
+  Future<String?> _dumpAllToFile() async {
+    final db = AppDatabase.instance;
+    final cards = await (db.select(db.memoryCards)
+          ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)]))
+        .get();
+
+    final dump = <Map<String, dynamic>>[];
+    for (final card in cards) {
+      final source = await (db.select(db.memoryCardSources)
+            ..where((t) => t.cardId.equals(card.id)))
+          .getSingleOrNull();
+      final structured = await (db.select(db.memoryCardStructuredFields)
+            ..where((t) => t.cardId.equals(card.id)))
+          .getSingleOrNull();
+      final links = await (db.select(db.memoryEntityLinks)
+            ..where((t) =>
+                t.sourceTable.equals('memory_cards') &
+                t.sourceId.equals(card.id)))
+          .get();
+      final entities = <MemoryEntity?>[];
+      for (final link in links) {
+        final e = await (db.select(db.memoryEntities)
+              ..where((t) => t.id.equals(link.entityId)))
+            .getSingleOrNull();
+        entities.add(e);
+      }
+
+      dump.add({
+        'card': {
+          'id': card.id,
+          'memoryScope': card.memoryScope,
+          'type': card.type,
+          'title': card.title,
+          'dropletLabel': card.dropletLabel,
+          'presentationModule': _decode(card.presentationModule),
+          'retrievalText': card.retrievalText,
+          'valence': card.valence,
+          'arousal': card.arousal,
+          'confidence': card.confidence,
+          'status': card.status,
+          'needsFollowUp': _decode(card.needsFollowUp),
+          'createdAt': DateTime.fromMillisecondsSinceEpoch(card.createdAt)
+              .toIso8601String(),
+          'updatedAt': DateTime.fromMillisecondsSinceEpoch(card.updatedAt)
+              .toIso8601String(),
+        },
+        'source': source == null
+            ? null
+            : {
+                'rawInput': source.rawInput,
+                'recordedAt': DateTime.fromMillisecondsSinceEpoch(
+                        source.recordedAt)
+                    .toIso8601String(),
+                'recordedPlace': source.recordedPlace,
+                'sourceRef': source.sourceRef,
+                'sourceKind': source.sourceKind,
+              },
+        'structuredFields': structured == null
+            ? null
+            : {
+                'type': structured.structuredFieldsType,
+                'fields': _decode(structured.fieldsJson),
+                'userCorrected': structured.userCorrected,
+              },
+        'entityLinks': [
+          for (var i = 0; i < links.length; i++)
+            {
+              'relation': links[i].relation,
+              'confidence': links[i].confidence,
+              'entity': entities[i] == null
+                  ? {'id': links[i].entityId, 'missing': true}
+                  : {
+                      'id': entities[i]!.id,
+                      'name': entities[i]!.name,
+                      'category': entities[i]!.category,
+                      'status': entities[i]!.status,
+                      'relationshipToUser': entities[i]!.relationshipToUser,
+                    },
+            },
+        ],
+      });
+    }
+
+    final payload = {
+      'exportedAt': DateTime.now().toIso8601String(),
+      'count': dump.length,
+      'cards': dump,
+    };
+
+    try {
+      final dir = await getExternalStorageDirectory();
+      if (dir == null) return null;
+      final file = File('${dir.path}/v3_dump.json');
+      await file.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(payload),
+          flush: true);
+      return file.path;
+    } catch (e, st) {
+      _logger.warning('dumpAllToFile failed', e, st);
+      return null;
+    }
+  }
+
+  Future<void> _onExportTap() async {
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    final path = await _dumpAllToFile();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (path == null) {
+        _lastError = '导出失败（看 logcat）';
+      } else {
+        _lastSuccess = '已导出 ${_recent.length} 张到\n$path';
+        Clipboard.setData(ClipboardData(text: path));
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Memory V3 Lab'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined),
+            onPressed: _busy ? null : _onExportTap,
+            tooltip: '导出所有卡片到文件',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadRecent,
