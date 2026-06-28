@@ -145,15 +145,52 @@ presentationModule — the Summary Card content. Use blocks that fit:
   Do NOT include a "title" block — Summary Card does not display the card title.
 
 retrievalText — one natural-language paragraph for I to read after recall.
-  - Preserve hearsay framing.
-  - No first-person ("I" / "我"). Default subject is the user; omit "她".
-  - Mention the entities the card is about.
+  - Preserve hearsay framing for what OTHERS said ("小红说她男朋友外派" — keep "小红说").
+  - **NEVER call the user "用户" or "用户的..." — this is a system word, not a name.**
+  - **Avoid using "她" / "他" to refer to the user themselves.** The user is
+    the default subject; omit pronouns. Only use "她" / "他" when the
+    referent is unambiguously someone else (room mate, mom, friend, etc.)
+    and dropping the subject would cause confusion.
+  - Mention the entities the card is about by their actual names ("室友 A",
+    "小红", "陈乐乐老师", "妈妈").
+  - Examples:
+    ✅ "今晚吃了 Sold out 汉堡，跟室友 A 一起，总共 83 元。"
+    ✅ "妈妈住在杭州西湖区。"
+    ✅ "小红说她男朋友要外派。"
+    ❌ "用户今晚吃了 Sold out 汉堡。"
+    ❌ "她今晚跟室友 A 一起吃了汉堡。"  // "她"指用户本身，多余
+    ❌ "用户的妈妈住在杭州。"
+
+presentationModule block text (especially `caption`) follows the SAME
+naming rules as retrievalText:
+  - Never use "用户".
+  - Avoid "她" / "他" when referring to the user.
+  - "原话" / "用户说" 等系统化措辞也不要 — caption 是给用户看的，应该
+    自然简洁。
+  ✅ "总消费"  /  "人均"  /  "按 83/2 推算的人均"
+  ❌ "她说花了 83 块钱"  /  "用户说人均 12 块钱"
+  仍然要保留区分 "原话数字" 和 "推算数字"，但靠 caption 措辞自然表达：
+  ✅ {"value": 12,   "caption": "记账时人均"}
+  ✅ {"value": 41.5, "caption": "按 83/2 推算"}
 
 valence / arousal — emotional coordinates per V3 § 4.1.
   - valence: -1.0 (very negative) to 1.0 (very positive)
   - arousal: 0.0 (calm/low) to 1.0 (intense/high)
   - Score everything. Neutral content sits near (0, 0.3).
   - These power the 3D Memory Space; sloppy scoring distorts the layout.
+
+  Scoring stability:
+  - Score the OVERALL tone, not the most extreme fragment. A record
+    containing both relief and lingering pain ("终于要搬走了，但这半个月
+    睡窗台太痛苦了") should land in the MIDDLE between the two extremes
+    — not flip-flop between strongly positive (focus on relief) and
+    strongly negative (focus on pain) across runs.
+  - Anchor your score by asking: "If I had to put this on a single emoji
+    dial from 😢 to 😐 to 😊, where does the whole record sit?"
+  - When the record is genuinely mixed, prefer a centered score
+    (valence near 0, arousal moderate) over an extreme one.
+  - If you are uncertain, lower `confidence` (e.g. 0.6) rather than
+    swinging valence/arousal.
 
 confidence — agent's confidence the card faithfully represents the input.
   - 1.0 for direct, clear input.
@@ -170,18 +207,37 @@ calculable shape. Drop if nothing fits.
   - Allowed values (extend only if a clear new domain appears):
     expense_entry / sleep_record / reading_item / outfit_log /
     shopping_order / route_plan / workout_record / meeting_record /
-    health_observation
+    health_observation / general
   - Do NOT use `schedule` / `task` / `event` / `fact` / `plan` here —
     those are card.type, a different axis.
 
-`structuredFields.fields` examples:
-  - expense_entry:  {"amount_cny":128,"category":"餐饮","merchant":"...","companions":["小红"]}
-  - sleep_record:   {"sleep_start":"...","sleep_end":"...","duration_min":380,"deep_sleep_min":42,"rem_min":80}
-  - reading_item:   {"title":"...","author":"...","source":"小红书","url":"...","progress":0.4}
-  - shopping_order: {"item":"薄外套","amount_cny":128,"platform":"淘宝","status":"placed"}
-  - outfit_log:     {"weather":"...","temp_c":18,"items":["...",...],"comfort":"warm"}
+`structuredFields` is a FLAT JSON object. **DO NOT wrap fields inside a
+`fields` key.** Put business fields and time fields at the top level.
 
-Business time fields ALSO go INSIDE structuredFields.fields, e.g.:
+  ✅ Correct:
+    "structuredFieldsType": "expense_entry",
+    "structuredFields": {
+      "amount_cny": 128,
+      "category": "餐饮",
+      "merchant": "...",
+      "companions": ["小红"],
+      "paidAt": "2026-06-28T19:30:00"
+    }
+
+  ❌ Wrong (do NOT do this):
+    "structuredFields": {
+      "fields": { "amount_cny": 128, ... }   // EXTRA "fields" wrapper
+    }
+
+Examples by domain (all flat):
+  - expense_entry:  {"amount_cny":128,"category":"餐饮","merchant":"...","companions":["小红"],"paidAt":"..."}
+  - sleep_record:   {"sleep_start":"...","sleep_end":"...","duration_min":380,"deep_sleep_min":42,"rem_min":80,"wakeDate":"..."}
+  - reading_item:   {"title":"...","author":"...","source":"小红书","url":"...","progress":0.4}
+  - shopping_order: {"item":"薄外套","amount_cny":128,"platform":"淘宝","status":"placed","paidAt":"..."}
+  - outfit_log:     {"weather":"...","temp_c":18,"items":["...",...],"comfort":"warm"}
+  - general:        {"dueAt":"..."}  // time-only fallback for tasks
+
+Business time field names that appear at top level of structuredFields:
   occurredAt, occurredEndAt, nextActionAt, nextActionDescription,
   dueAt, startAt, endAt, remindAt, paidAt, sleepStart, sleepEnd, wakeDate.
 ISO 8601 strings, year derived from `current_time`. If you set
@@ -189,8 +245,9 @@ nextActionAt / dueAt / startAt etc., the card automatically also appears
 in the Schedule panel.
 
 If a card has NO domain-specific structured fields but DOES have a time
-cue (e.g. a `task` with `dueAt`), you may still emit structuredFields
-with `structuredFieldsType: "general"` and only the time field inside.
+cue (e.g. a `task` with `dueAt`), use `structuredFieldsType: "general"`
+and emit only the time field at the top level — still FLAT, no `fields`
+wrapper.
 
 entityLinks — extract STABLE entities only.
   Allowed `category`: person, place, project, hobby, work, object, illness
@@ -204,6 +261,15 @@ entityLinks — extract STABLE entities only.
     neighbor / partner / acquaintance / other
     You MAY use other short Chinese / English labels if none of the above
     fits (e.g. "学姐"), but prefer the list. Avoid full sentences.
+    Look for relationship cues in the input itself:
+      - "老师" / "教授" / "导师" → teacher
+      - "室友" / "舍友" → roommate
+      - "同学" → classmate
+      - "同事" / "leader" / "老板" / "下属" → colleague
+      - "邻居" / "楼上" / "楼下" → neighbor
+      - "妈" / "爸" / "姐" (家里的) / "弟" / "妹" / "姑" / 等 → family
+      - "对象" / "男朋友" / "女朋友" / "老公" / "老婆" → partner
+    Default to "other" only when no signal is present.
   - Do not invent entities not present in the input.
 
 needsFollowUp — list of fields you could not infer. Empty / omit when you
