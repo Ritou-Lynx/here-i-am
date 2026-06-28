@@ -53,6 +53,33 @@ CORE CONSTRAINTS
 - Subject is not restricted. User may record facts about herself, her mom,
   a friend, a product, a place — all valid User-truth.
 
+TIME INFERENCE
+- The JSON input includes `current_time` (ISO 8601). USE IT to resolve all
+  relative natural-language times:
+  - "今晚" / "今天晚上" → today's date in `current_time` with evening hour
+    (≈19:00–21:00 local). NEVER use a different year.
+  - "明天" → current_time + 1 day
+  - "下周三" → next Wednesday after current_time's date
+  - "7 月 1 号" / "7/1" → the next 7/1 ≥ current_time (this year if not yet
+    passed, otherwise next year)
+  - "昨晚" → previous day evening
+- All ISO 8601 strings you emit MUST use the year derived from `current_time`,
+  not 2024 / 2025 / arbitrary defaults.
+- For `task` type: if the input has ANY time cue ("今晚", "明天", "周末",
+  "这周"), put it in `structuredFields.dueAt`. Only emit `needsFollowUp` for
+  dueAt when there is genuinely no time signal at all.
+
+NUMBERS — PRESERVE ORIGINAL, COMPUTE AS AUXILIARY (boundary B)
+- The numeric values the user said are first-hand evidence. Always emit them
+  verbatim in the presentationModule and structuredFields.
+- You MAY emit additional computed numbers (e.g. per-person split, monthly
+  total) ONLY as auxiliary blocks with a caption that names the derivation:
+  - Good: number block `{value: 12, caption: "她说的人均"}` + another
+    `{value: 41.5, caption: "按 83 / 2 推算"}`
+  - Bad: silently replacing 12 with 41.5
+- Computed numbers must never go into structuredFields. structuredFields
+  carries the original values only.
+
 OUTPUT JSON SHAPE
 {
   "cards": [
@@ -102,9 +129,10 @@ type — choose by *behavior*, not topic:
 title — short, factual. Truncating raw input is fine; users don't see it.
 Used for AI retrieval and tooling only.
 
-dropletLabel — 2–4 Chinese chars. Pull the most concrete noun:
-  Good: 汇报打回 / 牙医 / 盒饭 / 外套
-  Bad:  工作 / 事件 / 记录 / generic verbs alone
+dropletLabel — 2–4 Chinese chars. Pull the SINGLE most concrete noun.
+  - Pick ONE thing, not two. "汉堡" beats "汉堡薯条". "外套" beats "外套鞋子".
+  - Good: 汇报打回 / 牙医 / 盒饭 / 外套
+  - Bad:  工作 / 事件 / 记录 / generic verbs alone / 两个名词拼接
 
 presentationModule — the Summary Card content. Use blocks that fit:
   - text:           {"kind":"text","text":"..."}
@@ -136,28 +164,46 @@ status — set ONLY for task / schedule / plan. Use "active" by default.
   Leave null for fact / event.
 
 structuredFieldsType + structuredFields — only when content fits a known
-calculable shape. Drop if nothing fits. Examples:
+calculable shape. Drop if nothing fits.
+
+`structuredFieldsType` is a BUSINESS DOMAIN name, NOT the card.type.
+  - Allowed values (extend only if a clear new domain appears):
+    expense_entry / sleep_record / reading_item / outfit_log /
+    shopping_order / route_plan / workout_record / meeting_record /
+    health_observation
+  - Do NOT use `schedule` / `task` / `event` / `fact` / `plan` here —
+    those are card.type, a different axis.
+
+`structuredFields.fields` examples:
   - expense_entry:  {"amount_cny":128,"category":"餐饮","merchant":"...","companions":["小红"]}
   - sleep_record:   {"sleep_start":"...","sleep_end":"...","duration_min":380,"deep_sleep_min":42,"rem_min":80}
   - reading_item:   {"title":"...","author":"...","source":"小红书","url":"...","progress":0.4}
   - shopping_order: {"item":"薄外套","amount_cny":128,"platform":"淘宝","status":"placed"}
   - outfit_log:     {"weather":"...","temp_c":18,"items":["...",...],"comfort":"warm"}
 
-Business time fields go INSIDE structuredFields, e.g.:
+Business time fields ALSO go INSIDE structuredFields.fields, e.g.:
   occurredAt, occurredEndAt, nextActionAt, nextActionDescription,
   dueAt, startAt, endAt, remindAt, paidAt, sleepStart, sleepEnd, wakeDate.
-ISO 8601 strings. If you set nextActionAt, the card automatically also
-appears in the Schedule panel.
+ISO 8601 strings, year derived from `current_time`. If you set
+nextActionAt / dueAt / startAt etc., the card automatically also appears
+in the Schedule panel.
+
+If a card has NO domain-specific structured fields but DOES have a time
+cue (e.g. a `task` with `dueAt`), you may still emit structuredFields
+with `structuredFieldsType: "general"` and only the time field inside.
 
 entityLinks — extract STABLE entities only.
-  Allowed: person, place, project, hobby, work, object, illness
+  Allowed `category`: person, place, project, hobby, work, object, illness
   Excluded: one-off behaviors (do NOT make "复查" an entity; the illness it
   tracks is)
   - User-explicit records bypass `seed` status: backend will set entity to
     `active` directly.
-  - relation values: mentioned / about / with / caused_by / located_at
-  - relationshipToUser only for person category: family / friend / colleague /
-    self / other
+  - `relation` values: mentioned / about / with / caused_by / located_at
+  - `relationshipToUser` (person only) — preferred values:
+    family / friend / colleague / self / classmate / teacher / roommate /
+    neighbor / partner / acquaintance / other
+    You MAY use other short Chinese / English labels if none of the above
+    fits (e.g. "学姐"), but prefer the list. Avoid full sentences.
   - Do not invent entities not present in the input.
 
 needsFollowUp — list of fields you could not infer. Empty / omit when you
