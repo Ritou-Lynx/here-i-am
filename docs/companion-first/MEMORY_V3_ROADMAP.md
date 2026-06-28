@@ -1,35 +1,176 @@
 # Memory V3 Roadmap
 
-> 日期：2026-06-28
+> 日期：2026-06-28（下午修订）
 > 设计源：`docs/memory-research/MEMORY_PROPOSAL_V3.md`
-> 状态：Phase 0 详细可执行；Phase 1–5 草案，进入时再细化
+> 状态：Phase 0 跳过 / Phase 1 backend ✅ / 1.5 / 1.6 详细可执行；其余 phase 进入时再细化
 
 ---
 
 ## 总览
 
-按依赖关系切 6 个 phase。每个 phase 完成后旧代码可逐步删，App 持续可用。
+按依赖关系切多个 phase。**UI 设计 vs UI 实现** 是分开的：现有 UI（~3000 行）短期复用，等设计稿出来再重做。
 
-| Phase | 目标 | 工程量估算 |
-|-------|------|------------|
-| 0 | 有限清理 + 停血 | 1–2 天 |
-| 1 | Memory Card 写入端 + Asset 层 | 1–2 周 |
-| 2 | 检索基础（FTS5 + DB 过滤 + intent 模板骨架） | 1 周 |
-| 3 | 语义检索（embedding + 融合排序） | 1 周 |
-| 4 | Dreaming 自动产物（Fragment / Entity / Episode / Saga） | 2 周 |
-| 5 | 旧代码清扫 + Memex legacy 全删 | 2–3 天 |
+| Phase | 目标 | 状态 / 工程量 |
+|-------|------|------|
+| 0 | 有限清理 + 停血 | ❌ 跳过（停血早已完成；pkm/card_agent 删除留到 Phase 5） |
+| 1 backend | Memory Card 表 + Service + Agent + Drift migration | ✅ 完成 |
+| **1.5** | **V3 Lab dev screen + DI 接入**（让 backend 真机可测） | ⏳ 1–2 小时 |
+| **1.6** | **数据源切换**（现有 UI 改读 V3 表） | ⏳ 1 周（机械任务） |
+| 1.7 (deferred) | UI 重新设计（Episode / Saga / Entity / Insight 容器、待审信号、需要用户出设计稿） | ⏳ 时间不定，依赖用户 |
+| 1.8 (deferred) | 1.7 设计 → 实现 | ⏳ 1–2 周 |
+| 2 | 检索基础（FTS5 + DB 过滤 + intent 模板骨架） | ⏳ 1 周 |
+| 3 | 语义检索（embedding + 融合排序） | ⏳ 1 周 |
+| 4 | Dreaming 自动产物（Fragment / Entity / Episode / Saga） | ⏳ 2 周 |
+| 5 | 旧代码清扫（pkm/card_agent + shared_life_* + Memex legacy） | ⏳ 2–3 天 |
 
-总估算：**约 6–8 周**到 V3 完整能力跑起来。MVP 可用版本（Phase 0 + 1）：**1–2 周**。
+**MVP 可用版本（1.5 + 1.6）：约 1 周**。完整 V3 + 新 UI：6–8 周（取决于用户出 UI 设计稿的节奏）。
+
+### UI 工作线说明
+
+- **现有 UI** 已经覆盖 Memory Summary Card（937 行）/ Full Detail View（920 行）/ Memory Review（410 行）/ 悬浮球（253 行）等
+- **短期策略**：1.6 把现有 UI 的数据源切到 V3 表族，先让 V3 可用
+- **长期策略**：用户对当前 UI 不完全满意，1.7 / 1.8 阶段重新设计 + 实现，但不阻塞 backend 推进
+- **新概念 UI**（Episode 容器、Saga 容器、Entity 详情视图、待审信号、Insight 体系展示形式）属于 1.7 范围，需要用户先出设计
 
 ---
 
-## Phase 0: 有限清理 + 停血（1–2 天）
+## Phase 0: 跳过
+
+原计划的 Phase 0 内容已经实际不需要：
+
+- `ConversationCaptureService` 早已被删除，只剩 no-op handler 排空旧任务
+- companion agent prompt 已经清理过
+- `pkm_agent` / `card_agent` 删除涉及 14+ 文件，留到 Phase 5 一次性清扫
+
+详见后面 Phase 5。
+
+---
+
+## Phase 1 backend: ✅ 完成（2026-06-28 下午）
+
+### 产物
+
+- ✅ `lib/data/memory_v3/db/tables.dart` — 17 张 V3 表
+- ✅ `lib/data/memory_v3/models/organized_record.dart` — Agent ↔ Service 数据契约
+- ✅ `lib/data/memory_v3/services/record_organizer_service.dart` — `RecordOrganizerServiceV3`（persist / organizeAndPersist / deleteCard / recordUserCorrection）
+- ✅ `lib/data/memory_v3/agents/record_organizer_agent/{agent,prompt}.dart` — V3 § 9 完整规范
+- ✅ Drift schemaVersion 36 → 37，迁移 + 索引，build_runner 跑通
+- ✅ `flutter analyze`: 0 errors
+
+### 还没做的
+
+- DI 注册（移到 Phase 1.5）
+- UI 接入（移到 Phase 1.6）
+- 端到端真实 LLM 测试（移到 Phase 1.5）
+
+---
+
+## Phase 1.5: V3 Lab dev screen（1–2 小时）
 
 ### 目标
 
-在开始写 V3 新代码前，做"已知安全"的旧代码清理 + 停掉 `ConversationCaptureService` 自动触发，让代码库进入"可以开 V3 新文件而不被旧污染"的状态。
+让 backend 在真机上可测，不需要等 UI 切换完成。
+
+### 任务
+
+1. 在 `lib/data/memory_v3/services/record_organizer_service.dart` 已经有 `init(db)` + `instance` 单例模式
+2. 找一处 app 启动钩子（很可能在 `lib/data/repositories/memex_router.dart` 或 `app_initializer.dart`），加 `RecordOrganizerServiceV3.init(AppDatabase.instance)` 调用
+3. 新建 `lib/ui/memory/widgets/memory_v3_lab_screen.dart`：
+   - 顶部输入框 + "整理并保存"按钮 → 调 `organizeAndPersist`
+   - 下方 ListView 列最近 N 张 `memory_cards`（title + dropletLabel + retrievalText 前两行 + 情绪坐标小色块）
+   - 点单条进 detail bottom sheet，展示全部字段（含 source / structured_fields / entity_links）
+   - 长按单条删除（调 `deleteCard`）
+4. 把入口加到 Settings 的 "Developer" / "调试" 分组里
+
+### 验收
+
+- ✅ 在 settings 找到 "V3 Lab" 入口
+- ✅ 输入一段中文，点保存，能看到新卡出现在下方列表
+- ✅ 点卡能看到完整 JSON 详情
+- ✅ 长按能删除
+- ✅ 用真实模型跑能验证 prompt 是否输出合规 JSON
+
+### 不在 1.5 范围
+
+- 视觉调优（这是临时调试屏，不追求好看）
+- Editing（dev screen 不实现编辑）
+- Search / filter（dev screen 不需要）
+
+---
+
+## Phase 1.6: 数据源切换（约 1 周）
+
+### 目标
+
+现有 UI（Memory Review / Full Detail View / 悬浮球 / 消息记录按钮 / 各处 tool call 入口）切换读 / 写 V3 表族。不重做 UI，只换 service / model 引用。
+
+### 子任务
+
+| 子任务 | 文件 | 工程量 |
+|---|---|---|
+| Memory Review screen 切到读 `memory_cards` | `companion_review_screen.dart` | 2–4 小时 |
+| Memory Summary Card 适配新字段（`presentationModule` JSON 结构对齐） | `memory_summary_card.dart` | 4–8 小时 |
+| Full Detail View 适配 | `shared_life_entity_detail_screen.dart` | 1 天 |
+| 悬浮球路由到 `RecordOrganizerServiceV3` | `floating_record_ball.dart` | 1–2 小时 |
+| 消息记录按钮路由到 V3 | chat 相关 widget | 2–4 小时 |
+| `LifeMemoryCreate` tool call 改路由 | `lib/agent/built_in_tools/shared_life_memory_tools.dart` | 4–8 小时 |
+| Memory Review "待审"信号最小实现（needsFollowUp 非空标个角标） | review widget | 2–4 小时 |
+| 兼容老数据（如果用户旧表还有数据，要不就并存显示要不就隐藏） | 各处 | 1 天 |
+
+### 验收
+
+- ✅ 用户通过悬浮球记一条，看到它出现在 Memory Review，新表 `memory_cards` 有数据
+- ✅ 用户在 Memory Review 点开详情，看到完整 V3 字段
+- ✅ I 通过 `LifeMemoryCreate` tool call 记一条，落到新表
+- ✅ 旧表数据不再增长
+- ✅ `flutter analyze`: 0 errors
+
+### 风险
+
+- Summary Card 渲染对 `presentationModule` JSON 结构敏感，新 schema 跟旧 schema 字段名可能不一致，需要适配层 / 转换函数
+- `shared_life_entity_detail_screen` 920 行，改动面大，要小心 regression
+- 兼容老数据是不确定项 —— 如果用户旧表是空的（之前已清），不用兼容；否则要决定怎么处理
+
+---
+
+## Phase 1.7: UI 重新设计（依赖用户出设计稿）
+
+### 范围
+
+| 待设计 | 原因 |
+|---|---|
+| Memory Summary Card 视觉重设计 | 用户对当前 UI 不满意 |
+| Full Detail View 重设计 | 同上 |
+| Episode 容器 | V3 新概念，没现成 UI |
+| Saga 容器 | V3 新概念 |
+| Entity 详情视图 | V3 新概念 |
+| Insight 体系入口 + 各面板内 Insight 展示 | V3 新概念 |
+| 待审信号 / needsFollowUp 追问 UI | V3 新概念 |
+| 主动陪伴 / 关心信号呈现 | V3 范围内但 Phase 4 后才相关 |
+
+### 工作流
+
+- 用户 / 设计师产出 Figma / 视觉稿
+- 评审 + 收口
+- 进 Phase 1.8 实现
+
+### 不阻塞
+
+Phase 1.7 不阻塞 Phase 2 / 3。即使没新 UI，V3 backend 可以继续推进检索、Dreaming 等能力。
+
+---
+
+## Phase 1.8: 1.7 UI 实现（1–2 周）
+
+依赖 1.7 设计稿。实现细节进入时再细化。
+
+---
+
+## Phase 2: 检索基础（1 周）
 
 ### 任务清单（按顺序执行）
+
+**注：以下内容已被上面 "Phase 0: 跳过" 替代，保留供历史参考。**
 
 #### Step 1: 确认 origin / branch 状态
 
@@ -279,10 +420,9 @@ V3 完全替代旧记忆系统后，一次性删 Memex legacy。
 
 ---
 
-## 下一步（明天的你）
+## 下一步（你 / 任何接手的会话）
 
-1. 工作电脑 `git checkout personal-lab && git pull`
-2. 确认拿到 V3 文档 + memory_v3 目录 + 本 roadmap
-3. 跑 Phase 0 Step 1–6
-4. 任何卡点写到 `DEVLOG.md` 当天条目
-5. Phase 0 完成后 commit + push，准备开 Phase 1
+1. **如果 V3 Lab dev screen 已建好**：用真实账号登录，进 settings → V3 Lab → 输入文本验证 backend
+2. **Phase 1.6 子任务可以并行启动**：选一个最容易的子任务（例如悬浮球路由切换）跑通端到端，再扩展到其他入口
+3. **UI 设计稿**：用户准备 Memory Summary Card / Episode / Saga / Entity 详情等的视觉稿，进 Phase 1.7
+4. 任何卡点写到 `DEVLOG.md`
