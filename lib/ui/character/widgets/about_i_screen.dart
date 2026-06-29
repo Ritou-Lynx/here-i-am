@@ -13,11 +13,6 @@ import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 
 /// "关于 I" — minimal settings page for the singleton I.
-///
-/// Single-companion architecture: I is a permanent system component, not a
-/// selectable character. This page exposes only the two visual surfaces the
-/// user owns (avatar, chat background), plus a disabled placeholder for the
-/// future dreaming feature.
 class AboutIScreen extends StatefulWidget {
   const AboutIScreen({super.key});
 
@@ -30,9 +25,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
 
   bool _isLoading = true;
   CharacterModel? _character;
-  String? _avatarValue;
   String? _avatarPreview;
-  String? _chatBackgroundValue;
   String? _chatBackgroundPreview;
 
   @override
@@ -48,18 +41,17 @@ class _AboutIScreenState extends State<AboutIScreen> {
         if (mounted) setState(() => _isLoading = false);
         return;
       }
-      final primary = await CharacterService.instance.getPrimaryCompanion(userId);
+      final primary =
+          await CharacterService.instance.getPrimaryCompanion(userId);
       if (!mounted) return;
       setState(() {
         _character = primary;
-        _avatarValue = primary?.avatar;
         _avatarPreview = primary?.avatar;
-        _chatBackgroundValue = primary?.chatBackground;
         _chatBackgroundPreview = primary?.chatBackground;
         _isLoading = false;
       });
     } catch (e, s) {
-      _logger.severe('Failed to load primary companion', e, s);
+      _logger.severe('Failed to load I', e, s);
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -72,7 +64,6 @@ class _AboutIScreenState extends State<AboutIScreen> {
     );
     if (picked == null || !mounted) return;
     setState(() {
-      _avatarValue = picked;
       if (!CharacterService.isRelativeAvatarPath(picked)) {
         _avatarPreview = picked;
       }
@@ -122,10 +113,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
         sourcePath: picked.path,
       );
       if (!mounted) return;
-      setState(() {
-        _chatBackgroundValue = imported.relativePath;
-        _chatBackgroundPreview = imported.absolutePath;
-      });
+      setState(() => _chatBackgroundPreview = imported.absolutePath);
       await _persistField('chat_background', imported.relativePath);
     } catch (e, s) {
       _logger.warning('Failed to pick chat background', e, s);
@@ -139,10 +127,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
   }
 
   Future<void> _clearChatBackground() async {
-    setState(() {
-      _chatBackgroundValue = null;
-      _chatBackgroundPreview = null;
-    });
+    setState(() => _chatBackgroundPreview = null);
     await _persistField('chat_background', null);
   }
 
@@ -152,11 +137,17 @@ class _AboutIScreenState extends State<AboutIScreen> {
     try {
       final userId = await UserStorage.getUserId();
       if (userId == null) return;
-      await CharacterService.instance.updateCharacter(
+      final updated = await CharacterService.instance.updateCharacter(
         userId: userId,
         characterId: character.id,
         updates: {key: value},
       );
+      if (!mounted || updated == null) return;
+      setState(() {
+        _character = updated;
+        _avatarPreview = updated.avatar;
+        _chatBackgroundPreview = updated.chatBackground;
+      });
     } catch (e, s) {
       _logger.warning('Failed to persist $key', e, s);
       if (mounted) {
@@ -171,9 +162,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('关于 I'),
-      ),
+      appBar: AppBar(title: const Text('关于 I')),
       body: _isLoading
           ? const Center(child: AgentLogoLoading())
           : _character == null

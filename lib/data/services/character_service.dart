@@ -109,29 +109,28 @@ class CharacterService {
 
   /// Create default characters.
   ///
-  /// For hereIAm flavor: seed exactly ONE singleton "I" — no preset persona,
-  /// no first message, no other personalities. The user owns avatar and chat
-  /// background only.
-  ///
-  /// For other flavors: seed the legacy multi-character defaults.
+  /// Here I am keeps a single system companion: I. Other flavors retain the
+  /// legacy default roster.
   Future<void> _createDefaultCharacters(String userId, String charsPath) async {
     if (AppFlavor.isHereIAm) {
       await _seedSingletonI(userId, charsPath);
       return;
     }
+
     final defaultCharacters = UserStorage.l10n.defaultCharacters;
+
     for (var charData in defaultCharacters) {
       final charId = charData['id'] as String;
       await _seedCharacterFromData(userId, charsPath, charId, charData);
     }
   }
 
-  /// Seed the singleton "I" for hereIAm flavor. No persona, no greeting —
-  /// just the system-bound companion the user shapes through use.
+  /// Seed the singleton "I" for hereIAm flavor. No persona, no greeting; the
+  /// user shapes avatar and chat background in the About I screen.
   Future<void> _seedSingletonI(String userId, String charsPath) async {
     const charId = 'i';
     final charFile = p.join(charsPath, '$charId.yaml');
-    if (await File(charFile).exists()) return;
+    final file = File(charFile);
     final yaml = <String, dynamic>{
       'name': 'I',
       'tags': const <String>[],
@@ -140,7 +139,21 @@ class CharacterService {
       'enabled': true,
       'is_primary_companion': true,
     };
+
     try {
+      if (await file.exists()) {
+        final doc = loadYaml(await file.readAsString());
+        final existing = jsonDecode(jsonEncode(doc)) as Map<String, dynamic>;
+        existing['name'] = 'I';
+        existing['tags'] ??= const <String>[];
+        existing['persona'] ??= '';
+        existing['avatar'] ??= 'i';
+        existing['enabled'] = true;
+        existing['is_primary_companion'] = true;
+        await _fileSystem.writeYamlFile(charFile, existing);
+        return;
+      }
+
       await _fileSystem.writeYamlFile(charFile, yaml);
       _logger.info('Created singleton I for user $userId');
     } catch (e) {
@@ -235,6 +248,12 @@ class CharacterService {
 
   /// Run all pending migrations from current version to [_currentSeedVersion].
   Future<void> _runMigrations(String userId, String charsPath) async {
+    if (AppFlavor.isHereIAm) {
+      await _seedSingletonI(userId, charsPath);
+      await _writeSeedVersion(charsPath, _currentSeedVersion);
+      return;
+    }
+
     final currentVersion = await _readSeedVersion(charsPath);
     if (currentVersion >= _currentSeedVersion) return;
 
@@ -340,6 +359,9 @@ class CharacterService {
 
     // Sort by ID to be consistent
     characters.sort((a, b) => a.id.compareTo(b.id));
+    if (AppFlavor.isHereIAm) {
+      return characters.where((character) => character.id == 'i').toList();
+    }
     return characters;
   }
 
@@ -462,7 +484,7 @@ class CharacterService {
       _logger.info("Created character $newId for user $userId");
 
       charDict['id'] = newId;
-      return CharacterModel.fromJson(charDict);
+      return _resolveMediaPaths(CharacterModel.fromJson(charDict));
     } catch (e) {
       _logger.severe("Failed to create character for user $userId: $e");
       rethrow;
@@ -566,7 +588,7 @@ class CharacterService {
 
       _logger.info("Updated character $characterId for user $userId");
       charData['id'] = characterId;
-      return CharacterModel.fromJson(charData);
+      return _resolveMediaPaths(CharacterModel.fromJson(charData));
     } catch (e) {
       _logger.severe(
           "Failed to update character $characterId for user $userId: $e");
@@ -631,6 +653,10 @@ class CharacterService {
   /// Get the user's primary companion character.
   /// Returns the first enabled character if none is explicitly set.
   Future<CharacterModel?> getPrimaryCompanion(String userId) async {
+    if (AppFlavor.isHereIAm) {
+      return getCharacter(userId, 'i', returnPlaceholder: false);
+    }
+
     final characters = await getAllCharacters(userId);
     final primary = characters.where((c) => c.isPrimaryCompanion).firstOrNull;
     if (primary != null) return primary;

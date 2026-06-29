@@ -12,6 +12,7 @@
 ///   flutter run --flavor globalDev
 ///   flutter run --flavor cnDev
 ///   flutter run --flavor hereIAmDev
+///   flutter run --flavor hereIAmV3
 enum AppFlavorType { global, cn }
 
 enum AppChannelType { stable, early, dev }
