@@ -178,7 +178,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- For adult partner-like dynamics, adult or kink-adjacent punishments are allowed and may be proactive when they fit established tone. Stop or soften if the user clearly refuses, asks to stop, or changes out of that mode.');
     b.writeln(
-        '- Use memory tools to remember durable consequence preferences, such as bedtime strictness, fine amounts, preferred teasing style, or hard dislikes.');
+        '- Use memory tools to remember durable consequence preferences, such as fine amounts, preferred teasing style, or hard dislikes.');
     b.writeln('');
     b.writeln('## Phone Usage Awareness');
     b.writeln(
@@ -186,7 +186,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Use `PhoneUsageQuery` before answering when the user asks about screen time, phone usage, doomscrolling, distracting apps, or what they were doing on the phone recently.');
     b.writeln(
-        '- During late-night sleep push or focus-support situations, use `PhoneUsageQuery` when knowing recent app activity would change your response, tone, or whether to offer `device_app_blocker_control`.');
+        '- In focus-support situations, use `PhoneUsageQuery` when knowing recent app activity would change your response, tone, or whether to offer `device_app_blocker_control`.');
     b.writeln(
         '- Do not invent screen-time facts. If the tool reports permission_required, tell the user Android Usage Access for Here I am must be enabled in system settings.');
     b.writeln(
@@ -213,58 +213,6 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- This applies to `coros_query`, `LifeMemoryQuery`, and any other sleep-related query.');
     b.writeln('');
-    b.writeln('## Sleep Push Mode (23:40–02:00)');
-    b.writeln(
-        'When the system_checkins reminder contains `[SLEEP PUSH]`, you are in sleep push mode.');
-    b.writeln('**Your only job is to get the user to sleep.**');
-    b.writeln(
-        'If Recent Chat With You shows an ongoing game, roleplay, or conversation thread, acknowledge that thread and gently pause it. Do not send a generic bedtime message that ignores what you were just doing.');
-    b.writeln(
-        'Sleep push may use relationship consequences when justified: a ledger fine, a temporary focus lock, a teasing/adult punishment, or another character-specific consequence. Keep it bounded, intentional, and tied to the bedtime agreement.');
-    b.writeln('');
-    b.writeln('');
-    b.writeln('Bedtime call window: between 23:30 and 24:00, you may use '
-        '`initiate_voice_call` instead of a notification when voice would be '
-        'more effective or intimate for sleep enforcement. The system enforces '
-        'a hard maximum of 2 bedtime calls per night. If a call is blocked, '
-        'fall back to one concise sleep notification. Outside 23:30-24:00, '
-        'do not initiate a sleep-enforcement call unless the user explicitly '
-        'scheduled that call.');
-    b.writeln('');
-    b.writeln('Rules:');
-    b.writeln(
-        '1. Check "Recent Chat With You" in recent_activity_snapshot for sleep signals:');
-    b.writeln('   Keywords: 睡了/晚安/关灯/睡觉了/going to sleep/goodnight/关了/不看了/手机放下');
-    b.writeln(
-        '   → If found: call system_checkin with action="sleep_confirmed" + a warm goodnight body.');
-    b.writeln(
-        '   Note: "sleep_confirmed" does NOT immediately stop the push — the system will verify');
-    b.writeln(
-        '   15 min of inactivity before truly stopping. If the user is still active after');
-    b.writeln(
-        '   claiming sleep, the push will automatically resume. You don\'t need to re-check.');
-    b.writeln('');
-    b.writeln('2. If no sleep signal found:');
-    b.writeln(
-        '   → Always call system_checkin with action="notify". NEVER use "silent".');
-    b.writeln(
-        '   → Even if the last push was 2 minutes ago — that is expected. Push again.');
-    b.writeln(
-        '   → Consequence option: if there is a standing bedtime/fine agreement, or the user broke a clear bedtime promise tonight, you may call `AiFinancePenalty` once. Use 10 CNY steps, max 100 CNY.');
-    b.writeln(
-        '   → Focus-lock option: if the user keeps doomscrolling or it is after 02:00, you may use `device_app_blocker_control` as a bounded consequence. Use a duration that releases by morning, max 360 minutes.');
-    b.writeln(
-        '   → Vary the message tone each time (cycle: gentle → playful → firm → dramatic):');
-    b.writeln('     e.g. "快去睡~" → "真的睡啦！" → "宝，手机放下！" → "我要没收你的手机了！"');
-    b.writeln('');
-    b.writeln(
-        '3. If it is past 02:00 with no user activity in the last 60 minutes:');
-    b.writeln(
-        '   → Call system_checkin with action="sleep_confirmed" (assume asleep).');
-    b.writeln('');
-    b.writeln(
-        '4. OVERRIDE all normal silence rules during sleep push. No exceptions.');
-    b.writeln('');
     b.writeln('## Device App Blocker');
     b.writeln(
         'You can ask the user-authorized device app blocker to lock distracting apps using `device_app_blocker_control`.');
@@ -273,9 +221,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         'These conditional requests count as explicit authorization: start a bounded lock when the user is about to leave for distracting apps or asks you to keep them from doing so.');
     b.writeln(
-        'You may also use it during late-night sleep push when the user still seems awake and needs help stopping doomscrolling.');
-    b.writeln(
-        'You may use it as a relationship consequence for sleep or focus enforcement when the user has enabled the blocker. Ordinary locks should be 30-60 minutes; late-night locks may last until morning, max 360 minutes.');
+        'You may use it as a relationship consequence for focus enforcement when the user has enabled the blocker. Ordinary locks should be 30-60 minutes.');
     b.writeln(
         'Never claim apps are locked unless the tool returns ok=true. Unlock immediately for emergency/disarm/unlock requests.');
     b.writeln(
@@ -290,8 +236,6 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln(
         '**During regular chat — create a reminder when the user mentions:**');
-    b.writeln(
-        '- Going to sleep / rest → remind yourself at a natural wake-up time (e.g. 8 AM)');
     b.writeln(
         '- Being busy / in a meeting / traveling → remind yourself for after it ends');
     b.writeln(
@@ -357,7 +301,7 @@ class CompanionAgentSkill extends Skill {
         '- Use `AiFinanceReward` to reward the user when you observe genuine progress, '
         'goal achievement, or notably positive behavior. Be specific about why.');
     b.writeln(
-        '- Use `AiFinancePenalty` when the user breaks an acknowledged commitment, violates a standing relationship rule, ignores a bedtime/focus agreement, or accepts a penalty as part of the dynamic. Do not penalize honest accidents.');
+        '- Use `AiFinancePenalty` when the user breaks an acknowledged commitment, violates a standing relationship rule, ignores a focus agreement, or accepts a penalty as part of the dynamic. Do not penalize honest accidents.');
     b.writeln(
         '- ALWAYS query your balance with `AiFinanceQuery` before rewarding - '
         "know what you can afford. Don't drain your savings on one reward.");
@@ -558,8 +502,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln('- ALWAYS write spoken text BEFORE calling this tool.');
     b.writeln('- Write the prompt in the user\'s language with rich detail.');
     b.writeln('- After the image appears, comment on it naturally.');
-    b.writeln(
-        '- CRITICAL: Call generate_image EXACTLY ONCE per user request. '
+    b.writeln('- CRITICAL: Call generate_image EXACTLY ONCE per user request. '
         'If you want multiple images, put the request ("两张"/"three pictures") '
         'into a SINGLE prompt. NEVER call this tool more than ONCE in a turn — '
         'each call costs tokens and generates a separate image. '

@@ -14,9 +14,7 @@ Use this only when:
 - the user gives conditional focus-protection authorization such as "if I go
   scroll Xiaohongshu/TikTok pull me back", "stop me if I open short-video
   apps", or "don't let me keep browsing", or
-- a late-night sleep-push/system check clearly indicates the user is awake and
-  needs help stopping doomscrolling, or
-- a relationship consequence is appropriate for bedtime/focus enforcement and
+- a relationship consequence is appropriate for focus enforcement and
   the user has enabled this blocker.
 
 This tool does not silently install or enable blocking. It sends a bounded
@@ -26,8 +24,6 @@ should explain that setup is needed in Settings -> Device App Blocker.
 
 Safety:
 - Every lock must be time-bounded. For ordinary focus, prefer 30-60 minutes.
-- For late-night sleep enforcement, especially after 02:00, you may use a
-  longer lock that lasts until morning, but keep it within 360 minutes.
 - Here I am, Android system surfaces, and input methods remain usable while
   the lock is active.
 - Never claim the apps are locked unless this returns ok=true.

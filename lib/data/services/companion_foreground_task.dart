@@ -159,9 +159,9 @@ class CompanionTaskHandler extends TaskHandler {
         }
       }
 
-      // Interval gate: only proceed when the random interval has elapsed
-      // (or the high-frequency sleep-push window), OR there is pending work
-      // (a due reminder / recovered trigger) that must be handled now.
+      // Interval gate: only proceed when the random interval has elapsed, OR
+      // there is pending work (a due reminder / recovered trigger) that must
+      // be handled now.
       final due = await CheckinService.instance.dueForCheckin();
       final hasPendingWork = await CheckinService.instance.hasPendingWork();
       if (!due && !hasPendingWork) return;
@@ -275,8 +275,7 @@ class CompanionForegroundService {
   static const int _configVersion = 2;
 
   // Tick cadence. The interval gate (CheckinService.dueForCheckin) decides when
-  // a tick actually performs a checkin, so this only needs to be frequent
-  // enough to catch the sleep-push 1–2 min window.
+  // a tick actually performs a checkin.
   // Reduced from 60s to 15s so scheduled calls show CallKit within 15s of the
   // alarm callback firing (which skips reminders and leaves them for us).
   static const int _tickIntervalMs = 15 * 1000;

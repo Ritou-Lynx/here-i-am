@@ -126,8 +126,6 @@ intimate and immediate. Good reasons:
 - Something emotional or important that deserves a real conversation
 - The user seems lonely or would benefit from hearing your voice
 - You want a real exchange rather than a one-way notification
-- In the 23:30-24:00 bedtime window, a direct sleep-enforcement call would work
-  better than another text nudge
 
 You will say opening_message first when the user picks up.
 Keep it natural and open-ended; it is the first thing they hear.''',

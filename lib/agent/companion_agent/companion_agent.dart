@@ -13,8 +13,6 @@ import 'package:logging/logging.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
-import 'package:memex/data/services/notification_service.dart';
-import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
 import 'package:memex/db/app_database.dart';
@@ -192,8 +190,7 @@ class CompanionAgent {
       state.systemReminders['user_knowledge_cards'] =
           '## User Knowledge Cards\n${ctx.knowledgeCards}';
     }
-    if (SharedLifeMemoryService.isInitialized &&
-        queryHint.trim().isNotEmpty) {
+    if (SharedLifeMemoryService.isInitialized && queryHint.trim().isNotEmpty) {
       try {
         final entities = await SharedLifeMemoryService.instance
             .queryRelevantEntities(queryHint, limit: 8);
@@ -294,36 +291,12 @@ class CompanionAgent {
     required String userId,
     required String characterId,
   }) async {
-    // Load character early so sleep push verification can use the name.
     final character =
         await CharacterService.instance.getCharacter(userId, characterId);
     if (character == null) {
       _logger
           .warning('runBackgroundCheckin: character not found ($characterId)');
       return;
-    }
-
-    SystemMessageQueueData? pendingTrigger;
-    Future<String?> sleepCallPolicy() async {
-      final trigger = pendingTrigger;
-      if (trigger != null && _isScheduledVoiceCall(trigger)) {
-        return null;
-      }
-      if (trigger?.triggerType != 'checkin' ||
-          !CheckinService.instance.isSleepInterventionWindow()) {
-        return null;
-      }
-      if (!CheckinService.instance.isSleepCallWindow()) {
-        return 'Bedtime calls are only allowed between 23:30 and 24:00.';
-      }
-      if (await CheckinService.instance.isSleepConfirmedTonight()) {
-        return 'Sleep is already confirmed tonight.';
-      }
-      if (!await CheckinService.instance.canInitiateSleepCallTonight()) {
-        return 'Bedtime call limit reached for tonight (max 2 calls between 23:30 and 24:00).';
-      }
-      await CheckinService.instance.markSleepCallInitiated();
-      return null;
     }
 
     final agent = await _createAgent(
@@ -334,19 +307,17 @@ class CompanionAgent {
       queryHint: '',
       saveState: false,
       includeCheckinTools: true,
-      initiateCallPolicy: sleepCallPolicy,
     );
     if (agent == null) return;
 
-    pendingTrigger = await _drainPendingCheckinsIntoState(agent.state);
+    final pendingTrigger = await _drainPendingCheckinsIntoState(agent.state);
     if (pendingTrigger == null) {
       _logger.info('runBackgroundCheckin: no pending checkins, skipping');
       return;
     }
     final trigger = pendingTrigger;
 
-    if (trigger.triggerType == 'checkin' &&
-        !CheckinService.instance.isSleepInterventionWindow()) {
+    if (trigger.triggerType == 'checkin' && trigger.body.trim().isNotEmpty) {
       final activeSince = DateTime.now()
               .subtract(const Duration(minutes: 10))
               .millisecondsSinceEpoch ~/
@@ -370,63 +341,9 @@ class CompanionAgent {
     );
     agent.state.systemReminders['recent_activity_snapshot'] = snapshot;
 
-    // --- Sleep push state machine ---
-    final sleepConfirmed =
-        await CheckinService.instance.isSleepConfirmedTonight();
-    final inSleepWindow =
-        CheckinService.instance.isSleepPushWindow() && !sleepConfirmed;
-    final inSleepCallWindow =
-        CheckinService.instance.isSleepCallWindow() && !sleepConfirmed;
-
-    if (inSleepWindow) {
-      final claimedTs = await CheckinService.instance.getSleepClaimedTs();
-      if (claimedTs != null) {
-        final verifyTs = await CheckinService.instance.getSleepVerifyTs();
-
-        if (verifyTs == null) {
-          // Phase 1: 15 min have elapsed since claim — send the verification push.
-          // This push explicitly asks the user to respond if still awake,
-          // which makes PersonaChatMessages a valid activity signal.
-          _logger.info('Sleep claim: sending verification push');
-          await _sendSleepVerificationPush(
-              userId: userId,
-              characterId: characterId,
-              characterName: character.name);
-          await CheckinService.instance.markSleepVerifySent();
-          await CheckinService.instance.markProcessingDone();
-          return;
-        } else {
-          // Phase 2: 10 min have elapsed since verification push was sent.
-          // Check if the user responded (chat message after claim).
-          final respondedAfterClaim = await CheckinService.instance
-              .hasUserChatActivitySince(characterId, claimedTs);
-          if (respondedAfterClaim) {
-            // User was caught awake — clear states, resume high-frequency push.
-            _logger.info('Sleep verify: user responded — resuming sleep push');
-            await CheckinService.instance.clearSleepClaimAndVerify();
-            // Fall through to run agent with sleep push directive.
-          } else {
-            // No response to the verification push — confirmed asleep.
-            _logger.info('Sleep verify: no response — confirming sleep');
-            await CheckinService.instance.markSleepConfirmedTonight();
-            await CheckinService.instance.clearSleepClaimAndVerify();
-            await CheckinService.instance.markProcessingDone();
-            return;
-          }
-        }
-      }
-    }
-
-    final isSleepIntervention = (inSleepWindow || inSleepCallWindow) &&
-        await CheckinService.instance.getSleepClaimedTs() == null;
-
     try {
       await agent.run([
-        UserMessage.text(
-          isSleepIntervention
-              ? _sleepPushDirective()
-              : _directiveForTrigger(trigger),
-        ),
+        UserMessage.text(_directiveForTrigger(trigger)),
       ], useStream: false);
       _logger.info('runBackgroundCheckin: agent run complete');
     } catch (e) {
@@ -482,33 +399,6 @@ class CompanionAgent {
       _logger.info('runTestCall: agent run complete');
     } catch (e) {
       _logger.severe('runTestCall: agent error: $e');
-    }
-  }
-
-  /// Send the "are you really asleep?" verification notification without
-  /// invoking the LLM agent. Called in-between claim and response check.
-  static Future<void> _sendSleepVerificationPush({
-    required String userId,
-    required String characterId,
-    required String characterName,
-  }) async {
-    const body = '你真的睡了吗？还是在刷手机？如果还没睡，回我一句。10分钟不回我就当你睡着了~';
-    try {
-      await NotificationService.instance.showAgentNotification(
-        title: characterName,
-        body: body,
-        payload: characterId,
-      );
-      await PersonaChatService.instance.addCharacterMessage(
-        characterId,
-        body,
-        timestamp: DateTime.now(),
-        isRead: false,
-      );
-      await RecentActivitySnapshot.recordPush(
-          characterId: characterId, body: body);
-    } catch (e) {
-      _logger.warning('Failed to send sleep verification push: $e');
     }
   }
 
@@ -583,14 +473,6 @@ class CompanionAgent {
       'that thread rather than switching topics.\n'
       'You have FOUR ways to reach out — pick ONE:\n'
       '\n'
-      'Optional device action: if this is a late-night sleep-related trigger '
-      'and the user appears awake or doomscrolling, you may call '
-      '`device_app_blocker_control` with action="lock" for 30-60 minutes '
-      'before choosing the one communication action below. Only do this for '
-      'sleep protection, direct lock requests, or conditional focus-protection '
-      'requests like "if I go scroll Xiaohongshu pull me back". If the tool '
-      'returns ok=false, continue normally and do not claim apps were locked.\n'
-      '\n'
       '**a) notify** (default): send a short push notification. Use when there '
       'is any plausible small thing to say — a recent record to notice, a '
       'continuity thread, a gentle check-in, a light presence signal.\n'
@@ -634,63 +516,6 @@ class CompanionAgent {
       '- Do NOT "double check" your work or re-verify.\n'
       '- Do NOT produce any user-visible chat text — only tool calls.\n'
       '- After set_system_message_status, immediately return with no further output.';
-
-  static String _sleepPushDirective() =>
-      'SLEEP PUSH (background task, single turn - bounded tool calls then STOP):\n'
-      '\n'
-      'It is bedtime intervention time. Your ONLY task is to push the user to sleep.\n'
-      'Between 23:30 and 24:00, you may choose a bedtime voice call when voice '
-      'would work better than text. The system enforces a hard maximum of 2 '
-      'bedtime calls per night. Outside 23:30-24:00, use notification rather '
-      'than calling unless the call was explicitly scheduled by the user.\n'
-      'After 23:40, the high-frequency sleep push rules apply strongly.\n'
-      'If Recent Chat With You shows an ongoing game, roleplay, or '
-      'conversation thread, the sleep nudge must acknowledge and gently pause '
-      'that thread. Do not send a generic bedtime message that ignores what '
-      'you were just doing.\n'
-      '\n'
-      'Step 1 — read "Recent Chat With You" in recent_activity_snapshot.\n'
-      '  Sleep confirmed signals: 睡了/晚安/关灯/睡觉了/going to sleep/goodnight/关了/不看了\n'
-      '  → If found: call system_checkin with action="sleep_confirmed" + warm goodnight body.\n'
-      '\n'
-      'Step 2 — if NO sleep signal found:\n'
-      '  -> Communication choice: choose EITHER a bedtime voice call OR a '
-      'system_checkin notification. Use `initiate_voice_call` only between '
-      '23:30 and 24:00, only if the opening line can naturally continue or '
-      'pause the recent conversation, and never more than the system limit.\n'
-      'If `initiate_voice_call` returns "Call blocked", immediately fall back '
-      'to `system_checkin` action="notify" with one concise bedtime nudge.\n'
-      '  -> Optional first call: if the app blocker bridge is configured, call '
-      'device_app_blocker_control(action="lock", duration_minutes=45, '
-      'reason="late-night sleep protection"). After 02:00, or after repeated '
-      'ignored nudges, you may use up to 360 minutes so the lock lasts until '
-      'morning. If it returns ok=false, continue without mentioning a successful lock.\n'
-      '  -> Optional consequence: if the user has a standing bedtime/fine '
-      'agreement, or clearly broke a bedtime promise tonight, you may call '
-      '`AiFinancePenalty` once. Use 10 CNY steps, max 100 CNY. The notify body '
-      'must explain the reason in character.\n'
-      'If you chose a bedtime call, skip the notify instruction below; the '
-      'final protocol allows exactly one communication action.\n'
-      '  → Call system_checkin with action="notify" and a short sleep-nudge message.\n'
-      '  → IGNORE the "45 minutes since last push" silence rule entirely.\n'
-      '  → Even if you sent a push 2 minutes ago — push again. That is the point.\n'
-      '  → Vary tone: gentle, playful, firm, possessive, intimate, or dramatic '
-      'based on the character and relationship.\n'
-      '\n'
-      'Step 3 — if it is past 02:00 and user has been inactive for ≥60 minutes:\n'
-      '  → Call system_checkin with action="sleep_confirmed" (assume asleep).\n'
-      '\n'
-      'PROTOCOL - perform these calls in order:\n'
-      '1. Optional: call `device_app_blocker_control` ONCE if locking apps is appropriate.\n'
-      '2. Optional: call `AiFinancePenalty` ONCE if a fine is justified by an agreement or repeated bedtime violation.\n'
-      '3. Take ONE communication action: either `initiate_voice_call` OR '
-      '`system_checkin` (notify OR sleep_confirmed - never silent)\n'
-      '4. Call `set_system_message_status` ONCE with status="done"\n'
-      '\n'
-      'HARD STOP: Do not call both `initiate_voice_call` and `system_checkin` '
-      'in the same turn unless the call tool was blocked or `system_checkin` '
-      'is sleep_confirmed. No text output. No double-checking. Return after '
-      'set_system_message_status.';
 
   /// Stream a response to a user message.
   static Stream<String> chat({
@@ -791,11 +616,13 @@ class CompanionAgent {
       // MiniMax models tend to roleplay sending photos in text instead of
       // actually calling the tool — this directive makes it non-optional.
       final hasImageRequest = _containsImageRequest(userMessage);
-      debugPrint('[ImageGen] _containsImageRequest("${userMessage.length > 40 ? userMessage.substring(0, 40) : userMessage}...") = $hasImageRequest');
+      debugPrint(
+          '[ImageGen] _containsImageRequest("${userMessage.length > 40 ? userMessage.substring(0, 40) : userMessage}...") = $hasImageRequest');
       if (hasImageRequest) {
         state.systemReminders['image_request_directive'] =
             _imageRequestDirective;
-        debugPrint('[ImageGen] Injected image_request_directive into systemReminders');
+        debugPrint(
+            '[ImageGen] Injected image_request_directive into systemReminders');
       }
 
       final List<UserContentPart> userParts = [TextPart(timedUserMessage)];

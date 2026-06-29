@@ -30,9 +30,9 @@ Allowed actions:
 - `unlock`
 - `status`
 
-During late-night sleep push, the agent may call `lock` before sending the
-bedtime notification. If the bridge is not configured, the tool returns
-`ok=false` and the agent must not claim the apps were locked.
+When the user explicitly authorizes a focus lock, the agent may call `lock`.
+If the bridge is not configured, the tool returns `ok=false` and the agent
+must not claim the apps were locked.
 
 ## Recommended: Tasker Intent
 
@@ -63,7 +63,7 @@ The intent extra, or HTTP POST body when using HTTP, contains JSON:
   "block_mode": true,
   "duration_minutes": 45,
   "until": "2026-06-14T01:45:00+08:00",
-  "reason": "late-night sleep protection",
+  "reason": "focus protection",
   "source": "companion_agent",
   "blocked_packages": ["com.xingin.xhs"],
   "timestamp": "2026-06-14T01:00:00+08:00"

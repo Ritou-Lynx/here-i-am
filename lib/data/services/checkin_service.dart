@@ -38,29 +38,10 @@ class CheckinService {
   static const _keyEnabled = 'enabled';
   static const _keyMinMin = 'min_interval_minutes';
   static const _keyMaxMin = 'max_interval_minutes';
-  static const _keySleepConfirmedDate = 'sleep_push_confirmed_date';
-  // Epoch-seconds timestamp of when user announced sleep but hasn't been verified yet.
-  static const _keySleepClaimedTs = 'sleep_push_claimed_ts';
-  // Epoch-seconds timestamp when the verification push was sent.
-  static const _keySleepVerifyTs = 'sleep_push_verify_ts';
-  static const _keySleepCallCountPrefix = 'sleep_push_call_count_';
-
-  // Sleep push window: 23:40–02:00 (high-frequency mode to nudge user to sleep)
-  static const int _sleepPushMinMin = 1;
-  static const int _sleepPushMaxMin = 2;
-  static const int _sleepCallMinMin = 5;
-  static const int _sleepCallMaxMin = 10;
-  static const int maxSleepCallsPerNight = 2;
-  // Minutes after claim before we send the "are you really asleep?" verification push.
-  static const int _sleepClaimVerifyMinutes = 15;
-  // Minutes after sending the verification push before we check for a response.
-  static const int _sleepVerifyResponseMinutes = 10;
-  static const int sleepClaimVerifySeconds = _sleepClaimVerifyMinutes * 60;
 
   static const int defaultMinIntervalMinutes = 3;
   static const int defaultMaxIntervalMinutes = 60;
   static const int _staleCheckinSeconds = 60 * 60;
-  static const int _staleSleepPushSeconds = 5 * 60;
   static const int _staleReminderSeconds = 15 * 60;
 
   /// WorkManager task name — public so [callbackDispatcher] can route.
@@ -107,162 +88,7 @@ class CheckinService {
     return (v != null && v > 0) ? v : defaultMaxIntervalMinutes;
   }
 
-  // ---------------------------------------------------------------------------
-  // Sleep push
-  // ---------------------------------------------------------------------------
-
-  /// Returns true when the current local time is in the sleep push window
-  /// (23:40–02:00). No DB access needed.
-  bool isSleepPushWindow() {
-    final now = DateTime.now();
-    final h = now.hour;
-    final m = now.minute;
-    return (h == 23 && m >= 40) || h == 0 || h == 1;
-  }
-
-  /// Returns true during the gentler pre-midnight bedtime call window
-  /// (23:30-24:00). This does not imply high-frequency sleep push by itself.
-  bool isSleepCallWindow() {
-    final now = DateTime.now();
-    return now.hour == 23 && now.minute >= 30;
-  }
-
-  bool isSleepInterventionWindow() =>
-      isSleepPushWindow() || isSleepCallWindow();
-
-  /// Maps post-midnight hours back to the previous calendar date so that
-  /// the whole "tonight" session (23:40 → 02:00) shares the same key.
-  String _sleepNightKey() {
-    final now = DateTime.now();
-    final d = now.hour < 4 ? now.subtract(const Duration(days: 1)) : now;
-    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  }
-
-  String _sleepCallCountKey() => '$_keySleepCallCountPrefix${_sleepNightKey()}';
-
-  /// Whether the user has already confirmed sleep for tonight.
-  Future<bool> isSleepConfirmedTonight() async {
-    if (!AppDatabase.isInitialized) return false;
-    final row =
-        await _db.kvStoreLookup(key: _keySleepConfirmedDate, bucket: _bucket);
-    return row?.value == _sleepNightKey();
-  }
-
-  /// Mark that the user has confirmed sleep for tonight.
-  /// Called only after inactivity has been verified. Stops all sleep push.
-  Future<void> markSleepConfirmedTonight() async {
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await _db.into(_db.kvStore).insertOnConflictUpdate(
-          KvStoreCompanion.insert(
-            key: _keySleepConfirmedDate,
-            bucket: const Value(_bucket),
-            value: Value(_sleepNightKey()),
-            updatedAt: Value(now),
-          ),
-        );
-    _logger.info('Sleep confirmed tonight (${_sleepNightKey()})');
-  }
-
-  Future<int> getSleepCallCountTonight() async {
-    if (!AppDatabase.isInitialized) return 0;
-    final row =
-        await _db.kvStoreLookup(key: _sleepCallCountKey(), bucket: _bucket);
-    return int.tryParse(row?.value ?? '') ?? 0;
-  }
-
-  Future<bool> canInitiateSleepCallTonight() async {
-    if (!isSleepCallWindow()) return false;
-    if (await isSleepConfirmedTonight()) return false;
-    return await getSleepCallCountTonight() < maxSleepCallsPerNight;
-  }
-
-  Future<int> markSleepCallInitiated() async {
-    final next = await getSleepCallCountTonight() + 1;
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await _db.into(_db.kvStore).insertOnConflictUpdate(
-          KvStoreCompanion.insert(
-            key: _sleepCallCountKey(),
-            bucket: const Value(_bucket),
-            value: Value(next.toString()),
-            updatedAt: Value(now),
-          ),
-        );
-    _logger.info('Sleep call count tonight: $next');
-    return next;
-  }
-
-  /// User announced they are going to sleep, but we have not yet verified
-  /// inactivity. Alarm will reschedule at [_sleepClaimVerifyMinutes] to check.
-  Future<void> markSleepClaimed() async {
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await _db.into(_db.kvStore).insertOnConflictUpdate(
-          KvStoreCompanion.insert(
-            key: _keySleepClaimedTs,
-            bucket: const Value(_bucket),
-            value: Value(now.toString()),
-            updatedAt: Value(now),
-          ),
-        );
-    _logger.info('Sleep claimed at epoch $now');
-  }
-
-  /// Returns the epoch-seconds timestamp when the user claimed sleep,
-  /// or null if no pending claim exists.
-  Future<int?> getSleepClaimedTs() async {
-    if (!AppDatabase.isInitialized) return null;
-    final row =
-        await _db.kvStoreLookup(key: _keySleepClaimedTs, bucket: _bucket);
-    return int.tryParse(row?.value ?? '');
-  }
-
-  /// Clear the sleep-claimed state (user was caught still awake).
-  Future<void> clearSleepClaimed() async {
-    if (!AppDatabase.isInitialized) return;
-    await (_db.delete(_db.kvStore)
-          ..where((t) =>
-              t.key.equals(_keySleepClaimedTs) &
-              t.bucket.equalsNullable(_bucket)))
-        .go();
-    _logger.info('Sleep claim cleared — user still awake');
-  }
-
-  /// Record that the verification push ("你真的睡了吗？") has been sent.
-  Future<void> markSleepVerifySent() async {
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await _db.into(_db.kvStore).insertOnConflictUpdate(
-          KvStoreCompanion.insert(
-            key: _keySleepVerifyTs,
-            bucket: const Value(_bucket),
-            value: Value(now.toString()),
-            updatedAt: Value(now),
-          ),
-        );
-    _logger.info('Sleep verify push sent at epoch $now');
-  }
-
-  /// Returns the epoch-seconds timestamp when the verification push was sent,
-  /// or null if it hasn't been sent yet.
-  Future<int?> getSleepVerifyTs() async {
-    if (!AppDatabase.isInitialized) return null;
-    final row =
-        await _db.kvStoreLookup(key: _keySleepVerifyTs, bucket: _bucket);
-    return int.tryParse(row?.value ?? '');
-  }
-
-  /// Clear both claimed and verify states together (resume push or confirm sleep).
-  Future<void> clearSleepClaimAndVerify() async {
-    if (!AppDatabase.isInitialized) return;
-    await (_db.delete(_db.kvStore)
-          ..where((t) =>
-              (t.key.equals(_keySleepClaimedTs) |
-                  t.key.equals(_keySleepVerifyTs)) &
-              t.bucket.equalsNullable(_bucket)))
-        .go();
-    _logger.info('Sleep claim + verify state cleared');
-  }
-
   /// Returns true if the user sent any chat message after [sinceEpochSec].
-  /// Used by the sleep push state machine to verify inactivity.
   Future<bool> hasUserChatActivitySince(
       String characterId, int sinceEpochSec) async {
     if (!AppDatabase.isInitialized) return false;
@@ -426,35 +252,8 @@ class CheckinService {
   /// creating a self-sustaining wake-up chain that does not rely on WorkManager.
   Future<void> scheduleProductionAlarm() async {
     if (!Platform.isAndroid) return;
-    final int minMin, maxMin;
-    if (isSleepInterventionWindow() && !await isSleepConfirmedTonight()) {
-      final claimedTs = await getSleepClaimedTs();
-      if (claimedTs != null) {
-        final verifyTs = await getSleepVerifyTs();
-        if (verifyTs == null) {
-          // Claimed but verification push not yet sent — fire after the claim window.
-          minMin = _sleepClaimVerifyMinutes;
-          maxMin = _sleepClaimVerifyMinutes;
-          _logger.info(
-              'Sleep claimed — sending verify push in ${_sleepClaimVerifyMinutes}min');
-        } else {
-          // Verification push sent — wait for the user's response window.
-          minMin = _sleepVerifyResponseMinutes;
-          maxMin = _sleepVerifyResponseMinutes;
-          _logger.info(
-              'Sleep verify sent — checking response in ${_sleepVerifyResponseMinutes}min');
-        }
-      } else {
-        // Active sleep push: fire every 1–2 min.
-        final pushWindow = isSleepPushWindow();
-        minMin = pushWindow ? _sleepPushMinMin : _sleepCallMinMin;
-        maxMin = pushWindow ? _sleepPushMaxMin : _sleepCallMaxMin;
-        _logger.info('Sleep push active — using $minMin–${maxMin}min interval');
-      }
-    } else {
-      minMin = await getMinIntervalMinutes();
-      maxMin = await getMaxIntervalMinutes();
-    }
+    final minMin = await getMinIntervalMinutes();
+    final maxMin = await getMaxIntervalMinutes();
     final delayMin = minMin + _rand.nextInt(maxMin - minMin + 1);
     final fireAt = DateTime.now().add(Duration(minutes: delayMin));
     await AndroidAlarmManager.oneShotAt(
@@ -588,10 +387,9 @@ class CheckinService {
 
   /// Foreground-service heartbeat gate. The persistent foreground service ticks
   /// frequently (e.g. every 60s); this returns true only when enough time has
-  /// elapsed since the last checkin — a random interval within [min, max], or
-  /// the high-frequency window during sleep push. Reschedules the next target
-  /// each time it fires, so checkin cadence stays random/natural rather than
-  /// firing on every tick.
+  /// elapsed since the last checkin — a random interval within [min, max].
+  /// Reschedules the next target each time it fires, so checkin cadence stays
+  /// random/natural rather than firing on every tick.
   Future<bool> dueForCheckin() async {
     if (!AppDatabase.isInitialized) return false;
     final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -602,13 +400,6 @@ class CheckinService {
       // First tick after install/launch — arm the next target, don't fire now.
       await _scheduleNextCheckinTs(nowSec);
       return false;
-    }
-    final sleepInterval = await _sleepInterventionInterval();
-    if (sleepInterval != null &&
-        nowSec < next &&
-        next - nowSec > sleepInterval.maxMin * 60) {
-      await _scheduleNextCheckinTs(nowSec);
-      return true;
     }
     if (nowSec >= next) {
       await _scheduleNextCheckinTs(nowSec);
@@ -633,15 +424,8 @@ class CheckinService {
   }
 
   Future<void> _scheduleNextCheckinTs(int nowSec) async {
-    final int minMin, maxMin;
-    final sleepInterval = await _sleepInterventionInterval();
-    if (sleepInterval != null) {
-      minMin = sleepInterval.minMin;
-      maxMin = sleepInterval.maxMin;
-    } else {
-      minMin = await getMinIntervalMinutes();
-      maxMin = await getMaxIntervalMinutes();
-    }
+    final minMin = await getMinIntervalMinutes();
+    final maxMin = await getMaxIntervalMinutes();
     final span = (maxMin - minMin) < 0 ? 0 : (maxMin - minMin);
     final delayMin = minMin + (span == 0 ? 0 : _rand.nextInt(span + 1));
     final next = nowSec + delayMin * 60;
@@ -656,30 +440,8 @@ class CheckinService {
     _logger.info('Next checkin target in ${delayMin}m');
   }
 
-  Future<({int minMin, int maxMin})?> _sleepInterventionInterval() async {
-    if (!isSleepInterventionWindow() || await isSleepConfirmedTonight()) {
-      return null;
-    }
-    if (isSleepPushWindow()) {
-      return (minMin: _sleepPushMinMin, maxMin: _sleepPushMaxMin);
-    }
-    return (minMin: _sleepCallMinMin, maxMin: _sleepCallMaxMin);
-  }
-
   String _buildCheckinText() {
     final now = DateTime.now();
-    if (isSleepInterventionWindow()) {
-      final hh = now.hour.toString().padLeft(2, '0');
-      final mm = now.minute.toString().padLeft(2, '0');
-      return '[SLEEP PUSH] Current time: $hh:$mm — '
-          'It is bedtime. Nudge the user to sleep. '
-          'Between 23:30 and 24:00, a bedtime voice call is allowed if useful; '
-          'the system enforces max 2 bedtime calls per night. '
-          'Check recent chat: if user confirmed sleep, call sleep_confirmed. '
-          'Otherwise choose exactly one communication action: call or notify. '
-          'Never call silent during sleep intervention.';
-    }
-
     final hour = now.hour;
     final timeOfDay = hour < 6
         ? 'late night'
@@ -711,14 +473,6 @@ class CheckinService {
     if (!AppDatabase.isInitialized) return 0;
     final now = nowEpochSec ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
     var expired = 0;
-
-    expired += await (_db.update(_db.systemMessageQueue)
-          ..where((t) =>
-              t.status.equals('pending') &
-              t.triggerType.equals('checkin') &
-              t.body.like('[SLEEP PUSH]%') &
-              t.createdAt.isSmallerOrEqualValue(now - _staleSleepPushSeconds)))
-        .write(const SystemMessageQueueCompanion(status: Value('failed')));
 
     expired += await (_db.update(_db.systemMessageQueue)
           ..where((t) =>
