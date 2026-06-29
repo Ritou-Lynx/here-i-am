@@ -377,7 +377,6 @@ Memory Card = 统一凝露外壳 + 活动板块组装。
 - COROS / health data。
 - phone usage。
 - device app blocker / focus lock。
-- sleep push。
 - 成人设备控制相关实验能力。
 
 路线判断：

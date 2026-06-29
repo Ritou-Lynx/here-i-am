@@ -271,7 +271,7 @@ Use this when:
 - The user explicitly agreed to do something and failed to do it
 - The user broke a promise or commitment you both acknowledged
 - The user neglected a responsibility they accepted in conversation
-- The user violated a standing relationship rule, bedtime/focus agreement, or
+- The user violated a standing relationship rule, focus agreement, or
   accepted penalty dynamic
 
 Rules:

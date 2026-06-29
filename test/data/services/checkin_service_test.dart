@@ -167,15 +167,14 @@ void main() {
       expect(row.scheduledFor, greaterThanOrEqualTo(before + 30 * 60));
     });
 
-    test('stale sleep pushes and reminders are failed before draining',
-        () async {
+    test('stale checkins and reminders are failed before draining', () async {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       for (final row in [
         SystemMessageQueueCompanion.insert(
-          id: 'stale-sleep-push',
+          id: 'stale-checkin',
           triggerType: 'checkin',
-          body: '[SLEEP PUSH] Current time: 23:40 — go to sleep.',
-          createdAt: now - 6 * 60,
+          body: 'This checkin is no longer timely.',
+          createdAt: now - 61 * 60,
         ),
         SystemMessageQueueCompanion.insert(
           id: 'stale-reminder',
