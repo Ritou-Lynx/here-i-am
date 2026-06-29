@@ -15,48 +15,6 @@ void main() {
     await UserStorage.initL10n();
   });
 
-  test('last active enabled character wins over the fallback', () {
-    expect(
-      resolveCompanionFirstCharacterId(
-        enabledCharacterIds: const ['luna', 'mira'],
-        rememberedCharacterId: 'mira',
-      ),
-      'mira',
-    );
-  });
-
-  test('disabled or missing remembered character falls back to first enabled',
-      () {
-    expect(
-      resolveCompanionFirstCharacterId(
-        enabledCharacterIds: const ['luna', 'mira'],
-        rememberedCharacterId: 'disabled-character',
-      ),
-      'luna',
-    );
-    expect(
-      resolveCompanionFirstCharacterId(
-        enabledCharacterIds: const [],
-        rememberedCharacterId: 'mira',
-      ),
-      isNull,
-    );
-  });
-
-  test('last active companion is persisted per user', () async {
-    await UserStorage.setLastActiveCompanionCharacterId('user-a', 'luna');
-    await UserStorage.setLastActiveCompanionCharacterId('user-b', 'mira');
-
-    expect(
-      await UserStorage.getLastActiveCompanionCharacterId('user-a'),
-      'luna',
-    );
-    expect(
-      await UserStorage.getLastActiveCompanionCharacterId('user-b'),
-      'mira',
-    );
-  });
-
   testWidgets('life space top bar shows all tab labels', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

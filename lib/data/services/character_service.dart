@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+import 'package:memex/config/app_flavor.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -106,13 +107,44 @@ class CharacterService {
     return charsPath;
   }
 
-  /// Create default characters
+  /// Create default characters.
+  ///
+  /// For hereIAm flavor: seed exactly ONE singleton "I" — no preset persona,
+  /// no first message, no other personalities. The user owns avatar and chat
+  /// background only.
+  ///
+  /// For other flavors: seed the legacy multi-character defaults.
   Future<void> _createDefaultCharacters(String userId, String charsPath) async {
+    if (AppFlavor.isHereIAm) {
+      await _seedSingletonI(userId, charsPath);
+      return;
+    }
     final defaultCharacters = UserStorage.l10n.defaultCharacters;
-
     for (var charData in defaultCharacters) {
       final charId = charData['id'] as String;
       await _seedCharacterFromData(userId, charsPath, charId, charData);
+    }
+  }
+
+  /// Seed the singleton "I" for hereIAm flavor. No persona, no greeting —
+  /// just the system-bound companion the user shapes through use.
+  Future<void> _seedSingletonI(String userId, String charsPath) async {
+    const charId = 'i';
+    final charFile = p.join(charsPath, '$charId.yaml');
+    if (await File(charFile).exists()) return;
+    final yaml = <String, dynamic>{
+      'name': 'I',
+      'tags': const <String>[],
+      'persona': '',
+      'avatar': 'i',
+      'enabled': true,
+      'is_primary_companion': true,
+    };
+    try {
+      await _fileSystem.writeYamlFile(charFile, yaml);
+      _logger.info('Created singleton I for user $userId');
+    } catch (e) {
+      _logger.severe('Failed to seed singleton I for user $userId: $e');
     }
   }
 

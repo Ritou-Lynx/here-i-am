@@ -783,13 +783,6 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
             ),
             const SizedBox(height: 12),
             _buildFunctionTab(
-              icon: Icons.psychology,
-              title: UserStorage.l10n.aiCharacterConfig,
-              onTap: () => context.push(AppRoutes.characterConfig),
-              isLoading: false,
-            ),
-            const SizedBox(height: 12),
-            _buildFunctionTab(
               icon: Icons.settings_outlined,
               title: UserStorage.l10n.settings,
               onTap: () {

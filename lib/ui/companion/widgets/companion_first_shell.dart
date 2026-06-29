@@ -7,16 +7,16 @@ import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
 import 'package:memex/utils/logger.dart';
-import 'package:memex/utils/user_storage.dart';
 import 'package:memex/utils/result.dart';
+import 'package:memex/utils/user_storage.dart';
 import 'package:provider/provider.dart';
 
 import 'companion_life_space_screen.dart';
 
 /// Companion-first app shell.
 ///
-/// Chat is the default home. Existing Memex surfaces remain available as
-/// supporting views while the new conversation-capture pipeline evolves.
+/// Single-companion architecture: the home is always chat with the singleton
+/// I. No selection, no swipe, no multi-character routing.
 class CompanionFirstShell extends StatefulWidget {
   const CompanionFirstShell({super.key});
 
@@ -32,41 +32,20 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
   bool _isLoading = true;
   StreamSubscription<PersonaChatOpenRequest>? _openChatSub;
 
-  /// Called from [handleNotificationPayload] to bypass the async stream path.
-  /// Directly sets the character (the caller has already validated the ID).
+  /// Called from notification payload handlers. Voice-mode boot only; the
+  /// target character is always the singleton I, so we ignore the requested
+  /// characterId.
   Future<void> switchToCharacter(String characterId,
       {bool startVoiceMode = false}) async {
-    _pendingOpenRequest = PersonaChatOpenRequest(
-      characterId: characterId,
-      startVoiceMode: startVoiceMode,
-    );
-    if (_isLoading) return; // _loadInitialCharacter will pick it up
-
-    final userId = await UserStorage.getUserId();
-    if (userId == null) return;
-
-    try {
-      final characters = (await MemexRouter().fetchCharacters()).valueOrThrow;
-      final enabledIds = characters
-          .where((c) => c.enabled)
-          .map((c) => c.id)
-          .toSet();
-      if (!enabledIds.contains(characterId)) {
-        _logger.warning('switchToCharacter: $characterId not in enabled set');
-        return;
-      }
-
-      await UserStorage.setLastActiveCompanionCharacterId(userId, characterId);
-      if (!mounted) return;
-      _pendingOpenRequest = null;
-      setState(() {
-        _startVoiceMode = startVoiceMode;
-        _characterId = characterId;
-      });
-      _logger.info('switchToCharacter: switched to $characterId');
-    } catch (e, stackTrace) {
-      _logger.warning('switchToCharacter failed', e, stackTrace);
+    if (_isLoading) {
+      _pendingOpenRequest = PersonaChatOpenRequest(
+        characterId: characterId,
+        startVoiceMode: startVoiceMode,
+      );
+      return;
     }
+    if (!mounted) return;
+    setState(() => _startVoiceMode = startVoiceMode);
   }
 
   @override
@@ -93,66 +72,35 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
     }
 
     try {
+      // Goes through MemexRouter so FileSystemService / DB are guaranteed
+      // initialized for this user before we touch CharacterService.
       final characters = (await MemexRouter().fetchCharacters()).valueOrThrow;
-      final enabled =
-          characters.where((character) => character.enabled).toList();
-      final remembered =
-          await UserStorage.getLastActiveCompanionCharacterId(userId);
+      final primary = characters
+              .where((c) => c.isPrimaryCompanion && c.enabled)
+              .firstOrNull ??
+          characters.where((c) => c.enabled).firstOrNull;
       final requested = _pendingOpenRequest;
       _pendingOpenRequest = null;
-      final characterId = resolveCompanionFirstCharacterId(
-        enabledCharacterIds: enabled.map((character) => character.id),
-        rememberedCharacterId: requested?.characterId ?? remembered,
-      );
-
-      if (characterId != null) {
-        await UserStorage.setLastActiveCompanionCharacterId(
-            userId, characterId);
-      }
 
       if (!mounted) return;
       setState(() {
-        _characterId = characterId;
-        _startVoiceMode = requested?.startVoiceMode == true &&
-            requested?.characterId == characterId;
+        _characterId = primary?.id;
+        _startVoiceMode = requested?.startVoiceMode == true;
         _isLoading = false;
       });
     } catch (e, stackTrace) {
-      _logger.severe('Failed to load the initial companion', e, stackTrace);
+      _logger.severe('Failed to load the I', e, stackTrace);
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _handleOpenChatRequest(PersonaChatOpenRequest request) async {
-    final characterId = request.characterId;
-    _pendingOpenRequest = request;
-    if (_isLoading) return;
-
-    final userId = await UserStorage.getUserId();
-    if (userId == null) return;
-
-    try {
-      final characters = (await MemexRouter().fetchCharacters()).valueOrThrow;
-      final enabledIds = characters
-          .where((character) => character.enabled)
-          .map((character) => character.id)
-          .toSet();
-      if (!enabledIds.contains(characterId)) return;
-
-      await UserStorage.setLastActiveCompanionCharacterId(userId, characterId);
-      if (!mounted) return;
-      _pendingOpenRequest = null;
-      setState(() {
-        _startVoiceMode = request.startVoiceMode;
-        _characterId = characterId;
-      });
-    } catch (e, stackTrace) {
-      _logger.warning(
-        'Failed to open requested companion chat',
-        e,
-        stackTrace,
-      );
+    if (_isLoading) {
+      _pendingOpenRequest = request;
+      return;
     }
+    if (!mounted) return;
+    setState(() => _startVoiceMode = request.startVoiceMode);
   }
 
   void _openLifeSpace() {
@@ -196,32 +144,17 @@ Route<void> companionLifeSpaceRoute({
   );
 }
 
-/// Picks the last active enabled character, falling back to the first enabled
-/// character. Character privileges are intentionally not part of this choice.
-@visibleForTesting
-String? resolveCompanionFirstCharacterId({
-  required Iterable<String> enabledCharacterIds,
-  String? rememberedCharacterId,
-}) {
-  final ids = enabledCharacterIds.toList(growable: false);
-  if (ids.isEmpty) return null;
-  if (rememberedCharacterId != null && ids.contains(rememberedCharacterId)) {
-    return rememberedCharacterId;
-  }
-  return ids.first;
-}
-
 class _NoCompanionView extends StatelessWidget {
   const _NoCompanionView();
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return const Scaffold(
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24),
           child: Text(
-            UserStorage.l10n.addCharacter,
+            '正在初始化 I...',
             textAlign: TextAlign.center,
           ),
         ),

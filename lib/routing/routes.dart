@@ -30,9 +30,7 @@ abstract final class AppRoutes {
   /// Memory.
   static const String memory = '/memory';
 
-  /// Character config.
-  static const String characterConfig = '/character-config';
-
-  /// Tavern character card import.
-  static const String tavernImport = '/tavern-import';
+  /// "关于 I" — minimal settings for the singleton companion (avatar, chat
+  /// background). Replaces the multi-character config screen.
+  static const String aboutI = '/about-i';
 }

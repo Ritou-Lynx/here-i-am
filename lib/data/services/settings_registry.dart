@@ -15,8 +15,6 @@ import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
 import 'package:memex/ui/memory/view_models/memory_viewmodel.dart';
 import 'package:memex/ui/memory/widgets/memory_screen.dart';
-import 'package:memex/ui/character/view_models/character_viewmodel.dart';
-import 'package:memex/ui/character/widgets/character_config_screen.dart';
 import 'package:memex/utils/user_storage.dart';
 
 /// Settings registry. Maintains a static list of all searchable settings items.
@@ -148,38 +146,6 @@ class SettingsRegistry {
               final vm = MemoryViewModel(router: context.read<MemexRouter>());
               vm.loadMemory();
               return MemoryScreen(viewModel: vm);
-            },
-          ),
-          parentPathGetter: () => [UserStorage.l10n.personalCenter],
-        ),
-        SettingsItem(
-          id: 'character_config',
-          titleGetter: () => UserStorage.l10n.aiCharacterConfig,
-          descriptionGetter: () => UserStorage.l10n.configureAiCharacter,
-          keywords: const [
-            '角色',
-            '性格',
-            '人设',
-            '头像',
-            'AI角色',
-            '评论风格',
-            '语气',
-            '虚拟人物',
-            'character',
-            'persona',
-            'personality',
-            'avatar',
-            'ai character',
-            'tone',
-            'style',
-          ],
-          icon: Icons.psychology,
-          navigationTarget: NavigationTarget(
-            pageBuilder: (context) {
-              final vm =
-                  CharacterViewModel(router: context.read<MemexRouter>());
-              vm.loadCharacters();
-              return CharacterConfigScreen(viewModel: vm);
             },
           ),
           parentPathGetter: () => [UserStorage.l10n.personalCenter],
