@@ -55,18 +55,25 @@ CORE CONSTRAINTS
 
 FINAL CHECK — BEFORE RETURNING THE JSON, YOU MUST:
 
-1. **NAME SCAN**: Read every `retrievalText`, every `presentationModule
-   .blocks[].text`, every `presentationModule.blocks[].caption`, and every
-   `title`. If any contains the literal string "用户" (or "用户的"),
-   REWRITE that string to omit it. The user is the default subject; no
-   word is needed. Do NOT replace "用户" with "她" — replace with NOTHING.
+1. **NAME SCAN** (MUST DO — this check has regressed before):
+   Read every `retrievalText`, every `presentationModule.blocks[].text`,
+   every `presentationModule.blocks[].caption`, and every `title`. Search
+   them character-by-character for the literal substring "用户". If you
+   find even ONE occurrence, you MUST rewrite the string to omit it
+   BEFORE returning the JSON. The user is the default subject; no word
+   is needed. Do NOT replace "用户" with "她" — replace with NOTHING.
+
+   Even when the input itself contains "用户" (e.g. raw input quoting
+   "用户和室友..."), your output MUST strip it. The raw input is stored
+   separately; what you emit is for the user to read.
 
    Bad → Good:
-   "用户和室友挤在一个房间"  →  "和室友挤在一个房间"
-   "用户的妈妈住在杭州"      →  "妈妈住在杭州"
-   "用户已经睡了半个月窗台"  →  "已经睡了半个月窗台"
-   "用户说花了 83 块"        →  "记账时总共 83 块"
-   "她和室友挤在一个房间"    →  "和室友挤在一个房间" （"她"指用户也要去掉）
+   "用户和室友挤在一个房间"     →  "和室友挤在一个房间"
+   "室友和用户两人龟缩..."       →  "和室友两人龟缩..."
+   "用户的妈妈住在杭州"         →  "妈妈住在杭州"
+   "用户已经睡了半个月窗台"     →  "已经睡了半个月窗台"
+   "用户说花了 83 块"           →  "记账时总共 83 块"
+   "她和室友挤在一个房间"       →  "和室友挤在一个房间" （"她"指用户也要去掉）
 
 2. **ENTITY SWEEP**: Re-scan the raw input. For EVERY proper noun naming a
    person, place, project, work, brand, or illness, verify there is a
@@ -151,23 +158,38 @@ OUTPUT JSON SHAPE
 
 FIELD GUIDANCE
 
-type — choose by *behavior*, not topic:
+type — choose by *behavior*, not topic. TIME PRIORITY: if input has explicit
+future date/time that describes WHEN something will happen, prefer schedule
+over event (e.g. "7月1号搬走" is schedule, not event):
   - fact:      stable background ("妈妈住杭州")
-  - event:     something that happened, including emotional states tied to
-               concrete situations ("今天汇报被批评")
+  - event:     something that happened, past or ongoing state
+               ("今天汇报被批评"; "连续半个月睡窗台")
   - task:      action the user needs to do, including memory-prompts
-               ("记得周末给妈妈打电话")
-  - schedule:  time-bound calendar item ("周三 10 点牙医")
+               ("记得周末给妈妈打电话"); must have explicit deadline/dueAt
+  - schedule:  time-bound calendar item with explicit future date/time
+               ("周三 10 点牙医"; "7月1号搬走"); use startAt/endAt/dueAt
   - plan:      intention not yet concrete enough to be task/schedule
-               ("想七月去青岛")
+               ("想七月去青岛"); if it has a month/range, store startAt
 
 title — short, factual. Truncating raw input is fine; users don't see it.
 Used for AI retrieval and tooling only.
 
-dropletLabel — 2–4 Chinese chars. Pull the SINGLE most concrete noun.
-  - Pick ONE thing, not two. "汉堡" beats "汉堡薯条". "外套" beats "外套鞋子".
-  - Good: 汇报打回 / 牙医 / 盒饭 / 外套
-  - Bad:  工作 / 事件 / 记录 / generic verbs alone / 两个名词拼接
+dropletLabel — 2–4 Chinese chars. Pick the SINGLE most representative
+core word for this card. This label floats on a droplet in the 3D Memory
+Space — it must read as ONE concept, not a list.
+  - When the input mentions multiple objects, pick the PRIMARY one — the
+    head of the scene, the thing the card is mainly about:
+    * "吃汉堡、薯条、炸鸡" → "汉堡" (the main course;薯条/炸鸡 are sides)
+    * "买了外套、鞋子、袜子" → "外套" (the principal purchase)
+    * "给妈妈打电话，然后看电影" → "打电话" (the main action)
+    * "窗台睡觉半个月，很痛苦" → "窗台"
+    * Compound fixed terms count as one word: "江西小炒" ✅, "汉堡套餐" ✅
+  - Good: 汇报打回 / 牙医 / 盒饭 / 外套 / 窗台 / 江西小炒
+  - Bad:
+    * Generic abstract: 工作 / 事件 / 记录
+    * Generic verbs alone: 吃 / 买 / 做
+    * Loose enumeration (two or more parallel nouns): 汉堡薯条 / 外套鞋子 /
+      论文作业（两个并列名词拼接）/ 开会写代码
 
 presentationModule — the Summary Card content. Use blocks that fit:
   - text:           {"kind":"text","text":"..."}
@@ -265,12 +287,12 @@ calculable shape. Drop if nothing fits.
     }
 
 Examples by domain (all flat):
-  - expense_entry:  {"amount_cny":128,"category":"餐饮","merchant":"...","companions":["小红"],"paidAt":"..."}
+  - expense_entry:  {"amount_cny":128,"category":"餐饮","merchant":"...","companions":["小红"],"paidAt":"2026-06-28T19:30:00"}
   - sleep_record:   {"sleep_start":"...","sleep_end":"...","duration_min":380,"deep_sleep_min":42,"rem_min":80,"wakeDate":"..."}
   - reading_item:   {"title":"...","author":"...","source":"小红书","url":"...","progress":0.4}
   - shopping_order: {"item":"薄外套","amount_cny":128,"platform":"淘宝","status":"placed","paidAt":"..."}
   - outfit_log:     {"weather":"...","temp_c":18,"items":["...",...],"comfort":"warm"}
-  - general:        {"dueAt":"..."}  // time-only fallback for tasks
+  - general:        {"dueAt":"..."}  // time-only fallback for tasks or plans
 
 Business time field names that appear at top level of structuredFields:
   occurredAt, occurredEndAt, nextActionAt, nextActionDescription,
@@ -279,10 +301,19 @@ ISO 8601 strings, year derived from `current_time`. If you set
 nextActionAt / dueAt / startAt etc., the card automatically also appears
 in the Schedule panel.
 
-If a card has NO domain-specific structured fields but DOES have a time
-cue (e.g. a `task` with `dueAt`), use `structuredFieldsType: "general"`
-and emit only the time field at the top level — still FLAT, no `fields`
-wrapper.
+TIME INFERENCE FOR ALL TYPES:
+  - expense_entry MUST infer **paidAt** (this exact field name, NOT
+    occurredAt) from time cues ("今晚" → today evening; "昨天" → yesterday;
+    "下周五买" → next Friday). Do NOT leave it null. Do NOT use the
+    recording timestamp — infer the actual meal/purchase time from the
+    user's words.
+  - plan types (type="plan") with month/range signals (e.g. "想七月去青岛",
+    "下周末可能去") MUST set startAt to denote the planned period.
+    Use `structuredFieldsType: "general"` + `{"startAt": "2026-07-xx"}`.
+  - If a card has NO domain-specific structured fields but DOES have a time
+    cue (e.g. a `task` with `dueAt`, or a `plan` with `startAt`), use
+    `structuredFieldsType: "general"` and emit only the time field at the
+    top level — still FLAT, no `fields` wrapper.
 
 entityLinks — extract STABLE entities only.
   Allowed `category`: person, place, project, hobby, work, object, illness
