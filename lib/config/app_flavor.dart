@@ -12,6 +12,7 @@
 ///   flutter run --flavor globalDev
 ///   flutter run --flavor cnDev
 ///   flutter run --flavor hereIAmDev
+///   flutter run --flavor hereIAmV3
 enum AppFlavorType { global, cn }
 
 enum AppChannelType { stable, early, dev }
@@ -44,14 +45,14 @@ class AppFlavor {
   /// Call once at app startup with the flavor string from `appFlavor`.
   static void init(String? flavor) {
     final normalized = flavor?.toLowerCase() ?? '';
-    _isHereIAm = normalized == 'hereiamdev';
+    _isHereIAm = normalized == 'hereiamdev' || normalized == 'hereiamv3';
     if (normalized.startsWith('cn')) {
       _current = AppFlavorType.cn;
     } else {
       _current = AppFlavorType.global;
     }
 
-    if (normalized.contains('dev')) {
+    if (normalized.contains('dev') || normalized == 'hereiamv3') {
       _channel = AppChannelType.dev;
     } else if (normalized.contains('early')) {
       _channel = AppChannelType.early;

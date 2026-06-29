@@ -98,6 +98,7 @@ android {
     val globalDevApplicationId = "com.memexlab.memex.dev"
     val cnDevApplicationId = "com.memexlab.memex.cn.dev"
     val hereIAmDevApplicationId = "com.memexlab.hereiam.dev"
+    val hereIAmV3ApplicationId = "com.memexlab.hereiam.v3"
 
     flavorDimensions += "market"
     productFlavors {
@@ -159,6 +160,12 @@ android {
             manifestPlaceholders["appLabel"] = "故我在"
             resValue("string", "quick_action_target_package", hereIAmDevApplicationId)
         }
+        create("hereIAmV3") {
+            dimension = "market"
+            applicationId = hereIAmV3ApplicationId
+            manifestPlaceholders["appLabel"] = "故我在 V3"
+            resValue("string", "quick_action_target_package", hereIAmV3ApplicationId)
+        }
     }
 
     buildTypes {
@@ -174,7 +181,11 @@ android {
         val variant = this
         outputs.all {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            val appName = if (variant.flavorName == "hereIAmDev") "here_i_am" else "memex"
+            val appName = when (variant.flavorName) {
+                "hereIAmDev" -> "here_i_am"
+                "hereIAmV3" -> "here_i_am_v3"
+                else -> "memex"
+            }
             output.outputFileName = "${appName}_${variant.flavorName}_${variant.versionName}_${variant.versionCode}.apk"
         }
     }

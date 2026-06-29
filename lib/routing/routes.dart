@@ -30,6 +30,9 @@ abstract final class AppRoutes {
   /// Memory.
   static const String memory = '/memory';
 
+  /// "关于 I" — minimal settings for the singleton companion.
+  static const String aboutI = '/about-i';
+
   /// Character config.
   static const String characterConfig = '/character-config';
 

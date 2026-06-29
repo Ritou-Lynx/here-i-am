@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:go_router/go_router.dart';
 import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
@@ -35,6 +36,7 @@ import 'package:memex/data/services/media_input_attachment.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/reading/reading_share_parser.dart';
+import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
 import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
@@ -980,6 +982,23 @@ only after you have written the goodbye you want the user to hear.''',
     }
   }
 
+  Future<void> _reloadCurrentCharacter() async {
+    final userId = _userId ?? await UserStorage.getUserId();
+    if (userId == null || !mounted) return;
+
+    final character = await CharacterService.instance.getCharacter(
+      userId,
+      _currentCharacterId,
+    );
+    if (!mounted) return;
+    setState(() => _character = character);
+  }
+
+  Future<void> _openAboutI() async {
+    await context.push(AppRoutes.aboutI);
+    await _reloadCurrentCharacter();
+  }
+
   Future<ToyController?> _ensureToyConnected({
     Duration timeout = const Duration(seconds: 8),
     bool forceRefresh = false,
@@ -1452,8 +1471,7 @@ only after you have written the goodbye you want the user to hear.''',
               analyses,
             );
           } catch (e) {
-            debugPrint(
-                'Failed to persist image analyses to attachments: $e');
+            debugPrint('Failed to persist image analyses to attachments: $e');
           }
         }
       } catch (e) {
@@ -1560,7 +1578,8 @@ only after you have written the goodbye you want the user to hear.''',
         responsePersisted = true;
 
         if (_isAppInBackground && sendCharacter != null) {
-          final visible = PersonaReplySanitizer.stripLeakedReasoning(fullResponse);
+          final visible =
+              PersonaReplySanitizer.stripLeakedReasoning(fullResponse);
           final preview = visible.length > 100
               ? '${visible.substring(0, 100)}...'
               : visible;
@@ -1857,7 +1876,8 @@ only after you have written the goodbye you want the user to hear.''',
         'bmp' => 'image/bmp',
         _ => 'image/jpeg',
       };
-      debugPrint('Image fallback: read ${bytes.length} raw bytes, mime=$mimeType');
+      debugPrint(
+          'Image fallback: read ${bytes.length} raw bytes, mime=$mimeType');
       return {'mimeType': mimeType, 'base64': base64};
     } catch (e) {
       debugPrint('Image raw fallback also failed: $e');
@@ -1980,21 +2000,24 @@ only after you have written the goodbye you want the user to hear.''',
       // ── Pre-process media attachments ──────────────────────────
       final media = <MediaInputAttachment>[];
       final attachmentsJson = message.attachmentsJson;
-      debugPrint(
-          '[Record] msg#${message.id} attachmentsJson '
+      debugPrint('[Record] msg#${message.id} attachmentsJson '
           '${attachmentsJson != null ? "present (${attachmentsJson.length} chars)" : "null"}');
       if (attachmentsJson != null && attachmentsJson.trim().isNotEmpty) {
         try {
           final List<dynamic> attachments = jsonDecode(attachmentsJson);
-          debugPrint('[Record] msg#${message.id} parsed ${attachments.length} attachment(s)');
+          debugPrint(
+              '[Record] msg#${message.id} parsed ${attachments.length} attachment(s)');
           // Extract existing analysis text from the [Image analysis: ...] prefix
           // that was injected into message.content during send.
           final existingAnalyses = _extractImageAnalyses(message.content);
-          debugPrint('[Record] msg#${message.id} prefix analyses extracted: ${existingAnalyses.length}');
+          debugPrint(
+              '[Record] msg#${message.id} prefix analyses extracted: ${existingAnalyses.length}');
           final fsService = FileSystemService.instance;
 
           // Close the initial "Recording…" snackbar once before processing images.
-          try { progress.close(); } catch (_) {}
+          try {
+            progress.close();
+          } catch (_) {}
 
           for (var i = 0; i < attachments.length; i++) {
             final att = attachments[i];
@@ -2043,7 +2066,8 @@ only after you have written the goodbye you want the user to hear.''',
                 format: ext,
                 factId: factId,
               );
-              debugPrint('[Record] msg#${message.id} image#$i saved: $relativePath');
+              debugPrint(
+                  '[Record] msg#${message.id} image#$i saved: $relativePath');
 
               // Clean up temp file
               try {
@@ -2055,12 +2079,14 @@ only after you have written the goodbye you want the user to hear.''',
               // Tier 1: from the [Image analysis: ...] prefix in message content
               if (i < existingAnalyses.length) {
                 analysisText = existingAnalyses[i];
-                debugPrint('[Record] msg#${message.id} image#$i analysis from prefix');
+                debugPrint(
+                    '[Record] msg#${message.id} image#$i analysis from prefix');
               }
               // Tier 2: from attachment.analysis stored during send
               if (analysisText == null || analysisText!.trim().isEmpty) {
                 final storedAnalysis = att['analysis']?.toString();
-                if (storedAnalysis != null && storedAnalysis.trim().isNotEmpty) {
+                if (storedAnalysis != null &&
+                    storedAnalysis.trim().isNotEmpty) {
                   analysisText = storedAnalysis.trim();
                   debugPrint(
                       '[Record] msg#${message.id} image#$i analysis from attachment '
@@ -2070,7 +2096,8 @@ only after you have written the goodbye you want the user to hear.''',
               // Tier 3: run inline AssetAnalysisTool
               if (analysisText == null || analysisText!.trim().isEmpty) {
                 try {
-                  debugPrint('[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…');
+                  debugPrint(
+                      '[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…');
                   final analysisResources =
                       await UserStorage.getAgentLLMResources(
                     AgentDefinitions.analyzeAssets,
@@ -2117,7 +2144,8 @@ only after you have written the goodbye you want the user to hear.''',
             }
           }
         } catch (e) {
-          debugPrint('[Record] msg#${message.id} parse attachmentsJson FAILED: $e');
+          debugPrint(
+              '[Record] msg#${message.id} parse attachmentsJson FAILED: $e');
         }
       }
 
@@ -2125,8 +2153,7 @@ only after you have written the goodbye you want the user to hear.''',
       final cleanedContent = message.content
           .replaceFirst(RegExp(r'^\[Image analysis:.*?\](\n\n?)?'), '')
           .trim();
-      debugPrint(
-          '[Record] msg#${message.id} content="${cleanedContent}", '
+      debugPrint('[Record] msg#${message.id} content="${cleanedContent}", '
           'mediaCount=${media.where((m) => m.isUsable).length}');
 
       // Restore progress snackbar before the LLM call
@@ -2317,44 +2344,6 @@ only after you have written the goodbye you want the user to hear.''',
         duration: const Duration(seconds: 1),
       ),
     );
-  }
-
-  Future<void> _switchCharacter() async {
-    await _stopTtsPlayback();
-    await _voiceController.cancel();
-
-    final userId = await UserStorage.getUserId();
-    if (userId == null) return;
-
-    final characters = await CharacterService.instance.getAllCharacters(userId);
-    final enabled = characters.where((c) => c.enabled).toList();
-    if (enabled.length <= 1 || !mounted) return;
-
-    final selected = await _CharacterSwitcherSheet.show(
-      context,
-      characters: enabled,
-      currentId: _currentCharacterId,
-    );
-
-    if (selected != null && selected.id != _currentCharacterId && mounted) {
-      // NOTE: switching the active chat target must NOT change the primary
-      // companion. The primary companion (who sends proactive check-in pushes)
-      // is set explicitly via the dedicated action in the switcher sheet.
-      // Switch to new character
-      setState(() {
-        _currentCharacterId = selected.id;
-        _isLoading = true;
-        _hasMoreHistory = true;
-        _isLoadingMore = false;
-        _lastAutoReadMessageId = null;
-        _autoReadWatermarkAt = null;
-        _autoReadWatermarkId = null;
-        _voiceModeStartQueued = false;
-        _isInlineVoiceMode = false;
-      });
-      await ActivePersonaChatService.instance.markActive(_currentCharacterId);
-      await _init();
-    }
   }
 
   bool get _shouldAutoReadCurrentReply =>
@@ -2713,7 +2702,7 @@ only after you have written the goodbye you want the user to hear.''',
             const SizedBox(width: 10),
             Expanded(
               child: GestureDetector(
-                onTap: _switchCharacter,
+                onTap: _openAboutI,
                 child: Row(
                   children: [
                     Container(
@@ -2755,12 +2744,6 @@ only after you have written the goodbye you want the user to hear.''',
                           letterSpacing: 0,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      size: 19,
-                      color: _personaAccent,
                     ),
                   ],
                 ),
@@ -5306,146 +5289,6 @@ class _TypingDotsState extends State<_TypingDots>
           }),
         );
       },
-    );
-  }
-}
-
-/// Bottom sheet for switching companion characters.
-class _CharacterSwitcherSheet extends StatefulWidget {
-  final List<CharacterModel> characters;
-  final String? currentId;
-
-  const _CharacterSwitcherSheet({
-    required this.characters,
-    this.currentId,
-  });
-
-  static Future<CharacterModel?> show(
-    BuildContext context, {
-    required List<CharacterModel> characters,
-    String? currentId,
-  }) {
-    return showModalBottomSheet<CharacterModel>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _CharacterSwitcherSheet(
-        characters: characters,
-        currentId: currentId,
-      ),
-    );
-  }
-
-  @override
-  State<_CharacterSwitcherSheet> createState() =>
-      _CharacterSwitcherSheetState();
-}
-
-class _CharacterSwitcherSheetState extends State<_CharacterSwitcherSheet> {
-  late List<CharacterModel> _chars;
-
-  @override
-  void initState() {
-    super.initState();
-    _chars = List<CharacterModel>.from(widget.characters);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = UserStorage.l10n;
-    return Container(
-      decoration: BoxDecoration(
-        color: _personaPanel.withValues(alpha: 0.96),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-      ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.22),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              l10n.switchCompanion,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: _personaText,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.4,
-              ),
-              child: ListView.builder(
-                shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _chars.length,
-                itemBuilder: (context, index) {
-                  final char = _chars[index];
-                  final isCurrent = char.id == widget.currentId;
-                  return ListTile(
-                    leading: CharacterAvatar(
-                      avatar: char.avatar,
-                      name: char.name,
-                      size: 40,
-                      backgroundColor: _personaAccent.withValues(alpha: 0.18),
-                    ),
-                    title: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            char.name,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight:
-                                  isCurrent ? FontWeight.w600 : FontWeight.w400,
-                              color: _personaText,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    subtitle: char.tags.isNotEmpty
-                        ? Text(
-                            char.tags.join(' 路 '),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: _personaTextMuted,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          )
-                        : null,
-                    trailing: isCurrent
-                        ? Icon(Icons.check_circle,
-                            color: _personaAccent, size: 20)
-                        : null,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    onTap: isCurrent
-                        ? () => Navigator.pop(context)
-                        : () => Navigator.pop(context, char),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
     );
   }
 }
