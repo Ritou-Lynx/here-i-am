@@ -830,7 +830,7 @@ function openCardFor(b){
   const d=new Date(Date.now()-b.day*864e5);
   document.getElementById('cDate').textContent=`${d.getFullYear()} · ${String(d.getMonth()+1).padStart(2,'0')} · ${String(d.getDate()).padStart(2,'0')}`;
   const em=EMOTIONS[Math.round((b.ang%(Math.PI*2)+Math.PI*2)%(Math.PI*2)/(Math.PI/4))%8];
-  document.getElementById('cMeta').textContent=`亲密 · ${em} ${Math.round(b.inten*100)} · ${Math.round(b.day)===0?'今天':Math.round(b.day)+' 天前'}`;
+  document.getElementById('cMeta').textContent=`私密 · ${em} ${Math.round(b.inten*100)} · ${Math.round(b.day)===0?'今天':Math.round(b.day)+' 天前'}`;
   setPhase('CARD');
   setTimeout(()=>card.classList.add('show'),300);
 }

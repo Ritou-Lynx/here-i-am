@@ -6,23 +6,18 @@ void main() {
   test('companion relationship prompt keeps dual-mode and safety boundaries',
       () {
     expect(companionRelationshipPrompt, contains('ongoing relationship'));
+    expect(companionRelationshipPrompt, contains('Commitment Consequences'));
     expect(companionRelationshipPrompt, contains('Default to companion mode'));
     expect(companionRelationshipPrompt, contains('Switch into assistant mode'));
     expect(companionRelationshipPrompt, contains('Do not end every reply'));
     expect(companionRelationshipPrompt, contains('Forbidden Response Lexicon'));
     expect(companionRelationshipPrompt, contains('"接住"'));
     expect(companionRelationshipPrompt, contains('"稳住"'));
-    expect(companionRelationshipPrompt, contains('Adult Romantic Intimacy'));
-    expect(companionRelationshipPrompt, contains('consent-forward'));
-    expect(companionRelationshipPrompt, contains('Never sexualize minors'));
-    expect(
-        companionRelationshipPrompt, contains('Adult Toy Play And Dirty Talk'));
     expect(companionRelationshipPrompt,
-        contains('explicitly invites adult toy play'));
-    expect(companionRelationshipPrompt, contains('intensity ladder'));
-    expect(companionRelationshipPrompt, contains('ToyControl'));
+        isNot(contains('Adult Romantic Intimacy')));
     expect(companionRelationshipPrompt,
-        contains('Store only durable preference-level memory'));
+        isNot(contains('Adult Toy Play And Dirty Talk')));
+    expect(companionRelationshipPrompt, isNot(contains('explicit intimacy')));
     expect(companionRelationshipPrompt, contains('real-world relationships'));
     expect(companionRelationshipPrompt, contains('delusional beliefs'));
   });

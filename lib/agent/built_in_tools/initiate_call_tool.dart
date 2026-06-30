@@ -122,7 +122,7 @@ Tool buildInitiateCallTool({
     description: '''Initiate a voice call to the user.
 
 Use this when you genuinely want to TALK, not just text. A call is more
-intimate and immediate. Good reasons:
+personal and immediate. Good reasons:
 - Something emotional or important that deserves a real conversation
 - The user seems lonely or would benefit from hearing your voice
 - You want a real exchange rather than a one-way notification
