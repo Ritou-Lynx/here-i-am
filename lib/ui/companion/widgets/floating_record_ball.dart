@@ -218,6 +218,11 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
         inputMedia: inputMedia,
       );
       if (!mounted) return;
+      _controller.clear();
+      setState(() {
+        _images.clear();
+        _saving = false;
+      });
       final navCtx = widget.navigatorKey.currentContext;
       Navigator.pop(context);
       if (navCtx != null && navCtx.mounted) {
@@ -229,8 +234,15 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
           behavior: SnackBarBehavior.floating,
         ));
       }
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('记录失败：$e'),
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     }
   }
 

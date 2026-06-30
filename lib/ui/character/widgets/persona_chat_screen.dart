@@ -2268,6 +2268,21 @@ only after you have written the goodbye you want the user to hear.''',
           ),
         );
       }
+    } catch (e, stack) {
+      recordProgress.close();
+      debugPrint('[Record] msg#${message.id} failed: $e\n$stack');
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(_chatUiText(
+              zh: '记录失败：$e',
+              en: 'Record failed: $e',
+            )),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } finally {
       _recordingMessageIds.remove(message.id);
     }
