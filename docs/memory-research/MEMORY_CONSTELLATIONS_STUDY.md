@@ -2,7 +2,7 @@
 
 > 来源：[ClaraShafiq/MemoryConstellations](https://github.com/ClaraShafiq/MemoryConstellations)
 > 调研日期：2026-06-27
-> 目标：把 Memory Constellations 的记忆星图系统拆解为可借鉴的架构方案，并映射到 Here I am（故我在）PRD v2 的单一恋人、User-truth、Dreaming、关系记忆体系。
+> 目标：把 Memory Constellations 的记忆星图系统拆解为可借鉴的架构方案，并映射到 Here I am（故我在）PRD v2 的单一主伴侣、User-truth、Dreaming、关系记忆体系。
 
 ---
 
@@ -19,7 +19,7 @@ Memory Constellations 是一套面向 AI 陪伴关系的“自动组织记忆系
 必须改造的关键点：
 
 - Memory Constellations 默认自动从聊天提取事实；故我在的 User-truth 契约明确禁止普通聊天自动写入 User-truth。
-- Memory Constellations 输出第三人称事实；故我在的关系记忆应以恋人的第一人称叙事为主。
+- Memory Constellations 输出第三人称事实；故我在的关系记忆应以主伴侣的第一人称叙事为主。
 - Memory Constellations 使用 Node + Express + ChromaDB + SQLite；故我在应保持 Flutter/Drift、本地优先、移动端可运行。
 
 ---
@@ -98,7 +98,7 @@ Scribe 的定位很窄：只把新对话切成短事实，不负责总结规律�
 对故我在的改造：
 
 - **不可直接用于 User-truth**。Scribe 的自动抽取只能写入“关系记忆证据池”或“待用户确认候选”，不能写入用户确认资料。
-- 对关系记忆可以保留自动性：Dreaming 每天回顾对话时，先抽取低层证据，再由恋人第一人称生成关系记忆。
+- 对关系记忆可以保留自动性：Dreaming 每天回顾对话时，先抽取低层证据，再由主伴侣第一人称生成关系记忆。
 - 现有“用户说记一下 / 记录按钮 / 悬浮球保存”仍走 Record Organizer，和 Scribe/Dreaming 分离。
 
 ### 3.2 Archivist：轻量 tick + 深循环
@@ -146,8 +146,8 @@ Archivist 每 2 分钟运行一次，但把任务分成两类：
 
 对故我在的价值：
 
-- 这比“每周摘要”更细：它能形成用户和恋人之间可回忆的具体经历。
-- episode 可以成为恋人的第一人称关系记忆来源。
+- 这比“每周摘要”更细：它能形成用户和主伴侣之间可回忆的具体经历。
+- episode 可以成为主伴侣的第一人称关系记忆来源。
 - 每个 episode 必须保留 source refs，方便 Memory Review 里追溯原对话。
 
 故我在需要调整：
@@ -163,11 +163,11 @@ Saga 是跨 episode 的长期故事弧，原项目会把多个 episode 聚为更
 
 - 适合表达“我们这段关系正在形成什么样的长期叙事”。
 - 可服务主动陪伴：睡前回顾、纪念日、长期压力提醒、关系成长感。
-- 可作为恋人人格成长的输入，但不能变成硬规则。
+- 可作为主伴侣人格成长的输入，但不能变成硬规则。
 
 风险：
 
-- Saga 一旦写歪，会影响恋人的长期自我理解。
+- Saga 一旦写歪，会影响主伴侣的长期自我理解。
 - 因此 Saga 应该比 fragment/episode 更低频、更保守，并在 Memory Review 中可见、可删除。
 
 ### 3.6 Librarian：混合检索和排序
@@ -263,7 +263,7 @@ score = RRF(keywordRank, vectorRank, entityRank)
 | 普通聊天自动写事实记忆 | 违反 User-truth 契约 | 自动层只写关系记忆/候选，User-truth 只显式写 |
 | ChromaDB 独立向量库 | 移动端部署复杂，增加运维面 | Drift + SQLite FTS5 + 本地/可选 API embedding |
 | desktop-only canvas star map | 故我在主平台是 Android | Flutter CustomPainter / 3D 视图重做 |
-| 第三人称 episode 注入 | 恋人关系会变成数据库口吻 | 关系记忆注入第一人称叙事 |
+| 第三人称 episode 注入 | 主伴侣关系会变成数据库口吻 | 关系记忆注入第一人称叙事 |
 | 自动硬删除碎片 | 用户审计和纠错需要可追溯 | 用户侧软删除 + 当前投影过滤；底层审计保留 |
 | 人格 prompt 由用户维护 | PRD v2 明确用户不是作者 | 人格从 Dreaming 叙事和交互中涌现 |
 
@@ -324,7 +324,7 @@ flowchart TD
 
 #### 管线 B：Relationship Dreaming
 
-系统自动触发，可信度低于 User-truth，用于恋人成长和关系连续性。
+系统自动触发，可信度低于 User-truth，用于主伴侣成长和关系连续性。
 
 入口：
 
@@ -337,7 +337,7 @@ flowchart TD
 1. Dreaming 读取过去一天/一段空闲期的主聊天。
 2. Evidence extractor 抽取候选 fragments，不进入 User-truth。
 3. Entity linker 绑定人物、地点、主题。
-4. Episode writer 生成恋人第一人称关系记忆。
+4. Episode writer 生成主伴侣第一人称关系记忆。
 5. Saga weaver 低频生成长期叙事。
 6. Memory Review 中标为“关系记忆 / AI 整理”，用户可编辑、隐藏、删除。
 
@@ -552,7 +552,7 @@ finalScore =
 规则：
 
 - User-truth 用事实口吻。
-- Relationship 用恋人第一人称。
+- Relationship 用主伴侣第一人称。
 - Saga 只在必要时出现，不每轮注入。
 - 每条带 ID，方便模型用 trace 工具追溯。
 
@@ -646,7 +646,7 @@ Memory Constellations 没有故我在 PRD v2 的剧本人格隔离要求，因�
 | 风险 | 来源 | 防护 |
 |------|------|------|
 | 自动记忆污染 User-truth | Scribe 默认自动抽取 | 自动层和 User-truth 物理/字段隔离 |
-| 恋人把推测当事实 | Relationship memory 与 User-truth 混用 | 注入时显式分区，检索结果带 scope |
+| 主伴侣把推测当事实 | Relationship memory 与 User-truth 混用 | 注入时显式分区，检索结果带 scope |
 | 长期 saga 写歪 | LLM 过度概括 | 低频生成、低权重注入、用户可删除 |
 | 实体爆炸 | 自动提到太多名字 | seed/active 机制、毕业阈值、孤立 seed 清理 |
 | 检索噪音 | 通用碎片频繁命中 | novelty penalty、vector floor、domain/type filter |
@@ -667,7 +667,7 @@ Memory Constellations 没有故我在 PRD v2 的剧本人格隔离要求，因�
 
 ### Phase 1：检索骨架优先
 
-目标：先让现有显式 User-truth 更容易被恋人查到。
+目标：先让现有显式 User-truth 更容易被主伴侣查到。
 
 任务：
 
@@ -695,7 +695,7 @@ Memory Constellations 没有故我在 PRD v2 的剧本人格隔离要求，因�
 
 验收：
 
-- 恋人能自然想起“我们之前发生过什么”。
+- 主伴侣能自然想起“我们之前发生过什么”。
 - 自动产物不会混进 User-truth 导出。
 
 ### Phase 3：实体星座
@@ -711,7 +711,7 @@ Memory Constellations 没有故我在 PRD v2 的剧本人格隔离要求，因�
 
 验收：
 
-- 用户提到某个人时，恋人能查到此人的相关记忆。
+- 用户提到某个人时，主伴侣能查到此人的相关记忆。
 - Memory Review 可以按实体浏览。
 
 ### Phase 4：Episode / Saga 深循环
@@ -728,7 +728,7 @@ Memory Constellations 没有故我在 PRD v2 的剧本人格隔离要求，因�
 验收：
 
 - 一个月后能看到“我们这段时间的长期主题”。
-- 恋人的主动陪伴能引用长期脉络，但不会机械复述。
+- 主伴侣的主动陪伴能引用长期脉络，但不会机械复述。
 
 ### Phase 5：星图体验
 
@@ -744,7 +744,7 @@ Memory Constellations 没有故我在 PRD v2 的剧本人格隔离要求，因�
 验收：
 
 - 用户能快速理解“他记得什么、为什么记得、从哪来的”。
-- 修改记忆比管理数据库更像和恋人澄清误会。
+- 修改记忆比管理数据库更像和主伴侣澄清误会。
 
 ---
 
@@ -756,7 +756,7 @@ Memory Constellations 最适合被故我在吸收成“后台记忆生态”，�
 
 1. **User-truth 继续显式写入**：这是最高优先级契约，不因外部方案改变。
 2. **Dreaming 自动，但自动的是关系理解，不是用户确认资料**。
-3. **底层可以事实化，注入必须叙事化**：fragments 可以短事实，恋人读到的应是第一人称记忆。
+3. **底层可以事实化，注入必须叙事化**：fragments 可以短事实，主伴侣读到的应是第一人称记忆。
 4. **检索走工程化混合排序**：FTS5、向量、实体聚合、RRF 都值得采纳。
 5. **星图服务于理解和修正，不服务于手工维护**：用户应该看到生命感，而不是被迫清理表格。
 

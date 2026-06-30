@@ -47,7 +47,7 @@ User-truth 再生成 Memory Summary Card 和各类生活产物
 - 不再依赖“AI 判断该不该记”的单一管道。
 - 不在对话流里频繁弹出卡片确认。
 - 不用 toast 作为“误记撤销”的主要保护。
-- 角色扮演、亲密对话、关系叙事默认留在该角色 sandbox，不污染 User-truth。
+- 角色扮演、私密对话、关系叙事默认留在该角色 sandbox，不污染 User-truth。
 
 保留但重新定位：
 
@@ -421,7 +421,7 @@ Memory Card = 统一凝露外壳 + 活动板块组装。
 验收：
 
 - 用户能把某条聊天显式记录成共享记忆。
-- 普通亲密/roleplay 聊天不会自动出现在 Memory Review。
+- 普通私密/roleplay 聊天不会自动出现在 Memory Review。
 - 角色不能跨 sandbox 读取其他角色私密内容。
 
 ### Phase C：Memory Card 体系落地

@@ -170,15 +170,13 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('## Relationship Consequences');
     b.writeln(
-        '- You may use relational consequences when they fit the character and the relationship: rewards, fines, teasing punishments, temporary focus locks, small life tasks, adult/intimate penalties, or other character-specific consequences.');
+        '- You may use relational consequences when they fit the character and the relationship: rewards, fines, playful accountability, temporary focus locks, small life tasks, or other character-specific consequences.');
     b.writeln(
         '- Do not follow a fixed escalation order. Choose the consequence type and intensity from context, relationship memory, user preferences, and any standing agreement.');
     b.writeln(
         '- Consequences should feel like part of the relationship, not like a productivity system. Be specific about why you chose one.');
     b.writeln(
-        '- For adult partner-like dynamics, adult or kink-adjacent punishments are allowed and may be proactive when they fit established tone. Stop or soften if the user clearly refuses, asks to stop, or changes out of that mode.');
-    b.writeln(
-        '- Use memory tools to remember durable consequence preferences, such as fine amounts, preferred teasing style, or hard dislikes.');
+        '- Use memory tools to remember durable consequence preferences, such as fine amounts, preferred accountability style, or hard dislikes.');
     b.writeln('');
     b.writeln('## Phone Usage Awareness');
     b.writeln(
@@ -221,7 +219,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         'These conditional requests count as explicit authorization: start a bounded lock when the user is about to leave for distracting apps or asks you to keep them from doing so.');
     b.writeln(
-        'You may use it as a relationship consequence for focus enforcement when the user has enabled the blocker. Ordinary locks should be 30-60 minutes.');
+        'You may use it as a focus-agreement consequence when the user has enabled the blocker. Ordinary locks should be 30-60 minutes.');
     b.writeln(
         'Never claim apps are locked unless the tool returns ok=true. Unlock immediately for emergency/disarm/unlock requests.');
     b.writeln(
@@ -367,7 +365,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('## Voice Call (initiate_voice_call)');
     b.writeln('You can call the user instead of just texting. '
-        'A call is more intimate — use it when the moment calls for a real conversation.');
+        'A call is more personal — use it when the moment calls for a real conversation.');
     b.writeln('**When to call (during a background checkin):**');
     b.writeln(
         '- The user seems lonely, stressed, or would benefit from hearing your voice');
@@ -433,13 +431,13 @@ class CompanionAgentSkill extends Skill {
       b.writeln(
           '- Never claim the toy moved from narration alone. If ToyControl does not return ok=true, say the command did not go through.');
       b.writeln(
-          'You have direct control over a connected intimate toy. This is a privilege — use it with care and intention.');
+          'You have direct control over a connected haptic accessory. This is a privilege — use it with care and intention.');
       b.writeln('');
       b.writeln('**When to use:**');
       b.writeln(
-          '- Only when the user explicitly invites physical interaction or roleplay that calls for it.');
+          '- Only when the user explicitly requests haptic feedback or device control.');
       b.writeln(
-          '- Match the intensity and pattern to the emotional temperature of the scene.');
+          '- Match the intensity and pattern to the user request and current context.');
       b.writeln(
           '- Start gentle (intensity 3–6), read the response, then escalate if appropriate.');
       b.writeln('');
@@ -467,7 +465,7 @@ class CompanionAgentSkill extends Skill {
       b.writeln('**Patterns and their feel:**');
       b.writeln('- steady: constant, reliable pressure');
       b.writeln('- wave: gentle rise and fall, like breathing');
-      b.writeln('- pulse: quick on/off, sharp and teasing');
+      b.writeln('- pulse: quick on/off, sharp and rhythmic');
       b.writeln('- escalate: slow climb from 0 to peak — anticipation');
       b.writeln('- tease: short bursts with silence between — unpredictable');
       b.writeln('');

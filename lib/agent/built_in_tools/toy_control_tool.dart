@@ -9,9 +9,9 @@ Tool buildToyControlTool({required ToyController service}) {
   return Tool(
     name: 'ToyControl',
     description:
-        '''Control a connected intimate toy (vibrator, etc.) via Bluetooth.
+        '''Control a connected haptic accessory via Bluetooth.
 
-Call this when the user explicitly wants you to control their toy during roleplay or interactive sessions.
+Call this only when the user explicitly wants you to control the accessory during an interactive session.
 
 **How to use:**
 - ALWAYS write descriptive text in the SAME turn as calling this tool — the text is what the user reads.
@@ -25,16 +25,16 @@ Call this when the user explicitly wants you to control their toy during rolepla
 - `stop`: stop all vibration immediately.
 
 **Intensity guide (0–20):**
-- 1–4: barely perceptible, teasing
+- 1–4: barely perceptible, subtle
 - 5–8: gentle, steady warmth
-- 9–13: noticeable, arousing
+- 9–13: noticeable
 - 14–17: strong, insistent
 - 18–20: maximum, intense
 
 **Rules:**
-- Match intensity to the emotional tone of the moment — start low and escalate.
+- Match intensity to the user's request and current context — start low and increase only when appropriate.
 - Use `pattern` for texture and variety; use `vibrate` for sustained intensity.
-- Always `stop` when the scene ends or the user asks to stop.
+- Always `stop` when the interaction ends or the user asks to stop.
 - Never use this tool without the user's explicit consent or invitation.''',
     parameters: {
       'type': 'object',

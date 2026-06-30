@@ -14,7 +14,7 @@ Use this only when:
 - the user gives conditional focus-protection authorization such as "if I go
   scroll Xiaohongshu/TikTok pull me back", "stop me if I open short-video
   apps", or "don't let me keep browsing", or
-- a relationship consequence is appropriate for focus enforcement and
+- a standing focus agreement calls for enforcement and
   the user has enabled this blocker.
 
 This tool does not silently install or enable blocking. It sends a bounded
