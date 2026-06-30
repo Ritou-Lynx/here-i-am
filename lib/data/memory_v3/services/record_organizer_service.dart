@@ -198,13 +198,37 @@ class RecordOrganizerServiceV3 {
             );
       }
 
+      // Link media blocks → assets
+      final assetIds = <String>[];
+      for (var i = 0; i < organized.cards.length; i++) {
+        final card = organized.cards[i];
+        final blocks = (card.presentationModule['blocks'] as List<dynamic>?) ?? [];
+        for (final block in blocks) {
+          if (block is Map && block['kind'] == 'media') {
+            final ref = block['assetRef'] as String?;
+            if (ref != null) {
+              assetIds.add(ref);
+              await _db.into(_db.memoryCardAssets).insert(
+                    MemoryCardAssetsCompanion.insert(
+                      id: _uuid.v4(),
+                      cardId: cardIds[i],
+                      assetId: ref,
+                      role: 'display',
+                      createdAt: now,
+                    ),
+                  );
+            }
+          }
+        }
+      }
+
       _logger.info(
-          'Persisted ${cardIds.length} memory card(s); ${entityIds.length} entity link(s)');
+          'Persisted ${cardIds.length} memory card(s); ${entityIds.length} entity link(s); ${assetIds.length} asset(s)');
 
       return RecordPersistResult(
         cardIds: cardIds,
         entityIds: entityIds.toSet().toList(),
-        assetIds: const [], // wired up in Phase 1.1 when asset path lands
+        assetIds: assetIds,
         isEmpty: false,
       );
     });
@@ -295,6 +319,29 @@ class RecordOrganizerServiceV3 {
     List<Map<String, String>>? inputMedia,
     RecordOrganizerAgentV3 agent = const RecordOrganizerAgentV3(),
   }) async {
+    // Register media files as Assets so the LLM can reference them by ID.
+    List<Map<String, String>>? enrichedMedia;
+    if (inputMedia != null && inputMedia.isNotEmpty) {
+      enrichedMedia = [];
+      for (final m in inputMedia) {
+        final assetId = _uuid.v4();
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        await _db.into(_db.assets).insert(
+              AssetsCompanion.insert(
+                id: assetId,
+                assetType: m['kind'] ?? 'image',
+                storagePath: Value(m['path']),
+                originatorRef: Value(source.sourceRef),
+                createdAt: nowMs,
+              ),
+            );
+        enrichedMedia.add({
+          ...m,
+          'assetId': assetId,
+        });
+      }
+    }
+
     final organized = await agent.organize(
       client: client,
       modelConfig: modelConfig,
@@ -302,8 +349,14 @@ class RecordOrganizerServiceV3 {
       now: source.recordedAt,
       relevantExistingCardSummaries: relevantExistingCardSummaries,
       recentEntityNames: recentEntityNames,
-      inputMedia: inputMedia,
+      inputMedia: enrichedMedia,
     );
+    _logger.info('organizeAndPersist: ${organized.cards.length} card(s), '
+        'inputMedia: ${enrichedMedia != null ? enrichedMedia.map((m) => '${m['kind']}:${m['path']}').join(', ') : 'none'}');
+    for (var i = 0; i < organized.cards.length; i++) {
+      _logger.info('card[$i] type=${organized.cards[i].type} '
+          'blocks=${jsonEncode(organized.cards[i].presentationModule['blocks'])}');
+    }
     return persist(organized: organized, source: source);
   }
 

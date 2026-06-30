@@ -714,15 +714,27 @@ class _MediaBlockView extends StatelessWidget {
   Widget _buildMediaImage(String assetPath) {
     try {
       final absPath = FileSystemService.instance.toAbsolutePath(assetPath);
+      debugPrint('[V3Card] media assetPath=$assetPath → abs=$absPath');
       final file = File(absPath);
-      if (file.existsSync()) {
-        return Image.file(
-          file,
+      final exists = file.existsSync();
+      debugPrint('[V3Card] media file exists=$exists size=${exists ? file.lengthSync() : 0}');
+      if (exists) {
+        final bytes = file.readAsBytesSync();
+        debugPrint('[V3Card] media read ${bytes.length} bytes, rendering Image.memory');
+        return Image.memory(
+          bytes,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _mediaPlaceholder(),
+          errorBuilder: (_, e, st) {
+            debugPrint('[V3Card] Image.memory error: $e');
+            return _mediaPlaceholder();
+          },
         );
+      } else {
+        debugPrint('[V3Card] media file NOT FOUND at $absPath');
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('[V3Card] media exception: $e\n$st');
+    }
     return _mediaPlaceholder();
   }
 
