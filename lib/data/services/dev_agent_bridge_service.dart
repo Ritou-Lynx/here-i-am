@@ -259,8 +259,19 @@ class DevAgentBridgeService {
       throw const DevAgentBridgeException('Dev project not found.');
     }
     try {
+      final query = Uri(
+        queryParameters: {
+          'root_path': project.rootPath,
+          'default_branch': project.defaultBranch,
+          'name': project.name,
+          'permission_tier': project.permissionTier,
+        },
+      ).query;
       final response = await _dio.getUri<Map<String, dynamic>>(
-        _bridgeUri(project.bridgeUrl, '/v1/projects/$projectId/git-status'),
+        _bridgeUri(
+          project.bridgeUrl,
+          '/v1/projects/$projectId/git-status?$query',
+        ),
       );
       return DevProjectGitStatus.fromJson(response.data ?? {});
     } on DioException catch (e) {
@@ -269,7 +280,7 @@ class DevAgentBridgeService {
           'Bridge does not support git operations. Update the bridge to the latest version.',
         );
       }
-      rethrow;
+      throw DevAgentBridgeException(_describeError(e));
     } catch (e, stack) {
       _logger.warning('Failed to fetch git status for $projectId', e, stack);
       rethrow;
@@ -304,7 +315,7 @@ class DevAgentBridgeService {
           'Bridge does not support git operations. Update the bridge to the latest version.',
         );
       }
-      rethrow;
+      throw DevAgentBridgeException(_describeError(e));
     } catch (e, stack) {
       _logger.warning('Failed to pull git for $projectId', e, stack);
       rethrow;
@@ -338,7 +349,7 @@ class DevAgentBridgeService {
           'Bridge does not support git operations. Update the bridge to the latest version.',
         );
       }
-      rethrow;
+      throw DevAgentBridgeException(_describeError(e));
     } catch (e, stack) {
       _logger.warning('Failed to push git for $projectId', e, stack);
       rethrow;
@@ -526,10 +537,15 @@ class DevAgentBridgeService {
 
   Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
     _validateBridgeUrl(bridgeUrl);
-    final response = await _dio.getUri<Map<String, dynamic>>(
-      _bridgeUri(bridgeUrl, '/v1/health'),
-    );
-    final data = response.data ?? {};
+    final Map<String, dynamic> data;
+    try {
+      final response = await _dio.getUri<Map<String, dynamic>>(
+        _bridgeUri(bridgeUrl, '/v1/health'),
+      );
+      data = response.data ?? {};
+    } on DioException catch (e) {
+      throw DevAgentBridgeException(_describeError(e));
+    }
     final agents = data['agents'];
     final features = data['features'];
     return DevAgentBridgeHealth(

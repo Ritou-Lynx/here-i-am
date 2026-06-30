@@ -328,6 +328,18 @@ function findProject(projectId) {
   return null;
 }
 
+function projectFromQuery(url, projectId) {
+  const rootPath = String(url.searchParams.get('root_path') || '').trim();
+  if (!rootPath) return null;
+  return validateProject({
+    id: projectId,
+    name: url.searchParams.get('name') || 'Dev Project',
+    root_path: rootPath,
+    default_branch: url.searchParams.get('default_branch') || 'main',
+    permission_tier: url.searchParams.get('permission_tier') || 'read_only',
+  });
+}
+
 function getCommitList(cwd, range) {
   if (!range || range === '..') return [];
   const result = runGit(cwd, ['log', '--format=%H %s', range], { allowFail: true });
@@ -857,7 +869,15 @@ async function handle(req, res) {
     const gitStatusMatch = path.match(/^\/v1\/projects\/([^/]+)\/git-status$/);
     if (req.method === 'GET' && gitStatusMatch) {
       const projectId = decodeURIComponent(gitStatusMatch[1]);
-      const project = findProject(projectId);
+      let project;
+      try {
+        project = projectFromQuery(url, projectId) || findProject(projectId);
+      } catch (err) {
+        return json(res, 422, {
+          error: 'invalid_project',
+          message: err.message,
+        });
+      }
       if (!project) return json(res, 404, { error: 'project_not_found', message: `No runs recorded for project ${projectId.slice(0, 8)}. Start an agent run first.` });
       try {
         ensureGitRepo(project.rootPath);
@@ -885,7 +905,7 @@ async function handle(req, res) {
           hasUncommittedChanges,
         });
       } catch (err) {
-        json(res, 500, { error: 'git_status_error', message: err.message });
+        json(res, 422, { error: 'git_status_error', message: err.message });
       }
       return;
     }
