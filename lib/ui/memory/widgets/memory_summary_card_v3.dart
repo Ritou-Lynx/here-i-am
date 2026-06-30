@@ -128,7 +128,7 @@ class MemorySummaryCardV3 extends StatelessWidget {
                   ),
                 V3CardBlocks(
                   presentation: presentation,
-                  fallbackTitle: card.title,
+                  fallbackTitle: '',
                   fallbackText: card.retrievalText,
                 ),
                 const SizedBox(height: 18),

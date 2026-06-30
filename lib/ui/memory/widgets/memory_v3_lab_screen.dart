@@ -16,6 +16,8 @@ import 'dart:io';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
+import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
@@ -23,6 +25,9 @@ import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:path_provider/path_provider.dart';
+
+import 'memory_card_detail_screen_v3.dart';
+import 'memory_summary_card_v3.dart';
 
 final _logger = getLogger('MemoryV3LabScreen');
 
@@ -176,123 +181,60 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     await _loadRecent();
   }
 
-  void _showCardDetail(MemoryCard card) async {
-    final db = AppDatabase.instance;
-    final source = await (db.select(db.memoryCardSources)
-          ..where((t) => t.cardId.equals(card.id)))
-        .getSingleOrNull();
-    final structured = await (db.select(db.memoryCardStructuredFields)
-          ..where((t) => t.cardId.equals(card.id)))
-        .getSingleOrNull();
-    final links = await (db.select(db.memoryEntityLinks)
-          ..where((t) =>
-              t.sourceTable.equals('memory_cards') &
-              t.sourceId.equals(card.id)))
-        .get();
-    final entities = <MemoryEntity>[];
-    for (final link in links) {
-      final e = await (db.select(db.memoryEntities)
-            ..where((t) => t.id.equals(link.entityId)))
-          .getSingleOrNull();
-      if (e != null) entities.add(e);
-    }
-    if (!mounted) return;
-    final detailJson = const JsonEncoder.withIndent('  ').convert({
-      'card': {
-        'id': card.id,
-        'memoryScope': card.memoryScope,
-        'type': card.type,
-        'title': card.title,
-        'dropletLabel': card.dropletLabel,
-        'presentationModule': _decode(card.presentationModule),
-        'retrievalText': card.retrievalText,
-        'valence': card.valence,
-        'arousal': card.arousal,
-        'status': card.status,
-        'needsFollowUp': _decode(card.needsFollowUp),
-        'createdAt':
-            DateTime.fromMillisecondsSinceEpoch(card.createdAt).toIso8601String(),
-        'updatedAt':
-            DateTime.fromMillisecondsSinceEpoch(card.updatedAt).toIso8601String(),
-      },
-      'source': source == null
-          ? null
-          : {
-              'rawInput': source.rawInput,
-              'recordedAt': DateTime.fromMillisecondsSinceEpoch(
-                      source.recordedAt)
-                  .toIso8601String(),
-              'recordedPlace': source.recordedPlace,
-              'sourceRef': source.sourceRef,
-              'sourceKind': source.sourceKind,
-            },
-      'structuredFields': structured == null
-          ? null
-          : {
-              'type': structured.structuredFieldsType,
-              'fields': _decode(structured.fieldsJson),
-              'userCorrected': structured.userCorrected,
-            },
-      'entityLinks': [
-        for (var i = 0; i < links.length; i++)
-          {
-            'relation': links[i].relation,
-            'confidence': links[i].confidence,
-            'entity': {
-              'id': entities[i].id,
-              'name': entities[i].name,
-              'category': entities[i].category,
-              'status': entities[i].status,
-              'relationshipToUser': entities[i].relationshipToUser,
-            },
-          },
-      ],
-    });
-    if (!mounted) return;
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        minChildSize: 0.4,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (sheetCtx, scrollCtl) => SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(card.title,
-                          style: const TextStyle(fontSize: 16),
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.copy, size: 18),
-                      tooltip: '复制 JSON',
-                      onPressed: () => Clipboard.setData(
-                          ClipboardData(text: detailJson)),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollCtl,
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: SelectableText(
-                    detailJson,
-                    style: const TextStyle(
-                        fontFamily: 'monospace', fontSize: 12, height: 1.4),
-                  ),
-                ),
-              ),
-            ],
-          ),
+  void _showCardDetail(MemoryCard card) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MemoryCardDetailScreenV3(
+          cardId: card.id,
+          queryService: MemoryCardQueryService(AppDatabase.instance),
         ),
       ),
+    );
+  }
+
+  void _previewCard(MemoryCard card) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Row(
+          children: [
+            const Text('卡片预览'),
+            const Spacer(),
+            Text(card.dropletLabel,
+                style: const TextStyle(fontSize: 13, color: Colors.black54)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: MemorySummaryCardV3(
+            card: _cardToViewData(card),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  MemoryCardViewData _cardToViewData(MemoryCard card) {
+    return MemoryCardViewData(
+      id: card.id,
+      type: card.type,
+      title: card.title,
+      dropletLabel: card.dropletLabel,
+      presentationModule: card.presentationModule,
+      retrievalText: card.retrievalText,
+      valence: card.valence,
+      arousal: card.arousal,
+      status: card.status,
+      needsFollowUp: MemoryCardViewData.parseNeedsFollowUp(card.needsFollowUp),
+      createdAt: card.createdAt,
+      updatedAt: card.updatedAt,
     );
   }
 
@@ -526,6 +468,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                       card: _recent[i],
                       onTap: () => _showCardDetail(_recent[i]),
                       onLongPress: () => _deleteCard(_recent[i]),
+                      onPreview: () => _previewCard(_recent[i]),
                     ),
                   ),
           ),
@@ -540,11 +483,13 @@ class _CardListTile extends StatelessWidget {
     required this.card,
     required this.onTap,
     required this.onLongPress,
+    required this.onPreview,
   });
 
   final MemoryCard card;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final VoidCallback onPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -601,6 +546,11 @@ class _CardListTile extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.visibility_outlined, size: 18),
+              tooltip: '预览卡片',
+              onPressed: onPreview,
             ),
           ],
         ),

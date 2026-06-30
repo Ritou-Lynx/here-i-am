@@ -116,7 +116,7 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(card.title.isNotEmpty ? card.title : card.dropletLabel),
+        title: Text(card.dropletLabel),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline),
@@ -569,7 +569,7 @@ class _EmotionCoords extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _CoordRow(
-            label: '效价 (valence)',
+            label: '愉悦度',
             value: valence,
             valueText: valence.toStringAsFixed(2),
             barColor: valence >= 0
@@ -578,7 +578,7 @@ class _EmotionCoords extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _CoordRow(
-            label: '唤醒度 (arousal)',
+            label: '唤醒度',
             value: arousal,
             valueText: arousal.toStringAsFixed(2),
             barColor: const Color(0xFFB57A2E),
