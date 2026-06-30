@@ -2269,7 +2269,7 @@ only after you have written the goodbye you want the user to hear.''',
         );
       }
     } catch (e, stack) {
-      recordProgress.close();
+      progress.close();
       debugPrint('[Record] msg#${message.id} failed: $e\n$stack');
       if (mounted) {
         messenger.showSnackBar(
