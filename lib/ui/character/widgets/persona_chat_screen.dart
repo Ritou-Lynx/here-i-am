@@ -11,7 +11,6 @@ import 'package:go_router/go_router.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
-import 'package:memex/agent/built_in_tools/continuous_reply_tool.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/repositories/memex_router.dart';
@@ -1546,7 +1545,6 @@ only after you have written the goodbye you want the user to hear.''',
         userMessageTime: userMessageTime,
         debugErrorOutput: true,
         voiceMode: _isInlineVoiceMode,
-        continuousModeInput: isSynthetic,
         toyControlService: toyControlService,
         extraTools: _isInlineVoiceMode ? [_buildEndVoiceModeTool()] : const [],
       )) {
@@ -1724,13 +1722,7 @@ only after you have written the goodbye you want the user to hear.''',
       return;
     }
     // Check if the agent requested continuous-reply mode.
-    final pendingContinuous = ContinuousModeState.instance.consumePending();
-    if (pendingContinuous != null) {
-      _continuousMode = true;
-      _continuousTotal = pendingContinuous;
-      _continuousRemaining = pendingContinuous;
-      _continuousBatchSerial++;
-    }
+    // (ContinuousModeState not available in this branch; skip continuous check.)
     if (_continuousMode && _continuousRemaining > 0) {
       _scheduleContinuousReply();
       return;
@@ -1763,7 +1755,7 @@ only after you have written the goodbye you want the user to hear.''',
     _continuousTotal = 0;
     _continuousBatchSerial++;
     _cancelContinuousDelayTimer();
-    ContinuousModeState.instance.cancel();
+    // ContinuousModeState.cancel() not available in this branch
     if (mounted) setState(() {});
   }
 
