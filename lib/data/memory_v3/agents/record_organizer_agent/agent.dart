@@ -51,7 +51,7 @@ class RecordOrganizerAgentV3 {
     ];
     final mc = ModelConfig(
       model: modelConfig.model,
-      maxTokens: 2000,
+      maxTokens: 4096,
       extra: modelConfig.extra,
     );
 
@@ -107,7 +107,14 @@ class RecordOrganizerAgentV3 {
   OrganizedRecord _parse(String raw) {
     var trimmed = raw.trim();
     // Strip <think>...</think> reasoning blocks (MiniMax M3, DeepSeek, etc.)
+    // Handle both closed and unclosed tags (model may truncate mid-think).
     trimmed = trimmed.replaceAll(RegExp(r'<think>[\s\S]*?</think>'), '');
+    // If <think> wasn't closed, discard everything up to the first { or end
+    final unclosedThink = trimmed.indexOf('<think>');
+    if (unclosedThink >= 0) {
+      final braceAfter = trimmed.indexOf('{', unclosedThink);
+      trimmed = braceAfter >= 0 ? trimmed.substring(braceAfter) : '';
+    }
     // Strip code fences: try start-anchored first, then anywhere
     var fenceMatch = RegExp(
       r'^```(?:json|JSON)?\s*\n([\s\S]*?)\n```\s*$',
