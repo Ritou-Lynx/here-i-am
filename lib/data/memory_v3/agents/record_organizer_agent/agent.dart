@@ -106,9 +106,17 @@ class RecordOrganizerAgentV3 {
 
   OrganizedRecord _parse(String raw) {
     var trimmed = raw.trim();
-    final fenceMatch = RegExp(
-      r'^```(?:json|JSON)?\s*\n?([\s\S]*?)\n?```\s*$',
+    // Strip <think>...</think> reasoning blocks (MiniMax M3, DeepSeek, etc.)
+    trimmed = trimmed.replaceAll(RegExp(r'<think>[\s\S]*?</think>'), '');
+    // Strip code fences: try start-anchored first, then anywhere
+    var fenceMatch = RegExp(
+      r'^```(?:json|JSON)?\s*\n([\s\S]*?)\n```\s*$',
     ).firstMatch(trimmed);
+    if (fenceMatch == null) {
+      fenceMatch = RegExp(
+        r'```(?:json|JSON)?\s*\n([\s\S]*?)\n```',
+      ).firstMatch(trimmed);
+    }
     if (fenceMatch != null) {
       trimmed = fenceMatch.group(1)!.trim();
     }
