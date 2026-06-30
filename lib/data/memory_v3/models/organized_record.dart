@@ -19,7 +19,6 @@ class OrganizedCard {
     required this.retrievalText,
     required this.valence,
     required this.arousal,
-    this.confidence = 1.0,
     this.status,
     this.structuredFieldsType,
     this.structuredFields,
@@ -37,7 +36,6 @@ class OrganizedCard {
   final String retrievalText;
   final double valence; // -1.0 ~ 1.0
   final double arousal; // 0.0 ~ 1.0
-  final double confidence;
   final String? status; // task/schedule/plan only
 
   final String? structuredFieldsType;
@@ -59,7 +57,6 @@ class OrganizedCard {
         'retrievalText': retrievalText,
         'valence': valence,
         'arousal': arousal,
-        'confidence': confidence,
         if (status != null) 'status': status,
         if (structuredFieldsType != null)
           'structuredFieldsType': structuredFieldsType,
@@ -78,7 +75,6 @@ class OrganizedCard {
         retrievalText: json['retrievalText'] as String,
         valence: (json['valence'] as num).toDouble(),
         arousal: (json['arousal'] as num).toDouble(),
-        confidence: (json['confidence'] as num?)?.toDouble() ?? 1.0,
         status: json['status'] as String?,
         structuredFieldsType: json['structuredFieldsType'] as String?,
         structuredFields: json['structuredFields'] != null

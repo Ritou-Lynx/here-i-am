@@ -35,8 +35,6 @@ class MemoryCards extends Table {
 
   RealColumn get valence => real()(); // -1.0 ~ 1.0
   RealColumn get arousal => real()(); // 0.0 ~ 1.0
-  RealColumn get confidence =>
-      real().withDefault(const Constant(1.0))(); // User-truth 默认 1.0
 
   TextColumn get status =>
       text().nullable()(); // 仅 task/schedule/plan：active / completed / cancelled

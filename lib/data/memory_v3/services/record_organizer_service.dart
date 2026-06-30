@@ -125,7 +125,6 @@ class RecordOrganizerServiceV3 {
                 retrievalText: card.retrievalText,
                 valence: card.valence,
                 arousal: card.arousal,
-                confidence: Value(card.confidence),
                 status: Value(card.status),
                 needsFollowUp: Value(card.needsFollowUp != null
                     ? jsonEncode(card.needsFollowUp)

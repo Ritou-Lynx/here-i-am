@@ -138,7 +138,6 @@ OUTPUT JSON SHAPE
       "retrievalText": "natural-language paragraph for I after recall. preserve hearsay framing.",
       "valence": -0.4,
       "arousal": 0.5,
-      "confidence": 0.9,
       "status": null,
       "structuredFieldsType": null,
       "structuredFields": null,
@@ -246,13 +245,8 @@ valence / arousal — emotional coordinates per V3 § 4.1.
     dial from 😢 to 😐 to 😊, where does the whole record sit?"
   - When the record is genuinely mixed, prefer a centered score
     (valence near 0, arousal moderate) over an extreme one.
-  - If you are uncertain, lower `confidence` (e.g. 0.6) rather than
-    swinging valence/arousal.
-
-confidence — agent's confidence the card faithfully represents the input.
-  - 1.0 for direct, clear input.
-  - 0.7–0.9 when input is short or ambiguous (also set needsFollowUp).
-  - <0.7 when input is so sparse the card may be wrong (always set needsFollowUp).
+  - If you are uncertain, lower arousal and prefer centered valence
+    rather than swinging to an extreme.
 
 status — set ONLY for task / schedule / plan. Use "active" by default.
   Leave null for fact / event.

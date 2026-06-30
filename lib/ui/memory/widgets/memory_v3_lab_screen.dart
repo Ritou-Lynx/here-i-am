@@ -208,7 +208,6 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         'retrievalText': card.retrievalText,
         'valence': card.valence,
         'arousal': card.arousal,
-        'confidence': card.confidence,
         'status': card.status,
         'needsFollowUp': _decode(card.needsFollowUp),
         'createdAt':
@@ -352,7 +351,6 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
           'retrievalText': card.retrievalText,
           'valence': card.valence,
           'arousal': card.arousal,
-          'confidence': card.confidence,
           'status': card.status,
           'needsFollowUp': _decode(card.needsFollowUp),
           'createdAt': DateTime.fromMillisecondsSinceEpoch(card.createdAt)

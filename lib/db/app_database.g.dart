@@ -13400,14 +13400,6 @@ class $MemoryCardsTable extends memory_v3.MemoryCards
   late final GeneratedColumn<double> arousal = GeneratedColumn<double>(
       'arousal', aliasedName, false,
       type: DriftSqlType.double, requiredDuringInsert: true);
-  static const VerificationMeta _confidenceMeta =
-      const VerificationMeta('confidence');
-  @override
-  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
-      'confidence', aliasedName, false,
-      type: DriftSqlType.double,
-      requiredDuringInsert: false,
-      defaultValue: const Constant(1.0));
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -13450,7 +13442,6 @@ class $MemoryCardsTable extends memory_v3.MemoryCards
         retrievalText,
         valence,
         arousal,
-        confidence,
         status,
         needsFollowUp,
         schemaVersion,
@@ -13526,12 +13517,6 @@ class $MemoryCardsTable extends memory_v3.MemoryCards
     } else if (isInserting) {
       context.missing(_arousalMeta);
     }
-    if (data.containsKey('confidence')) {
-      context.handle(
-          _confidenceMeta,
-          confidence.isAcceptableOrUnknown(
-              data['confidence']!, _confidenceMeta));
-    }
     if (data.containsKey('status')) {
       context.handle(_statusMeta,
           status.isAcceptableOrUnknown(data['status']!, _statusMeta));
@@ -13587,8 +13572,6 @@ class $MemoryCardsTable extends memory_v3.MemoryCards
           .read(DriftSqlType.double, data['${effectivePrefix}valence'])!,
       arousal: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}arousal'])!,
-      confidence: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}confidence'])!,
       status: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}status']),
       needsFollowUp: attachedDatabase.typeMapping
@@ -13618,7 +13601,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
   final String retrievalText;
   final double valence;
   final double arousal;
-  final double confidence;
   final String? status;
   final String? needsFollowUp;
   final int schemaVersion;
@@ -13634,7 +13616,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
       required this.retrievalText,
       required this.valence,
       required this.arousal,
-      required this.confidence,
       this.status,
       this.needsFollowUp,
       required this.schemaVersion,
@@ -13652,7 +13633,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
     map['retrieval_text'] = Variable<String>(retrievalText);
     map['valence'] = Variable<double>(valence);
     map['arousal'] = Variable<double>(arousal);
-    map['confidence'] = Variable<double>(confidence);
     if (!nullToAbsent || status != null) {
       map['status'] = Variable<String>(status);
     }
@@ -13676,7 +13656,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
       retrievalText: Value(retrievalText),
       valence: Value(valence),
       arousal: Value(arousal),
-      confidence: Value(confidence),
       status:
           status == null && nullToAbsent ? const Value.absent() : Value(status),
       needsFollowUp: needsFollowUp == null && nullToAbsent
@@ -13702,7 +13681,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
       retrievalText: serializer.fromJson<String>(json['retrievalText']),
       valence: serializer.fromJson<double>(json['valence']),
       arousal: serializer.fromJson<double>(json['arousal']),
-      confidence: serializer.fromJson<double>(json['confidence']),
       status: serializer.fromJson<String?>(json['status']),
       needsFollowUp: serializer.fromJson<String?>(json['needsFollowUp']),
       schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
@@ -13723,7 +13701,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
       'retrievalText': serializer.toJson<String>(retrievalText),
       'valence': serializer.toJson<double>(valence),
       'arousal': serializer.toJson<double>(arousal),
-      'confidence': serializer.toJson<double>(confidence),
       'status': serializer.toJson<String?>(status),
       'needsFollowUp': serializer.toJson<String?>(needsFollowUp),
       'schemaVersion': serializer.toJson<int>(schemaVersion),
@@ -13742,7 +13719,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
           String? retrievalText,
           double? valence,
           double? arousal,
-          double? confidence,
           Value<String?> status = const Value.absent(),
           Value<String?> needsFollowUp = const Value.absent(),
           int? schemaVersion,
@@ -13758,7 +13734,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
         retrievalText: retrievalText ?? this.retrievalText,
         valence: valence ?? this.valence,
         arousal: arousal ?? this.arousal,
-        confidence: confidence ?? this.confidence,
         status: status.present ? status.value : this.status,
         needsFollowUp:
             needsFollowUp.present ? needsFollowUp.value : this.needsFollowUp,
@@ -13784,8 +13759,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
           : this.retrievalText,
       valence: data.valence.present ? data.valence.value : this.valence,
       arousal: data.arousal.present ? data.arousal.value : this.arousal,
-      confidence:
-          data.confidence.present ? data.confidence.value : this.confidence,
       status: data.status.present ? data.status.value : this.status,
       needsFollowUp: data.needsFollowUp.present
           ? data.needsFollowUp.value
@@ -13810,7 +13783,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
           ..write('retrievalText: $retrievalText, ')
           ..write('valence: $valence, ')
           ..write('arousal: $arousal, ')
-          ..write('confidence: $confidence, ')
           ..write('status: $status, ')
           ..write('needsFollowUp: $needsFollowUp, ')
           ..write('schemaVersion: $schemaVersion, ')
@@ -13831,7 +13803,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
       retrievalText,
       valence,
       arousal,
-      confidence,
       status,
       needsFollowUp,
       schemaVersion,
@@ -13850,7 +13821,6 @@ class MemoryCard extends DataClass implements Insertable<MemoryCard> {
           other.retrievalText == this.retrievalText &&
           other.valence == this.valence &&
           other.arousal == this.arousal &&
-          other.confidence == this.confidence &&
           other.status == this.status &&
           other.needsFollowUp == this.needsFollowUp &&
           other.schemaVersion == this.schemaVersion &&
@@ -13868,7 +13838,6 @@ class MemoryCardsCompanion extends UpdateCompanion<MemoryCard> {
   final Value<String> retrievalText;
   final Value<double> valence;
   final Value<double> arousal;
-  final Value<double> confidence;
   final Value<String?> status;
   final Value<String?> needsFollowUp;
   final Value<int> schemaVersion;
@@ -13885,7 +13854,6 @@ class MemoryCardsCompanion extends UpdateCompanion<MemoryCard> {
     this.retrievalText = const Value.absent(),
     this.valence = const Value.absent(),
     this.arousal = const Value.absent(),
-    this.confidence = const Value.absent(),
     this.status = const Value.absent(),
     this.needsFollowUp = const Value.absent(),
     this.schemaVersion = const Value.absent(),
@@ -13903,7 +13871,6 @@ class MemoryCardsCompanion extends UpdateCompanion<MemoryCard> {
     required String retrievalText,
     required double valence,
     required double arousal,
-    this.confidence = const Value.absent(),
     this.status = const Value.absent(),
     this.needsFollowUp = const Value.absent(),
     this.schemaVersion = const Value.absent(),
@@ -13930,7 +13897,6 @@ class MemoryCardsCompanion extends UpdateCompanion<MemoryCard> {
     Expression<String>? retrievalText,
     Expression<double>? valence,
     Expression<double>? arousal,
-    Expression<double>? confidence,
     Expression<String>? status,
     Expression<String>? needsFollowUp,
     Expression<int>? schemaVersion,
@@ -13948,7 +13914,6 @@ class MemoryCardsCompanion extends UpdateCompanion<MemoryCard> {
       if (retrievalText != null) 'retrieval_text': retrievalText,
       if (valence != null) 'valence': valence,
       if (arousal != null) 'arousal': arousal,
-      if (confidence != null) 'confidence': confidence,
       if (status != null) 'status': status,
       if (needsFollowUp != null) 'needs_follow_up': needsFollowUp,
       if (schemaVersion != null) 'schema_version': schemaVersion,
@@ -13968,7 +13933,6 @@ class MemoryCardsCompanion extends UpdateCompanion<MemoryCard> {
       Value<String>? retrievalText,
       Value<double>? valence,
       Value<double>? arousal,
-      Value<double>? confidence,
       Value<String?>? status,
       Value<String?>? needsFollowUp,
       Value<int>? schemaVersion,
@@ -13985,7 +13949,6 @@ class MemoryCardsCompanion extends UpdateCompanion<MemoryCard> {
       retrievalText: retrievalText ?? this.retrievalText,
       valence: valence ?? this.valence,
       arousal: arousal ?? this.arousal,
-      confidence: confidence ?? this.confidence,
       status: status ?? this.status,
       needsFollowUp: needsFollowUp ?? this.needsFollowUp,
       schemaVersion: schemaVersion ?? this.schemaVersion,
@@ -14025,9 +13988,6 @@ class MemoryCardsCompanion extends UpdateCompanion<MemoryCard> {
     if (arousal.present) {
       map['arousal'] = Variable<double>(arousal.value);
     }
-    if (confidence.present) {
-      map['confidence'] = Variable<double>(confidence.value);
-    }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
@@ -14061,7 +14021,6 @@ class MemoryCardsCompanion extends UpdateCompanion<MemoryCard> {
           ..write('retrievalText: $retrievalText, ')
           ..write('valence: $valence, ')
           ..write('arousal: $arousal, ')
-          ..write('confidence: $confidence, ')
           ..write('status: $status, ')
           ..write('needsFollowUp: $needsFollowUp, ')
           ..write('schemaVersion: $schemaVersion, ')
@@ -29462,7 +29421,6 @@ typedef $$MemoryCardsTableCreateCompanionBuilder = MemoryCardsCompanion
   required String retrievalText,
   required double valence,
   required double arousal,
-  Value<double> confidence,
   Value<String?> status,
   Value<String?> needsFollowUp,
   Value<int> schemaVersion,
@@ -29481,7 +29439,6 @@ typedef $$MemoryCardsTableUpdateCompanionBuilder = MemoryCardsCompanion
   Value<String> retrievalText,
   Value<double> valence,
   Value<double> arousal,
-  Value<double> confidence,
   Value<String?> status,
   Value<String?> needsFollowUp,
   Value<int> schemaVersion,
@@ -29526,9 +29483,6 @@ class $$MemoryCardsTableFilterComposer
 
   ColumnFilters<double> get arousal => $composableBuilder(
       column: $table.arousal, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get confidence => $composableBuilder(
-      column: $table.confidence, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get status => $composableBuilder(
       column: $table.status, builder: (column) => ColumnFilters(column));
@@ -29585,9 +29539,6 @@ class $$MemoryCardsTableOrderingComposer
   ColumnOrderings<double> get arousal => $composableBuilder(
       column: $table.arousal, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<double> get confidence => $composableBuilder(
-      column: $table.confidence, builder: (column) => ColumnOrderings(column));
-
   ColumnOrderings<String> get status => $composableBuilder(
       column: $table.status, builder: (column) => ColumnOrderings(column));
 
@@ -29642,9 +29593,6 @@ class $$MemoryCardsTableAnnotationComposer
   GeneratedColumn<double> get arousal =>
       $composableBuilder(column: $table.arousal, builder: (column) => column);
 
-  GeneratedColumn<double> get confidence => $composableBuilder(
-      column: $table.confidence, builder: (column) => column);
-
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
@@ -29693,7 +29641,6 @@ class $$MemoryCardsTableTableManager extends RootTableManager<
             Value<String> retrievalText = const Value.absent(),
             Value<double> valence = const Value.absent(),
             Value<double> arousal = const Value.absent(),
-            Value<double> confidence = const Value.absent(),
             Value<String?> status = const Value.absent(),
             Value<String?> needsFollowUp = const Value.absent(),
             Value<int> schemaVersion = const Value.absent(),
@@ -29711,7 +29658,6 @@ class $$MemoryCardsTableTableManager extends RootTableManager<
             retrievalText: retrievalText,
             valence: valence,
             arousal: arousal,
-            confidence: confidence,
             status: status,
             needsFollowUp: needsFollowUp,
             schemaVersion: schemaVersion,
@@ -29729,7 +29675,6 @@ class $$MemoryCardsTableTableManager extends RootTableManager<
             required String retrievalText,
             required double valence,
             required double arousal,
-            Value<double> confidence = const Value.absent(),
             Value<String?> status = const Value.absent(),
             Value<String?> needsFollowUp = const Value.absent(),
             Value<int> schemaVersion = const Value.absent(),
@@ -29747,7 +29692,6 @@ class $$MemoryCardsTableTableManager extends RootTableManager<
             retrievalText: retrievalText,
             valence: valence,
             arousal: arousal,
-            confidence: confidence,
             status: status,
             needsFollowUp: needsFollowUp,
             schemaVersion: schemaVersion,
