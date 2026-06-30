@@ -88,7 +88,14 @@ class RecordOrganizerAgentV3 {
       throw const FormatException(
           'V3 Record Organizer retry returned no output');
     }
-    return _parse(retryText);
+    try {
+      return _parse(retryText);
+    } on FormatException catch (e) {
+      _logger.severe('Retry parse also failed. Raw output (first 500): ${retryText.substring(0, retryText.length.clamp(0, 500))}');
+      throw FormatException(
+          'Record Organizer returned invalid JSON (after retry). '
+          'This usually means the model produced malformed JSON. Try a different model.');
+    }
   }
 
   OrganizedRecord _parse(String raw) {
@@ -105,12 +112,25 @@ class RecordOrganizerAgentV3 {
       throw const FormatException(
           'V3 Record Organizer response contains no JSON');
     }
-    final jsonPart = trimmed.substring(start, end + 1);
+    var jsonPart = trimmed.substring(start, end + 1);
+    jsonPart = _repairLLMJson(jsonPart);
     final decoded = jsonDecode(jsonPart);
     if (decoded is! Map) {
       throw const FormatException(
           'V3 Record Organizer JSON root must be an object');
     }
     return OrganizedRecord.fromJson(decoded.cast<String, dynamic>());
+  }
+
+  /// Repair common LLM JSON formatting errors before [jsonDecode].
+  ///
+  /// Handles: trailing commas (e.g. `"val": 1,}`), empty double commas.
+  /// Deliberately limited — complex repairs belong in the hardened retry prompt.
+  static String _repairLLMJson(String json) {
+    // Remove trailing commas before } or ]
+    var repaired = json.replaceAll(RegExp(r',(\s*[}\]])'), r'$1');
+    // Remove empty double commas: ,,
+    repaired = repaired.replaceAll(',,', ',');
+    return repaired;
   }
 }
