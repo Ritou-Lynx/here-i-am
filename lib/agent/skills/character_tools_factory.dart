@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/built_in_tools/ai_finance_tools.dart';
 import 'package:memex/agent/built_in_tools/ai_shopping_tools.dart';
@@ -10,7 +12,6 @@ import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/built_in_tools/phone_usage_tool.dart';
 import 'package:memex/agent/built_in_tools/reading_content_tool.dart';
-import 'package:memex/agent/built_in_tools/shared_life_memory_tools.dart';
 import 'package:memex/agent/built_in_tools/toy_control_tool.dart';
 import 'package:memex/agent/built_in_tools/transit_companion_tools.dart';
 import 'package:memex/agent/built_in_tools/user_knowledge_query_tool.dart';
@@ -27,6 +28,10 @@ import 'package:memex/data/services/reading/reading_fetch_coordinator.dart';
 import 'package:memex/data/services/remote_task_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
+import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/domain/models/agent_definitions.dart';
+import 'package:memex/domain/models/llm_config.dart';
+import 'package:memex/utils/user_storage.dart';
 import 'package:memex/db/app_database.dart';
 
 class CharacterToolsFactory {
@@ -105,16 +110,14 @@ class CharacterToolsFactory {
     if (toyControlService != null) {
       tools.add(buildToyControlTool(service: toyControlService));
     }
+    if (RecordOrganizerServiceV3.isInitialized) {
+      tools.add(_buildLifeMemoryCaptureTool());
+    }
     if (SharedLifeMemoryService.isInitialized) {
       final sharedLifeMemory = SharedLifeMemoryService.instance;
-      tools.addAll(
-        buildSharedLifeMemoryTools(
-          service: sharedLifeMemory,
-          sourceCharacterId: characterId,
-          userId: userId,
-          sourceMessageId: currentUserMessageId,
-        ),
-      );
+      // Keep LifeMemoryQuery for read-only lookup; write tools are superseded
+      // by LifeMemoryCapture above.
+      tools.add(_buildLifeMemoryQueryTool(service: sharedLifeMemory));
       if (ReadingFetchCoordinator.isInitialized) {
         tools.add(buildLoadReadingContentTool(
           sharedLifeMemory: sharedLifeMemory,
@@ -182,5 +185,107 @@ class CharacterToolsFactory {
     }
 
     return tools;
+  }
+
+  /// V3 tool: Agent calls this when user explicitly asks to record something.
+  /// The tool passes raw text to [RecordOrganizerServiceV3.organizeAndPersist]
+  /// which handles structuring via its own LLM pass.
+  static Tool _buildLifeMemoryCaptureTool() {
+    return Tool(
+      name: 'LifeMemoryCapture',
+      description: 'Save the user\'s current message as a User-truth Memory Card. '
+          'ONLY call when the user explicitly asks to record/save/remember. '
+          'Phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、'
+          '"加到记录里"、"记住这个". Pass the raw message text as-is.',
+      parameters: {
+        'type': 'object',
+        'properties': {
+          'text': {
+            'type': 'string',
+            'description':
+                'The raw Chinese text to record. Pass the user\'s message verbatim.',
+          },
+        },
+        'required': ['text'],
+      },
+      parameterMode: ToolParameterMode.object,
+      executable: (Map<String, dynamic> args) async {
+        try {
+          final text = args['text'] as String?;
+          if (text == null || text.trim().isEmpty) {
+            return jsonEncode({'success': false, 'error': 'empty text'});
+          }
+          final resources = await UserStorage.getAgentLLMResources(
+            AgentDefinitions.recordOrganizerAgent,
+            defaultClientKey: LLMConfig.defaultClientKey,
+          );
+          final result =
+              await RecordOrganizerServiceV3.instance.organizeAndPersist(
+            client: resources.client,
+            modelConfig: resources.modelConfig,
+            source: RecordSource(
+              sourceKind: 'chat_message',
+              rawInput: text,
+            ),
+          );
+          return jsonEncode({
+            'success': !result.isEmpty,
+            'card_count': result.cardIds.length,
+          });
+        } catch (e) {
+          return jsonEncode({'success': false, 'error': e.toString()});
+        }
+      },
+    );
+  }
+
+  /// Keep the v2 query tool for read-only lookup. Write tools are superseded by
+  /// [_buildLifeMemoryCaptureTool].
+  static Tool _buildLifeMemoryQueryTool({
+    required SharedLifeMemoryService service,
+  }) {
+    return Tool(
+      name: 'LifeMemoryQuery',
+      description: 'Query existing shared life records. Use this to check for '
+          'existing records before creating new ones, or to find context relevant '
+          'to the ongoing conversation.',
+      parameters: {
+        'type': 'object',
+        'properties': {
+          'query': {
+            'type': 'string',
+            'description': 'Natural language query to find matching records.',
+          },
+          'limit': {
+            'type': 'integer',
+            'description': 'Max results to return. Default 5, max 20.',
+          },
+        },
+        'required': ['query'],
+      },
+      parameterMode: ToolParameterMode.object,
+      executable: (Map<String, dynamic> args) async {
+        try {
+          final query = args['query'] as String? ?? '';
+          final limit = (args['limit'] as int?) ?? 5;
+          final entities = await service.queryRelevantEntities(
+            query,
+            limit: limit.clamp(1, 20),
+          );
+          return jsonEncode({
+            'results': entities
+                .map((e) => {
+                      'id': e.id,
+                      'title': e.title,
+                      'type': e.entityType,
+                      'status': e.status,
+                    })
+                .toList(),
+          });
+        } catch (e) {
+          return jsonEncode({'error': e.toString()});
+        }
+      },
+    );
   }
 }

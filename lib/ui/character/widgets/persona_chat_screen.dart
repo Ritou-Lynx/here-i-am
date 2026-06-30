@@ -34,7 +34,7 @@ import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/media_input_attachment.dart';
-import 'package:memex/data/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/reading/reading_share_parser.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
@@ -2033,7 +2033,7 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   Future<void> _recordMessage(PersonaChatMessage message) async {
-    if (!RecordOrganizerService.isInitialized) return;
+    if (!RecordOrganizerServiceV3.isInitialized) return;
     // Guard against rapid double-taps re-firing while a record is in flight.
     if (!_recordingMessageIds.add(message.id)) return;
 
@@ -2042,8 +2042,6 @@ only after you have written the goodbye you want the user to hear.''',
       _recordingMessageIds.remove(message.id);
       return;
     }
-    final characterId = _currentCharacterId;
-
     final messenger = ScaffoldMessenger.of(context);
     // Show a long-lived "recording" snackbar; replaced when the result lands.
     final progress = messenger.showSnackBar(
@@ -2221,12 +2219,29 @@ only after you have written the goodbye you want the user to hear.''',
         ),
       );
 
-      final result = await RecordOrganizerService.instance.recordFromMessage(
-        userId: userId,
-        sourceCharacterId: characterId,
-        messageId: message.id,
-        content: cleanedContent.isNotEmpty ? cleanedContent : message.content,
-        media: media.isNotEmpty ? media : null,
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.recordOrganizerAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+      final inputMedia = media.isNotEmpty
+          ? media
+              .map((m) => {
+                    'kind': m.kind,
+                    if (m.savedRelativePath != null)
+                      'path': m.savedRelativePath!,
+                    if (m.analysisText != null) 'analysis': m.analysisText!,
+                  })
+              .toList()
+          : null;
+      final result = await RecordOrganizerServiceV3.instance.organizeAndPersist(
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+        source: RecordSource(
+          sourceKind: 'record_button',
+          rawInput:
+              cleanedContent.isNotEmpty ? cleanedContent : message.content,
+        ),
+        inputMedia: inputMedia,
       );
 
       recordProgress.close();
@@ -2241,12 +2256,12 @@ only after you have written the goodbye you want the user to hear.''',
           ),
         );
       } else {
-        final titles = result.entityTitles.take(2).join('、');
+        final count = result.cardIds.length;
         messenger.showSnackBar(
           SnackBar(
             content: Text(_chatUiText(
-              zh: '已记录：$titles',
-              en: 'Recorded: $titles',
+              zh: '已记录 $count 张卡片',
+              en: 'Recorded $count card(s)',
             )),
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
@@ -2259,7 +2274,7 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   /// Maps a mime type (e.g. "image/png") to a file extension (e.g. "png").
-  /// Keep consistent with [RecordOrganizerService._imageExtensionForMime].
+  /// Image extension helper for media pre-processing.
   String _imageExtForMime(String mimeType) {
     final lower = mimeType.toLowerCase();
     if (lower.contains('webp')) return 'webp';

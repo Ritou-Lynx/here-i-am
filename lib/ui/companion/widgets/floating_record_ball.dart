@@ -3,7 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/media_input_attachment.dart';
-import 'package:memex/data/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart'
@@ -35,7 +35,7 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
   bool _dragging = false;
 
   void _showQuickSave() {
-    if (!RecordOrganizerService.isInitialized) return;
+    if (!RecordOrganizerServiceV3.isInitialized) return;
     final navContext = widget.navigatorKey.currentContext;
     if (navContext == null) return;
     showModalBottomSheet<void>(
@@ -197,13 +197,25 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
         }
       }
 
-      final charId =
-          await UserStorage.getLastActiveCompanionCharacterId(userId);
-      final result = await RecordOrganizerService.instance.recordFromText(
-        userId: userId,
-        sourceCharacterId: charId ?? '_system',
-        text: text,
-        media: media.isNotEmpty ? media : null,
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.recordOrganizerAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+      final inputMedia = media.isNotEmpty
+          ? media
+              .map((m) => {
+                    'kind': m.kind,
+                    if (m.savedRelativePath != null)
+                      'path': m.savedRelativePath!,
+                    if (m.analysisText != null) 'analysis': m.analysisText!,
+                  })
+              .toList()
+          : null;
+      final result = await RecordOrganizerServiceV3.instance.organizeAndPersist(
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+        source: RecordSource(sourceKind: 'fab', rawInput: text),
+        inputMedia: inputMedia,
       );
       if (!mounted) return;
       final navCtx = widget.navigatorKey.currentContext;
@@ -212,7 +224,7 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
         ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(
           content: Text(result.isEmpty
               ? '未能提取有效记录'
-              : '已记录：${result.entityTitles.join("、")}'),
+              : '已记录 ${result.cardIds.length} 张卡片'),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ));

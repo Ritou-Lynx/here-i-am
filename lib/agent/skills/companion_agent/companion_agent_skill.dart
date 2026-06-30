@@ -160,11 +160,11 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Use `UserKnowledgeQuery` before answering exact questions about older Memex timeline cards or PKM knowledge. Old cards remain a valid source of truth during migration.');
     b.writeln(
-        '- Use `LifeMemoryCreate` ONLY when the user\'s current message contains an explicit record request. Qualifying phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、"加到记录里"、"记住这个". Mentioning facts, events, or plans in conversation does NOT qualify. No trigger phrase → do NOT call this tool.');
+        '- Use `LifeMemoryCapture` ONLY when the user\'s current message contains an explicit record request. Pass the raw user message text as the `text` parameter. Qualifying phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、"加到记录里"、"记住这个". Mentioning facts, events, or plans in conversation does NOT qualify. No trigger phrase → do NOT call this tool.');
     b.writeln(
         '- When the user sends a URL (including 小红书, 微信公众号, or web links), treat it as chat material by default. You may discuss it or ask whether to save it, but do NOT say it has been saved and do NOT create a shared-life record unless the same user message explicitly asks to save/record it.');
     b.writeln(
-        '- Use `LifeMemoryUpdate`, `LifeMemoryComplete`, `LifeMemoryCancel`, or `LifeMemoryUndo` ONLY when the user\'s current message explicitly requests that change to an existing record. Identifying a record in conversation does not qualify.');
+        '- Use `LifeMemoryQuery` to look up existing records. To update or correct a record, tell the user to use the Memory Review or floating ball — these actions are not yet available through chat.');
     b.writeln(
         '- Shared-life tools are optional and must never replace the visible chat reply.');
     b.writeln('');
