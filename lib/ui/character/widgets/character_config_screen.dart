@@ -653,6 +653,51 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
     );
   }
 
+  Widget _buildTtsVoiceIdSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.record_voice_over_outlined,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'TTS 语音',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '把当前 TTS 服务的 Voice ID 填在这里，聊天页会用这个声音播放。',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _ttsVoiceIdController,
+            style: const TextStyle(fontSize: 16),
+            decoration: _buildInputDecoration('Voice ID'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -915,19 +960,7 @@ class _CharacterEditPageState extends State<CharacterEditPage> {
               const SizedBox(height: 8),
               _buildChatBackgroundPicker(),
               const SizedBox(height: 24),
-              // TTS voice ID
-              _buildLabel('TTS 语音 ID'),
-              const SizedBox(height: 4),
-              Text(
-                '将所选 TTS 服务的 Voice ID 粘贴到此处（在 Settings → TTS 语音 中设置服务商）',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _ttsVoiceIdController,
-                style: const TextStyle(fontSize: 16),
-                decoration: _buildInputDecoration('Voice ID'),
-              ),
+              _buildTtsVoiceIdSection(),
               const SizedBox(height: 24),
               _buildLabel(UserStorage.l10n.characterPersonaLabel),
               const SizedBox(height: 8),
