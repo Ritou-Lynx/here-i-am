@@ -115,6 +115,22 @@ class CompanionAgentSkill extends Skill {
         '- Use HistorySearch when memory or compressed history is too vague and exact past wording matters.');
     b.writeln('- Language: $lang');
     b.writeln('');
+    b.writeln('## Continuous Replies (request_continuous_replies)');
+    b.writeln(
+        '- When the user explicitly asks you to send multiple consecutive '
+        'messages without waiting for their reply (e.g., "发30条", "一直发消息", '
+        '"连续发消息", "发20条", "不要停", "你自己继续写", "keep talking"), '
+        'you MUST call `request_continuous_replies` with the count the user '
+        'specified.');
+    b.writeln(
+        '- If the user did not specify a number, default to 30.');
+    b.writeln(
+        '- Call this tool in the same turn as your text reply. '
+        'Reply briefly to acknowledge ("好的，我来继续～"), then call the tool.');
+    b.writeln(
+        '- Do NOT call this tool unless the user explicitly requests continuous '
+        'narration. Normal conversation does not need it.');
+    b.writeln('');
     b.writeln(companionRelationshipPrompt);
     b.writeln('');
 

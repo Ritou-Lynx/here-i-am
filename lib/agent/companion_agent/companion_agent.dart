@@ -529,6 +529,7 @@ class CompanionAgent {
     DateTime? userMessageTime,
     bool debugErrorOutput = false,
     bool voiceMode = false,
+    bool continuousModeInput = false,
     ToyController? toyControlService,
     List<Tool> extraTools = const [],
   }) async* {
@@ -596,6 +597,22 @@ class CompanionAgent {
             '- If the user asks to hang up/end the call, or you naturally '
             'decide to end the voice conversation, say a brief spoken goodbye '
             'and call `end_voice_mode` in the same turn.';
+      }
+
+      if (continuousModeInput) {
+        state.systemReminders['continuous_mode'] =
+            '## CONTINUOUS MODE (active)\n'
+            'The user wants you to keep narrating without waiting for their '
+            'input. Do NOT ask questions. Do NOT wait for user input. Just '
+            'continue the scene naturally. Write the next part of the story '
+            'or roleplay directly.\n'
+            'Treat "[继续叙述]" as a signal to advance the scene — do not '
+            'acknowledge it as a message. Do not greet or restart.\n'
+            'Keep responses vivid and varied. Advance time, introduce new '
+            'details, drive the scene forward. Do not loop or repeat. Do not '
+            'end the scene prematurely.\n'
+            'Do NOT call `request_continuous_replies` again — you are already '
+            'in continuous mode.';
       }
 
       // User chat deliberately does not drain pending checkins. Those are

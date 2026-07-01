@@ -4,6 +4,7 @@ import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/built_in_tools/ai_finance_tools.dart';
 import 'package:memex/agent/built_in_tools/ai_shopping_tools.dart';
 import 'package:memex/agent/built_in_tools/checkin_tool.dart';
+import 'package:memex/agent/built_in_tools/continuous_reply_tool.dart';
 import 'package:memex/agent/built_in_tools/coros_mcp_tool.dart';
 import 'package:memex/agent/built_in_tools/delegate_task_tool.dart';
 import 'package:memex/agent/built_in_tools/dev_session_tool.dart';
@@ -106,6 +107,7 @@ class CharacterToolsFactory {
       ),
       buildDeviceAppBlockerTool(),
       ...buildTransitCompanionTools(characterId: characterId),
+      buildContinuousReplyTool(),
     ];
     if (toyControlService != null) {
       tools.add(buildToyControlTool(service: toyControlService));
