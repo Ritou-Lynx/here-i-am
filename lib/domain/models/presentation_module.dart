@@ -78,7 +78,7 @@ abstract class MemoryBlock {
   Map<String, dynamic> toJson();
 
   static MemoryBlock? tryFromJson(Map<String, dynamic> json) {
-    final type = json['type']?.toString();
+    final type = json['type']?.toString() ?? json['kind']?.toString();
     switch (type) {
       case TextBlock.kType:
         return TextBlock.fromJson(json);

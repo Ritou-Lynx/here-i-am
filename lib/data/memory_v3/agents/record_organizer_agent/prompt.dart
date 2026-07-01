@@ -196,7 +196,7 @@ presentationModule — the Summary Card content. Use blocks that fit:
   - number:         {"kind":"number","value":128,"unit":"元","caption":"..."}
   - table:          {"kind":"table","headers":[...],"rows":[[...],...]}
   - linkAttachment: {"kind":"linkAttachment","url":"...","title":"..."}
-  - media:          {"kind":"media","assetPath":"<copy path from input media>","caption":"..."}
+  - media:          {"kind":"media","assetPath":"<copy path from input media>"}
   - progressBar:    {"kind":"progressBar","value":0.6,"label":"..."}
   **CRITICAL**: If the user input includes `media` (images/audio), you MUST
   include a media block for EVERY media file. Place media blocks FIRST

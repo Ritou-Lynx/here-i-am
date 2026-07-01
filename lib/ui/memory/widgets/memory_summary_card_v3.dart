@@ -696,17 +696,6 @@ class _MediaBlockView extends StatelessWidget {
             child: _buildMediaImage(block.assetPath),
           ),
         ),
-        if (block.caption != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            block.caption!,
-            style: TextStyle(
-              color: _Palette.inkSoft,
-              fontSize: 12,
-              height: 1.55,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -714,23 +703,16 @@ class _MediaBlockView extends StatelessWidget {
   Widget _buildMediaImage(String assetPath) {
     try {
       final absPath = FileSystemService.instance.toAbsolutePath(assetPath);
-      debugPrint('[V3Card] media assetPath=$assetPath → abs=$absPath');
       final file = File(absPath);
-      final exists = file.existsSync();
-      debugPrint('[V3Card] media file exists=$exists size=${exists ? file.lengthSync() : 0}');
-      if (exists) {
-        final bytes = file.readAsBytesSync();
-        debugPrint('[V3Card] media read ${bytes.length} bytes, rendering Image.memory');
+      if (file.existsSync()) {
         return Image.memory(
-          bytes,
+          file.readAsBytesSync(),
           fit: BoxFit.cover,
           errorBuilder: (_, e, st) {
             debugPrint('[V3Card] Image.memory error: $e');
             return _mediaPlaceholder();
           },
         );
-      } else {
-        debugPrint('[V3Card] media file NOT FOUND at $absPath');
       }
     } catch (e, st) {
       debugPrint('[V3Card] media exception: $e\n$st');

@@ -204,8 +204,9 @@ class RecordOrganizerServiceV3 {
         final card = organized.cards[i];
         final blocks = (card.presentationModule['blocks'] as List<dynamic>?) ?? [];
         for (final block in blocks) {
-          if (block is Map && block['kind'] == 'media') {
-            final ref = block['assetRef'] as String?;
+          final blockKind = (block is Map) ? (block['kind'] ?? block['type']) : null;
+          if (blockKind == 'media') {
+            final ref = block['assetPath'] as String?;
             if (ref != null) {
               assetIds.add(ref);
               await _db.into(_db.memoryCardAssets).insert(
