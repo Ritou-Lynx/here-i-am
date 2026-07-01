@@ -1475,8 +1475,7 @@ only after you have written the goodbye you want the user to hear.''',
               analyses,
             );
           } catch (e) {
-            debugPrint(
-                'Failed to persist image analyses to attachments: $e');
+            debugPrint('Failed to persist image analyses to attachments: $e');
           }
         }
       } catch (e) {
@@ -1583,7 +1582,8 @@ only after you have written the goodbye you want the user to hear.''',
         responsePersisted = true;
 
         if (_isAppInBackground && sendCharacter != null) {
-          final visible = PersonaReplySanitizer.stripLeakedReasoning(fullResponse);
+          final visible =
+              PersonaReplySanitizer.stripLeakedReasoning(fullResponse);
           final preview = visible.length > 100
               ? '${visible.substring(0, 100)}...'
               : visible;
@@ -1936,7 +1936,8 @@ only after you have written the goodbye you want the user to hear.''',
         'bmp' => 'image/bmp',
         _ => 'image/jpeg',
       };
-      debugPrint('Image fallback: read ${bytes.length} raw bytes, mime=$mimeType');
+      debugPrint(
+          'Image fallback: read ${bytes.length} raw bytes, mime=$mimeType');
       return {'mimeType': mimeType, 'base64': base64};
     } catch (e) {
       debugPrint('Image raw fallback also failed: $e');
@@ -2032,6 +2033,15 @@ only after you have written the goodbye you want the user to hear.''',
     );
   }
 
+  Future<void> _closeSnackBarSafely(
+    ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller,
+  ) async {
+    try {
+      controller.close();
+      await controller.closed.timeout(const Duration(milliseconds: 600));
+    } catch (_) {}
+  }
+
   Future<void> _recordMessage(PersonaChatMessage message) async {
     if (!RecordOrganizerServiceV3.isInitialized) return;
     // Guard against rapid double-taps re-firing while a record is in flight.
@@ -2039,6 +2049,10 @@ only after you have written the goodbye you want the user to hear.''',
 
     final userId = _userId ?? await UserStorage.getUserId();
     if (userId == null) {
+      _recordingMessageIds.remove(message.id);
+      return;
+    }
+    if (!mounted) {
       _recordingMessageIds.remove(message.id);
       return;
     }
@@ -2052,26 +2066,31 @@ only after you have written the goodbye you want the user to hear.''',
         width: 160,
       ),
     );
+    ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? activeProgress =
+        progress;
 
     try {
       // ── Pre-process media attachments ──────────────────────────
       final media = <MediaInputAttachment>[];
       final attachmentsJson = message.attachmentsJson;
-      debugPrint(
-          '[Record] msg#${message.id} attachmentsJson '
+      debugPrint('[Record] msg#${message.id} attachmentsJson '
           '${attachmentsJson != null ? "present (${attachmentsJson.length} chars)" : "null"}');
       if (attachmentsJson != null && attachmentsJson.trim().isNotEmpty) {
         try {
           final List<dynamic> attachments = jsonDecode(attachmentsJson);
-          debugPrint('[Record] msg#${message.id} parsed ${attachments.length} attachment(s)');
+          debugPrint(
+              '[Record] msg#${message.id} parsed ${attachments.length} attachment(s)');
           // Extract existing analysis text from the [Image analysis: ...] prefix
           // that was injected into message.content during send.
           final existingAnalyses = _extractImageAnalyses(message.content);
-          debugPrint('[Record] msg#${message.id} prefix analyses extracted: ${existingAnalyses.length}');
+          debugPrint(
+              '[Record] msg#${message.id} prefix analyses extracted: ${existingAnalyses.length}');
           final fsService = FileSystemService.instance;
 
           // Close the initial "Recording…" snackbar once before processing images.
-          try { progress.close(); } catch (_) {}
+          try {
+            progress.close();
+          } catch (_) {}
 
           for (var i = 0; i < attachments.length; i++) {
             final att = attachments[i];
@@ -2120,7 +2139,8 @@ only after you have written the goodbye you want the user to hear.''',
                 format: ext,
                 factId: factId,
               );
-              debugPrint('[Record] msg#${message.id} image#$i saved: $relativePath');
+              debugPrint(
+                  '[Record] msg#${message.id} image#$i saved: $relativePath');
 
               // Clean up temp file
               try {
@@ -2132,22 +2152,25 @@ only after you have written the goodbye you want the user to hear.''',
               // Tier 1: from the [Image analysis: ...] prefix in message content
               if (i < existingAnalyses.length) {
                 analysisText = existingAnalyses[i];
-                debugPrint('[Record] msg#${message.id} image#$i analysis from prefix');
+                debugPrint(
+                    '[Record] msg#${message.id} image#$i analysis from prefix');
               }
               // Tier 2: from attachment.analysis stored during send
-              if (analysisText == null || analysisText!.trim().isEmpty) {
+              if (analysisText == null || analysisText.trim().isEmpty) {
                 final storedAnalysis = att['analysis']?.toString();
-                if (storedAnalysis != null && storedAnalysis.trim().isNotEmpty) {
+                if (storedAnalysis != null &&
+                    storedAnalysis.trim().isNotEmpty) {
                   analysisText = storedAnalysis.trim();
                   debugPrint(
                       '[Record] msg#${message.id} image#$i analysis from attachment '
-                      '(${analysisText!.length} chars)');
+                      '(${analysisText.length} chars)');
                 }
               }
               // Tier 3: run inline AssetAnalysisTool
-              if (analysisText == null || analysisText!.trim().isEmpty) {
+              if (analysisText == null || analysisText.trim().isEmpty) {
                 try {
-                  debugPrint('[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…');
+                  debugPrint(
+                      '[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…');
                   final analysisResources =
                       await UserStorage.getAgentLLMResources(
                     AgentDefinitions.analyzeAssets,
@@ -2171,7 +2194,7 @@ only after you have written the goodbye you want the user to hear.''',
                       .trim();
                   debugPrint(
                       '[Record] msg#${message.id} image#$i inline analysis done '
-                      '(${analysisText!.length} chars)');
+                      '(${analysisText.length} chars)');
                 } catch (e) {
                   debugPrint(
                       '[Record] msg#${message.id} image#$i inline analysis FAILED: $e');
@@ -2186,7 +2209,7 @@ only after you have written the goodbye you want the user to hear.''',
               ));
               debugPrint(
                   '[Record] msg#${message.id} image#$i → media (usable=${media.last.isUsable}, '
-                  'hasAnalysis=${analysisText != null && analysisText!.isNotEmpty})');
+                  'hasAnalysis=${analysisText != null && analysisText.isNotEmpty})');
             } catch (e) {
               debugPrint(
                   '[Record] msg#${message.id} image#$i PROCESSING FAILED: $e');
@@ -2194,7 +2217,8 @@ only after you have written the goodbye you want the user to hear.''',
             }
           }
         } catch (e) {
-          debugPrint('[Record] msg#${message.id} parse attachmentsJson FAILED: $e');
+          debugPrint(
+              '[Record] msg#${message.id} parse attachmentsJson FAILED: $e');
         }
       }
 
@@ -2202,14 +2226,12 @@ only after you have written the goodbye you want the user to hear.''',
       final cleanedContent = message.content
           .replaceFirst(RegExp(r'^\[Image analysis:.*?\](\n\n?)?'), '')
           .trim();
-      debugPrint(
-          '[Record] msg#${message.id} content="${cleanedContent}", '
+      debugPrint('[Record] msg#${message.id} content="${cleanedContent}", '
           'mediaCount=${media.where((m) => m.isUsable).length}');
 
       // Restore progress snackbar before the LLM call
-      try {
-        progress.close();
-      } catch (_) {}
+      await _closeSnackBarSafely(progress);
+      activeProgress = null;
       final recordProgress = messenger.showSnackBar(
         SnackBar(
           content: Text(_chatUiText(zh: '正在记录…', en: 'Recording…')),
@@ -2218,6 +2240,7 @@ only after you have written the goodbye you want the user to hear.''',
           width: 160,
         ),
       );
+      activeProgress = recordProgress;
 
       final resources = await UserStorage.getAgentLLMResources(
         AgentDefinitions.recordOrganizerAgent,
@@ -2244,7 +2267,8 @@ only after you have written the goodbye you want the user to hear.''',
         inputMedia: inputMedia,
       );
 
-      recordProgress.close();
+      await _closeSnackBarSafely(recordProgress);
+      activeProgress = null;
       if (!mounted) return;
       if (result.isEmpty) {
         messenger.showSnackBar(
@@ -2269,7 +2293,10 @@ only after you have written the goodbye you want the user to hear.''',
         );
       }
     } catch (e, stack) {
-      progress.close();
+      final progressToClose = activeProgress;
+      if (progressToClose != null) {
+        await _closeSnackBarSafely(progressToClose);
+      }
       debugPrint('[Record] msg#${message.id} failed: $e\n$stack');
       if (mounted) {
         messenger.showSnackBar(
@@ -3005,7 +3032,7 @@ only after you have written the goodbye you want the user to hear.''',
         _isStreamingCurrentCharacter && _streamingText.isNotEmpty;
     final showTypingIndicator =
         (_isStreamingCurrentCharacter && _streamingText.isEmpty) ||
-        (_continuousMode && _continuousRemaining > 0);
+            (_continuousMode && _continuousRemaining > 0);
     final extraItems = (showStreamingBubble || showTypingIndicator) ? 1 : 0;
     // Extra item at the tail (top of reversed list) for load-more indicator
     final loadMoreItem = (_hasMoreHistory || _isLoadingMore) ? 1 : 0;
@@ -5452,4 +5479,3 @@ class _TypingDotsState extends State<_TypingDots>
     );
   }
 }
-

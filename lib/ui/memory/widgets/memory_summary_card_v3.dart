@@ -98,11 +98,11 @@ class MemorySummaryCardV3 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final presentation =
-        PresentationModule.tryParse(card.presentationModule);
+    final presentation = PresentationModule.tryParse(card.presentationModule);
     final mood = resolveMood(valence: card.valence, arousal: card.arousal);
     final muted = card.status == 'cancelled';
-    final showStatus = card.isTaskLike && card.hasStatus && card.status != 'active';
+    final showStatus =
+        card.isTaskLike && card.hasStatus && card.status != 'active';
 
     return GestureDetector(
       onTap: onTap,
@@ -128,7 +128,6 @@ class MemorySummaryCardV3 extends StatelessWidget {
                   ),
                 V3CardBlocks(
                   presentation: presentation,
-                  fallbackTitle: '',
                   fallbackText: card.retrievalText,
                 ),
                 const SizedBox(height: 18),
@@ -265,28 +264,15 @@ class V3CardBlocks extends StatelessWidget {
   const V3CardBlocks({
     super.key,
     required this.presentation,
-    required this.fallbackTitle,
     required this.fallbackText,
   });
 
   final PresentationModule? presentation;
-  final String fallbackTitle;
   final String? fallbackText;
-  static bool _shouldShowTitle(PresentationModule? p) {
-    if (p?.title != null) return true;
-    final first = p?.blocks.firstOrNull;
-    if (first is QuoteBlock) return false;
-    return true;
-  }
 
   @override
   Widget build(BuildContext context) {
     final children = <Widget>[];
-
-    final title = presentation?.title ?? fallbackTitle;
-    if (title.isNotEmpty && _shouldShowTitle(presentation)) {
-      children.add(_TitleBlock(title));
-    }
 
     if (presentation?.subjectRef != null) {
       children.add(_SubjectRef(presentation!.subjectRef!));
@@ -331,24 +317,11 @@ List<Widget> _withGap(List<Widget> items, double gap) {
   return out;
 }
 
+String _visibleMemoryText(String text) => text.replaceAll('用户', '').trim();
+
 // ============================================================================
 // Block renderers
 // ============================================================================
-
-class _TitleBlock extends StatelessWidget {
-  const _TitleBlock(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) => Text(
-        text,
-        style: TextStyle(
-          color: _Palette.inkMid,
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.4,
-        ),
-      );
-}
 
 class _SubjectRef extends StatelessWidget {
   const _SubjectRef(this.text);
@@ -357,7 +330,7 @@ class _SubjectRef extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 0),
         child: Text(
-          text,
+          _visibleMemoryText(text),
           style: TextStyle(
             color: _Palette.inkSoft,
             fontSize: 11,
@@ -373,9 +346,10 @@ class _TextBlockView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = _visibleMemoryText(block.text);
     if (block.emphases.isEmpty) {
       return Text(
-        block.text,
+        text,
         style: TextStyle(
           color: _Palette.ink.withValues(alpha: 0.96),
           fontSize: 14.5,
@@ -392,7 +366,10 @@ class _TextBlockView extends StatelessWidget {
           height: 1.78,
           letterSpacing: 0.15,
         ),
-        children: _splitWithEmphasis(block.text, block.emphases),
+        children: _splitWithEmphasis(
+          text,
+          block.emphases.map(_visibleMemoryText).toList(),
+        ),
       ),
     );
   }
@@ -453,7 +430,7 @@ class _QuoteBlockView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '"${block.text}"',
+            '"${_visibleMemoryText(block.text)}"',
             style: TextStyle(
               color: _Palette.ink,
               fontSize: 17,
@@ -464,7 +441,7 @@ class _QuoteBlockView extends StatelessWidget {
           if (block.context != null) ...[
             const SizedBox(height: 8),
             Text(
-              block.context!,
+              _visibleMemoryText(block.context!),
               style: TextStyle(
                 color: _Palette.inkSoft,
                 fontSize: 12,
@@ -517,7 +494,7 @@ class _NumberBlockView extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Text(
-                block.note!,
+                _visibleMemoryText(block.note!),
                 style: TextStyle(
                   color: _Palette.ink.withValues(alpha: 0.78),
                   fontSize: 13.5,
@@ -556,7 +533,7 @@ class _TableBlockView extends StatelessWidget {
                 SizedBox(
                   width: 60,
                   child: Text(
-                    row.label,
+                    _visibleMemoryText(row.label),
                     style: TextStyle(
                       color: _Palette.inkSoft,
                       fontSize: 12.5,
@@ -567,7 +544,7 @@ class _TableBlockView extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    row.value,
+                    _visibleMemoryText(row.value),
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       color: _Palette.inkMid,
@@ -602,7 +579,7 @@ class _SparklineView extends StatelessWidget {
         if (block.caption != null) ...[
           const SizedBox(height: 4),
           Text(
-            block.caption!,
+            _visibleMemoryText(block.caption!),
             style: TextStyle(
               color: _Palette.inkSoft,
               fontSize: 11,
@@ -765,8 +742,7 @@ class _LinkBlockView extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           color: Colors.white.withValues(alpha: 0.38),
-          border:
-              Border.all(color: _Palette.ink.withValues(alpha: 0.10)),
+          border: Border.all(color: _Palette.ink.withValues(alpha: 0.10)),
         ),
         child: Row(
           children: [
@@ -790,7 +766,7 @@ class _LinkBlockView extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                block.title ?? block.url,
+                _visibleMemoryText(block.title ?? block.url),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -851,7 +827,7 @@ class _ProgressBarBlockView extends StatelessWidget {
       children: [
         if (block.label != null) ...[
           Text(
-            block.label!,
+            _visibleMemoryText(block.label!),
             style: TextStyle(
               color: _Palette.inkMid,
               fontSize: 12,
@@ -866,8 +842,7 @@ class _ProgressBarBlockView extends StatelessWidget {
             height: 8,
             child: Stack(
               children: [
-                Container(
-                    color: _Palette.roseSoft.withValues(alpha: 0.45)),
+                Container(color: _Palette.roseSoft.withValues(alpha: 0.45)),
                 FractionallySizedBox(
                   widthFactor: block.fraction,
                   child: Container(color: _Palette.rose),

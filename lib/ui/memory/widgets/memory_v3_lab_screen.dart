@@ -165,7 +165,12 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('删除这张卡？'),
-        content: Text(card.title),
+        content: Text(
+          _memoryVisibleText(
+            card.presentationModule,
+            fallback: card.retrievalText,
+          ),
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -304,9 +309,9 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             ? null
             : {
                 'rawInput': source.rawInput,
-                'recordedAt': DateTime.fromMillisecondsSinceEpoch(
-                        source.recordedAt)
-                    .toIso8601String(),
+                'recordedAt':
+                    DateTime.fromMillisecondsSinceEpoch(source.recordedAt)
+                        .toIso8601String(),
                 'recordedPlace': source.recordedPlace,
                 'sourceRef': source.sourceRef,
                 'sourceKind': source.sourceKind,
@@ -494,6 +499,10 @@ class _CardListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mood = _moodColor(card.valence, card.arousal);
+    final preview = _memoryVisibleText(
+      card.presentationModule,
+      fallback: card.retrievalText,
+    );
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -515,7 +524,7 @@ class _CardListTile extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(card.title,
+                        child: Text(card.dropletLabel,
                             style: const TextStyle(fontWeight: FontWeight.w600),
                             overflow: TextOverflow.ellipsis),
                       ),
@@ -527,16 +536,17 @@ class _CardListTile extends StatelessWidget {
                           color: Colors.grey.shade200,
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Text(card.dropletLabel,
+                        child: Text(card.type,
                             style: const TextStyle(fontSize: 11)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(card.retrievalText,
+                  Text(preview,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.black54)),
                   const SizedBox(height: 4),
                   Text(
                     '${card.type} · v ${card.valence.toStringAsFixed(2)} '
@@ -564,4 +574,30 @@ class _CardListTile extends StatelessWidget {
     if (valence < -0.3) return Colors.blueGrey.shade400;
     return Colors.amber.shade200;
   }
+}
+
+String _memoryVisibleText(String presentationModule,
+    {required String fallback}) {
+  String clean(String text) => text.replaceAll('用户', '').trim();
+
+  try {
+    final decoded = jsonDecode(presentationModule);
+    if (decoded is Map) {
+      final blocks = decoded['blocks'];
+      if (blocks is List) {
+        for (final block in blocks) {
+          if (block is! Map) continue;
+          final value = block['text'] ??
+              block['caption'] ??
+              block['quote'] ??
+              block['title'];
+          if (value is String && value.trim().isNotEmpty) {
+            return clean(value);
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+  return clean(fallback);
 }

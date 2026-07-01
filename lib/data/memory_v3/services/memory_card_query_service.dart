@@ -21,6 +21,7 @@ class MemoryCardDetail {
     this.entityLinks = const [],
     this.relations = const [],
     this.operations = const [],
+    this.assets = const [],
   });
 
   final MemoryCardViewData card;
@@ -39,6 +40,9 @@ class MemoryCardDetail {
 
   /// Operation history rows.
   final List<OperationData> operations;
+
+  /// Media/file assets attached to this card.
+  final List<MemoryCardAssetData> assets;
 }
 
 /// Flat view of one [MemoryCardSources] row.
@@ -112,6 +116,23 @@ class OperationData {
   final String operationType;
   final Map<String, dynamic> payload;
   final String sourceKind;
+  final int createdAt;
+}
+
+/// One row from [memory_card_assets].
+class MemoryCardAssetData {
+  MemoryCardAssetData({
+    required this.id,
+    required this.cardId,
+    required this.assetId,
+    required this.role,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String cardId;
+  final String assetId;
+  final String role;
   final int createdAt;
 }
 
@@ -198,8 +219,8 @@ class MemoryCardQueryService {
 
     // 5. Related cards (outbound relations)
     final relRows = await (_db.select(_db.memoryCardRelations)
-          ..where((t) =>
-              t.fromCardId.equals(cardId) | t.toCardId.equals(cardId)))
+          ..where(
+              (t) => t.fromCardId.equals(cardId) | t.toCardId.equals(cardId)))
         .get();
 
     final relations = <MemoryCardViewData>[];
@@ -220,14 +241,32 @@ class MemoryCardQueryService {
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .get();
 
-    final operations = opRows.map((op) => OperationData(
-          id: op.id,
-          cardId: op.cardId,
-          operationType: op.operationType,
-          payload: _decodeJson(op.payload),
-          sourceKind: op.sourceKind,
-          createdAt: op.createdAt,
-        )).toList();
+    final operations = opRows
+        .map((op) => OperationData(
+              id: op.id,
+              cardId: op.cardId,
+              operationType: op.operationType,
+              payload: _decodeJson(op.payload),
+              sourceKind: op.sourceKind,
+              createdAt: op.createdAt,
+            ))
+        .toList();
+
+    // 7. Assets
+    final assetRows = await (_db.select(_db.memoryCardAssets)
+          ..where((t) => t.cardId.equals(cardId))
+          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+        .get();
+
+    final assets = assetRows
+        .map((asset) => MemoryCardAssetData(
+              id: asset.id,
+              cardId: asset.cardId,
+              assetId: asset.assetId,
+              role: asset.role,
+              createdAt: asset.createdAt,
+            ))
+        .toList();
 
     return MemoryCardDetail(
       card: card,
@@ -236,6 +275,7 @@ class MemoryCardQueryService {
       entityLinks: entityLinks,
       relations: relations,
       operations: operations,
+      assets: assets,
     );
   }
 

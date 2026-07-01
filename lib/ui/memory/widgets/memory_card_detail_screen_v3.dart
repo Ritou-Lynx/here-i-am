@@ -60,9 +60,19 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
   Future<void> _load() async {
     try {
       final detail = await _query.getCardDetail(widget.cardId);
-      if (mounted) setState(() { _detail = detail; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _detail = detail;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -137,7 +147,6 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
             // 2. Content blocks
             V3CardBlocks(
               presentation: presentation,
-              fallbackTitle: card.title,
               fallbackText: card.retrievalText,
             ),
             const SizedBox(height: 24),
@@ -149,14 +158,17 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
                 expanded: _sourceExpanded,
                 onToggle: () =>
                     setState(() => _sourceExpanded = !_sourceExpanded),
-                child: _SourceEvidence(source: detail.source!),
+                child: _SourceEvidence(
+                  source: detail.source!,
+                  assets: detail.assets,
+                ),
               ),
               const SizedBox(height: 16),
             ],
 
             // 4. Entity links
             if (detail.entityLinks.isNotEmpty) ...[
-              _SectionLabel('关联人物/事物'),
+              const _SectionLabel('关联人物/事物'),
               const SizedBox(height: 8),
               _EntityLinks(links: detail.entityLinks),
               const SizedBox(height: 16),
@@ -164,7 +176,7 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
 
             // 5. Related cards
             if (detail.relations.isNotEmpty) ...[
-              _SectionLabel('关联卡片'),
+              const _SectionLabel('关联卡片'),
               const SizedBox(height: 8),
               SizedBox(
                 height: 160,
@@ -199,7 +211,8 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
               expanded: _emotionExpanded,
               onToggle: () =>
                   setState(() => _emotionExpanded = !_emotionExpanded),
-              child: _EmotionCoords(valence: card.valence, arousal: card.arousal),
+              child:
+                  _EmotionCoords(valence: card.valence, arousal: card.arousal),
             ),
           ],
         ),
@@ -335,8 +348,13 @@ class _CollapsibleSection extends StatelessWidget {
 // ---- Source evidence ----
 
 class _SourceEvidence extends StatelessWidget {
-  const _SourceEvidence({required this.source});
+  const _SourceEvidence({
+    required this.source,
+    required this.assets,
+  });
+
   final MemoryCardSourceData source;
+  final List<MemoryCardAssetData> assets;
 
   String _fmtTime(int ms) {
     final dt = DateTime.fromMillisecondsSinceEpoch(ms);
@@ -361,6 +379,18 @@ class _SourceEvidence extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (assets.isNotEmpty) ...[
+            V3CardBlocks(
+              presentation: PresentationModule(
+                blocks: [
+                  for (final asset in assets)
+                    MediaBlock(assetPath: asset.assetId),
+                ],
+              ),
+              fallbackText: null,
+            ),
+            if (source.rawInput.isNotEmpty) const SizedBox(height: 12),
+          ],
           // rawInput
           if (source.rawInput.isNotEmpty) ...[
             Text(
