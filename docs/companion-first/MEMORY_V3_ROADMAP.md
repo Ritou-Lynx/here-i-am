@@ -226,9 +226,9 @@ class ConversationCaptureService {
 
 ```bash
 powershell -File scripts\verify_critical_fixes.ps1   # CLAUDE.md 强制
-flutter build apk --debug --flavor hereIAmDev
-adb shell am force-stop com.memexlab.hereiam.dev
-adb install -r build/app/outputs/flutter-apk/app-hereIAmDev-debug.apk
+flutter build apk --debug --flavor hereIAmV3
+adb shell am force-stop com.memexlab.hereiam.v3
+adb install -r -d -t build/app/outputs/flutter-apk/app-hereiamv3-debug.apk
 ```
 
 打开聊天，发条消息：
