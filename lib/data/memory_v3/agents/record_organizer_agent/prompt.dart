@@ -196,12 +196,18 @@ presentationModule — the Summary Card content. Use blocks that fit:
   - number:         {"kind":"number","value":128,"unit":"元","caption":"..."}
   - table:          {"kind":"table","headers":[...],"rows":[[...],...]}
   - linkAttachment: {"kind":"linkAttachment","url":"...","title":"..."}
-  - media:          {"kind":"media","assetPath":"<copy path from input media>"}
+  - media:          {"kind":"media","assetPath":"<copy assetId from input media>"}
   - progressBar:    {"kind":"progressBar","value":0.6,"label":"..."}
   **CRITICAL**: If the user input includes `media` (images/audio), you MUST
   include a media block for EVERY media file. Place media blocks FIRST
-  in the blocks array (before text). Copy the `path` field from the input
+  in the blocks array (before text). Copy the `assetId` field from the input
   media object into `assetPath`. Do NOT skip or replace media with text.
+  The `analysis` field in each media object is image-recognition context for
+  you to understand what the image shows. Use it as reference material, then
+  write your own concise summary in the text block — NEVER copy the analysis
+  text verbatim. Synthesize it with what the user wrote. If the user wrote
+  nothing or only a few words, the analysis IS your primary content source,
+  but you must still rewrite it in your own words.
   Do NOT include a "title" block — Summary Card does not display the card title.
 
 retrievalText — one natural-language paragraph for I to read after recall.

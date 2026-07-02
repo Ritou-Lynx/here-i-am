@@ -135,12 +135,10 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
 
 @visibleForTesting
 Route<void> companionLifeSpaceRoute({
-  required TimelineViewModel timelineViewModel,
+  TimelineViewModel? timelineViewModel,
 }) {
   return MaterialPageRoute<void>(
-    builder: (_) => CompanionLifeSpaceScreen(
-      timelineViewModel: timelineViewModel,
-    ),
+    builder: (_) => const CompanionLifeSpaceScreen(),
   );
 }
 

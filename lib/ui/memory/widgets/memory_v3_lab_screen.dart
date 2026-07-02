@@ -138,7 +138,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         .get();
     return rows
         .map((c) =>
-            '[${c.id.substring(0, 8)}] ${c.type} · ${c.title} · ${_truncate(c.retrievalText, 60)}')
+            '[${c.id.substring(0, 8)}] ${c.type} · ${c.dropletLabel} · ${_truncate(c.retrievalText, 60)}')
         .toList(growable: false);
   }
 
@@ -165,7 +165,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('删除这张卡？'),
-        content: Text(card.title),
+        content: Text(card.dropletLabel),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -376,6 +376,28 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     });
   }
 
+  Future<void> _onReindexFts() async {
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    try {
+      final count = await RecordOrganizerServiceV3.instance.reindexAllCards();
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _lastSuccess = 'FTS 索引重建完成：$count 张卡片';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _lastError = 'FTS 重建失败：$e';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -391,6 +413,11 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             icon: const Icon(Icons.refresh),
             onPressed: _loadRecent,
             tooltip: '刷新',
+          ),
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: _busy ? null : _onReindexFts,
+            tooltip: '重建 FTS 搜索索引',
           ),
         ],
       ),
@@ -515,7 +542,7 @@ class _CardListTile extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(card.title,
+                        child: Text(card.dropletLabel,
                             style: const TextStyle(fontWeight: FontWeight.w600),
                             overflow: TextOverflow.ellipsis),
                       ),

@@ -128,7 +128,7 @@ class MemorySummaryCardV3 extends StatelessWidget {
                   ),
                 V3CardBlocks(
                   presentation: presentation,
-                  fallbackTitle: '',
+                  dropletLabel: card.dropletLabel,
                   fallbackText: card.retrievalText,
                 ),
                 const SizedBox(height: 18),
@@ -265,27 +265,20 @@ class V3CardBlocks extends StatelessWidget {
   const V3CardBlocks({
     super.key,
     required this.presentation,
-    required this.fallbackTitle,
+    this.dropletLabel = '',
     required this.fallbackText,
   });
 
   final PresentationModule? presentation;
-  final String fallbackTitle;
+  final String dropletLabel;
   final String? fallbackText;
-  static bool _shouldShowTitle(PresentationModule? p) {
-    if (p?.title != null) return true;
-    final first = p?.blocks.firstOrNull;
-    if (first is QuoteBlock) return false;
-    return true;
-  }
 
   @override
   Widget build(BuildContext context) {
     final children = <Widget>[];
 
-    final title = presentation?.title ?? fallbackTitle;
-    if (title.isNotEmpty && _shouldShowTitle(presentation)) {
-      children.add(_TitleBlock(title));
+    if (dropletLabel.isNotEmpty) {
+      children.add(_TitleBlock(dropletLabel));
     }
 
     if (presentation?.subjectRef != null) {

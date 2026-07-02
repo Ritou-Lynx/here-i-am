@@ -33,7 +33,7 @@ class OrganizedCard {
   /// JSON-serializable PresentationModule (block list).
   final Map<String, dynamic> presentationModule;
 
-  final String retrievalText;
+  String retrievalText;
   final double valence; // -1.0 ~ 1.0
   final double arousal; // 0.0 ~ 1.0
   final String? status; // task/schedule/plan only

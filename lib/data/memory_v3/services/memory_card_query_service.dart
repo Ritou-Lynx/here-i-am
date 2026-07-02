@@ -21,6 +21,7 @@ class MemoryCardDetail {
     this.entityLinks = const [],
     this.relations = const [],
     this.operations = const [],
+    this.assets = const [],
   });
 
   final MemoryCardViewData card;
@@ -39,6 +40,9 @@ class MemoryCardDetail {
 
   /// Operation history rows.
   final List<OperationData> operations;
+
+  /// Assets linked via [memory_card_assets] + [assets] tables.
+  final List<CardAssetData> assets;
 }
 
 /// Flat view of one [MemoryCardSources] row.
@@ -113,6 +117,27 @@ class OperationData {
   final Map<String, dynamic> payload;
   final String sourceKind;
   final int createdAt;
+}
+
+/// One asset linked to a card via [memory_card_assets].
+class CardAssetData {
+  CardAssetData({
+    required this.assetId,
+    required this.role,
+    this.storagePath,
+    this.url,
+    this.mimeType,
+    this.assetType,
+  });
+
+  final String assetId;
+  final String role; // source / evidence / display
+  final String? storagePath;
+  final String? url;
+  final String? mimeType;
+  final String? assetType;
+
+  bool get isImage => assetType == 'image' || (mimeType?.startsWith('image/') ?? false);
 }
 
 class MemoryCardQueryService {
@@ -229,6 +254,34 @@ class MemoryCardQueryService {
           createdAt: op.createdAt,
         )).toList();
 
+    // 7. Assets (JOIN memory_card_assets → assets).
+    //    assetId is normally a UUID, but legacy data may have a file path.
+    final assetLinkRows = await (_db.select(_db.memoryCardAssets)
+          ..where((t) => t.cardId.equals(cardId)))
+        .get();
+
+    final assets = <CardAssetData>[];
+    for (final link in assetLinkRows) {
+      // Try UUID match first.
+      var assetRow = await (_db.select(_db.assets)
+            ..where((t) => t.id.equals(link.assetId)))
+          .getSingleOrNull();
+      // Fallback: legacy data where assetId is a storagePath.
+      assetRow ??= await (_db.select(_db.assets)
+            ..where((t) => t.storagePath.equals(link.assetId)))
+          .getSingleOrNull();
+      if (assetRow != null) {
+        assets.add(CardAssetData(
+          assetId: assetRow.id,
+          role: link.role,
+          storagePath: assetRow.storagePath,
+          url: assetRow.url,
+          mimeType: assetRow.mimeType,
+          assetType: assetRow.assetType,
+        ));
+      }
+    }
+
     return MemoryCardDetail(
       card: card,
       source: source,
@@ -236,7 +289,31 @@ class MemoryCardQueryService {
       entityLinks: entityLinks,
       relations: relations,
       operations: operations,
+      assets: assets,
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Card listing
+  // ---------------------------------------------------------------------------
+
+  /// Fetch cards by their IDs. Missing IDs are silently skipped.
+  Future<List<MemoryCardViewData>> getCardsByIds(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    final rows = await (_db.select(_db.memoryCards)
+          ..where((t) => t.id.isIn(ids)))
+        .get();
+    return rows.map(_toViewData).toList();
+  }
+
+  /// List recent cards ordered by [updatedAt] descending.
+  Future<List<MemoryCardViewData>> listRecentCards({int limit = 100}) async {
+    final rows = await (_db.select(_db.memoryCards)
+          ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+          ..limit(limit))
+        .get();
+
+    return rows.map(_toViewData).toList();
   }
 
   // ---------------------------------------------------------------------------
@@ -252,6 +329,38 @@ class MemoryCardQueryService {
         .get();
 
     return rows.map(_toViewData).toList();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Search (FTS5)
+  // ---------------------------------------------------------------------------
+
+  /// Search memory cards via FTS5 on retrievalText + dropletLabel + title.
+  /// Returns card IDs with relevance rank and text snippets.
+  Future<List<Map<String, dynamic>>> searchCards(
+    String query, {
+    int limit = 20,
+  }) async {
+    return _db.searchDao.searchMemoryV3Cards(query, limit: limit);
+  }
+
+  /// Search and resolve to full [MemoryCardViewData] objects.
+  Future<List<MemoryCardViewData>> searchCardsResolved(
+    String query, {
+    int limit = 20,
+  }) async {
+    final hits = await searchCards(query, limit: limit);
+    final cards = <MemoryCardViewData>[];
+    for (final hit in hits) {
+      final cardId = hit['card_id'] as String;
+      final row = await (_db.select(_db.memoryCards)
+            ..where((t) => t.id.equals(cardId)))
+          .getSingleOrNull();
+      if (row != null) {
+        cards.add(_toViewData(row));
+      }
+    }
+    return cards;
   }
 
   // ---------------------------------------------------------------------------

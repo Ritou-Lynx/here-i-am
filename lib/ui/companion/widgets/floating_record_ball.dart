@@ -138,23 +138,64 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
   Future<void> _save() async {
     final text = _controller.text.trim();
     if ((text.isEmpty && _images.isEmpty) || _saving) return;
-    setState(() => _saving = true);
+
+    // Capture everything we need BEFORE dismissing the sheet.
+    final capturedImages = List<XFile>.from(_images);
+    final capturedText = text;
+    final navCtx = widget.navigatorKey.currentContext;
+
+    // Dismiss sheet immediately — processing happens in background.
+    _controller.clear();
+    setState(() {
+      _images.clear();
+      _saving = true;
+    });
+    if (mounted) Navigator.pop(context);
+
+    // Show progress snackbar on the parent navigator.
+    ScaffoldMessengerState? messenger;
+    if (navCtx != null && navCtx.mounted) {
+      messenger = ScaffoldMessenger.of(navCtx);
+      messenger.showSnackBar(const SnackBar(
+        content: const Row(
+          children: [
+            SizedBox(
+              width: 14, height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 12),
+            Text('正在记录…'),
+          ],
+        ),
+        duration: const Duration(seconds: 30),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+
     try {
       final userId = await UserStorage.getUserId();
-      if (userId == null || !mounted) return;
+      if (userId == null) {
+        messenger?.clearSnackBars();
+        messenger?.showSnackBar(const SnackBar(
+          content: Text('记录失败：未登录'),
+          duration: Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ));
+        return;
+      }
 
       // ── Pre-process selected images ──────────────────────────
       final media = <MediaInputAttachment>[];
-      if (_images.isNotEmpty) {
+      if (capturedImages.isNotEmpty) {
         final fsService = FileSystemService.instance;
-        for (var i = 0; i < _images.length; i++) {
-          final xFile = _images[i];
+        for (var i = 0; i < capturedImages.length; i++) {
+          final xFile = capturedImages[i];
           try {
-            // Save to Facts/assets/
             final ext = xFile.path.split('.').lastOrNull ?? 'jpg';
-            final (filename, relativePath) = await fsService.saveAssetFromFile(
+            final bytes = await xFile.readAsBytes();
+            final (filename, relativePath) = await fsService.saveAssetFromBytes(
               userId: userId,
-              sourcePath: xFile.path,
+              bytes: bytes,
               assetType: 'img',
               index: i + 1,
               format: ext,
@@ -214,35 +255,25 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
       final result = await RecordOrganizerServiceV3.instance.organizeAndPersist(
         client: resources.client,
         modelConfig: resources.modelConfig,
-        source: RecordSource(sourceKind: 'fab', rawInput: text),
+        source: RecordSource(sourceKind: 'fab', rawInput: capturedText),
         inputMedia: inputMedia,
       );
-      if (!mounted) return;
-      _controller.clear();
-      setState(() {
-        _images.clear();
-        _saving = false;
-      });
-      final navCtx = widget.navigatorKey.currentContext;
-      Navigator.pop(context);
-      if (navCtx != null && navCtx.mounted) {
-        ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(
-          content: Text(result.isEmpty
-              ? '未能提取有效记录'
-              : '已记录 ${result.cardIds.length} 张卡片'),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(SnackBar(
+        content: Text(result.isEmpty
+            ? '未能提取有效记录'
+            : '已记录 ${result.cardIds.length} 张卡片'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ));
     } catch (e) {
-      if (mounted) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('记录失败：$e'),
-          duration: const Duration(seconds: 4),
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(SnackBar(
+        content: Text('记录失败：$e'),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+      ));
     }
   }
 

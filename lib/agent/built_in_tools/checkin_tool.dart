@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:drift/drift.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/reminder_service.dart';
+import 'package:memex/db/app_database.dart';
 
 Future<String> _createReminderWithAlarm({
   required String text,
@@ -113,6 +115,33 @@ Even a simple "thinking of you" style message is better than staying silent.''',
           }
           // Character name always overrides whatever title the agent generated.
           final effectiveTitle = characterName ?? title ?? 'Memex';
+
+          // Dedup: skip if an identical message was already sent by this
+          // character in the last 10 minutes. This prevents the same checkin
+          // trigger from producing duplicate notifications when a stuck
+          // processing row is recovered and re-processed.
+          if (characterId != null && AppDatabase.isInitialized) {
+            final cutoff = DateTime.now()
+                .subtract(const Duration(minutes: 10));
+            final dupe = await (AppDatabase.instance
+                    .select(AppDatabase.instance.personaChatMessages)
+                  ..where((t) =>
+                      t.characterId.equals(characterId) &
+                      t.isFromCharacter.equals(true) &
+                      t.content.equals(body) &
+                      t.timestamp.isBiggerThanValue(cutoff))
+                  ..limit(1))
+                .getSingleOrNull();
+            if (dupe != null) {
+              // ignore: avoid_print
+              print('[system_checkin] DEDUP — identical message already sent '
+                  'within 10min, skipping notify');
+              // Still mark processing as done so the trigger doesn't loop.
+              await CheckinService.instance.markProcessingDone();
+              return 'Notification skipped: identical message already sent recently.';
+            }
+          }
+
           // ignore: avoid_print
           print(
               '[system_checkin] NOTIFY → title="$effectiveTitle" body="$body"');

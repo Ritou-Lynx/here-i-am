@@ -82,6 +82,19 @@ class RecordOrganizerServiceV3 {
 
   static void init(AppDatabase db) {
     _instance = RecordOrganizerServiceV3(db);
+    // Schedule a one-time FTS backfill if needed. Non-blocking; runs in the
+    // next microtask so it does not delay app startup.
+    Future.microtask(() async {
+      try {
+        // Always backfill on init — upsertMemoryV3Fts is idempotent and
+        // cheap for typical card counts.
+        final count = await _instance!.reindexAllCards();
+        getLogger('RecordOrganizerServiceV3')
+            .info('FTS backfill: $count card(s) indexed');
+      } catch (_) {
+        // Backfill is best-effort; never fail init for it.
+      }
+    });
   }
 
   static void reset() => _instance = null;
@@ -94,6 +107,7 @@ class RecordOrganizerServiceV3 {
   Future<RecordPersistResult> persist({
     required OrganizedRecord organized,
     required RecordSource source,
+    List<Map<String, String>>? inputMedia,
   }) async {
     if (organized.isEmpty) {
       _logger.info('persist called with empty record; skipping');
@@ -107,6 +121,60 @@ class RecordOrganizerServiceV3 {
 
     return _db.transaction(() async {
       final now = DateTime.now().millisecondsSinceEpoch;
+
+      // ── Pre-pass: resolve media assetPaths BEFORE persisting cards ──
+      // LLM outputs UUIDs; we must replace them with actual storagePaths
+      // so the summary card can render the files.
+      if (inputMedia != null && inputMedia.isNotEmpty) {
+        for (var i = 0; i < organized.cards.length; i++) {
+          final card = organized.cards[i];
+          final blocks = (card.presentationModule['blocks'] as List<dynamic>?) ?? [];
+          final linkedIds = <String>{};
+          for (final block in blocks) {
+            if (block is Map && (block['kind'] ?? block['type']) == 'media') {
+              final ref = block['assetPath'] as String?;
+              if (ref != null) {
+                final assetRow = await (_db.select(_db.assets)
+                      ..where((t) => t.id.equals(ref)))
+                    .getSingleOrNull();
+                block['assetPath'] = assetRow?.storagePath ?? ref;
+                linkedIds.add(ref);
+              }
+            }
+          }
+          // Inject media blocks for any input media the LLM missed.
+          for (final m in inputMedia) {
+            final assetId = m['assetId'];
+            final path = m['path'];
+            if (assetId != null && path != null && !linkedIds.contains(assetId)) {
+              final mediaBlock = <String, dynamic>{
+                'kind': 'media',
+                'assetPath': path,
+              };
+              blocks.insert(0, mediaBlock);
+              linkedIds.add(assetId);
+              _logger.info('Injected missing media block for asset $assetId');
+            }
+          }
+          card.presentationModule['blocks'] = blocks;
+
+          // Inject image analysis text into retrievalText so FTS can match
+          // against what the image contains, not just the user's raw text.
+          final analyses = <String>[];
+          for (final m in inputMedia) {
+            final analysis = m['analysis'];
+            if (analysis != null && analysis.isNotEmpty) {
+              analyses.add(analysis);
+            }
+          }
+          if (analyses.isNotEmpty) {
+            final existing = card.retrievalText.trim();
+            card.retrievalText =
+                '$existing\n[图片内容：${analyses.join("；")}]';
+          }
+        }
+      }
+
       final cardIds = <String>[];
       final entityIds = <String>[];
 
@@ -196,28 +264,31 @@ class RecordOrganizerServiceV3 {
                 createdAt: now,
               ),
             );
+
+        // FTS index for retrieval
+        try {
+          await _db.searchDao.upsertMemoryV3Fts(
+            cardId: cardId,
+            dropletLabel: card.dropletLabel,
+            title: card.title,
+            retrievalText: card.retrievalText,
+          );
+        } catch (e, s) {
+          _logger.warning('Failed to index card $cardId in FTS', e, s);
+        }
       }
 
-      // Link media blocks → assets
+      // Create memoryCardAssets links for all input media (the pre-pass
+      // already resolved UUID→path and injected missing blocks).
       final assetIds = <String>[];
-      for (var i = 0; i < organized.cards.length; i++) {
-        final card = organized.cards[i];
-        final blocks = (card.presentationModule['blocks'] as List<dynamic>?) ?? [];
-        for (final block in blocks) {
-          final blockKind = (block is Map) ? (block['kind'] ?? block['type']) : null;
-          if (blockKind == 'media') {
-            final ref = block['assetPath'] as String?;
-            if (ref != null) {
-              assetIds.add(ref);
-              await _db.into(_db.memoryCardAssets).insert(
-                    MemoryCardAssetsCompanion.insert(
-                      id: _uuid.v4(),
-                      cardId: cardIds[i],
-                      assetId: ref,
-                      role: 'display',
-                      createdAt: now,
-                    ),
-                  );
+      if (inputMedia != null) {
+        for (var i = 0; i < organized.cards.length; i++) {
+          for (final m in inputMedia) {
+            final assetId = m['assetId'];
+            if (assetId != null) {
+              await _ensureAssetLink(
+                cardId: cardIds[i], assetId: assetId, now: now);
+              assetIds.add(assetId);
             }
           }
         }
@@ -233,6 +304,28 @@ class RecordOrganizerServiceV3 {
         isEmpty: false,
       );
     });
+  }
+
+  /// Idempotent insert into [memoryCardAssets]. No-op if link already exists.
+  Future<void> _ensureAssetLink({
+    required String cardId,
+    required String assetId,
+    required int now,
+  }) async {
+    final existing = await (_db.select(_db.memoryCardAssets)
+          ..where((t) =>
+              t.cardId.equals(cardId) & t.assetId.equals(assetId)))
+        .getSingleOrNull();
+    if (existing != null) return;
+    await _db.into(_db.memoryCardAssets).insert(
+          MemoryCardAssetsCompanion.insert(
+            id: _uuid.v4(),
+            cardId: cardId,
+            assetId: assetId,
+            role: 'display',
+            createdAt: now,
+          ),
+        );
   }
 
   /// Resolve an entity by name (case-insensitive). Creates a new entity in
@@ -325,6 +418,7 @@ class RecordOrganizerServiceV3 {
     if (inputMedia != null && inputMedia.isNotEmpty) {
       enrichedMedia = [];
       for (final m in inputMedia) {
+        _logger.info('_registerMediaAssets: processing ${m['kind']} path=${m['path']}');
         final assetId = _uuid.v4();
         final nowMs = DateTime.now().millisecondsSinceEpoch;
         await _db.into(_db.assets).insert(
@@ -336,11 +430,14 @@ class RecordOrganizerServiceV3 {
                 createdAt: nowMs,
               ),
             );
+        _logger.info('_registerMediaAssets: inserted asset $assetId storagePath=${m['path']}');
         enrichedMedia.add({
           ...m,
           'assetId': assetId,
         });
       }
+    } else {
+      _logger.info('_registerMediaAssets: inputMedia is null or empty');
     }
 
     final organized = await agent.organize(
@@ -358,7 +455,7 @@ class RecordOrganizerServiceV3 {
       _logger.info('card[$i] type=${organized.cards[i].type} '
           'blocks=${jsonEncode(organized.cards[i].presentationModule['blocks'])}');
     }
-    return persist(organized: organized, source: source);
+    return persist(organized: organized, source: source, inputMedia: enrichedMedia);
   }
 
   /// Soft-delete a memory card. Per V3 § 8 contract, this writes a `delete`
@@ -407,6 +504,37 @@ class RecordOrganizerServiceV3 {
       // Card itself
       await (_db.delete(_db.memoryCards)..where((t) => t.id.equals(cardId)))
           .go();
+      // FTS index
+      try {
+        await _db.searchDao.deleteMemoryV3Fts(cardId);
+      } catch (e, s) {
+        _logger.warning('Failed to remove FTS index for $cardId', e, s);
+      }
     });
+  }
+
+  /// Rebuild FTS indexes for all existing memory cards.
+  ///
+  /// Call once after the FTS5 virtual table is first created (migration has no
+  /// mechanism to backfill virtual tables), or anytime the index is suspected
+  /// to be out of sync.
+  Future<int> reindexAllCards() async {
+    final rows = await _db.select(_db.memoryCards).get();
+    var count = 0;
+    for (final row in rows) {
+      try {
+        await _db.searchDao.upsertMemoryV3Fts(
+          cardId: row.id,
+          dropletLabel: row.dropletLabel,
+          title: row.title,
+          retrievalText: row.retrievalText,
+        );
+        count++;
+      } catch (e, s) {
+        _logger.warning('reindexAllCards: failed for ${row.id}', e, s);
+      }
+    }
+    _logger.info('reindexAllCards: indexed $count/${rows.length} cards');
+    return count;
   }
 }

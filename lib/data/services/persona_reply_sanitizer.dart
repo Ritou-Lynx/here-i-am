@@ -15,6 +15,11 @@ class PersonaReplySanitizer {
     r'<(?:think|thinking)\b[^>]*>[\s\S]*?<\/(?:think|thinking)>',
     caseSensitive: false,
   );
+  // Unclosed / cut-off think tags (token limit, streaming truncation).
+  static final RegExp _unclosedThink = RegExp(
+    r'<(?:think|thinking)\b[^>]*>[\s\S]*$',
+    caseSensitive: false,
+  );
   static final RegExp _leadingReasoningLine = RegExp(
     r'^\s*(?:'
     r'(?:the\s+user|user)\s+(?:said|says|asked|asks|wants|is\s+asking|is\s+saying)'
@@ -64,7 +69,11 @@ class PersonaReplySanitizer {
   }
 
   static String stripLeakedReasoning(String text) {
-    var result = text.replaceAll(_thinkingBlock, '').trim();
+    // Strip fully-closed think blocks first, then any unclosed open tag.
+    var result = text
+        .replaceAll(_thinkingBlock, '')
+        .replaceAll(_unclosedThink, '')
+        .trim();
     if (result.isEmpty) return result;
 
     final lines = result.split(RegExp(r'\r?\n'));

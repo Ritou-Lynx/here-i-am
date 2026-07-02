@@ -186,13 +186,6 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   // character is still generating a response. It auto-sends when streaming ends.
   final List<_PendingPersonaChatMessage> _pendingMessages = [];
 
-  // Continuous-reply batch mode state.
-  bool _continuousMode = false;
-  int _continuousRemaining = 0;
-  int _continuousTotal = 0;
-  Timer? _continuousDelayTimer;
-  int _continuousBatchSerial = 0;
-
   bool _isMediaTrayOpen = false;
 
   // Image attachment state, moved up from CompanionMediaTray.
@@ -288,7 +281,6 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _isAppInBackground =
         state == AppLifecycleState.paused || state == AppLifecycleState.hidden;
     if (_isAppInBackground) {
-      if (_continuousMode) _cancelContinuousMode();
       unawaited(
         ActivePersonaChatService.instance.clear(
           characterId: _currentCharacterId,
@@ -1113,7 +1105,6 @@ only after you have written the goodbye you want the user to hear.''',
     _voiceController.dispose();
     _toyControlService?.dispose();
     _imageByteCache.clear();
-    _cancelContinuousDelayTimer();
     super.dispose();
   }
 
@@ -1322,11 +1313,6 @@ only after you have written the goodbye you want the user to hear.''',
     final queuedImages = queuedMessage?.images;
     final hasImages = queuedImages?.isNotEmpty ?? _selectedImages.isNotEmpty;
     if (!hasText && !hasImages) return;
-
-    // If user sends a real message during continuous mode, cancel it.
-    if (_continuousMode && !isSynthetic && !isQueuedMessage) {
-      _cancelContinuousMode();
-    }
 
     final sendCharacterId =
         queuedMessage?.characterId ?? forcedCharacterId ?? _currentCharacterId;
@@ -1574,19 +1560,21 @@ only after you have written the goodbye you want the user to hear.''',
           _finishCanceledSend(sendSerial);
           return;
         }
+        // Strip leaked reasoning tags before persisting.
+        final cleanResponse =
+            PersonaReplySanitizer.stripLeakedReasoning(fullResponse);
         await _chatService.addCharacterMessage(
           sendCharacterId,
-          fullResponse,
+          cleanResponse,
           isRead: !_isAppInBackground,
           timestamp: DateTime.now(),
         );
         responsePersisted = true;
 
         if (_isAppInBackground && sendCharacter != null) {
-          final visible = PersonaReplySanitizer.stripLeakedReasoning(fullResponse);
-          final preview = visible.length > 100
-              ? '${visible.substring(0, 100)}...'
-              : visible;
+          final preview = cleanResponse.length > 100
+              ? '${cleanResponse.substring(0, 100)}...'
+              : cleanResponse;
           await NotificationService.instance.showAgentNotification(
             title: sendCharacter.name,
             body: preview,
@@ -1639,7 +1627,7 @@ only after you have written the goodbye you want the user to hear.''',
             scrollToBottom: false,
           ));
         }
-        _afterReplyComplete();
+        _sendPendingMessage();
       }
     } catch (e) {
       if (_isSendCanceled(sendSerial, userMessageId)) {
@@ -1703,65 +1691,9 @@ only after you have written the goodbye you want the user to hear.''',
             scrollToBottom: false,
           ));
         }
-        // Cancel continuous mode on error — don't retry.
-        if (_continuousMode) {
-          _cancelContinuousMode();
-        }
-        _afterReplyComplete();
+        _sendPendingMessage();
       }
     }
-  }
-
-  /// Called after every reply (success or error) to drain the pending-message
-  /// queue or drive the continuous-reply batch loop.
-  void _afterReplyComplete() {
-    // If the user queued a real message, process it first and cancel continuous.
-    if (_pendingMessages.isNotEmpty) {
-      if (_continuousMode) _cancelContinuousMode();
-      _sendPendingMessage();
-      return;
-    }
-    // Check if the agent requested continuous-reply mode.
-    // (ContinuousModeState not available in this branch; skip continuous check.)
-    if (_continuousMode && _continuousRemaining > 0) {
-      _scheduleContinuousReply();
-      return;
-    }
-    _sendPendingMessage();
-  }
-
-  void _scheduleContinuousReply() {
-    _cancelContinuousDelayTimer();
-    final serial = _continuousBatchSerial;
-    _continuousDelayTimer = Timer(const Duration(seconds: 2), () {
-      if (!mounted || !_continuousMode || serial != _continuousBatchSerial) {
-        return;
-      }
-      _continuousRemaining--;
-      if (mounted) setState(() {});
-      if (_continuousRemaining > 0) {
-        _sendMessage(syntheticInput: '[继续叙述]');
-      } else {
-        _continuousMode = false;
-        _continuousTotal = 0;
-        if (mounted) setState(() {});
-      }
-    });
-  }
-
-  void _cancelContinuousMode() {
-    _continuousMode = false;
-    _continuousRemaining = 0;
-    _continuousTotal = 0;
-    _continuousBatchSerial++;
-    _cancelContinuousDelayTimer();
-    // ContinuousModeState.cancel() not available in this branch
-    if (mounted) setState(() {});
-  }
-
-  void _cancelContinuousDelayTimer() {
-    _continuousDelayTimer?.cancel();
-    _continuousDelayTimer = null;
   }
 
   void _clearComposerText({String? staleText}) {
@@ -3004,8 +2936,7 @@ only after you have written the goodbye you want the user to hear.''',
     final showStreamingBubble =
         _isStreamingCurrentCharacter && _streamingText.isNotEmpty;
     final showTypingIndicator =
-        (_isStreamingCurrentCharacter && _streamingText.isEmpty) ||
-        (_continuousMode && _continuousRemaining > 0);
+        _isStreamingCurrentCharacter && _streamingText.isEmpty;
     final extraItems = (showStreamingBubble || showTypingIndicator) ? 1 : 0;
     // Extra item at the tail (top of reversed list) for load-more indicator
     final loadMoreItem = (_hasMoreHistory || _isLoadingMore) ? 1 : 0;
@@ -3726,10 +3657,6 @@ only after you have written the goodbye you want the user to hear.''',
       selectedImages: _selectedImages,
       onRemoveImage: _removeImage,
       isCompressing: _isCompressingImages,
-      continuousMode: _continuousMode,
-      continuousRemaining: _continuousRemaining,
-      continuousTotal: _continuousTotal,
-      onStopContinuous: _cancelContinuousMode,
     );
   }
 
@@ -4834,10 +4761,6 @@ class PersonaChatInputBar extends StatelessWidget {
     this.selectedImages = const [],
     this.onRemoveImage,
     this.isCompressing = false,
-    this.continuousMode = false,
-    this.continuousRemaining = 0,
-    this.continuousTotal = 0,
-    this.onStopContinuous,
   });
 
   final TextEditingController controller;
@@ -4859,12 +4782,6 @@ class PersonaChatInputBar extends StatelessWidget {
   final List<XFile> selectedImages;
   final void Function(int index)? onRemoveImage;
   final bool isCompressing;
-
-  /// Continuous-reply batch mode.
-  final bool continuousMode;
-  final int continuousRemaining;
-  final int continuousTotal;
-  final VoidCallback? onStopContinuous;
 
   bool _canSend(String value, bool hasImages) =>
       value.trim().isNotEmpty || hasImages;
@@ -5029,25 +4946,19 @@ class PersonaChatInputBar extends StatelessWidget {
                       duration: const Duration(milliseconds: 160),
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeInCubic,
-                      child: continuousMode
-                          ? _ContinuousStopButton(
-                              key: const ValueKey('continuous-stop'),
-                              remaining: continuousRemaining,
-                              total: continuousTotal,
-                              onStop: onStopContinuous!,
+                      child: canSend
+                          ? _SendAndMaybeEndVoiceMode(
+                              key: ValueKey(
+                                isVoiceModeActive
+                                    ? 'send-with-voice-end'
+                                    : 'send',
+                              ),
+                              onSend: onSend,
+                              onVoiceModeTap: onVoiceModeTap,
+                              showVoiceModeEnd: isVoiceModeActive,
                             )
-                          : canSend
-                              ? _SendAndMaybeEndVoiceMode(
-                                  key: ValueKey(
-                                    isVoiceModeActive
-                                        ? 'send-with-voice-end'
-                                        : 'send',
-                                  ),
-                                  onSend: onSend,
-                                  onVoiceModeTap: onVoiceModeTap,
-                                  showVoiceModeEnd: isVoiceModeActive,
-                                )
-                              : _ChatVoiceActions(
+                          : voiceController != null
+                              ? _ChatVoiceActions(
                                   key: const ValueKey('voice-actions'),
                                   voiceController: voiceController,
                                   onVoiceTap: onVoiceTap,
@@ -5056,7 +4967,8 @@ class PersonaChatInputBar extends StatelessWidget {
                                   voiceInputEnabled: isVoiceInputEnabled,
                                   voiceModeEnabled:
                                       isVoiceModeActive || !isStreaming,
-                                ),
+                                )
+                              : const SizedBox(key: ValueKey('no-send')),
                     ),
                   ],
                 ),
@@ -5065,62 +4977,6 @@ class PersonaChatInputBar extends StatelessWidget {
           },
         ),
       ),
-    );
-  }
-}
-
-class _ContinuousStopButton extends StatelessWidget {
-  const _ContinuousStopButton({
-    super.key,
-    required this.remaining,
-    required this.total,
-    required this.onStop,
-  });
-
-  final int remaining;
-  final int total;
-  final VoidCallback onStop;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = HereIamThemeRuntime.current;
-    final label = remaining > 0 ? '$remaining/$total' : '$total';
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: tokens.textSecondary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: tokens.textSecondary,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        // Stop button
-        Material(
-          color: Colors.redAccent.withValues(alpha: 0.88),
-          borderRadius: BorderRadius.circular(24),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: onStop,
-            child: const Padding(
-              padding: EdgeInsets.all(10),
-              child: Icon(Icons.stop_rounded, size: 22, color: Colors.white),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

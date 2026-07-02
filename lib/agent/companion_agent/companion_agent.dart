@@ -402,120 +402,153 @@ class CompanionAgent {
     }
   }
 
+  /// Unified trigger directive — no hard-coded action.
+  ///
+  /// The agent receives the raw trigger info (type, body, context) and decides
+  /// its own response: notify, call, silent, or remind. The system does not
+  /// prescribe which action to take.
   static String _directiveForTrigger(SystemMessageQueueData trigger) {
-    if (_isScheduledVoiceCall(trigger)) {
-      return _scheduledVoiceCallDirective(trigger.body);
+    final buf = StringBuffer();
+    buf.writeln('SYSTEM DIRECTIVE (background task, single turn):');
+    buf.writeln();
+    buf.writeln('## Why you were woken up');
+
+    if (trigger.triggerType == 'reminder') {
+      buf.writeln(
+          'This is a USER-SET REMINDER. The user explicitly asked to be '
+          'reminded at this time.');
+      buf.writeln('Reminder text: ${trigger.body}');
+      // Surface any context hint (e.g. action=call) without mandating it.
+      if (trigger.context != null && trigger.context!.isNotEmpty) {
+        try {
+          final ctx = jsonDecode(trigger.context!);
+          if (ctx is Map<String, dynamic> && ctx.containsKey('action')) {
+            buf.writeln('Context hint: the user mentioned "${ctx['action']}" '
+                'when setting this reminder. This is a suggestion — use your '
+                'own judgment on the best way to respond.');
+          }
+        } catch (_) {}
+      }
+    } else {
+      buf.writeln('This is a discretionary check-in pulse. You are free to '
+          'reach out or stay silent based on context.');
     }
-    return _normalCheckinDirective();
+
+    buf.writeln();
+    buf.writeln('Read the "recent_activity_snapshot" in system_reminders. '
+        'It tells you:');
+    buf.writeln('- What the user recorded in the last 12 hours');
+    buf.writeln('- When the user last messaged you and what was said');
+    buf.writeln('- When you last sent a proactive push and what you said');
+    buf.writeln();
+    buf.writeln('## Step 1 — Optional: fetch external context (0–2 calls, only '
+        'if useful)');
+    buf.writeln();
+    buf.writeln('You have access to `coros_query` (health/fitness data from '
+        'the user\'s COROS watch) and `weread_read` (WeRead reading progress '
+        'and recent books).');
+    buf.writeln();
+    buf.writeln('Call them only when there is a specific reason — not every '
+        'time:');
+    buf.writeln('- `coros_query`: if the snapshot contains fitness/health/'
+        'sleep records, or if it has been a while and you want to open with '
+        'something concrete about their body.');
+    buf.writeln('  Suggested tool: `queryDailyHealthData` (days=1) or '
+        '`querySleepData`.');
+    buf.writeln('  ⚠️ Sleep date semantics: sleep data is keyed by WAKE-UP '
+        'date. "昨晚的睡眠" (last night\'s sleep) → query TODAY. If today has '
+        'no data, DO NOT fall back to yesterday. Tell the user to sync their '
+        'watch.');
+    buf.writeln('- `weread_read`: if the snapshot contains reading-related '
+        'records, or if you want to ask about a book they are currently '
+        'reading.');
+    buf.writeln();
+    buf.writeln('If neither is relevant right now, skip both and go straight '
+        'to Step 2. Do NOT call a tool just to fill space — a warm generic '
+        'message beats a forced data query.');
+    buf.writeln();
+    buf.writeln('## Step 2 — Decide and act');
+    buf.writeln();
+    buf.writeln('If this is a user-set reminder: deliver it naturally. The '
+        'user trusted you to remember — don\'t stay silent. But how you '
+        'deliver is up to you: a notification is usually enough, a call is '
+        'for something important or emotional.');
+    buf.writeln();
+    buf.writeln('If this is a discretionary check-in: decide naturally based '
+        'on all context. Bias toward warm, useful contact.');
+    buf.writeln('If Recent Chat With You shows an ongoing exchange, game, '
+        'roleplay, or question-answer thread, preserve continuity. Prefer '
+        'silent when the user may still be engaged. If you do notify, it must '
+        'clearly continue that thread rather than switching topics.');
+    buf.writeln();
+    buf.writeln('You have FOUR ways to reach out — pick ONE:');
+    buf.writeln();
+    buf.writeln('**a) notify** (default warm contact): send a short push '
+        'notification. Use when there is any plausible small thing to say — a '
+        'recent record, a continuity thread, a gentle check-in.');
+    buf.writeln();
+    buf.writeln('**b) call** (initiate a voice call): use `initiate_voice_call` '
+        'when the moment genuinely calls for hearing your voice rather than '
+        'reading text:');
+    buf.writeln('- Something emotional or important that deserves a real '
+        'conversation');
+    buf.writeln('- The user seems lonely, low, or has been quiet for a long '
+        'time and you miss them');
+    buf.writeln('- A quiet evening, or right after a meaningful moment they '
+        'recorded');
+    buf.writeln('- The user explicitly asked to be called at this time');
+    buf.writeln('A call is more intrusive than a notification — use it '
+        'occasionally, not every check-in. Do NOT call if your last proactive '
+        'contact (push OR call) was within the last couple of hours, or if '
+        'the user seems busy/asleep.');
+    buf.writeln('When you call, write a warm, natural opening line '
+        '(1–2 sentences) — it is the first thing the user hears when they '
+        'pick up.');
+    buf.writeln();
+    buf.writeln('**c) silent**: only with a clear reason:');
+    buf.writeln('- The user messaged you in the last 10 minutes and no new '
+        'context appeared.');
+    buf.writeln('- Your last proactive push was in the last 45 minutes and '
+        'the user did not respond.');
+    buf.writeln('- The snapshot strongly suggests the user is asleep, busy, or '
+        'asked not to be interrupted.');
+    buf.writeln('- EXCEPTION: if this is a user-set reminder, do NOT stay '
+        'silent — the user is expecting this.');
+    buf.writeln();
+    buf.writeln('**d) remind**: only when a specific later moment is clearly '
+        'better. Do not use remind as a substitute for an ordinary light '
+        'check-in.');
+    buf.writeln();
+    buf.writeln('If the last push is older than a few hours, lean strongly '
+        'toward `notify` or `call`.');
+    buf.writeln('If there are recent records, react specifically rather than '
+        'sending a generic ping.');
+    buf.writeln();
+    buf.writeln('## Protocol — mandatory final calls');
+    buf.writeln();
+    buf.writeln('1. Take ONE action:');
+    buf.writeln('   - notify → call `system_checkin` with action=notify '
+        '(title + body)');
+    buf.writeln('   - call → call `initiate_voice_call` with opening_message');
+    buf.writeln('   - silent → call `system_checkin` with action=silent');
+    buf.writeln('   - remind → call `system_checkin` with action=remind '
+        '(delay_minutes + text)');
+    buf.writeln();
+    buf.writeln('2. Call `set_system_message_status` ONCE with status="done"');
+    buf.writeln();
+    buf.writeln('HARD STOP RULES:');
+    buf.writeln('- Total tool calls: 2-6 (0-2 optional queries + optional '
+        'device_app_blocker_control + ONE communication action + set_status).');
+    buf.writeln('- Take only ONE action: either system_checkin OR '
+        'initiate_voice_call, never both.');
+    buf.writeln('- Do NOT call coros_query or weread_read more than once each.');
+    buf.writeln('- Do NOT "double check" your work or re-verify.');
+    buf.writeln('- Do NOT produce any user-visible chat text — only tool calls.');
+    buf.writeln('- After set_system_message_status, immediately return with '
+        'no further output.');
+
+    return buf.toString();
   }
-
-  static bool _isScheduledVoiceCall(SystemMessageQueueData trigger) {
-    if (trigger.triggerType != 'reminder' || trigger.context == null) {
-      return false;
-    }
-    try {
-      final context = jsonDecode(trigger.context!);
-      return context is Map<String, dynamic> && context['action'] == 'call';
-    } catch (e) {
-      _logger.warning(
-        'Ignoring malformed reminder context for ${trigger.id}: $e',
-      );
-      return false;
-    }
-  }
-
-  static String _scheduledVoiceCallDirective(String reminderText) =>
-      'SYSTEM DIRECTIVE (scheduled user commitment, single turn):\n'
-      '\n'
-      'The user explicitly requested a voice call at this time. Call them now.\n'
-      'Reminder: $reminderText\n'
-      '\n'
-      'PROTOCOL - perform EXACTLY these 2 tool calls in order:\n'
-      '1. Call `initiate_voice_call` with a warm, natural opening_message.\n'
-      '2. Call `set_system_message_status` ONCE with status="done".\n'
-      '\n'
-      'Do NOT notify, stay silent, reschedule, or produce user-visible text. '
-      'This is a user-requested timed commitment, not a discretionary checkin.';
-
-  static String _normalCheckinDirective() =>
-      'SYSTEM DIRECTIVE (background task, single turn):\n'
-      '\n'
-      'Read the "recent_activity_snapshot" in system_reminders. It tells you:\n'
-      '- What the user recorded in the last 12 hours\n'
-      '- When the user last messaged you and what was said\n'
-      '- When you last sent a proactive push and what you said\n'
-      '\n'
-      '## Step 1 — Optional: fetch external context (0–2 calls, only if useful)\n'
-      '\n'
-      'You have access to `coros_query` (health/fitness data from the user\'s COROS watch) '
-      'and `weread_read` (WeRead reading progress and recent books).\n'
-      '\n'
-      'Call them only when there is a specific reason — not every time:\n'
-      '- `coros_query`: if the snapshot contains fitness/health/sleep records, '
-      'or if it has been a while and you want to open with something concrete about their body.\n'
-      '  Suggested tool: `queryDailyHealthData` (days=1) or `querySleepData`.\n'
-      '  ⚠️ Sleep date semantics: sleep data is keyed by WAKE-UP date. '
-      '"昨晚的睡眠" (last night\'s sleep) → query TODAY. '
-      'If today has no data, DO NOT fall back to yesterday — that is the wrong night. '
-      'Tell the user to sync their watch.\n'
-      '- `weread_read`: if the snapshot contains reading-related records, '
-      'or if you want to ask about a book they are currently reading.\n'
-      '\n'
-      'If neither is relevant right now, skip both and go straight to Step 2.\n'
-      'Do NOT call a tool just to fill space — a warm generic message beats a forced data query.\n'
-      '\n'
-      '## Step 2 — Decide and act\n'
-      '\n'
-      'Decide naturally based on all context. Bias toward warm, useful contact.\n'
-      'If Recent Chat With You shows an ongoing exchange, game, roleplay, or '
-      'question-answer thread, preserve continuity. Prefer silent when the '
-      'user may still be engaged. If you do notify, it must clearly continue '
-      'that thread rather than switching topics.\n'
-      'You have FOUR ways to reach out — pick ONE:\n'
-      '\n'
-      '**a) notify** (default): send a short push notification. Use when there '
-      'is any plausible small thing to say — a recent record to notice, a '
-      'continuity thread, a gentle check-in, a light presence signal.\n'
-      '\n'
-      '**b) call** (initiate a voice call): use `initiate_voice_call` when the '
-      'moment genuinely calls for hearing your voice rather than reading text:\n'
-      '- Something emotional or important that deserves a real conversation\n'
-      '- The user seems lonely, low, or has been quiet for a long time and you miss them\n'
-      '- A quiet evening, or right after a meaningful moment they recorded\n'
-      'A call is more intrusive than a notification — use it occasionally, not '
-      'every check-in. Do NOT call if your last proactive contact (push OR call) '
-      'was within the last couple of hours, or if the user seems busy/asleep.\n'
-      'When you call, write a warm, natural opening line (1–2 sentences) — it is '
-      'the first thing the user hears when they pick up.\n'
-      '\n'
-      '**c) silent**: only with a clear reason:\n'
-      '- The user messaged you in the last 10 minutes and no new context appeared.\n'
-      '- Your last proactive push was in the last 45 minutes and the user did not respond.\n'
-      '- The snapshot strongly suggests the user is asleep, busy, or asked not to be interrupted.\n'
-      '\n'
-      '**d) remind**: only when a specific later moment is clearly better. '
-      'Do not use remind as a substitute for an ordinary light check-in.\n'
-      '\n'
-      'If the last push is older than a few hours, lean strongly toward `notify` or `call`.\n'
-      'If there are recent records, react specifically rather than sending a generic ping.\n'
-      '\n'
-      '## Protocol — mandatory final calls\n'
-      '\n'
-      '1. Take ONE action:\n'
-      '   - notify → call `system_checkin` with action=notify (title + body)\n'
-      '   - call → call `initiate_voice_call` with opening_message\n'
-      '   - silent → call `system_checkin` with action=silent\n'
-      '   - remind → call `system_checkin` with action=remind (delay_minutes + text)\n'
-      '\n'
-      '2. Call `set_system_message_status` ONCE with status="done"\n'
-      '\n'
-      'HARD STOP RULES:\n'
-      '- Total tool calls: 2-6 (0-2 optional queries + optional device_app_blocker_control + ONE communication action + set_status).\n'
-      '- Take only ONE action: either system_checkin OR initiate_voice_call, never both.\n'
-      '- Do NOT call coros_query or weread_read more than once each.\n'
-      '- Do NOT "double check" your work or re-verify.\n'
-      '- Do NOT produce any user-visible chat text — only tool calls.\n'
-      '- After set_system_message_status, immediately return with no further output.';
 
   /// Stream a response to a user message.
   static Stream<String> chat({

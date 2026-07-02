@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'dart:math' as math;
@@ -1472,6 +1473,47 @@ class FileSystemService {
       _logger.severe('Failed to save asset file: $e');
       rethrow;
     }
+  }
+
+  /// Like [saveAssetFromFile] but writes raw bytes directly.
+  ///
+  /// Use this when the source is a content:// URI (Android 10+) or an in-memory
+  /// buffer rather than a file path that [File] can read.
+  Future<(String, String)> saveAssetFromBytes({
+    required String userId,
+    required Uint8List bytes,
+    required String assetType,
+    required int index,
+    String? format,
+    String? factId,
+    String? extraInfo,
+  }) async {
+    final assetsPath = getAssetsPath(userId);
+    await ensureDirectory(assetsPath);
+
+    final extension = format ?? (assetType == 'img' ? 'png' : 'm4a');
+
+    // Generate a synthetic factId if none provided (same pattern as chat
+    // message record path).
+    final effectiveFactId = factId ??
+        '${DateTime.now().year}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().day.toString().padLeft(2, '0')}.md'
+        '#ts_${DateTime.now().microsecondsSinceEpoch}';
+
+    final filename = generateAssetFilename(
+      userId,
+      assetType,
+      index,
+      extension,
+      factId: effectiveFactId,
+      extraInfo: extraInfo,
+    );
+    final absolutePath = path.join(assetsPath, filename);
+
+    await File(absolutePath).writeAsBytes(bytes);
+
+    final relativePath = toRelativePath(absolutePath);
+    _logger.info('Wrote ${bytes.length} bytes to $absolutePath');
+    return (filename, relativePath);
   }
 
   /// Daily fact file path

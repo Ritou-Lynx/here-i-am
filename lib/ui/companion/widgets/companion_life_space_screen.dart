@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
-import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
 import 'package:memex/utils/user_storage.dart';
 
 import 'companion_review_screen.dart';
@@ -14,10 +13,11 @@ import 'companion_review_screen.dart';
 class CompanionLifeSpaceScreen extends StatefulWidget {
   const CompanionLifeSpaceScreen({
     super.key,
-    required this.timelineViewModel,
+    this.timelineViewModel,
   });
 
-  final TimelineViewModel timelineViewModel;
+  /// No longer used — kept for caller compatibility during transition.
+  final dynamic timelineViewModel;
 
   @override
   State<CompanionLifeSpaceScreen> createState() =>
@@ -72,7 +72,7 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
 
   Widget _buildTab(int index) {
     return switch (index) {
-      0 => CompanionReviewScreen(viewModel: widget.timelineViewModel),
+      0 => const CompanionReviewScreen(),
       _ => const PersonalCenterScreen(),
     };
   }

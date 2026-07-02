@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/companion/widgets/companion_life_space_screen.dart';
-import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
 
 final personaChatNavigatorObserver = PersonaChatNavigatorObserver();
 
@@ -25,12 +23,10 @@ Route<void> buildPersonaChatRoute(
               enableRichCapture: true,
               initialVoiceMode: initialVoiceMode,
               onOpenSpaces: () {
-                final vm = TimelineViewModel(router: MemexRouter());
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        CompanionLifeSpaceScreen(timelineViewModel: vm),
+                    builder: (_) => const CompanionLifeSpaceScreen(),
                   ),
                 );
               },

@@ -17,6 +17,7 @@ import 'package:memex/agent/built_in_tools/transit_companion_tools.dart';
 import 'package:memex/agent/built_in_tools/user_knowledge_query_tool.dart';
 import 'package:memex/agent/built_in_tools/web_search_tool.dart';
 import 'package:memex/agent/built_in_tools/generate_image_tool.dart';
+import 'package:memex/agent/built_in_tools/memory_v3_query_tool.dart';
 import 'package:memex/agent/built_in_tools/weread_tool.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
 import 'package:memex/agent/skills/comment_agent/tools/comment_tools.dart';
@@ -112,11 +113,12 @@ class CharacterToolsFactory {
     }
     if (RecordOrganizerServiceV3.isInitialized) {
       tools.add(_buildLifeMemoryCaptureTool());
+      tools.add(buildMemoryV3QueryTool());
     }
-    if (SharedLifeMemoryService.isInitialized) {
+    if (SharedLifeMemoryService.isInitialized &&
+        !RecordOrganizerServiceV3.isInitialized) {
       final sharedLifeMemory = SharedLifeMemoryService.instance;
-      // Keep LifeMemoryQuery for read-only lookup; write tools are superseded
-      // by LifeMemoryCapture above.
+      // Legacy LifeMemoryQuery — only when V3 is NOT active.
       tools.add(_buildLifeMemoryQueryTool(service: sharedLifeMemory));
       if (ReadingFetchCoordinator.isInitialized) {
         tools.add(buildLoadReadingContentTool(

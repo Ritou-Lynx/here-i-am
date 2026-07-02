@@ -4,10 +4,13 @@
 /// related cards, operation history, and emotion coordinates.
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/domain/models/presentation_module.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 
@@ -39,6 +42,7 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
   bool _sourceExpanded = true;
   bool _operationsExpanded = false;
   bool _emotionExpanded = false;
+  bool _imageDescExpanded = false;
 
   MemoryCardQueryService get _query =>
       widget.queryService ??
@@ -92,6 +96,16 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
   }
 
   // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  /// Extract the `[图片内容：...]` suffix from [retrievalText], or null.
+  static String? _extractImageAnalysis(String text) {
+    final match = RegExp(r'\n\[图片内容：(.+)\]$').firstMatch(text.trim());
+    return match?.group(1);
+  }
+
+  // ---------------------------------------------------------------------------
   // Build
   // ---------------------------------------------------------------------------
 
@@ -125,22 +139,37 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. Type + status
-            _TypeStatusRow(card: card),
-            const SizedBox(height: 20),
+      body: Builder(builder: (context) {
+        final imageAnalysis = _extractImageAnalysis(card.retrievalText);
+        final cleanFallback = imageAnalysis != null
+            ? card.retrievalText.replaceFirst(imageAnalysis, '').trim()
+            : card.retrievalText;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Type + status
+              _TypeStatusRow(card: card),
+              const SizedBox(height: 20),
 
-            // 2. Content blocks
-            V3CardBlocks(
-              presentation: presentation,
-              fallbackTitle: card.title,
-              fallbackText: card.retrievalText,
-            ),
-            const SizedBox(height: 24),
+              // 2. Content blocks
+              V3CardBlocks(
+                presentation: presentation,
+                dropletLabel: card.dropletLabel,
+                fallbackText: cleanFallback,
+              ),
+              if (imageAnalysis != null) ...[
+                const SizedBox(height: 16),
+                _CollapsibleSection(
+                  title: '图片描述',
+                  expanded: _imageDescExpanded,
+                  onToggle: () =>
+                      setState(() => _imageDescExpanded = !_imageDescExpanded),
+                  child: _ImageDescription(text: imageAnalysis),
+                ),
+              ],
+              const SizedBox(height: 24),
 
             // 3. Source evidence
             if (detail.source != null) ...[
@@ -149,7 +178,10 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
                 expanded: _sourceExpanded,
                 onToggle: () =>
                     setState(() => _sourceExpanded = !_sourceExpanded),
-                child: _SourceEvidence(source: detail.source!),
+                child: _SourceEvidence(
+                  source: detail.source!,
+                  assets: detail.assets,
+                ),
               ),
               const SizedBox(height: 16),
             ],
@@ -203,8 +235,8 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
             ),
           ],
         ),
-      ),
-    );
+      );
+    }));
   }
 }
 
@@ -335,8 +367,9 @@ class _CollapsibleSection extends StatelessWidget {
 // ---- Source evidence ----
 
 class _SourceEvidence extends StatelessWidget {
-  const _SourceEvidence({required this.source});
+  const _SourceEvidence({required this.source, this.assets = const []});
   final MemoryCardSourceData source;
+  final List<CardAssetData> assets;
 
   String _fmtTime(int ms) {
     final dt = DateTime.fromMillisecondsSinceEpoch(ms);
@@ -350,6 +383,8 @@ class _SourceEvidence extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const tokens = HereIamThemeTokens.roseMistDay;
+    final imageAssets = assets.where((a) => a.isImage).toList();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -372,6 +407,14 @@ class _SourceEvidence extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
+          ],
+          // Source images — full-width, one per row, 16:10 aspect
+          if (imageAssets.isNotEmpty) ...[
+            for (final asset in imageAssets) ...[
+              _buildSourceImage(asset.storagePath),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 2),
           ],
           // recordedAt
           Row(
@@ -409,6 +452,31 @@ class _SourceEvidence extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildSourceImage(String? storagePath) {
+    if (storagePath == null || storagePath.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    try {
+      final absPath = FileSystemService.instance.toAbsolutePath(storagePath);
+      final file = File(absPath);
+      if (!file.existsSync()) return const SizedBox.shrink();
+
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: AspectRatio(
+          aspectRatio: 16 / 10,
+          child: Image.memory(
+            file.readAsBytesSync(),
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
+        ),
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
   }
 }
 
@@ -656,6 +724,35 @@ class _CoordRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ---- Image description ----
+
+class _ImageDescription extends StatelessWidget {
+  const _ImageDescription({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    const tokens = HereIamThemeTokens.roseMistDay;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: tokens.surfaceDeep.withValues(alpha: 0.30),
+        border: Border.all(color: tokens.textMuted.withValues(alpha: 0.12)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: tokens.textPrimary,
+          fontSize: 13.5,
+          height: 1.6,
+        ),
+      ),
     );
   }
 }

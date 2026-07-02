@@ -28,6 +28,8 @@ class _AboutIScreenState extends State<AboutIScreen> {
   String? _avatarPreview;
   String? _chatBackgroundPreview;
 
+  final _ttsVoiceIdController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -48,12 +50,19 @@ class _AboutIScreenState extends State<AboutIScreen> {
         _character = primary;
         _avatarPreview = primary?.avatar;
         _chatBackgroundPreview = primary?.chatBackground;
+        _ttsVoiceIdController.text = primary?.ttsVoiceId ?? '';
         _isLoading = false;
       });
     } catch (e, s) {
       _logger.severe('Failed to load I', e, s);
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _ttsVoiceIdController.dispose();
+    super.dispose();
   }
 
   Future<void> _pickAvatar() async {
@@ -131,6 +140,11 @@ class _AboutIScreenState extends State<AboutIScreen> {
     await _persistField('chat_background', null);
   }
 
+  Future<void> _saveTtsVoiceId() async {
+    final value = _ttsVoiceIdController.text.trim();
+    await _persistField('tts_voice_id', value.isEmpty ? null : value);
+  }
+
   Future<void> _persistField(String key, dynamic value) async {
     final character = _character;
     if (character == null) return;
@@ -180,6 +194,50 @@ class _AboutIScreenState extends State<AboutIScreen> {
                       _sectionLabel('聊天背景'),
                       const SizedBox(height: 8),
                       _buildChatBackgroundPicker(),
+                      const SizedBox(height: 32),
+                      _sectionLabel('TTS 语音'),
+                      const SizedBox(height: 4),
+                      Text(
+                        '将所选 TTS 服务的 Voice ID 粘贴到此处（在 Settings → TTS 语音 中设置服务商）',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _ttsVoiceIdController,
+                        style: const TextStyle(fontSize: 16),
+                        decoration: InputDecoration(
+                          hintText: 'Voice ID',
+                          hintStyle: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 14,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF7F8FA),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 16,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF6366F1),
+                            ),
+                          ),
+                        ),
+                        onSubmitted: (_) => _saveTtsVoiceId(),
+                      ),
                       const SizedBox(height: 32),
                       _sectionLabel('Dreaming'),
                       const SizedBox(height: 8),

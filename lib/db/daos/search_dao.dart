@@ -47,6 +47,15 @@ class SearchDao {
         tokenize='unicode61'
       )
     ''');
+    await _db.customStatement('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_v3_fts USING fts5(
+        card_id UNINDEXED,
+        droplet_label,
+        title,
+        retrieval_text,
+        tokenize='unicode61'
+      )
+    ''');
     await createCharacterFtsTables();
   }
 
@@ -405,6 +414,62 @@ class SearchDao {
 
   Future<void> clearSharedLifeFts() async {
     await _db.customStatement('DELETE FROM shared_life_fts');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Memory V3 FTS
+  // ---------------------------------------------------------------------------
+
+  Future<void> upsertMemoryV3Fts({
+    required String cardId,
+    required String dropletLabel,
+    required String title,
+    required String retrievalText,
+  }) async {
+    await deleteMemoryV3Fts(cardId);
+    await _db.customStatement(
+      'INSERT INTO memory_v3_fts(card_id, droplet_label, title, retrieval_text) '
+      'VALUES (?, ?, ?, ?)',
+      [
+        cardId,
+        await tokenizeForIndex(dropletLabel),
+        await tokenizeForIndex(title),
+        await tokenizeForIndex(retrievalText),
+      ],
+    );
+  }
+
+  Future<void> deleteMemoryV3Fts(String cardId) async {
+    await _db.customStatement(
+      'DELETE FROM memory_v3_fts WHERE card_id = ?',
+      [cardId],
+    );
+  }
+
+  /// Search Memory V3 cards via FTS5. Returns card IDs, snippets, and rank.
+  Future<List<Map<String, dynamic>>> searchMemoryV3Cards(
+    String query, {
+    int limit = 20,
+  }) async {
+    final ftsQuery = await tokenizeForQuery(query);
+    if (ftsQuery.isEmpty) return [];
+    final results = await _db.customSelect(
+      '''SELECT card_id,
+             snippet(memory_v3_fts, 1, '<b>', '</b>', '...', 32) AS label_snippet,
+             snippet(memory_v3_fts, 3, '<b>', '</b>', '...', 64) AS text_snippet,
+             rank
+      FROM memory_v3_fts WHERE memory_v3_fts MATCH ?
+      ORDER BY rank LIMIT ?''',
+      variables: [Variable<String>(ftsQuery), Variable<int>(limit)],
+    ).get();
+    return results
+        .map((row) => {
+              'card_id': row.read<String>('card_id'),
+              'label_snippet': row.read<String>('label_snippet'),
+              'text_snippet': row.read<String>('text_snippet'),
+              'rank': row.read<double>('rank'),
+            })
+        .toList();
   }
 
   /// Search SharedLife entities via FTS5.
