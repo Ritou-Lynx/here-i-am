@@ -7,13 +7,15 @@ import 'package:memex/db/app_database.dart';
 /// Agent tool for searching the user's V3 memory cards.
 ///
 /// Uses FTS5 full-text search on `retrievalText`, `dropletLabel`, and `title`,
-/// then re-ranks results with [FusionRanker] based on intent classification.
+/// with lightweight query expansion before re-ranking results with
+/// [FusionRanker] based on intent classification.
 Tool buildMemoryV3QueryTool() {
   return Tool(
     name: 'memory_v3_query',
-    description: '''Search the user's memory cards (facts, events, tasks, plans, schedules).
+    description:
+        '''Search the user's memory cards (facts, events, tasks, plans, schedules).
 
-Use this tool whenever the user asks a "do you remember" question, references a past event, or you need to recall something the user recorded. Results are ranked by a combination of keyword relevance, recency, and intent match.
+Use this tool whenever the user asks a "do you remember" question, references a past event, or you need to recall something the user recorded. Results are ranked by a combination of keyword relevance, lightweight synonym expansion, recency, and intent match.
 
 Each result includes:
 - card_id: unique identifier
@@ -24,7 +26,7 @@ Each result includes:
 
 Tips:
 - Search with natural keywords, not full sentences
-- If the first query returns nothing, try synonyms or related terms
+- Search can expand common Chinese synonyms and loosen brittle no-result queries automatically
 - For task/progress questions, task cards are boosted automatically''',
     parameters: {
       'type': 'object',

@@ -11,6 +11,7 @@ import 'package:drift/drift.dart';
 import 'package:memex/db/app_database.dart';
 
 import '../models/memory_card_view_data.dart';
+import '../retrieval/query_expander.dart';
 
 /// Detail payload for [getCardDetail].
 class MemoryCardDetail {
@@ -137,7 +138,8 @@ class CardAssetData {
   final String? mimeType;
   final String? assetType;
 
-  bool get isImage => assetType == 'image' || (mimeType?.startsWith('image/') ?? false);
+  bool get isImage =>
+      assetType == 'image' || (mimeType?.startsWith('image/') ?? false);
 }
 
 class MemoryCardQueryService {
@@ -223,8 +225,8 @@ class MemoryCardQueryService {
 
     // 5. Related cards (outbound relations)
     final relRows = await (_db.select(_db.memoryCardRelations)
-          ..where((t) =>
-              t.fromCardId.equals(cardId) | t.toCardId.equals(cardId)))
+          ..where(
+              (t) => t.fromCardId.equals(cardId) | t.toCardId.equals(cardId)))
         .get();
 
     final relations = <MemoryCardViewData>[];
@@ -245,14 +247,16 @@ class MemoryCardQueryService {
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .get();
 
-    final operations = opRows.map((op) => OperationData(
-          id: op.id,
-          cardId: op.cardId,
-          operationType: op.operationType,
-          payload: _decodeJson(op.payload),
-          sourceKind: op.sourceKind,
-          createdAt: op.createdAt,
-        )).toList();
+    final operations = opRows
+        .map((op) => OperationData(
+              id: op.id,
+              cardId: op.cardId,
+              operationType: op.operationType,
+              payload: _decodeJson(op.payload),
+              sourceKind: op.sourceKind,
+              createdAt: op.createdAt,
+            ))
+        .toList();
 
     // 7. Assets (JOIN memory_card_assets → assets).
     //    assetId is normally a UUID, but legacy data may have a file path.
@@ -300,9 +304,8 @@ class MemoryCardQueryService {
   /// Fetch cards by their IDs. Missing IDs are silently skipped.
   Future<List<MemoryCardViewData>> getCardsByIds(List<String> ids) async {
     if (ids.isEmpty) return [];
-    final rows = await (_db.select(_db.memoryCards)
-          ..where((t) => t.id.isIn(ids)))
-        .get();
+    final rows =
+        await (_db.select(_db.memoryCards)..where((t) => t.id.isIn(ids))).get();
     return rows.map(_toViewData).toList();
   }
 
@@ -341,7 +344,45 @@ class MemoryCardQueryService {
     String query, {
     int limit = 20,
   }) async {
-    return _db.searchDao.searchMemoryV3Cards(query, limit: limit);
+    final plan = QueryExpander.expand(query);
+    if (plan.variants.isEmpty) return [];
+
+    final merged = <String, Map<String, dynamic>>{};
+    final eagerVariants = plan.variants.where(
+      (v) => v.strategy != QueryExpansionStrategy.relaxed,
+    );
+    final relaxedVariants = plan.variants.where(
+      (v) => v.strategy == QueryExpansionStrategy.relaxed,
+    );
+
+    for (final variant in eagerVariants) {
+      final hits = await _db.searchDao.searchMemoryV3Cards(
+        variant.query,
+        limit: _perVariantLimit(limit),
+      );
+      _mergeSearchHits(merged, hits, variant);
+    }
+
+    // Automatic loosening: only fall back to short distinctive terms when
+    // original + expanded queries fail. This avoids flooding normal recall
+    // with generic matches while still preventing brittle zero-result cases.
+    if (merged.isEmpty) {
+      for (final variant in relaxedVariants) {
+        final hits = await _db.searchDao.searchMemoryV3Cards(
+          variant.query,
+          limit: _perVariantLimit(limit),
+        );
+        _mergeSearchHits(merged, hits, variant);
+      }
+    }
+
+    final results = merged.values.toList()
+      ..sort((a, b) {
+        final rankA = (a['rank'] as num).toDouble();
+        final rankB = (b['rank'] as num).toDouble();
+        return rankA.compareTo(rankB);
+      });
+    return results.take(limit).toList();
   }
 
   /// Search and resolve to full [MemoryCardViewData] objects.
@@ -393,6 +434,35 @@ class MemoryCardQueryService {
       return {};
     } catch (_) {
       return {};
+    }
+  }
+
+  static int _perVariantLimit(int limit) => limit < 20 ? 20 : limit * 2;
+
+  static void _mergeSearchHits(
+    Map<String, Map<String, dynamic>> merged,
+    List<Map<String, dynamic>> hits,
+    QueryVariant variant,
+  ) {
+    for (final hit in hits) {
+      final cardId = hit['card_id'] as String?;
+      if (cardId == null || cardId.isEmpty) continue;
+
+      final enriched = Map<String, dynamic>.from(hit)
+        ..['matched_query'] = variant.query
+        ..['query_strategy'] = variant.strategy.name;
+
+      final existing = merged[cardId];
+      if (existing == null) {
+        merged[cardId] = enriched;
+        continue;
+      }
+
+      final existingRank = (existing['rank'] as num).toDouble();
+      final newRank = (hit['rank'] as num).toDouble();
+      if (newRank < existingRank) {
+        merged[cardId] = enriched;
+      }
     }
   }
 }
