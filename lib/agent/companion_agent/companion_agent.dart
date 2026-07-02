@@ -455,8 +455,8 @@ class CompanionAgent {
         'something concrete about their body.');
     buf.writeln('  Suggested tool: `queryDailyHealthData` (days=1) or '
         '`querySleepData`.');
-    buf.writeln('  ⚠️ Sleep date semantics: sleep data is keyed by WAKE-UP '
-        'date. "昨晚的睡眠" (last night\'s sleep) → query TODAY. If today has '
+    buf.writeln('  ⚠️ Sleep date semantics: sleep data is keyed by WAKE-UP date. '
+        '"昨晚的睡眠" (last night\'s sleep) → query TODAY. If today has '
         'no data, DO NOT fall back to yesterday. Tell the user to sync their '
         'watch.');
     buf.writeln('- `weread_read`: if the snapshot contains reading-related '
