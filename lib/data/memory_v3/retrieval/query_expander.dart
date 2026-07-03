@@ -191,7 +191,7 @@ class QueryExpander {
     return result;
   }
 
-  static final List<_SynonymGroup> _synonymGroups = [
+  static const List<_SynonymGroup> _synonymGroups = [
     _SynonymGroup(
       triggers: ['花钱', '消费', '支出', '开销', '账单', '多少钱', '花了', '付款', '支付'],
       expansions: ['消费', '支出', '花费', '开销', '账单', '付款', '支付', '价格'],

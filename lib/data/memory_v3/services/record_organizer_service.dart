@@ -86,6 +86,10 @@ class RecordOrganizerServiceV3 {
     // next microtask so it does not delay app startup.
     Future.microtask(() async {
       try {
+        // Ensure FTS tables exist before backfilling — this is a no-op if
+        // they were already created by migration, but catches cases where
+        // the migration ran before createFtsTables was added to the step.
+        await _instance!._db.searchDao.createFtsTables();
         // Always backfill on init — upsertMemoryV3Fts is idempotent and
         // cheap for typical card counts.
         final count = await _instance!.reindexAllCards();

@@ -91,6 +91,8 @@ class CompanionAgentSkill extends Skill {
     b.writeln('- Always send a visible chat reply to the user.');
     b.writeln('- For ordinary emotional chat, reply directly in text first.');
     b.writeln(
+        '- **HARD RULE — Memory Lookup Before "I Don\'t Know":** Before you EVER tell the user you don\'t remember, don\'t have information, or can\'t recall something, you MUST first call `memory_v3_query` to actually search the recorded memory cards. Your own conversation context is NOT your memory — the memory cards ARE. Never say "我没有记录"/"我不记得"/"我没这方面的信息" without running `memory_v3_query` first.');
+    b.writeln(
         '- Do not answer a normal chat turn with only tool calls or empty content.');
     b.writeln(
         '- Do not put stage directions like *leans closer* in the spoken text reply.');
@@ -101,7 +103,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- CRITICAL: When the user asks you to do something at a specific time (call, remind, check in, etc.), you MUST use `reminder_create` to actually schedule it. Do NOT just say you will.');
     b.writeln(
-        '- CRITICAL: When the user asks you to modify records, generate insights, or search info, use `delegate_task`. Pick task_category: `card_ops` for "改卡片/归档/创建记录" (results go to Review tab), `insight` for "总结/分析/生成图表" (chat only, not saved), `query` for "查一下/有没有/帮我找" (chat only, read-only). Reply first, then call the tool.');
+        '- CRITICAL: When the user asks you to modify records or generate structured insights, use `delegate_task`. Pick task_category: `card_ops` for "改卡片/归档/创建记录" (results go to Review tab), `insight` for "总结/分析/生成图表" (chat only, not saved). For simple recall / memory lookups (e.g. "还记得XX吗", "我有没有YY", "上次ZZ是什么时候"), use `memory_v3_query` directly — it gives instant results. Only use `delegate_task` query when you need complex multi-step search across many sources. Reply first, then call the tool.');
     b.writeln(
         '- When the user asks you to summon Codex / Claude Code, inspect or modify a configured software project, review code, or read a local folder/archive through Dev Room, use `dev_session_start_or_continue`. Reply in character first, then call the tool. Treat it as asynchronous: tell the user the Dev Session has started and they can watch progress in Dev Room.');
     b.writeln(
@@ -170,9 +172,9 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('## Shared Life Records');
     b.writeln(
-        '- Shared life records hold objective events, tasks, plans, schedules, and durable facts. They are visible across characters.');
+        '- Shared life records hold objective events, tasks, plans, schedules, and durable facts compiled into Memory V3 Cards. They are visible across characters.');
     b.writeln(
-        '- Use `LifeMemoryQuery` before answering questions about recorded life information. The relevant shared-life reminder is only a narrow preview.');
+        '- Use `memory_v3_query` to search these cards before answering recall questions. This is your primary tool for "记得..." / "有没有..." / "上次..." / "最近...怎么样" type questions. Always try it first — it gives instant results with FTS5 keyword search and synonym expansion.');
     b.writeln(
         '- Use `UserKnowledgeQuery` before answering exact questions about older Memex timeline cards or PKM knowledge. Old cards remain a valid source of truth during migration.');
     b.writeln(
@@ -180,9 +182,9 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- When the user sends a URL (including 小红书, 微信公众号, or web links), treat it as chat material by default. You may discuss it or ask whether to save it, but do NOT say it has been saved and do NOT create a shared-life record unless the same user message explicitly asks to save/record it.');
     b.writeln(
-        '- Use `LifeMemoryQuery` to look up existing records. To update or correct a record, tell the user to use the Memory Review or floating ball — these actions are not yet available through chat.');
+        '- To update or correct a record, tell the user to use the Memory Review or floating ball — these actions are not yet available through chat.');
     b.writeln(
-        '- Shared-life tools are optional and must never replace the visible chat reply.');
+        '- These tools are optional and must never replace the visible chat reply.');
     b.writeln('');
     b.writeln('## Relationship Consequences');
     b.writeln(

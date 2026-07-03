@@ -12,6 +12,8 @@ import 'package:memex/agent/state_util.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
+import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
@@ -220,6 +222,35 @@ class CompanionAgent {
       }
     } else {
       state.systemReminders.remove('shared_life_entities');
+    }
+    // Auto-lookup Memory V3 cards before every conversation turn.
+    // This guarantees the LLM sees matching cards without needing to
+    // proactively call memory_v3_query (which MiniMax is stubborn about).
+    if (RecordOrganizerServiceV3.isInitialized && queryHint.trim().isNotEmpty) {
+      try {
+        final v3Service = MemoryCardQueryService(AppDatabase.instance);
+        final v3Hits = await v3Service.searchCardsResolved(queryHint, limit: 8);
+        if (v3Hits.isNotEmpty) {
+          final buf = StringBuffer();
+          buf.writeln('## Your Memory V3 Cards (auto-looked up for this turn)');
+          buf.writeln('These are cards you previously recorded. Use them when answering.');
+          buf.writeln();
+          for (final card in v3Hits) {
+            buf.writeln('- [${card.type}] ${card.dropletLabel}');
+            buf.writeln('  ${card.retrievalText.replaceAll('\n', ' ')}');
+            buf.writeln('  (card_id: ${card.id.substring(0, 8)}, '
+                'updated: ${DateTime.fromMillisecondsSinceEpoch(card.updatedAt).toIso8601String()})');
+          }
+          state.systemReminders['memory_v3_cards'] = buf.toString();
+        } else {
+          state.systemReminders.remove('memory_v3_cards');
+        }
+      } catch (e) {
+        _logger.warning('Failed to auto-lookup Memory V3 cards: $e');
+        state.systemReminders.remove('memory_v3_cards');
+      }
+    } else {
+      state.systemReminders.remove('memory_v3_cards');
     }
     if (character.postHistoryInstructions != null &&
         character.postHistoryInstructions!.trim().isNotEmpty) {

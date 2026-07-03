@@ -119,7 +119,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 37;
+  int get schemaVersion => 38;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -515,6 +515,13 @@ class AppDatabase extends _$AppDatabase {
             // Memory V3: new table family (memory_cards / Dreaming / Asset / 等)
             // See docs/memory-research/MEMORY_PROPOSAL_V3.md
             await _createMemoryV3Tables(m);
+            // Ensure memory_v3_fts exists — createFtsTables is idempotent (IF NOT EXISTS)
+            await searchDao.createFtsTables();
+          }
+          if (from < 38) {
+            // Patch: ensure memory_v3_fts exists for installs that upgraded to
+            // v37 before createFtsTables was included in that migration step.
+            await searchDao.createFtsTables();
           }
         },
       );

@@ -59,7 +59,7 @@ class FusionRanker {
     }
 
     // ── Recency boost ──────────────────────────────────────────
-    final oneDay = 24 * 60 * 60 * 1000;
+    const oneDay = 24 * 60 * 60 * 1000;
     for (final h in hits) {
       final daysAgo = ((now - h.updatedAt) / oneDay).clamp(0, _recentWindowDays);
       final recency = 1.0 - (daysAgo / _recentWindowDays); // 1.0 = today, 0.0 = 30+ days
