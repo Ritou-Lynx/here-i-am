@@ -5,6 +5,7 @@
 /// writes go exclusively through [RecordOrganizerServiceV3].
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -12,6 +13,7 @@ import 'package:memex/db/app_database.dart';
 
 import '../models/memory_card_view_data.dart';
 import '../retrieval/query_expander.dart';
+import 'query_log_service.dart';
 
 /// Detail payload for [getCardDetail].
 class MemoryCardDetail {
@@ -386,11 +388,21 @@ class MemoryCardQueryService {
   }
 
   /// Search and resolve to full [MemoryCardViewData] objects.
+  ///
+  /// Every call is logged to [QueryLogService] for Phase 3 Lite+ synonym-table
+  /// tuning. Zero-result entries are the primary signal for missing synonyms.
   Future<List<MemoryCardViewData>> searchCardsResolved(
     String query, {
     int limit = 20,
   }) async {
     final hits = await searchCards(query, limit: limit);
+
+    // Determine the best strategy that produced results.
+    String topStrategy = 'none';
+    if (hits.isNotEmpty) {
+      topStrategy = hits.first['query_strategy'] as String? ?? 'none';
+    }
+
     final cards = <MemoryCardViewData>[];
     for (final hit in hits) {
       final cardId = hit['card_id'] as String;
@@ -401,6 +413,15 @@ class MemoryCardQueryService {
         cards.add(_toViewData(row));
       }
     }
+
+    // Fire-and-forget: never block the caller on logging.
+    unawaited(QueryLogService.log(QueryLogEntry(
+      query: query,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      resultCount: cards.length,
+      topStrategy: topStrategy,
+    )));
+
     return cards;
   }
 

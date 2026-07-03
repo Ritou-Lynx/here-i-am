@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
+import 'package:memex/data/memory_v3/services/query_log_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
@@ -45,11 +46,14 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
   String? _lastError;
   String? _lastSuccess;
   List<MemoryCard> _recent = const [];
+  List<QueryLogEntry> _queryLogEntries = const [];
+  int _zeroResultCount = 0;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadRecent());
+    unawaited(_loadQueryLog());
   }
 
   @override
@@ -68,6 +72,37 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         .get();
     if (!mounted) return;
     setState(() => _recent = rows);
+  }
+
+  Future<void> _loadQueryLog() async {
+    final entries = await QueryLogService.readAll();
+    final zeros = await QueryLogService.zeroResultCount();
+    if (!mounted) return;
+    setState(() {
+      _queryLogEntries = entries;
+      _zeroResultCount = zeros;
+    });
+  }
+
+  void _showQueryLog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _QueryLogSheet(
+        entries: _queryLogEntries,
+        zeroCount: _zeroResultCount,
+        onClear: () async {
+          await QueryLogService.clear();
+          await _loadQueryLog();
+        },
+        onRefresh: () async {
+          await _loadQueryLog();
+          // ignore: use_build_context_synchronously
+          Navigator.pop(ctx);
+          _showQueryLog();
+        },
+      ),
+    );
   }
 
   Future<void> _organizeAndSave() async {
@@ -419,6 +454,16 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             onPressed: _busy ? null : _onReindexFts,
             tooltip: '重建 FTS 搜索索引',
           ),
+          IconButton(
+            icon: Badge(
+              isLabelVisible: _zeroResultCount > 0,
+              label: Text('$_zeroResultCount',
+                  style: const TextStyle(fontSize: 11)),
+              child: const Icon(Icons.query_stats),
+            ),
+            onPressed: _showQueryLog,
+            tooltip: '查询日志（零结果: $_zeroResultCount）',
+          ),
         ],
       ),
       body: Column(
@@ -590,5 +635,169 @@ class _CardListTile extends StatelessWidget {
     if (valence > 0.3) return Colors.orange.shade300;
     if (valence < -0.3) return Colors.blueGrey.shade400;
     return Colors.amber.shade200;
+  }
+}
+
+/// Bottom sheet that displays the Memory V3 query log for Phase 3 Lite+
+/// bad-case accumulation.
+class _QueryLogSheet extends StatelessWidget {
+  const _QueryLogSheet({
+    required this.entries,
+    required this.zeroCount,
+    required this.onClear,
+    required this.onRefresh,
+  });
+
+  final List<QueryLogEntry> entries;
+  final int zeroCount;
+  final VoidCallback onClear;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.3,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollController) => Column(
+        children: [
+          // Handle bar
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                Text('查询日志',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(width: 8),
+                if (zeroCount > 0)
+                  Chip(
+                    label: Text('$zeroCount 条零结果',
+                        style: const TextStyle(fontSize: 11)),
+                    backgroundColor: Colors.orange.shade100,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                const Spacer(),
+                if (entries.isNotEmpty) ...[
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    onPressed: () => _confirmClear(context),
+                    tooltip: '清空日志',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 20),
+                    onPressed: onRefresh,
+                    tooltip: '刷新',
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Divider(),
+          // Body
+          Expanded(
+            child: entries.isEmpty
+                ? const Center(
+                    child: Text('暂无查询记录',
+                        style: TextStyle(color: Colors.black45)))
+                : ListView.separated(
+                    controller: scrollController,
+                    itemCount: entries.length,
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, indent: 16),
+                    itemBuilder: (ctx, i) => _QueryLogTile(entry: entries[i]),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClear(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清空查询日志？'),
+        content: const Text('这会删除所有查询记录，包括零结果标记。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onClear();
+              Navigator.pop(context); // close the sheet
+            },
+            child: const Text('清空'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QueryLogTile extends StatelessWidget {
+  const _QueryLogTile({required this.entry});
+
+  final QueryLogEntry entry;
+
+  String get _strategyLabel {
+    switch (entry.topStrategy) {
+      case 'original':
+        return '原文匹配';
+      case 'expanded':
+        return '同义词扩展';
+      case 'relaxed':
+        return '宽松兜底';
+      default:
+        return '无';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isZero = entry.isZeroResult;
+    final time = entry.dateTime;
+    final timeStr =
+        '${time.month}/${time.day} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+    return ListTile(
+      dense: true,
+      leading: CircleAvatar(
+        radius: 12,
+        backgroundColor: isZero ? Colors.red.shade100 : Colors.green.shade100,
+        child: Text(
+          '${entry.resultCount}',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: isZero ? Colors.red.shade700 : Colors.green.shade700,
+          ),
+        ),
+      ),
+      title: Text(
+        entry.query,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 14),
+      ),
+      subtitle: Text(
+        '$timeStr · $_strategyLabel',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+      ),
+    );
   }
 }

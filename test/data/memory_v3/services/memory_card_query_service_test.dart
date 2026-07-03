@@ -1,27 +1,42 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/memory_v3/retrieval/query_expander.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late AppDatabase db;
   late MemoryCardQueryService service;
+  late bool _fts5Available;
+
+  setUpAll(() async {
+    _fts5Available = _checkFts5();
+    if (!_fts5Available) {
+      print('[service_test] FTS5 not available on ${Platform.operatingSystem} '
+          '— skipping integration tests.');
+    }
+  });
 
   setUp(() async {
+    if (!_fts5Available) return;
     db = AppDatabase.forTesting(NativeDatabase.memory());
     await db.searchDao.createFtsTables();
     service = MemoryCardQueryService(db);
   });
 
   tearDown(() async {
+    if (!_fts5Available) return;
     await db.close();
   });
 
   test('expanded query recalls semantically adjacent beverage card', () async {
+    if (!_fts5Available) return;
     await _insertCard(
       db,
       id: 'coffee-card',
@@ -40,6 +55,7 @@ void main() {
   });
 
   test('expanded query recalls finance card with different wording', () async {
+    if (!_fts5Available) return;
     await _insertCard(
       db,
       id: 'finance-card',
@@ -84,4 +100,15 @@ Future<void> _insertCard(
     title: label,
     retrievalText: text,
   );
+}
+
+bool _checkFts5() {
+  try {
+    final db = sqlite3.openInMemory();
+    db.execute('CREATE VIRTUAL TABLE _fts5_check USING fts5(content)');
+    db.dispose();
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
