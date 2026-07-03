@@ -290,16 +290,41 @@ class CheckinService {
   static const String _keyForegroundHeartbeat =
       'checkin_foreground_heartbeat_ts';
 
+  /// KvStore key for the foreground heartbeat — cross-isolate safe alternative
+  /// to SharedPreferences. Background isolates (foreground service, alarm
+  /// callback) read this because SharedPreferences cache is unreliable across
+  /// isolates.
+  static const String _keyFgHeartbeatKv = 'fg_heartbeat_ts';
+
   /// How long after the last foreground heartbeat we still consider the app
   /// "in use". Must exceed the UI heartbeat interval (60s) with margin.
   static const int _foregroundGraceSeconds = 90;
 
   /// Called by the UI isolate while the app is foregrounded. Writes a heartbeat
   /// timestamp so background checkins know to stay silent.
+  ///
+  /// Writes to BOTH SharedPreferences and KvStore so the heartbeat is visible
+  /// from background isolates where SharedPreferences cache may be stale.
   Future<void> markForeground() async {
+    final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    // SharedPreferences (fast path for main-isolate reads)
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(
-        _keyForegroundHeartbeat, DateTime.now().millisecondsSinceEpoch ~/ 1000);
+    await prefs.setInt(_keyForegroundHeartbeat, ts);
+    // KvStore (cross-isolate safe — background isolates read this)
+    if (AppDatabase.isInitialized) {
+      try {
+        await _db.into(_db.kvStore).insertOnConflictUpdate(
+              KvStoreCompanion.insert(
+                key: _keyFgHeartbeatKv,
+                bucket: const Value(_bucket),
+                value: Value(ts.toString()),
+                updatedAt: Value(ts),
+              ),
+            );
+      } catch (_) {
+        // Never throw from a heartbeat — it's best-effort.
+      }
+    }
   }
 
   /// Called when the app is backgrounded — expires the heartbeat immediately so
@@ -307,11 +332,46 @@ class CheckinService {
   Future<void> markBackground() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyForegroundHeartbeat, 0);
+    if (AppDatabase.isInitialized) {
+      try {
+        await _db.into(_db.kvStore).insertOnConflictUpdate(
+              KvStoreCompanion.insert(
+                key: _keyFgHeartbeatKv,
+                bucket: const Value(_bucket),
+                value: const Value('0'),
+                updatedAt:
+                    Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+              ),
+            );
+      } catch (_) {
+        // Best-effort.
+      }
+    }
   }
 
   /// Whether the app appears to be in the foreground right now, based on the
   /// heartbeat timestamp. Survives app kills (a stale timestamp simply expires).
+  ///
+  /// Reads from KvStore (SQLite) first so background isolates get the true
+  /// value. Falls back to SharedPreferences for compatibility.
   Future<bool> isAppInForeground() async {
+    // Primary path: read from DB (cross-isolate safe).
+    if (AppDatabase.isInitialized) {
+      try {
+        final row = await _db.kvStoreLookup(
+            key: _keyFgHeartbeatKv, bucket: _bucket);
+        final dbTs = int.tryParse(row?.value ?? '');
+        if (dbTs != null) {
+          if (dbTs <= 0) return false;
+          final ageSec =
+              (DateTime.now().millisecondsSinceEpoch ~/ 1000) - dbTs;
+          return ageSec >= 0 && ageSec < _foregroundGraceSeconds;
+        }
+      } catch (_) {
+        // Fall through to SharedPreferences.
+      }
+    }
+    // Fallback: SharedPreferences (only reliable in the main isolate).
     final prefs = await SharedPreferences.getInstance();
     final ts = prefs.getInt(_keyForegroundHeartbeat) ?? 0;
     if (ts <= 0) return false;
