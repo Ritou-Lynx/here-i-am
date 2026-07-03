@@ -9,6 +9,7 @@ import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart'
     show PersonaChatInputBar;
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
+import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/utils/user_storage.dart';
 
 /// Floating action ball that lets the user quickly save a fact, plan, or note
@@ -259,21 +260,15 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
         inputMedia: inputMedia,
       );
 
-      messenger?.hideCurrentSnackBar();
-      messenger?.showSnackBar(SnackBar(
-        content: Text(result.isEmpty
-            ? '未能提取有效记录'
-            : '已记录 ${result.cardIds.length} 张卡片'),
+      messenger?.showToast(
+        result.isEmpty ? '未能提取有效记录' : '已记录 ${result.cardIds.length} 张卡片',
         duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ));
+      );
     } catch (e) {
-      messenger?.hideCurrentSnackBar();
-      messenger?.showSnackBar(SnackBar(
-        content: Text('记录失败：$e'),
-        duration: const Duration(seconds: 4),
-        behavior: SnackBarBehavior.floating,
-      ));
+      messenger?.showToast(
+        '记录失败：$e',
+        duration: const Duration(seconds: 3),
+      );
     }
   }
 

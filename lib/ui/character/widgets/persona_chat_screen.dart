@@ -42,6 +42,7 @@ import 'package:memex/ui/character/widgets/voice_input_button.dart';
 import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
+import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/widgets/here_iam_rose_mist_layer.dart';
 import 'package:memex/utils/tavern_macro.dart';
@@ -1954,14 +1955,8 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   void _showCopiedSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_chatUiText(zh: '已复制', en: 'Copied')),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-        width: 120,
-      ),
-    );
+    ScaffoldMessenger.of(context)
+        .showToast(_chatUiText(zh: '已复制', en: 'Copied'));
   }
 
   Future<void> _recordMessage(PersonaChatMessage message) async {
@@ -2179,40 +2174,24 @@ only after you have written the goodbye you want the user to hear.''',
       recordProgress.close();
       if (!mounted) return;
       if (result.isEmpty) {
-        messenger.showSnackBar(
-          SnackBar(
-            content:
-                Text(_chatUiText(zh: '未识别到可记录内容', en: 'Nothing to record')),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
+        messenger.showToast(
+          _chatUiText(zh: '未识别到可记录内容', en: 'Nothing to record'),
+          duration: const Duration(seconds: 2),
         );
       } else {
         final count = result.cardIds.length;
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(_chatUiText(
-              zh: '已记录 $count 张卡片',
-              en: 'Recorded $count card(s)',
-            )),
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
+        messenger.showToast(
+          _chatUiText(zh: '已记录 $count 张卡片', en: 'Recorded $count card(s)'),
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e, stack) {
       progress.close();
       debugPrint('[Record] msg#${message.id} failed: $e\n$stack');
       if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(_chatUiText(
-              zh: '记录失败：$e',
-              en: 'Record failed: $e',
-            )),
-            duration: const Duration(seconds: 4),
-            behavior: SnackBarBehavior.floating,
-          ),
+        messenger.showToast(
+          _chatUiText(zh: '记录失败：$e', en: 'Record failed: $e'),
+          duration: const Duration(seconds: 3),
         );
       }
     } finally {
@@ -4030,14 +4009,8 @@ class _SearchResultTile extends StatelessWidget {
                 ),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: message.content));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(_chatUiText(zh: '已复制', en: 'Copied')),
-                      duration: const Duration(seconds: 1),
-                      behavior: SnackBarBehavior.floating,
-                      width: 120,
-                    ),
-                  );
+                  ScaffoldMessenger.of(context)
+                      .showToast(_chatUiText(zh: '已复制', en: 'Copied'));
                 },
               ),
             ),
