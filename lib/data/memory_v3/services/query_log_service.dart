@@ -21,18 +21,21 @@ class QueryLogEntry {
     required this.timestamp,
     required this.resultCount,
     required this.topStrategy,
+    this.topCards = const [],
   });
 
   final String query;
   final int timestamp; // ms since epoch
   final int resultCount;
   final String topStrategy; // "original" | "expanded" | "relaxed" | "none"
+  final List<QueryLogCardHit> topCards;
 
   Map<String, dynamic> toJson() => {
         'query': query,
         'timestamp': timestamp,
         'resultCount': resultCount,
         'topStrategy': topStrategy,
+        'topCards': topCards.map((e) => e.toJson()).toList(),
       };
 
   factory QueryLogEntry.fromJson(Map<String, dynamic> json) => QueryLogEntry(
@@ -40,11 +43,58 @@ class QueryLogEntry {
         timestamp: json['timestamp'] as int? ?? 0,
         resultCount: json['resultCount'] as int? ?? 0,
         topStrategy: json['topStrategy'] as String? ?? 'none',
+        topCards: (json['topCards'] as List<dynamic>?)
+                ?.whereType<Map<String, dynamic>>()
+                .map(QueryLogCardHit.fromJson)
+                .toList() ??
+            const [],
       );
 
   bool get isZeroResult => resultCount == 0;
 
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
+
+  String get actualSummary {
+    if (topCards.isEmpty) return isZeroResult ? '无召回结果' : '未记录召回详情';
+    return topCards.map((e) => e.label).join(' / ');
+  }
+}
+
+class QueryLogCardHit {
+  const QueryLogCardHit({
+    required this.id,
+    required this.title,
+    this.dropletLabel,
+    this.type,
+  });
+
+  final String id;
+  final String title;
+  final String? dropletLabel;
+  final String? type;
+
+  String get label {
+    final trimmedLabel = dropletLabel?.trim();
+    if (trimmedLabel != null && trimmedLabel.isNotEmpty) {
+      return trimmedLabel;
+    }
+    return title.trim().isNotEmpty ? title : id;
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'dropletLabel': dropletLabel,
+        'type': type,
+      };
+
+  factory QueryLogCardHit.fromJson(Map<String, dynamic> json) =>
+      QueryLogCardHit(
+        id: json['id'] as String? ?? '',
+        title: json['title'] as String? ?? '',
+        dropletLabel: json['dropletLabel'] as String?,
+        type: json['type'] as String?,
+      );
 }
 
 class QueryLogService {

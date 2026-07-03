@@ -339,9 +339,9 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             ? null
             : {
                 'rawInput': source.rawInput,
-                'recordedAt': DateTime.fromMillisecondsSinceEpoch(
-                        source.recordedAt)
-                    .toIso8601String(),
+                'recordedAt':
+                    DateTime.fromMillisecondsSinceEpoch(source.recordedAt)
+                        .toIso8601String(),
                 'recordedPlace': source.recordedPlace,
                 'sourceRef': source.sourceRef,
                 'sourceKind': source.sourceKind,
@@ -608,7 +608,8 @@ class _CardListTile extends StatelessWidget {
                   Text(card.retrievalText,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.black54)),
                   const SizedBox(height: 4),
                   Text(
                     '${card.type} · v ${card.valence.toStringAsFixed(2)} '
@@ -679,8 +680,7 @@ class _QueryLogSheet extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(
               children: [
-                Text('查询日志',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text('查询日志', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(width: 8),
                 if (zeroCount > 0)
                   Chip(
@@ -711,8 +711,8 @@ class _QueryLogSheet extends StatelessWidget {
           Expanded(
             child: entries.isEmpty
                 ? const Center(
-                    child: Text('暂无查询记录',
-                        style: TextStyle(color: Colors.black45)))
+                    child:
+                        Text('暂无查询记录', style: TextStyle(color: Colors.black45)))
                 : ListView.separated(
                     controller: scrollController,
                     itemCount: entries.length,
@@ -795,7 +795,9 @@ class _QueryLogTile extends StatelessWidget {
         style: const TextStyle(fontSize: 14),
       ),
       subtitle: Text(
-        '$timeStr · $_strategyLabel',
+        '$timeStr · $_strategyLabel · ${entry.actualSummary}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
       ),
     );

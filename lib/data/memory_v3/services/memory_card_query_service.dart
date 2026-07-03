@@ -420,6 +420,15 @@ class MemoryCardQueryService {
       timestamp: DateTime.now().millisecondsSinceEpoch,
       resultCount: cards.length,
       topStrategy: topStrategy,
+      topCards: cards
+          .take(5)
+          .map((card) => QueryLogCardHit(
+                id: card.id,
+                title: card.title,
+                dropletLabel: card.dropletLabel,
+                type: card.type,
+              ))
+          .toList(),
     )));
 
     return cards;
