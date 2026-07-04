@@ -95,6 +95,7 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
   }
 
   Future<void> _handleOpenChatRequest(PersonaChatOpenRequest request) async {
+    PersonaChatOpenService.instance.markHandled(request);
     if (_isLoading) {
       _pendingOpenRequest = request;
       return;

@@ -28,6 +28,12 @@ class PersonaChatOpenService {
     _pendingRequest = null;
     return request;
   }
+
+  void markHandled(PersonaChatOpenRequest request) {
+    if (identical(_pendingRequest, request)) {
+      _pendingRequest = null;
+    }
+  }
 }
 
 class PersonaChatOpenRequest {
