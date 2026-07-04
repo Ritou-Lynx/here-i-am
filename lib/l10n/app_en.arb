@@ -1097,12 +1097,6 @@
   "today": "Today",
   "yesterday": "Yesterday",
 
-  "showInsightTextTitle": "Show Memex insight comment",
-  "showInsightTextDesc": "Whether to show the Memex insight as a pinned comment in the card detail comment section.",
-  "enableCharacterCommentTitle": "Character auto-comment",
-  "enableCharacterCommentDesc": "Characters automatically comment on new records.",
-  "maxCommentCharactersTitle": "Max commenting characters",
-  "maxCommentCharactersDesc": "How many characters can comment on each record.",
   "replyTo": "Reply to {name}",
   "@replyTo": {
     "placeholders": {

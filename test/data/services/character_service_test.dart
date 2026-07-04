@@ -215,5 +215,36 @@ chat_background: custom/background.jpg
         endsWith(p.join('custom', 'background.jpg')),
       );
     });
+
+    test('hereIAmV3 recreates singleton I when only legacy characters exist',
+        () async {
+      AppFlavor.init('hereIAmV3');
+      const userId = 'legacy-only-v3-user';
+      final charactersPath =
+          CharacterService.instance.getCharactersPath(userId);
+      await Directory(charactersPath).create(recursive: true);
+      await File(p.join(charactersPath, '2.yaml')).writeAsString('''
+name: Legacy
+tags: []
+persona: old default
+avatar: "2"
+enabled: true
+is_primary_companion: true
+''');
+
+      final primary = await CharacterService.instance.getPrimaryCompanion(
+        userId,
+      );
+      final characters = await CharacterService.instance.getAllCharacters(
+        userId,
+      );
+
+      expect(primary, isNotNull);
+      expect(primary!.id, 'i');
+      expect(primary.enabled, isTrue);
+      expect(primary.isPrimaryCompanion, isTrue);
+      expect(characters.map((character) => character.id), ['i']);
+      expect(File(p.join(charactersPath, 'i.yaml')).existsSync(), isTrue);
+    });
   });
 }

@@ -153,35 +153,18 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
     });
     if (mounted) Navigator.pop(context);
 
-    // Show progress snackbar on the parent navigator.
+    // Show progress toast on the parent navigator.
     ScaffoldMessengerState? messenger;
     if (navCtx != null && navCtx.mounted) {
       messenger = ScaffoldMessenger.of(navCtx);
-      messenger.showSnackBar(const SnackBar(
-        content: const Row(
-          children: [
-            SizedBox(
-              width: 14, height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            ),
-            SizedBox(width: 12),
-            Text('正在记录…'),
-          ],
-        ),
-        duration: const Duration(seconds: 30),
-        behavior: SnackBarBehavior.floating,
-      ));
+      messenger.showToast('正在记录…', duration: const Duration(seconds: 30));
     }
 
     try {
       final userId = await UserStorage.getUserId();
       if (userId == null) {
         messenger?.clearSnackBars();
-        messenger?.showSnackBar(const SnackBar(
-          content: Text('记录失败：未登录'),
-          duration: Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-        ));
+        messenger?.showToast('记录失败：未登录', duration: const Duration(seconds: 3));
         return;
       }
 

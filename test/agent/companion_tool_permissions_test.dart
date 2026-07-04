@@ -27,6 +27,8 @@ void main() {
 
       expect(toolNames, contains('delegate_task'));
       expect(toolNames, contains('dev_session_start_or_continue'));
+      expect(toolNames, contains('WeatherOutingRiskCheck'));
+      expect(toolNames, contains('MobilityRoutePlan'));
     });
   });
 }

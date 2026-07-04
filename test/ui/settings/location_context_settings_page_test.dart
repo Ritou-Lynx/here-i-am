@@ -30,9 +30,35 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> openAdvancedSettings(WidgetTester tester) async {
+    final advancedFinder = find.text('高级设置');
+    if (advancedFinder.evaluate().isEmpty) {
+      await tester.scrollUntilVisible(
+        advancedFinder,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+    }
+    if (find.text('Reverse geocoding provider').evaluate().isEmpty) {
+      await tester.tap(advancedFinder);
+      await tester.pumpAndSettle();
+    }
+  }
+
   Future<void> scrollToTestButton(WidgetTester tester) async {
+    await openAdvancedSettings(tester);
     await tester.scrollUntilVisible(
       find.text('Test current location'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> scrollToText(WidgetTester tester, String text) async {
+    await tester.scrollUntilVisible(
+      find.text(text),
       300,
       scrollable: find.byType(Scrollable).first,
     );
@@ -52,39 +78,49 @@ void main() {
       ),
     );
 
-    expect(find.text('Location Context'), findsOneWidget);
-    expect(find.text('Attach current location to chat'), findsOneWidget);
-    expect(find.text('OpenStreetMap / Nominatim'), findsOneWidget);
-    expect(find.text('Amap API Key'), findsNothing);
+    expect(find.text('位置、地图与天气'), findsOneWidget);
+    expect(find.text('让 I 知道你的位置'), findsOneWidget);
+    expect(find.text('高德 Key'), findsOneWidget);
+    expect(find.text('路线陪跑提醒'), findsOneWidget);
+    expect(find.text('高级设置'), findsOneWidget);
 
-    await tester.tap(find.byType(SwitchListTile));
+    await tester.tap(find.widgetWithText(SwitchListTile, '让 I 知道你的位置'));
     await tester.pumpAndSettle();
     var config = await UserStorage.getLocationContextConfig();
     expect(config.enabled, isTrue);
 
+    await tester.enterText(find.byType(TextField), 'test-amap-key');
+    await tester.pumpAndSettle();
+    config = await UserStorage.getLocationContextConfig();
+    expect(config.amapApiKey, 'test-amap-key');
+
+    await tester.tap(find.widgetWithText(SwitchListTile, '路线陪跑提醒'));
+    await tester.pumpAndSettle();
+    config = await UserStorage.getLocationContextConfig();
+    expect(config.transitCompanionEnabled, isTrue);
+
+    await openAdvancedSettings(tester);
+    await scrollToText(tester, 'OpenStreetMap / Nominatim');
     await tester.tap(find.text('OpenStreetMap / Nominatim'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Amap').last);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Amap API Key'), findsOneWidget);
-    await tester.enterText(find.byType(TextField), 'test-amap-key');
     await tester.pumpAndSettle();
 
     config = await UserStorage.getLocationContextConfig();
     expect(config.provider, GeocodingProvider.amap);
     expect(config.amapApiKey, 'test-amap-key');
 
+    await scrollToText(tester, 'Amap');
     await tester.tap(find.text('Amap'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OpenStreetMap / Nominatim').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('Amap API Key'), findsNothing);
     config = await UserStorage.getLocationContextConfig();
     expect(config.provider, GeocodingProvider.openStreetMap);
     expect(config.amapApiKey, 'test-amap-key');
 
+    await scrollToText(tester, 'Neighborhood');
     await tester.tap(find.text('Neighborhood'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Street').last);
@@ -93,6 +129,7 @@ void main() {
     config = await UserStorage.getLocationContextConfig();
     expect(config.granularity, LocationContextGranularity.street);
 
+    await scrollToText(tester, '15 minutes');
     await tester.tap(find.text('15 minutes'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('30 minutes').last);
@@ -105,8 +142,13 @@ void main() {
   testWidgets('renders localized Chinese labels', (WidgetTester tester) async {
     await pumpLocationSettingsPage(tester, language: 'zh');
 
-    expect(find.text('位置上下文'), findsOneWidget);
-    expect(find.text('为对话附加当前位置'), findsOneWidget);
+    expect(find.text('位置、地图与天气'), findsOneWidget);
+    expect(find.text('让 I 知道你的位置'), findsOneWidget);
+    expect(find.text('高德 Key'), findsOneWidget);
+    expect(find.text('路线陪跑提醒'), findsOneWidget);
+    expect(find.text('高级设置'), findsOneWidget);
+
+    await openAdvancedSettings(tester);
     expect(find.text('逆地理编码服务商'), findsOneWidget);
     expect(find.text('上下文粒度'), findsOneWidget);
   });

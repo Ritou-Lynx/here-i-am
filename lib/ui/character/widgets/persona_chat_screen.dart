@@ -1969,36 +1969,39 @@ only after you have written the goodbye you want the user to hear.''',
       _recordingMessageIds.remove(message.id);
       return;
     }
+    if (!mounted) {
+      _recordingMessageIds.remove(message.id);
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
-    // Show a long-lived "recording" snackbar; replaced when the result lands.
-    final progress = messenger.showSnackBar(
-      SnackBar(
-        content: Text(_chatUiText(zh: '正在记录…', en: 'Recording…')),
-        duration: const Duration(seconds: 30),
-        behavior: SnackBarBehavior.floating,
-        width: 160,
-      ),
+    // Show a long-lived toast above the input bar; replaced when the result lands.
+    final progress = messenger.showToast(
+      _chatUiText(zh: '正在记录…', en: 'Recording…'),
+      duration: const Duration(seconds: 30),
     );
 
     try {
       // ── Pre-process media attachments ──────────────────────────
       final media = <MediaInputAttachment>[];
       final attachmentsJson = message.attachmentsJson;
-      debugPrint(
-          '[Record] msg#${message.id} attachmentsJson '
+      debugPrint('[Record] msg#${message.id} attachmentsJson '
           '${attachmentsJson != null ? "present (${attachmentsJson.length} chars)" : "null"}');
       if (attachmentsJson != null && attachmentsJson.trim().isNotEmpty) {
         try {
           final List<dynamic> attachments = jsonDecode(attachmentsJson);
-          debugPrint('[Record] msg#${message.id} parsed ${attachments.length} attachment(s)');
+          debugPrint(
+              '[Record] msg#${message.id} parsed ${attachments.length} attachment(s)');
           // Extract existing analysis text from the [Image analysis: ...] prefix
           // that was injected into message.content during send.
           final existingAnalyses = _extractImageAnalyses(message.content);
-          debugPrint('[Record] msg#${message.id} prefix analyses extracted: ${existingAnalyses.length}');
+          debugPrint(
+              '[Record] msg#${message.id} prefix analyses extracted: ${existingAnalyses.length}');
           final fsService = FileSystemService.instance;
 
           // Close the initial "Recording…" snackbar once before processing images.
-          try { progress.close(); } catch (_) {}
+          try {
+            progress.close();
+          } catch (_) {}
 
           for (var i = 0; i < attachments.length; i++) {
             final att = attachments[i];
@@ -2009,16 +2012,12 @@ only after you have written the goodbye you want the user to hear.''',
             if (base64 == null || base64.isEmpty) continue;
 
             try {
-              final analyzing = messenger.showSnackBar(
-                SnackBar(
-                  content: Text(_chatUiText(
-                    zh: '正在分析图片${attachments.length > 1 ? "(${i + 1}/${attachments.length})" : ""}…',
-                    en: 'Analyzing image${attachments.length > 1 ? " (${i + 1}/${attachments.length})" : ""}…',
-                  )),
-                  duration: const Duration(seconds: 25),
-                  behavior: SnackBarBehavior.floating,
-                  width: 200,
+              final analyzing = messenger.showToast(
+                _chatUiText(
+                  zh: '正在分析图片${attachments.length > 1 ? "(${i + 1}/${attachments.length})" : ""}…',
+                  en: 'Analyzing image${attachments.length > 1 ? " (${i + 1}/${attachments.length})" : ""}…',
                 ),
+                duration: const Duration(seconds: 25),
               );
 
               // 1. Decode base64 → write temp file
@@ -2047,7 +2046,8 @@ only after you have written the goodbye you want the user to hear.''',
                 format: ext,
                 factId: factId,
               );
-              debugPrint('[Record] msg#${message.id} image#$i saved: $relativePath');
+              debugPrint(
+                  '[Record] msg#${message.id} image#$i saved: $relativePath');
 
               // Clean up temp file
               try {
@@ -2059,22 +2059,25 @@ only after you have written the goodbye you want the user to hear.''',
               // Tier 1: from the [Image analysis: ...] prefix in message content
               if (i < existingAnalyses.length) {
                 analysisText = existingAnalyses[i];
-                debugPrint('[Record] msg#${message.id} image#$i analysis from prefix');
+                debugPrint(
+                    '[Record] msg#${message.id} image#$i analysis from prefix');
               }
               // Tier 2: from attachment.analysis stored during send
-              if (analysisText == null || analysisText!.trim().isEmpty) {
+              if (analysisText == null || analysisText.trim().isEmpty) {
                 final storedAnalysis = att['analysis']?.toString();
-                if (storedAnalysis != null && storedAnalysis.trim().isNotEmpty) {
+                if (storedAnalysis != null &&
+                    storedAnalysis.trim().isNotEmpty) {
                   analysisText = storedAnalysis.trim();
                   debugPrint(
                       '[Record] msg#${message.id} image#$i analysis from attachment '
-                      '(${analysisText!.length} chars)');
+                      '(${analysisText.length} chars)');
                 }
               }
               // Tier 3: run inline AssetAnalysisTool
-              if (analysisText == null || analysisText!.trim().isEmpty) {
+              if (analysisText == null || analysisText.trim().isEmpty) {
                 try {
-                  debugPrint('[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…');
+                  debugPrint(
+                      '[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…');
                   final analysisResources =
                       await UserStorage.getAgentLLMResources(
                     AgentDefinitions.analyzeAssets,
@@ -2098,7 +2101,7 @@ only after you have written the goodbye you want the user to hear.''',
                       .trim();
                   debugPrint(
                       '[Record] msg#${message.id} image#$i inline analysis done '
-                      '(${analysisText!.length} chars)');
+                      '(${analysisText.length} chars)');
                 } catch (e) {
                   debugPrint(
                       '[Record] msg#${message.id} image#$i inline analysis FAILED: $e');
@@ -2113,7 +2116,7 @@ only after you have written the goodbye you want the user to hear.''',
               ));
               debugPrint(
                   '[Record] msg#${message.id} image#$i → media (usable=${media.last.isUsable}, '
-                  'hasAnalysis=${analysisText != null && analysisText!.isNotEmpty})');
+                  'hasAnalysis=${analysisText != null && analysisText.isNotEmpty})');
             } catch (e) {
               debugPrint(
                   '[Record] msg#${message.id} image#$i PROCESSING FAILED: $e');
@@ -2121,7 +2124,8 @@ only after you have written the goodbye you want the user to hear.''',
             }
           }
         } catch (e) {
-          debugPrint('[Record] msg#${message.id} parse attachmentsJson FAILED: $e');
+          debugPrint(
+              '[Record] msg#${message.id} parse attachmentsJson FAILED: $e');
         }
       }
 
@@ -2129,21 +2133,16 @@ only after you have written the goodbye you want the user to hear.''',
       final cleanedContent = message.content
           .replaceFirst(RegExp(r'^\[Image analysis:.*?\](\n\n?)?'), '')
           .trim();
-      debugPrint(
-          '[Record] msg#${message.id} content="${cleanedContent}", '
+      debugPrint('[Record] msg#${message.id} content="$cleanedContent", '
           'mediaCount=${media.where((m) => m.isUsable).length}');
 
-      // Restore progress snackbar before the LLM call
+      // Restore progress toast before the LLM call.
       try {
         progress.close();
       } catch (_) {}
-      final recordProgress = messenger.showSnackBar(
-        SnackBar(
-          content: Text(_chatUiText(zh: '正在记录…', en: 'Recording…')),
-          duration: const Duration(seconds: 30),
-          behavior: SnackBarBehavior.floating,
-          width: 160,
-        ),
+      final recordProgress = messenger.showToast(
+        _chatUiText(zh: '正在记录…', en: 'Recording…'),
+        duration: const Duration(seconds: 30),
       );
 
       final resources = await UserStorage.getAgentLLMResources(
@@ -5281,4 +5280,3 @@ class _TypingDotsState extends State<_TypingDots>
     );
   }
 }
-

@@ -1,10 +1,8 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
-import 'package:memex/agent/memory/character_memory_service.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/utils/user_storage.dart';
 
 /// Service for managing persona chat messages.
 class PersonaChatService {
@@ -90,47 +88,14 @@ class PersonaChatService {
           ),
         );
     _notifyMessageAdded(characterId);
-    if (appendTimeline) {
-      await _appendUserMessageTimelineEvent(
-        characterId: characterId,
-        content: content,
-        timestamp: createdAt,
-        messageId: id,
-      );
-    }
+    _ignoreLegacyTimelineFlag(appendTimeline);
     return id;
   }
 
   Future<void> appendUserMessageTimeline(
       String characterId, int messageId) async {
-    final message = await (_db.select(_db.personaChatMessages)
-          ..where((t) =>
-              t.id.equals(messageId) &
-              t.characterId.equals(characterId) &
-              t.isFromCharacter.equals(false)))
-        .getSingleOrNull();
-    if (message == null) return;
-    await _appendUserMessageTimelineEvent(
-      characterId: characterId,
-      content: message.content,
-      timestamp: message.timestamp,
-      messageId: message.id,
-    );
-  }
-
-  Future<void> _appendUserMessageTimelineEvent({
-    required String characterId,
-    required String content,
-    required DateTime timestamp,
-    required int messageId,
-  }) {
-    return _appendTimelineEventIfPossible(
-      characterId: characterId,
-      content: content,
-      timestamp: timestamp,
-      type: CharacterMemoryEventType.userChatMessage,
-      sourceId: messageId.toString(),
-    );
+    // Legacy character_memory timeline is frozen. Dreaming/Memory V3 owns
+    // extraction and recall, so chat persistence must not create side records.
   }
 
   Future<int> retractUserMessage(String characterId, int messageId) async {
@@ -169,14 +134,6 @@ class PersonaChatService {
           ),
         );
     _notifyMessageAdded(characterId);
-    await _appendTimelineEventIfPossible(
-      characterId: characterId,
-      content: content,
-      timestamp: createdAt,
-      type: CharacterMemoryEventType.characterChatMessage,
-      factId: factId,
-      sourceId: id.toString(),
-    );
     return id;
   }
 
@@ -207,8 +164,8 @@ class PersonaChatService {
       await (_db.update(_db.personaChatMessages)
             ..where((t) => t.id.equals(messageId)))
           .write(PersonaChatMessagesCompanion(
-            attachmentsJson: Value(jsonEncode(attachments)),
-          ));
+        attachmentsJson: Value(jsonEncode(attachments)),
+      ));
     } catch (e) {
       // Best-effort; analysis can still run inline during record.
     }
@@ -258,46 +215,13 @@ class PersonaChatService {
           ),
         );
     _notifyMessageAdded(characterId);
-    await _appendTimelineEventIfPossible(
-      characterId: characterId,
-      content: content,
-      timestamp: createdAt,
-      type: CharacterMemoryEventType.characterActionMessage,
-      factId: factId,
-      sourceId: id.toString(),
-    );
     return id;
   }
 
-  Future<void> _appendTimelineEventIfPossible({
-    required String characterId,
-    required String content,
-    required DateTime timestamp,
-    required CharacterMemoryEventType type,
-    String? factId,
-    String? sourceId,
-  }) async {
-    try {
-      final userId = await UserStorage.getUserId();
-      if (userId == null || content.trim().isEmpty) {
-        return;
-      }
-      await CharacterMemoryService.instance.appendTimelineEvent(
-        userId: userId,
-        characterId: characterId,
-        scene: CharacterMemoryScene.chat,
-        type: type,
-        content: content,
-        threadId: 'chat:$characterId',
-        messageId: sourceId,
-        factId: factId,
-        sourceId: sourceId,
-        timestamp: timestamp,
-        metadata: {'source': 'persona_chat'},
-      );
-    } catch (_) {
-      // Timeline append failure must not break normal chat persistence.
-    }
+  void _ignoreLegacyTimelineFlag(bool appendTimeline) {
+    if (!appendTimeline) return;
+    // Kept for API compatibility with older callers while the old character
+    // memory timeline is intentionally disconnected from chat.
   }
 
   Stream<int> watchUnreadCount(String characterId) {

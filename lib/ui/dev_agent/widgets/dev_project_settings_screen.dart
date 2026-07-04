@@ -81,7 +81,8 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('删除项目?'),
-        content: Text('"${project.name}" 的所有 run 历史、事件、artifact 会一起被清掉。Bridge 端的 worktree 不会被动。'),
+        content: Text(
+            '"${project.name}" 的所有 run 历史、事件、artifact 会一起被清掉。Bridge 端的 worktree 不会被动。'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -248,41 +249,10 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
                 if (value != null) setState(() => _permissionTier = value);
               },
             ),
-            const SizedBox(height: 8),
-            Text(
-              _permissionDescription(_permissionTier),
-              style: const TextStyle(
-                height: 1.35,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Token、GitHub 权限和代理进程都只放在 Bridge 端。写入档会在隔离 worktree 里改文件，commit / 网络等动作仍逐条审批。',
-                style: TextStyle(
-                  height: 1.4,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
           ],
         ),
       ),
     );
-  }
-
-  String _permissionDescription(String tier) {
-    return switch (tier) {
-      'workspace_write' => '允许代理在隔离 worktree 里改文件；commit、网络等高风险动作仍要逐条审批。可以 pull 主分支。',
-      'release_ops' => '在写入工作区基础上增加 push 权限。可以推送本地 commit 到远程仓库，逐条审批。',
-      _ => '当前只允许读取项目和汇报进度，不允许写文件、提交、推送或联网操作。',
-    };
   }
 }
 

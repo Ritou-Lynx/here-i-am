@@ -11,18 +11,18 @@ import 'package:memex/agent/built_in_tools/dev_session_tool.dart';
 import 'package:memex/agent/built_in_tools/device_app_blocker_tool.dart';
 import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
+import 'package:memex/agent/built_in_tools/mobility_route_tool.dart';
 import 'package:memex/agent/built_in_tools/phone_usage_tool.dart';
 import 'package:memex/agent/built_in_tools/reading_content_tool.dart';
 import 'package:memex/agent/built_in_tools/toy_control_tool.dart';
 import 'package:memex/agent/built_in_tools/transit_companion_tools.dart';
-import 'package:memex/agent/built_in_tools/user_knowledge_query_tool.dart';
+import 'package:memex/agent/built_in_tools/weather_risk_tool.dart';
 import 'package:memex/agent/built_in_tools/web_search_tool.dart';
 import 'package:memex/agent/built_in_tools/generate_image_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_query_tool.dart';
 import 'package:memex/agent/built_in_tools/weread_tool.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
 import 'package:memex/agent/skills/comment_agent/tools/comment_tools.dart';
-import 'package:memex/agent/skills/comment_agent/tools/memory_tools.dart';
 import 'package:memex/agent/skills/companion_agent/tools/action_message_tools.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
@@ -54,20 +54,10 @@ class CharacterToolsFactory {
     ToyController? toyControlService,
     InitiateCallPolicy? initiateCallPolicy,
   }) {
-    final memoryFactory = MemoryToolFactory(
-      userId: userId,
-      defaultCharacterId: characterId,
-    );
     final actionFactory = ActionMessageToolFactory(characterId: characterId);
     final financeService = AiFinanceService(db: AppDatabase.instance);
     final remoteTaskService = RemoteTaskService(db: AppDatabase.instance);
     final tools = [
-      memoryFactory.buildMemoryReadTool(),
-      memoryFactory.buildMemoryWriteTool(),
-      memoryFactory.buildMemoryEditTool(),
-      memoryFactory.buildMemoryRemoveTool(),
-      memoryFactory.buildHistorySearchTool(),
-      buildUserKnowledgeQueryTool(userId: userId),
       actionFactory.buildSendActionMessageTool(),
       buildReminderTool(characterId: characterId, characterName: characterName),
       buildDelegateTaskTool(
@@ -107,6 +97,8 @@ class CharacterToolsFactory {
         remoteTaskService: remoteTaskService,
       ),
       buildDeviceAppBlockerTool(),
+      buildWeatherOutingRiskTool(),
+      buildMobilityRoutePlanTool(),
       ...buildTransitCompanionTools(characterId: characterId),
       buildContinuousReplyTool(),
     ];
@@ -176,18 +168,6 @@ class CharacterToolsFactory {
       tools.add(commentFactory.buildSaveCommentTool());
     }
 
-    if (characterId != null) {
-      final memoryFactory = MemoryToolFactory(
-        userId: userId,
-        defaultCharacterId: characterId,
-      );
-      tools.add(memoryFactory.buildMemoryReadTool());
-      tools.add(memoryFactory.buildMemoryWriteTool());
-      tools.add(memoryFactory.buildMemoryEditTool());
-      tools.add(memoryFactory.buildMemoryRemoveTool());
-      tools.add(memoryFactory.buildHistorySearchTool());
-    }
-
     return tools;
   }
 
@@ -197,7 +177,8 @@ class CharacterToolsFactory {
   static Tool _buildLifeMemoryCaptureTool() {
     return Tool(
       name: 'LifeMemoryCapture',
-      description: 'Save the user\'s current message as a User-truth Memory Card. '
+      description:
+          'Save the user\'s current message as a User-truth Memory Card. '
           'ONLY call when the user explicitly asks to record/save/remember. '
           'Phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、'
           '"加到记录里"、"记住这个". Pass the raw message text as-is.',

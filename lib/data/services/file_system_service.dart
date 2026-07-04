@@ -1083,11 +1083,6 @@ class FileSystemService {
     await _baseService.writeFile(filePath, encoder.convert(profileMeta));
   }
 
-  /// Comment settings file path
-  String getCommentSettingsPath(String userId) {
-    return path.join(getUserSettingsPath(userId), 'comment_settings.yaml');
-  }
-
   /// Add user custom location (lat, lng, name).
   Future<bool> addUserLocation(
       String userId, double lat, double lng, String name) async {
@@ -1497,7 +1492,7 @@ class FileSystemService {
     // message record path).
     final effectiveFactId = factId ??
         '${DateTime.now().year}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().day.toString().padLeft(2, '0')}.md'
-        '#ts_${DateTime.now().microsecondsSinceEpoch}';
+            '#ts_${DateTime.now().microsecondsSinceEpoch}';
 
     final filename = generateAssetFilename(
       userId,

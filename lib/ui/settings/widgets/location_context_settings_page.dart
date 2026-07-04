@@ -135,7 +135,7 @@ class _LocationContextSettingsPageState
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
-        title: Text(l10n.location),
+        title: const Text('位置、地图与天气'),
         backgroundColor: AppColors.background,
         surfaceTintColor: AppColors.background,
       ),
@@ -150,7 +150,7 @@ class _LocationContextSettingsPageState
                 const SizedBox(height: 16),
                 _transitCompanionSection(),
                 const SizedBox(height: 16),
-                _testSection(l10n),
+                _advancedSettingsSection(l10n),
               ],
             ),
     );
@@ -167,118 +167,12 @@ class _LocationContextSettingsPageState
               Icons.my_location_outlined,
               color: AppColors.primary,
             ),
-            title: Text(l10n.locationContextAttachTitle),
-            subtitle: Text(l10n.locationContextAttachDesc),
+            title: const Text('让 I 知道你的位置'),
+            subtitle: const Text(
+              '用于聊天里的现实上下文、天气判断、出门提醒和记忆来源地点。默认只提供大致位置，不把精确门牌交给角色。',
+            ),
             value: _config.enabled,
             onChanged: (value) => _save(_config.copyWith(enabled: value)),
-          ),
-          const Divider(height: 28),
-          Text(
-            l10n.reverseGeocodingProvider,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '用于给日常记录附加城市、区县、街区等地点上下文。可以继续使用 OpenStreetMap；不会因为开启出行陪跑而自动改用高德。',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<GeocodingProvider>(
-            key: ValueKey(_config.provider),
-            initialValue: _config.provider,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            selectedItemBuilder: (_) => [
-              const Text('OpenStreetMap / Nominatim'),
-              Text(l10n.amapProviderName),
-            ],
-            items: [
-              const DropdownMenuItem(
-                value: GeocodingProvider.openStreetMap,
-                child: Text('OpenStreetMap / Nominatim'),
-              ),
-              DropdownMenuItem(
-                value: GeocodingProvider.amap,
-                child: Text(l10n.amapProviderName),
-              ),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              _save(_config.copyWith(provider: value));
-            },
-          ),
-          if (_config.provider == GeocodingProvider.amap) ...[
-            const SizedBox(height: 8),
-            Text(
-              l10n.amapGcj02Note,
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Text(
-            l10n.contextGranularity,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<LocationContextGranularity>(
-            key: ValueKey(_config.granularity),
-            initialValue: _config.granularity,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: [
-              DropdownMenuItem(
-                value: LocationContextGranularity.city,
-                child: Text(l10n.granularityCity),
-              ),
-              DropdownMenuItem(
-                value: LocationContextGranularity.district,
-                child: Text(l10n.granularityDistrict),
-              ),
-              DropdownMenuItem(
-                value: LocationContextGranularity.neighborhood,
-                child: Text(l10n.granularityNeighborhood),
-              ),
-              DropdownMenuItem(
-                value: LocationContextGranularity.street,
-                child: Text(l10n.granularityStreet),
-              ),
-              DropdownMenuItem(
-                value: LocationContextGranularity.full,
-                child: Text(l10n.granularityFullAddress),
-              ),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              _save(_config.copyWith(granularity: value));
-            },
-          ),
-          const SizedBox(height: 16),
-          Text(
-            l10n.locationFreshness,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<int>(
-            key: ValueKey(_config.ttlMinutes),
-            initialValue: _config.ttlMinutes,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: [
-              DropdownMenuItem(value: 5, child: Text(l10n.minutesShort(5))),
-              DropdownMenuItem(value: 15, child: Text(l10n.minutesShort(15))),
-              DropdownMenuItem(value: 30, child: Text(l10n.minutesShort(30))),
-              DropdownMenuItem(value: 60, child: Text(l10n.oneHour)),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              _save(_config.copyWith(ttlMinutes: value));
-            },
           ),
         ],
       ),
@@ -291,19 +185,19 @@ class _LocationContextSettingsPageState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '高德 Web 服务 Key',
+            '高德 Key',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
           Text(
-            '用于出行陪跑路线规划；只有当记录地点服务商选择高德时，日常记录地点才会使用这个 Key。',
+            '用于路线规划、天气风险提醒、周边地点和路线陪跑。日常记忆地点仍可在高级设置里继续使用 OpenStreetMap。',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _amapKeyController,
             decoration: const InputDecoration(
-              labelText: '高德 Web 服务 API Key',
+              labelText: '高德 Web 服务 Key',
               border: OutlineInputBorder(),
               isDense: true,
             ),
@@ -323,9 +217,9 @@ class _LocationContextSettingsPageState
           Icons.directions_transit_filled_outlined,
           color: AppColors.primary,
         ),
-        title: const Text('出行陪跑路线'),
+        title: const Text('路线陪跑提醒'),
         subtitle: const Text(
-          '用高德公交/地铁路线规划支持“帮我盯一下别坐过站”。不影响日常记录地点服务商。',
+          '允许 I 在你明确要求“帮我盯路 / 别坐过站”时，为本次出行创建临时提醒。不会自动追踪位置；路线结束或超时后自动停止。',
         ),
         value: _config.transitCompanionEnabled,
         onChanged: (value) =>
@@ -334,56 +228,206 @@ class _LocationContextSettingsPageState
     );
   }
 
-  Widget _testSection(dynamic l10n) {
+  Widget _advancedSettingsSection(dynamic l10n) {
     return _section(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(top: 8),
+        leading: const Icon(
+          Icons.tune_outlined,
+          color: AppColors.primary,
+        ),
+        title: const Text(
+          '高级设置',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Text('地点服务商、地点精度、新鲜度和定位诊断'),
         children: [
-          FilledButton.icon(
-            onPressed: _testing ? null : _testLocation,
-            icon: _testing
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.location_searching),
-            label: Text(l10n.testCurrentLocation),
-          ),
-          if (_testResult != null) ...[
-            const SizedBox(height: 12),
-            SelectableText(
-              _testResult!,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[700],
-                height: 1.4,
-              ),
-            ),
-          ],
+          _reverseGeocodingControls(l10n),
+          const SizedBox(height: 18),
+          _granularityControls(l10n),
+          const SizedBox(height: 18),
+          _freshnessControls(l10n),
+          const SizedBox(height: 18),
+          _testLocationControls(l10n),
         ],
       ),
     );
   }
 
-  Widget _section({required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.textSecondary.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+  Widget _reverseGeocodingControls(dynamic l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.reverseGeocodingProvider,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '用于把 GPS 转成城市、区县和街区。记忆来源地点建议保持轻量，不需要特别精确。',
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<GeocodingProvider>(
+          key: ValueKey(_config.provider),
+          initialValue: _config.provider,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          selectedItemBuilder: (_) => [
+            const Text('OpenStreetMap / Nominatim'),
+            Text(l10n.amapProviderName),
+          ],
+          items: [
+            const DropdownMenuItem(
+              value: GeocodingProvider.openStreetMap,
+              child: Text('OpenStreetMap / Nominatim'),
+            ),
+            DropdownMenuItem(
+              value: GeocodingProvider.amap,
+              child: Text(l10n.amapProviderName),
+            ),
+          ],
+          onChanged: (value) {
+            if (value == null) return;
+            _save(_config.copyWith(provider: value));
+          },
+        ),
+        if (_config.provider == GeocodingProvider.amap) ...[
+          const SizedBox(height: 8),
+          Text(
+            l10n.amapGcj02Note,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _granularityControls(dynamic l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.contextGranularity,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<LocationContextGranularity>(
+          key: ValueKey(_config.granularity),
+          initialValue: _config.granularity,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          items: [
+            DropdownMenuItem(
+              value: LocationContextGranularity.city,
+              child: Text(l10n.granularityCity),
+            ),
+            DropdownMenuItem(
+              value: LocationContextGranularity.district,
+              child: Text(l10n.granularityDistrict),
+            ),
+            DropdownMenuItem(
+              value: LocationContextGranularity.neighborhood,
+              child: Text(l10n.granularityNeighborhood),
+            ),
+            DropdownMenuItem(
+              value: LocationContextGranularity.street,
+              child: Text(l10n.granularityStreet),
+            ),
+            DropdownMenuItem(
+              value: LocationContextGranularity.full,
+              child: Text(l10n.granularityFullAddress),
+            ),
+          ],
+          onChanged: (value) {
+            if (value == null) return;
+            _save(_config.copyWith(granularity: value));
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _freshnessControls(dynamic l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.locationFreshness,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<int>(
+          key: ValueKey(_config.ttlMinutes),
+          initialValue: _config.ttlMinutes,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          items: [
+            DropdownMenuItem(value: 5, child: Text(l10n.minutesShort(5))),
+            DropdownMenuItem(value: 15, child: Text(l10n.minutesShort(15))),
+            DropdownMenuItem(value: 30, child: Text(l10n.minutesShort(30))),
+            DropdownMenuItem(value: 60, child: Text(l10n.oneHour)),
+          ],
+          onChanged: (value) {
+            if (value == null) return;
+            _save(_config.copyWith(ttlMinutes: value));
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _testLocationControls(dynamic l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FilledButton.icon(
+          onPressed: _testing ? null : _testLocation,
+          icon: _testing
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.location_searching),
+          label: Text(l10n.testCurrentLocation),
+        ),
+        if (_testResult != null) ...[
+          const SizedBox(height: 12),
+          SelectableText(
+            _testResult!,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[700],
+              height: 1.4,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _section({required Widget child}) {
+    return Material(
+      color: Colors.white,
+      elevation: 2,
+      shadowColor: AppColors.textSecondary.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: child,
       ),
-      child: child,
     );
   }
 }

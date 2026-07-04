@@ -209,7 +209,6 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
                         onPressed: _resetSpent,
                         child: const Text('重置额度'),
                       ),
-
                     ],
                   ),
                 ]),
@@ -284,8 +283,8 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2))
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
                             : const Icon(Icons.wifi_tethering, size: 18),
                         label: const Text('测试连接'),
                       ),
@@ -320,14 +319,6 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
                         ),
                     ],
                   ),
-                ]),
-                const SizedBox(height: 16),
-                _card([
-                  _sectionTitle('安全边界'),
-                  const _BulletItem('仅允许在淘宝购买实物商品'),
-                  const _BulletItem('禁止转账、提现、充值、虚拟货币、订阅开通'),
-                  const _BulletItem('任何一步出错，AI 会停下来告诉你，不会自作主张'),
-                  const _BulletItem('每笔购买均有完整日志记录'),
                 ]),
                 const SizedBox(height: 32),
               ],
@@ -381,26 +372,6 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
       );
 }
 
-class _BulletItem extends StatelessWidget {
-  final String text;
-  const _BulletItem(this.text);
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('• ', style: TextStyle(color: Colors.grey)),
-            Expanded(
-                child: Text(text,
-                    style:
-                        const TextStyle(fontSize: 13, color: Colors.grey))),
-          ],
-        ),
-      );
-}
-
 class _PaymentModeOption extends StatelessWidget {
   final String label;
   final String subtitle;
@@ -428,8 +399,7 @@ class _PaymentModeOption extends StatelessWidget {
         onChanged: enabled && onTap != null ? (_) => onTap!() : null,
         activeColor: AppColors.primary,
       ),
-      title: Text(label,
-          style: TextStyle(color: enabled ? null : Colors.grey)),
+      title: Text(label, style: TextStyle(color: enabled ? null : Colors.grey)),
       subtitle: Text(subtitle,
           style: const TextStyle(fontSize: 12, color: Colors.grey)),
       onTap: onTap,

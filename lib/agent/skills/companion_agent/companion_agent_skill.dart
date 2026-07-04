@@ -14,8 +14,6 @@ class CompanionAgentSkill extends Skill {
     required CharacterModel character,
     required String userId,
     required String userName,
-    required String userProfile,
-    required String characterMemories,
     int? currentUserMessageId,
     bool includeCheckinTools = false,
     ToyController? toyControlService,
@@ -28,8 +26,6 @@ class CompanionAgentSkill extends Skill {
           systemPrompt: _buildSystemPrompt(
             character: character,
             userName: userName,
-            userProfile: userProfile,
-            characterMemories: characterMemories,
             hasToyControl: toyControlService != null,
           ),
           tools: CharacterToolsFactory.buildCompanionTools(
@@ -46,8 +42,6 @@ class CompanionAgentSkill extends Skill {
   static String _buildSystemPrompt({
     required CharacterModel character,
     required String userName,
-    required String userProfile,
-    required String characterMemories,
     bool hasToyControl = false,
   }) {
     final now = formatLocalDateTimeWithZone(DateTime.now());
@@ -113,8 +107,6 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- If you see "CONTEXT SUMMARY — REFERENCE ONLY", treat it as background history, not a fresh user request.');
     b.writeln('- Always prioritize the latest real user message.');
-    b.writeln(
-        '- Use HistorySearch when memory or compressed history is too vague and exact past wording matters.');
     b.writeln('- Language: $lang');
     b.writeln('');
     b.writeln('## Continuous Replies (request_continuous_replies)');
@@ -124,10 +116,8 @@ class CompanionAgentSkill extends Skill {
         '"连续发消息", "发20条", "不要停", "你自己继续写", "keep talking"), '
         'you MUST call `request_continuous_replies` with the count the user '
         'specified.');
-    b.writeln(
-        '- If the user did not specify a number, default to 30.');
-    b.writeln(
-        '- Call this tool in the same turn as your text reply. '
+    b.writeln('- If the user did not specify a number, default to 30.');
+    b.writeln('- Call this tool in the same turn as your text reply. '
         'Reply briefly to acknowledge ("好的，我来继续～"), then call the tool.');
     b.writeln(
         '- Do NOT call this tool unless the user explicitly requests continuous '
@@ -136,18 +126,6 @@ class CompanionAgentSkill extends Skill {
     b.writeln(companionRelationshipPrompt);
     b.writeln('');
 
-    if (userProfile.isNotEmpty) {
-      b.writeln('## User Profile');
-      b.writeln(userProfile);
-      b.writeln('');
-    }
-
-    if (characterMemories.isNotEmpty) {
-      b.writeln('## Character Memory Entries');
-      b.writeln(characterMemories);
-      b.writeln('');
-    }
-
     if (character.mesExample != null &&
         character.mesExample!.trim().isNotEmpty) {
       b.writeln('## Style Examples');
@@ -155,28 +133,11 @@ class CompanionAgentSkill extends Skill {
       b.writeln('');
     }
 
-    b.writeln('## Memory Update Guidance');
-    b.writeln(
-        '- Use `append_memories` to record durable USER-level facts (preferences, identity, habits) that apply across all characters.');
-    b.writeln(
-        '- Use MemoryWrite/MemoryEdit/MemoryRemove to manage CHARACTER-level memory (relationship dynamics, support preferences, style feedback, emotional patterns, open threads, and inside jokes specific to this character).');
-    b.writeln(
-        '- Prioritize explicit user corrections about tone, catchphrases, question frequency, advice, and preferred support style.');
-    b.writeln(
-        '- Do not use memory tools during a simple support reply unless the user states a durable preference or correction.');
-    b.writeln(
-        '- Character memory is relationship-private. Do not expose a private detail in a different social context merely because you remember it.');
-    b.writeln(
-        '- Memory tools are optional and must never replace the chat reply.');
-    b.writeln('- Avoid storing ephemeral details or exact chat logs.');
-    b.writeln('');
     b.writeln('## Shared Life Records');
     b.writeln(
         '- Shared life records hold objective events, tasks, plans, schedules, and durable facts compiled into Memory V3 Cards. They are visible across characters.');
     b.writeln(
         '- Use `memory_v3_query` to search these cards before answering recall questions. This is your primary tool for "记得..." / "有没有..." / "上次..." / "最近...怎么样" type questions. Always try it first — it gives instant results with FTS5 keyword search and synonym expansion.');
-    b.writeln(
-        '- Use `UserKnowledgeQuery` before answering exact questions about older Memex timeline cards or PKM knowledge. Old cards remain a valid source of truth during migration.');
     b.writeln(
         '- Use `LifeMemoryCapture` ONLY when the user\'s current message contains an explicit record request. Pass the raw user message text as the `text` parameter. Qualifying phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、"加到记录里"、"记住这个". Mentioning facts, events, or plans in conversation does NOT qualify. No trigger phrase → do NOT call this tool.');
     b.writeln(
@@ -185,6 +146,8 @@ class CompanionAgentSkill extends Skill {
         '- To update or correct a record, tell the user to use the Memory Review or floating ball — these actions are not yet available through chat.');
     b.writeln(
         '- These tools are optional and must never replace the visible chat reply.');
+    b.writeln(
+        '- Relationship memory is owned by Dreaming/Memory V3. Do not try to write private relationship memory through legacy character memory tools.');
     b.writeln('');
     b.writeln('## Relationship Consequences');
     b.writeln(
@@ -194,7 +157,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Consequences should feel like part of the relationship, not like a productivity system. Be specific about why you chose one.');
     b.writeln(
-        '- Use memory tools to remember durable consequence preferences, such as fine amounts, preferred accountability style, or hard dislikes.');
+        '- If a consequence preference should become durable, only record it when the user explicitly asks you to save or remember it.');
     b.writeln('');
     b.writeln('## Phone Usage Awareness');
     b.writeln(
@@ -351,6 +314,44 @@ class CompanionAgentSkill extends Skill {
         'Say you owe the user a specific amount and plan to pay it back.');
 
     b.writeln('');
+    b.writeln('## Weather and Outing Risk');
+    b.writeln(
+        'You can check practical weather risks for leaving home, commuting, or going somewhere. '
+        'Use this as care in the conversation, not as a weather report.');
+    b.writeln('Use `WeatherOutingRiskCheck` when:');
+    b.writeln('- the user is about to go out, commute, date, walk, or travel;');
+    b.writeln(
+        '- the user asks whether to take an umbrella, jacket, avoid walking, or check rain/wind/temperature risk;');
+    b.writeln(
+        '- a route has a meaningful outdoor walking segment and weather may affect it.');
+    b.writeln('Rules:');
+    b.writeln(
+        '- Do not recite a full forecast. Tell the user only the action-relevant part.');
+    b.writeln(
+        '- If the result says evening_rain_risk or bring_umbrella, naturally remind them to take an umbrella before leaving.');
+    b.writeln(
+        '- If temperature_drop_risk is true, suggest a light jacket in character voice.');
+    b.writeln(
+        '- Amap weather does not provide UV in this first slice; do not invent UV risk unless another source is available.');
+    b.writeln('');
+    b.writeln('## Map and Mobility Planning');
+    b.writeln(
+        'You can plan door-to-door public-transit routes with Amap using natural language. '
+        'This is broader than subway stop watching: buildings, communities, landmarks, and stations are all valid endpoints.');
+    b.writeln('Use `MobilityRoutePlan` when the user asks:');
+    b.writeln('- how to get from one real place to another;');
+    b.writeln(
+        '- for a practical route from a building/community/landmark to another place;');
+    b.writeln(
+        '- for travel time, walking exposure, transfers, or route shape.');
+    b.writeln('Rules:');
+    b.writeln(
+        '- Give a concise route summary: first walk, main line(s), transfer/get-off point, final walk, and approximate time.');
+    b.writeln(
+        '- If the route result has walking_minutes >= 15, consider `WeatherOutingRiskCheck` with that walking time before advising.');
+    b.writeln(
+        '- `MobilityRoutePlan` only plans. Use `TransitPlanStart` only when the user wants active companionship, reminders, or help not missing stops.');
+    b.writeln('');
     b.writeln('## Transit Companion Mode');
     b.writeln(
         'You can accompany the user through a subway/bus trip using natural language only. '
@@ -358,7 +359,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('Use `TransitPlanStart` when the user asks you to:');
     b.writeln(
-        '- plan a public-transit trip from one place/station to another;');
+        '- actively accompany a public-transit trip after a route is known;');
     b.writeln('- help them avoid missing a stop or transfer;');
     b.writeln('- "陪我走这段路", "帮我盯一下换乘", "别让我坐过站".');
     b.writeln('');

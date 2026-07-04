@@ -1,10 +1,7 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/agent/agent_controller.util.dart';
-import 'package:memex/agent/context/character_context_assembler.dart';
 import 'package:memex/agent/comment_agent/prompts.dart';
-import 'package:memex/agent/memory/character_context_compressor.dart';
-import 'package:memex/agent/memory/character_memory_service.dart';
 import 'package:memex/agent/memory/memory_management.dart';
 import 'package:memex/agent/prompts.dart';
 import 'package:memex/agent/skills/comment_agent/comment_agent_skill.dart';
@@ -15,7 +12,6 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/file_operation_service.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:logging/logging.dart';
-import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/time_context.dart';
 
 class CommentAgent {
@@ -77,44 +73,13 @@ class CommentAgent {
           await memoryManagement.buildMemoryManagementPrompt();
     }
 
-    // Build character context — userProfile and characterMemories go into skill
-    // system prompt; world/timeline/knowledge go into systemReminders.
+    // Old character_memory context is frozen while Dreaming owns memory.
+    // Comment Agent can still comment, but it must not read private memory.
     String userProfile = '';
-    String characterMemories = '';
     if (character != null) {
-      final ctx = await CharacterContextAssembler.build(
-        userId: userId,
-        character: character,
-        sourceAgent: 'comment_agent',
-        queryHint: rawInputContent,
-        excludeTimelineThreadId: factId,
-      );
-      userProfile = ctx.userProfile;
-      characterMemories = ctx.characterMemories;
-
-      if (ctx.characterWorld.isNotEmpty) {
-        state.systemReminders['character_world'] =
-            '## Triggered Character World Entries\n${TavernMacro.resolve(ctx.characterWorld, userName: userId, charName: character.name)}';
-      }
-      // Combine compaction checkpoints + recent timeline into one reminder.
-      {
-        final parts = <String>[];
-        if (ctx.checkpoints.isNotEmpty) {
-          parts.add('## Compressed Interaction History\n${ctx.checkpoints}');
-        }
-        if (ctx.recentTimeline.isNotEmpty) {
-          parts.add(
-            '## Recent Cross-Scene Interactions\n${ctx.recentTimeline}',
-          );
-        }
-        if (parts.isNotEmpty) {
-          state.systemReminders['character_timeline'] = parts.join('\n\n');
-        }
-      }
-      if (ctx.knowledgeCards.isNotEmpty) {
-        state.systemReminders['user_knowledge_cards'] =
-            '## User Knowledge Cards\n${ctx.knowledgeCards}';
-      }
+      state.systemReminders.remove('character_world');
+      state.systemReminders.remove('character_timeline');
+      state.systemReminders.remove('user_knowledge_cards');
     } else {
       // No character — fall back to user memory as profile.
       userProfile = await memoryManagement.buildMemoryPrompt();
@@ -127,7 +92,6 @@ class CommentAgent {
       userId: userId,
       userName: userId,
       userProfile: userProfile,
-      characterMemories: characterMemories,
       forcedReplyToId: forcedReplyToId,
       onCommentSaved: onCommentSaved,
       forceActivate: true,
@@ -217,25 +181,6 @@ class CommentAgent {
     ]);
     state.metadata['comment_task_post_body_injected'] = factId;
 
-    if (characterId != null && rawInputContent.trim().isNotEmpty) {
-      try {
-        await CharacterMemoryService.instance.appendTimelineEvent(
-          userId: userId,
-          characterId: characterId,
-          scene: CharacterMemoryScene.comment,
-          type: CharacterMemoryEventType.postObserved,
-          content: rawInputContent,
-          threadId: factId,
-          factId: factId,
-          sourceId: factId,
-          timestamp: entryTime ?? effectiveCurrentTime,
-          metadata: {'source': 'comment_agent_input'},
-        );
-      } catch (e) {
-        _logger.warning('Failed to append comment input timeline event: $e');
-      }
-    }
-
     List<LLMMessage> history = [];
     if (state.isRunning) {
       _logger.info("CommentAgent resume, sessionId:${state.sessionId}");
@@ -262,16 +207,6 @@ class CommentAgent {
       }
 
       history = await agent.run([userMessage], useStream: false);
-    }
-
-    // Post-run: check if compression is needed based on real token usage.
-    if (characterId != null && state.usages.isNotEmpty) {
-      final lastPromptTokens = state.usages.last.promptTokens;
-      await CharacterContextCompressor.instance.compressIfNeeded(
-        userId: userId,
-        characterId: characterId,
-        lastPromptTokens: lastPromptTokens,
-      );
     }
 
     // Extract the text response

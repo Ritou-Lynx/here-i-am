@@ -2414,27 +2414,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get yesterday => 'Yesterday';
 
   @override
-  String get showInsightTextTitle => 'Show Memex insight comment';
-
-  @override
-  String get showInsightTextDesc =>
-      'Whether to show the Memex insight as a pinned comment in the card detail comment section.';
-
-  @override
-  String get enableCharacterCommentTitle => 'Character auto-comment';
-
-  @override
-  String get enableCharacterCommentDesc =>
-      'Characters automatically comment on new records.';
-
-  @override
-  String get maxCommentCharactersTitle => 'Max commenting characters';
-
-  @override
-  String get maxCommentCharactersDesc =>
-      'How many characters can comment on each record.';
-
-  @override
   String replyTo(String name) {
     return 'Reply to $name';
   }

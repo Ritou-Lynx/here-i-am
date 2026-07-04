@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:memex/data/repositories/memex_router.dart';
+import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
+import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
@@ -30,13 +32,17 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
   PersonaChatOpenRequest? _pendingOpenRequest;
   bool _startVoiceMode = false;
   bool _isLoading = true;
+  Object? _loadError;
+  Timer? _retryTimer;
   StreamSubscription<PersonaChatOpenRequest>? _openChatSub;
 
   /// Called from notification payload handlers. Voice-mode boot only; the
   /// target character is always the singleton I, so we ignore the requested
   /// characterId.
-  Future<void> switchToCharacter(String characterId,
-      {bool startVoiceMode = false}) async {
+  Future<void> switchToCharacter(
+    String characterId, {
+    bool startVoiceMode = false,
+  }) async {
     if (_isLoading) {
       _pendingOpenRequest = PersonaChatOpenRequest(
         characterId: characterId,
@@ -60,11 +66,20 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     _openChatSub?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadInitialCharacter() async {
+  Future<void> _loadInitialCharacter({int attempt = 0}) async {
+    _retryTimer?.cancel();
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
+
     final userId = await UserStorage.getUserId();
     if (userId == null) {
       if (mounted) setState(() => _isLoading = false);
@@ -72,13 +87,18 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
     }
 
     try {
-      // Goes through MemexRouter so FileSystemService / DB are guaranteed
-      // initialized for this user before we touch CharacterService.
-      final characters = (await MemexRouter().fetchCharacters()).valueOrThrow;
-      final primary = characters
-              .where((c) => c.isPrimaryCompanion && c.enabled)
-              .firstOrNull ??
-          characters.where((c) => c.enabled).firstOrNull;
+      final primary = await _loadPrimaryCompanion(userId);
+      if (primary == null && attempt < 2) {
+        _logger.warning(
+          'No primary companion resolved during startup; retrying ($attempt)',
+        );
+        _retryTimer = Timer(
+          const Duration(milliseconds: 600),
+          () => unawaited(_loadInitialCharacter(attempt: attempt + 1)),
+        );
+        return;
+      }
+
       final requested = _pendingOpenRequest;
       _pendingOpenRequest = null;
 
@@ -87,11 +107,50 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
         _characterId = primary?.id;
         _startVoiceMode = requested?.startVoiceMode == true;
         _isLoading = false;
+        _loadError = null;
       });
     } catch (e, stackTrace) {
       _logger.severe('Failed to load the I', e, stackTrace);
-      if (mounted) setState(() => _isLoading = false);
+      if (attempt < 2) {
+        _retryTimer = Timer(
+          const Duration(milliseconds: 600),
+          () => unawaited(_loadInitialCharacter(attempt: attempt + 1)),
+        );
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _loadError = e;
+        });
+      }
     }
+  }
+
+  Future<CharacterModel?> _loadPrimaryCompanion(String userId) async {
+    // Go through MemexRouter first so FileSystemService / DB are initialized.
+    final characters = (await MemexRouter().fetchCharacters()).valueOrThrow;
+    final primary = characters
+            .where((c) => c.isPrimaryCompanion && c.enabled)
+            .firstOrNull ??
+        characters.where((c) => c.enabled).firstOrNull;
+    if (primary != null) return primary;
+
+    // Reinstall-over-data can briefly report an empty roster before the
+    // singleton I seed is visible to the shell. CharacterService owns seeding,
+    // so ask it directly before treating startup as failed.
+    final seededPrimary =
+        await CharacterService.instance.getPrimaryCompanion(userId);
+    if (seededPrimary != null && seededPrimary.enabled) {
+      return seededPrimary;
+    }
+
+    final seededCharacters =
+        await CharacterService.instance.getAllCharacters(userId);
+    return seededCharacters
+            .where((c) => c.isPrimaryCompanion && c.enabled)
+            .firstOrNull ??
+        seededCharacters.where((c) => c.enabled).firstOrNull;
   }
 
   Future<void> _handleOpenChatRequest(PersonaChatOpenRequest request) async {
@@ -122,7 +181,12 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
     }
 
     final characterId = _characterId;
-    if (characterId == null) return const _NoCompanionView();
+    if (characterId == null) {
+      return _NoCompanionView(
+        error: _loadError,
+        onRetry: () => unawaited(_loadInitialCharacter()),
+      );
+    }
     return PersonaChatScreen(
       key: ValueKey('companion-chat-$characterId'),
       characterId: characterId,
@@ -144,17 +208,44 @@ Route<void> companionLifeSpaceRoute({
 }
 
 class _NoCompanionView extends StatelessWidget {
-  const _NoCompanionView();
+  const _NoCompanionView({
+    required this.error,
+    required this.onRetry,
+  });
+
+  final Object? error;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    final hasError = error != null;
+    return Scaffold(
       body: Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            '正在初始化 I...',
-            textAlign: TextAlign.center,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AgentLogoLoading(),
+              const SizedBox(height: 16),
+              const Text(
+                '正在初始化 I...',
+                textAlign: TextAlign.center,
+              ),
+              if (hasError) ...[
+                const SizedBox(height: 12),
+                Text(
+                  '初始化暂时没有完成，点一下重试即可继续。',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: onRetry,
+                child: const Text('重试'),
+              ),
+            ],
           ),
         ),
       ),

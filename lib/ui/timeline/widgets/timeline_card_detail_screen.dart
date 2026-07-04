@@ -57,7 +57,6 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
   String _userName = 'User';
   String? _userAvatar;
   double? _firstImageAspectRatio;
-  bool _showInsightText = true;
   String? _replyToCommentId;
   String? _replyToCommentName;
 
@@ -89,12 +88,10 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
   Future<void> _loadUserInfo() async {
     final name = await UserStorage.getUserId();
     final avatar = await _memexRouter.getUserAvatar();
-    final settings = await _memexRouter.getCommentSettings();
     if (mounted) {
       setState(() {
         _userName = name ?? 'User';
         _userAvatar = avatar;
-        _showInsightText = settings.showInsightText;
       });
     }
   }
@@ -932,20 +929,6 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
   Widget _buildShareCommentsList(CardDetailModel detail) {
     final List<Widget> commentWidgets = [];
 
-    // Insight as first comment (same as _buildCommentsList)
-    if (_showInsightText && detail.insight.character != null) {
-      commentWidgets.add(
-        _buildShareSingleComment(
-          characterId: detail.insight.characterId,
-          avatar: detail.insight.character!.avatar,
-          name: detail.insight.character!.name,
-          content: detail.insight.text,
-          time: DateFormat('MM-dd').format(detail.timestamp),
-          isAuthor: true,
-        ),
-      );
-    }
-
     // Other comments
     for (var comment in detail.insight.comments) {
       final isUser = !comment.isAi;
@@ -982,7 +965,6 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
     required String name,
     required String content,
     required String time,
-    bool isAuthor = false,
     bool isAi = false,
     String? replyToName,
   }) {
@@ -1497,20 +1479,6 @@ class _TimelineCardDetailScreenState extends State<TimelineCardDetailScreen> {
 
   Widget _buildCommentsList(CardDetailModel detail) {
     final List<Widget> commentWidgets = [];
-
-    // Add Insight as the first "Pinned" comment/description (if enabled)
-    if (_showInsightText && detail.insight.character != null) {
-      commentWidgets.add(
-        _buildSingleComment(
-          characterId: detail.insight.characterId,
-          avatar: detail.insight.character!.avatar,
-          name: detail.insight.character!.name,
-          content: detail.insight.text,
-          isAuthor: true,
-          time: DateFormat('MM-dd').format(detail.timestamp),
-        ),
-      );
-    }
 
     // Build a lookup map for comment names (for reply chain display)
     final commentNameMap = <String, String>{};

@@ -87,11 +87,7 @@ void main() {
         userId,
         characterId,
       );
-      expect(timeline.join('\n'), contains('"reply_to_id":"user-comment"'));
-      expect(
-        timeline.join('\n'),
-        isNot(contains('"reply_to_id":"char-comment"')),
-      );
+      expect(timeline, isEmpty);
     });
 
     test(
@@ -148,10 +144,7 @@ void main() {
         userId,
         characterId,
       );
-      expect(
-        timeline.where((line) => line.contains('"reply_to_id":"user-comment"')),
-        hasLength(1),
-      );
+      expect(timeline, isEmpty);
     });
 
     test(

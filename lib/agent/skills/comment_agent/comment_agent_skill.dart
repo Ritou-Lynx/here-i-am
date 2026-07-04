@@ -14,7 +14,6 @@ class CommentAgentSkill extends Skill {
     required String userId,
     String userName = '',
     String userProfile = '',
-    String characterMemories = '',
     String? forcedReplyToId,
     void Function()? onCommentSaved,
     super.forceActivate,
@@ -25,7 +24,6 @@ class CommentAgentSkill extends Skill {
             character: character,
             userName: userName,
             userProfile: userProfile,
-            characterMemories: characterMemories,
           ),
           tools: _buildTools(
             userId: userId,
@@ -41,7 +39,6 @@ class CommentAgentSkill extends Skill {
     CharacterModel? character,
     required String userName,
     required String userProfile,
-    required String characterMemories,
   }) {
     StringBuffer personaBuffer = StringBuffer();
     if (character != null) {
@@ -82,12 +79,6 @@ class CommentAgentSkill extends Skill {
       b.writeln('');
       b.writeln('## User Profile');
       b.writeln(userProfile);
-    }
-
-    if (characterMemories.isNotEmpty) {
-      b.writeln('');
-      b.writeln('## Character Memory Entries');
-      b.writeln(characterMemories);
     }
 
     if (character != null &&

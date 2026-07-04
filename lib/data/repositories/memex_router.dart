@@ -56,7 +56,6 @@ import 'package:memex/data/repositories/get_cards_by_ids.dart';
 import 'package:memex/data/repositories/get_calendar_data.dart';
 import 'package:memex/data/repositories/card.dart';
 import 'package:memex/data/repositories/post_comment.dart';
-import 'package:memex/data/services/comment_settings_service.dart';
 import 'package:memex/data/repositories/pin_insight.dart';
 import 'package:memex/data/repositories/character.dart';
 import 'package:memex/data/repositories/health.dart' as health_endpoint;
@@ -183,7 +182,8 @@ class MemexRouter {
   String?
       _targetUserIdForInit; // Track the user ID we are currently initializing for
 
-  static const _characterMemoryResetMarkerKey = 'character_memory_full_reset_v1';
+  static const _characterMemoryResetMarkerKey =
+      'character_memory_full_reset_v1';
   static const _workspaceDirsResetMarkerKey = 'workspace_dirs_reset_v25';
   static const _systemMemoryResetMarkerKey = 'system_memory_reset_v29';
 
@@ -206,7 +206,8 @@ class MemexRouter {
     await (db.delete(db.kvStore)
           ..where((t) => t.key.equals(_characterMemoryResetMarkerKey)))
         .go();
-    _logger.info('Data reset v24 complete — chat/SharedLife/card tables cleared');
+    _logger
+        .info('Data reset v24 complete — chat/SharedLife/card tables cleared');
   }
 
   Future<void> _resetWorkspaceDirsIfNeeded(String userId) async {
@@ -234,7 +235,8 @@ class MemexRouter {
             await entry.delete();
           }
         } catch (e) {
-          _logger.warning('workspace reset: could not delete ${entry.path}: $e');
+          _logger
+              .warning('workspace reset: could not delete ${entry.path}: $e');
         }
       }
       _logger.info('Data reset v25: wiped contents of $dirPath');
@@ -243,7 +245,8 @@ class MemexRouter {
     await (db.delete(db.kvStore)
           ..where((t) => t.key.equals(_workspaceDirsResetMarkerKey)))
         .go();
-    _logger.info('Data reset v25 complete — Facts/Cards/KnowledgeInsights/PKM wiped');
+    _logger.info(
+        'Data reset v25 complete — Facts/Cards/KnowledgeInsights/PKM wiped');
   }
 
   Future<void> _resetSystemMemoryIfNeeded(String userId) async {
@@ -266,7 +269,8 @@ class MemexRouter {
             await entry.delete();
           }
         } catch (e) {
-          _logger.warning('system_memory reset: could not delete ${entry.path}: $e');
+          _logger.warning(
+              'system_memory reset: could not delete ${entry.path}: $e');
         }
       }
       _logger.info('Data reset v29: wiped _System/memory/ contents');
@@ -707,22 +711,6 @@ class MemexRouter {
       _logger.severe('Failed to post comment for card $cardId: $e');
       rethrow;
     }
-  }
-
-  /// Load per-user comment settings.
-  Future<CommentSettings> getCommentSettings() async {
-    await _ensureInitialized();
-    final userId = await UserStorage.getUserId();
-    if (userId == null) return const CommentSettings();
-    return CommentSettingsService.load(userId);
-  }
-
-  /// Save per-user comment settings.
-  Future<void> saveCommentSettings(CommentSettings settings) async {
-    await _ensureInitialized();
-    final userId = await UserStorage.getUserId();
-    if (userId == null) return;
-    await CommentSettingsService.save(userId, settings);
   }
 
   Future<AppUpdateSettings> getAppUpdateSettings() {

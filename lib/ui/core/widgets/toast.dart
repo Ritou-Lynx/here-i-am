@@ -6,12 +6,12 @@ import 'package:memex/ui/core/themes/app_colors.dart';
 /// Renders as a small rounded chip floating above the content, so it never
 /// overlaps the input field.  Use [ScaffoldMessengerState.showToast].
 extension ShowToast on ScaffoldMessengerState {
-  void showToast(
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason> showToast(
     String message, {
     Duration duration = const Duration(seconds: 1),
   }) {
     hideCurrentSnackBar();
-    showSnackBar(
+    return showSnackBar(
       SnackBar(
         content: Text(message, textAlign: TextAlign.center),
         duration: duration,

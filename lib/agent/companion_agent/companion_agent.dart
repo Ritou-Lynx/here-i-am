@@ -4,8 +4,6 @@ import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
-import 'package:memex/agent/context/character_context_assembler.dart';
-import 'package:memex/agent/memory/character_context_compressor.dart';
 
 import 'package:memex/agent/skills/companion_agent/companion_agent_skill.dart';
 import 'package:memex/agent/state_util.dart';
@@ -147,22 +145,12 @@ class CompanionAgent {
       'characterId': characterId,
     });
 
-    final ctx = await CharacterContextAssembler.build(
-      userId: userId,
-      character: character,
-      sourceAgent: 'companion_agent',
-      queryHint: queryHint,
-      excludeTrailingUserMessage: true,
-    );
-
     final userName = (await UserStorage.getUserId()) ?? userId;
 
     final skill = CompanionAgentSkill(
       character: character,
       userId: userId,
       userName: userName,
-      userProfile: ctx.userProfile,
-      characterMemories: ctx.characterMemories,
       currentUserMessageId: currentUserMessageId,
       includeCheckinTools: includeCheckinTools,
       toyControlService: toyControlService,
@@ -170,29 +158,13 @@ class CompanionAgent {
       forceActivate: true,
     );
 
-    // World, timeline, and knowledge go into systemReminders (refreshable context).
-    if (ctx.characterWorld.isNotEmpty) {
-      state.systemReminders['character_world'] =
-          '## Triggered Character World Entries\n${TavernMacro.resolve(ctx.characterWorld, userName: userName, charName: character.name)}';
-    }
-    // Combine compaction checkpoints + recent timeline into one reminder.
-    {
-      final parts = <String>[];
-      if (ctx.checkpoints.isNotEmpty) {
-        parts.add('## Compressed Interaction History\n${ctx.checkpoints}');
-      }
-      if (ctx.recentTimeline.isNotEmpty) {
-        parts.add('## Recent Cross-Scene Interactions\n${ctx.recentTimeline}');
-      }
-      if (parts.isNotEmpty) {
-        state.systemReminders['character_timeline'] = parts.join('\n\n');
-      }
-    }
-    if (ctx.knowledgeCards.isNotEmpty) {
-      state.systemReminders['user_knowledge_cards'] =
-          '## User Knowledge Cards\n${ctx.knowledgeCards}';
-    }
-    if (SharedLifeMemoryService.isInitialized && queryHint.trim().isNotEmpty) {
+    state.systemReminders.remove('character_world');
+    state.systemReminders.remove('character_timeline');
+    state.systemReminders.remove('user_knowledge_cards');
+
+    if (!RecordOrganizerServiceV3.isInitialized &&
+        SharedLifeMemoryService.isInitialized &&
+        queryHint.trim().isNotEmpty) {
       try {
         final entities = await SharedLifeMemoryService.instance
             .queryRelevantEntities(queryHint, limit: 8);
@@ -233,7 +205,8 @@ class CompanionAgent {
         if (v3Hits.isNotEmpty) {
           final buf = StringBuffer();
           buf.writeln('## Your Memory V3 Cards (auto-looked up for this turn)');
-          buf.writeln('These are cards you previously recorded. Use them when answering.');
+          buf.writeln(
+              'These are cards you previously recorded. Use them when answering.');
           buf.writeln();
           for (final card in v3Hits) {
             buf.writeln('- [${card.type}] ${card.dropletLabel}');
@@ -486,7 +459,8 @@ class CompanionAgent {
         'something concrete about their body.');
     buf.writeln('  Suggested tool: `queryDailyHealthData` (days=1) or '
         '`querySleepData`.');
-    buf.writeln('  ⚠️ Sleep date semantics: sleep data is keyed by WAKE-UP date. '
+    buf.writeln(
+        '  ⚠️ Sleep date semantics: sleep data is keyed by WAKE-UP date. '
         '"昨晚的睡眠" (last night\'s sleep) → query TODAY. If today has '
         'no data, DO NOT fall back to yesterday. Tell the user to sync their '
         'watch.');
@@ -518,7 +492,8 @@ class CompanionAgent {
         'notification. Use when there is any plausible small thing to say — a '
         'recent record, a continuity thread, a gentle check-in.');
     buf.writeln();
-    buf.writeln('**b) call** (initiate a voice call): use `initiate_voice_call` '
+    buf.writeln(
+        '**b) call** (initiate a voice call): use `initiate_voice_call` '
         'when the moment genuinely calls for hearing your voice rather than '
         'reading text:');
     buf.writeln('- Something emotional or important that deserves a real '
@@ -572,9 +547,11 @@ class CompanionAgent {
         'device_app_blocker_control + ONE communication action + set_status).');
     buf.writeln('- Take only ONE action: either system_checkin OR '
         'initiate_voice_call, never both.');
-    buf.writeln('- Do NOT call coros_query or weread_read more than once each.');
+    buf.writeln(
+        '- Do NOT call coros_query or weread_read more than once each.');
     buf.writeln('- Do NOT "double check" your work or re-verify.');
-    buf.writeln('- Do NOT produce any user-visible chat text — only tool calls.');
+    buf.writeln(
+        '- Do NOT produce any user-visible chat text — only tool calls.');
     buf.writeln('- After set_system_message_status, immediately return with '
         'no further output.');
 
@@ -788,15 +765,6 @@ class CompanionAgent {
 
       if (foundText.isNotEmpty) {
         yield foundText;
-      }
-      // Post-run: check if compression is needed based on real token usage.
-      if (state.usages.isNotEmpty) {
-        final lastPromptTokens = state.usages.last.promptTokens;
-        await CharacterContextCompressor.instance.compressIfNeeded(
-          userId: userId,
-          characterId: characterId,
-          lastPromptTokens: lastPromptTokens,
-        );
       }
     } catch (e, st) {
       _logger.severe('CompanionAgent chat run error', e, st);
