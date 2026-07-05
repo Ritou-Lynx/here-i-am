@@ -10,6 +10,7 @@ class LocationContextService {
   LocationContextService._internal();
 
   static const Duration _maxLastKnownPositionAge = Duration(minutes: 2);
+  static const Duration _maxDiagnosticLastKnownPositionAge = Duration(hours: 6);
 
   final _logger = getLogger('LocationContextService');
   CurrentLocationContext? _cachedContext;
@@ -20,12 +21,16 @@ class LocationContextService {
   /// routing can make it misleading for agent context.
   Future<CurrentLocationContext> getCurrentContext({
     bool forceRefresh = false,
+    bool ignoreEnabled = false,
   }) async {
     final config = await UserStorage.getLocationContextConfig();
     final now = DateTime.now();
-    final configSignature = _configSignature(config);
+    final configSignature = _configSignature(
+      config,
+      ignoreEnabled: ignoreEnabled,
+    );
 
-    if (!config.enabled) {
+    if (!config.enabled && !ignoreEnabled) {
       return CurrentLocationContext(
         status: 'disabled',
         source: 'device_gps',
@@ -78,9 +83,11 @@ class LocationContextService {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
+        locationSettings: LocationSettings(
           accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 6),
+          timeLimit: ignoreEnabled
+              ? const Duration(seconds: 20)
+              : const Duration(seconds: 8),
         ),
       );
 
@@ -104,20 +111,28 @@ class LocationContextService {
         granularity: config.granularity,
         reason: address == null
             ? 'reverse geocode unavailable (${geocodeResult.provider.name}): ${geocodeResult.reason ?? geocodeResult.status}'
-            : null,
+            : geocodeResult.reason,
       );
       _remember(context, configSignature);
       return context;
     } catch (e) {
       _logger.warning('Failed to build current location context: $e');
-      final lastKnown = await _tryLastKnownPosition(config, configSignature);
+      final failureReason = 'failed to get current device location: $e';
+      final lastKnown = await _tryLastKnownPosition(
+        config,
+        configSignature,
+        maxAge: ignoreEnabled
+            ? _maxDiagnosticLastKnownPositionAge
+            : _maxLastKnownPositionAge,
+        currentLookupFailureReason: failureReason,
+      );
       if (lastKnown != null) {
         return lastKnown;
       }
       return _unavailable(
         config,
         configSignature,
-        'failed to get current device location',
+        failureReason,
         status: 'unavailable',
       );
     }
@@ -125,19 +140,22 @@ class LocationContextService {
 
   Future<CurrentLocationContext?> _tryLastKnownPosition(
     LocationContextConfig config,
-    String configSignature,
-  ) async {
+    String configSignature, {
+    Duration maxAge = _maxLastKnownPositionAge,
+    String? currentLookupFailureReason,
+  }) async {
     try {
       final position = await Geolocator.getLastKnownPosition();
       if (position == null) return null;
       final now = DateTime.now();
       final age = now.difference(position.timestamp);
-      if (age > _maxLastKnownPositionAge) {
+      if (age > maxAge) {
         _logger.info(
           'Skipping stale last known location from ${position.timestamp.toIso8601String()}',
         );
         return null;
       }
+      final isFreshEnough = age <= _maxLastKnownPositionAge;
       final geocodeResult =
           await GeocodingService.instance.reverseGeocodeWithStatus(
         position.latitude,
@@ -147,7 +165,7 @@ class LocationContextService {
       );
       final address = geocodeResult.address;
       final context = CurrentLocationContext(
-        status: 'fresh',
+        status: isFreshEnough ? 'fresh' : 'stale',
         latitude: position.latitude,
         longitude: position.longitude,
         accuracyMeters: position.accuracy,
@@ -158,9 +176,15 @@ class LocationContextService {
         address: address,
         granularity: config.granularity,
         reason: [
-          'using recent last known device location after current lookup failed',
+          if (isFreshEnough)
+            'using recent last known device location after current lookup failed'
+          else
+            'using stale last known device location for diagnostics; age: ${age.inMinutes} minutes',
+          if (currentLookupFailureReason != null) currentLookupFailureReason,
           if (address == null)
             'reverse geocode unavailable (${geocodeResult.provider.name}): ${geocodeResult.reason ?? geocodeResult.status}',
+          if (address != null && geocodeResult.reason != null)
+            geocodeResult.reason!,
         ].join('; '),
       );
       _remember(context, configSignature);
@@ -196,9 +220,13 @@ class LocationContextService {
     return const Duration(minutes: 2);
   }
 
-  String _configSignature(LocationContextConfig config) {
+  String _configSignature(
+    LocationContextConfig config, {
+    required bool ignoreEnabled,
+  }) {
     return [
       config.enabled,
+      ignoreEnabled,
       config.provider.name,
       config.amapApiKey.hashCode,
       config.granularity.name,

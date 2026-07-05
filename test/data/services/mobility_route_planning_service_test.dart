@@ -111,6 +111,106 @@ void main() {
       expect(route.legs[1].departureStop, '西二旗');
       expect(route.legs[1].arrivalStop, '望京西');
       expect(route.summary, contains('地铁13号线'));
+      expect(route.assistantBrief, contains('预计 30 分钟'));
+      expect(route.assistantBrief, contains('步行约 10 分钟'));
+      expect(route.readableSteps, contains('1. 步行约 6 分钟（约 500 米）'));
+      expect(
+        route.readableSteps,
+        contains('2. 乘坐 地铁13号线，从 西二旗 上车，到 望京西 下车，途经 2 站，约 20 分钟'),
+      );
+
+      final json = result.toJson();
+      expect(json['assistant_brief'], contains('西二旗某大厦 到 某小区'));
+      expect(json['steps'], isA<List>());
+      expect(json['steps'], hasLength(3));
+      expect(json['cautions'], isNull);
+    });
+
+    test('marks long walking exposure as a caution', () {
+      final route = MobilityRoute(
+        origin: const MobilityPlace(
+          name: '起点',
+          address: '',
+          longitude: 116.3,
+          latitude: 40.0,
+        ),
+        destination: const MobilityPlace(
+          name: '终点',
+          address: '',
+          longitude: 116.4,
+          latitude: 40.1,
+        ),
+        durationMinutes: 35,
+        distanceMeters: 9000,
+        walkingDistanceMeters: 1600,
+        walkingMinutes: 20,
+        cost: null,
+        legs: [
+          MobilityRouteLeg.walk(durationMinutes: 20, distanceMeters: 1600),
+          MobilityRouteLeg.ride(
+            lineName: '地铁13号线',
+            departureStop: '上地',
+            arrivalStop: '知春路',
+            viaStops: const [],
+            durationMinutes: 15,
+          ),
+        ],
+      );
+
+      expect(route.cautions.single, contains('步行暴露偏长'));
+      expect(route.toJson()['cautions'], isA<List>());
+    });
+
+    test('searches nearby Amap POIs around a coordinate', () async {
+      final service = MobilityRoutePlanningService(
+        client: MockClient((request) async {
+          expect(request.url.path, '/v3/place/around');
+          expect(request.url.queryParameters['key'], 'test-key');
+          expect(request.url.queryParameters['keywords'], '螺蛳粉');
+          expect(request.url.queryParameters['location'], '116.306,40.052');
+          expect(request.url.queryParameters['radius'], '3000');
+          expect(request.url.queryParameters['sortrule'], 'distance');
+          expect(request.url.queryParameters['offset'], '3');
+          return _jsonResponse({
+            'status': '1',
+            'pois': [
+              {
+                'name': '柳州螺蛳粉',
+                'address': '某某商场B1',
+                'location': '116.307000,40.052500',
+                'distance': '260',
+                'type': '餐饮服务;中餐厅',
+              },
+              {
+                'name': '阿姐螺蛳粉',
+                'address': '某某街',
+                'location': '116.308000,40.053000',
+                'distance': '480',
+              }
+            ],
+          });
+        }),
+      );
+
+      final result = await service.searchAmapNearbyPlaces(
+        apiKey: 'test-key',
+        query: '螺蛳粉',
+        center: const MobilityCoordinate(longitude: 116.306, latitude: 40.052),
+        centerLabel: '西二旗',
+        radiusMeters: 3000,
+        limit: 3,
+      );
+
+      expect(result.success, isTrue, reason: result.message);
+      expect(result.places, hasLength(2));
+      expect(result.places.first.name, '柳州螺蛳粉');
+      expect(result.places.first.distanceMeters, 260);
+      expect(result.assistantBrief, contains('最近的是 柳州螺蛳粉'));
+      expect(result.toJson()['origin_for_route'], '当前位置');
+      expect(
+        (result.toJson()['places'] as List).first['route_destination'],
+        '116.307,40.0525',
+      );
     });
   });
 }

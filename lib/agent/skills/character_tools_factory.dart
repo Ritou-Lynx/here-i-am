@@ -98,6 +98,7 @@ class CharacterToolsFactory {
       ),
       buildDeviceAppBlockerTool(),
       buildWeatherOutingRiskTool(),
+      buildNearbyPlaceSearchTool(),
       buildMobilityRoutePlanTool(),
       ...buildTransitCompanionTools(characterId: characterId),
       buildContinuousReplyTool(),

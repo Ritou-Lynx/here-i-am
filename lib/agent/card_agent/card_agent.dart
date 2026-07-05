@@ -3,7 +3,6 @@ import 'package:memex/agent/card_agent/prompts.dart';
 import 'package:memex/agent/memory/memory_management.dart';
 import 'package:memex/agent/state_util.dart';
 import 'package:dart_agent_core/dart_agent_core.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/agent/skills/manage_timeline_card/timeline_card_skill.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:logging/logging.dart';
@@ -66,8 +65,7 @@ class CardAgent {
         withGeneralPrinciples: true,
         autoSaveStateFunc: (state) async {
           await saveAgentState(state);
-        },
-        systemCallback: createSystemCallback(userId));
+        });
 
     _logger.info('CardAgent created, userId: $userId, sessionId: $sessionId');
     return agent;

@@ -11,7 +11,6 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/utils/logger.dart';
-import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
 
 final Logger _logger = getLogger('DevSessionFollowup');
@@ -43,30 +42,10 @@ Future<void> handleDevSessionFollowup(
     AgentDefinitions.companionAgent,
     defaultClientKey: LLMConfig.defaultClientKey,
   );
-  final userName = (await UserStorage.getUserId()) ?? userId;
   final agentName = _agentLabel(agentType);
 
   final systemPrompt = _buildSystemPrompt(
     characterName: character.name,
-    persona: TavernMacro.resolve(
-      character.persona,
-      userName: userName,
-      charName: character.name,
-    ),
-    systemPromptOverride: character.systemPromptOverride == null
-        ? null
-        : TavernMacro.resolve(
-            character.systemPromptOverride!,
-            userName: userName,
-            charName: character.name,
-          ),
-    styleExamples: character.mesExample == null
-        ? null
-        : TavernMacro.resolve(
-            character.mesExample!,
-            userName: userName,
-            charName: character.name,
-          ),
   );
 
   final userPrompt = '''
@@ -169,20 +148,10 @@ Future<void> handleDevSessionFollowupFailure(
 
 String _buildSystemPrompt({
   required String characterName,
-  required String persona,
-  String? systemPromptOverride,
-  String? styleExamples,
 }) {
   final buffer = StringBuffer();
-  if (systemPromptOverride != null && systemPromptOverride.trim().isNotEmpty) {
-    buffer.writeln(systemPromptOverride.trim());
-    buffer.writeln();
-  }
   buffer
     ..writeln('# You Are $characterName')
-    ..writeln()
-    ..writeln('## Persona')
-    ..writeln(persona)
     ..writeln()
     ..writeln('## Task')
     ..writeln(
@@ -190,12 +159,6 @@ String _buildSystemPrompt({
       'Stay in character. Be warm, concrete, and concise. No markdown tables. '
       'No tool calls are available.',
     );
-  if (styleExamples != null && styleExamples.trim().isNotEmpty) {
-    buffer
-      ..writeln()
-      ..writeln('## Style Examples')
-      ..writeln(styleExamples.trim());
-  }
   return buffer.toString();
 }
 

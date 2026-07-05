@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:intl/intl.dart';
 import 'package:memex/agent/agent_controller.util.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/agent/schedule_refresh_router_agent/prompt.dart';
 import 'package:memex/agent/skills/schedule_aggregation/schedule_aggregation_skill.dart';
 import 'package:memex/agent/state_util.dart';
@@ -92,7 +91,6 @@ class ScheduleRefreshRouterAgent {
       controller: controller,
       withGeneralPrinciples: true,
       planMode: PlanMode.none,
-      systemCallback: createSystemCallback(userId),
       autoSaveStateFunc: (state) async {
         await saveAgentState(state);
       },

@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:dart_agent_core/dart_agent_core.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
@@ -89,7 +88,6 @@ class PersonaAgent {
           await storage.save(state);
         },
         compressor: compressor,
-        systemCallback: createSystemCallback(userId),
       );
 
       // 6. Run Agent

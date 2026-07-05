@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/agent/agent_controller.util.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/agent/memory/memory_management.dart';
 import 'package:memex/agent/state_util.dart';
 import 'package:memex/db/app_database.dart';
@@ -76,7 +75,6 @@ ${UserStorage.l10n.userLanguageInstruction}
       autoSaveStateFunc: (s) async {
         await saveAgentState(state);
       },
-      systemCallback: createSystemCallback(userId),
     );
 
     final payload = {

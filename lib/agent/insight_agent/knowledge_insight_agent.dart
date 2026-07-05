@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:dart_agent_core/dart_agent_core.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:intl/intl.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/built_in_tools/file_tools.dart';
@@ -128,7 +127,6 @@ class KnowledgeInsightAgent {
         controller: controller,
         withGeneralPrinciples: true,
         planMode: PlanMode.auto,
-        systemCallback: createSystemCallback(userId),
         autoSaveStateFunc: (state) async {
           await saveAgentState(state);
         });

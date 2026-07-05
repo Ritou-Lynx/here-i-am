@@ -157,14 +157,20 @@ void main() {
     WidgetTester tester,
   ) async {
     var receivedForceRefresh = false;
+    var receivedIgnoreEnabled = false;
     final now = DateTime.utc(2026, 5, 15, 10);
     await pumpLocationSettingsPage(
       tester,
       config: const LocationContextConfig(
+        enabled: false,
         granularity: LocationContextGranularity.neighborhood,
       ),
-      loadCurrentContext: ({bool forceRefresh = false}) async {
+      loadCurrentContext: ({
+        bool forceRefresh = false,
+        bool ignoreEnabled = false,
+      }) async {
         receivedForceRefresh = forceRefresh;
+        receivedIgnoreEnabled = ignoreEnabled;
         return CurrentLocationContext(
           status: 'fresh',
           latitude: 31.230416,
@@ -192,6 +198,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(receivedForceRefresh, isTrue);
+    expect(receivedIgnoreEnabled, isTrue);
     expect(find.textContaining('GPS: fresh'), findsOneWidget);
     expect(find.textContaining('Reverse geocode: OK'), findsOneWidget);
     expect(find.textContaining('Agent context: injected'), findsOneWidget);
@@ -211,7 +218,10 @@ void main() {
   ) async {
     await pumpLocationSettingsPage(
       tester,
-      loadCurrentContext: ({bool forceRefresh = false}) async {
+      loadCurrentContext: ({
+        bool forceRefresh = false,
+        bool ignoreEnabled = false,
+      }) async {
         return CurrentLocationContext(
           status: 'unavailable',
           source: 'device_gps',
@@ -244,7 +254,10 @@ void main() {
         provider: GeocodingProvider.amap,
         granularity: LocationContextGranularity.neighborhood,
       ),
-      loadCurrentContext: ({bool forceRefresh = false}) async {
+      loadCurrentContext: ({
+        bool forceRefresh = false,
+        bool ignoreEnabled = false,
+      }) async {
         return CurrentLocationContext(
           status: 'fresh',
           latitude: 31.230416,
@@ -276,12 +289,69 @@ void main() {
     );
   });
 
+  testWidgets('test button explains Amap fallback after OSM address failure', (
+    WidgetTester tester,
+  ) async {
+    final now = DateTime.utc(2026, 5, 15, 10);
+    await pumpLocationSettingsPage(
+      tester,
+      config: const LocationContextConfig(
+        enabled: true,
+        provider: GeocodingProvider.openStreetMap,
+        granularity: LocationContextGranularity.district,
+      ),
+      loadCurrentContext: ({
+        bool forceRefresh = false,
+        bool ignoreEnabled = false,
+      }) async {
+        return CurrentLocationContext(
+          status: 'fresh',
+          latitude: 39.904200,
+          longitude: 116.407400,
+          accuracyMeters: 12,
+          source: 'device_gps + reverse_geocode',
+          updatedAt: now,
+          granularity: LocationContextGranularity.district,
+          reason:
+              'OpenStreetMap reverse geocode failed; used Amap fallback: OSM reverse geocode error: TimeoutException',
+          address: GeocodedAddress(
+            city: '北京市',
+            district: '东城区',
+            neighborhood: '东华门街道',
+            fullAddress: '北京市东城区东华门街道',
+            provider: 'amap',
+            updatedAt: now,
+          ),
+        );
+      },
+    );
+
+    await scrollToTestButton(tester);
+    await tester.tap(find.text('Test current location'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('GPS: fresh'), findsOneWidget);
+    expect(
+      find.textContaining('Provider: OpenStreetMap / Nominatim（实际使用：Amap）'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Reverse geocode: OK'), findsOneWidget);
+    expect(find.textContaining('北京市 · 东城区'), findsOneWidget);
+    expect(
+      find.textContaining('GPS 已可用；OpenStreetMap 地址解析失败，已使用高德兜底。'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('test button displays a localized failure message', (
     WidgetTester tester,
   ) async {
     await pumpLocationSettingsPage(
       tester,
-      loadCurrentContext: ({bool forceRefresh = false}) async {
+      loadCurrentContext: ({
+        bool forceRefresh = false,
+        bool ignoreEnabled = false,
+      }) async {
         throw StateError('mock location failure');
       },
     );

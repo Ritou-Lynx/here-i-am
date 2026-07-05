@@ -59,5 +59,20 @@ void main() {
 
       expect(config.copyWith(llmConfigKey: null).llmConfigKey, isNull);
     });
+
+    test('saving model and agent configs bumps llm config revision', () async {
+      final initialRevision = UserStorage.llmConfigRevision.value;
+      final defaultConfig = LLMConfig.createDefaultClientConfig();
+
+      await UserStorage.saveLLMConfigs([defaultConfig]);
+      expect(UserStorage.llmConfigRevision.value, greaterThan(initialRevision));
+
+      final afterModelSave = UserStorage.llmConfigRevision.value;
+      await UserStorage.saveAgentConfig(
+        AgentDefinitions.chatAgent,
+        const AgentConfig(llmConfigKey: LLMConfig.defaultClientKey),
+      );
+      expect(UserStorage.llmConfigRevision.value, greaterThan(afterModelSave));
+    });
   });
 }

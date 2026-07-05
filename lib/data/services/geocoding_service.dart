@@ -73,16 +73,36 @@ class GeocodingService {
       amapApiKey: effectiveConfig.amapApiKey.trim(),
       timeout: timeout,
     );
-    final address = result.address;
 
-    if (address != null) {
-      _memoryCache[cacheKey] = address;
-      await _writePersistentCache(cacheKey, address);
+    if (result.address != null) {
+      _memoryCache[cacheKey] = result.address!;
+      await _writePersistentCache(cacheKey, result.address!);
       return ReverseGeocodeResult(
-        address: address,
+        address: result.address,
         provider: provider,
         status: 'fresh',
       );
+    }
+
+    final fallback = await _tryFallbackReverseGeocode(
+      primaryResult: result,
+      primaryProvider: provider,
+      latitude: latitude,
+      longitude: longitude,
+      amapApiKey: effectiveConfig.amapApiKey.trim(),
+      timeout: timeout,
+    );
+    if (fallback != null) {
+      if (fallback.address != null) {
+        final fallbackCacheKey = _cacheKey(
+          fallback.provider,
+          latitude,
+          longitude,
+        );
+        _memoryCache[fallbackCacheKey] = fallback.address!;
+        await _writePersistentCache(fallbackCacheKey, fallback.address!);
+      }
+      return fallback;
     }
 
     return ReverseGeocodeResult(
@@ -90,6 +110,56 @@ class GeocodingService {
       provider: provider,
       status: 'unavailable',
       reason: result.reason ?? 'reverse geocoding returned no address',
+    );
+  }
+
+  Future<ReverseGeocodeResult?> _tryFallbackReverseGeocode({
+    required ReverseGeocodeResult primaryResult,
+    required GeocodingProvider primaryProvider,
+    required double latitude,
+    required double longitude,
+    required String amapApiKey,
+    required Duration timeout,
+  }) async {
+    if (primaryProvider != GeocodingProvider.openStreetMap) {
+      return null;
+    }
+    if (amapApiKey.isEmpty) {
+      return null;
+    }
+
+    _logger.info(
+      'OpenStreetMap reverse geocode failed; trying Amap fallback: '
+      '${primaryResult.reason ?? primaryResult.status}',
+    );
+    final fallback = await _reverseProviderWithTransientRetry(
+      provider: GeocodingProvider.amap,
+      latitude: latitude,
+      longitude: longitude,
+      amapApiKey: amapApiKey,
+      timeout: timeout,
+    );
+
+    if (fallback.address != null) {
+      return ReverseGeocodeResult(
+        address: fallback.address,
+        provider: GeocodingProvider.amap,
+        status: 'fresh',
+        reason: [
+          'OpenStreetMap reverse geocode failed; used Amap fallback',
+          primaryResult.reason ?? primaryResult.status,
+        ].join(': '),
+      );
+    }
+
+    return ReverseGeocodeResult(
+      address: null,
+      provider: GeocodingProvider.openStreetMap,
+      status: 'unavailable',
+      reason: [
+        primaryResult.reason ?? primaryResult.status,
+        'Amap fallback unavailable: ${fallback.reason ?? fallback.status}',
+      ].join('; '),
     );
   }
 

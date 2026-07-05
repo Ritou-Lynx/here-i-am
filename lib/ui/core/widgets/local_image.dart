@@ -257,7 +257,16 @@ class _LocalImageState extends State<LocalImage> {
       // 3. generate cache key (MD5 to avoid filename length limit)
       // Use md5 instead of base64Url: on iOS sim/device full path is very long;
       // base64 would exceed APFS 255-byte filename limit and cause "Cannot retrieve length of file" error.
-      final cacheKeyBase = originalPath;
+      var cacheKeyBase = originalPath;
+      if (isLocalFile && originalFile != null) {
+        try {
+          final stat = await originalFile.stat();
+          cacheKeyBase =
+              '$originalPath:${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+        } catch (e) {
+          _logger.fine('Failed to stat local image for cache key: $e');
+        }
+      }
       final filenameHash = md5.convert(utf8.encode(cacheKeyBase)).toString();
       final cacheFilename = '${filenameHash}_max768.jpg';
       final cacheFile = File(path.join(cacheDir.path, cacheFilename));

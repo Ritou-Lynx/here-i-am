@@ -44,7 +44,7 @@ import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
-import 'package:memex/ui/core/widgets/here_iam_rose_mist_layer.dart';
+import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
@@ -62,18 +62,17 @@ Color get _personaLine => HereIamThemeRuntime.current.surfaceDeep;
 Color get _personaCharacterBubble {
   final tokens = HereIamThemeRuntime.current;
   return tokens.brightness == Brightness.dark
-      ? tokens.background.withValues(alpha: 0.84)
+      ? const Color(0xFF241319).withValues(alpha: 0.74)
       : tokens.glassFill;
 }
 
 Color get _personaUserBubble {
   final tokens = HereIamThemeRuntime.current;
   return tokens.brightness == Brightness.dark
-      ? tokens.accentSoft.withValues(alpha: 0.9)
+      ? const Color(0xFF3A1E24).withValues(alpha: 0.76)
       : const Color(0x99C9A3B0);
 }
 
-Color get _personaUserBorder => HereIamThemeRuntime.current.glassEdge;
 const _voiceModeIdleFollowUpSilenceTimeout = Duration(seconds: 10);
 const _voiceModeMaxRecordingDuration = Duration(seconds: 120);
 const _voiceModeMaxSilentFollowUps = 8;
@@ -370,6 +369,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     unawaited(
         ActivePersonaChatService.instance.markActive(_currentCharacterId));
     HardwareKeyboard.instance.addHandler(_handleHardwareKey);
+    CharacterService.instance.addListener(_onCharacterUpdated);
     unawaited(_initMediaButtons());
     _init();
     _startMessageRefreshTimer();
@@ -402,6 +402,22 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     if (request.characterId != _currentCharacterId) return;
     if (!request.startVoiceMode) return;
     unawaited(_setInlineVoiceMode(true));
+  }
+
+  void _onCharacterUpdated() {
+    unawaited(_reloadCurrentCharacter());
+  }
+
+  Future<void> _reloadCurrentCharacter() async {
+    final userId = _userId ?? await UserStorage.getUserId();
+    if (userId == null) return;
+    final character = await CharacterService.instance.getCharacter(
+      userId,
+      _currentCharacterId,
+      returnPlaceholder: false,
+    );
+    if (!mounted || character == null) return;
+    setState(() => _character = character);
   }
 
   /// Hardware key handler for Bluetooth page-turner.
@@ -1084,6 +1100,7 @@ only after you have written the goodbye you want the user to hear.''',
     );
     WidgetsBinding.instance.removeObserver(this);
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
+    CharacterService.instance.removeListener(_onCharacterUpdated);
     _releaseMediaButtons();
     EventBusService.instance.removeHandler(
       EventBusMessageType.personaChatMessageAdded,
@@ -1462,8 +1479,7 @@ only after you have written the goodbye you want the user to hear.''',
               analyses,
             );
           } catch (e) {
-            debugPrint(
-                'Failed to persist image analyses to attachments: $e');
+            debugPrint('Failed to persist image analyses to attachments: $e');
           }
         }
       } catch (e) {
@@ -1869,7 +1885,8 @@ only after you have written the goodbye you want the user to hear.''',
         'bmp' => 'image/bmp',
         _ => 'image/jpeg',
       };
-      debugPrint('Image fallback: read ${bytes.length} raw bytes, mime=$mimeType');
+      debugPrint(
+          'Image fallback: read ${bytes.length} raw bytes, mime=$mimeType');
       return {'mimeType': mimeType, 'base64': base64};
     } catch (e) {
       debugPrint('Image raw fallback also failed: $e');
@@ -3241,79 +3258,110 @@ only after you have written the goodbye you want the user to hear.''',
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width * 0.88,
                   ),
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
                   decoration: BoxDecoration(
-                    color: _personaUserBubble,
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(18),
                       topRight: Radius.circular(6),
                       bottomLeft: Radius.circular(18),
                       bottomRight: Radius.circular(18),
                     ),
-                    border: Border.all(
-                      color: _personaUserBorder.withValues(alpha: 0.82),
-                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: _personaUserBorder.withValues(alpha: 0.12),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
+                        color: Colors.black.withValues(alpha: 0.28),
+                        blurRadius: 24,
+                        offset: const Offset(0, 14),
+                      ),
+                      BoxShadow(
+                        color: _personaAccent.withValues(alpha: 0.06),
+                        blurRadius: 18,
+                        offset: const Offset(0, -2),
                       ),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (text.isNotEmpty)
-                        SelectionArea(
-                          child: Text(
-                            text,
-                            style: TextStyle(
-                              fontSize: 15,
-                              height: 1.55,
-                              color: _personaText,
-                            ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(6),
+                      bottomLeft: Radius.circular(18),
+                      bottomRight: Radius.circular(18),
+                    ),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+                        decoration: BoxDecoration(
+                          color: _personaUserBubble,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.06),
+                          ),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              const Color(0xFF5B3037).withValues(alpha: 0.44),
+                              _personaUserBubble,
+                              const Color(0xFF120B0E).withValues(alpha: 0.24),
+                            ],
+                            stops: const [0, 0.56, 1],
                           ),
                         ),
-                      if (attachmentWidgets.isNotEmpty) ...[
-                        if (text.isNotEmpty) const SizedBox(height: 8),
-                        ...attachmentWidgets,
-                      ],
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              Clipboard.setData(ClipboardData(text: text));
-                              _showCopiedSnackBar();
-                            },
-                            child: Icon(
-                              Icons.copy_rounded,
-                              size: 14,
-                              color: _personaTextMuted,
-                            ),
-                          ),
-                          if (userMessage != null) ...[
-                            const SizedBox(width: 12),
-                            Semantics(
-                              button: true,
-                              label: 'Recall message',
-                              child: GestureDetector(
-                                onTap: () =>
-                                    _confirmRetractUserMessage(userMessage),
-                                child: Icon(
-                                  Icons.undo_rounded,
-                                  size: 15,
-                                  color: _personaTextMuted,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (text.isNotEmpty)
+                              SelectionArea(
+                                child: Text(
+                                  text,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    height: 1.55,
+                                    color: _personaText,
+                                  ),
                                 ),
                               ),
+                            if (attachmentWidgets.isNotEmpty) ...[
+                              if (text.isNotEmpty) const SizedBox(height: 8),
+                              ...attachmentWidgets,
+                            ],
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    Clipboard.setData(
+                                        ClipboardData(text: text));
+                                    _showCopiedSnackBar();
+                                  },
+                                  child: Icon(
+                                    Icons.copy_rounded,
+                                    size: 14,
+                                    color: _personaTextMuted,
+                                  ),
+                                ),
+                                if (userMessage != null) ...[
+                                  const SizedBox(width: 12),
+                                  Semantics(
+                                    button: true,
+                                    label: 'Recall message',
+                                    child: GestureDetector(
+                                      onTap: () => _confirmRetractUserMessage(
+                                          userMessage),
+                                      child: Icon(
+                                        Icons.undo_rounded,
+                                        size: 15,
+                                        color: _personaTextMuted,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
-                        ],
+                        ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -4113,6 +4161,15 @@ class _ChatAtmosphereBackground extends StatelessWidget {
 
   final CharacterModel? character;
 
+  String _fileImageKey(String path) {
+    try {
+      final stat = File(path).statSync();
+      return '$path:${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+    } catch (_) {
+      return path;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bgPath = character?.chatBackground;
@@ -4126,39 +4183,34 @@ class _ChatAtmosphereBackground extends StatelessWidget {
           Positioned.fill(
             child: Image.file(
               File(bgPath),
+              key: ValueKey(_fileImageKey(bgPath)),
               fit: BoxFit.cover,
             ),
           )
         else
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  tokens.backgroundSoft,
-                  tokens.background,
-                  tokens.surfaceSoft,
-                ],
-                stops: const [0, 0.56, 1],
-              ),
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/dusky_rose_rain_glass.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              color: tokens.background.withValues(alpha: 0.18),
+              colorBlendMode: BlendMode.multiply,
             ),
           ),
-        if (!hasCustomBg && character != null)
+        if (!hasCustomBg)
           Positioned.fill(
-            child: Opacity(
-              opacity: 0.22,
-              child: Transform.scale(
-                scale: 1.5,
-                alignment: Alignment.centerRight,
-                child: Align(
-                  alignment: const Alignment(0.92, -0.16),
-                  child: CharacterAvatar(
-                    avatar: character!.avatar,
-                    name: character!.name,
-                    size: MediaQuery.sizeOf(context).shortestSide * 0.95,
-                    backgroundColor: _personaPanelSoft,
-                  ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFF070608).withValues(alpha: 0.24),
+                    tokens.background.withValues(alpha: 0.08),
+                    tokens.background.withValues(alpha: 0.22),
+                    const Color(0xFF070608).withValues(alpha: 0.78),
+                  ],
+                  stops: const [0, 0.34, 0.68, 1],
                 ),
               ),
             ),
@@ -4175,23 +4227,31 @@ class _ChatAtmosphereBackground extends StatelessWidget {
             left: -72,
             child: _AtmosphereGlow(
               size: 240,
-              color: tokens.accentSoft.withValues(alpha: 0.12),
+              color: const Color(0xFFD36F7E).withValues(alpha: 0.16),
             ),
           ),
           Positioned(
-            top: 84,
-            right: -96,
+            top: 112,
+            right: -72,
             child: _AtmosphereGlow(
-              size: 280,
-              color: tokens.surfaceDeep.withValues(alpha: 0.18),
+              size: 300,
+              color: const Color(0xFFE0A06F).withValues(alpha: 0.16),
             ),
           ),
           Positioned(
-            bottom: 76,
-            left: -120,
+            bottom: 96,
+            left: -110,
             child: _AtmosphereGlow(
-              size: 320,
-              color: tokens.accent.withValues(alpha: 0.10),
+              size: 340,
+              color: const Color(0xFF7E4A55).withValues(alpha: 0.20),
+            ),
+          ),
+          Positioned(
+            top: MediaQuery.sizeOf(context).height * 0.32,
+            left: MediaQuery.sizeOf(context).width * 0.18,
+            child: _AtmosphereGlow(
+              size: 220,
+              color: const Color(0xFFD36F7E).withValues(alpha: 0.12),
             ),
           ),
         ],
@@ -4236,7 +4296,11 @@ class _ChatAtmosphereBackground extends StatelessWidget {
             ),
           ),
         const Positioned.fill(
-          child: HereIamRoseMistLayer(),
+          child: HereIamRainLayer(
+            opacity: 0.56,
+            microOpacity: 0.16,
+            dropletOpacity: 0.34,
+          ),
         ),
       ],
     );
@@ -4400,35 +4464,65 @@ class _CharacterMessageFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = HereIamThemeRuntime.current;
     final isDark = tokens.brightness == Brightness.dark;
+    const radius = BorderRadius.only(
+      topLeft: Radius.circular(7),
+      topRight: Radius.circular(18),
+      bottomLeft: Radius.circular(18),
+      bottomRight: Radius.circular(18),
+    );
 
     return Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.sizeOf(context).width * 0.88,
       ),
-      padding: const EdgeInsets.fromLTRB(18, 13, 18, 13),
       decoration: BoxDecoration(
-        color: _personaCharacterBubble,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(7),
-          topRight: Radius.circular(18),
-          bottomLeft: Radius.circular(18),
-          bottomRight: Radius.circular(18),
-        ),
-        border: Border.all(
-          color:
-              isDark ? Colors.white.withValues(alpha: 0.1) : tokens.glassStroke,
-        ),
+        borderRadius: radius,
         boxShadow: [
           BoxShadow(
             color: isDark
-                ? Colors.black.withValues(alpha: 0.34)
+                ? Colors.black.withValues(alpha: 0.30)
                 : tokens.textSecondary.withValues(alpha: 0.10),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
           ),
+          if (isDark)
+            BoxShadow(
+              color: tokens.accent.withValues(alpha: 0.05),
+              blurRadius: 20,
+              offset: const Offset(0, -2),
+            ),
         ],
       ),
-      child: child,
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(18, 13, 18, 13),
+            decoration: BoxDecoration(
+              color: _personaCharacterBubble,
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : tokens.glassStroke,
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  isDark
+                      ? const Color(0xFF4A252B).withValues(alpha: 0.34)
+                      : const Color(0xFFFFECDD).withValues(alpha: 0.18),
+                  _personaCharacterBubble,
+                  const Color(0xFF120B0E).withValues(alpha: isDark ? 0.16 : 0),
+                ],
+                stops: const [0, 0.56, 1],
+              ),
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -4764,189 +4858,349 @@ class PersonaChatInputBar extends StatelessWidget {
     final hasImages = selectedImages.isNotEmpty || isCompressing;
     final tokens = HereIamThemeRuntime.current;
     final isDark = tokens.brightness == Brightness.dark;
-    final composerColor =
-        isDark ? Colors.black.withValues(alpha: 0.62) : tokens.glassFillSoft;
-    final composerBorderColor =
-        isDark ? Colors.white.withValues(alpha: 0.12) : tokens.glassStroke;
-    final composerShadowColor = isDark
-        ? Colors.black.withValues(alpha: 0.5)
-        : tokens.textSecondary.withValues(alpha: 0.12);
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(14, 10, 14, bottomPadding + 12),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
-        decoration: BoxDecoration(
-          color: composerColor,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: composerBorderColor),
-          boxShadow: [
-            BoxShadow(
-              color: composerShadowColor,
-              blurRadius: 34,
-              offset: const Offset(0, 16),
-            ),
-            BoxShadow(
-              color: _personaAccent.withValues(alpha: 0.06),
-              blurRadius: 18,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: ValueListenableBuilder<TextEditingValue>(
-          valueListenable: controller,
-          builder: (context, value, _) {
-            final canSend = _canSend(value.text, selectedImages.isNotEmpty);
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (hasImages) ...[
-                  SizedBox(
-                    height: 64,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount:
-                                selectedImages.length + (isCompressing ? 1 : 0),
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(width: 6),
-                            itemBuilder: (context, index) {
-                              if (isCompressing &&
-                                  index == selectedImages.length) {
-                                return SizedBox(
-                                  width: 56,
-                                  height: 56,
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: _personaAccent,
+      padding: EdgeInsets.fromLTRB(16, 10, 16, bottomPadding + 16),
+      child: ValueListenableBuilder<TextEditingValue>(
+        valueListenable: controller,
+        builder: (context, value, _) {
+          final canSend = _canSend(value.text, selectedImages.isNotEmpty);
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasImages) ...[
+                SizedBox(
+                  height: 64,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount:
+                              selectedImages.length + (isCompressing ? 1 : 0),
+                          separatorBuilder: (_, __) => const SizedBox(width: 6),
+                          itemBuilder: (context, index) {
+                            if (isCompressing &&
+                                index == selectedImages.length) {
+                              return SizedBox(
+                                width: 56,
+                                height: 56,
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: _personaAccent,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+                            final image = selectedImages[index];
+                            return GestureDetector(
+                              onTap: () => onRemoveImage?.call(index),
+                              child: Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.file(
+                                      File(image.path),
+                                      width: 56,
+                                      height: 56,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 0,
+                                    top: 0,
+                                    child: Container(
+                                      width: 18,
+                                      height: 18,
+                                      decoration: BoxDecoration(
+                                        color:
+                                            Colors.black.withValues(alpha: 0.6),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.close_rounded,
+                                        size: 12,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ),
-                                );
-                              }
-                              final image = selectedImages[index];
-                              return GestureDetector(
-                                onTap: () => onRemoveImage?.call(index),
-                                child: Stack(
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.file(
-                                        File(image.path),
-                                        width: 56,
-                                        height: 56,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                    Positioned(
-                                      right: 0,
-                                      top: 0,
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        decoration: BoxDecoration(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.6),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          Icons.close_rounded,
-                                          size: 12,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (onAddTap != null) ...[
+                    _AddButton(
+                      enabled: !isStreaming,
+                      onTap: onAddTap!,
+                      active: isAddActive,
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: _FloatingGlassInputCapsule(
+                      isDark: isDark,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: controller,
+                              minLines: 1,
+                              maxLines: 5,
+                              decoration: InputDecoration(
+                                hintText: hintText,
+                                hintStyle: TextStyle(
+                                  color: _personaTextMuted,
+                                  fontSize: 15,
+                                ),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                  vertical: 10,
+                                ),
+                                border: InputBorder.none,
+                              ),
+                              style: TextStyle(
+                                fontSize: 15,
+                                height: 1.35,
+                                color: _personaText,
+                              ),
+                              keyboardType: TextInputType.multiline,
+                              textInputAction: TextInputAction.newline,
+                              // Input stays enabled during streaming; sending then
+                              // queues the message for the next response turn.
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 160),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            child: canSend
+                                ? _SendAndMaybeEndVoiceMode(
+                                    key: ValueKey(
+                                      isVoiceModeActive
+                                          ? 'send-with-voice-end'
+                                          : 'send',
+                                    ),
+                                    onSend: onSend,
+                                    onVoiceModeTap: onVoiceModeTap,
+                                    showVoiceModeEnd: isVoiceModeActive,
+                                  )
+                                : voiceController != null
+                                    ? _ChatVoiceActions(
+                                        key: const ValueKey('voice-actions'),
+                                        voiceController: voiceController,
+                                        onVoiceTap: onVoiceTap,
+                                        onVoiceModeTap: onVoiceModeTap,
+                                        isVoiceModeActive: isVoiceModeActive,
+                                        voiceInputEnabled: isVoiceInputEnabled,
+                                        voiceModeEnabled:
+                                            isVoiceModeActive || !isStreaming,
+                                      )
+                                    : const SizedBox(key: ValueKey('no-send')),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FloatingGlassInputCapsule extends StatelessWidget {
+  const _FloatingGlassInputCapsule({
+    required this.child,
+    required this.isDark,
+  });
+
+  final Widget child;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 56),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.16),
+            blurRadius: 34,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: const Color(0xFFC0646E).withValues(alpha: 0.16),
+            blurRadius: 26,
+            offset: Offset.zero,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(999),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF241319).withValues(alpha: 0.42),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.035),
+                      width: 1,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFFFFECDD).withValues(alpha: 0.05),
+                        const Color(0xFFC08E96).withValues(alpha: 0.10),
+                        const Color(0xFF241319).withValues(alpha: 0.18),
+                      ],
+                      stops: const [0, 0.48, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 18,
+                right: 18,
+                top: 1,
+                child: Container(
+                  height: 1.2,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.transparent,
+                        const Color(0xFFFFC6B5).withValues(alpha: 0.24),
+                        const Color(0xFFC08E96).withValues(alpha: 0.12),
+                        Colors.transparent,
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                ],
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (onAddTap != null) ...[
-                      _AddButton(
-                        enabled: !isStreaming,
-                        onTap: onAddTap!,
-                        active: isAddActive,
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    Expanded(
-                      child: TextField(
-                        controller: controller,
-                        minLines: 1,
-                        maxLines: 5,
-                        decoration: InputDecoration(
-                          hintText: hintText,
-                          hintStyle: TextStyle(
-                            color: _personaTextMuted,
-                            fontSize: 15,
-                          ),
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 10,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                        style: TextStyle(
-                          fontSize: 15,
-                          height: 1.35,
-                          color: _personaText,
-                        ),
-                        keyboardType: TextInputType.multiline,
-                        textInputAction: TextInputAction.newline,
-                        // Input stays enabled during streaming; sending then
-                        // queues the message for the next response turn.
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 160),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      child: canSend
-                          ? _SendAndMaybeEndVoiceMode(
-                              key: ValueKey(
-                                isVoiceModeActive
-                                    ? 'send-with-voice-end'
-                                    : 'send',
-                              ),
-                              onSend: onSend,
-                              onVoiceModeTap: onVoiceModeTap,
-                              showVoiceModeEnd: isVoiceModeActive,
-                            )
-                          : voiceController != null
-                              ? _ChatVoiceActions(
-                                  key: const ValueKey('voice-actions'),
-                                  voiceController: voiceController,
-                                  onVoiceTap: onVoiceTap,
-                                  onVoiceModeTap: onVoiceModeTap,
-                                  isVoiceModeActive: isVoiceModeActive,
-                                  voiceInputEnabled: isVoiceInputEnabled,
-                                  voiceModeEnabled:
-                                      isVoiceModeActive || !isStreaming,
-                                )
-                              : const SizedBox(key: ValueKey('no-send')),
-                    ),
-                  ],
                 ),
-              ],
-            );
-          },
+              ),
+              Positioned(
+                left: 12,
+                top: 4,
+                width: 120,
+                height: 28,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      gradient: RadialGradient(
+                        center: Alignment.topLeft,
+                        radius: 1.2,
+                        colors: [
+                          const Color(0xFFFFECDD).withValues(alpha: 0.14),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 6,
+                top: 5,
+                width: 70,
+                height: 42,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      gradient: RadialGradient(
+                        center: Alignment.centerRight,
+                        radius: 1.05,
+                        colors: [
+                          const Color(0xFFFFD2C8).withValues(alpha: 0.12),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 44,
+                right: 92,
+                top: 10,
+                height: 12,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          const Color(0xFFFFECDD).withValues(alpha: 0.045),
+                          const Color(0xFFC08E96).withValues(alpha: 0.035),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 8,
+                right: 8,
+                bottom: 0,
+                height: 18,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.20),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+                child: child,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -4966,32 +5220,62 @@ class _AddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = HereIamThemeRuntime.current;
-
     return Semantics(
       button: true,
       enabled: enabled,
       label: 'Add attachment',
       child: GestureDetector(
         onTap: enabled ? onTap : null,
-        child: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: active
-                ? _personaAccent.withValues(alpha: 0.18)
-                : tokens.glassFillSoft,
-            border: Border.all(
-              color: active
-                  ? _personaAccent.withValues(alpha: 0.52)
-                  : tokens.glassStroke,
+        child: ClipOval(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF241319).withValues(alpha: 0.38),
+                gradient: RadialGradient(
+                  center: const Alignment(-0.36, -0.44),
+                  radius: 1.08,
+                  colors: [
+                    const Color(0xFFFFECDD)
+                        .withValues(alpha: active ? 0.13 : 0.08),
+                    active
+                        ? const Color(0xFF4D222B).withValues(alpha: 0.58)
+                        : const Color(0xFF3A2123).withValues(alpha: 0.48),
+                    const Color(0xFF120B0E).withValues(alpha: 0.72),
+                  ],
+                  stops: const [0, 0.54, 1],
+                ),
+                border: Border.all(
+                  color: active
+                      ? const Color(0xFFFFC6B5).withValues(alpha: 0.12)
+                      : Colors.white.withValues(alpha: 0.045),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.30),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+                  BoxShadow(
+                    color: const Color(0xFFC0646E).withValues(alpha: 0.10),
+                    blurRadius: 18,
+                    offset: Offset.zero,
+                  ),
+                ],
+              ),
+              child: Icon(
+                active ? Icons.close_rounded : Icons.add_rounded,
+                color: enabled
+                    ? const Color(0xFFF6F0EF).withValues(alpha: 0.86)
+                    : _personaTextMuted,
+                size: 25,
+              ),
             ),
-          ),
-          child: Icon(
-            active ? Icons.close_rounded : Icons.add_rounded,
-            color: enabled ? _personaAccent : _personaTextMuted,
-            size: 24,
           ),
         ),
       ),
@@ -5026,8 +5310,8 @@ class _ChatVoiceActions extends StatelessWidget {
           VoiceInputButton(
             controller: voiceController!,
             onTap: onVoiceTap!,
-            iconColor: _personaAccent,
-            bgColor: HereIamThemeRuntime.current.glassFillSoft,
+            iconColor: const Color(0xFFF6F0EF).withValues(alpha: 0.84),
+            bgColor: const Color(0xFF241319).withValues(alpha: 0.34),
             enabled: voiceInputEnabled,
           ),
           const SizedBox(width: 8),
@@ -5089,8 +5373,6 @@ class _VoiceModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = HereIamThemeRuntime.current;
-
     return Semantics(
       button: true,
       enabled: enabled,
@@ -5098,31 +5380,64 @@ class _VoiceModeButton extends StatelessWidget {
       label: active ? 'End voice mode' : 'Start voice mode',
       child: GestureDetector(
         onTap: enabled ? onTap : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: 42,
-          height: 42,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: active
-                ? _personaAccent.withValues(alpha: 0.16)
-                : tokens.glassFillSoft,
-            border: Border.all(
-              color: active
-                  ? _personaAccent.withValues(alpha: 0.42)
-                  : tokens.glassStroke,
+        child: ClipOval(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF241319).withValues(alpha: 0.30),
+                gradient: RadialGradient(
+                  center: const Alignment(-0.32, -0.42),
+                  radius: 1.12,
+                  colors: active
+                      ? [
+                          const Color(0xFFFFECDD).withValues(alpha: 0.12),
+                          const Color(0xFFC0646E).withValues(alpha: 0.38),
+                          const Color(0xFF4D222B).withValues(alpha: 0.60),
+                        ]
+                      : [
+                          const Color(0xFFFFECDD).withValues(alpha: 0.07),
+                          const Color(0xFF3A2123).withValues(alpha: 0.34),
+                          const Color(0xFF120B0E).withValues(alpha: 0.54),
+                        ],
+                  stops: const [0, 0.56, 1],
+                ),
+                border: Border.all(
+                  color: active
+                      ? const Color(0xFFFFC6B5).withValues(alpha: 0.10)
+                      : Colors.white.withValues(alpha: 0.035),
+                ),
+                boxShadow: active
+                    ? [
+                        BoxShadow(
+                          color:
+                              const Color(0xFFC0646E).withValues(alpha: 0.16),
+                          blurRadius: 16,
+                          offset: Offset.zero,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: active
+                  ? Icon(
+                      Icons.close_rounded,
+                      color: enabled
+                          ? const Color(0xFFF6F0EF).withValues(alpha: 0.88)
+                          : _personaTextMuted,
+                      size: 23,
+                    )
+                  : _VoiceBarsIcon(
+                      color: enabled
+                          ? const Color(0xFFF6F0EF).withValues(alpha: 0.82)
+                          : _personaTextMuted,
+                    ),
             ),
           ),
-          child: active
-              ? Icon(
-                  Icons.close_rounded,
-                  color: enabled ? _personaAccent : _personaTextMuted,
-                  size: 23,
-                )
-              : _VoiceBarsIcon(
-                  color: enabled ? _personaAccent : _personaTextMuted,
-                ),
         ),
       ),
     );
@@ -5172,43 +5487,91 @@ class _SendButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = HereIamThemeRuntime.current;
-
     return Semantics(
       button: true,
       enabled: enabled,
       label: 'Send message',
       child: GestureDetector(
         onTap: enabled ? onTap : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: enabled
-                ? _personaAccent.withValues(alpha: 0.78)
-                : tokens.glassFillSoft,
-            border: Border.all(
-              color: enabled
-                  ? _personaAccent.withValues(alpha: 0.95)
-                  : tokens.glassStroke,
-            ),
-            boxShadow: enabled
-                ? [
+        child: ClipOval(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF241319).withValues(alpha: 0.38),
+                gradient: RadialGradient(
+                  center: const Alignment(-0.36, -0.44),
+                  radius: 1.12,
+                  colors: enabled
+                      ? [
+                          const Color(0xFFFFECDD).withValues(alpha: 0.13),
+                          const Color(0xFFC0646E).withValues(alpha: 0.48),
+                          const Color(0xFF4D222B).withValues(alpha: 0.66),
+                        ]
+                      : [
+                          const Color(0xFFFFECDD).withValues(alpha: 0.06),
+                          const Color(0xFF3A2123).withValues(alpha: 0.32),
+                          const Color(0xFF120B0E).withValues(alpha: 0.58),
+                        ],
+                  stops: const [0, 0.56, 1],
+                ),
+                border: Border.all(
+                  color: enabled
+                      ? const Color(0xFFFFC6B5).withValues(alpha: 0.10)
+                      : Colors.white.withValues(alpha: 0.035),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.28),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                  if (enabled)
                     BoxShadow(
-                      color: _personaAccent.withValues(alpha: 0.2),
-                      blurRadius: 16,
-                      offset: const Offset(0, 8),
+                      color: const Color(0xFFC0646E).withValues(alpha: 0.18),
+                      blurRadius: 18,
+                      offset: Offset.zero,
                     ),
-                  ]
-                : null,
-          ),
-          child: Icon(
-            Icons.send_rounded,
-            color: enabled ? _personaStageInk : _personaTextMuted,
-            size: 22,
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 9,
+                    right: 11,
+                    top: 4,
+                    height: 1.1,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            const Color(0xFFFFECDD)
+                                .withValues(alpha: enabled ? 0.20 : 0.08),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Icon(
+                      Icons.arrow_upward_rounded,
+                      color: enabled
+                          ? const Color(0xFFF6F0EF).withValues(alpha: 0.92)
+                          : _personaTextMuted,
+                      size: 22,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

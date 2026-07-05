@@ -173,6 +173,15 @@ class _AboutIScreenState extends State<AboutIScreen> {
     }
   }
 
+  String _fileImageKey(String path) {
+    try {
+      final stat = File(path).statSync();
+      return '$path:${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+    } catch (_) {
+      return path;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -295,6 +304,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
     return GestureDetector(
       onTap: _pickChatBackground,
       child: Container(
+        key: ValueKey(hasBackground ? _fileImageKey(preview) : 'empty-bg'),
         height: 140,
         decoration: BoxDecoration(
           color: const Color(0xFFF7F8FA),
@@ -302,7 +312,10 @@ class _AboutIScreenState extends State<AboutIScreen> {
           border: Border.all(color: const Color(0xFFE2E8F0)),
           image: hasBackground
               ? DecorationImage(
-                  image: FileImage(File(preview)),
+                  image: FileImage(
+                    File(preview),
+                    scale: 1,
+                  ),
                   fit: BoxFit.cover,
                 )
               : null,

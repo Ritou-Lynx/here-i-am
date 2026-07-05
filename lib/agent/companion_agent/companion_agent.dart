@@ -8,6 +8,7 @@ import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
 import 'package:memex/agent/skills/companion_agent/companion_agent_skill.dart';
 import 'package:memex/agent/state_util.dart';
 import 'package:logging/logging.dart';
+import 'package:memex/data/services/location_context_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
@@ -16,11 +17,8 @@ import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
 import 'package:memex/db/app_database.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/utils/logger.dart';
-import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/time_context.dart';
-import 'package:memex/utils/user_storage.dart';
 
 /// Companion chat agent implemented with StatefulAgent for architecture parity
 /// with other scene agents (e.g., CommentAgent).
@@ -32,32 +30,53 @@ class CompanionAgent {
   // replies "好的，X分钟后提醒你" in text but never calls reminder_create.
   // ---------------------------------------------------------------------------
 
-  /// Patterns indicating the user is making a time-related request.
+  static const String _timeExpressionSource =
+      r'(\d+\s*(?:分钟|小时|点|时|分|秒)|[一二两三四五六七八九十半]+\s*(?:分钟|小时|点|时|分|秒)|明天|后天|今晚|今早|今天晚上|上午|中午|下午|晚上|等会儿?|待会儿?|稍后|一会儿?|到时候|later|tomorrow|tonight|in\s+\d+|at\s+\d+)';
+
+  static const String _scheduledRequestActionSource =
+      r'(提醒我|叫我|喊我|通知我|问我|查岗|监督我|来找我|来问我|到点叫我|到点提醒|设(?:个|一个)?闹钟|设(?:个|一个)?提醒|闹钟|给我打电话|打电话给我|call me|remind me|wake me|ping me|check on me|ask me)';
+
+  static const String _scheduledResponseActionSource =
+      r'(提醒你|叫你|喊你|通知你|问你|查岗|监督你|来找你|来问你|给你打电话|打电话给你|call you|remind you|ping you|check on you|ask you)';
+
+  /// Patterns indicating the user explicitly asked for a scheduled action.
+  /// Bare time facts like "10 点要到公司" stay as chat context.
   static final List<RegExp> _timeRequestPatterns = [
-    RegExp(r'\d+\s*分钟'),
-    RegExp(r'\d+\s*小时'),
-    RegExp(r'\d+\s*[点时]'), // X点, X点半, X时
-    RegExp(r'(提醒|叫|喊|通知|打电话|打给)\s*(我|一下)'),
-    RegExp(r'(等|过)\s*\d+\s*(分钟|小时|秒)'),
-    RegExp(r'(稍后|等会|等会儿|一会|待会|待会儿|过会|过会儿)'),
-    RegExp(r'(马上|立刻|现在)\s*(提醒|叫|打电话)'),
+    RegExp(
+      '$_scheduledRequestActionSource.{0,32}$_timeExpressionSource',
+      caseSensitive: false,
+    ),
+    RegExp(
+      '$_timeExpressionSource.{0,32}$_scheduledRequestActionSource',
+      caseSensitive: false,
+    ),
   ];
 
   static bool _containsTimeRequest(String text) =>
       _timeRequestPatterns.any((p) => p.hasMatch(text));
 
+  @visibleForTesting
+  static bool containsTimeRequestForTesting(String text) =>
+      _containsTimeRequest(text);
+
   /// Patterns indicating the agent's text output contains a time-based promise.
   static final List<RegExp> _timeCommitmentPatterns = [
-    RegExp(r'\d+\s*分钟'),
-    RegExp(r'\d+\s*小时'),
-    RegExp(r'\d+\s*[点时]'),
-    RegExp(r'(稍后|等会|等会儿|一会|待会|待会儿|过会|过会儿)'),
-    RegExp(r'(提醒你|叫你|喊你|通知你|打电话给你|打给你)'),
-    RegExp(r'(马上|立刻|现在)\s*(提醒|叫你|通知)'),
+    RegExp(
+      '$_scheduledResponseActionSource.{0,32}$_timeExpressionSource',
+      caseSensitive: false,
+    ),
+    RegExp(
+      '$_timeExpressionSource.{0,32}$_scheduledResponseActionSource',
+      caseSensitive: false,
+    ),
   ];
 
   static bool _containsTimeCommitment(String text) =>
       _timeCommitmentPatterns.any((p) => p.hasMatch(text));
+
+  @visibleForTesting
+  static bool containsTimeCommitmentForTesting(String text) =>
+      _containsTimeCommitment(text);
 
   /// Returns true if any message in [history] contains a reminder_create call.
   static bool _hasReminderCreateCall(List<LLMMessage> history) =>
@@ -69,17 +88,16 @@ class CompanionAgent {
       });
 
   static const _timeRequestDirective =
-      '⛔ SYSTEM DIRECTIVE (enforced — not advice):\n'
-      'The user just made a time-based request. You MUST call `reminder_create` '
-      'in THIS turn — alongside your text reply.\n'
-      'Replying with text that promises a future action ("X分钟后提醒你") '
-      'without actually calling `reminder_create` is a HARD ERROR.\n'
-      'The user will receive NOTHING unless you create the reminder with the tool.\n'
-      'CRITICAL — VOICE CALL REQUESTS: if the user asked for a voice call '
-      '("打电话", "call me", "给我打", etc.), you MUST set action="call" '
-      'in reminder_create. Without action="call" the system will send a '
-      'notification instead of actually calling — a broken experience.\n'
-      'If unsure of the exact time, ask — but NEVER promise without scheduling.';
+      'SYSTEM DIRECTIVE (enforced, not advice):\n'
+      'The user explicitly asked you to schedule a future reminder, check-in, '
+      'question, alarm, or voice call. You MUST call `reminder_create` in this '
+      'turn alongside your visible text reply.\n'
+      'Do NOT treat bare time facts, deadlines, trips, bets, or "am I late?" '
+      'conversation as scheduling requests. Those should remain normal chat '
+      'unless the user explicitly asks you to remind, ask, check in, or call.\n'
+      'If the user asked for a scheduled voice call, set action="call" in '
+      '`reminder_create`. If the schedule is unclear, ask one short question '
+      'instead of pretending it is set.';
 
   // ── Image generation request detection & directive ──────────────────────
 
@@ -110,6 +128,30 @@ class CompanionAgent {
       'image the user wants to see.';
 
   // ---------------------------------------------------------------------------
+
+  static Future<void> _injectCurrentLocationContext(AgentState state) async {
+    try {
+      final context = await LocationContextService.instance.getCurrentContext();
+      final reminder = context.toAgentSystemReminderContent();
+      if (reminder == null || reminder.trim().isEmpty) {
+        state.systemReminders.remove('current_location_context');
+        _logger.info(
+          'CompanionAgent: current location not injected '
+          '(status=${context.status}, reason=${context.reason})',
+        );
+        return;
+      }
+
+      state.systemReminders['current_location_context'] = reminder;
+      _logger.info(
+        'CompanionAgent: injected current location context '
+        '(status=${context.status}, source=${context.source})',
+      );
+    } catch (e) {
+      state.systemReminders.remove('current_location_context');
+      _logger.warning('CompanionAgent: failed to load location context: $e');
+    }
+  }
 
   static Future<StatefulAgent?> _createAgent({
     required LLMClient client,
@@ -145,12 +187,9 @@ class CompanionAgent {
       'characterId': characterId,
     });
 
-    final userName = (await UserStorage.getUserId()) ?? userId;
-
     final skill = CompanionAgentSkill(
       character: character,
       userId: userId,
-      userName: userName,
       currentUserMessageId: currentUserMessageId,
       includeCheckinTools: includeCheckinTools,
       toyControlService: toyControlService,
@@ -225,14 +264,7 @@ class CompanionAgent {
     } else {
       state.systemReminders.remove('memory_v3_cards');
     }
-    if (character.postHistoryInstructions != null &&
-        character.postHistoryInstructions!.trim().isNotEmpty) {
-      state.systemReminders['post_history_instructions'] = TavernMacro.resolve(
-        character.postHistoryInstructions!,
-        userName: userName,
-        charName: character.name,
-      );
-    }
+    state.systemReminders.remove('post_history_instructions');
 
     final controller = AgentController();
     addAgentLogger(controller);
@@ -248,7 +280,7 @@ class CompanionAgent {
       systemPrompts: const [],
       disableSubAgents: true,
       controller: controller,
-      withGeneralPrinciples: true,
+      withGeneralPrinciples: false,
       planMode: PlanMode.none,
       // Companion chat is a long-running relationship conversation. The
       // default LLM loop diagnosis becomes too aggressive after many turns and
@@ -256,7 +288,6 @@ class CompanionAgent {
       // repeated-tool protection, but disable the extra LLM judge.
       loopDetector: DefaultLoopDetector(state: state),
       autoSaveStateFunc: saveState ? (s) async => saveAgentState(s) : null,
-      systemCallback: createSystemCallback(userId),
     );
   }
 
@@ -625,6 +656,7 @@ class CompanionAgent {
           'you to call them right now ("call me", "打给我").\n'
           '- "（📞 ...）" messages in chat history are past records — they do '
           'NOT mean you are currently on a call.';
+      await _injectCurrentLocationContext(state);
 
       if (voiceMode) {
         state.systemReminders['chat_mode'] = '## CHAT VOICE MODE (active)\n'

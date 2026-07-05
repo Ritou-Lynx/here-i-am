@@ -159,11 +159,22 @@ class UserStorage {
 
   static const String _keyLLMConfigs = 'llm_client_configs';
   static const String _keyDefaultLLMConfigKey = 'default_llm_config_key';
+  static final ValueNotifier<int> llmConfigRevision = ValueNotifier<int>(0);
+
+  static void _notifyLLMConfigChanged() {
+    llmConfigRevision.value++;
+  }
+
+  static Future<SharedPreferences> _freshPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return prefs;
+  }
 
   /// Get stored LLM config list. Creates default config if none.
   static Future<List<LLMConfig>> getLLMConfigs() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _freshPreferences();
       final jsonString = prefs.getString(_keyLLMConfigs);
 
       List<LLMConfig> configs = [];
@@ -207,6 +218,7 @@ class UserStorage {
           await prefs.remove(_keyDefaultLLMConfigKey);
         }
       }
+      _notifyLLMConfigChanged();
     } catch (e) {
       throw Exception(UserStorage.l10n.saveLlmConfigFailed(e));
     }
@@ -218,7 +230,7 @@ class UserStorage {
   /// `default` config remains the fallback so existing installs keep working.
   static Future<String> getDefaultLLMConfigKey() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _freshPreferences();
       final configs = await getLLMConfigs();
       final storedKey = prefs.getString(_keyDefaultLLMConfigKey);
 
@@ -254,6 +266,7 @@ class UserStorage {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyDefaultLLMConfigKey, configKey);
+    _notifyLLMConfigChanged();
   }
 
   static const String _keyLanguage = 'language';
@@ -358,7 +371,7 @@ class UserStorage {
   /// Get specified agent config
   static Future<AgentConfig> getAgentConfig(String agentId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _freshPreferences();
       final jsonString = prefs.getString('${_keyAgentConfigs}_$agentId');
 
       if (jsonString != null) {
@@ -390,6 +403,7 @@ class UserStorage {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = jsonEncode(config.toJson());
       await prefs.setString('${_keyAgentConfigs}_$agentId', jsonString);
+      _notifyLLMConfigChanged();
     } catch (e) {
       if (e.toString().contains('Invalid LLM Config Key')) {
         rethrow;
@@ -484,8 +498,7 @@ class UserStorage {
     try {
       final configs = await getLLMConfigs();
       for (final config in configs) {
-        if (config.type == LLMConfig.typeQwen &&
-            (config.apiKey ?? '').isNotEmpty) {
+        if (config.type == LLMConfig.typeQwen && config.apiKey.isNotEmpty) {
           return config.apiKey;
         }
       }
@@ -637,6 +650,7 @@ class UserStorage {
       await prefs.remove(_keyDefaultLLMConfigKey);
       // Force reload to ensure defaults are re-populated
       await getLLMConfigs();
+      _notifyLLMConfigChanged();
     } catch (e) {
       throw Exception('Failed to reset LLM configs: $e');
     }
@@ -652,6 +666,7 @@ class UserStorage {
           await prefs.remove(key);
         }
       }
+      _notifyLLMConfigChanged();
     } catch (e) {
       throw Exception('Failed to reset agent configs: $e');
     }

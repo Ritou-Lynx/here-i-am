@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 import 'package:memex/ui/core/widgets/local_image.dart';
@@ -47,6 +49,17 @@ class CharacterAvatar extends StatelessWidget {
     return 'companion_$name';
   }
 
+  String get _imageKey {
+    final value = avatar ?? '';
+    if (!value.startsWith('/')) return value;
+    try {
+      final stat = File(value).statSync();
+      return '$value:${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+    } catch (_) {
+      return value;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isImageAvatar(avatar)) {
@@ -55,6 +68,7 @@ class CharacterAvatar extends StatelessWidget {
           width: size,
           height: size,
           child: LocalImage(
+            key: ValueKey(_imageKey),
             url: avatar!,
             fit: BoxFit.cover,
             width: size,

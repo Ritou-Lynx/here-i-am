@@ -1,5 +1,4 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/agent/memory/memory_management.dart';
 import 'package:memex/agent/skills/ask_clarification/ask_clarification_skill.dart';
@@ -97,7 +96,6 @@ Prefer short single-choice questions with evidence fact IDs when possible.
       autoSaveStateFunc: (s) async {
         await saveAgentState(state);
       },
-      systemCallback: createSystemCallback(userId),
     );
 
     _logger.info('MemoryAgent running analysis on buffer...');

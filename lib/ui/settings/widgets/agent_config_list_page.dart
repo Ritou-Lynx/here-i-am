@@ -28,6 +28,18 @@ class _AgentConfigListPageState extends State<AgentConfigListPage> {
   @override
   void initState() {
     super.initState();
+    UserStorage.llmConfigRevision.addListener(_onLLMConfigChanged);
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    UserStorage.llmConfigRevision.removeListener(_onLLMConfigChanged);
+    super.dispose();
+  }
+
+  void _onLLMConfigChanged() {
+    if (!mounted) return;
     _loadData();
   }
 

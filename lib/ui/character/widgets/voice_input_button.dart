@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
 
@@ -64,24 +66,52 @@ class VoiceInputButton extends StatelessWidget {
             onTap: enabled && !isProcessing ? onTap : null,
             child: Opacity(
               opacity: enabled ? 1 : 0.45,
-              child: Container(
-                width: size,
-                height: size,
-                decoration: BoxDecoration(
-                  color: isRecording ? Colors.redAccent.shade400 : bgColor,
-                  shape: BoxShape.circle,
-                  boxShadow: isRecording
-                      ? [
-                          BoxShadow(
-                            color: Colors.redAccent.withValues(alpha: 0.6),
-                            blurRadius: 12,
-                            spreadRadius: 1,
-                          ),
-                        ]
-                      : null,
+              child: ClipOval(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        center: const Alignment(-0.34, -0.42),
+                        radius: 1.12,
+                        colors: isRecording
+                            ? [
+                                const Color(0xFFFFECDD).withValues(alpha: 0.13),
+                                const Color(0xFFC0646E).withValues(alpha: 0.48),
+                                const Color(0xFF4D222B).withValues(alpha: 0.66),
+                              ]
+                            : [
+                                const Color(0xFFFFECDD).withValues(alpha: 0.07),
+                                bgColor,
+                                const Color(0xFF120B0E).withValues(alpha: 0.54),
+                              ],
+                        stops: const [0, 0.56, 1],
+                      ),
+                      border: Border.all(
+                        color: isRecording
+                            ? const Color(0xFFFFC6B5).withValues(alpha: 0.12)
+                            : Colors.white.withValues(alpha: 0.035),
+                      ),
+                      boxShadow: isRecording
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFFC0646E)
+                                    .withValues(alpha: 0.24),
+                                blurRadius: 14,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: inner,
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: inner,
               ),
             ),
           ),

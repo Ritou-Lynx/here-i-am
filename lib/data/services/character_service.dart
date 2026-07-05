@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
@@ -10,7 +11,7 @@ import 'package:memex/utils/user_storage.dart';
 
 import 'package:memex/utils/logger.dart';
 
-class CharacterService {
+class CharacterService extends ChangeNotifier {
   static final CharacterService _instance = CharacterService._();
   static CharacterService get instance => _instance;
 
@@ -484,7 +485,9 @@ class CharacterService {
       _logger.info("Created character $newId for user $userId");
 
       charDict['id'] = newId;
-      return _resolveMediaPaths(CharacterModel.fromJson(charDict));
+      final character = _resolveMediaPaths(CharacterModel.fromJson(charDict));
+      notifyListeners();
+      return character;
     } catch (e) {
       _logger.severe("Failed to create character for user $userId: $e");
       rethrow;
@@ -588,7 +591,9 @@ class CharacterService {
 
       _logger.info("Updated character $characterId for user $userId");
       charData['id'] = characterId;
-      return _resolveMediaPaths(CharacterModel.fromJson(charData));
+      final character = _resolveMediaPaths(CharacterModel.fromJson(charData));
+      notifyListeners();
+      return character;
     } catch (e) {
       _logger.severe(
           "Failed to update character $characterId for user $userId: $e");
@@ -609,6 +614,7 @@ class CharacterService {
       await charFile.delete();
       _logger
           .info("Physically deleted character $characterId for user $userId");
+      notifyListeners();
       return true;
     } catch (e) {
       _logger.severe("Failed to delete character $characterId: $e");

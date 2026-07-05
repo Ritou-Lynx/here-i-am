@@ -16,8 +16,8 @@ Codex events.
   credentials.
 - Phase 1 is read-only. `permission_tier` defaults to `read_only` and the app
   must not expose `danger-full-access`.
-- Bridge URLs must be HTTPS or a Tailscale HTTPS endpoint. Plain HTTP is not
-  accepted by the app.
+- Bridge URLs must be HTTPS or a Tailscale HTTPS endpoint for daily use.
+  Debug/dev app builds may also accept loopback HTTP for USB-only testing.
 
 ## Current Local Prototype
 
@@ -46,9 +46,10 @@ as a project-local bridge:
   and those runs are marked failed.
 - It exposes HTTP for local curl probes, but phone testing still needs HTTPS
   via Tailscale Serve, cloudflared tunnel, or a trusted certificate.
-- Debug/dev app builds may use `https://127.0.0.1:<port>` with `adb reverse`
-  and a self-signed localhost certificate for USB-only testing. This exception
-  is limited to loopback hosts and does not allow plain HTTP.
+- Debug/dev app builds may use `http://127.0.0.1:<port>` with `adb reverse`
+  for USB-only testing, or `https://127.0.0.1:<port>` with a self-signed
+  localhost certificate. This exception is limited to loopback hosts; non-local
+  Bridge URLs still require HTTPS.
 - It does not yet do commit/push to remote, PR open, mid-run command
   approvals, or release_ops handling — those land in later phases.
 

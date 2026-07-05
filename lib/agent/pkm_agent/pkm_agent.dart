@@ -13,7 +13,6 @@ import 'package:memex/agent/pkm_agent/prompts.dart';
 import 'package:memex/agent/pkm_agent/pkm_stats_service.dart';
 import 'package:memex/agent/state_util.dart';
 import 'package:dart_agent_core/dart_agent_core.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/agent/skills/manage_pkm/pkm_skill.dart';
 import 'package:memex/agent/skills/manage_system_action/system_action_skill.dart';
 import 'package:memex/agent/skills/ask_clarification/ask_clarification_skill.dart';
@@ -262,8 +261,7 @@ class PkmAgent {
         planMode: PlanMode.none,
         autoSaveStateFunc: (state) async {
           await saveAgentState(state);
-        },
-        systemCallback: createSystemCallback(userId));
+        });
 
     _logger.info('PkmAgent created, userId: $userId, sessionId: $sessionId');
     return agent;

@@ -1,5 +1,4 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/comment_agent/prompts.dart';
 import 'package:memex/agent/memory/memory_management.dart';
@@ -90,7 +89,6 @@ class CommentAgent {
       factId: factId,
       workingDirectory: workingDirectory,
       userId: userId,
-      userName: userId,
       userProfile: userProfile,
       forcedReplyToId: forcedReplyToId,
       onCommentSaved: onCommentSaved,
@@ -112,7 +110,6 @@ class CommentAgent {
       autoSaveStateFunc: (state) async {
         await saveAgentState(state);
       },
-      systemCallback: createSystemCallback(userId),
     );
 
     _logger.info(

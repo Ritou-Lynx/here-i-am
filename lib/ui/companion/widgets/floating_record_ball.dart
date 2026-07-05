@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
@@ -32,6 +34,8 @@ class FloatingRecordBall extends StatefulWidget {
 class _FloatingRecordBallState extends State<FloatingRecordBall> {
   double _right = 16;
   double _bottom = 110;
+  static const double _controlWidth = 68;
+  static const double _controlHeight = 56;
   // Track drag so we can skip _showQuickSave after a real drag gesture
   bool _dragging = false;
 
@@ -61,9 +65,10 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
             final size = MediaQuery.of(context).size;
             final padding = MediaQuery.of(context).padding;
             setState(() {
-              _right = (_right - e.delta.dx).clamp(0.0, size.width - 56.0);
-              _bottom = (_bottom - e.delta.dy)
-                  .clamp(padding.bottom, size.height - 56.0 - padding.top);
+              _right =
+                  (_right - e.delta.dx).clamp(0.0, size.width - _controlWidth);
+              _bottom = (_bottom - e.delta.dy).clamp(
+                  padding.bottom, size.height - _controlHeight - padding.top);
             });
           }
         },
@@ -76,32 +81,180 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
   }
 }
 
-class _BallWidget extends StatelessWidget {
+class _BallWidget extends StatefulWidget {
   const _BallWidget();
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFFF5EFE7).withValues(alpha: 0.95),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Icon(
-        Icons.edit_note_rounded,
-        size: 26,
-        color: Color(0xFF8A6F4E),
+  State<_BallWidget> createState() => _BallWidgetState();
+}
+
+class _BallWidgetState extends State<_BallWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _breathController;
+  late final Animation<double> _breath;
+
+  @override
+  void initState() {
+    super.initState();
+    _breathController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4200),
+    )..repeat(reverse: true);
+    _breath = Tween<double>(begin: 1, end: 1.028).animate(
+      CurvedAnimation(
+        parent: _breathController,
+        curve: Curves.easeInOutCubic,
       ),
     );
   }
+
+  @override
+  void dispose() {
+    _breathController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _breath,
+      builder: (context, child) => Transform.scale(
+        scale: _breath.value,
+        child: child,
+      ),
+      child: SizedBox(
+        width: _FloatingRecordBallState._controlWidth,
+        height: _FloatingRecordBallState._controlHeight,
+        child: CustomPaint(
+          painter: const _DropletShadowPainter(),
+          child: ClipPath(
+            clipper: const _DropletClipper(),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: const Alignment(-0.34, -0.46),
+                          radius: 1.12,
+                          colors: [
+                            Colors.white.withValues(alpha: 0.18),
+                            const Color(0xFF4D222B).withValues(alpha: 0.68),
+                            const Color(0xFF120B0E).withValues(alpha: 0.86),
+                          ],
+                          stops: const [0, 0.48, 1],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 12,
+                    top: 7,
+                    width: 34,
+                    height: 16,
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(999),
+                          gradient: RadialGradient(
+                            center: Alignment.topLeft,
+                            radius: 1.08,
+                            colors: [
+                              const Color(0xFFFFECDD).withValues(alpha: 0.22),
+                              const Color(0xFFFFC6B5).withValues(alpha: 0.08),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 7,
+                    bottom: 6,
+                    width: 28,
+                    height: 18,
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(999),
+                          gradient: RadialGradient(
+                            center: Alignment.bottomRight,
+                            radius: 1,
+                            colors: [
+                              const Color(0xFFC0646E).withValues(alpha: 0.16),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Icon(
+                      Icons.edit_note_rounded,
+                      size: 25,
+                      color: const Color(0xFFF0D5D7).withValues(alpha: 0.78),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DropletClipper extends CustomClipper<Path> {
+  const _DropletClipper();
+
+  @override
+  Path getClip(Size size) => _dropletPath(size);
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+class _DropletShadowPainter extends CustomPainter {
+  const _DropletShadowPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _dropletPath(size).shift(const Offset(0, 1));
+    canvas
+      ..drawShadow(path, Colors.black.withValues(alpha: 0.38), 14, true)
+      ..drawShadow(
+        path,
+        const Color(0xFFD36F7E).withValues(alpha: 0.20),
+        18,
+        true,
+      );
+
+    final highlight = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFFEECDBF).withValues(alpha: 0.16);
+    canvas.drawPath(_dropletPath(size).shift(const Offset(0, 0.5)), highlight);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+Path _dropletPath(Size size) {
+  final w = size.width;
+  final h = size.height;
+  return Path()
+    ..moveTo(w * 0.19, h * 0.42)
+    ..cubicTo(w * 0.24, h * 0.17, w * 0.47, h * 0.04, w * 0.66, h * 0.12)
+    ..cubicTo(w * 0.88, h * 0.21, w * 0.99, h * 0.43, w * 0.91, h * 0.66)
+    ..cubicTo(w * 0.81, h * 0.93, w * 0.48, h * 1.00, w * 0.25, h * 0.88)
+    ..cubicTo(w * 0.03, h * 0.77, w * 0.04, h * 0.56, w * 0.19, h * 0.42)
+    ..close();
 }
 
 // ─── Quick-save sheet — full chat input experience ────────────────────────────

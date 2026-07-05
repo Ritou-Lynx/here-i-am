@@ -59,25 +59,6 @@ powershell -File tools\dev_agent_bridge\start_bridge.ps1
 
 ## Phone Testing
 
-The Flutter app rejects plain HTTP Bridge URLs. For phone testing, expose this
-local service over HTTPS.
-
-For quick USB testing with the dev/debug app:
-
-```powershell
-powershell -File tools\dev_agent_bridge\start_usb_bridge.ps1
-```
-
-Then set the Dev Room Bridge URL on the phone to:
-
-```text
-https://127.0.0.1:47831
-```
-
-This script generates a local 30-day certificate, starts the bridge with HTTPS,
-and configures `adb reverse tcp:47831 tcp:47831`. The app only accepts the
-self-signed localhost certificate in debug builds and only for loopback hosts.
-
 For normal daily use, prefer Tailscale Serve:
 
 ```powershell
@@ -90,6 +71,36 @@ Then use the Tailscale HTTPS URL in Dev Room, for example:
 ```text
 https://host.example.invalid
 ```
+
+For quick USB fallback testing with the debug app, the Dev Room Bridge URL can
+use the local HTTP bridge through adb reverse:
+
+```powershell
+powershell -File tools\dev_agent_bridge\start_bridge.ps1
+adb reverse tcp:47831 tcp:47831
+```
+
+Then set the Dev Room Bridge URL on the phone to:
+
+```text
+http://127.0.0.1:47831
+```
+
+For HTTPS USB fallback testing with a local self-signed certificate:
+
+```powershell
+powershell -File tools\dev_agent_bridge\start_usb_bridge.ps1
+```
+
+Set the Dev Room Bridge URL on the phone to:
+
+```text
+https://127.0.0.1:47831
+```
+
+This script generates a local 30-day certificate, starts the bridge with HTTPS,
+and configures `adb reverse tcp:47831 tcp:47831`. The app only accepts
+loopback HTTP or self-signed localhost HTTPS in debug builds.
 
 If you already have a trusted certificate and key:
 

@@ -181,7 +181,7 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
             _Field(
               controller: _defaultBranchController,
               label: '默认分支',
-              hint: 'personal-lab',
+              hint: 'v3-lab',
             ),
             const SizedBox(height: 14),
             _Field(
@@ -189,11 +189,7 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
               label: 'Bridge URL',
               hint: 'https://host.example.invalid',
               validator: (value) {
-                final uri = Uri.tryParse(value.trim());
-                if (uri == null || uri.scheme != 'https' || !uri.hasAuthority) {
-                  return '必须是 HTTPS 地址';
-                }
-                return null;
+                return DevAgentBridgeService.validateBridgeUrlError(value);
               },
             ),
             const SizedBox(height: 8),

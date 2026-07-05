@@ -173,6 +173,20 @@ class DevAgentBridgeService {
         normalized == '::1';
   }
 
+  static String? validateBridgeUrlError(String value) {
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null || !uri.hasAuthority) {
+      return 'Bridge URL must be a complete address.';
+    }
+    if (uri.scheme == 'https') {
+      return null;
+    }
+    if (kDebugMode && uri.scheme == 'http' && _isDebugLoopbackHost(uri.host)) {
+      return null;
+    }
+    return 'Bridge URL must be HTTPS. Debug builds also allow loopback HTTP for USB testing.';
+  }
+
   Stream<List<DevProject>> watchProjects() {
     final query = _db.select(_db.devProjects)
       ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
@@ -1294,11 +1308,9 @@ class DevAgentBridgeService {
   }
 
   void _validateBridgeUrl(String value) {
-    final uri = Uri.tryParse(value.trim());
-    if (uri == null || !uri.hasAuthority || uri.scheme != 'https') {
-      throw const DevAgentBridgeException(
-        'Bridge URL must be an HTTPS address. Tokens stay on the bridge side.',
-      );
+    final error = validateBridgeUrlError(value);
+    if (error != null) {
+      throw DevAgentBridgeException(error);
     }
   }
 

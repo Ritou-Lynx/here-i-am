@@ -64,6 +64,18 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
   @override
   void initState() {
     super.initState();
+    UserStorage.llmConfigRevision.addListener(_onLLMConfigChanged);
+    _loadConfigs();
+  }
+
+  @override
+  void dispose() {
+    UserStorage.llmConfigRevision.removeListener(_onLLMConfigChanged);
+    super.dispose();
+  }
+
+  void _onLLMConfigChanged() {
+    if (!mounted) return;
     _loadConfigs();
   }
 

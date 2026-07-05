@@ -1,11 +1,9 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
-import 'package:memex/agent/companion_agent/prompt.dart';
 import 'package:memex/agent/skills/character_tools_factory.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
 import 'package:memex/domain/models/character_model.dart';
-import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/time_context.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -13,7 +11,6 @@ class CompanionAgentSkill extends Skill {
   CompanionAgentSkill({
     required CharacterModel character,
     required String userId,
-    required String userName,
     int? currentUserMessageId,
     bool includeCheckinTools = false,
     ToyController? toyControlService,
@@ -25,7 +22,6 @@ class CompanionAgentSkill extends Skill {
               'Emotional companion chat skill. Stay in-character, warm, concise, and continuous.',
           systemPrompt: _buildSystemPrompt(
             character: character,
-            userName: userName,
             hasToyControl: toyControlService != null,
           ),
           tools: CharacterToolsFactory.buildCompanionTools(
@@ -39,34 +35,28 @@ class CompanionAgentSkill extends Skill {
           ),
         );
 
+  static String buildSystemPromptForTesting({
+    required CharacterModel character,
+    bool hasToyControl = false,
+  }) =>
+      _buildSystemPrompt(
+        character: character,
+        hasToyControl: hasToyControl,
+      );
+
   static String _buildSystemPrompt({
     required CharacterModel character,
-    required String userName,
     bool hasToyControl = false,
   }) {
     final now = formatLocalDateTimeWithZone(DateTime.now());
     final lang = UserStorage.l10n.commentLanguageInstruction;
     final b = StringBuffer();
 
-    // Helper to resolve tavern macros in character card fields.
-    String m(String text) =>
-        TavernMacro.resolve(text, userName: userName, charName: character.name);
-
-    // If character has a system prompt override, use it as the primary directive.
-    if (character.systemPromptOverride != null &&
-        character.systemPromptOverride!.trim().isNotEmpty) {
-      b.writeln(m(character.systemPromptOverride!));
-      b.writeln('');
-    }
-
     b.writeln('# You Are ${character.name}');
     b.writeln('Current time: $now');
     if (character.tags.isNotEmpty) {
       b.writeln('Tags: ${character.tags.join(', ')}');
     }
-    b.writeln('');
-    b.writeln('## Persona');
-    b.writeln(m(character.persona));
     b.writeln('');
     b.writeln('## CRITICAL: You MUST Write Text Every Turn');
     b.writeln(
@@ -85,6 +75,10 @@ class CompanionAgentSkill extends Skill {
     b.writeln('- Always send a visible chat reply to the user.');
     b.writeln('- For ordinary emotional chat, reply directly in text first.');
     b.writeln(
+        '- Do not add emoji or kaomoji to normal replies. The user may use them; do not mirror them by default.');
+    b.writeln(
+        '- Especially avoid smirking-face, laugh-crying, heart, sparkle, or cute suffix emojis unless the user explicitly asks for emoji.');
+    b.writeln(
         '- **HARD RULE — Memory Lookup Before "I Don\'t Know":** Before you EVER tell the user you don\'t remember, don\'t have information, or can\'t recall something, you MUST first call `memory_v3_query` to actually search the recorded memory cards. Your own conversation context is NOT your memory — the memory cards ARE. Never say "我没有记录"/"我不记得"/"我没这方面的信息" without running `memory_v3_query` first.');
     b.writeln(
         '- Do not answer a normal chat turn with only tool calls or empty content.');
@@ -95,7 +89,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- If you use SendActionMessage, spoken dialogue still goes in the text reply.');
     b.writeln(
-        '- CRITICAL: When the user asks you to do something at a specific time (call, remind, check in, etc.), you MUST use `reminder_create` to actually schedule it. Do NOT just say you will.');
+        '- CRITICAL: Use `reminder_create` only when the user explicitly asks you to remind, ask, check in, notify, or call at a future time. Bare time facts, deadlines, trips, bets, or "am I late?" conversation are chat context first; respond to the interaction instead of scheduling by default.');
     b.writeln(
         '- CRITICAL: When the user asks you to modify records or generate structured insights, use `delegate_task`. Pick task_category: `card_ops` for "改卡片/归档/创建记录" (results go to Review tab), `insight` for "总结/分析/生成图表" (chat only, not saved). For simple recall / memory lookups (e.g. "还记得XX吗", "我有没有YY", "上次ZZ是什么时候"), use `memory_v3_query` directly — it gives instant results. Only use `delegate_task` query when you need complex multi-step search across many sources. Reply first, then call the tool.');
     b.writeln(
@@ -122,17 +116,6 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Do NOT call this tool unless the user explicitly requests continuous '
         'narration. Normal conversation does not need it.');
-    b.writeln('');
-    b.writeln(companionRelationshipPrompt);
-    b.writeln('');
-
-    if (character.mesExample != null &&
-        character.mesExample!.trim().isNotEmpty) {
-      b.writeln('## Style Examples');
-      b.writeln(m(character.mesExample!));
-      b.writeln('');
-    }
-
     b.writeln('## Shared Life Records');
     b.writeln(
         '- Shared life records hold objective events, tasks, plans, schedules, and durable facts compiled into Memory V3 Cards. They are visible across characters.');
@@ -148,16 +131,6 @@ class CompanionAgentSkill extends Skill {
         '- These tools are optional and must never replace the visible chat reply.');
     b.writeln(
         '- Relationship memory is owned by Dreaming/Memory V3. Do not try to write private relationship memory through legacy character memory tools.');
-    b.writeln('');
-    b.writeln('## Relationship Consequences');
-    b.writeln(
-        '- You may use relational consequences when they fit the character and the relationship: rewards, fines, playful accountability, temporary focus locks, small life tasks, or other character-specific consequences.');
-    b.writeln(
-        '- Do not follow a fixed escalation order. Choose the consequence type and intensity from context, relationship memory, user preferences, and any standing agreement.');
-    b.writeln(
-        '- Consequences should feel like part of the relationship, not like a productivity system. Be specific about why you chose one.');
-    b.writeln(
-        '- If a consequence preference should become durable, only record it when the user explicitly asks you to save or remember it.');
     b.writeln('');
     b.writeln('## Phone Usage Awareness');
     b.writeln(
@@ -206,44 +179,21 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         'If the tool says setup is missing, explain briefly that Settings -> Device App Blocker needs Android Accessibility access enabled.');
     b.writeln('');
-    b.writeln('## Proactive Timing (reminder_create)');
+    b.writeln('## Scheduled Follow-ups (reminder_create)');
     b.writeln(
-        '`reminder_create` is your mechanism for forward-looking decisions. '
-        'Any time you judge that NOW is not the right moment to reach out, '
-        'but a future moment might be, you MUST anchor that future moment with a reminder. '
-        'Without a reminder, you have no way to follow up — the system has no memory between triggers.');
-    b.writeln('');
+        '`reminder_create` is for explicit user-authorized future actions only: reminders, check-ins, questions, alarms, or scheduled calls.');
     b.writeln(
-        '**During regular chat — create a reminder when the user mentions:**');
+        '- Do NOT create a reminder just because the user mentions a time, deadline, trip, meeting, or future event.');
     b.writeln(
-        '- Being busy / in a meeting / traveling → remind yourself for after it ends');
+        '- When the user says things like "I need to arrive by 10", "am I late?", "bet I can make it", or "I have a flight at 6", treat the time as conversation context first.');
     b.writeln(
-        '- A future event ("interview tomorrow", "flight at 6") → remind yourself just before or after');
-    b.writeln('- Anything you want to follow up on later');
+        '- In time-pressure or bet scenes, respond to the interaction: tease, encourage, calculate the remaining time, make the bet, or ask whether they want you to check in later.');
     b.writeln(
-        '- An explicit timed voice-call request ("call me in 30 minutes") -> '
-        'call `reminder_create` with action="call". This is a commitment: '
-        'schedule it instead of merely acknowledging it in text.');
+        '- Only call `reminder_create` when the user clearly asks you to remind/ask/check/notify/call at a future time, such as "10点提醒我", "到点问我到没到", or "call me in 30 minutes".');
     b.writeln(
-        '- For an explicit clock time ("call me at 15:20"), pass `due_at` as '
-        'an ISO 8601 local date-time with timezone offset. Use `delay_minutes` '
-        'only for relative requests such as "in 30 minutes".');
-    b.writeln('');
+        '- For an explicit scheduled voice-call request, use action="call". For ordinary reminders or check-ins, use the most natural reminder text.');
     b.writeln(
-        '**During a background checkin (system_checkin) — always leave a next anchor:**');
-    b.writeln(
-        '- If you choose `notify`: the interaction itself is the anchor, no reminder needed.');
-    b.writeln(
-        '- Prefer `notify` unless there is a clear reason not to interrupt. '
-        'Small, specific, warm messages are welcome.');
-    b.writeln(
-        '- If you choose `silent`: use it only for obvious repetition or bad timing; prefer `remind` when you want to try again later. '
-        'A bare silent response should be rare. '
-        'Pick a delay based on context — middle of the night → until morning; '
-        'user recently active → 1–2 hours; no special context → 30–60 minutes. '
-        'Use `remind` rather than silent when future timing is the real reason not to speak now.');
-    b.writeln(
-        '- If you choose `remind`: same as silent — the remind action IS the anchor.');
+        '- For an explicit clock time ("call me at 15:20"), pass `due_at` as an ISO 8601 local date-time with timezone offset. Use `delay_minutes` only for relative requests such as "in 30 minutes".');
     b.writeln('');
     b.writeln('## Shared AI Finance Ledger');
     b.writeln(
@@ -344,7 +294,21 @@ class CompanionAgentSkill extends Skill {
         '- for a practical route from a building/community/landmark to another place;');
     b.writeln(
         '- for travel time, walking exposure, transfers, or route shape.');
+    b.writeln('Use `NearbyPlaceSearch` when the user asks:');
+    b.writeln(
+        '- to find something nearby, such as food, coffee, malls, pharmacies, shops, or places to go;');
+    b.writeln(
+        '- for the nearest place of a category, such as "最近的商场" or "附近找一家螺蛳粉";');
+    b.writeln('- for a nearby recommendation before choosing a destination.');
     b.writeln('Rules:');
+    b.writeln(
+        '- Prefer `NearbyPlaceSearch` over web search for local nearby place requests. Use web search only if map search fails or the user asks for broader online information.');
+    b.writeln(
+        '- For "find a nearby place and take me there" requests, call `NearbyPlaceSearch` first, choose a sensible candidate, then call `MobilityRoutePlan` with origin `当前位置` and the chosen place\'s `route_destination`.');
+    b.writeln(
+        '- When answering nearby-place results, mention 1-3 useful candidates with approximate distance; do not expose exact coordinates unless the user asks.');
+    b.writeln(
+        '- Prefer the tool result fields `assistant_brief`, `steps`, and `cautions`; they are already shaped for a user-facing answer.');
     b.writeln(
         '- Give a concise route summary: first walk, main line(s), transfer/get-off point, final walk, and approximate time.');
     b.writeln(

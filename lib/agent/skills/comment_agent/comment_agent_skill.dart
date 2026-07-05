@@ -2,27 +2,24 @@ import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/prompts.dart';
 import 'package:memex/agent/skills/character_tools_factory.dart';
 import 'package:memex/domain/models/character_model.dart';
-import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
 
-/// Skill for Comment Agent - generates warm, empathetic comments for user's private tree hole entries
+/// Skill for Comment Agent - generates warm comments for private entries.
 class CommentAgentSkill extends Skill {
   CommentAgentSkill({
     CharacterModel? character,
     required String factId,
     required String workingDirectory,
     required String userId,
-    String userName = '',
     String userProfile = '',
     String? forcedReplyToId,
     void Function()? onCommentSaved,
     super.forceActivate,
   }) : super(
-          name: "persona_comment",
+          name: 'persona_comment',
           description: Prompts.commentAgentSkillDescription,
           systemPrompt: _buildSystemPrompt(
             character: character,
-            userName: userName,
             userProfile: userProfile,
           ),
           tools: _buildTools(
@@ -37,63 +34,26 @@ class CommentAgentSkill extends Skill {
 
   static String _buildSystemPrompt({
     CharacterModel? character,
-    required String userName,
     required String userProfile,
   }) {
-    StringBuffer personaBuffer = StringBuffer();
+    final personaBuffer = StringBuffer();
     if (character != null) {
-      final charName = character.name;
-      String m(String text) =>
-          TavernMacro.resolve(text, userName: userName, charName: charName);
-      personaBuffer.writeln("Name: $charName");
-      personaBuffer.writeln("Tags: ${character.tags.join(', ')}");
-      personaBuffer.writeln("### Persona: \n${m(character.persona)}");
+      personaBuffer.writeln('Name: ${character.name}');
+      personaBuffer.writeln('Tags: ${character.tags.join(', ')}');
     }
-    String persona = personaBuffer.toString();
-
-    final systemPrompt = Prompts.commentSkillSystemPrompt(
-      persona,
-      UserStorage.l10n.commentLanguageInstruction,
-    );
 
     final b = StringBuffer();
-
-    // systemPromptOverride takes highest priority — prepend before skill prompt.
-    if (character != null &&
-        character.systemPromptOverride != null &&
-        character.systemPromptOverride!.trim().isNotEmpty) {
-      final charName = character.name;
-      b.writeln(
-        TavernMacro.resolve(
-          character.systemPromptOverride!,
-          userName: userName,
-          charName: charName,
-        ),
-      );
-      b.writeln('');
-    }
-
-    b.write(systemPrompt);
+    b.write(
+      Prompts.commentSkillSystemPrompt(
+        personaBuffer.toString(),
+        UserStorage.l10n.commentLanguageInstruction,
+      ),
+    );
 
     if (userProfile.isNotEmpty) {
-      b.writeln('');
+      b.writeln();
       b.writeln('## User Profile');
       b.writeln(userProfile);
-    }
-
-    if (character != null &&
-        character.mesExample != null &&
-        character.mesExample!.trim().isNotEmpty) {
-      final charName = character.name;
-      b.writeln('');
-      b.writeln('## Style Examples');
-      b.writeln(
-        TavernMacro.resolve(
-          character.mesExample!,
-          userName: userName,
-          charName: charName,
-        ),
-      );
     }
 
     return b.toString();

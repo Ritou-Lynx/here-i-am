@@ -1,5 +1,4 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/built_in_tools/search_event_logs_tool.dart';
@@ -170,8 +169,7 @@ class SuperAgent {
         planMode: PlanMode.auto,
         autoSaveStateFunc: (state) async {
           await saveAgentState(state);
-        },
-        systemCallback: createSystemCallback(userId));
+        });
 
     _logger.info(
         'SuperAgent created, userId: $userId, sessionId: ${state.sessionId}');

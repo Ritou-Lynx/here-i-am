@@ -7,7 +7,6 @@ import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/built_in_tools/search_event_logs_tool.dart';
 import 'package:memex/agent/common_tools.dart';
 import 'package:memex/agent/memory/memory_management.dart';
-import 'package:memex/agent/agent_system_prompt_helper.dart';
 import 'package:memex/agent/schedule_aggregator_agent/prompt.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
 import 'package:memex/agent/skills/schedule_aggregation/schedule_aggregation_skill.dart';
@@ -120,7 +119,6 @@ class ScheduleAggregatorAgent {
       controller: controller,
       withGeneralPrinciples: true,
       planMode: PlanMode.auto,
-      systemCallback: createSystemCallback(userId),
       autoSaveStateFunc: (state) async {
         await saveAgentState(state);
       },

@@ -5,7 +5,7 @@ import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 
 typedef CurrentLocationContextLoader = Future<CurrentLocationContext> Function(
-    {bool forceRefresh});
+    {bool forceRefresh, bool ignoreEnabled});
 
 class LocationContextSettingsPage extends StatefulWidget {
   const LocationContextSettingsPage({super.key, this.loadCurrentContext});
@@ -61,7 +61,7 @@ class _LocationContextSettingsPageState
     try {
       final loader = widget.loadCurrentContext ??
           LocationContextService.instance.getCurrentContext;
-      final context = await loader(forceRefresh: true);
+      final context = await loader(forceRefresh: true, ignoreEnabled: true);
       if (!mounted) return;
       setState(() {
         _testResult = _formatLocationDebugResult(context);
@@ -84,7 +84,7 @@ class _LocationContextSettingsPageState
     final summary = address?.summary(context.granularity);
     final lines = <String>[
       '${l10n.locationDebugGps}: ${context.status}',
-      '${l10n.locationDebugProvider}: ${_providerLabel(_config.provider)}',
+      '${l10n.locationDebugProvider}: ${_providerDebugLabel(context)}',
       '${l10n.locationDebugReverseGeocode}: '
           '${address == null ? l10n.locationDebugUnavailable : l10n.locationDebugOk}',
       '${l10n.locationDebugAgentContext}: '
@@ -114,10 +114,79 @@ class _LocationContextSettingsPageState
       );
     }
     if (context.reason != null && context.reason!.trim().isNotEmpty) {
-      lines.add('${l10n.locationDebugReason}: ${context.reason}');
+      lines.add(
+        '${l10n.locationDebugReason}: ${_friendlyLocationReason(context.reason!)}',
+      );
+    }
+    final hint = _locationDebugHint(context);
+    if (hint != null) {
+      lines.add('提示：$hint');
     }
 
     return lines.join('\n');
+  }
+
+  String _friendlyLocationReason(String reason) {
+    final lower = reason.toLowerCase();
+    if (lower.contains('failed to get current device location')) {
+      final details = reason.replaceFirst(
+        RegExp(
+          r'failed to get current device location:?\s*',
+          caseSensitive: false,
+        ),
+        '',
+      );
+      if (details.trim().isEmpty) {
+        return '手机这次没有返回当前 GPS 坐标。';
+      }
+      return '手机这次没有返回当前 GPS 坐标。原始原因：${details.trim()}';
+    }
+    if (lower.contains('using stale last known device location')) {
+      return reason.replaceFirst(
+        'using stale last known device location for diagnostics',
+        '当前 GPS 没有成功返回，先显示系统最近一次定位用于诊断',
+      );
+    }
+    if (lower.contains('using recent last known device location')) {
+      return reason.replaceFirst(
+        'using recent last known device location after current lookup failed',
+        '当前 GPS 没有成功返回，先使用系统最近一次定位',
+      );
+    }
+    if (lower.contains('openstreetmap reverse geocode failed') &&
+        lower.contains('used amap fallback')) {
+      return 'GPS 已可用；OpenStreetMap 地址解析失败，已使用高德兜底。';
+    }
+    if (lower.contains('amap fallback unavailable')) {
+      return reason.replaceFirst(
+        'Amap fallback unavailable',
+        '高德兜底也不可用',
+      );
+    }
+    return reason;
+  }
+
+  String? _locationDebugHint(CurrentLocationContext context) {
+    final reason = context.reason?.toLowerCase() ?? '';
+    if (context.status == 'disabled') {
+      return '测试按钮可以临时读取一次位置；只有打开总开关后，聊天和提醒才会使用位置。';
+    }
+    if (reason.contains('failed to get current device location')) {
+      return '定位权限已经有了，但手机这次没有拿到当前坐标。可以打开系统定位、稍等几秒，或到窗边/室外再试一次。';
+    }
+    if (reason.contains('used amap fallback')) {
+      return null;
+    }
+    if (reason.contains('amap api key is empty')) {
+      return '高级设置里选择了高德作为地点服务商，但高德 Key 为空。填入 Key，或把服务商切回 OpenStreetMap。';
+    }
+    if (reason.contains('openstreetmap') || reason.contains('nominatim')) {
+      return 'OpenStreetMap 的逆地理编码在当前网络下可能不可达；如果已经有高德 Key，可以在高级设置里切到高德。';
+    }
+    if (reason.contains('permission')) {
+      return '请检查系统里给「故我在 V3」的定位权限，然后再试一次。';
+    }
+    return null;
   }
 
   String _providerLabel(GeocodingProvider provider) {
@@ -127,6 +196,24 @@ class _LocationContextSettingsPageState
       case GeocodingProvider.amap:
         return UserStorage.l10n.amapProviderName;
     }
+  }
+
+  String _providerDebugLabel(CurrentLocationContext context) {
+    final configured = _providerLabel(_config.provider);
+    final actualProvider = context.address?.provider;
+    if (actualProvider == null || actualProvider.trim().isEmpty) {
+      return configured;
+    }
+
+    final actual = switch (actualProvider) {
+      'amap' => UserStorage.l10n.amapProviderName,
+      'open_street_map' => 'OpenStreetMap / Nominatim',
+      _ => actualProvider,
+    };
+    if (actual == configured) {
+      return configured;
+    }
+    return '$configured（实际使用：$actual）';
   }
 
   @override

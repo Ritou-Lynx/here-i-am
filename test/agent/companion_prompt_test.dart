@@ -1,25 +1,70 @@
-import 'package:memex/agent/companion_agent/prompt.dart';
+import 'package:memex/agent/skills/companion_agent/companion_agent_skill.dart';
+import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/l10n/app_localizations_ext_zh.dart';
+import 'package:memex/utils/user_storage.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('companion relationship prompt keeps dual-mode and safety boundaries',
+  setUpAll(UserStorage.initL10n);
+
+  test('companion prompt ignores legacy character-card prompt fields', () {
+    final character = CharacterModel(
+      id: 'i',
+      name: 'I',
+      tags: const ['primary'],
+      persona: 'LEGACY_PERSONA_SHOULD_NOT_APPEAR',
+      enabled: true,
+      systemPromptOverride: 'LEGACY_SYSTEM_OVERRIDE_SHOULD_NOT_APPEAR',
+      postHistoryInstructions: 'LEGACY_POST_HISTORY_SHOULD_NOT_APPEAR',
+      mesExample: 'LEGACY_STYLE_EXAMPLE_SHOULD_NOT_APPEAR',
+    );
+
+    final prompt = CompanionAgentSkill.buildSystemPromptForTesting(
+      character: character,
+    );
+
+    expect(prompt, contains('# You Are I'));
+    expect(prompt, contains('Tags: primary'));
+    expect(prompt, isNot(contains('LEGACY_PERSONA_SHOULD_NOT_APPEAR')));
+    expect(prompt, isNot(contains('LEGACY_SYSTEM_OVERRIDE_SHOULD_NOT_APPEAR')));
+    expect(prompt, isNot(contains('LEGACY_POST_HISTORY_SHOULD_NOT_APPEAR')));
+    expect(prompt, isNot(contains('LEGACY_STYLE_EXAMPLE_SHOULD_NOT_APPEAR')));
+  });
+
+  test('companion prompt does not inject old relationship or safety contracts',
       () {
-    expect(companionRelationshipPrompt, contains('ongoing relationship'));
-    expect(companionRelationshipPrompt, contains('Commitment Consequences'));
-    expect(companionRelationshipPrompt, contains('Default to companion mode'));
-    expect(companionRelationshipPrompt, contains('Switch into assistant mode'));
-    expect(companionRelationshipPrompt, contains('Do not end every reply'));
-    expect(companionRelationshipPrompt, contains('Forbidden Response Lexicon'));
-    expect(companionRelationshipPrompt, contains('"接住"'));
-    expect(companionRelationshipPrompt, contains('"稳住"'));
-    expect(companionRelationshipPrompt,
-        isNot(contains('Adult Romantic Intimacy')));
-    expect(companionRelationshipPrompt,
-        isNot(contains('Adult Toy Play And Dirty Talk')));
-    expect(companionRelationshipPrompt, isNot(contains('explicit intimacy')));
-    expect(companionRelationshipPrompt, contains('real-world relationships'));
-    expect(companionRelationshipPrompt, contains('delusional beliefs'));
+    final prompt = CompanionAgentSkill.buildSystemPromptForTesting(
+      character: CharacterModel(
+        id: 'i',
+        name: 'I',
+        tags: const [],
+        persona: '',
+        enabled: true,
+      ),
+    );
+
+    expect(prompt, isNot(contains('Relationship Contract')));
+    expect(prompt, isNot(contains('Safety Boundary')));
+    expect(prompt, isNot(contains('Commitment Consequences')));
+    expect(prompt, isNot(contains('Relationship Consequences')));
+    expect(prompt, isNot(contains('Forbidden Response Lexicon')));
+    expect(prompt, isNot(contains('Default to companion mode')));
+  });
+
+  test('companion prompt discourages unsolicited emoji', () {
+    final prompt = CompanionAgentSkill.buildSystemPromptForTesting(
+      character: CharacterModel(
+        id: 'i',
+        name: 'I',
+        tags: const [],
+        persona: '',
+        enabled: true,
+      ),
+    );
+
+    expect(prompt, contains('Do not add emoji or kaomoji'));
+    expect(prompt, contains('smirking-face'));
+    expect(prompt, contains('unless the user explicitly asks for emoji'));
   });
 
   test('default Chinese characters avoid current forbidden response terms', () {

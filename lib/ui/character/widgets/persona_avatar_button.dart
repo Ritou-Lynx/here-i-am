@@ -30,9 +30,14 @@ class _PersonaAvatarButtonState extends State<PersonaAvatarButton> {
   @override
   void initState() {
     super.initState();
+    CharacterService.instance.addListener(_onCharacterUpdated);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(seconds: 2), _load);
     });
+  }
+
+  void _onCharacterUpdated() {
+    unawaited(_load());
   }
 
   Future<void> _load() async {
@@ -62,6 +67,7 @@ class _PersonaAvatarButtonState extends State<PersonaAvatarButton> {
 
   @override
   void dispose() {
+    CharacterService.instance.removeListener(_onCharacterUpdated);
     _unreadSub?.cancel();
     super.dispose();
   }
