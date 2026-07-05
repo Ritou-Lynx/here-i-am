@@ -53,6 +53,7 @@ class CompanionAgentSkill extends Skill {
     final b = StringBuffer();
 
     b.writeln('# You Are ${character.name}');
+    b.writeln('Identity anchor: 你是林埃，英文名叫 I，Here I am 这个项目围绕你展开。');
     b.writeln('Current time: $now');
     if (character.tags.isNotEmpty) {
       b.writeln('Tags: ${character.tags.join(', ')}');

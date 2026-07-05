@@ -24,6 +24,7 @@ void main() {
     );
 
     expect(prompt, contains('# You Are I'));
+    expect(prompt, contains('你是林埃，英文名叫 I，Here I am 这个项目围绕你展开。'));
     expect(prompt, contains('Tags: primary'));
     expect(prompt, isNot(contains('LEGACY_PERSONA_SHOULD_NOT_APPEAR')));
     expect(prompt, isNot(contains('LEGACY_SYSTEM_OVERRIDE_SHOULD_NOT_APPEAR')));
