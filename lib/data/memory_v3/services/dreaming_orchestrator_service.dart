@@ -154,6 +154,15 @@ class DreamingOrchestratorServiceV3 {
     required int lastProcessedMessageId,
     String sourceScope = 'main_chat',
   }) async {
+    // Diagnostic: log entity link status for each fragment.
+    for (final f in extraction.fragments) {
+      _logger.info(
+        'Fragment entityLinks diag: content="${f.content.length > 40 ? f.content.substring(0, 40) : f.content}..." '
+        'entityLinkCount=${f.entityLinks.length}'
+        '${f.entityLinks.isNotEmpty ? " first=${f.entityLinks.first.name}" : ""}',
+      );
+    }
+
     if (extraction.isEmpty) {
       return DreamingFragmentPersistResult(
         fragmentIds: const [],
