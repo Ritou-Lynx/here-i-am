@@ -278,184 +278,144 @@ class DreamingOrchestratorServiceV3 {
     int minFragments = 2,
     EpisodeConsolidatorV3 agent = const EpisodeConsolidatorV3(),
   }) async {
-    // Fetch all active fragments and group by linked entity.
+    // Fetch all active fragments. Entity links are optional — the LLM
+    // may not have generated them. We send ALL active fragments to the
+    // consolidator and let it group related ones into episodes.
     final allFragments = await (_db.select(_db.memoryFragments)
           ..where((t) => t.status.equals('active'))
           ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
         .get();
-    final allLinks = await (_db.select(_db.memoryEntityLinks)
-          ..where((t) => t.sourceTable.equals('memory_fragments')))
-        .get();
-    final allEntities = await _db.select(_db.memoryEntities).get();
-    final entityMap = {for (final e in allEntities) e.id: e};
 
-    // Group fragments by entity.
-    final entityToFragments = <String, List<MemoryFragment>>{};
-    for (final link in allLinks) {
-      final frag = allFragments.where((f) => f.id == link.sourceId).firstOrNull;
-      if (frag != null) {
-        entityToFragments.putIfAbsent(link.entityId, () => []).add(frag);
-      }
-    }
-
-    // Build diagnostic summary.
-    final diagParts = <String>[
-      'entities: ${allEntities.length}',
-      'active fragments: ${allFragments.length}',
-      'fragment links: ${allLinks.length}',
-    ];
-    for (final entry in entityToFragments.entries) {
-      final e = entityMap[entry.key];
-      if (e != null) {
-        diagParts.add('${e.name}(${e.status}): ${entry.value.length} frags');
-      }
-    }
-    _logger.info('Episode diag: ${diagParts.join(" | ")}');
-
-    // Filter to entities with enough fragments.
-    final eligible = entityToFragments.entries
-        .where((e) => e.value.length >= minFragments)
-        .toList();
-
-    if (eligible.isEmpty) {
-      final reason = allFragments.isEmpty
-          ? 'no active fragments'
-          : allLinks.isEmpty
-              ? 'no fragment-entity links (LLM may not have extracted entities)'
-              : entityToFragments.isEmpty
-                  ? 'fragments not linked to any entity'
-                  : 'no entity has ≥$minFragments fragments '
-                      '(max: ${entityToFragments.values.map((v) => v.length).fold<int>(0, (a, b) => a > b ? a : b)})';
+    if (allFragments.isEmpty) {
       return EpisodeConsolidationRunResult(
         episodeIds: const [],
         consolidatedEntities: const [],
-        skippedEntities: [reason],
+        skippedEntities: ['no active fragments'],
         consolidatedFragmentCount: 0,
       );
     }
 
+    if (allFragments.length < minFragments) {
+      return EpisodeConsolidationRunResult(
+        episodeIds: const [],
+        consolidatedEntities: const [],
+        skippedEntities: [
+          'only ${allFragments.length} fragments (need ≥$minFragments)'
+        ],
+        consolidatedFragmentCount: 0,
+      );
+    }
+
+    _logger.info(
+      'Episode: consolidating ${allFragments.length} active fragments '
+      '(entity-agnostic mode)',
+    );
+
     final episodeIds = <String>[];
-    final consolidatedEntities = <String>[];
     final skippedEntities = <String>[];
     var totalConsolidatedFragments = 0;
 
-    for (final entry in eligible) {
-      final entityId = entry.key;
-      final fragments = entry.value;
-      final entity = entityMap[entityId]!;
-
-      _logger.info(
-        'Episode: trying entity ${entity.name} ($entityId) '
-        'with ${fragments.length} fragments',
+    try {
+      final result = await agent.consolidateAll(
+        client: client,
+        modelConfig: modelConfig,
+        fragments: allFragments,
       );
 
-      try {
-        final result = await agent.consolidate(
-          client: client,
-          modelConfig: modelConfig,
-          entityId: entityId,
-          entityName: entity.name,
-          entityCategory: entity.category,
-          fragments: fragments,
+      if (result.episodes.isEmpty) {
+        skippedEntities.add(result.skippedEntityIds.isNotEmpty
+            ? result.skippedEntityIds.first
+            : 'LLM returned no episodes');
+        return EpisodeConsolidationRunResult(
+          episodeIds: const [],
+          consolidatedEntities: const [],
+          skippedEntities: skippedEntities,
+          consolidatedFragmentCount: 0,
         );
+      }
 
-        if (result.episodes.isEmpty) {
-          skippedEntities.add(entity.name);
-          continue;
-        }
+      await _db.transaction(() async {
+        final now = DateTime.now().millisecondsSinceEpoch;
 
-        await _db.transaction(() async {
-          final now = DateTime.now().millisecondsSinceEpoch;
+        for (final episode in result.episodes) {
+          final episodeId = _uuid.v4();
+          final primaryEntityId = episode.primaryEntityId.isNotEmpty
+              ? episode.primaryEntityId
+              : '__ungrouped__';
 
-          for (final episode in result.episodes) {
-            final episodeId = _uuid.v4();
-            await _db.into(_db.memoryEpisodes).insert(
-                  MemoryEpisodesCompanion.insert(
-                    id: episodeId,
-                    primaryEntityId: entityId,
-                    narrative: episode.narrative,
-                    sourceFragmentIds:
-                        jsonEncode(episode.sourceFragmentIds),
-                    significance: episode.significance,
-                    confidence: episode.confidence,
-                    valence: episode.valence,
-                    arousal: episode.arousal,
-                    occurredAtRange: Value(
-                      (episode.occurredAtStart != null ||
-                              episode.occurredAtEnd != null)
-                          ? jsonEncode({
-                              if (episode.occurredAtStart != null)
-                                'start': episode.occurredAtStart,
-                              if (episode.occurredAtEnd != null)
-                                'end': episode.occurredAtEnd,
-                            })
-                          : null,
-                    ),
-                    generatedByVersion:
-                        const Value(_episodeConsolidatorVersion),
-                    createdAt: now,
-                    updatedAt: now,
+          await _db.into(_db.memoryEpisodes).insert(
+                MemoryEpisodesCompanion.insert(
+                  id: episodeId,
+                  primaryEntityId: primaryEntityId,
+                  narrative: episode.narrative,
+                  sourceFragmentIds:
+                      jsonEncode(episode.sourceFragmentIds),
+                  significance: episode.significance,
+                  confidence: episode.confidence,
+                  valence: episode.valence,
+                  arousal: episode.arousal,
+                  occurredAtRange: Value(
+                    (episode.occurredAtStart != null ||
+                            episode.occurredAtEnd != null)
+                        ? jsonEncode({
+                            if (episode.occurredAtStart != null)
+                              'start': episode.occurredAtStart,
+                            if (episode.occurredAtEnd != null)
+                              'end': episode.occurredAtEnd,
+                          })
+                        : null,
                   ),
-                );
+                  generatedByVersion:
+                      const Value(_episodeConsolidatorVersion),
+                  createdAt: now,
+                  updatedAt: now,
+                ),
+              );
 
+          // Link episode to entities if any linkedEntityIds specified.
+          for (final linkedId in episode.linkedEntityIds) {
             await _db.into(_db.memoryEntityLinks).insert(
                   MemoryEntityLinksCompanion.insert(
                     id: _uuid.v4(),
                     sourceTable: 'memory_episodes',
                     sourceId: episodeId,
-                    entityId: entityId,
-                    relation: 'about',
-                    confidence: const Value(1.0),
+                    entityId: linkedId,
+                    relation: 'mentioned',
+                    confidence: const Value(0.8),
                     createdAt: now,
                   ),
                 );
-            for (final linkedId in episode.linkedEntityIds) {
-              await _db.into(_db.memoryEntityLinks).insert(
-                    MemoryEntityLinksCompanion.insert(
-                      id: _uuid.v4(),
-                      sourceTable: 'memory_episodes',
-                      sourceId: episodeId,
-                      entityId: linkedId,
-                      relation: 'mentioned',
-                      confidence: const Value(0.8),
-                      createdAt: now,
-                    ),
-                  );
-            }
-
-            episodeIds.add(episodeId);
           }
 
-          for (final episode in result.episodes) {
-            for (final fid in episode.sourceFragmentIds) {
-              await (_db.update(_db.memoryFragments)
-                    ..where((t) => t.id.equals(fid)))
-                  .write(const MemoryFragmentsCompanion(
-                status: Value('consolidated'),
-              ));
-            }
-            totalConsolidatedFragments +=
-                episode.sourceFragmentIds.length;
+          episodeIds.add(episodeId);
+        }
+
+        // Mark source fragments as consolidated.
+        for (final episode in result.episodes) {
+          for (final fid in episode.sourceFragmentIds) {
+            await (_db.update(_db.memoryFragments)
+                  ..where((t) => t.id.equals(fid)))
+                .write(const MemoryFragmentsCompanion(
+              status: Value('consolidated'),
+            ));
           }
+          totalConsolidatedFragments +=
+              episode.sourceFragmentIds.length;
+        }
+      });
 
-          consolidatedEntities.add(entity.name);
-        });
-
-        _logger.info(
-          'Episode: persisted ${result.episodes.length} episode(s) '
-          'for ${entity.name}',
-        );
-      } catch (e, stack) {
-        _logger.warning(
-          'Episode consolidation failed for ${entity.name}', e, stack,
-        );
-        skippedEntities.add('${entity.name} (error: $e)');
-      }
+      _logger.info(
+        'Episode: persisted ${episodeIds.length} episode(s) from '
+        '$totalConsolidatedFragments fragments',
+      );
+    } catch (e, stack) {
+      _logger.warning('Episode consolidation failed', e, stack);
+      skippedEntities.add('error: $e');
     }
 
     return EpisodeConsolidationRunResult(
       episodeIds: episodeIds,
-      consolidatedEntities: consolidatedEntities,
+      consolidatedEntities: episodeIds,
       skippedEntities: skippedEntities,
       consolidatedFragmentCount: totalConsolidatedFragments,
     );

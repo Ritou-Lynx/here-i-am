@@ -3,7 +3,6 @@ import 'package:logging/logging.dart';
 import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
-import 'package:memex/data/services/task_handlers/analyze_assets_handler.dart';
 import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/utils/logger.dart';
 
@@ -136,8 +135,6 @@ Future<void> handleReprocessCardsImpl(
       'Processing ${total - currentIndex} cards (starting from index $currentIndex), batch size: $_batchSize',
     );
 
-    final reanalyzeAssets = payload['reanalyze_assets'] as bool? ?? false;
-
     // 3. Process in batches: up to [_batchSize] cards per batch concurrently; run next batch after current batch completes.
     while (currentIndex < factIds.length) {
       final endIndex = (currentIndex + _batchSize).clamp(0, total);
@@ -152,7 +149,7 @@ Future<void> handleReprocessCardsImpl(
       final results = await Future.wait(
         batch.map(
           (factId) =>
-              _processOneCard(userId, factId, reanalyzeAssets: reanalyzeAssets),
+              _processOneCard(userId, factId),
         ),
       );
 
@@ -199,12 +196,11 @@ Future<void> handleReprocessCardsImpl(
   }
 }
 
-/// Processes one card: extract content, optionally refresh media analysis, ensure card exists, call card_agent. Returns whether it succeeded.
+/// Processes one card: extract content and ensure card exists. Returns whether it succeeded.
 Future<bool> _processOneCard(
   String userId,
-  String factId, {
-  required bool reanalyzeAssets,
-}) async {
+  String factId,
+) async {
   FactContentResult? factInfo;
   try {
     final fileSystem = FileSystemService.instance;
@@ -227,19 +223,6 @@ Future<bool> _processOneCard(
   } finally {
     factInfo = null;
   }
-}
-
-List<String> _extractAssetPaths(
-  FileSystemService fileSystem,
-  String userId,
-  String content,
-) {
-  final assetsDir = fileSystem.getAssetsPath(userId);
-  return RegExp(r'fs://([^\s\)]+)').allMatches(content).map((m) {
-    final filename = m.group(1)!;
-    final absolutePath = '$assetsDir/$filename';
-    return fileSystem.toRelativePath(absolutePath);
-  }).toList();
 }
 
 /// Ensures the card exists; creates an initial card if not found.

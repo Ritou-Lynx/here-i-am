@@ -100,12 +100,20 @@ FRAGMENT STYLE
   fragments should be false. Do not set it true for emotional moments or
   interaction details.
 - `sourceMessageIds`: use the numeric message ids provided in the input.
+- EVERY FRAGMENT MUST HAVE AT LEAST ONE entityLink. This is mandatory.
+  Before finalizing each fragment, ask: "who or what is this fragment about?"
+  Then create at minimum one entityLink with that entity.
 
-ENTITY LINKS
-- Extract stable entities mentioned by the fragment: people, places, projects,
-  hobbies, work themes, objects, illnesses.
+ENTITY LINKS (MANDATORY)
+- For each fragment, extract all stable entities it mentions or is about.
+- People: 妈妈, 小红, dorianborian, 李老师, etc.
+- Places: 霍营, 西二旗, 开拓大厦, 作业帮, 家, etc.
+- Projects & objects: sesame-robot, HYZE, 眼罩, etc.
+- Work & hobbies: AI companion, 机器人, etc.
+- If the fragment is purely about the user's internal state ("她今天心情不好"),
+  the entity is the user herself — use category "self" and relation "about".
 - Allowed category values:
-  person / place / event / project / hobby / work / object / illness
+  person / place / event / project / hobby / work / object / illness / self
 - Allowed relation values:
   mentioned / about / with / caused_by / located_at
 - For people, set `relationshipToUser` when clear: family / friend / colleague /
@@ -116,7 +124,7 @@ OUTPUT SHAPE
 {
   "fragments": [
     {
-      "content": "一条 I 的记忆碎片，以她或我为主语，80 字以内",
+      "content": "一条 I 的记忆碎片（必填），以她或我为主语，80 字以内",
       "sourceMessageIds": [123, 124],
       "sourceScope": "main_chat",
       "emotionalWeight": 0.6,

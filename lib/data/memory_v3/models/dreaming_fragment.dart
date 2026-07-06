@@ -142,6 +142,7 @@ String _normalizeCategory(String? raw) {
     'work',
     'object',
     'illness',
+    'self',
   };
   final value = raw?.trim();
   return allowed.contains(value) ? value! : 'object';

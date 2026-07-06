@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:memex/ui/core/cards/templates/system_task_card.dart';
 import 'package:memex/ui/core/cards/templates/classic_card.dart';
 import 'package:memex/ui/core/cards/templates/clarification_ask_card.dart';
-import 'package:memex/ui/core/cards/templates/system/schedule_briefing_card.dart';
 
 import 'package:memex/ui/core/cards/templates/textual/compact_card.dart';
 import 'package:memex/ui/core/cards/templates/textual/snippet_card.dart';
@@ -56,11 +55,6 @@ class NativeCardFactory {
     };
 
     switch (templateId) {
-      case 'schedule_briefing':
-        return ScheduleBriefingCard(
-          data: mergedData,
-          onTap: onTap,
-        );
       case 'classic_card':
       case 'audio_card': // Consolidated
       case 'gallery_card': // Consolidated

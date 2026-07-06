@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:memex/data/repositories/get_schedule_briefing_timeline_card.dart'
-    as schedule_briefing_endpoint;
 import 'package:memex/data/repositories/update_card_ui_config.dart'
     as update_config_endpoint;
 import 'package:memex/data/services/search_service.dart';
@@ -29,7 +27,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/repositories/get_timeline_card.dart'; // Import for fetchTimelineCard
 import 'package:logging/logging.dart';
 import 'package:memex/data/services/card_renderer.dart';
-import 'package:memex/data/services/event_handlers/schedule_dirty_on_card_update_handler.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/domain/models/card_detail_model.dart';
@@ -385,14 +382,6 @@ class MemexRouter {
       ),
     );
 
-    eventBus.subscribeSync<CardUiConfigUpdatedPayload>(
-      eventType: SystemEventTypes.cardUiConfigUpdated,
-      subscription: EventSyncSubscription<CardUiConfigUpdatedPayload>(
-        subscriptionId: 'schedule_dirty_on_card_ui_config_update',
-        handler: handleScheduleDirtyOnCardUiConfigUpdated,
-      ),
-    );
-
     eventBus.subscribe(
       eventType: SystemEventTypes.knowledgeInsightRefreshRequested,
       subscription: EventTaskSubscription(
@@ -628,13 +617,6 @@ class MemexRouter {
         dateFrom: dateFrom,
         dateTo: dateTo,
       );
-    });
-  }
-
-  Future<Result<TimelineCardModel?>> fetchScheduleBriefingCard() {
-    return runResult(() async {
-      await _ensureInitialized();
-      return schedule_briefing_endpoint.getScheduleBriefingTimelineCard();
     });
   }
 

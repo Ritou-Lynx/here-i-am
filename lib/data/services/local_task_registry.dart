@@ -12,8 +12,6 @@ import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/data/services/task_handlers/reprocess_cards_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_comments_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_knowledge_base_handler.dart';
-import 'package:memex/data/services/task_handlers/schedule_aggregator_handler.dart';
-import 'package:memex/data/services/task_handlers/schedule_refresh_router_handler.dart';
 
 void registerLocalTaskHandlers() {
   final executor = LocalTaskExecutor.instance;
@@ -36,12 +34,6 @@ void registerLocalTaskHandlers() {
   );
   executor.registerHandler('process_ai_reply', handleProcessAiReplyImpl);
   executor.registerHandler('knowledge_insight_task', handleKnowledgeInsight);
-  executor.registerHandler(
-      'schedule_aggregator_task', handleScheduleAggregation);
-  executor.registerHandler(
-    'schedule_refresh_router_task',
-    handleScheduleRefreshRouter,
-  );
   executor.registerHandler(
     'clarification_resolution_task',
     handleClarificationResolution,
@@ -70,8 +62,6 @@ void registerLocalTaskHandlers() {
   for (final taskType in [
     'comment_agent_task',
     'knowledge_insight_task',
-    'schedule_aggregator_task',
-    'schedule_refresh_router_task',
     'clarification_resolution_task',
     'reprocess_cards_task',
     'reprocess_comments_task',

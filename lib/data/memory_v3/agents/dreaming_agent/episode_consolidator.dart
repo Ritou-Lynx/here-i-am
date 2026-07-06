@@ -20,6 +20,86 @@ final _logger = getLogger('memory_v3.EpisodeConsolidator');
 class EpisodeConsolidatorV3 {
   const EpisodeConsolidatorV3();
 
+  /// Condense ALL active fragments into episodes, letting the LLM group
+  /// related ones by topic. Entity-agnostic — works without entity links.
+  Future<EpisodeConsolidationResult> consolidateAll({
+    required LLMClient client,
+    required ModelConfig modelConfig,
+    required List<MemoryFragment> fragments,
+  }) async {
+    if (fragments.length < 2) {
+      return EpisodeConsolidationResult(
+        episodes: const [],
+        skippedEntityIds: ['need ≥2 fragments, got ${fragments.length}'],
+        isDryRun: false,
+      );
+    }
+
+    final fragmentInputs = fragments
+        .map((f) => {
+              'id': f.id,
+              'content': f.content,
+              'emotionalWeight': f.emotionalWeight,
+              'createdAt': DateTime.fromMillisecondsSinceEpoch(f.createdAt)
+                  .toIso8601String(),
+            })
+        .toList();
+
+    final payload = <String, dynamic>{
+      'fragmentCount': fragments.length,
+      'fragments': fragmentInputs,
+    };
+
+    final systemPrompt = episodeConsolidatorAllSystemPromptV3();
+
+    final requestMessages = [
+      SystemMessage(systemPrompt),
+      UserMessage([TextPart(jsonEncode(payload))]),
+    ];
+    final mc = ModelConfig(
+      model: modelConfig.model,
+      maxTokens: 8192,
+      extra: modelConfig.extra,
+    );
+
+    final firstText =
+        (await client.generate(requestMessages, modelConfig: mc)).textOutput;
+    if (firstText == null || firstText.trim().isEmpty) {
+      throw const FormatException('Episode Consolidator returned no output');
+    }
+    try {
+      return _parseAll(firstText);
+    } on FormatException catch (e) {
+      _logger.warning('Episode parse failed ($e). Retrying.');
+    }
+
+    // Retry once
+    final retryMessages = [
+      SystemMessage(systemPrompt),
+      UserMessage([
+        TextPart(jsonEncode(payload)),
+        TextPart(
+          'STRICT: Reply with ONLY a single JSON object. '
+          'First char must be "{".',
+        ),
+      ]),
+    ];
+    final retryText =
+        (await client.generate(retryMessages, modelConfig: mc)).textOutput;
+    if (retryText == null || retryText.trim().isEmpty) {
+      throw const FormatException('Episode Consolidator retry empty');
+    }
+    try {
+      return _parseAll(retryText);
+    } on FormatException {
+      final snippet =
+          retryText.length > 400 ? retryText.substring(0, 400) : retryText;
+      throw FormatException(
+        'Episode Consolidator invalid JSON after retry: $snippet',
+      );
+    }
+  }
+
   /// Try to condense fragments for one entity into an episode.
   ///
   /// Returns [EpisodeConsolidationResult] with up to 2 episodes (split when
@@ -123,6 +203,10 @@ class EpisodeConsolidatorV3 {
         'Raw: $snippet',
       );
     }
+  }
+
+  EpisodeConsolidationResult _parseAll(String raw) {
+    return _parse(raw, '__all__');
   }
 
   EpisodeConsolidationResult _parse(String raw, String entityId) {
