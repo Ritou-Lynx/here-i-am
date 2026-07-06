@@ -137,6 +137,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get personalCenter => '个人中心';
 
   @override
+  String get healthPanel => '健康';
+
+  @override
+  String get healthConnectCoros => '连接 COROS 获取更多数据';
+
+  @override
+  String get healthSyncHint => '请打开 COROS app 同步手表数据';
+
+  @override
   String get viewLogs => '查看日志';
 
   @override
