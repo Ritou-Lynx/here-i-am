@@ -126,41 +126,17 @@ class RecordOrganizerServiceV3 {
     return _db.transaction(() async {
       final now = DateTime.now().millisecondsSinceEpoch;
 
-      // ── Pre-pass: resolve media assetPaths BEFORE persisting cards ──
-      // LLM outputs UUIDs; we must replace them with actual storagePaths
-      // so the summary card can render the files.
+      // ── Pre-pass: normalize media assetPaths BEFORE persisting cards ──
+      // The LLM may omit media blocks, output UUIDs, or invent paths. The
+      // app already knows the ground-truth saved media from inputMedia, so
+      // rebuild all media blocks from that source before the card is stored.
       if (inputMedia != null && inputMedia.isNotEmpty) {
         for (var i = 0; i < organized.cards.length; i++) {
           final card = organized.cards[i];
-          final blocks = (card.presentationModule['blocks'] as List<dynamic>?) ?? [];
-          final linkedIds = <String>{};
-          for (final block in blocks) {
-            if (block is Map && (block['kind'] ?? block['type']) == 'media') {
-              final ref = block['assetPath'] as String?;
-              if (ref != null) {
-                final assetRow = await (_db.select(_db.assets)
-                      ..where((t) => t.id.equals(ref)))
-                    .getSingleOrNull();
-                block['assetPath'] = assetRow?.storagePath ?? ref;
-                linkedIds.add(ref);
-              }
-            }
-          }
-          // Inject media blocks for any input media the LLM missed.
-          for (final m in inputMedia) {
-            final assetId = m['assetId'];
-            final path = m['path'];
-            if (assetId != null && path != null && !linkedIds.contains(assetId)) {
-              final mediaBlock = <String, dynamic>{
-                'kind': 'media',
-                'assetPath': path,
-              };
-              blocks.insert(0, mediaBlock);
-              linkedIds.add(assetId);
-              _logger.info('Injected missing media block for asset $assetId');
-            }
-          }
-          card.presentationModule['blocks'] = blocks;
+          card.presentationModule['blocks'] = _normalizePresentationMediaBlocks(
+            card.presentationModule['blocks'],
+            inputMedia,
+          );
 
           // Inject image analysis text into retrievalText so FTS can match
           // against what the image contains, not just the user's raw text.
@@ -173,8 +149,7 @@ class RecordOrganizerServiceV3 {
           }
           if (analyses.isNotEmpty) {
             final existing = card.retrievalText.trim();
-            card.retrievalText =
-                '$existing\n[图片内容：${analyses.join("；")}]';
+            card.retrievalText = '$existing\n[图片内容：${analyses.join("；")}]';
           }
         }
       }
@@ -259,8 +234,7 @@ class RecordOrganizerServiceV3 {
                   'source': {
                     'sourceKind': source.sourceKind,
                     'sourceRef': source.sourceRef,
-                    'recordedAt':
-                        source.recordedAt.millisecondsSinceEpoch,
+                    'recordedAt': source.recordedAt.millisecondsSinceEpoch,
                     'recordedPlace': source.recordedPlace,
                   },
                 }),
@@ -283,7 +257,7 @@ class RecordOrganizerServiceV3 {
       }
 
       // Create memoryCardAssets links for all input media (the pre-pass
-      // already resolved UUID→path and injected missing blocks).
+      // already rebuilt display blocks from saved media).
       final assetIds = <String>[];
       if (inputMedia != null) {
         for (var i = 0; i < organized.cards.length; i++) {
@@ -291,7 +265,7 @@ class RecordOrganizerServiceV3 {
             final assetId = m['assetId'];
             if (assetId != null) {
               await _ensureAssetLink(
-                cardId: cardIds[i], assetId: assetId, now: now);
+                  cardId: cardIds[i], assetId: assetId, now: now);
               assetIds.add(assetId);
             }
           }
@@ -317,8 +291,7 @@ class RecordOrganizerServiceV3 {
     required int now,
   }) async {
     final existing = await (_db.select(_db.memoryCardAssets)
-          ..where((t) =>
-              t.cardId.equals(cardId) & t.assetId.equals(assetId)))
+          ..where((t) => t.cardId.equals(cardId) & t.assetId.equals(assetId)))
         .getSingleOrNull();
     if (existing != null) return;
     await _db.into(_db.memoryCardAssets).insert(
@@ -422,7 +395,8 @@ class RecordOrganizerServiceV3 {
     if (inputMedia != null && inputMedia.isNotEmpty) {
       enrichedMedia = [];
       for (final m in inputMedia) {
-        _logger.info('_registerMediaAssets: processing ${m['kind']} path=${m['path']}');
+        _logger.info(
+            '_registerMediaAssets: processing ${m['kind']} path=${m['path']}');
         final assetId = _uuid.v4();
         final nowMs = DateTime.now().millisecondsSinceEpoch;
         await _db.into(_db.assets).insert(
@@ -434,7 +408,8 @@ class RecordOrganizerServiceV3 {
                 createdAt: nowMs,
               ),
             );
-        _logger.info('_registerMediaAssets: inserted asset $assetId storagePath=${m['path']}');
+        _logger.info(
+            '_registerMediaAssets: inserted asset $assetId storagePath=${m['path']}');
         enrichedMedia.add({
           ...m,
           'assetId': assetId,
@@ -459,13 +434,15 @@ class RecordOrganizerServiceV3 {
       _logger.info('card[$i] type=${organized.cards[i].type} '
           'blocks=${jsonEncode(organized.cards[i].presentationModule['blocks'])}');
     }
-    return persist(organized: organized, source: source, inputMedia: enrichedMedia);
+    return persist(
+        organized: organized, source: source, inputMedia: enrichedMedia);
   }
 
   /// Soft-delete a memory card. Per V3 § 8 contract, this writes a `delete`
   /// audit row and clears the projection. The I-facing query layer must
   /// filter by row existence (no row = deleted = invisible).
-  Future<void> deleteCard(String cardId, {String sourceKind = 'user_action'}) async {
+  Future<void> deleteCard(String cardId,
+      {String sourceKind = 'user_action'}) async {
     await _db.transaction(() async {
       final card = await (_db.select(_db.memoryCards)
             ..where((t) => t.id.equals(cardId)))
@@ -499,8 +476,8 @@ class RecordOrganizerServiceV3 {
                 t.sourceId.equals(cardId)))
           .go();
       await (_db.delete(_db.memoryCardRelations)
-            ..where((t) =>
-                t.fromCardId.equals(cardId) | t.toCardId.equals(cardId)))
+            ..where(
+                (t) => t.fromCardId.equals(cardId) | t.toCardId.equals(cardId)))
           .go();
       await (_db.delete(_db.memoryCardAssets)
             ..where((t) => t.cardId.equals(cardId)))
@@ -541,4 +518,48 @@ class RecordOrganizerServiceV3 {
     _logger.info('reindexAllCards: indexed $count/${rows.length} cards');
     return count;
   }
+}
+
+List<Map<String, dynamic>> _normalizePresentationMediaBlocks(
+  Object? rawBlocks,
+  List<Map<String, String>> inputMedia,
+) {
+  final mediaBlocks = _groundTruthMediaBlocks(inputMedia);
+  final contentBlocks = rawBlocks is List
+      ? rawBlocks
+          .whereType<Object>()
+          .map((item) => item is Map
+              ? Map<String, dynamic>.from(item)
+              : <String, dynamic>{})
+          .where((block) => block.isNotEmpty && !_isMediaBlock(block))
+          .toList(growable: false)
+      : const <Map<String, dynamic>>[];
+
+  if (mediaBlocks.isEmpty) return contentBlocks;
+  return [...mediaBlocks, ...contentBlocks];
+}
+
+List<Map<String, dynamic>> _groundTruthMediaBlocks(
+  List<Map<String, String>> inputMedia,
+) {
+  final seenPaths = <String>{};
+  final blocks = <Map<String, dynamic>>[];
+  for (final media in inputMedia) {
+    final path = media['path'] ?? media['storagePath'] ?? media['assetPath'];
+    if (path == null || path.trim().isEmpty || !seenPaths.add(path)) {
+      continue;
+    }
+    final kind = media['kind'];
+    blocks.add({
+      'type': 'media',
+      'assetPath': path,
+      'kind': kind == null || kind == 'media' ? 'image' : kind,
+    });
+  }
+  return blocks;
+}
+
+bool _isMediaBlock(Map<String, dynamic> block) {
+  final blockType = block['type']?.toString() ?? block['kind']?.toString();
+  return blockType == 'media';
 }

@@ -29,7 +29,8 @@ memory_v3/
 │   │   ├── agent.dart
 │   │   └── prompt.dart
 │   ├── dreaming_agent/
-│   │   ├── fragment_extractor.dart
+│   │   ├── fragment_extractor.dart       # Daily Dreaming：聊天 → fragments
+│   │   ├── prompt.dart
 │   │   ├── episode_consolidator.dart
 │   │   └── saga_weaver.dart
 │   └── prompts/                 # 共享 prompt 片段
@@ -52,6 +53,11 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 - `memory_fragments` / `memory_entities` / `memory_entity_links`
 - `memory_episodes` / `memory_sagas`
 
+**Project Memory 特殊领域**
+- 项目当前态、开发事件、模块决策、Dev Room / Codex / Claude Code 回流摘要
+- 属于 Memory V3 的 domain / facet，不另起第二套记忆系统
+- 不写入普通 User-truth，不混入关系记忆或角色 sandbox
+
 **原始资料与审计层**
 - `assets` / `asset_analysis` / `user_corrections` / `memory_card_operations`
 - `chat_messages` 继承现有结构
@@ -72,7 +78,22 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 3. 检索端
 4. Memory Review UI
 5. Dreaming 自动产物
-6. Insight 体系 UI
+6. Project Memory domain（项目状态 / 开发事件 / Dev Room 回流）
+7. Insight 体系 UI
+
+### 当前 Dreaming MVP
+
+- `DreamingFragmentExtractorV3` 只做低层证据抽取：输入一批主聊天消息，输出 `fragments` JSON。
+- `DreamingOrchestratorServiceV3` 维护每个角色的抽取水位线，成功后写入 `memory_fragments` / `memory_entity_links`。
+- Dreaming 自动产物只进入自动层，不写 `memory_cards`，也不等同于用户确认资料。
+- Episode / Saga 凝结还未接入；当前版本先为后续凝结积累可溯源 fragments。
+
+### Project Memory 边界
+
+- `docs/development/I_PROJECT_STATE.md` 是林埃快速读取的当前态快照。
+- DEVLOG / commit / Dev Room run / closeout 产生的是项目事件史，后续应写入 Project Memory domain，而不是 `memory_cards` 的普通 User-truth 流。
+- 原始 run / diff / approval 仍归 Dev Room 表管理；Project Memory 只保存可检索摘要和决策。
+- 林埃只有在项目相关问题中检索 Project Memory，普通生活聊天默认不注入。
 
 每切完一段，旧的对应代码可以删。
 
@@ -83,4 +104,5 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 - 不要新增 Drift 表跟 Memex 卡片体系建外键
 - 不要绕过 `user_corrections`，让 AI 直接覆盖用户改过的字段
 - 不要让 Dreaming 自动产物（Fragment / Episode / Saga）写入 `memory_cards` 表
+- 不要把 Project Memory 写成普通 User-truth 或关系记忆
 - 不要让 I 的工具能读 `memory_card_operations`

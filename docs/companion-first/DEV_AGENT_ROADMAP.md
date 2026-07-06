@@ -10,7 +10,7 @@
 3. **桥接复用现成方案**：Bridge 第一版基于 MyPilot fork,不从零写 hooks/加密/重连。
 4. **数据分层**：
    - **工程过程数据**（run/diff/审批/事件流）→ 专属表 `DevProjects` / `DevAgentRuns` / `DevAgentEvents` / `DevAgentApprovals`,不进 User-truth(它们不是"事实",是过程)
-   - **每日工作产出**（coding_log)→ 进 `SharedLifeEntities`,所有角色平等可见,带署名
+   - **每日工作产出**（project_event）→ 进 Memory V3 的 Project Memory domain，不进普通 User-truth；林埃在项目相关问题中按需检索
 5. **权限默认最紧**：新建项目默认 `read_only`。`workspace_write` 和 `release_ops` 必须用户对项目显式升级。
 6. **双入口**：Dev Room 仍在 Settings / Personal 作为控制台；Phase 5 后，主聊天里的角色也能创建或继续 Dev Session。
 7. **不做访问圈层**：所有角色平等读取 User-truth。私密性来自"用户不主动记录",不来自系统隔离。这与"多个伴侣角色相互知道彼此存在"的产品设定一致。
@@ -25,7 +25,7 @@
 | 4a | 多项目体验打磨（chip / 摘要 / cleanup / 删除） | ✅ 完成，dogfood 中 |
 | 4a+ | 项目级 Git 操作（Pull / Push） | 📋 设计已确认，待实现 |
 | **5** | **角色可召唤的多轮 Dev Session** | **🚧 已开始：Dev Room 多轮骨架已落地** |
-| 3 | Daily Coding Log + 署名记忆卡片 | 接在 5 后面 |
+| 3 | Project Memory Log + 署名项目事件 | 接在 5 后面 |
 | 4b | PR 自动开（release_ops 真启用） | 依赖 4a+ Push |
 | 6 | 语音陪伴（通勤路上 Codex 读文章 + TTS） | 后续 |
 
@@ -37,7 +37,7 @@
 2. **必须引入 Dev Session**：一次性 run 无法支撑"读第一篇 → 讨论 → 再读第二篇 → 追问 → 改方案"这种场景。Phase 5 的核心数据结构是可多轮 `DevAgentSessions`，run 只是 session 里的执行回合。
 3. **Dev Room 保留为多轮控制台**：用户可以在主聊天里让角色继续一个 Dev Session，也可以自己打开 Dev Room 直接追问、查看 diff、apply/discard。Dev Room 不是主关系入口，但必须是可靠的过程空间。
 4. **绑定仍用独立表，不污染 CharacterModel**：新增 `DevAgentToolBindings` 或 `DevAgentSessionOwners` 这类独立表，记录哪个角色可召唤哪个项目/agent/权限档。普通角色模型不新增 Memex 特有耦合字段。
-5. **Phase 3 不能太靠后**：coding_log + 署名是其他伴侣角色"听说过"这些工程产出的社会基础，必须在 Phase 5 后紧接着做，不能拖到末尾。
+5. **Phase 3 不能太靠后**：Project Memory log + 署名是林埃理解项目进展的基础，必须在 Phase 5 后紧接着做，不能拖到末尾。
 
 ---
 
@@ -206,10 +206,10 @@ class DevAgentApprovals extends Table {
 
 ---
 
-## Phase 3 — Daily Coding Log + 署名事实卡片（3 天）
+## Phase 3 — Project Memory Log + 署名项目事件（3 天）
 
 ### 目标
-每天自动生成一张 coding 事实卡片，沉淀产出。所有角色平等可见，带 CC/Codex 署名，伴侣角色由此自然知道"今天她和 CC 在忙什么"。
+每天自动生成一条项目事件摘要，沉淀开发产出。它带 CC/Codex/Claude Code 署名，进入 Memory V3 的 Project Memory domain，让林埃在项目相关对话中知道"今天项目推进了什么"。
 
 ### 数据流
 
@@ -233,13 +233,13 @@ class DevAgentApprovals extends Table {
    }
    ```
 4. 写入两处：
-   - **`SharedLifeEntities`**（`entityType = 'coding_log'`,带 `authorCharacterIds`）→ 所有角色平等检索
+   - **Project Memory**（`kind = 'project_event'`,带 `authorCharacterIds`）→ 林埃和项目相关工具按需检索
    - **DEVLOG.md**：人类可读条目（沿用项目现有约定）
 
-### Coding Log 的关键字段
+### Project Memory Log 的关键字段
 
 ```dart
-// SharedLifeEntities 里 coding_log 类型的 stateJson 结构
+// Project Memory 里 project_event 类型的 stateJson 结构
 {
   "summary": "...",                          // 一句话总结,角色检索主要看这个
   "highlights": ["...", "..."],              // 2-4 个亮点
@@ -253,8 +253,8 @@ class DevAgentApprovals extends Table {
 ### 署名怎么用
 
 - 卡片 UI 顶部显示 CC/Codex 头像 + "在 X 的帮助下完成"
-- 其他角色检索到这条卡片时,prompt 里带署名信息,他们的回应会自然提到"听说你和 CC 今天搞了..."
-- 未来朋友圈/群聊里,这条卡片可以作为可评论对象；召唤工具的角色可以补充"我是怎么帮你推进这件事的"
+- 林埃在项目相关问题中检索到这条事件时,prompt 里带署名信息,回应可以自然提到"今天 Codex 帮你推进了..."
+- 未来如果做项目时间线,这条事件可以作为可评论对象；召唤工具的角色可以补充"我是怎么帮你推进这件事的"
 
 ### UI
 
@@ -262,8 +262,8 @@ class DevAgentApprovals extends Table {
 
 ### 完成判定
 - 连续 3 天每天自动生成日志,无重复无遗漏
-- 日志能在普通 Memory Review 流里被发现(不是藏在 Dev Room 里)
-- 伴侣角色被问"她今天忙什么"时,能从 coding_log 里答出来,并提到 CC/Codex 的名字
+- 日志能在 Project Memory / Dev Room 的项目过滤视图里被发现(不是藏在 Dev Room 原始过程日志里)
+- 林埃被问"项目今天推进了什么"时,能从 project_event 里答出来,并提到 CC/Codex 的名字
 
 ---
 
@@ -542,16 +542,16 @@ worktree 隔离 / decision 日志 / apply / discard 全部保留，但可以出�
 
 ---
 
-## Phase 3 — Daily Coding Log + 署名记忆卡片（接 5 后面）
+## Phase 3 — Project Memory Log + 署名项目事件（接 5 后面）
 
 ### 目标
-每天自动生成一张 coding 事实卡片，带 CC/Codex 署名，进 `SharedLifeEntities`，让其他伴侣角色自然知道"你今天和 CC 在忙什么"。
+每天自动生成一条项目事件，带 CC/Codex 署名，进 Memory V3 的 Project Memory domain，让林埃自然知道"你今天和 CC 在忙什么项目"。
 
 （详细数据流见前面 Phase 3 章节，没变。）
 
 ### 关键
-- 必须在 Phase 5 之后做：5 产生真实 session/run 数据，3 把它转成可被角色检索的卡片
-- 不能跳过：这是其他角色自然知道"我召唤工具帮你做了什么"的社会基础
+- 必须在 Phase 5 之后做：5 产生真实 session/run 数据，3 把它转成可被林埃检索的项目事件
+- 不能跳过：这是林埃跨 Codex、Claude Code、Terminal 和手机 Dev Room 理解项目连续性的基础
 
 ---
 
@@ -605,7 +605,7 @@ release_ops 项目的 apply 改成"推 dev-agent 分支 + 调 gh pr create"，PR
 3. **任何 `bash` / `write` / `commit` / `push` / `network`** 在 `workspace_write` 以上必须审批
 4. **审批不能批量"全部同意"**，每条单独点
 5. **worktree 路径绝不在用户家目录根部**，强制在 `{projectRoot}/.dev-agent/worktrees/` 下
-6. **Dev Room 过程数据**(run/diff/审批/事件流)不写入 `CardCache` / `KnowledgeInsight` / PKM 任何表;只有 Phase 3 的 coding_log 进 `SharedLifeEntities`
+6. **Dev Room 过程数据**(run/diff/审批/事件流)不写入 `CardCache` / `KnowledgeInsight` / PKM 任何表;只有 Phase 3 的 project_event 摘要进入 Memory V3 的 Project Memory domain
 7. **任何阶段都不引入** `danger-full-access` 路径
 
 ---

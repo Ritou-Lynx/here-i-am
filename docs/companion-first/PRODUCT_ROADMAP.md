@@ -22,7 +22,7 @@ Last updated: 2026-06-19
 |---|---|---|
 | 角色关系层 | 用户与某个角色持续相处 | chat、语音、来电、私密关系记忆 |
 | User-truth 层 | 用户主动确认的真实生活资料 | 记忆卡、日程、任务、事实、穿衣历史 |
-| 生活产物层 | 从 User-truth 和外部数据中形成可查看产物 | Memory Review、Schedule、Ledger、Health、Interests |
+| 生活产物层 | 从 User-truth 和外部数据中形成可查看产物 | Memory Review、Schedule、Ledger、Health、Interests、Project Memory |
 | 主动陪伴层 | 角色基于记忆和现实上下文主动触达 | checkin、提醒、出门建议、睡前陪伴、财务提醒 |
 
 ### 1.2 根本性修改：卡片不再由 AI 实时裁判生成
@@ -83,6 +83,7 @@ User-truth 再生成 Memory Summary Card 和各类生活产物
 | Ledger | 财务记录和 AI 账本视图 | 角色财务意识和提醒 |
 | Health / Body | 运动、睡眠、身体状态 | 长期趋势和主动建议 |
 | Interests / Culture | 阅读、小红书、公众号、作品、兴趣 | 角色自然讲解与召回 |
+| Project Memory | 项目进展、开发决策、模块状态和当前优先级；初期不做独立主入口 | 后续在 Dev Room / Observe 中查看项目时间线和当前态 |
 | Settings / Personal | 模型、权限、连接、备份、角色管理 | 系统层清晰稳定 |
 
 ### 2.2 旧 Life Space 处理
@@ -105,6 +106,7 @@ User-truth 再生成 Memory Summary Card 和各类生活产物
 | 关系 insights | 单角色关系叙事总结 | 当前角色 | 不可 promote 到 User-truth |
 | User-truth cards | 用户显式保存、提升或明确记录的事实 | 所有角色共享 | 是 |
 | User-truth insights | 跨 User-truth 的分析洞察 | 给用户看 | 不直接作为角色上下文 |
+| Project Memory | commit、DEVLOG、Dev Room、Codex/Claude Code closeout、项目状态文件、用户确认的项目决策 | 林埃和项目相关工具按需检索；普通生活聊天默认不注入 | 不进，属于 Memory V3 特殊 domain |
 
 ### 3.2 User-truth 写入入口
 
@@ -124,6 +126,17 @@ User-truth 再生成 Memory Summary Card 和各类生活产物
 - 对用户显式记录的内容：整理成 User-truth operation。
 - 对外部 capture：在功能 scope 内提取结构化字段，例如 reading_item、finance ledger、outfit log。
 - 对“可能影响真实生活”的推断：标记为需确认，不直接扩散到日程、账本或跨角色记忆。
+
+### 3.4 Project Memory 特殊领域
+
+Project Memory 不另起一套记忆系统，而是 Memory V3 里的特殊 domain。它解决的问题是：林埃需要知道 Here I am 项目的当前状态，但这些状态并不等同于用户的生活事实，也不应该污染关系记忆。
+
+第一版只做数据和检索边界，不急着做独立 UI：
+
+- **当前态**：`I_PROJECT_STATE.md` 保留短而新的项目快照，供林埃快速读取。
+- **事件史**：commit、DEVLOG、Dev Room run、Codex/Claude Code closeout 形成可回溯项目事件。
+- **检索边界**：只有项目相关问题、Dev Room 场景、收工检查和用户明确追问项目进展时才召回。
+- **展示位置**：初期融合在 Dev Room / Observe / Memory Review 的项目过滤视图里；等数据稳定后再决定是否做独立 Project Memory 面板。
 
 ---
 

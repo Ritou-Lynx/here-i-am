@@ -76,9 +76,83 @@ Color get _personaUserBubble {
 const _voiceModeIdleFollowUpSilenceTimeout = Duration(seconds: 10);
 const _voiceModeMaxRecordingDuration = Duration(seconds: 120);
 const _voiceModeMaxSilentFollowUps = 8;
+const _composerStaleGuardDuration = Duration(seconds: 2);
+const _composerStaleGuardPollDelays = <Duration>[
+  Duration(milliseconds: 50),
+  Duration(milliseconds: 150),
+  Duration(milliseconds: 300),
+  Duration(milliseconds: 600),
+  Duration(milliseconds: 1000),
+  Duration(milliseconds: 1500),
+];
 
 String _chatUiText({required String zh, required String en}) {
   return UserStorage.l10n.localeName.toLowerCase().startsWith('zh') ? zh : en;
+}
+
+const _personaChatImageAttachmentPathKeys = <String>[
+  'sourcePath',
+  'originalPath',
+  'filePath',
+  'path',
+  'localPath',
+];
+
+@visibleForTesting
+String? personaChatRecoverableImageAttachmentPath(
+  Map<dynamic, dynamic> attachment,
+) {
+  for (final key in _personaChatImageAttachmentPathKeys) {
+    final raw = attachment[key]?.toString().trim();
+    if (raw == null || raw.isEmpty) continue;
+    if (raw.startsWith('file://')) {
+      try {
+        return Uri.parse(raw).toFilePath();
+      } catch (_) {
+        return raw.replaceFirst('file://', '');
+      }
+    }
+    return raw;
+  }
+  return null;
+}
+
+bool _personaChatAttachmentLooksLikeImage(Map<dynamic, dynamic> attachment) {
+  final mimeType = attachment['mimeType']?.toString().toLowerCase().trim();
+  if (mimeType != null && mimeType.startsWith('image/')) return true;
+  final sourcePath = personaChatRecoverableImageAttachmentPath(attachment);
+  return sourcePath != null && _personaChatMimeTypeFromPath(sourcePath) != null;
+}
+
+@visibleForTesting
+bool personaChatImageAttachmentCanBeRecorded(
+  Map<dynamic, dynamic> attachment,
+) {
+  if (!_personaChatAttachmentLooksLikeImage(attachment)) return false;
+  final base64 = attachment['base64']?.toString();
+  return (base64 != null && base64.isNotEmpty) ||
+      personaChatRecoverableImageAttachmentPath(attachment) != null;
+}
+
+String _personaChatImageMimeTypeForAttachment(
+  Map<dynamic, dynamic> attachment,
+) {
+  final mimeType = attachment['mimeType']?.toString().toLowerCase().trim();
+  if (mimeType != null && mimeType.startsWith('image/')) return mimeType;
+  final sourcePath = personaChatRecoverableImageAttachmentPath(attachment);
+  return _personaChatMimeTypeFromPath(sourcePath ?? '') ?? 'image/jpeg';
+}
+
+String? _personaChatMimeTypeFromPath(String sourcePath) {
+  final path = sourcePath.split('?').first.split('#').first.toLowerCase();
+  if (path.endsWith('.png')) return 'image/png';
+  if (path.endsWith('.webp')) return 'image/webp';
+  if (path.endsWith('.gif')) return 'image/gif';
+  if (path.endsWith('.heic')) return 'image/heic';
+  if (path.endsWith('.heif')) return 'image/heif';
+  if (path.endsWith('.bmp')) return 'image/bmp';
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+  return null;
 }
 
 @visibleForTesting
@@ -108,6 +182,36 @@ String personaChatVoiceIdleFollowUpPrompt({
       'speaking softly and do not require them to answer. Otherwise gently ask '
       'if they are still there or continue the topic. Vary your wording. Do '
       'not use markdown, action text, or parenthetical thoughts.]';
+}
+
+@visibleForTesting
+bool personaChatComposerTextLooksLikeSentRemnant({
+  required String currentText,
+  required String sentText,
+}) {
+  final current = _normalizeComposerGuardText(currentText);
+  final sent = _normalizeComposerGuardText(sentText);
+  if (current.isEmpty || sent.isEmpty) return false;
+  if (current == sent) return true;
+
+  final currentCore = _stripComposerGuardEdgePunctuation(current);
+  final sentCore = _stripComposerGuardEdgePunctuation(sent);
+  if (currentCore.isEmpty || sentCore.isEmpty) return false;
+  if (currentCore == sentCore) return true;
+
+  // Chinese IMEs and speech input can commit only the final phrase after the
+  // app has already cleared the composer. Guard only non-trivial suffixes so a
+  // quick new reply like "好" is not swallowed.
+  return currentCore.runes.length >= 3 && sentCore.endsWith(currentCore);
+}
+
+String _normalizeComposerGuardText(String text) =>
+    text.trim().replaceAll(RegExp(r'\s+'), ' ');
+
+String _stripComposerGuardEdgePunctuation(String text) {
+  return text
+      .replaceAll(RegExp(r'^[\s，。！？；：,.!?;:、]+'), '')
+      .replaceAll(RegExp(r'[\s，。！？；：,.!?;:、]+$'), '');
 }
 
 /// 1-on-1 chat screen with an AI companion character.
@@ -221,6 +325,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _mediaButtonsActivating = false;
   bool _refreshingMessages = false;
   int _composerClearToken = 0;
+  String? _composerStaleText;
+  Timer? _composerStaleGuardTimer;
+  DateTime? _composerStaleGuardUntil;
+  bool _isProgrammaticComposerClear = false;
   final _messageKeys = <int, GlobalKey>{};
   Timer? _highlightTimer;
   int? _highlightedMessageId;
@@ -366,6 +474,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _voiceController.onAutoRecognitionComplete =
         _onAutoVoiceRecognitionComplete;
     WidgetsBinding.instance.addObserver(this);
+    _textController.addListener(_onComposerTextChanged);
     unawaited(
         ActivePersonaChatService.instance.markActive(_currentCharacterId));
     HardwareKeyboard.instance.addHandler(_handleHardwareKey);
@@ -1111,6 +1220,8 @@ only after you have written the goodbye you want the user to hear.''',
       _onConversationCaptureRemembered,
     );
     _scrollController.removeListener(_onScroll);
+    _composerStaleGuardTimer?.cancel();
+    _textController.removeListener(_onComposerTextChanged);
     _textController.dispose();
     _scrollController.dispose();
     _highlightTimer?.cancel();
@@ -1715,23 +1826,20 @@ only after you have written the goodbye you want the user to hear.''',
 
   void _clearComposerText({String? staleText}) {
     final token = ++_composerClearToken;
+    _armComposerStaleGuard(staleText);
     // Force the IME to finalize any composing region before we clear.
     // Without this, Chinese IMEs may commit composing text *after* we
     // read/clear the field, leaving residue that doesn't match staleText.
     _textController.clearComposing();
     _setComposerTextEmpty();
 
-    // Aggressive clear: IMEs (especially Chinese) can restore composing
-    // text across multiple frames with timing that varies by device and
-    // keyboard. Rather than trying to match exact text (which fails when
-    // the IME commits a different form than what we captured as staleText),
-    // we simply nuke any text that reappears for a short window after send.
+    // IMEs (especially Chinese) can restore composing text across multiple
+    // frames with timing that varies by device and keyboard. Keep a short
+    // stale-text guard so the sent message, or its final phrase, cannot be
+    // committed back into the composer after the send.
     void clearIfTextReappeared() {
       if (!mounted || token != _composerClearToken) return;
-      if (_textController.text.isNotEmpty) {
-        _textController.clearComposing();
-        _setComposerTextEmpty();
-      }
+      _clearComposerIfStaleText();
     }
 
     scheduleMicrotask(clearIfTextReappeared);
@@ -1741,20 +1849,73 @@ only after you have written the goodbye you want the user to hear.''',
         (_) => clearIfTextReappeared(),
       );
     });
-    unawaited(
-      Future<void>.delayed(const Duration(milliseconds: 100))
-          .then((_) => clearIfTextReappeared()),
-    );
-    unawaited(
-      Future<void>.delayed(const Duration(milliseconds: 200))
-          .then((_) => clearIfTextReappeared()),
-    );
+    for (final delay in _composerStaleGuardPollDelays) {
+      unawaited(
+        Future<void>.delayed(delay).then((_) => clearIfTextReappeared()),
+      );
+    }
   }
 
   void _setComposerTextEmpty() {
-    _textController.value = const TextEditingValue(
-      selection: TextSelection.collapsed(offset: 0),
+    _isProgrammaticComposerClear = true;
+    try {
+      _textController.value = const TextEditingValue(
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    } finally {
+      _isProgrammaticComposerClear = false;
+    }
+  }
+
+  void _armComposerStaleGuard(String? staleText) {
+    final normalized = _normalizeComposerGuardText(staleText ?? '');
+    if (normalized.isEmpty) {
+      _disarmComposerStaleGuard();
+      return;
+    }
+    _composerStaleText = normalized;
+    _composerStaleGuardUntil = DateTime.now().add(_composerStaleGuardDuration);
+    _composerStaleGuardTimer?.cancel();
+    _composerStaleGuardTimer = Timer(
+      _composerStaleGuardDuration,
+      _disarmComposerStaleGuard,
     );
+  }
+
+  void _disarmComposerStaleGuard() {
+    _composerStaleText = null;
+    _composerStaleGuardUntil = null;
+    _composerStaleGuardTimer?.cancel();
+    _composerStaleGuardTimer = null;
+  }
+
+  void _onComposerTextChanged() {
+    if (_isProgrammaticComposerClear) return;
+    _clearComposerIfStaleText();
+  }
+
+  bool _clearComposerIfStaleText() {
+    final staleText = _composerStaleText;
+    final guardUntil = _composerStaleGuardUntil;
+    if (staleText == null || guardUntil == null) return false;
+    if (DateTime.now().isAfter(guardUntil)) {
+      _disarmComposerStaleGuard();
+      return false;
+    }
+
+    final currentText = _textController.text;
+    if (currentText.trim().isEmpty) return false;
+    if (!personaChatComposerTextLooksLikeSentRemnant(
+      currentText: currentText,
+      sentText: staleText,
+    )) {
+      _disarmComposerStaleGuard();
+      return false;
+    }
+
+    _textController.clearComposing();
+    _setComposerTextEmpty();
+    return true;
   }
 
   Future<_PendingPersonaChatMessage?> _persistVisibleQueuedUserMessage({
@@ -1846,10 +2007,11 @@ only after you have written the goodbye you want the user to hear.''',
   /// so [attachmentsJson] is always populated — without it the Record Organizer
   /// cannot save media blocks.
   Future<Map<String, String>> _compressImageForChat(XFile image) async {
+    final sourcePath = image.path;
     // --- primary path: WebP compression ---
     try {
       final compressed = await FlutterImageCompress.compressWithFile(
-        image.path,
+        sourcePath,
         minWidth: 2048,
         minHeight: 2048,
         quality: 85,
@@ -1859,7 +2021,11 @@ only after you have written the goodbye you want the user to hear.''',
       );
       if (compressed != null) {
         final base64 = base64Encode(compressed);
-        return {'mimeType': 'image/webp', 'base64': base64};
+        return {
+          'mimeType': 'image/webp',
+          'base64': base64,
+          'sourcePath': sourcePath,
+        };
       }
     } catch (e) {
       debugPrint('Image compress failed, falling back to raw bytes: $e');
@@ -1867,15 +2033,19 @@ only after you have written the goodbye you want the user to hear.''',
 
     // --- fallback: read raw file bytes ---
     try {
-      final file = File(image.path);
+      final file = File(sourcePath);
       if (!file.existsSync()) {
-        debugPrint('Image file not found for fallback: ${image.path}');
+        debugPrint('Image file not found for fallback: $sourcePath');
         // Return a stub entry so the record path can still attempt recovery.
-        return {'mimeType': 'image/jpeg', 'base64': ''};
+        return {
+          'mimeType': 'image/jpeg',
+          'base64': '',
+          'sourcePath': sourcePath,
+        };
       }
       final bytes = await file.readAsBytes();
       final base64 = base64Encode(bytes);
-      final ext = image.path.split('.').last.toLowerCase();
+      final ext = sourcePath.split('.').last.toLowerCase();
       final mimeType = switch (ext) {
         'png' => 'image/png',
         'webp' => 'image/webp',
@@ -1887,10 +2057,18 @@ only after you have written the goodbye you want the user to hear.''',
       };
       debugPrint(
           'Image fallback: read ${bytes.length} raw bytes, mime=$mimeType');
-      return {'mimeType': mimeType, 'base64': base64};
+      return {
+        'mimeType': mimeType,
+        'base64': base64,
+        'sourcePath': sourcePath,
+      };
     } catch (e) {
       debugPrint('Image raw fallback also failed: $e');
-      return {'mimeType': 'image/jpeg', 'base64': ''};
+      return {
+        'mimeType': 'image/jpeg',
+        'base64': '',
+        'sourcePath': sourcePath,
+      };
     }
   }
 
@@ -1971,11 +2149,6 @@ only after you have written the goodbye you want the user to hear.''',
     });
   }
 
-  void _showCopiedSnackBar() {
-    ScaffoldMessenger.of(context)
-        .showToast(_chatUiText(zh: '已复制', en: 'Copied'));
-  }
-
   Future<void> _recordMessage(PersonaChatMessage message) async {
     if (!RecordOrganizerServiceV3.isInitialized) return;
     // Guard against rapid double-taps re-firing while a record is in flight.
@@ -2023,10 +2196,20 @@ only after you have written the goodbye you want the user to hear.''',
           for (var i = 0; i < attachments.length; i++) {
             final att = attachments[i];
             if (att is! Map) continue;
-            final mimeType = att['mimeType']?.toString() ?? '';
-            if (!mimeType.startsWith('image/')) continue;
-            final base64 = att['base64']?.toString();
-            if (base64 == null || base64.isEmpty) continue;
+            final attachment = Map<dynamic, dynamic>.from(att);
+            if (!_personaChatAttachmentLooksLikeImage(attachment)) continue;
+            final mimeType = _personaChatImageMimeTypeForAttachment(attachment);
+            final base64 = attachment['base64']?.toString();
+            final recoveryPath =
+                personaChatRecoverableImageAttachmentPath(attachment);
+            if (!personaChatImageAttachmentCanBeRecorded(attachment)) {
+              debugPrint(
+                  '[Record] msg#${message.id} image#$i has neither base64 nor sourcePath');
+              media.add(const MediaInputAttachment(
+                error: 'image attachment has neither bytes nor sourcePath',
+              ));
+              continue;
+            }
 
             try {
               final analyzing = messenger.showToast(
@@ -2036,104 +2219,133 @@ only after you have written the goodbye you want the user to hear.''',
                 ),
                 duration: const Duration(seconds: 25),
               );
-
-              // 1. Decode base64 → write temp file
-              final bytes = base64Decode(base64);
-              final ext = _imageExtForMime(mimeType);
-              final tempDir = Directory.systemTemp;
-              final tempFile = File(
-                '${tempDir.path}${Platform.pathSeparator}record_${message.id}_$i.$ext',
-              );
-              await tempFile.writeAsBytes(bytes);
-
-              // 2. Save to Facts/assets/
-              // factId is required by saveAssetFromFile for filename generation.
-              // Use a synthetic factId from the current timestamp since the
-              // companion-first record path does not own a Memex factId.
-              final now = DateTime.now();
-              final factId =
-                  '${now.year}/${now.month.toString().padLeft(2, '0')}/${now.day.toString().padLeft(2, '0')}.md'
-                  '#ts_${now.microsecondsSinceEpoch}';
-              final (filename, relativePath) =
-                  await fsService.saveAssetFromFile(
-                userId: userId,
-                sourcePath: tempFile.path,
-                assetType: 'img',
-                index: i + 1,
-                format: ext,
-                factId: factId,
-              );
-              debugPrint(
-                  '[Record] msg#${message.id} image#$i saved: $relativePath');
-
-              // Clean up temp file
               try {
-                await tempFile.delete();
-              } catch (_) {}
-
-              // 3. Get or run image analysis (3-tier priority)
-              String? analysisText;
-              // Tier 1: from the [Image analysis: ...] prefix in message content
-              if (i < existingAnalyses.length) {
-                analysisText = existingAnalyses[i];
-                debugPrint(
-                    '[Record] msg#${message.id} image#$i analysis from prefix');
-              }
-              // Tier 2: from attachment.analysis stored during send
-              if (analysisText == null || analysisText.trim().isEmpty) {
-                final storedAnalysis = att['analysis']?.toString();
-                if (storedAnalysis != null &&
-                    storedAnalysis.trim().isNotEmpty) {
-                  analysisText = storedAnalysis.trim();
+                final ext = _imageExtForMime(mimeType);
+                File? tempFile;
+                late final String sourcePathForSave;
+                if (base64 != null && base64.isNotEmpty) {
+                  try {
+                    final bytes = base64Decode(base64);
+                    final tempDir = Directory.systemTemp;
+                    tempFile = File(
+                      '${tempDir.path}${Platform.pathSeparator}record_${message.id}_$i.$ext',
+                    );
+                    await tempFile.writeAsBytes(bytes);
+                    sourcePathForSave = tempFile.path;
+                  } catch (e) {
+                    if (recoveryPath == null) rethrow;
+                    debugPrint(
+                        '[Record] msg#${message.id} image#$i base64 decode failed; '
+                        'recovering from sourcePath: $e');
+                    sourcePathForSave = recoveryPath;
+                  }
+                } else {
+                  sourcePathForSave = recoveryPath!;
                   debugPrint(
-                      '[Record] msg#${message.id} image#$i analysis from attachment '
-                      '(${analysisText.length} chars)');
+                      '[Record] msg#${message.id} image#$i recovering from sourcePath');
                 }
-              }
-              // Tier 3: run inline AssetAnalysisTool
-              if (analysisText == null || analysisText.trim().isEmpty) {
+                final sourceFile = File(sourcePathForSave);
+                if (!await sourceFile.exists()) {
+                  throw FileSystemException(
+                    'Image source not found for record attachment',
+                    sourcePathForSave,
+                  );
+                }
+
+                // factId is required by saveAssetFromFile for filename generation.
+                // Use a synthetic factId from the current timestamp since the
+                // companion-first record path does not own a Memex factId.
+                final now = DateTime.now();
+                final factId =
+                    '${now.year}/${now.month.toString().padLeft(2, '0')}/${now.day.toString().padLeft(2, '0')}.md'
+                    '#ts_${now.microsecondsSinceEpoch}';
+                late final String relativePath;
                 try {
-                  debugPrint(
-                      '[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…');
-                  final analysisResources =
-                      await UserStorage.getAgentLLMResources(
-                    AgentDefinitions.analyzeAssets,
-                    defaultClientKey: LLMConfig.defaultClientKey,
+                  final (_, savedRelativePath) =
+                      await fsService.saveAssetFromFile(
+                    userId: userId,
+                    sourcePath: sourcePathForSave,
+                    assetType: 'img',
+                    index: i + 1,
+                    format: ext,
+                    factId: factId,
                   );
-                  final analysisTool = AssetAnalysisTool(
-                    client: analysisResources.client,
-                    modelConfig: analysisResources.modelConfig,
-                  );
-                  final absPath = fsService.toAbsolutePath(relativePath);
-                  final result = await analysisTool.tool(
-                    assetPath: absPath,
-                    prompt: '用1-2句中文简要描述这张图片的内容。'
-                        '关注画面中可见的人、物体、文字、场景。'
-                        '简洁客观。',
-                  );
-                  // Strip the "#Asset ... analysis result\n:" prefix
-                  analysisText = result
-                      .replaceFirst(
-                          RegExp(r'^#Asset .+ analysis result\n:'), '')
-                      .trim();
-                  debugPrint(
-                      '[Record] msg#${message.id} image#$i inline analysis done '
-                      '(${analysisText.length} chars)');
-                } catch (e) {
-                  debugPrint(
-                      '[Record] msg#${message.id} image#$i inline analysis FAILED: $e');
+                  relativePath = savedRelativePath;
+                } finally {
+                  if (tempFile != null) {
+                    try {
+                      await tempFile.delete();
+                    } catch (_) {}
+                  }
                 }
-              }
+                debugPrint(
+                    '[Record] msg#${message.id} image#$i saved: $relativePath');
 
-              analyzing.close();
-              media.add(MediaInputAttachment(
-                savedRelativePath: relativePath,
-                analysisText: analysisText,
-                kind: 'image',
-              ));
-              debugPrint(
-                  '[Record] msg#${message.id} image#$i → media (usable=${media.last.isUsable}, '
-                  'hasAnalysis=${analysisText != null && analysisText.isNotEmpty})');
+                // 3. Get or run image analysis (3-tier priority)
+                String? analysisText;
+                // Tier 1: from the [Image analysis: ...] prefix in message content
+                if (i < existingAnalyses.length) {
+                  analysisText = existingAnalyses[i];
+                  debugPrint(
+                      '[Record] msg#${message.id} image#$i analysis from prefix');
+                }
+                // Tier 2: from attachment.analysis stored during send
+                if (analysisText == null || analysisText.trim().isEmpty) {
+                  final storedAnalysis = attachment['analysis']?.toString();
+                  if (storedAnalysis != null &&
+                      storedAnalysis.trim().isNotEmpty) {
+                    analysisText = storedAnalysis.trim();
+                    debugPrint(
+                        '[Record] msg#${message.id} image#$i analysis from attachment '
+                        '(${analysisText.length} chars)');
+                  }
+                }
+                // Tier 3: run inline AssetAnalysisTool
+                if (analysisText == null || analysisText.trim().isEmpty) {
+                  try {
+                    debugPrint(
+                        '[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…');
+                    final analysisResources =
+                        await UserStorage.getAgentLLMResources(
+                      AgentDefinitions.analyzeAssets,
+                      defaultClientKey: LLMConfig.defaultClientKey,
+                    );
+                    final analysisTool = AssetAnalysisTool(
+                      client: analysisResources.client,
+                      modelConfig: analysisResources.modelConfig,
+                    );
+                    final absPath = fsService.toAbsolutePath(relativePath);
+                    final result = await analysisTool.tool(
+                      assetPath: absPath,
+                      prompt: '用1-2句中文简要描述这张图片的内容。'
+                          '关注画面中可见的人、物体、文字、场景。'
+                          '简洁客观。',
+                    );
+                    // Strip the "#Asset ... analysis result\n:" prefix
+                    analysisText = result
+                        .replaceFirst(
+                            RegExp(r'^#Asset .+ analysis result\n:'), '')
+                        .trim();
+                    debugPrint(
+                        '[Record] msg#${message.id} image#$i inline analysis done '
+                        '(${analysisText.length} chars)');
+                  } catch (e) {
+                    debugPrint(
+                        '[Record] msg#${message.id} image#$i inline analysis FAILED: $e');
+                  }
+                }
+
+                media.add(MediaInputAttachment(
+                  savedRelativePath: relativePath,
+                  analysisText: analysisText,
+                  kind: 'image',
+                ));
+                debugPrint(
+                    '[Record] msg#${message.id} image#$i → media (usable=${media.last.isUsable}, '
+                    'hasAnalysis=${analysisText != null && analysisText.isNotEmpty})');
+              } finally {
+                analyzing.close();
+              }
             } catch (e) {
               debugPrint(
                   '[Record] msg#${message.id} image#$i PROCESSING FAILED: $e');
@@ -3332,7 +3544,6 @@ only after you have written the goodbye you want the user to hear.''',
                                   onTap: () {
                                     Clipboard.setData(
                                         ClipboardData(text: text));
-                                    _showCopiedSnackBar();
                                   },
                                   child: Icon(
                                     Icons.copy_rounded,
@@ -3593,7 +3804,6 @@ only after you have written the goodbye you want the user to hear.''',
                             GestureDetector(
                               onTap: () {
                                 Clipboard.setData(ClipboardData(text: text));
-                                _showCopiedSnackBar();
                               },
                               child: Icon(
                                 Icons.copy_rounded,
@@ -4056,8 +4266,6 @@ class _SearchResultTile extends StatelessWidget {
                 ),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: message.content));
-                  ScaffoldMessenger.of(context)
-                      .showToast(_chatUiText(zh: '已复制', en: 'Copied'));
                 },
               ),
             ),
@@ -4943,20 +5151,23 @@ class PersonaChatInputBar extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (onAddTap != null) ...[
-                    _AddButton(
-                      enabled: !isStreaming,
-                      onTap: onAddTap!,
-                      active: isAddActive,
-                    ),
-                    const SizedBox(width: 10),
-                  ],
                   Expanded(
                     child: _FloatingGlassInputCapsule(
                       isDark: isDark,
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
+                          if (onAddTap != null) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 1),
+                              child: _AddButton(
+                                enabled: !isStreaming,
+                                onTap: onAddTap!,
+                                active: isAddActive,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                           Expanded(
                             child: TextField(
                               controller: controller,
@@ -4987,33 +5198,47 @@ class PersonaChatInputBar extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 160),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            child: canSend
-                                ? _SendAndMaybeEndVoiceMode(
-                                    key: ValueKey(
-                                      isVoiceModeActive
-                                          ? 'send-with-voice-end'
-                                          : 'send',
-                                    ),
-                                    onSend: onSend,
-                                    onVoiceModeTap: onVoiceModeTap,
-                                    showVoiceModeEnd: isVoiceModeActive,
-                                  )
-                                : voiceController != null
-                                    ? _ChatVoiceActions(
-                                        key: const ValueKey('voice-actions'),
-                                        voiceController: voiceController,
-                                        onVoiceTap: onVoiceTap,
-                                        onVoiceModeTap: onVoiceModeTap,
-                                        isVoiceModeActive: isVoiceModeActive,
-                                        voiceInputEnabled: isVoiceInputEnabled,
-                                        voiceModeEnabled:
-                                            isVoiceModeActive || !isStreaming,
-                                      )
-                                    : const SizedBox(key: ValueKey('no-send')),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 1),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 160),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              layoutBuilder: (currentChild, previousChildren) {
+                                return Stack(
+                                  alignment: Alignment.bottomCenter,
+                                  children: [
+                                    ...previousChildren,
+                                    if (currentChild != null) currentChild,
+                                  ],
+                                );
+                              },
+                              child: canSend
+                                  ? _SendAndMaybeEndVoiceMode(
+                                      key: ValueKey(
+                                        isVoiceModeActive
+                                            ? 'send-with-voice-end'
+                                            : 'send',
+                                      ),
+                                      onSend: onSend,
+                                      onVoiceModeTap: onVoiceModeTap,
+                                      showVoiceModeEnd: isVoiceModeActive,
+                                    )
+                                  : voiceController != null
+                                      ? _ChatVoiceActions(
+                                          key: const ValueKey('voice-actions'),
+                                          voiceController: voiceController,
+                                          onVoiceTap: onVoiceTap,
+                                          onVoiceModeTap: onVoiceModeTap,
+                                          isVoiceModeActive: isVoiceModeActive,
+                                          voiceInputEnabled:
+                                              isVoiceInputEnabled,
+                                          voiceModeEnabled:
+                                              isVoiceModeActive || !isStreaming,
+                                        )
+                                      : const SizedBox(
+                                          key: ValueKey('no-send')),
+                            ),
                           ),
                         ],
                       ),
@@ -5040,10 +5265,12 @@ class _FloatingGlassInputCapsule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(22);
+
     return Container(
       constraints: const BoxConstraints(minHeight: 56),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: radius,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.16),
@@ -5058,7 +5285,7 @@ class _FloatingGlassInputCapsule extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: radius,
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
           child: Stack(
@@ -5067,7 +5294,7 @@ class _FloatingGlassInputCapsule extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: const Color(0xFF241319).withValues(alpha: 0.42),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: radius,
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.035),
                       width: 1,
@@ -5078,125 +5305,23 @@ class _FloatingGlassInputCapsule extends StatelessWidget {
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: radius,
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFFFFECDD).withValues(alpha: 0.05),
-                        const Color(0xFFC08E96).withValues(alpha: 0.10),
-                        const Color(0xFF241319).withValues(alpha: 0.18),
+                        const Color(0xFFFFECDD).withValues(alpha: 0.045),
+                        const Color(0xFFC08E96).withValues(alpha: 0.085),
+                        const Color(0xFF4D222B).withValues(alpha: 0.10),
+                        const Color(0xFF120B0E).withValues(alpha: 0.18),
                       ],
-                      stops: const [0, 0.48, 1],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 18,
-                right: 18,
-                top: 1,
-                child: Container(
-                  height: 1.2,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.transparent,
-                        const Color(0xFFFFC6B5).withValues(alpha: 0.24),
-                        const Color(0xFFC08E96).withValues(alpha: 0.12),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 12,
-                top: 4,
-                width: 120,
-                height: 28,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      gradient: RadialGradient(
-                        center: Alignment.topLeft,
-                        radius: 1.2,
-                        colors: [
-                          const Color(0xFFFFECDD).withValues(alpha: 0.14),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 6,
-                top: 5,
-                width: 70,
-                height: 42,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      gradient: RadialGradient(
-                        center: Alignment.centerRight,
-                        radius: 1.05,
-                        colors: [
-                          const Color(0xFFFFD2C8).withValues(alpha: 0.12),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 44,
-                right: 92,
-                top: 10,
-                height: 12,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          const Color(0xFFFFECDD).withValues(alpha: 0.045),
-                          const Color(0xFFC08E96).withValues(alpha: 0.035),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 8,
-                right: 8,
-                bottom: 0,
-                height: 18,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.20),
-                        ],
-                      ),
+                      stops: const [0, 0.42, 0.74, 1],
                     ),
                   ),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
                 child: child,
               ),
             ],
@@ -5232,8 +5357,8 @@ class _AddButton extends StatelessWidget {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
-              width: 54,
-              height: 54,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: const Color(0xFF241319).withValues(alpha: 0.38),
@@ -5258,12 +5383,12 @@ class _AddButton extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.30),
-                    blurRadius: 18,
-                    offset: const Offset(0, 10),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
                   ),
                   BoxShadow(
                     color: const Color(0xFFC0646E).withValues(alpha: 0.10),
-                    blurRadius: 18,
+                    blurRadius: 12,
                     offset: Offset.zero,
                   ),
                 ],
@@ -5273,7 +5398,7 @@ class _AddButton extends StatelessWidget {
                 color: enabled
                     ? const Color(0xFFF6F0EF).withValues(alpha: 0.86)
                     : _personaTextMuted,
-                size: 25,
+                size: 23,
               ),
             ),
           ),
@@ -5451,7 +5576,7 @@ class _VoiceBarsIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const heights = [12.0, 20.0, 16.0, 23.0];
+    const heights = [11.0, 19.0, 23.0, 15.0];
     return SizedBox(
       width: 22,
       height: 24,
@@ -5461,14 +5586,14 @@ class _VoiceBarsIcon extends StatelessWidget {
         children: [
           for (final height in heights) ...[
             Container(
-              width: 3,
+              width: 2.3,
               height: height,
               decoration: BoxDecoration(
                 color: color,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
-            if (height != heights.last) const SizedBox(width: 3),
+            if (height != heights.last) const SizedBox(width: 2.8),
           ],
         ],
       ),
@@ -5539,37 +5664,12 @@ class _SendButton extends StatelessWidget {
                     ),
                 ],
               ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 9,
-                    right: 11,
-                    top: 4,
-                    height: 1.1,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.transparent,
-                            const Color(0xFFFFECDD)
-                                .withValues(alpha: enabled ? 0.20 : 0.08),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: Icon(
-                      Icons.arrow_upward_rounded,
-                      color: enabled
-                          ? const Color(0xFFF6F0EF).withValues(alpha: 0.92)
-                          : _personaTextMuted,
-                      size: 22,
-                    ),
-                  ),
-                ],
+              child: Center(
+                child: _PaperPlaneIcon(
+                  color: enabled
+                      ? const Color(0xFFF6F0EF).withValues(alpha: 0.92)
+                      : _personaTextMuted,
+                ),
               ),
             ),
           ),
@@ -5577,6 +5677,58 @@ class _SendButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PaperPlaneIcon extends StatelessWidget {
+  const _PaperPlaneIcon({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(22, 22),
+      painter: _PaperPlanePainter(color),
+    );
+  }
+}
+
+class _PaperPlanePainter extends CustomPainter {
+  const _PaperPlanePainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final plane = Path()
+      ..moveTo(w * 0.12, h * 0.50)
+      ..lineTo(w * 0.88, h * 0.16)
+      ..lineTo(w * 0.58, h * 0.88)
+      ..lineTo(w * 0.45, h * 0.58)
+      ..close();
+
+    final fill = Paint()
+      ..style = PaintingStyle.fill
+      ..color = color;
+    canvas.drawPath(plane, fill);
+
+    final crease = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF4D222B).withValues(alpha: 0.44);
+    canvas.drawLine(
+      Offset(w * 0.45, h * 0.58),
+      Offset(w * 0.88, h * 0.16),
+      crease,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _PaperPlanePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 /// Animated three-dot typing indicator.

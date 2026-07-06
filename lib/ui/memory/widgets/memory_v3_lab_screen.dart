@@ -16,6 +16,7 @@ import 'dart:io';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/query_log_service.dart';
@@ -46,6 +47,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
   String? _lastError;
   String? _lastSuccess;
   List<MemoryCard> _recent = const [];
+  List<MemoryFragment> _recentFragments = const [];
   List<QueryLogEntry> _queryLogEntries = const [];
   int _zeroResultCount = 0;
 
@@ -53,6 +55,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
   void initState() {
     super.initState();
     unawaited(_loadRecent());
+    unawaited(_loadRecentFragments());
     unawaited(_loadQueryLog());
   }
 
@@ -72,6 +75,17 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         .get();
     if (!mounted) return;
     setState(() => _recent = rows);
+  }
+
+  Future<void> _loadRecentFragments() async {
+    if (!DreamingOrchestratorServiceV3.isInitialized) return;
+    final db = AppDatabase.instance;
+    final rows = await (db.select(db.memoryFragments)
+          ..orderBy([(t) => drift.OrderingTerm.desc(t.createdAt)])
+          ..limit(30))
+        .get();
+    if (!mounted) return;
+    setState(() => _recentFragments = rows);
   }
 
   Future<void> _loadQueryLog() async {
@@ -161,6 +175,70 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         setState(() => _busy = false);
       }
     }
+  }
+
+  Future<void> _runDreamingFragmentBatch() async {
+    if (!DreamingOrchestratorServiceV3.isInitialized) {
+      setState(() => _lastError = 'Dreaming service 未初始化');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+
+    try {
+      final characterId = await _latestChatCharacterId();
+      if (characterId == null) {
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _lastError = '没有可处理的聊天消息';
+        });
+        return;
+      }
+
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.recordOrganizerAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+
+      final result =
+          await DreamingOrchestratorServiceV3.instance.runDailyFragmentBatch(
+        characterId: characterId,
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+      );
+      await _loadRecentFragments();
+      if (!mounted) return;
+      setState(() {
+        _lastSuccess = result.processedMessageCount == 0
+            ? 'Dreaming 没有新消息可处理'
+            : 'Dreaming 处理 ${result.processedMessageCount} 条消息，写入 ${result.fragmentIds.length} 个 fragment';
+      });
+    } catch (e, stack) {
+      _logger.warning('runDreamingFragmentBatch failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = 'Dreaming 失败：$e');
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<String?> _latestChatCharacterId() async {
+    final db = AppDatabase.instance;
+    final rows = await (db.select(db.personaChatMessages)
+          ..orderBy([
+            (t) => drift.OrderingTerm.desc(t.timestamp),
+            (t) => drift.OrderingTerm.desc(t.id),
+          ])
+          ..limit(1))
+        .get();
+    return rows.isEmpty ? null : rows.single.characterId;
   }
 
   /// Compact one-line summaries of the most recent N cards, for feeding to
@@ -446,7 +524,10 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadRecent,
+            onPressed: () {
+              unawaited(_loadRecent());
+              unawaited(_loadRecentFragments());
+            },
             tooltip: '刷新',
           ),
           IconButton(
@@ -494,6 +575,12 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                       : const Icon(Icons.save),
                   label: Text(_busy ? '整理中…' : 'organize + persist'),
                 ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _runDreamingFragmentBatch,
+                  icon: const Icon(Icons.nightlight_round),
+                  label: const Text('run Dreaming fragment batch'),
+                ),
                 if (_lastError != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
@@ -516,6 +603,9 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
               children: [
                 Text('最近 ${_recent.length} 张 memory_cards',
                     style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(width: 12),
+                Text('fragments ${_recentFragments.length}',
+                    style: const TextStyle(fontSize: 11)),
                 const Spacer(),
                 Text(
                   RecordOrganizerServiceV3.isInitialized
@@ -531,18 +621,85 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             ),
           ),
           Expanded(
-            child: _recent.isEmpty
-                ? const Center(child: Text('（暂无记录）'))
-                : ListView.builder(
-                    controller: _scrollController,
-                    itemCount: _recent.length,
-                    itemBuilder: (ctx, i) => _CardListTile(
-                      card: _recent[i],
-                      onTap: () => _showCardDetail(_recent[i]),
-                      onLongPress: () => _deleteCard(_recent[i]),
-                      onPreview: () => _previewCard(_recent[i]),
+            child: ListView(
+              controller: _scrollController,
+              children: [
+                if (_recent.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('（暂无 memory_cards）')),
+                  )
+                else
+                  ..._recent.map(
+                    (card) => _CardListTile(
+                      card: card,
+                      onTap: () => _showCardDetail(card),
+                      onLongPress: () => _deleteCard(card),
+                      onPreview: () => _previewCard(card),
                     ),
                   ),
+                const Divider(height: 1),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Text('最近 Dreaming fragments',
+                      style: Theme.of(context).textTheme.titleSmall),
+                ),
+                if (_recentFragments.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('（暂无 fragments）')),
+                  )
+                else
+                  ..._recentFragments.map(
+                    (fragment) => _FragmentListTile(fragment: fragment),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FragmentListTile extends StatelessWidget {
+  const _FragmentListTile({required this.fragment});
+
+  final MemoryFragment fragment;
+
+  @override
+  Widget build(BuildContext context) {
+    final createdAt =
+        DateTime.fromMillisecondsSinceEpoch(fragment.createdAt).toString();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            fragment.isUserTruthCandidate
+                ? Icons.new_releases_outlined
+                : Icons.auto_awesome_outlined,
+            size: 18,
+            color: fragment.isUserTruthCandidate
+                ? Colors.orange.shade700
+                : Colors.blueGrey.shade400,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(fragment.content,
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 4),
+                Text(
+                  '${fragment.status} · weight ${fragment.emotionalWeight.toStringAsFixed(2)} · $createdAt',
+                  style: const TextStyle(fontSize: 10, color: Colors.black38),
+                ),
+              ],
+            ),
           ),
         ],
       ),

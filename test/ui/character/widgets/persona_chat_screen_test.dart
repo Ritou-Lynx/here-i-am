@@ -8,12 +8,45 @@ import 'package:memex/utils/user_storage.dart';
 void main() {
   setUpAll(UserStorage.initL10n);
 
+  test('image attachment recovery keeps source-path-only images recordable',
+      () {
+    expect(
+      personaChatImageAttachmentCanBeRecorded({
+        'mimeType': 'image/webp',
+        'base64': 'encoded-image',
+      }),
+      isTrue,
+    );
+    expect(
+      personaChatImageAttachmentCanBeRecorded({
+        'mimeType': 'image/jpeg',
+        'base64': '',
+        'sourcePath': '/storage/emulated/0/Pictures/second.jpg',
+      }),
+      isTrue,
+    );
+    expect(
+      personaChatImageAttachmentCanBeRecorded({
+        'path': '/storage/emulated/0/Pictures/third.png',
+      }),
+      isTrue,
+    );
+    expect(
+      personaChatImageAttachmentCanBeRecorded({
+        'mimeType': 'image/jpeg',
+        'base64': '',
+      }),
+      isFalse,
+    );
+  });
+
   Widget buildSubject({
     required TextEditingController controller,
     required bool isStreaming,
     required VoidCallback onSend,
     VoidCallback? onAddTap,
     VoidCallback? onVoiceModeTap,
+    VoiceInputController? voiceController,
     bool isVoiceModeActive = false,
   }) {
     return MaterialApp(
@@ -24,6 +57,7 @@ void main() {
           onSend: onSend,
           onAddTap: onAddTap,
           onVoiceModeTap: onVoiceModeTap,
+          voiceController: voiceController,
           isVoiceModeActive: isVoiceModeActive,
           hintText: 'Message...',
         ),
@@ -34,15 +68,18 @@ void main() {
   testWidgets('empty input shows voice actions until the user enters text',
       (tester) async {
     final controller = TextEditingController();
+    final voiceController = VoiceInputController();
     var sends = 0;
     var voiceModeStarts = 0;
     addTearDown(controller.dispose);
+    addTearDown(voiceController.dispose);
 
     await tester.pumpWidget(buildSubject(
       controller: controller,
       isStreaming: false,
       onSend: () => sends++,
       onVoiceModeTap: () => voiceModeStarts++,
+      voiceController: voiceController,
     ));
 
     expect(find.bySemanticsLabel('Send message'), findsNothing);
@@ -61,8 +98,10 @@ void main() {
 
   testWidgets('active voice mode stays in the chat input bar', (tester) async {
     final controller = TextEditingController();
+    final voiceController = VoiceInputController();
     var exits = 0;
     addTearDown(controller.dispose);
+    addTearDown(voiceController.dispose);
 
     await tester.pumpWidget(buildSubject(
       controller: controller,
@@ -70,6 +109,7 @@ void main() {
       isVoiceModeActive: true,
       onSend: () {},
       onVoiceModeTap: () => exits++,
+      voiceController: voiceController,
     ));
 
     expect(find.bySemanticsLabel('Start voice mode'), findsNothing);
@@ -104,8 +144,10 @@ void main() {
 
   testWidgets('active voice mode can be ended while streaming', (tester) async {
     final controller = TextEditingController();
+    final voiceController = VoiceInputController();
     var exits = 0;
     addTearDown(controller.dispose);
+    addTearDown(voiceController.dispose);
 
     await tester.pumpWidget(buildSubject(
       controller: controller,
@@ -113,6 +155,7 @@ void main() {
       isVoiceModeActive: true,
       onSend: () {},
       onVoiceModeTap: () => exits++,
+      voiceController: voiceController,
     ));
 
     await tester.tap(find.bySemanticsLabel('End voice mode'));
@@ -155,6 +198,39 @@ void main() {
     expect(textField.keyboardType, TextInputType.multiline);
     expect(textField.textInputAction, TextInputAction.newline);
     expect(textField.onSubmitted, isNull);
+  });
+
+  test('composer stale guard detects full or trailing sent remnants', () {
+    const sent = '我前面说了一整段。最后一句话还留在这里';
+
+    expect(
+      personaChatComposerTextLooksLikeSentRemnant(
+        currentText: sent,
+        sentText: sent,
+      ),
+      isTrue,
+    );
+    expect(
+      personaChatComposerTextLooksLikeSentRemnant(
+        currentText: '最后一句话还留在这里',
+        sentText: sent,
+      ),
+      isTrue,
+    );
+    expect(
+      personaChatComposerTextLooksLikeSentRemnant(
+        currentText: '这是新输入',
+        sentText: sent,
+      ),
+      isFalse,
+    );
+    expect(
+      personaChatComposerTextLooksLikeSentRemnant(
+        currentText: '好',
+        sentText: sent,
+      ),
+      isFalse,
+    );
   });
 
   testWidgets('rich capture entry is opt-in and invokes its callback',
@@ -379,7 +455,7 @@ void main() {
     );
     expect(
       voiceInputShouldAutoStop(
-        now: lastSpeechAt.add(const Duration(milliseconds: 1100)),
+        now: lastSpeechAt.add(const Duration(milliseconds: 1500)),
         startedAt: startedAt,
         lastSpeechAt: lastSpeechAt,
         heardSpeech: true,

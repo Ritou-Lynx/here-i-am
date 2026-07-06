@@ -16,6 +16,7 @@ import 'package:memex/data/services/card_detail_notifier.dart';
 import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/services/reading/fetchers/xiaohongshu_fetcher.dart';
 import 'package:memex/data/services/reading/reading_capture_service.dart';
@@ -110,6 +111,7 @@ class MemexRouter {
         // Record Organizer V3 — new memory_v3 write path. Runs alongside V2
         // until UI切换 (Phase 1.6 of MEMORY_V3_ROADMAP.md) is complete.
         RecordOrganizerServiceV3.init(AppDatabase.instance);
+        DreamingOrchestratorServiceV3.init(AppDatabase.instance);
         // Reading Companion: share-intent → reading_item entity pipeline.
         ReadingCaptureService.init(
           db: AppDatabase.instance,

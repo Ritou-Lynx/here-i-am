@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -34,8 +35,8 @@ class FloatingRecordBall extends StatefulWidget {
 class _FloatingRecordBallState extends State<FloatingRecordBall> {
   double _right = 16;
   double _bottom = 110;
-  static const double _controlWidth = 68;
-  static const double _controlHeight = 56;
+  static const double _controlWidth = 72;
+  static const double _controlHeight = 62;
   // Track drag so we can skip _showQuickSave after a real drag gesture
   bool _dragging = false;
 
@@ -117,95 +118,225 @@ class _BallWidgetState extends State<_BallWidget>
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _breath,
-      builder: (context, child) => Transform.scale(
-        scale: _breath.value,
-        child: child,
-      ),
-      child: SizedBox(
-        width: _FloatingRecordBallState._controlWidth,
-        height: _FloatingRecordBallState._controlHeight,
-        child: CustomPaint(
-          painter: const _DropletShadowPainter(),
-          child: ClipPath(
-            clipper: const _DropletClipper(),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: const Alignment(-0.34, -0.46),
-                          radius: 1.12,
-                          colors: [
-                            Colors.white.withValues(alpha: 0.18),
-                            const Color(0xFF4D222B).withValues(alpha: 0.68),
-                            const Color(0xFF120B0E).withValues(alpha: 0.86),
-                          ],
-                          stops: const [0, 0.48, 1],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 12,
-                    top: 7,
-                    width: 34,
-                    height: 16,
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          gradient: RadialGradient(
-                            center: Alignment.topLeft,
-                            radius: 1.08,
-                            colors: [
-                              const Color(0xFFFFECDD).withValues(alpha: 0.22),
-                              const Color(0xFFFFC6B5).withValues(alpha: 0.08),
-                              Colors.transparent,
-                            ],
+      animation: _breathController,
+      builder: (context, child) {
+        final phase = _breathController.value;
+        return Transform.scale(
+          scale: _breath.value,
+          child: SizedBox(
+            width: _FloatingRecordBallState._controlWidth,
+            height: _FloatingRecordBallState._controlHeight,
+            child: CustomPaint(
+              painter: const _DropletShadowPainter(),
+              child: ClipPath(
+                clipper: const _DropletClipper(),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: const Alignment(-0.18, -0.34),
+                              radius: 1.08,
+                              colors: [
+                                const Color(0xFFFFECDD)
+                                    .withValues(alpha: 0.075),
+                                const Color(0xFF74464B).withValues(alpha: 0.30),
+                                const Color(0xFF3A2123).withValues(alpha: 0.70),
+                                const Color(0xFF090608).withValues(alpha: 0.92),
+                              ],
+                              stops: const [0, 0.27, 0.66, 1],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 7,
-                    bottom: 6,
-                    width: 28,
-                    height: 18,
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          gradient: RadialGradient(
-                            center: Alignment.bottomRight,
-                            radius: 1,
-                            colors: [
-                              const Color(0xFFC0646E).withValues(alpha: 0.16),
-                              Colors.transparent,
-                            ],
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _DropletLiquidPainter(phase),
                           ),
                         ),
                       ),
-                    ),
+                      Center(
+                        child: _DropletPlusMark(
+                          color:
+                              const Color(0xFFF0D5D7).withValues(alpha: 0.82),
+                        ),
+                      ),
+                    ],
                   ),
-                  Center(
-                    child: Icon(
-                      Icons.edit_note_rounded,
-                      size: 25,
-                      color: const Color(0xFFF0D5D7).withValues(alpha: 0.78),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        );
+      },
+    );
+  }
+}
+
+class _DropletPlusMark extends StatelessWidget {
+  const _DropletPlusMark({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 25,
+      height: 25,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 18,
+            height: 4.2,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFFC6B5).withValues(alpha: 0.12),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 4.2,
+            height: 18,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFFC6B5).withValues(alpha: 0.12),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
+  }
+}
+
+class _DropletLiquidPainter extends CustomPainter {
+  const _DropletLiquidPainter(this.phase);
+
+  final double phase;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final shimmer = (math.sin(phase * math.pi * 2) + 1) / 2;
+
+    final lensWash = Paint()
+      ..shader = RadialGradient(
+        center: Alignment(-0.34 + shimmer * 0.08, -0.42 + shimmer * 0.06),
+        radius: 0.92,
+        colors: [
+          const Color(0xFFFFECDD).withValues(alpha: 0.10),
+          const Color(0xFFFFC6B5).withValues(alpha: 0.04),
+          Colors.transparent,
+        ],
+        stops: const [0, 0.42, 1],
+      ).createShader(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, lensWash);
+
+    final upperOval = Rect.fromLTWH(
+      w * (0.09 + shimmer * 0.015),
+      h * 0.06,
+      w * 0.54,
+      h * 0.28,
+    );
+    canvas.save();
+    canvas.translate(upperOval.center.dx, upperOval.center.dy);
+    canvas.rotate(-0.18);
+    canvas.translate(-upperOval.center.dx, -upperOval.center.dy);
+    canvas.drawOval(
+      upperOval,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.38, -0.35),
+          radius: 0.9,
+          colors: [
+            const Color(0xFFFFF6EF).withValues(alpha: 0.14),
+            const Color(0xFFFFC6B5).withValues(alpha: 0.04),
+            Colors.transparent,
+          ],
+          stops: const [0, 0.36, 1],
+        ).createShader(upperOval),
+    );
+    canvas.restore();
+
+    final crescent = Path()
+      ..moveTo(w * 0.26, h * 0.23)
+      ..cubicTo(
+        w * 0.40,
+        h * (0.13 + shimmer * 0.012),
+        w * 0.58,
+        h * 0.15,
+        w * 0.70,
+        h * 0.29,
+      );
+    canvas.drawPath(
+      crescent,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFFFECDD).withValues(alpha: 0.024)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+    );
+    canvas.drawPath(
+      crescent,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.7
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFFFECDD).withValues(alpha: 0.038)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
+    );
+
+    final lowerGlow = Rect.fromLTWH(w * 0.50, h * 0.54, w * 0.42, h * 0.34);
+    canvas.drawOval(
+      lowerGlow,
+      Paint()
+        ..shader = RadialGradient(
+          center: Alignment(0.34 - shimmer * 0.06, 0.30),
+          radius: 0.88,
+          colors: [
+            const Color(0xFFC0646E).withValues(alpha: 0.15),
+            const Color(0xFFFFC6B5).withValues(alpha: 0.045),
+            Colors.transparent,
+          ],
+          stops: const [0, 0.45, 1],
+        ).createShader(lowerGlow),
+    );
+
+    final depth = Rect.fromLTWH(w * 0.14, h * 0.67, w * 0.62, h * 0.30);
+    canvas.drawOval(
+      depth,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.15, 0.4),
+          radius: 0.9,
+          colors: [
+            Colors.black.withValues(alpha: 0.12),
+            Colors.transparent,
+          ],
+        ).createShader(depth),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DropletLiquidPainter oldDelegate) {
+    return oldDelegate.phase != phase;
   }
 }
 
@@ -236,8 +367,8 @@ class _DropletShadowPainter extends CustomPainter {
 
     final highlight = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = const Color(0xFFEECDBF).withValues(alpha: 0.16);
+      ..strokeWidth = 0.9
+      ..color = const Color(0xFFEECDBF).withValues(alpha: 0.12);
     canvas.drawPath(_dropletPath(size).shift(const Offset(0, 0.5)), highlight);
   }
 
@@ -249,11 +380,11 @@ Path _dropletPath(Size size) {
   final w = size.width;
   final h = size.height;
   return Path()
-    ..moveTo(w * 0.19, h * 0.42)
-    ..cubicTo(w * 0.24, h * 0.17, w * 0.47, h * 0.04, w * 0.66, h * 0.12)
-    ..cubicTo(w * 0.88, h * 0.21, w * 0.99, h * 0.43, w * 0.91, h * 0.66)
-    ..cubicTo(w * 0.81, h * 0.93, w * 0.48, h * 1.00, w * 0.25, h * 0.88)
-    ..cubicTo(w * 0.03, h * 0.77, w * 0.04, h * 0.56, w * 0.19, h * 0.42)
+    ..moveTo(w * 0.40, h * 0.07)
+    ..cubicTo(w * 0.63, h * 0.00, w * 0.92, h * 0.15, w * 0.94, h * 0.45)
+    ..cubicTo(w * 0.96, h * 0.75, w * 0.76, h * 0.99, w * 0.48, h * 0.97)
+    ..cubicTo(w * 0.20, h * 0.95, w * 0.03, h * 0.72, w * 0.08, h * 0.47)
+    ..cubicTo(w * 0.12, h * 0.24, w * 0.23, h * 0.12, w * 0.40, h * 0.07)
     ..close();
 }
 

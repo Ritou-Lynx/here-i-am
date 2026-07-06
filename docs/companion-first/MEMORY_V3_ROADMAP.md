@@ -20,6 +20,7 @@
 | 1.8 (deferred) | 1.7 设计 → 实现 | ⏳ 1–2 周 |
 | 2 | 检索基础（FTS5 + DB 过滤 + intent 模板骨架） | ⏳ 1 周 |
 | 3 | 语义检索（embedding + 融合排序） | ⏳ 1 周 |
+| 3.5 | Project Memory 特殊领域（项目状态 / 开发事件 / Dev Room 回流） | ⏳ 与 Dev Room / closeout 迭代并行 |
 | 4 | Dreaming 自动产物（Fragment / Entity / Episode / Saga） | ⏳ 2 周 |
 | 5 | 旧代码清扫（pkm/card_agent + shared_life_* + Memex legacy） | ⏳ 2–3 天 |
 
@@ -340,6 +341,36 @@ EOF
 - 语义检索能召回字面不匹配但语义相关的卡
 - 本地 embedding 在 Android 上跑得动（首次加载 < 5s，推理 < 200ms）
 - 模型切换时 embedding 能批量重算
+
+---
+
+## Phase 3.5: Project Memory 特殊领域（并行）
+
+### 目标
+
+把 Here I am 项目的进展、决策、模块状态和开发事件纳入 Memory V3，但不混进普通 User-truth 或关系记忆。林埃需要知道“这个项目现在是什么”，而不是每次都靠用户转述一段 Codex 汇报。
+
+### 数据边界
+
+Project Memory 是 Memory V3 的 domain / facet，而不是第二套记忆系统。
+
+- **当前态**：`docs/development/I_PROJECT_STATE.md`，只保留林埃需要快速知道的当前状态。
+- **项目事件**：commit、DEVLOG、收工检查、Dev Room run、Codex/Claude Code closeout。
+- **项目实体**：模块、阶段、分支、Bridge、构建安装规则、关键设计决策。
+- **不进入**：普通 User-truth、关系记忆、角色 sandbox、旧 CardCache / KnowledgeInsight / PKM。
+
+### 关键产物
+
+1. Project Memory 的 domain 命名和字段约定：`project_state` / `project_event` / `project_decision` / `project_module`。
+2. Dev Room / closeout 到 Project Memory 的写入路径：先写结构化摘要，不直接塞完整日志。
+3. Memory Query 的项目 intent：只有项目相关问题、Dev Room 场景、收工检查和用户明确追问时召回。
+4. `I_PROJECT_STATE.md` 与 Project Memory 的关系：前者是短快照，后者是可检索历史。
+
+### 验收
+
+- 林埃被问“现在项目做到哪了”时，能从项目当前态和最近项目事件回答。
+- 林埃普通生活聊天不会因为 Project Memory 注入而变成项目汇报。
+- Dev Room / Codex / Claude Code 的过程日志仍留在 Dev Room 表；只有人类可读、可检索的摘要进入 Project Memory。
 
 ---
 

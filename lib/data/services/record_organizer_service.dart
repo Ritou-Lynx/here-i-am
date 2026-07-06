@@ -26,6 +26,56 @@ class RecordResult {
   final bool isEmpty;
 }
 
+const _chatImageAttachmentPathKeys = <String>[
+  'sourcePath',
+  'originalPath',
+  'filePath',
+  'path',
+  'localPath',
+];
+
+String? _recoverableImageAttachmentPath(Map<dynamic, dynamic> attachment) {
+  for (final key in _chatImageAttachmentPathKeys) {
+    final raw = attachment[key]?.toString().trim();
+    if (raw == null || raw.isEmpty) continue;
+    if (raw.startsWith('file://')) {
+      try {
+        return Uri.parse(raw).toFilePath();
+      } catch (_) {
+        return raw.replaceFirst('file://', '');
+      }
+    }
+    return raw;
+  }
+  return null;
+}
+
+bool _chatAttachmentLooksLikeImage(Map<dynamic, dynamic> attachment) {
+  final mimeType = attachment['mimeType']?.toString().toLowerCase().trim();
+  if (mimeType != null && mimeType.startsWith('image/')) return true;
+  final sourcePath = _recoverableImageAttachmentPath(attachment);
+  return sourcePath != null && _imageMimeTypeFromPath(sourcePath) != null;
+}
+
+String _imageMimeTypeForAttachment(Map<dynamic, dynamic> attachment) {
+  final mimeType = attachment['mimeType']?.toString().toLowerCase().trim();
+  if (mimeType != null && mimeType.startsWith('image/')) return mimeType;
+  final sourcePath = _recoverableImageAttachmentPath(attachment);
+  return _imageMimeTypeFromPath(sourcePath ?? '') ?? 'image/jpeg';
+}
+
+String? _imageMimeTypeFromPath(String sourcePath) {
+  final path = sourcePath.split('?').first.split('#').first.toLowerCase();
+  if (path.endsWith('.png')) return 'image/png';
+  if (path.endsWith('.webp')) return 'image/webp';
+  if (path.endsWith('.gif')) return 'image/gif';
+  if (path.endsWith('.heic')) return 'image/heic';
+  if (path.endsWith('.heif')) return 'image/heif';
+  if (path.endsWith('.bmp')) return 'image/bmp';
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+  return null;
+}
+
 /// Handles explicit user recording requests — the only authorized path for
 /// writing User-truth outside of companion tool-calls.
 ///
@@ -267,9 +317,9 @@ class RecordOrganizerService {
         .getSingleOrNull();
     final attachmentsJson = message?.attachmentsJson;
     if (attachmentsJson == null || attachmentsJson.trim().isEmpty) {
-      _logger.info(
-          '_ensureMessageMedia: no attachmentsJson for msg#$messageId, '
-          'returning ${media != null ? 'original media' : 'null'}');
+      _logger
+          .info('_ensureMessageMedia: no attachmentsJson for msg#$messageId, '
+              'returning ${media != null ? 'original media' : 'null'}');
       return media;
     }
 
@@ -286,14 +336,17 @@ class RecordOrganizerService {
       for (var i = 0; i < raw.length; i++) {
         final item = raw[i];
         if (item is! Map) continue;
-        final attachment = Map<String, dynamic>.from(item);
-        final mimeType = attachment['mimeType']?.toString() ?? '';
-        if (!mimeType.startsWith('image/')) continue;
+        final attachment = Map<dynamic, dynamic>.from(item);
+        if (!_chatAttachmentLooksLikeImage(attachment)) continue;
+        final mimeType = _imageMimeTypeForAttachment(attachment);
         final base64 = attachment['base64']?.toString();
-        if (base64 == null || base64.isEmpty) {
-          // Could be a compression-fallback stub; skip — nothing to save.
+        final recoveryPath = _recoverableImageAttachmentPath(attachment);
+        if ((base64 == null || base64.isEmpty) && recoveryPath == null) {
           _logger.info(
-              '_ensureMessageMedia: msg#$messageId image#$i has empty base64, skipped');
+              '_ensureMessageMedia: msg#$messageId image#$i has neither base64 nor sourcePath');
+          recovered.add(const MediaInputAttachment(
+            error: 'image attachment has neither bytes nor sourcePath',
+          ));
           continue;
         }
 
@@ -304,6 +357,7 @@ class RecordOrganizerService {
             index: i,
             mimeType: mimeType,
             base64: base64,
+            sourcePath: recoveryPath,
           );
           // 3-tier analysis priority (same as chat screen _recordMessage):
           // Tier 1: from [Image analysis: ...] prefix in message content
@@ -347,20 +401,46 @@ class RecordOrganizerService {
     required int messageId,
     required int index,
     required String mimeType,
-    required String base64,
+    String? base64,
+    String? sourcePath,
   }) async {
-    final bytes = base64Decode(base64);
     final ext = _imageExtensionForMime(mimeType);
-    final tempFile = File(
-      '${Directory.systemTemp.path}${Platform.pathSeparator}'
-      'record_${messageId}_${DateTime.now().microsecondsSinceEpoch}_$index.$ext',
-    );
-    await tempFile.writeAsBytes(bytes);
+    File? tempFile;
+    late final String sourcePathForSave;
+    if (base64 != null && base64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(base64);
+        tempFile = File(
+          '${Directory.systemTemp.path}${Platform.pathSeparator}'
+          'record_${messageId}_${DateTime.now().microsecondsSinceEpoch}_$index.$ext',
+        );
+        await tempFile.writeAsBytes(bytes);
+        sourcePathForSave = tempFile.path;
+      } catch (e) {
+        if (sourcePath == null || sourcePath.isEmpty) rethrow;
+        _logger.info(
+            '_saveChatImageAttachment: msg#$messageId image#$index base64 failed; '
+            'recovering from sourcePath: $e');
+        sourcePathForSave = sourcePath;
+      }
+    } else if (sourcePath != null && sourcePath.isNotEmpty) {
+      sourcePathForSave = sourcePath;
+    } else {
+      throw const FileSystemException(
+        'Image attachment has neither bytes nor sourcePath',
+      );
+    }
+    if (!await File(sourcePathForSave).exists()) {
+      throw FileSystemException(
+        'Image source not found for record attachment',
+        sourcePathForSave,
+      );
+    }
     try {
       final (_, relativePath) =
           await FileSystemService.instance.saveAssetFromFile(
         userId: userId,
-        sourcePath: tempFile.path,
+        sourcePath: sourcePathForSave,
         assetType: 'img',
         index: index + 1,
         format: ext,
@@ -374,9 +454,11 @@ class RecordOrganizerService {
         absolutePath: FileSystemService.instance.toAbsolutePath(relativePath),
       );
     } finally {
-      try {
-        await tempFile.delete();
-      } catch (_) {}
+      if (tempFile != null) {
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+      }
     }
   }
 
@@ -550,8 +632,7 @@ Map<String, dynamic> _ensureMediaBlocks(
   // Remove ALL existing media blocks — the LLM may have generated blocks
   // with wrong assetPaths that would render as broken-image placeholders.
   // Replace them with the ground-truth blocks built from saved media.
-  final beforeMediaCount =
-      blocks.where((b) => b['type'] == 'media').length;
+  final beforeMediaCount = blocks.where((b) => b['type'] == 'media').length;
   blocks.removeWhere((b) => b['type'] == 'media');
 
   final mediaBlockDefs = _mediaBlocks(media);

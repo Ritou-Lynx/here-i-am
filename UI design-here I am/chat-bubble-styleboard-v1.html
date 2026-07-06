@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>暮雨玫瑰 Chat 气泡样式板 v1</title>
+  <style>
+    :root {
+      --bg: #120b0e;
+      --ink: rgba(246, 240, 239, 0.92);
+      --muted: rgba(246, 240, 239, 0.54);
+      --wine: rgba(36, 19, 25, 0.70);
+      --wine-deep: rgba(12, 6, 9, 0.72);
+      --rose: rgba(192, 100, 110, 0.28);
+      --rose-soft: rgba(192, 142, 150, 0.14);
+      --copper: rgba(255, 198, 181, 0.22);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Inter, "SF Pro Text", "Microsoft YaHei", system-ui, sans-serif;
+      background:
+        linear-gradient(180deg, rgba(10, 5, 8, 0.18), rgba(10, 5, 8, 0.86)),
+        url("../assets/images/dusky_rose_rain_glass.png") center / cover fixed,
+        var(--bg);
+    }
+
+    .page {
+      width: min(1440px, calc(100vw - 48px));
+      margin: 0 auto;
+      padding: 34px 0 48px;
+    }
+
+    .hero {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 27px;
+      font-weight: 660;
+      letter-spacing: 0;
+    }
+
+    .note {
+      margin-top: 8px;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .option {
+      position: relative;
+      min-height: 620px;
+      overflow: hidden;
+      border-radius: 28px;
+      padding: 18px;
+      background:
+        linear-gradient(160deg, rgba(255, 236, 221, 0.045), rgba(36, 19, 25, 0.28) 42%, rgba(5, 3, 4, 0.38)),
+        rgba(14, 7, 10, 0.44);
+      box-shadow:
+        0 34px 90px rgba(0, 0, 0, 0.44),
+        inset 0 1px 0 rgba(255, 236, 221, 0.055);
+      backdrop-filter: blur(16px);
+    }
+
+    .option::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 18% 20%, rgba(255, 236, 221, 0.08), transparent 22%),
+        radial-gradient(circle at 84% 74%, rgba(192, 100, 110, 0.10), transparent 26%),
+        linear-gradient(180deg, rgba(255,255,255,0.03), transparent 24%, rgba(0,0,0,0.22));
+    }
+
+    .title {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .title strong {
+      font-size: 15px;
+      font-weight: 680;
+    }
+
+    .title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .phone {
+      position: relative;
+      z-index: 2;
+      min-height: 540px;
+      overflow: hidden;
+      border-radius: 24px;
+      padding: 22px 16px;
+      background:
+        linear-gradient(180deg, rgba(10, 5, 8, 0.04), rgba(10, 5, 8, 0.42)),
+        url("../assets/images/dusky_rose_rain_glass.png") center / cover;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 236, 221, 0.045),
+        inset 0 -60px 80px rgba(0, 0, 0, 0.34);
+    }
+
+    .phone::before,
+    .phone::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1;
+      height: 72px;
+      pointer-events: none;
+    }
+
+    .phone::before {
+      top: 0;
+      background: linear-gradient(180deg, rgba(12, 7, 10, 0.40), rgba(12, 7, 10, 0));
+    }
+
+    .phone::after {
+      bottom: 0;
+      background: linear-gradient(0deg, rgba(12, 7, 10, 0.48), rgba(12, 7, 10, 0));
+    }
+
+    .thread {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .row {
+      display: flex;
+    }
+
+    .row.role {
+      justify-content: flex-start;
+    }
+
+    .row.me {
+      justify-content: flex-end;
+    }
+
+    .bubble {
+      position: relative;
+      max-width: 78%;
+      padding: 14px 16px 13px;
+      border-radius: 20px;
+      color: rgba(246, 240, 239, 0.91);
+      font-size: 15px;
+      line-height: 1.58;
+      letter-spacing: 0;
+      overflow: hidden;
+      isolation: isolate;
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+
+    .bubble::before,
+    .bubble::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+    }
+
+    .bubble::before {
+      z-index: -2;
+      backdrop-filter: blur(22px) saturate(1.08);
+    }
+
+    .bubble::after {
+      z-index: -1;
+      mix-blend-mode: screen;
+    }
+
+    .bubble.role {
+      border-bottom-left-radius: 8px;
+    }
+
+    .bubble.me {
+      border-bottom-right-radius: 8px;
+      text-align: left;
+    }
+
+    .tag {
+      display: inline-block;
+      margin-bottom: 6px;
+      color: rgba(255, 236, 221, 0.42);
+      font-size: 11px;
+    }
+
+    .b1 .bubble.role {
+      background:
+        linear-gradient(150deg, rgba(255, 236, 221, 0.07), rgba(58, 33, 35, 0.50) 38%, rgba(14, 8, 11, 0.64)),
+        rgba(36, 19, 25, 0.58);
+      box-shadow:
+        0 18px 44px rgba(0, 0, 0, 0.26),
+        inset 0 1px 0 rgba(255, 236, 221, 0.07),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.16);
+    }
+
+    .b1 .bubble.me {
+      background:
+        linear-gradient(150deg, rgba(255, 198, 181, 0.10), rgba(126, 74, 85, 0.42) 46%, rgba(36, 19, 25, 0.60)),
+        rgba(77, 34, 43, 0.54);
+      box-shadow:
+        0 18px 44px rgba(0, 0, 0, 0.24),
+        inset 0 1px 0 rgba(255, 198, 181, 0.10);
+    }
+
+    .b1 .bubble::after {
+      background:
+        radial-gradient(circle at 20% 12%, rgba(255, 236, 221, 0.10), transparent 31%),
+        repeating-radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.030) 0 1px, transparent 1px 4px);
+      opacity: 0.72;
+    }
+
+    .b2 .bubble {
+      box-shadow:
+        0 16px 42px rgba(0, 0, 0, 0.22),
+        inset 0 0 0 1px rgba(255, 236, 221, 0.035);
+    }
+
+    .b2 .bubble.role {
+      background:
+        linear-gradient(180deg, rgba(255, 236, 221, 0.045), rgba(36, 19, 25, 0.62)),
+        rgba(22, 12, 16, 0.66);
+    }
+
+    .b2 .bubble.me {
+      background:
+        linear-gradient(180deg, rgba(255, 198, 181, 0.085), rgba(64, 27, 35, 0.68)),
+        rgba(77, 34, 43, 0.60);
+    }
+
+    .b2 .bubble::after {
+      background:
+        linear-gradient(115deg, rgba(255,255,255,0.045), transparent 32%),
+        linear-gradient(90deg, transparent, rgba(255, 236, 221, 0.035), transparent),
+        repeating-linear-gradient(96deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 5px);
+      opacity: 0.78;
+    }
+
+    .b3 .bubble {
+      border-radius: 18px;
+      box-shadow:
+        0 22px 50px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 236, 221, 0.055);
+    }
+
+    .b3 .bubble.role {
+      border-bottom-left-radius: 18px;
+      background:
+        linear-gradient(145deg, rgba(255, 236, 221, 0.055), rgba(24, 13, 17, 0.78)),
+        rgba(24, 13, 17, 0.64);
+    }
+
+    .b3 .bubble.me {
+      border-bottom-right-radius: 18px;
+      background:
+        linear-gradient(145deg, rgba(255, 198, 181, 0.11), rgba(92, 42, 51, 0.66)),
+        rgba(92, 42, 51, 0.54);
+    }
+
+    .b3 .bubble.role::after {
+      background:
+        radial-gradient(ellipse at 22% 0%, rgba(255, 236, 221, 0.10), transparent 45%),
+        linear-gradient(180deg, rgba(255,255,255,0.035), transparent 55%),
+        repeating-radial-gradient(circle, rgba(255,255,255,0.020) 0 1px, transparent 1px 3px);
+    }
+
+    .b3 .bubble.me::after {
+      background:
+        radial-gradient(ellipse at 72% 0%, rgba(255, 198, 181, 0.12), transparent 46%),
+        linear-gradient(180deg, rgba(255,255,255,0.026), transparent 55%),
+        repeating-radial-gradient(circle, rgba(255,255,255,0.018) 0 1px, transparent 1px 3px);
+    }
+
+    .b4 .bubble {
+      background-clip: padding-box;
+      box-shadow:
+        0 18px 46px rgba(0, 0, 0, 0.26),
+        inset 0 1px 0 rgba(255, 236, 221, 0.055),
+        inset 0 -10px 24px rgba(0, 0, 0, 0.10);
+    }
+
+    .b4 .bubble.role {
+      background:
+        linear-gradient(160deg, rgba(255, 236, 221, 0.05), rgba(18, 10, 14, 0.70)),
+        rgba(26, 14, 18, 0.64);
+    }
+
+    .b4 .bubble.me {
+      background:
+        linear-gradient(160deg, rgba(255, 198, 181, 0.09), rgba(90, 38, 49, 0.68)),
+        rgba(68, 28, 38, 0.60);
+    }
+
+    .b4 .bubble::after {
+      background:
+        linear-gradient(120deg, transparent 0 20%, rgba(255, 236, 221, 0.035) 38%, transparent 60%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.014) 0 1px, transparent 1px 6px);
+      opacity: 0.8;
+    }
+
+    .b5 .bubble {
+      border-radius: 22px;
+      box-shadow:
+        0 18px 50px rgba(0, 0, 0, 0.24),
+        inset 0 0 0 1px rgba(255, 236, 221, 0.026);
+    }
+
+    .b5 .bubble.role {
+      border-bottom-left-radius: 10px;
+      background:
+        linear-gradient(145deg, rgba(238, 205, 191, 0.045), rgba(18, 9, 13, 0.72)),
+        rgba(24, 12, 16, 0.62);
+    }
+
+    .b5 .bubble.me {
+      border-bottom-right-radius: 10px;
+      background:
+        linear-gradient(145deg, rgba(255, 198, 181, 0.085), rgba(77, 34, 43, 0.72)),
+        rgba(77, 34, 43, 0.56);
+    }
+
+    .b5 .bubble::after {
+      background:
+        radial-gradient(circle at 20% 18%, rgba(255,255,255,0.05), transparent 18%),
+        radial-gradient(circle at 72% 92%, rgba(0,0,0,0.12), transparent 28%),
+        repeating-conic-gradient(from 12deg, rgba(255,255,255,0.016) 0 8deg, transparent 8deg 22deg);
+      opacity: 0.58;
+    }
+
+    .b6 .bubble {
+      border-radius: 19px;
+      box-shadow:
+        0 16px 42px rgba(0, 0, 0, 0.26),
+        inset 0 1px 0 rgba(255, 236, 221, 0.045);
+    }
+
+    .b6 .bubble.role {
+      border-bottom-left-radius: 7px;
+      background:
+        linear-gradient(155deg, rgba(255, 236, 221, 0.06), rgba(20, 10, 14, 0.76)),
+        rgba(24, 12, 16, 0.66);
+    }
+
+    .b6 .bubble.me {
+      border-bottom-right-radius: 7px;
+      background:
+        linear-gradient(155deg, rgba(255, 198, 181, 0.10), rgba(96, 39, 49, 0.78)),
+        rgba(84, 35, 45, 0.58);
+    }
+
+    .b6 .bubble::after {
+      background:
+        radial-gradient(circle at 18% 10%, rgba(255, 236, 221, 0.09), transparent 25%),
+        linear-gradient(180deg, rgba(255,255,255,0.028), transparent 48%, rgba(0,0,0,0.10)),
+        repeating-radial-gradient(circle at 40% 50%, rgba(255,255,255,0.020) 0 1px, transparent 1px 5px);
+      opacity: 0.78;
+    }
+
+    .edge-test {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 14px;
+      z-index: 3;
+      height: 38px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, rgba(255, 198, 181, 0.12), transparent);
+      opacity: 0.55;
+      display: grid;
+      place-items: center;
+      color: rgba(246, 240, 239, 0.42);
+      font-size: 11px;
+    }
+
+    @media (max-width: 1180px) {
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        width: min(100vw - 24px, 440px);
+        padding-top: 22px;
+      }
+
+      .hero {
+        display: block;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <h1>聊天气泡样式板 v1</h1>
+        <p class="note">只比较聊天气泡：磨砂颗粒感、用户/角色区分、滚动边界稳定感。所有方案都避免透明度动画，边界处靠背景遮罩，不靠气泡透明度变化。</p>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="option b1">
+        <div class="title"><strong>B1 细雾磨砂</strong><span>清晰优先</span></div>
+        <div class="phone">
+          <div class="thread">
+            <div class="row role"><div class="bubble role"><span class="tag">暮雨</span><br>我听懂了，你不是想把它记成一条冷冰冰的事项，而是想保留当时那个雨夜里的语气。</div></div>
+            <div class="row me"><div class="bubble me">对，我希望它像被暂时按在玻璃上，而不是被塞进数据库。</div></div>
+            <div class="row role"><div class="bubble role">那我会把它整理成一张可确认的记忆，先保留来源，再等你点头。</div></div>
+          </div>
+          <div class="edge-test">边界遮罩：气泡透明度保持稳定</div>
+        </div>
+      </article>
+
+      <article class="option b2">
+        <div class="title"><strong>B2 纵向雨痕</strong><span>雨窗感更强</span></div>
+        <div class="phone">
+          <div class="thread">
+            <div class="row role"><div class="bubble role"><span class="tag">暮雨</span><br>这几天你提到下雨和疲惫的频率变高了，我先不下结论，只把它放在今天的观察里。</div></div>
+            <div class="row me"><div class="bubble me">可以，但不要每次都提醒我，太像任务系统了。</div></div>
+            <div class="row role"><div class="bubble role">嗯，我只在它真的影响你的安排时再说。</div></div>
+          </div>
+          <div class="edge-test">边界遮罩：不改变气泡透明度</div>
+        </div>
+      </article>
+
+      <article class="option b3">
+        <div class="title"><strong>B3 厚凝露</strong><span>质感最明显</span></div>
+        <div class="phone">
+          <div class="thread">
+            <div class="row role"><div class="bubble role"><span class="tag">暮雨</span><br>你刚才说“不要让我像管理员”，这个我记住了。记录入口可以在，但不要抢走聊天的亲密感。</div></div>
+            <div class="row me"><div class="bubble me">对，聊天还是聊天，记录只是顺手发生。</div></div>
+            <div class="row role"><div class="bubble role">那我把显式记录做轻，默认不打扰。</div></div>
+          </div>
+          <div class="edge-test">边界遮罩：材质连续</div>
+        </div>
+      </article>
+
+      <article class="option b4">
+        <div class="title"><strong>B4 暗磨砂片</strong><span>最不抢文本</span></div>
+        <div class="phone">
+          <div class="thread">
+            <div class="row role"><div class="bubble role"><span class="tag">暮雨</span><br>我会先把这段当成生活线索，而不是结论。你之后可以删、改，也可以让我别再提。</div></div>
+            <div class="row me"><div class="bubble me">这样就好，不要显得我在被分析。</div></div>
+            <div class="row role"><div class="bubble role">明白。我只把它留在你能看见、能控制的地方。</div></div>
+          </div>
+          <div class="edge-test">边界遮罩：底部稳定</div>
+        </div>
+      </article>
+
+      <article class="option b5">
+        <div class="title"><strong>B5 水汽颗粒</strong><span>更柔软</span></div>
+        <div class="phone">
+          <div class="thread">
+            <div class="row role"><div class="bubble role"><span class="tag">暮雨</span><br>有些记忆不需要立刻分类，它可以先像雾一样停一会儿，等你需要的时候再凝成形状。</div></div>
+            <div class="row me"><div class="bubble me">这个比“马上生成卡片”舒服很多。</div></div>
+            <div class="row role"><div class="bubble role">那我会把确认动作放慢一点。</div></div>
+          </div>
+          <div class="edge-test">边界遮罩：无透明闪回</div>
+        </div>
+      </article>
+
+      <article class="option b6">
+        <div class="title"><strong>B6 玫瑰分层</strong><span>区分最强</span></div>
+        <div class="phone">
+          <div class="thread">
+            <div class="row role"><div class="bubble role"><span class="tag">暮雨</span><br>角色气泡更暗、更哑光，像玻璃背后的一层雾；你的气泡多一点玫瑰铜色，位置也靠右。</div></div>
+            <div class="row me"><div class="bubble me">这版能一眼看出是谁说的，但不要太亮。</div></div>
+            <div class="row role"><div class="bubble role">我把亮度压住，只保留方向感。</div></div>
+          </div>
+          <div class="edge-test">边界遮罩：气泡本体不变</div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

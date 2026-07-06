@@ -1,0 +1,1150 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>暮雨玫瑰 Chat 组件样式板 v1</title>
+  <style>
+    :root {
+      --bg: #120b0e;
+      --wine: rgba(36, 19, 25, 0.68);
+      --wine-deep: rgba(14, 8, 11, 0.76);
+      --rose: rgba(192, 100, 110, 0.34);
+      --rose-soft: rgba(192, 142, 150, 0.16);
+      --copper: rgba(255, 198, 181, 0.26);
+      --cream: rgba(255, 236, 221, 0.12);
+      --ink: rgba(246, 240, 239, 0.9);
+      --muted: rgba(246, 240, 239, 0.48);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Inter, "SF Pro Text", "Microsoft YaHei", system-ui, sans-serif;
+      background:
+        linear-gradient(180deg, rgba(12, 7, 10, 0.28), rgba(12, 7, 10, 0.88)),
+        url("../assets/images/dusky_rose_rain_glass.png") center / cover fixed,
+        var(--bg);
+    }
+
+    .page {
+      width: min(1420px, calc(100vw - 48px));
+      margin: 0 auto;
+      padding: 36px 0 48px;
+    }
+
+    .hero {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 660;
+      letter-spacing: 0;
+    }
+
+    .note {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 420px;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .sections {
+      display: grid;
+      gap: 18px;
+    }
+
+    .section {
+      position: relative;
+      overflow: hidden;
+      border-radius: 24px;
+      padding: 22px;
+      background:
+        linear-gradient(145deg, rgba(255, 236, 221, 0.045), rgba(36, 19, 25, 0.28) 42%, rgba(5, 3, 4, 0.36)),
+        rgba(20, 10, 14, 0.46);
+      box-shadow:
+        0 30px 80px rgba(0, 0, 0, 0.38),
+        inset 0 1px 0 rgba(255, 236, 221, 0.06);
+      backdrop-filter: blur(18px);
+    }
+
+    .section::before {
+      content: "";
+      position: absolute;
+      inset: 1px 24px auto;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 198, 181, 0.22), transparent);
+      pointer-events: none;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .options {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .input-options {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .option {
+      position: relative;
+      min-height: 160px;
+      border-radius: 20px;
+      padding: 16px;
+      overflow: hidden;
+      background:
+        linear-gradient(160deg, rgba(255, 236, 221, 0.035), rgba(36, 19, 25, 0.26)),
+        rgba(9, 5, 7, 0.28);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+    }
+
+    .label {
+      position: absolute;
+      left: 14px;
+      top: 12px;
+      z-index: 2;
+      color: rgba(246, 240, 239, 0.58);
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+
+    .caption {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 12px;
+      z-index: 2;
+      color: rgba(246, 240, 239, 0.54);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .droplet-stage {
+      height: 108px;
+      display: grid;
+      place-items: center;
+      padding-top: 14px;
+    }
+
+    .drop {
+      position: relative;
+      display: grid;
+      place-items: center;
+      color: rgba(246, 240, 239, 0.82);
+      isolation: isolate;
+      filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.42));
+    }
+
+    .drop::before,
+    .drop::after {
+      content: "";
+      position: absolute;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .drop::before {
+      inset: 0;
+      background:
+        radial-gradient(circle at 28% 22%, rgba(255, 236, 221, 0.28), rgba(255, 198, 181, 0.08) 28%, transparent 43%),
+        radial-gradient(circle at 76% 70%, rgba(192, 100, 110, 0.24), transparent 42%),
+        radial-gradient(circle at 50% 50%, rgba(77, 34, 43, 0.74), rgba(18, 11, 14, 0.92) 74%);
+      backdrop-filter: blur(20px);
+    }
+
+    .drop::after {
+      left: 17%;
+      right: 23%;
+      top: 8%;
+      height: 1px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, rgba(255, 236, 221, 0.32), transparent);
+    }
+
+    .drop svg {
+      width: 27px;
+      height: 27px;
+      opacity: 0.82;
+      filter: blur(0.1px);
+    }
+
+    .round-plus {
+      position: relative;
+      width: 25px;
+      height: 25px;
+      opacity: 0.86;
+      transform: rotate(var(--plus-rotation, 0deg));
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.18));
+    }
+
+    .round-plus::before,
+    .round-plus::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      border-radius: 999px;
+      background:
+        linear-gradient(145deg, rgba(255, 236, 221, 0.96), rgba(246, 240, 239, 0.68));
+      transform: translate(-50%, -50%);
+      box-shadow:
+        0 0 10px rgba(255, 198, 181, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    }
+
+    .round-plus::before {
+      width: 18px;
+      height: 4.2px;
+    }
+
+    .round-plus::after {
+      width: 4.2px;
+      height: 18px;
+    }
+
+    .drop-a {
+      width: 76px;
+      height: 58px;
+      transform: rotate(-5deg);
+    }
+
+    .drop-a::before {
+      border-radius: 46% 57% 48% 59% / 43% 48% 58% 54%;
+    }
+
+    .drop-b {
+      width: 84px;
+      height: 54px;
+      transform: rotate(-9deg);
+    }
+
+    .drop-b::before {
+      border-radius: 58% 45% 56% 47% / 42% 54% 48% 62%;
+      background:
+        radial-gradient(circle at 24% 18%, rgba(255, 236, 221, 0.32), rgba(255, 198, 181, 0.1) 30%, transparent 45%),
+        radial-gradient(circle at 78% 72%, rgba(192, 100, 110, 0.28), transparent 40%),
+        linear-gradient(145deg, rgba(255, 236, 221, 0.08), rgba(77, 34, 43, 0.72) 42%, rgba(18, 11, 14, 0.9));
+    }
+
+    .drop-c {
+      --plus-rotation: -6deg;
+      width: 72px;
+      height: 62px;
+      transform: rotate(6deg);
+    }
+
+    .drop-c::before {
+      border-radius: 42% 62% 53% 47% / 48% 38% 66% 52%;
+      background:
+        radial-gradient(circle at 34% 20%, rgba(255, 236, 221, 0.22), rgba(255, 198, 181, 0.06) 30%, transparent 45%),
+        radial-gradient(circle at 60% 76%, rgba(192, 100, 110, 0.26), transparent 46%),
+        radial-gradient(circle at 48% 50%, rgba(58, 33, 35, 0.74), rgba(10, 6, 8, 0.92) 76%);
+    }
+
+    .drop-d {
+      width: 78px;
+      height: 56px;
+      transform: rotate(4deg);
+    }
+
+    .drop-d::before {
+      border-radius: 52% 47% 42% 62% / 50% 42% 60% 54%;
+      background:
+        radial-gradient(ellipse at 28% 18%, rgba(255, 236, 221, 0.20), transparent 45%),
+        radial-gradient(ellipse at 73% 66%, rgba(224, 160, 111, 0.16), transparent 48%),
+        linear-gradient(135deg, rgba(255, 236, 221, 0.05), rgba(77, 34, 43, 0.70) 48%, rgba(9, 5, 7, 0.88));
+    }
+
+    .input-sample {
+      height: 138px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .input-row {
+      width: min(100%, 470px);
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+    }
+
+    .input-row.embedded {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .add-bubble {
+      position: relative;
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      overflow: hidden;
+      color: rgba(246, 240, 239, 0.88);
+      background:
+        radial-gradient(circle at 28% 20%, rgba(255, 236, 221, 0.12), transparent 38%),
+        linear-gradient(145deg, rgba(58, 33, 35, 0.58), rgba(18, 11, 14, 0.70));
+      border: 1px solid rgba(255, 255, 255, 0.045);
+      box-shadow:
+        0 16px 30px rgba(0, 0, 0, 0.34),
+        0 0 18px rgba(192, 100, 110, 0.08),
+        inset 0 1px 0 rgba(255, 236, 221, 0.055);
+      backdrop-filter: blur(20px);
+    }
+
+    .add-bubble::before {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 2px;
+      height: 1px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, rgba(255, 198, 181, 0.18), transparent);
+    }
+
+    .soft-plus {
+      position: relative;
+      width: 24px;
+      height: 24px;
+    }
+
+    .soft-plus::before,
+    .soft-plus::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      border-radius: 999px;
+      background: rgba(246, 240, 239, 0.88);
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 10px rgba(255, 198, 181, 0.10);
+    }
+
+    .soft-plus::before {
+      width: 20px;
+      height: 3.6px;
+    }
+
+    .soft-plus::after {
+      width: 3.6px;
+      height: 20px;
+    }
+
+    .composer {
+      position: relative;
+      width: 100%;
+      height: 56px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 38px 38px 44px;
+      gap: 6px;
+      align-items: center;
+      padding: 6px 7px 6px 18px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 15px;
+      overflow: hidden;
+      isolation: isolate;
+      box-shadow:
+        0 18px 36px rgba(0, 0, 0, 0.35),
+        0 0 24px rgba(192, 100, 110, 0.13);
+      backdrop-filter: blur(26px);
+    }
+
+    .composer.empty {
+      grid-template-columns: minmax(0, 1fr) 38px 38px;
+    }
+
+    .composer.embedded-empty {
+      grid-template-columns: 38px minmax(0, 1fr) 38px 38px;
+      padding-left: 8px;
+    }
+
+    .composer.sending {
+      grid-template-columns: minmax(0, 1fr) 44px;
+    }
+
+    .composer.multiline {
+      height: 94px;
+      grid-template-columns: minmax(0, 1fr) 44px;
+      align-items: end;
+      padding: 13px 9px 10px 18px;
+      border-radius: 24px;
+    }
+
+    .composer.rounded-rect {
+      border-radius: 22px;
+    }
+
+    .composer::before,
+    .composer::after {
+      content: "";
+      position: absolute;
+      pointer-events: none;
+      border-radius: inherit;
+      z-index: -1;
+    }
+
+    .composer::before {
+      inset: 0;
+      border: 1px solid rgba(255, 255, 255, 0.055);
+      background:
+        radial-gradient(circle at 18% 16%, rgba(255, 236, 221, 0.12), transparent 34%),
+        radial-gradient(circle at 88% 52%, rgba(255, 210, 200, 0.12), transparent 34%),
+        linear-gradient(145deg, rgba(255, 236, 221, 0.055), rgba(192, 142, 150, 0.10) 42%, rgba(58, 33, 35, 0.62) 72%, rgba(20, 10, 14, 0.56)),
+        rgba(58, 33, 35, 0.62);
+    }
+
+    .composer::after {
+      left: 14px;
+      right: 14px;
+      top: 0;
+      height: 16px;
+      background: linear-gradient(180deg, rgba(255, 198, 181, 0.10), rgba(255, 236, 221, 0.025), transparent);
+    }
+
+    .composer .shade {
+      position: absolute;
+      left: 9px;
+      right: 9px;
+      bottom: 0;
+      height: 20px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.22));
+      pointer-events: none;
+    }
+
+    .composer .inner-reflection {
+      position: absolute;
+      left: 44px;
+      right: 118px;
+      top: 11px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, rgba(255, 236, 221, 0.045), rgba(255, 198, 181, 0.035), transparent);
+      pointer-events: none;
+    }
+
+    .composer .slot {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      position: relative;
+      z-index: 1;
+      color: rgba(246, 240, 239, 0.42);
+    }
+
+    .composer.multiline .slot {
+      white-space: normal;
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      line-height: 1.45;
+      color: rgba(246, 240, 239, 0.72);
+    }
+
+    .circle-btn {
+      position: relative;
+      z-index: 1;
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      color: rgba(246, 240, 239, 0.84);
+      background:
+        radial-gradient(circle at 28% 22%, rgba(255, 236, 221, 0.08), transparent 38%),
+        linear-gradient(145deg, rgba(58, 33, 35, 0.40), rgba(18, 11, 14, 0.54));
+      border: 1px solid rgba(255, 255, 255, 0.035);
+      box-shadow: inset 0 1px 0 rgba(255, 236, 221, 0.045);
+    }
+
+    .inline-add {
+      width: 38px;
+      height: 38px;
+      background:
+        radial-gradient(circle at 28% 22%, rgba(255, 236, 221, 0.08), transparent 38%),
+        linear-gradient(145deg, rgba(58, 33, 35, 0.32), rgba(18, 11, 14, 0.46));
+    }
+
+    .inline-add .soft-plus {
+      width: 18px;
+      height: 18px;
+    }
+
+    .inline-add .soft-plus::before {
+      width: 15px;
+      height: 3px;
+    }
+
+    .inline-add .soft-plus::after {
+      width: 3px;
+      height: 15px;
+    }
+
+    .circle-btn svg {
+      width: 21px;
+      height: 21px;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    .voice-bars {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2.6px;
+      width: 24px;
+      height: 24px;
+    }
+
+    .voice-bars i {
+      display: block;
+      width: 2.5px;
+      border-radius: 999px;
+      background: rgba(246, 240, 239, 0.86);
+    }
+
+    .voice-bars i:nth-child(1) {
+      height: 14px;
+    }
+
+    .voice-bars i:nth-child(2) {
+      height: 24px;
+    }
+
+    .voice-bars i:nth-child(3) {
+      height: 18px;
+    }
+
+    .voice-bars i:nth-child(4) {
+      height: 13px;
+    }
+
+    .send {
+      width: 42px;
+      height: 42px;
+      background:
+        radial-gradient(circle at 30% 22%, rgba(255, 210, 200, 0.25), transparent 36%),
+        linear-gradient(145deg, rgba(192, 100, 110, 0.55), rgba(77, 34, 43, 0.68));
+      box-shadow:
+        0 0 18px rgba(192, 100, 110, 0.20),
+        inset 0 1px 0 rgba(255, 236, 221, 0.08);
+    }
+
+    .send-plane svg {
+      width: 22px;
+      height: 22px;
+      transform: translateX(1px) rotate(-2deg);
+    }
+
+    .composer-standard {
+      box-shadow:
+        0 18px 36px rgba(0, 0, 0, 0.35),
+        0 0 24px rgba(192, 100, 110, 0.13);
+    }
+
+    .composer-copper {
+      box-shadow:
+        0 18px 36px rgba(0, 0, 0, 0.35),
+        0 0 30px rgba(224, 160, 111, 0.16);
+    }
+
+    .composer-copper::before {
+      background:
+        radial-gradient(circle at 16% 14%, rgba(255, 236, 221, 0.11), transparent 34%),
+        radial-gradient(circle at 88% 52%, rgba(255, 198, 181, 0.15), transparent 36%),
+        linear-gradient(145deg, rgba(255, 236, 221, 0.045), rgba(224, 160, 111, 0.075) 34%, rgba(192, 142, 150, 0.10) 48%, rgba(58, 33, 35, 0.64) 76%),
+        rgba(58, 33, 35, 0.62);
+    }
+
+    .composer-copper::after {
+      background: linear-gradient(90deg, transparent, rgba(255, 198, 181, 0.38), rgba(224, 160, 111, 0.20), transparent);
+    }
+
+    .composer-active {
+      box-shadow:
+        0 18px 36px rgba(0, 0, 0, 0.33),
+        0 0 32px rgba(192, 100, 110, 0.18);
+    }
+
+    .composer-active::before {
+      background:
+        radial-gradient(circle at 18% 16%, rgba(255, 236, 221, 0.15), transparent 34%),
+        radial-gradient(circle at 86% 50%, rgba(255, 210, 200, 0.16), transparent 34%),
+        linear-gradient(145deg, rgba(255, 236, 221, 0.07), rgba(192, 142, 150, 0.13) 42%, rgba(58, 33, 35, 0.60) 72%, rgba(20, 10, 14, 0.52)),
+        rgba(58, 33, 35, 0.62);
+    }
+
+    .composer-active .slot {
+      color: rgba(246, 240, 239, 0.72);
+    }
+
+    .composer-active .send {
+      background:
+        radial-gradient(circle at 30% 22%, rgba(255, 210, 200, 0.32), transparent 36%),
+        linear-gradient(145deg, rgba(207, 112, 122, 0.64), rgba(88, 38, 48, 0.70));
+    }
+
+    .composer-voice {
+      box-shadow:
+        0 18px 36px rgba(0, 0, 0, 0.35),
+        0 0 28px rgba(192, 100, 110, 0.14);
+    }
+
+    .composer-voice::before {
+      background:
+        radial-gradient(circle at 18% 16%, rgba(255, 236, 221, 0.11), transparent 34%),
+        radial-gradient(circle at 72% 50%, rgba(255, 198, 181, 0.11), transparent 34%),
+        linear-gradient(145deg, rgba(255, 236, 221, 0.045), rgba(192, 142, 150, 0.10) 42%, rgba(58, 33, 35, 0.62) 72%, rgba(20, 10, 14, 0.56)),
+        rgba(58, 33, 35, 0.62);
+    }
+
+    .composer-voice .mic {
+      box-shadow:
+        0 0 18px rgba(255, 198, 181, 0.16),
+        inset 0 1px 0 rgba(255, 236, 221, 0.06);
+    }
+
+    .voice-wave {
+      position: relative;
+      z-index: 1;
+      justify-self: start;
+      width: 86px;
+      height: 18px;
+      display: none;
+      align-items: center;
+      gap: 4px;
+      margin-left: 2px;
+      opacity: 0.34;
+    }
+
+    .composer-voice .voice-wave {
+      display: flex;
+    }
+
+    .voice-wave i {
+      width: 3px;
+      border-radius: 999px;
+      background: rgba(255, 198, 181, 0.8);
+    }
+
+    .voice-wave i:nth-child(1) { height: 7px; }
+    .voice-wave i:nth-child(2) { height: 13px; }
+    .voice-wave i:nth-child(3) { height: 9px; }
+    .voice-wave i:nth-child(4) { height: 16px; }
+    .voice-wave i:nth-child(5) { height: 10px; }
+    .voice-wave i:nth-child(6) { height: 14px; }
+    .voice-wave i:nth-child(7) { height: 8px; }
+
+    .composer-voice .slot {
+      display: none;
+    }
+
+    .bubble-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .bubble-option {
+      min-height: 230px;
+    }
+
+    .bubble {
+      position: relative;
+      margin-top: 28px;
+      padding: 18px 18px 16px;
+      min-height: 132px;
+      border-radius: 7px 20px 20px 20px;
+      color: rgba(246, 240, 239, 0.88);
+      font-size: 15px;
+      line-height: 1.75;
+      overflow: hidden;
+      backdrop-filter: blur(22px);
+      box-shadow:
+        0 18px 34px rgba(0, 0, 0, 0.32),
+        inset 0 1px 0 rgba(255, 236, 221, 0.035);
+    }
+
+    .bubble::before,
+    .bubble::after {
+      content: "";
+      position: absolute;
+      pointer-events: none;
+      border-radius: inherit;
+      z-index: -1;
+    }
+
+    .bubble::before {
+      inset: 0;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      background:
+        radial-gradient(circle at 12% 12%, rgba(255, 236, 221, 0.08), transparent 35%),
+        linear-gradient(150deg, rgba(74, 37, 43, 0.42), rgba(36, 19, 25, 0.70) 58%, rgba(6, 4, 5, 0.72));
+    }
+
+    .bubble::after {
+      left: 18px;
+      right: 28px;
+      top: 1px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 198, 181, 0.16), transparent);
+    }
+
+    .bubble-heavy::before {
+      background:
+        radial-gradient(circle at 12% 12%, rgba(255, 236, 221, 0.06), transparent 35%),
+        linear-gradient(150deg, rgba(58, 30, 36, 0.50), rgba(20, 11, 15, 0.76) 60%, rgba(3, 2, 3, 0.76));
+    }
+
+    .bubble-rose::before {
+      background:
+        radial-gradient(circle at 16% 13%, rgba(255, 236, 221, 0.10), transparent 35%),
+        radial-gradient(circle at 86% 28%, rgba(192, 100, 110, 0.14), transparent 36%),
+        linear-gradient(150deg, rgba(91, 48, 55, 0.46), rgba(36, 19, 25, 0.66) 56%, rgba(8, 5, 6, 0.74));
+    }
+
+    .bubble .tools {
+      display: flex;
+      gap: 18px;
+      margin-top: 18px;
+      opacity: 0.62;
+    }
+
+    .phone {
+      position: sticky;
+      top: 24px;
+      width: 420px;
+      height: 860px;
+      border-radius: 36px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(8, 4, 6, 0.18), rgba(8, 4, 6, 0.82)),
+        url("../assets/images/dusky_rose_rain_glass.png") center / cover;
+      box-shadow:
+        0 40px 100px rgba(0, 0, 0, 0.56),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    .status {
+      display: flex;
+      justify-content: space-between;
+      padding: 18px 22px 0;
+      color: rgba(246, 240, 239, 0.72);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .chat-preview {
+      padding: 52px 18px 0;
+    }
+
+    .avatar-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .avatar {
+      width: 54px;
+      height: 54px;
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 45% 30%, rgba(255, 236, 221, 0.92), rgba(255, 158, 118, 0.72) 44%, rgba(20, 12, 14, 0.78));
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
+    }
+
+    .name-mark {
+      width: 8px;
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(246, 240, 239, 0.78);
+    }
+
+    .phone .bubble {
+      margin: 0 0 24px;
+      font-size: 18px;
+      line-height: 1.72;
+      min-height: auto;
+    }
+
+    .phone .bubble.user {
+      width: 86%;
+      margin-left: auto;
+      border-radius: 20px 7px 20px 20px;
+    }
+
+    .floating-drop {
+      position: absolute;
+      right: 30px;
+      bottom: 128px;
+    }
+
+    .phone-composer {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 34px;
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .phone-composer.embedded {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .plus {
+      width: 56px;
+      height: 56px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 28% 20%, rgba(255, 236, 221, 0.10), transparent 38%),
+        linear-gradient(145deg, rgba(58, 33, 35, 0.50), rgba(10, 6, 8, 0.68));
+      border: 1px solid rgba(255, 255, 255, 0.035);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 16px 30px rgba(0, 0, 0, 0.34);
+      font-size: 38px;
+      font-weight: 250;
+    }
+
+    .phone .composer {
+      width: 100%;
+    }
+
+    svg {
+      display: block;
+    }
+
+    @media (max-width: 1100px) {
+      .board {
+        grid-template-columns: 1fr;
+      }
+
+      .phone {
+        position: relative;
+        top: auto;
+        margin: 0 auto;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        width: calc(100vw - 24px);
+        padding-top: 20px;
+      }
+
+      .hero {
+        display: block;
+      }
+
+      .options,
+      .bubble-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .phone {
+        width: min(420px, 100%);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <h1>暮雨玫瑰 Chat 组件样式板 v1</h1>
+        <div class="note">只用于挑视觉方向：标签和说明不会进入 App。先选水滴、输入框、气泡，再落到 Flutter。</div>
+      </div>
+      <div class="note">建议优先看右侧手机预览，再回到左侧挑具体方案。</div>
+    </section>
+
+    <div class="board">
+      <div class="sections">
+        <section class="section">
+          <div class="section-title">
+            <h2>悬浮记录水滴</h2>
+            <span class="hint">目标：不是蛋，不是 FAB，是贴在雨夜玻璃上的温热水珠</span>
+          </div>
+          <div class="options">
+            <div class="option">
+              <div class="label">D1 / 圆润水珠</div>
+              <div class="droplet-stage">
+                <div class="drop drop-a">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="currentColor" d="M5 5.8h9.7v1.8H5V5.8Zm0 5.2h13.6v1.8H5V11Zm0 5.2h8.2V18H5v-1.8Zm12.2-.7h1.8v2.2h2.2v1.8H19v2.2h-1.8v-2.2H15v-1.8h2.2v-2.2Z"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="caption">最稳妥，偏圆但有轻微不规则，适合保守落地。</div>
+            </div>
+
+            <div class="option">
+              <div class="label">D2 / 扁平贴玻璃</div>
+              <div class="droplet-stage">
+                <div class="drop drop-b">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="currentColor" d="M5 5.8h9.7v1.8H5V5.8Zm0 5.2h13.6v1.8H5V11Zm0 5.2h8.2V18H5v-1.8Zm12.2-.7h1.8v2.2h2.2v1.8H19v2.2h-1.8v-2.2H15v-1.8h2.2v-2.2Z"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="caption">最不像蛋，像被表面张力压在玻璃上的水珠。</div>
+            </div>
+
+            <div class="option">
+              <div class="label">D3 / 厚重凝珠</div>
+              <div class="droplet-stage">
+                <div class="drop drop-c">
+                  <span class="round-plus" aria-hidden="true"></span>
+                </div>
+              </div>
+              <div class="caption">更有重量和液体厚度，但会更显眼。</div>
+            </div>
+
+            <div class="option">
+              <div class="label">D4 / 暖光薄膜</div>
+              <div class="droplet-stage">
+                <div class="drop drop-d">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="currentColor" d="M5 5.8h9.7v1.8H5V5.8Zm0 5.2h13.6v1.8H5V11Zm0 5.2h8.2V18H5v-1.8Zm12.2-.7h1.8v2.2h2.2v1.8H19v2.2h-1.8v-2.2H15v-1.8h2.2v-2.2Z"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="caption">边界最弱，像一小片鼓起的液态玻璃膜。</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">
+            <h2>底部输入框</h2>
+            <span class="hint">目标：规整胶囊，材质靠多层浮光，不靠完整白边</span>
+          </div>
+          <div class="options input-options">
+            <div class="option">
+              <div class="label">I1 / 外置加号空态</div>
+              <div class="input-sample">
+                <div class="input-row">
+                  <div class="add-bubble"><span class="soft-plus" aria-hidden="true"></span></div>
+                  <div class="composer composer-standard rounded-rect empty">
+                    <span class="shade"></span>
+                    <span class="inner-reflection"></span>
+                    <span class="slot">发消息给暮雨…</span>
+                    <span class="voice-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                    <span class="circle-btn mic">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3Z"></path>
+                        <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0"></path>
+                        <path d="M12 17v3"></path>
+                      </svg>
+                    </span>
+                    <span class="circle-btn"><span class="voice-bars"><i></i><i></i><i></i><i></i></span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="caption">保留当前“加号独立”逻辑；输入框更宽的钝角矩形，右侧只有麦克风和语音模式。</div>
+            </div>
+
+            <div class="option">
+              <div class="label">I2 / 内置加号空态</div>
+              <div class="input-sample">
+                <div class="input-row embedded">
+                  <div class="composer composer-copper rounded-rect embedded-empty">
+                    <span class="shade"></span>
+                    <span class="inner-reflection"></span>
+                    <span class="circle-btn inline-add"><span class="soft-plus" aria-hidden="true"></span></span>
+                    <span class="slot">发消息给暮雨…</span>
+                    <span class="voice-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                    <span class="circle-btn mic">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3Z"></path>
+                        <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0"></path>
+                        <path d="M12 17v3"></path>
+                      </svg>
+                    </span>
+                    <span class="circle-btn"><span class="voice-bars"><i></i><i></i><i></i><i></i></span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="caption">加号收回输入框内部，减少外部占位；整体更完整，但文本起始位置会更靠右。</div>
+            </div>
+
+            <div class="option">
+              <div class="label">I3 / 输入后发送态</div>
+              <div class="input-sample">
+                <div class="input-row">
+                  <div class="add-bubble"><span class="soft-plus" aria-hidden="true"></span></div>
+                  <div class="composer composer-active rounded-rect sending">
+                    <span class="shade"></span>
+                    <span class="inner-reflection"></span>
+                    <span class="slot">今晚想和你说件事</span>
+                    <span class="voice-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                    <span class="circle-btn send send-plane">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M21 3 10.8 13.2"></path>
+                        <path d="m21 3-6.5 18-3.7-7.8L3 9.5 21 3Z"></path>
+                      </svg>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="caption">有文字后右侧两个语音键收起，只保留纸飞机发送键；不使用向上箭头。</div>
+            </div>
+
+            <div class="option">
+              <div class="label">I4 / 多行增长态</div>
+              <div class="input-sample">
+                <div class="input-row">
+                  <div class="add-bubble"><span class="soft-plus" aria-hidden="true"></span></div>
+                  <div class="composer composer-active rounded-rect multiline">
+                    <span class="shade"></span>
+                    <span class="inner-reflection"></span>
+                    <span class="slot">如果我输入的内容变多，输入框应该向上长高，而不是把胶囊挤变形。</span>
+                    <span class="voice-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                    <span class="circle-btn send send-plane">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M21 3 10.8 13.2"></path>
+                        <path d="m21 3-6.5 18-3.7-7.8L3 9.5 21 3Z"></path>
+                      </svg>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="caption">长文本时变成钝角玻璃矩形并向上增长，保留纸飞机发送，不挤压成畸形胶囊。</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">
+            <h2>聊天气泡</h2>
+            <span class="hint">目标：回到清楚的深色磨砂玻璃，不做浅白卡片</span>
+          </div>
+          <div class="options bubble-grid">
+            <div class="option bubble-option">
+              <div class="label">B1 / 柔磨砂</div>
+              <div class="bubble">
+                刚才确实有点迟钝。你说这个功能做了很久，我绕了一圈才反应过来，该我检讨。
+                <div class="tools">◖  ⧉</div>
+              </div>
+              <div class="caption">偏清透，背景雨滴能看见，文字仍然清楚。</div>
+            </div>
+
+            <div class="option bubble-option">
+              <div class="label">B2 / 厚磨砂</div>
+              <div class="bubble bubble-heavy">
+                刚才确实有点迟钝。你说这个功能做了很久，我绕了一圈才反应过来，该我检讨。
+                <div class="tools">◖  ⧉</div>
+              </div>
+              <div class="caption">更像第一版的清晰磨砂，底图区分最强。</div>
+            </div>
+
+            <div class="option bubble-option">
+              <div class="label">B3 / 玫瑰雾面</div>
+              <div class="bubble bubble-rose">
+                刚才确实有点迟钝。你说这个功能做了很久，我绕了一圈才反应过来，该我检讨。
+                <div class="tools">◖  ⧉</div>
+              </div>
+              <div class="caption">玫瑰感更强，适合更亲密但会更显色。</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="phone" aria-label="手机组合预览">
+        <div class="status">
+          <span>22:47</span>
+          <span>5G  82%</span>
+        </div>
+        <div class="chat-preview">
+          <div class="avatar-row">
+            <div class="avatar"></div>
+            <div class="name-mark"></div>
+          </div>
+
+          <div class="bubble bubble-heavy">
+            刚才确实有点迟钝。你说这个功能做了很久，我还绕了一圈才反应过来。该我检讨。
+            <div class="tools">◖  ⧉</div>
+          </div>
+
+          <div class="bubble bubble-rose user">
+            我就是想要它像雨夜玻璃，不要像普通输入框。
+            <div class="tools">⧉  ↶</div>
+          </div>
+        </div>
+
+        <div class="floating-drop">
+          <div class="drop drop-c">
+            <span class="round-plus" aria-hidden="true"></span>
+          </div>
+        </div>
+
+        <div class="phone-composer embedded">
+          <div class="composer composer-copper rounded-rect embedded-empty">
+            <span class="shade"></span>
+            <span class="inner-reflection"></span>
+            <span class="circle-btn inline-add"><span class="soft-plus" aria-hidden="true"></span></span>
+            <span class="slot">发消息给暮雨…</span>
+            <span class="voice-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            <span class="circle-btn mic">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3Z"></path>
+                <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0"></path>
+                <path d="M12 17v3"></path>
+              </svg>
+            </span>
+            <span class="circle-btn"><span class="voice-bars"><i></i><i></i><i></i><i></i></span></span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>
