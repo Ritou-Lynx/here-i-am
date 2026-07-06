@@ -332,15 +332,6 @@ abstract class AppLocalizations {
   /// **'Personal center'**
   String get personalCenter;
 
-  /// Health panel tab label.
-  String get healthPanel;
-
-  /// Prompt to connect COROS for health data.
-  String get healthConnectCoros;
-
-  /// Hint to open COROS app to sync watch.
-  String get healthSyncHint;
-
   /// No description provided for @viewLogs.
   ///
   /// In en, this message translates to:

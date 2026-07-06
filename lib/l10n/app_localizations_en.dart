@@ -142,15 +142,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get personalCenter => 'Personal center';
 
   @override
-  String get healthPanel => 'Health';
-
-  @override
-  String get healthConnectCoros => 'Connect COROS for more health data';
-
-  @override
-  String get healthSyncHint => 'Open COROS app to sync watch data';
-
-  @override
   String get viewLogs => 'View logs';
 
   @override
