@@ -7,12 +7,10 @@ import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_controller.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
-import 'package:memex/ui/settings/widgets/asr_config_page.dart';
 import 'package:memex/ui/settings/widgets/shopping_config_page.dart';
 import 'package:memex/ui/settings/widgets/toy_config_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
-import 'package:memex/ui/settings/widgets/weread_connect_page.dart';
 import 'package:memex/ui/settings/widgets/xhs_connect_page.dart';
 import 'package:memex/data/services/reading/xhs/xhs_cookie_repository.dart';
 import 'package:memex/data/services/checkin_service.dart';
@@ -37,9 +35,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   String _currentLang = 'en';
-  bool _useLocalSpeechToText = true;
   bool _corosConnected = false;
-  bool _wereadConnected = false;
   bool _checkinEnabled = false;
   final _elevenLabsApiKeyController = TextEditingController();
   final _miniMaxApiKeyController = TextEditingController();
@@ -55,13 +51,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadSettings() async {
     final locale = await UserStorage.getLocale();
-    final useLocalSpeechToText = await UserStorage.getUseLocalSpeechToText();
     final userId = await UserStorage.getUserId();
     var corosConnected = false;
-    var wereadConnected = false;
     if (userId != null) {
       corosConnected = await McpTokenStorage(userId: userId).hasToken();
-      wereadConnected = await _loadWereadConnectionStatus(userId);
       _checkinEnabled = await CheckinService.instance.isEnabled();
       final apiKey = await UserStorage.getElevenLabsApiKey();
       if (apiKey != null) {
@@ -81,25 +74,8 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) {
       setState(() {
         _currentLang = locale.languageCode == 'zh' ? 'zh' : 'en';
-        _useLocalSpeechToText = useLocalSpeechToText;
         _corosConnected = corosConnected;
-        _wereadConnected = wereadConnected;
       });
-    }
-  }
-
-  Future<bool> _loadWereadConnectionStatus(String userId) async {
-    final configs = await CustomAgentConfigService.instance.loadAll(userId);
-    final config = configs.where((c) => c.agentName == 'weread').firstOrNull;
-    return RegExp(r'wrk-[A-Za-z0-9]+').hasMatch(config?.systemPrompt ?? '');
-  }
-
-  Future<void> _refreshWereadConnectionStatus() async {
-    final userId = await UserStorage.getUserId();
-    final connected =
-        userId == null ? false : await _loadWereadConnectionStatus(userId);
-    if (mounted) {
-      setState(() => _wereadConnected = connected);
     }
   }
 
@@ -121,13 +97,6 @@ class _SettingsPageState extends State<SettingsPage> {
     await UserStorage.initL10n();
     if (mounted) {
       setState(() => _currentLang = langCode);
-    }
-  }
-
-  Future<void> _updateUseLocalSpeechToText(bool value) async {
-    await UserStorage.setUseLocalSpeechToText(value);
-    if (mounted) {
-      setState(() => _useLocalSpeechToText = value);
     }
   }
 
@@ -232,50 +201,6 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 16),
           _buildVisualThemeCard(),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.textSecondary.withValues(alpha: 0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              secondary: Icon(
-                Icons.graphic_eq,
-                color: AppColors.primary,
-                size: 22,
-              ),
-              title: Text(
-                UserStorage.l10n.useLocalSpeechToTextTitle,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  UserStorage.l10n.useLocalSpeechToTextDesc,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                    height: 1.4,
-                  ),
-                ),
-              ),
-              value: _useLocalSpeechToText,
-              onChanged: _updateUseLocalSpeechToText,
-            ),
-          ),
           const SizedBox(height: 16),
           // TTS 语音
           Container(
@@ -827,144 +752,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               );
             },
-          ),
-          const SizedBox(height: 16),
-          // WeRead Connect
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const WereadConnectPage(),
-                  ),
-                );
-                if (mounted) {
-                  await _refreshWereadConnectionStatus();
-                }
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.textSecondary.withValues(alpha: 0.08),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.menu_book_outlined,
-                      color: AppColors.primary,
-                      size: 22,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            '微信读书',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _wereadConnected ? '已连接' : '连接书架、阅读进度和最近阅读摘要',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color:
-                                  _wereadConnected ? Colors.green : Colors.grey,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_wereadConnected)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 8),
-                        child: Icon(Icons.check_circle,
-                            color: Colors.green, size: 20),
-                      ),
-                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Voice input (ASR) config
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AsrConfigPage(),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.textSecondary.withValues(alpha: 0.08),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.mic_none, color: AppColors.primary, size: 22),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '语音输入',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            '配置阿里 NLS 凭证，在 companion 聊天中按麦克风/翻页器说话',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
-                  ],
-                ),
-              ),
-            ),
           ),
           const SizedBox(height: 16),
           // Shopping assistant config

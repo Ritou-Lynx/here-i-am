@@ -1,0 +1,214 @@
+/// V3 Episode consolidator.
+///
+/// Pure analysis layer: assembles fragment summaries into prompt context,
+/// calls the caller-supplied LLM (MAIN model), and parses JSON into
+/// [EpisodeConsolidationResult]. Persistence lives in
+/// services/dreaming_orchestrator_service.dart.
+library;
+
+import 'dart:convert';
+
+import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:memex/data/memory_v3/models/episode_consolidation.dart';
+import 'package:memex/db/app_database.dart';
+import 'package:memex/utils/logger.dart';
+
+import 'episode_prompt.dart';
+
+final _logger = getLogger('memory_v3.EpisodeConsolidator');
+
+class EpisodeConsolidatorV3 {
+  const EpisodeConsolidatorV3();
+
+  /// Try to condense fragments for one entity into an episode.
+  ///
+  /// Returns [EpisodeConsolidationResult] with up to 2 episodes (split when
+  /// fragments clearly describe distinct events). Returns empty result when
+  /// the LLM judges the fragments too scattered or trivial to condense.
+  Future<EpisodeConsolidationResult> consolidate({
+    required LLMClient client,
+    required ModelConfig modelConfig,
+    required String entityId,
+    required String entityName,
+    required String entityCategory,
+    required List<MemoryFragment> fragments,
+  }) async {
+    if (fragments.length < 3) {
+      return EpisodeConsolidationResult(
+        episodes: const [],
+        skippedEntityIds: [entityId],
+        isDryRun: false,
+      );
+    }
+
+    final fragmentInputs = fragments
+        .map((f) => {
+              'id': f.id,
+              'content': f.content,
+              'emotionalWeight': f.emotionalWeight,
+              'createdAt':
+                  DateTime.fromMillisecondsSinceEpoch(f.createdAt)
+                      .toIso8601String(),
+            })
+        .toList();
+
+    final payload = <String, dynamic>{
+      'entity': {
+        'id': entityId,
+        'name': entityName,
+        'category': entityCategory,
+      },
+      'fragmentCount': fragments.length,
+      'fragments': fragmentInputs,
+    };
+
+    final systemPrompt = episodeConsolidatorSystemPromptV3(
+      entityName: entityName,
+      entityCategory: entityCategory,
+    );
+
+    final requestMessages = [
+      SystemMessage(systemPrompt),
+      UserMessage([TextPart(jsonEncode(payload))]),
+    ];
+    final mc = ModelConfig(
+      model: modelConfig.model,
+      maxTokens: 4096,
+      extra: modelConfig.extra,
+    );
+
+    final firstText =
+        (await client.generate(requestMessages, modelConfig: mc)).textOutput;
+    if (firstText == null || firstText.trim().isEmpty) {
+      throw const FormatException('Episode Consolidator returned no output');
+    }
+    try {
+      return _parse(firstText, entityId);
+    } on FormatException catch (e) {
+      final snippet =
+          firstText.length > 300 ? firstText.substring(0, 300) : firstText;
+      _logger.warning(
+        'Episode parse failed ($e). Retrying. Raw (first 300): $snippet',
+      );
+    }
+
+    // Retry once
+    final retryMessages = [
+      SystemMessage(systemPrompt),
+      UserMessage([
+        TextPart(jsonEncode(payload)),
+        TextPart(
+          'STRICT: Reply with ONLY a single JSON object. '
+          'No markdown fences, no commentary. First char must be "{".',
+        ),
+      ]),
+    ];
+    final retryText =
+        (await client.generate(retryMessages, modelConfig: mc)).textOutput;
+    if (retryText == null || retryText.trim().isEmpty) {
+      throw const FormatException(
+        'Episode Consolidator retry returned no output',
+      );
+    }
+    try {
+      return _parse(retryText, entityId);
+    } on FormatException {
+      final snippet =
+          retryText.length > 400 ? retryText.substring(0, 400) : retryText;
+      _logger.severe(
+        'Episode retry parse also failed. Raw (first 400): $snippet',
+      );
+      throw FormatException(
+        'Episode Consolidator returned invalid JSON after retry. '
+        'Raw: $snippet',
+      );
+    }
+  }
+
+  EpisodeConsolidationResult _parse(String raw, String entityId) {
+    var trimmed = raw.trim();
+    trimmed = trimmed.replaceAll(RegExp(r'<think>[\s\S]*?</think>'), '');
+    final unclosedThink = trimmed.indexOf('<think>');
+    if (unclosedThink >= 0) {
+      final braceAfter = trimmed.indexOf('{', unclosedThink);
+      trimmed = braceAfter >= 0 ? trimmed.substring(braceAfter) : '';
+    }
+
+    var fenceMatch = RegExp(
+      r'^```(?:json|JSON)?\s*\n([\s\S]*?)\n```\s*$',
+    ).firstMatch(trimmed);
+    fenceMatch ??= RegExp(
+      r'```(?:json|JSON)?\s*\n([\s\S]*?)\n```',
+    ).firstMatch(trimmed);
+    if (fenceMatch != null) {
+      trimmed = fenceMatch.group(1)!.trim();
+    }
+
+    final start = trimmed.indexOf('{');
+    final end = trimmed.lastIndexOf('}');
+    if (start < 0 || end <= start) {
+      throw const FormatException(
+        'Episode Consolidator response contains no JSON',
+      );
+    }
+    var jsonPart = trimmed.substring(start, end + 1);
+    jsonPart = jsonPart.replaceAll(RegExp(r',(\s*[}\]])'), r'$1');
+    jsonPart = jsonPart.replaceAll(',,', ',');
+    final decoded = jsonDecode(jsonPart);
+    if (decoded is! Map) {
+      throw const FormatException(
+        'Episode Consolidator JSON root must be an object',
+      );
+    }
+    final map = decoded.cast<String, dynamic>();
+
+    final skipReason = map['skip_reason'] as String?;
+    if (skipReason != null && skipReason.isNotEmpty) {
+      _logger.info('Episode Consolidator skipped entity $entityId: $skipReason');
+      return EpisodeConsolidationResult(
+        episodes: const [],
+        skippedEntityIds: [entityId],
+        isDryRun: false,
+      );
+    }
+
+    final episodeList = map['episodes'] as List<dynamic>?;
+    if (episodeList == null || episodeList.isEmpty) {
+      return EpisodeConsolidationResult(
+        episodes: const [],
+        skippedEntityIds: [entityId],
+        isDryRun: false,
+      );
+    }
+
+    final episodes = episodeList.map((e) {
+      final em = e as Map<String, dynamic>;
+      // Inject the primary entity ID from the caller, not trusting the LLM
+      return EpisodeConsolidationDraft(
+        narrative: em['narrative'] as String,
+        primaryEntityId: entityId,
+        sourceFragmentIds:
+            (em['sourceFragmentIds'] as List).cast<String>(),
+        significance: em['significance'] as int,
+        confidence: em['confidence'] as String,
+        valence: (em['valence'] as num).toDouble(),
+        arousal: (em['arousal'] as num).toDouble(),
+        occurredAtStart:
+            (em['occurredAtRange'] as Map<String, dynamic>?)?['start']
+                as String?,
+        occurredAtEnd:
+            (em['occurredAtRange'] as Map<String, dynamic>?)?['end']
+                as String?,
+        linkedEntityIds: (em['linkedEntityIds'] as List?)
+                ?.cast<String>() ??
+            const [],
+      );
+    }).toList();
+
+    return EpisodeConsolidationResult(
+      episodes: episodes,
+      skippedEntityIds: const [],
+      isDryRun: false,
+    );
+  }
+}

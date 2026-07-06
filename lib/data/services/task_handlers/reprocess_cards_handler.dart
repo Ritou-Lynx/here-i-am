@@ -4,7 +4,6 @@ import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/task_handlers/analyze_assets_handler.dart';
-import 'package:memex/data/services/task_handlers/card_agent_handler.dart';
 import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/utils/logger.dart';
 
@@ -218,34 +217,8 @@ Future<bool> _processOneCard(
 
     await _ensureCardExists(fileSystem, userId, factId, factInfo.datetime);
 
-    var assetAnalyses = factInfo.assetAnalyses;
-    if (reanalyzeAssets) {
-      final assetPaths = _extractAssetPaths(
-        fileSystem,
-        userId,
-        factInfo.content,
-      );
-      if (assetPaths.isNotEmpty) {
-        _logger.info('Re-analyzing ${assetPaths.length} asset(s) for $factId');
-        final refreshedAnalyses = await analyzeAssetsForFact(
-          userId: userId,
-          factId: factId,
-          assetPaths: assetPaths,
-        );
-        assetAnalyses = refreshedAnalyses.map((e) => e.toJson()).toList();
-      }
-    }
-
-    await processWithCardAgent(
-      userId: userId,
-      factId: factId,
-      contentText: factInfo.content,
-      assetAnalyses: assetAnalyses,
-      inputDateTime: factInfo.datetime,
-      dryRun: false,
-    );
-
-    await renderAndPushCardUpdate(userId, factId, factInfo.content);
+    // Card agent processing and asset reanalysis have been removed
+    // (card_agent_handler was deleted).
 
     return true;
   } catch (e, stack) {

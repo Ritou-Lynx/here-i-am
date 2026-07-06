@@ -13,7 +13,6 @@ import 'package:memex/ui/calendar/widgets/calendar_screen.dart';
 import 'package:memex/ui/chat/view_models/chat_viewmodel.dart';
 import 'package:memex/ui/chat/widgets/chat_history_screen.dart';
 import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
-import 'package:memex/ui/timeline/widgets/timeline_card_detail_screen.dart';
 import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_room_screen.dart';
 import 'package:memex/ui/user_setup/widgets/user_setup_screen.dart';
@@ -72,13 +71,6 @@ GoRouter createAppRouter(
             agentName: agentName,
             title: title,
           );
-        },
-      ),
-      GoRoute(
-        path: '${AppRoutes.timelineCardDetail}/:id',
-        builder: (context, state) {
-          final cardId = state.pathParameters['id'] ?? '';
-          return TimelineCardDetailScreen(cardId: cardId);
         },
       ),
       GoRoute(

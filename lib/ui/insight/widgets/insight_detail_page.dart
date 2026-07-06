@@ -7,7 +7,6 @@ import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/domain/models/insight_detail_model.dart';
 import 'package:memex/ui/core/cards/native_card_factory.dart';
 import 'package:memex/ui/core/cards/native_widget_factory.dart';
-import 'package:memex/ui/timeline/widgets/timeline_card_detail_screen.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/ui/core/widgets/detail_page_layout.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -422,14 +421,7 @@ class _InsightDetailPageState extends State<InsightDetailPage> {
             const SizedBox(height: 16),
             ..._relatedCards.map((card) {
               void onTap() {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TimelineCardDetailScreen(
-                      cardId: card.id,
-                    ),
-                  ),
-                );
+                // Card detail navigation removed (TimelineCardDetailScreen has been deleted).
               }
 
               return _RelatedCardItem(

@@ -14,10 +14,6 @@ import 'package:provider/provider.dart';
 import 'package:memex/config/dependencies.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/ui/insight/view_models/insight_viewmodel.dart';
-import 'package:memex/ui/knowledge/view_models/knowledge_base_viewmodel.dart';
-import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
-import 'package:memex/ui/timeline/widgets/timeline_screen.dart';
-import 'package:memex/ui/knowledge/widgets/knowledge_base_screen.dart';
 import 'package:memex/ui/user_setup/widgets/user_setup_screen.dart';
 import 'package:memex/ui/app_lock/widgets/lock_screen_page.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
@@ -420,17 +416,9 @@ class RootShellState extends State<RootShell> {
     return MultiProvider(
       key: ValueKey(_mainScreenEpoch),
       providers: [
-        ChangeNotifierProvider<TimelineViewModel>(
-          create: (c) =>
-              TimelineViewModel(router: c.read<MemexRouter>())..init(),
-        ),
         ChangeNotifierProvider<InsightViewModel>(
           create: (c) =>
               InsightViewModel(router: c.read<MemexRouter>())..loadData(),
-        ),
-        ChangeNotifierProvider<KnowledgeBaseViewModel>(
-          create: (c) => KnowledgeBaseViewModel(router: c.read<MemexRouter>())
-            ..fetchData(),
         ),
       ],
       child: const MainScreen(),
@@ -712,10 +700,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   int _currentTab = 0;
   bool _isInputOpen = false;
-  final GlobalKey<TimelineScreenState> _timelineKey =
-      GlobalKey<TimelineScreenState>();
-  final GlobalKey<KnowledgeBaseScreenState> _knowledgeBaseKey =
-      GlobalKey<KnowledgeBaseScreenState>();
   final MemexRouter _memexRouter = MemexRouter();
   final EventBusService _eventBus = EventBusService.instance;
   Timer? _memoryButtonTapTimer;
@@ -1058,7 +1042,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // When demo advances to tapKnowledgeTab, refresh the knowledge base
     // so the demo-written guide file appears.
     if (demo.currentStep == DemoStep.tapKnowledgeTab) {
-      _knowledgeBaseKey.currentState?.scrollToTopAndRefresh();
+      // KnowledgeBaseScreen has been removed.
     }
 
     setState(() {});
@@ -1747,8 +1731,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       });
     }
 
-    // Show loading in timeline
-    if (mounted) context.read<TimelineViewModel>().setSubmitting(true);
+    // TimelineViewModel has been removed.
 
     try {
       // Call API
@@ -1763,10 +1746,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
       // Parse response and add card to timeline
       if (response.containsKey('card')) {
-        final card = TimelineCardModel.fromJson(response['card']);
-
-        // Add card to timeline
-        if (mounted) context.read<TimelineViewModel>().addCard(card);
+        // TimelineViewModel has been removed.
 
         // update last publish timestamp
         await PublishTimestampService.saveLastPublishTimestamp(
@@ -1796,8 +1776,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       // since the manual input might have consumed items that were pending auto-publish.
       return true;
     } catch (e) {
-      // Hide loading on error
-      if (mounted) context.read<TimelineViewModel>().setSubmitting(false);
+      // TimelineViewModel has been removed.
 
       if (mounted) {
         ToastHelper.showError(context, e);
@@ -1808,100 +1787,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (_useCompanionFirstShell) {
-      return const CompanionFirstShell();
-    }
-
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-        value: const SystemUiOverlayStyle(
-          systemNavigationBarColor: Colors.transparent,
-          systemNavigationBarDividerColor: Colors.transparent,
-          systemNavigationBarIconBrightness: Brightness.dark,
-          systemNavigationBarContrastEnforced: false,
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-        ),
-        child: Scaffold(
-          extendBody: true,
-          resizeToAvoidBottomInset: false,
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          body: Stack(
-            key: _mainStackKey,
-            children: [
-              // Main content wrapped in SafeArea
-              SafeArea(
-                bottom: false,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: IndexedStack(
-                        index: _currentTab,
-                        children: [
-                          TimelineScreen(
-                            key: _timelineKey,
-                            viewModel: context.watch<TimelineViewModel>(),
-                            insightViewModel: context.watch<InsightViewModel>(),
-                            onInputTap: () {
-                              setState(() {
-                                _isInputOpen = true;
-                              });
-                            },
-                          ),
-                          KnowledgeBaseScreen(
-                            key: _knowledgeBaseKey,
-                            viewModel: context.watch<KnowledgeBaseViewModel>(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Floating bottom bar overlay
-              _buildBottomBar(),
-
-              Positioned(
-                bottom: 164,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: AgentActivityWidget(navigatorKey: null),
-                ),
-              ),
-
-              // Input sheet
-              InputSheet(
-                isOpen: _isInputOpen,
-                initialData: _sharedDraft,
-                onClose: () {
-                  setState(() {
-                    _isInputOpen = false;
-                    _sharedDraft = null;
-                  });
-                },
-                onSubmit: _handleInputSubmit,
-              ),
-
-              if (_isRadialMenuOpen)
-                RadialMenu(
-                  key: _radialMenuKey,
-                  items: _shortcuts,
-                  center: _centerButtonCenter,
-                  visible: _isRadialMenuOpen,
-                  onItemSelected: _handleShortcutSelect,
-                  onCancel: _handleRadialCancel,
-                  transcriptText: _quickTranscribedText.isNotEmpty
-                      ? _quickTranscribedText
-                      : null,
-                  isCalibrating: _isQuickCalibrating,
-                ),
-
-              // Onboarding demo overlay
-              const DemoOverlay(),
-            ],
-          ),
-        ));
+    return const CompanionFirstShell();
   }
 
   Widget _buildBottomBar() {
@@ -2079,9 +1965,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     } else if (_memoryButtonTapCount == 2) {
       _memoryButtonTapTimer?.cancel();
       _memoryButtonTapCount = 0;
-      if (_currentTab == 0) {
-        _timelineKey.currentState?.scrollToTopAndRefresh();
-      }
+      // TimelineScreen has been removed.
     }
   }
 
@@ -2097,9 +1981,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     } else if (_knowledgeBaseButtonTapCount == 2) {
       _knowledgeBaseButtonTapTimer?.cancel();
       _knowledgeBaseButtonTapCount = 0;
-      if (_currentTab == 1) {
-        _knowledgeBaseKey.currentState?.scrollToTopAndRefresh();
-      }
+      // KnowledgeBaseScreen has been removed.
     }
   }
 }

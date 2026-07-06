@@ -5,7 +5,6 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/settings/widgets/model_stats_page.dart';
 import 'package:memex/ui/insight/widgets/insight_template_gallery_page.dart';
 import 'package:memex/ui/memory/widgets/memory_v3_lab_screen.dart';
-import 'package:memex/ui/timeline/widgets/timeline_template_gallery_page.dart';
 import 'package:memex/ui/settings/widgets/log_viewer_page.dart';
 import 'package:memex/ui/settings/widgets/async_task_list_page.dart';
 import 'package:memex/ui/settings/widgets/custom_agent_config_page.dart';
@@ -165,20 +164,6 @@ class DebugSettingsPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const InsightTemplateGalleryPage(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildFunctionTab(
-            context: context,
-            icon: Icons.view_timeline_outlined,
-            title: UserStorage.l10n.timelineCardTemplates,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const TimelineTemplateGalleryPage(),
                 ),
               );
             },

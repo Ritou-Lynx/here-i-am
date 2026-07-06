@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/card_model.dart';
-import 'package:memex/ui/timeline/widgets/timeline_card_detail_screen.dart';
 import 'package:memex/utils/user_storage.dart';
 
 /// Renders a card-detail notification in the Action Center.
@@ -105,13 +104,7 @@ class _CardDetailNotificationWidgetState
     // Close the Action Center sheet.
     Navigator.pop(context);
 
-    // Navigate to card detail.
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TimelineCardDetailScreen(cardId: factId),
-      ),
-    );
+    // Card detail navigation removed (TimelineCardDetailScreen has been deleted).
   }
 
   @override

@@ -20,7 +20,6 @@ import 'package:memex/agent/built_in_tools/weather_risk_tool.dart';
 import 'package:memex/agent/built_in_tools/web_search_tool.dart';
 import 'package:memex/agent/built_in_tools/generate_image_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_query_tool.dart';
-import 'package:memex/agent/built_in_tools/weread_tool.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
 import 'package:memex/agent/skills/comment_agent/tools/comment_tools.dart';
 import 'package:memex/agent/skills/companion_agent/tools/action_message_tools.dart';
@@ -78,7 +77,6 @@ class CharacterToolsFactory {
       buildAiFinancePenaltyTool(
           characterId: characterId, service: financeService),
       buildCorosMcpTool(),
-      buildWereadTool(userId: userId),
       buildPhoneUsageQueryTool(),
       buildWebSearchTool(),
       buildGenerateImageTool(characterId: characterId),

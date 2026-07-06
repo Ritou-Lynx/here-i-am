@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 
 import '../view_models/schedule_aggregator_view_model.dart';
 import '../../core/themes/app_colors.dart';
-import '../../timeline/widgets/timeline_card_detail_screen.dart';
 import 'tabs/magazine_narrative_tab.dart';
 
 /// Schedule Aggregator Screen - entry point with ViewModel
@@ -41,15 +40,7 @@ class _ScheduleAggregatorScreenState
   }
 
   void _navigateToCard(String cardId) {
-    if (cardId.isEmpty) {
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TimelineCardDetailScreen(cardId: cardId),
-      ),
-    );
+    // Card detail navigation removed (TimelineCardDetailScreen has been deleted).
   }
 
   Future<void> _onReload() async {

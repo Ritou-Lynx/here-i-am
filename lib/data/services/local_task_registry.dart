@@ -1,6 +1,5 @@
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/task_handlers/analyze_assets_handler.dart';
-import 'package:memex/data/services/task_handlers/card_agent_handler.dart';
 import 'package:memex/data/services/task_handlers/clarification_resolution_handler.dart';
 import 'package:memex/data/services/task_handlers/comment_agent_handler.dart';
 import 'package:memex/data/services/task_handlers/companion_delegation_handler.dart';
@@ -10,7 +9,6 @@ import 'package:memex/data/services/task_handlers/dev_session_followup_handler.d
 import 'package:memex/data/services/task_handlers/fts_index_handler.dart';
 import 'package:memex/data/services/task_handlers/knowledge_insight_handler.dart';
 import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
-import 'package:memex/data/services/task_handlers/pkm_agent_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_cards_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_comments_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_knowledge_base_handler.dart';
@@ -21,8 +19,6 @@ void registerLocalTaskHandlers() {
   final executor = LocalTaskExecutor.instance;
 
   executor.registerHandler('handle_analyze_assets', handleAnalyzeAssetsImpl);
-  executor.registerHandler('card_agent_task', handleCardAgentImpl);
-  executor.registerHandler('pkm_agent_task', handlePkmAgentImpl);
   executor.registerHandler('fts_index_update', handleFtsIndexUpdateImpl);
   executor.registerHandler('reprocess_cards_task', handleReprocessCardsImpl);
   executor.registerHandler('comment_agent_task', handleCommentAgentImpl);
@@ -60,8 +56,6 @@ void registerLocalTaskHandlers() {
   );
 
   executor.registerFailureHandler(
-      'card_agent_task', handleCardAgentFailureImpl);
-  executor.registerFailureHandler(
     'conversation_capture_task',
     handleConversationCaptureFailure,
   );
@@ -74,7 +68,6 @@ void registerLocalTaskHandlers() {
     handleDevSessionFollowupFailure,
   );
   for (final taskType in [
-    'pkm_agent_task',
     'comment_agent_task',
     'knowledge_insight_task',
     'schedule_aggregator_task',

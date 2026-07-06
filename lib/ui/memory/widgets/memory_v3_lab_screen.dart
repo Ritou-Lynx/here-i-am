@@ -48,6 +48,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
   String? _lastSuccess;
   List<MemoryCard> _recent = const [];
   List<MemoryFragment> _recentFragments = const [];
+  List<MemoryEpisode> _recentEpisodes = const [];
   List<QueryLogEntry> _queryLogEntries = const [];
   int _zeroResultCount = 0;
 
@@ -56,6 +57,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     super.initState();
     unawaited(_loadRecent());
     unawaited(_loadRecentFragments());
+    unawaited(_loadRecentEpisodes());
     unawaited(_loadQueryLog());
   }
 
@@ -86,6 +88,17 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         .get();
     if (!mounted) return;
     setState(() => _recentFragments = rows);
+  }
+
+  Future<void> _loadRecentEpisodes() async {
+    if (!DreamingOrchestratorServiceV3.isInitialized) return;
+    final db = AppDatabase.instance;
+    final rows = await (db.select(db.memoryEpisodes)
+          ..orderBy([(t) => drift.OrderingTerm.desc(t.createdAt)])
+          ..limit(20))
+        .get();
+    if (!mounted) return;
+    setState(() => _recentEpisodes = rows);
   }
 
   Future<void> _loadQueryLog() async {
@@ -229,6 +242,101 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     }
   }
 
+  Future<void> _clearAllFragments() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清空所有 Dreaming fragments？'),
+        content: const Text('这会删除所有 fragment、关联的 entity links 和水印标记。不能撤销。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('清空', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+
+    try {
+      final count =
+          await DreamingOrchestratorServiceV3.instance.clearAllFragments();
+      await _loadRecentFragments();
+      if (!mounted) return;
+      setState(() {
+        _lastSuccess = '已清空 $count 条 fragment';
+      });
+    } catch (e, stack) {
+      _logger.warning('clearAllFragments failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '清空失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _runEpisodeConsolidation() async {
+    if (!DreamingOrchestratorServiceV3.isInitialized) {
+      setState(() => _lastError = 'Dreaming service 未初始化');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+
+    try {
+      // Episode uses the MAIN model (companion agent config).
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.companionAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+
+      final result = await DreamingOrchestratorServiceV3.instance
+          .runEpisodeConsolidation(
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+      );
+      await _loadRecentEpisodes();
+      await _loadRecentFragments();
+      if (!mounted) return;
+      setState(() {
+        if (result.isEmpty) {
+          _lastError = 'Episode 凝结未产生结果\n'
+              '${result.skippedEntities.join("\n")}';
+        } else {
+          final entitySummary = result.consolidatedEntities.take(3).join(", ");
+          var msg = '凝结 ${result.episodeIds.length} 条 Episode\n'
+              '实体: $entitySummary'
+              '${result.consolidatedEntities.length > 3 ? " 等${result.consolidatedEntities.length}个" : ""}\n'
+              '消耗 ${result.consolidatedFragmentCount} 条 fragment';
+          if (result.skippedEntities.isNotEmpty) {
+            final skipSummary = result.skippedEntities.take(3).join(", ");
+            msg = '$msg\n跳过: $skipSummary'
+                '${result.skippedEntities.length > 3 ? " 等${result.skippedEntities.length}个" : ""}';
+          }
+          _lastSuccess = msg;
+        }
+      });
+    } catch (e, stack) {
+      _logger.warning('runEpisodeConsolidation failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = 'Episode 凝结失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<String?> _latestChatCharacterId() async {
     final db = AppDatabase.instance;
     final rows = await (db.select(db.personaChatMessages)
@@ -360,18 +468,26 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     }
   }
 
-  /// Dump all current memory_cards (plus source / structured / entity links)
-  /// to a JSON file in the app's external dir. Returns the absolute path
-  /// on success.
+  /// Dump all current memory_cards + dreaming fragments (plus source /
+  /// structured / entity links) to a JSON file in the app's external dir.
+  /// Returns the absolute path on success.
   ///
   /// Path layout on Android (no permissions needed):
   ///   /sdcard/Android/data/com.memexlab.hereiam.v3/files/v3_dump.json
   /// Pull with:
   ///   adb pull <that path> ./v3_dump.json
-  Future<String?> _dumpAllToFile() async {
+  Future<({String path, int cardCount, int fragmentCount, int episodeCount})?> _dumpAllToFile() async {
     final db = AppDatabase.instance;
     final cards = await (db.select(db.memoryCards)
           ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)]))
+        .get();
+
+    final fragments = await (db.select(db.memoryFragments)
+          ..orderBy([(t) => drift.OrderingTerm.desc(t.createdAt)]))
+        .get();
+
+    final episodes = await (db.select(db.memoryEpisodes)
+          ..orderBy([(t) => drift.OrderingTerm.desc(t.createdAt)]))
         .get();
 
     final dump = <Map<String, dynamic>>[];
@@ -452,8 +568,41 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
 
     final payload = {
       'exportedAt': DateTime.now().toIso8601String(),
-      'count': dump.length,
+      'cardCount': dump.length,
       'cards': dump,
+      'fragmentCount': fragments.length,
+      'fragments': fragments
+          .map((f) => {
+                'id': f.id,
+                'content': f.content,
+                'sourceMessageIds': _decode(f.sourceMessageIds),
+                'sourceScope': f.sourceScope,
+                'emotionalWeight': f.emotionalWeight,
+                'status': f.status,
+                'isUserTruthCandidate': f.isUserTruthCandidate,
+                'generatedByVersion': f.generatedByVersion,
+                'createdAt': DateTime.fromMillisecondsSinceEpoch(f.createdAt)
+                    .toIso8601String(),
+              })
+          .toList(),
+      'episodeCount': episodes.length,
+      'episodes': episodes
+          .map((e) => {
+                'id': e.id,
+                'primaryEntityId': e.primaryEntityId,
+                'narrative': e.narrative,
+                'sourceFragmentIds': _decode(e.sourceFragmentIds),
+                'significance': e.significance,
+                'confidence': e.confidence,
+                'valence': e.valence,
+                'arousal': e.arousal,
+                'occurredAtRange': _decode(e.occurredAtRange),
+                'status': e.status,
+                'generatedByVersion': e.generatedByVersion,
+                'createdAt': DateTime.fromMillisecondsSinceEpoch(e.createdAt)
+                    .toIso8601String(),
+              })
+          .toList(),
     };
 
     try {
@@ -463,7 +612,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       await file.writeAsString(
           const JsonEncoder.withIndent('  ').convert(payload),
           flush: true);
-      return file.path;
+      return (path: file.path, cardCount: cards.length, fragmentCount: fragments.length, episodeCount: episodes.length);
     } catch (e, st) {
       _logger.warning('dumpAllToFile failed', e, st);
       return null;
@@ -476,15 +625,15 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       _lastError = null;
       _lastSuccess = null;
     });
-    final path = await _dumpAllToFile();
+    final result = await _dumpAllToFile();
     if (!mounted) return;
     setState(() {
       _busy = false;
-      if (path == null) {
+      if (result == null) {
         _lastError = '导出失败（看 logcat）';
       } else {
-        _lastSuccess = '已导出 ${_recent.length} 张到\n$path';
-        Clipboard.setData(ClipboardData(text: path));
+        _lastSuccess = '已导出 ${result.cardCount} 张卡 + ${result.fragmentCount} fragment + ${result.episodeCount} episode 到\n${result.path}';
+        Clipboard.setData(ClipboardData(text: result.path));
       }
     });
   }
@@ -527,6 +676,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             onPressed: () {
               unawaited(_loadRecent());
               unawaited(_loadRecentFragments());
+              unawaited(_loadRecentEpisodes());
             },
             tooltip: '刷新',
           ),
@@ -581,17 +731,46 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                   icon: const Icon(Icons.nightlight_round),
                   label: const Text('run Dreaming fragment batch'),
                 ),
+                const SizedBox(height: 4),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _clearAllFragments,
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  label: const Text('清空所有 fragments',
+                      style: TextStyle(color: Colors.red)),
+                ),
+                const SizedBox(height: 4),
+                FilledButton.icon(
+                  onPressed: _busy ? null : _runEpisodeConsolidation,
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome),
+                  label: Text(_busy ? '凝结中…' : 'run Episode consolidation'),
+                ),
                 if (_lastError != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text(_lastError!,
-                        style: const TextStyle(color: Colors.red)),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Text(_lastError!,
+                          style: const TextStyle(color: Colors.red, fontSize: 12),
+                          maxLines: 5,
+                          overflow: TextOverflow.ellipsis),
+                    ),
                   ),
                 if (_lastSuccess != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text(_lastSuccess!,
-                        style: const TextStyle(color: Colors.green)),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Text(_lastSuccess!,
+                          style: const TextStyle(color: Colors.green, fontSize: 12),
+                          maxLines: 5,
+                          overflow: TextOverflow.ellipsis),
+                    ),
                   ),
               ],
             ),
@@ -605,6 +784,9 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                     style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(width: 12),
                 Text('fragments ${_recentFragments.length}',
+                    style: const TextStyle(fontSize: 11)),
+                const SizedBox(width: 12),
+                Text('episodes ${_recentEpisodes.length}',
                     style: const TextStyle(fontSize: 11)),
                 const Spacer(),
                 Text(
@@ -654,6 +836,67 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                   ..._recentFragments.map(
                     (fragment) => _FragmentListTile(fragment: fragment),
                   ),
+                const Divider(height: 1),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Text('最近 Episodes',
+                      style: Theme.of(context).textTheme.titleSmall),
+                ),
+                if (_recentEpisodes.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('（暂无 episodes）')),
+                  )
+                else
+                  ..._recentEpisodes.map(
+                    (ep) => _EpisodeListTile(episode: ep),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EpisodeListTile extends StatelessWidget {
+  const _EpisodeListTile({required this.episode});
+
+  final MemoryEpisode episode;
+
+  @override
+  Widget build(BuildContext context) {
+    final createdAt =
+        DateTime.fromMillisecondsSinceEpoch(episode.createdAt).toString();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.auto_awesome,
+            size: 18,
+            color: Colors.purple.shade400,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(episode.narrative,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                Text(
+                  'sig ${episode.significance} · ${episode.confidence} · '
+                  'v ${episode.valence.toStringAsFixed(2)} '
+                  'a ${episode.arousal.toStringAsFixed(2)} · '
+                  '${episode.status} · $createdAt',
+                  style: const TextStyle(fontSize: 10, color: Colors.black38),
+                ),
               ],
             ),
           ),

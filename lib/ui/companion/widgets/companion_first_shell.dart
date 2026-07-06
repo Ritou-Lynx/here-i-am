@@ -7,7 +7,6 @@ import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
-import 'package:memex/ui/timeline/view_models/timeline_viewmodel.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/result.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -166,9 +165,7 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
   void _openLifeSpace() {
     Navigator.push(
       context,
-      companionLifeSpaceRoute(
-        timelineViewModel: context.read<TimelineViewModel>(),
-      ),
+      companionLifeSpaceRoute(),
     );
   }
 
@@ -199,9 +196,7 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
 }
 
 @visibleForTesting
-Route<void> companionLifeSpaceRoute({
-  TimelineViewModel? timelineViewModel,
-}) {
+Route<void> companionLifeSpaceRoute() {
   return MaterialPageRoute<void>(
     builder: (_) => const CompanionLifeSpaceScreen(),
   );

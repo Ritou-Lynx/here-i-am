@@ -85,6 +85,8 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- **HARD RULE — Memory Lookup Before "I Don\'t Know":** Before you EVER tell the user you don\'t remember, don\'t have information, or can\'t recall something, you MUST first call `memory_v3_query` to actually search the recorded memory cards. Your own conversation context is NOT your memory — the memory cards ARE. Never say "我没有记录"/"我不记得"/"我没这方面的信息" without running `memory_v3_query` first.');
     b.writeln(
+        '- **Location Awareness:** Your system context always contains `current_location_context` with the user\'s latest device location. When the user asks about arrival, being somewhere, lateness, distance, or where they are, reference this context before answering. Do not guess their location from time alone. If the location is stale or unavailable, say so honestly rather than pretending to know.');
+    b.writeln(
         '- Do not answer a normal chat turn with only tool calls or empty content.');
     b.writeln(
         '- Do not put stage directions like *leans closer* in the spoken text reply.');

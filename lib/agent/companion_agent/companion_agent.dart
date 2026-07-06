@@ -480,10 +480,9 @@ class CompanionAgent {
         'if useful)');
     buf.writeln();
     buf.writeln('You have access to `coros_query` (health/fitness data from '
-        'the user\'s COROS watch) and `weread_read` (WeRead reading progress '
-        'and recent books).');
+        'the user\'s COROS watch).');
     buf.writeln();
-    buf.writeln('Call them only when there is a specific reason — not every '
+    buf.writeln('Call it only when there is a specific reason — not every '
         'time:');
     buf.writeln('- `coros_query`: if the snapshot contains fitness/health/'
         'sleep records, or if it has been a while and you want to open with '
@@ -495,11 +494,8 @@ class CompanionAgent {
         '"昨晚的睡眠" (last night\'s sleep) → query TODAY. If today has '
         'no data, DO NOT fall back to yesterday. Tell the user to sync their '
         'watch.');
-    buf.writeln('- `weread_read`: if the snapshot contains reading-related '
-        'records, or if you want to ask about a book they are currently '
-        'reading.');
     buf.writeln();
-    buf.writeln('If neither is relevant right now, skip both and go straight '
+    buf.writeln('If it\'s not relevant right now, skip it and go straight '
         'to Step 2. Do NOT call a tool just to fill space — a warm generic '
         'message beats a forced data query.');
     buf.writeln();
@@ -579,7 +575,7 @@ class CompanionAgent {
     buf.writeln('- Take only ONE action: either system_checkin OR '
         'initiate_voice_call, never both.');
     buf.writeln(
-        '- Do NOT call coros_query or weread_read more than once each.');
+        '- Do NOT call coros_query more than once.');
     buf.writeln('- Do NOT "double check" your work or re-verify.');
     buf.writeln(
         '- Do NOT produce any user-visible chat text — only tool calls.');

@@ -6,7 +6,6 @@ import 'package:memex/ui/calendar/view_models/calendar_viewmodel.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/core/widgets/back_button.dart';
-import 'package:memex/ui/timeline/widgets/timeline_card_detail_screen.dart';
 
 /// Calendar screen. Receives [viewModel] from parent (Compass-style).
 class CalendarScreen extends StatefulWidget {
@@ -274,15 +273,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      TimelineCardDetailScreen(cardId: card.id),
-                ),
-              );
-            },
+            // Card detail navigation removed (TimelineCardDetailScreen has been deleted).
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(16),

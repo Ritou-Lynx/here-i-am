@@ -3,7 +3,6 @@ import 'package:logging/logging.dart';
 import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
-import 'package:memex/data/services/task_handlers/pkm_agent_handler.dart';
 import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/utils/logger.dart';
 
@@ -149,15 +148,7 @@ Future<void> handleReprocessKnowledgeBaseImpl(
         // Ensure card exists; create initial card if not found.
         await _ensureCardExists(fileSystem, userId, factId, factInfo.datetime);
 
-        // Process using pkm_agent_handler.
-        await processWithPkmAgent(
-          userId: userId,
-          factId: factId,
-          contentText: factInfo.content,
-          assetAnalyses: factInfo.assetAnalyses,
-          inputDateTime: factInfo.datetime,
-          dryRun: false,
-        );
+        // PKM agent processing has been removed (pkm_agent_handler was deleted).
 
         successCount++;
         _logger.info('Successfully processed fact: $factId');

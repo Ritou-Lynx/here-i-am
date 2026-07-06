@@ -3,7 +3,6 @@ import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/ui/core/cards/native_card_factory.dart';
 import 'package:memex/ui/core/widgets/html_webview_card.dart';
-import 'package:memex/ui/timeline/widgets/timeline_card_detail_screen.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 
@@ -96,14 +95,7 @@ class _RelatedFactsListState extends State<RelatedFactsList> {
 
   Widget _buildCardItem(BuildContext context, TimelineCardModel card) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => TimelineCardDetailScreen(cardId: card.id),
-          ),
-        );
-      },
+      // Card detail navigation removed (TimelineCardDetailScreen has been deleted).
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(

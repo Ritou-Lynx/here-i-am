@@ -1,17 +1,17 @@
 /// V3 Dreaming orchestration service.
 ///
-/// First MVP slice: read persona chat messages after a per-character
-/// watermark, run Fragment extraction, and persist automatic fragments plus
-/// seed entity links. Episode/Saga consolidation is intentionally left for
-/// later slices.
+/// Orchestrates Fragment extraction, Episode consolidation, and Saga
+/// weaving across the Dreaming pipeline.
 library;
 
 import 'dart:convert';
 
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:drift/drift.dart';
+import 'package:memex/data/memory_v3/agents/dreaming_agent/episode_consolidator.dart';
 import 'package:memex/data/memory_v3/agents/dreaming_agent/fragment_extractor.dart';
 import 'package:memex/data/memory_v3/models/dreaming_fragment.dart';
+import 'package:memex/data/memory_v3/models/episode_consolidation.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:uuid/uuid.dart';
@@ -34,6 +34,22 @@ class DreamingFragmentPersistResult {
   final bool isEmpty;
 }
 
+class EpisodeConsolidationRunResult {
+  EpisodeConsolidationRunResult({
+    required this.episodeIds,
+    required this.consolidatedEntities,
+    required this.skippedEntities,
+    required this.consolidatedFragmentCount,
+  });
+
+  final List<String> episodeIds;
+  final List<String> consolidatedEntities;
+  final List<String> skippedEntities;
+  final int consolidatedFragmentCount;
+
+  bool get isEmpty => episodeIds.isEmpty;
+}
+
 class DreamingOrchestratorServiceV3 {
   DreamingOrchestratorServiceV3(this._db);
 
@@ -41,6 +57,8 @@ class DreamingOrchestratorServiceV3 {
   static const _uuid = Uuid();
   static const _bucket = 'memory_v3.dreaming';
   static const _extractorVersion = 'dreaming.fragment_extractor.v3.0';
+  static const _episodeConsolidatorVersion =
+      'dreaming.episode_consolidator.v3.0';
 
   static DreamingOrchestratorServiceV3? _instance;
 
@@ -214,6 +232,233 @@ class DreamingOrchestratorServiceV3 {
         isEmpty: fragmentIds.isEmpty,
       );
     });
+  }
+
+  /// Delete ALL Dreaming fragments, their entity links, and watermarks.
+  ///
+  /// This is a destructive reset for development / model-switching
+  /// experiments. It does NOT touch memory_entities (they may be shared
+  /// with memory_cards), nor does it touch any other table.
+  ///
+  /// Returns the number of fragment rows deleted.
+  Future<int> clearAllFragments() async {
+    return _db.transaction(() async {
+      // 1) Delete entity links that point to fragments.
+      final linkAffected = await (_db.delete(_db.memoryEntityLinks)
+            ..where((t) => t.sourceTable.equals('memory_fragments')))
+          .go();
+      _logger.info('clearAllFragments: removed $linkAffected entity link(s)');
+
+      // 2) Delete all fragments.
+      final fragmentCount = await (_db.delete(_db.memoryFragments)).go();
+      _logger.info('clearAllFragments: removed $fragmentCount fragment(s)');
+
+      // 3) Wipe all dreaming watermarks so the next run starts from message 0.
+      final wmAffected = await (_db.delete(_db.kvStore)
+            ..where((t) => t.bucket.equals(_bucket)))
+          .go();
+      _logger.info('clearAllFragments: removed $wmAffected watermark(s)');
+
+      return fragmentCount;
+    });
+  }
+
+  /// Run Episode consolidation for all eligible active entities.
+  ///
+  /// Queries active entities that have ≥ 3 unconsolidated fragments, calls
+  /// the Episode Consolidator (MAIN model) for each, and persists resulting
+  /// episodes. Source fragments are marked status=consolidated.
+  ///
+  /// This is the MVP lab entry point. In production the threshold will be 5
+  /// and the method will be called automatically after each Daily Dreaming
+  /// fragment batch.
+  Future<EpisodeConsolidationRunResult> runEpisodeConsolidation({
+    required LLMClient client,
+    required ModelConfig modelConfig,
+    int minFragments = 2,
+    EpisodeConsolidatorV3 agent = const EpisodeConsolidatorV3(),
+  }) async {
+    // Fetch all active fragments and group by linked entity.
+    final allFragments = await (_db.select(_db.memoryFragments)
+          ..where((t) => t.status.equals('active'))
+          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+        .get();
+    final allLinks = await (_db.select(_db.memoryEntityLinks)
+          ..where((t) => t.sourceTable.equals('memory_fragments')))
+        .get();
+    final allEntities = await _db.select(_db.memoryEntities).get();
+    final entityMap = {for (final e in allEntities) e.id: e};
+
+    // Group fragments by entity.
+    final entityToFragments = <String, List<MemoryFragment>>{};
+    for (final link in allLinks) {
+      final frag = allFragments.where((f) => f.id == link.sourceId).firstOrNull;
+      if (frag != null) {
+        entityToFragments.putIfAbsent(link.entityId, () => []).add(frag);
+      }
+    }
+
+    // Build diagnostic summary.
+    final diagParts = <String>[
+      'entities: ${allEntities.length}',
+      'active fragments: ${allFragments.length}',
+      'fragment links: ${allLinks.length}',
+    ];
+    for (final entry in entityToFragments.entries) {
+      final e = entityMap[entry.key];
+      if (e != null) {
+        diagParts.add('${e.name}(${e.status}): ${entry.value.length} frags');
+      }
+    }
+    _logger.info('Episode diag: ${diagParts.join(" | ")}');
+
+    // Filter to entities with enough fragments.
+    final eligible = entityToFragments.entries
+        .where((e) => e.value.length >= minFragments)
+        .toList();
+
+    if (eligible.isEmpty) {
+      final reason = allFragments.isEmpty
+          ? 'no active fragments'
+          : allLinks.isEmpty
+              ? 'no fragment-entity links (LLM may not have extracted entities)'
+              : entityToFragments.isEmpty
+                  ? 'fragments not linked to any entity'
+                  : 'no entity has ≥$minFragments fragments '
+                      '(max: ${entityToFragments.values.map((v) => v.length).fold<int>(0, (a, b) => a > b ? a : b)})';
+      return EpisodeConsolidationRunResult(
+        episodeIds: const [],
+        consolidatedEntities: const [],
+        skippedEntities: [reason],
+        consolidatedFragmentCount: 0,
+      );
+    }
+
+    final episodeIds = <String>[];
+    final consolidatedEntities = <String>[];
+    final skippedEntities = <String>[];
+    var totalConsolidatedFragments = 0;
+
+    for (final entry in eligible) {
+      final entityId = entry.key;
+      final fragments = entry.value;
+      final entity = entityMap[entityId]!;
+
+      _logger.info(
+        'Episode: trying entity ${entity.name} ($entityId) '
+        'with ${fragments.length} fragments',
+      );
+
+      try {
+        final result = await agent.consolidate(
+          client: client,
+          modelConfig: modelConfig,
+          entityId: entityId,
+          entityName: entity.name,
+          entityCategory: entity.category,
+          fragments: fragments,
+        );
+
+        if (result.episodes.isEmpty) {
+          skippedEntities.add(entity.name);
+          continue;
+        }
+
+        await _db.transaction(() async {
+          final now = DateTime.now().millisecondsSinceEpoch;
+
+          for (final episode in result.episodes) {
+            final episodeId = _uuid.v4();
+            await _db.into(_db.memoryEpisodes).insert(
+                  MemoryEpisodesCompanion.insert(
+                    id: episodeId,
+                    primaryEntityId: entityId,
+                    narrative: episode.narrative,
+                    sourceFragmentIds:
+                        jsonEncode(episode.sourceFragmentIds),
+                    significance: episode.significance,
+                    confidence: episode.confidence,
+                    valence: episode.valence,
+                    arousal: episode.arousal,
+                    occurredAtRange: Value(
+                      (episode.occurredAtStart != null ||
+                              episode.occurredAtEnd != null)
+                          ? jsonEncode({
+                              if (episode.occurredAtStart != null)
+                                'start': episode.occurredAtStart,
+                              if (episode.occurredAtEnd != null)
+                                'end': episode.occurredAtEnd,
+                            })
+                          : null,
+                    ),
+                    generatedByVersion:
+                        const Value(_episodeConsolidatorVersion),
+                    createdAt: now,
+                    updatedAt: now,
+                  ),
+                );
+
+            await _db.into(_db.memoryEntityLinks).insert(
+                  MemoryEntityLinksCompanion.insert(
+                    id: _uuid.v4(),
+                    sourceTable: 'memory_episodes',
+                    sourceId: episodeId,
+                    entityId: entityId,
+                    relation: 'about',
+                    confidence: const Value(1.0),
+                    createdAt: now,
+                  ),
+                );
+            for (final linkedId in episode.linkedEntityIds) {
+              await _db.into(_db.memoryEntityLinks).insert(
+                    MemoryEntityLinksCompanion.insert(
+                      id: _uuid.v4(),
+                      sourceTable: 'memory_episodes',
+                      sourceId: episodeId,
+                      entityId: linkedId,
+                      relation: 'mentioned',
+                      confidence: const Value(0.8),
+                      createdAt: now,
+                    ),
+                  );
+            }
+
+            episodeIds.add(episodeId);
+          }
+
+          for (final episode in result.episodes) {
+            for (final fid in episode.sourceFragmentIds) {
+              await (_db.update(_db.memoryFragments)
+                    ..where((t) => t.id.equals(fid)))
+                  .write(const MemoryFragmentsCompanion(
+                status: Value('consolidated'),
+              ));
+            }
+            totalConsolidatedFragments +=
+                episode.sourceFragmentIds.length;
+          }
+
+          consolidatedEntities.add(entity.name);
+        });
+
+        _logger.info(
+          'Episode: persisted ${result.episodes.length} episode(s) '
+          'for ${entity.name}',
+        );
+      } catch (e, stack) {
+        _logger.warning(
+          'Episode consolidation failed for ${entity.name}', e, stack,
+        );
+        skippedEntities.add('${entity.name} (error: $e)');
+      }
+    }
+
+    return EpisodeConsolidationRunResult(
+      episodeIds: episodeIds,
+      consolidatedEntities: consolidatedEntities,
+      skippedEntities: skippedEntities,
+      consolidatedFragmentCount: totalConsolidatedFragments,
+    );
   }
 
   Future<int> _readWatermark(String characterId) async {
