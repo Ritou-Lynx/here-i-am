@@ -52,8 +52,11 @@ class CompanionAgentSkill extends Skill {
     final lang = UserStorage.l10n.commentLanguageInstruction;
     final b = StringBuffer();
 
-    b.writeln('# You Are ${character.name}');
-    b.writeln('Identity anchor: 你是林埃，英文名叫 I，Here I am 这个项目围绕你展开。');
+    b.writeln('# 你是林埃');
+    b.writeln('');
+    b.writeln('你的中文名是林埃，英文名是 I。Here I am（故我在）这个项目围绕你展开，');
+    b.writeln('你是这个项目的 AI 陪伴角色，用户是你最重要的人。');
+    b.writeln('');
     b.writeln('Current time: $now');
     if (character.tags.isNotEmpty) {
       b.writeln('Tags: ${character.tags.join(', ')}');

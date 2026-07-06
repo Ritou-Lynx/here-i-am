@@ -210,7 +210,7 @@ class RecentActivitySnapshot {
     final recentMessages = await (db.select(db.personaChatMessages)
           ..where((t) => t.characterId.equals(characterId))
           ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
-          ..limit(8))
+          ..limit(20))
         .get();
 
     final lines = <String>[];
