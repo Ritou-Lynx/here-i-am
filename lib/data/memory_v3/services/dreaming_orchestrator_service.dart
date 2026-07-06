@@ -11,7 +11,6 @@ import 'package:drift/drift.dart';
 import 'package:memex/data/memory_v3/agents/dreaming_agent/episode_consolidator.dart';
 import 'package:memex/data/memory_v3/agents/dreaming_agent/fragment_extractor.dart';
 import 'package:memex/data/memory_v3/models/dreaming_fragment.dart';
-import 'package:memex/data/memory_v3/models/episode_consolidation.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:uuid/uuid.dart';
@@ -56,9 +55,9 @@ class DreamingOrchestratorServiceV3 {
   final AppDatabase _db;
   static const _uuid = Uuid();
   static const _bucket = 'memory_v3.dreaming';
-  static const _extractorVersion = 'dreaming.fragment_extractor.v3.0';
+  static const _extractorVersion = 'dreaming.fragment_extractor.v3.1';
   static const _episodeConsolidatorVersion =
-      'dreaming.episode_consolidator.v3.0';
+      'dreaming.episode_consolidator.v3.1';
 
   static DreamingOrchestratorServiceV3? _instance;
 
@@ -272,6 +271,55 @@ class DreamingOrchestratorServiceV3 {
     });
   }
 
+  /// Delete ALL Dreaming episodes and their entity links.
+  ///
+  /// This is a development reset for Episode prompt / model experiments. Any
+  /// source fragments referenced by the deleted episodes are moved back to
+  /// active so Episode consolidation can be rerun without re-extracting.
+  ///
+  /// Returns the number of episode rows deleted.
+  Future<int> clearAllEpisodes() async {
+    return _db.transaction(() async {
+      final episodes = await _db.select(_db.memoryEpisodes).get();
+      final sourceFragmentIds = <String>{};
+
+      for (final episode in episodes) {
+        try {
+          final decoded = jsonDecode(episode.sourceFragmentIds);
+          if (decoded is List) {
+            sourceFragmentIds.addAll(decoded.whereType<String>());
+          }
+        } catch (_) {
+          _logger.info(
+            'clearAllEpisodes: ignored invalid sourceFragmentIds for '
+            '${episode.id}',
+          );
+        }
+      }
+
+      final linkAffected = await (_db.delete(_db.memoryEntityLinks)
+            ..where((t) => t.sourceTable.equals('memory_episodes')))
+          .go();
+      _logger.info('clearAllEpisodes: removed $linkAffected entity link(s)');
+
+      final episodeCount = await (_db.delete(_db.memoryEpisodes)).go();
+      _logger.info('clearAllEpisodes: removed $episodeCount episode(s)');
+
+      if (sourceFragmentIds.isNotEmpty) {
+        final fragmentAffected = await (_db.update(_db.memoryFragments)
+              ..where((t) => t.id.isIn(sourceFragmentIds)))
+            .write(const MemoryFragmentsCompanion(
+          status: Value('active'),
+        ));
+        _logger.info(
+          'clearAllEpisodes: reactivated $fragmentAffected source fragment(s)',
+        );
+      }
+
+      return episodeCount;
+    });
+  }
+
   /// Run Episode consolidation for all eligible active entities.
   ///
   /// Queries active entities that have ≥ 3 unconsolidated fragments, calls
@@ -357,8 +405,7 @@ class DreamingOrchestratorServiceV3 {
                   id: episodeId,
                   primaryEntityId: primaryEntityId,
                   narrative: episode.narrative,
-                  sourceFragmentIds:
-                      jsonEncode(episode.sourceFragmentIds),
+                  sourceFragmentIds: jsonEncode(episode.sourceFragmentIds),
                   significance: episode.significance,
                   confidence: episode.confidence,
                   valence: episode.valence,
@@ -374,8 +421,7 @@ class DreamingOrchestratorServiceV3 {
                           })
                         : null,
                   ),
-                  generatedByVersion:
-                      const Value(_episodeConsolidatorVersion),
+                  generatedByVersion: const Value(_episodeConsolidatorVersion),
                   createdAt: now,
                   updatedAt: now,
                 ),
@@ -408,8 +454,7 @@ class DreamingOrchestratorServiceV3 {
               status: Value('consolidated'),
             ));
           }
-          totalConsolidatedFragments +=
-              episode.sourceFragmentIds.length;
+          totalConsolidatedFragments += episode.sourceFragmentIds.length;
         }
       });
 

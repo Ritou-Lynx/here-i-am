@@ -283,6 +283,51 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     }
   }
 
+  Future<void> _clearAllEpisodes() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear all Dreaming episodes?'),
+        content: const Text(
+          'This deletes all generated episodes and their entity links. Source '
+          'fragments used by those episodes will be set back to active.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Clear', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+
+    try {
+      final count =
+          await DreamingOrchestratorServiceV3.instance.clearAllEpisodes();
+      await _loadRecentEpisodes();
+      await _loadRecentFragments();
+      if (!mounted) return;
+      setState(() {
+        _lastSuccess = 'Cleared $count episode(s)';
+      });
+    } catch (e, stack) {
+      _logger.warning('clearAllEpisodes failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = 'Clear episodes failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _runEpisodeConsolidation() async {
     if (!DreamingOrchestratorServiceV3.isInitialized) {
       setState(() => _lastError = 'Dreaming service 未初始化');
@@ -302,8 +347,8 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         defaultClientKey: LLMConfig.defaultClientKey,
       );
 
-      final result = await DreamingOrchestratorServiceV3.instance
-          .runEpisodeConsolidation(
+      final result =
+          await DreamingOrchestratorServiceV3.instance.runEpisodeConsolidation(
         client: resources.client,
         modelConfig: resources.modelConfig,
       );
@@ -476,7 +521,8 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
   ///   /sdcard/Android/data/com.memexlab.hereiam.v3/files/v3_dump.json
   /// Pull with:
   ///   adb pull <that path> ./v3_dump.json
-  Future<({String path, int cardCount, int fragmentCount, int episodeCount})?> _dumpAllToFile() async {
+  Future<({String path, int cardCount, int fragmentCount, int episodeCount})?>
+      _dumpAllToFile() async {
     final db = AppDatabase.instance;
     final cards = await (db.select(db.memoryCards)
           ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)]))
@@ -612,7 +658,12 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       await file.writeAsString(
           const JsonEncoder.withIndent('  ').convert(payload),
           flush: true);
-      return (path: file.path, cardCount: cards.length, fragmentCount: fragments.length, episodeCount: episodes.length);
+      return (
+        path: file.path,
+        cardCount: cards.length,
+        fragmentCount: fragments.length,
+        episodeCount: episodes.length
+      );
     } catch (e, st) {
       _logger.warning('dumpAllToFile failed', e, st);
       return null;
@@ -632,7 +683,8 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       if (result == null) {
         _lastError = '导出失败（看 logcat）';
       } else {
-        _lastSuccess = '已导出 ${result.cardCount} 张卡 + ${result.fragmentCount} fragment + ${result.episodeCount} episode 到\n${result.path}';
+        _lastSuccess =
+            '已导出 ${result.cardCount} 张卡 + ${result.fragmentCount} fragment + ${result.episodeCount} episode 到\n${result.path}';
         Clipboard.setData(ClipboardData(text: result.path));
       }
     });
@@ -750,26 +802,28 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                       : const Icon(Icons.auto_awesome),
                   label: Text(_busy ? '凝结中…' : 'run Episode consolidation'),
                 ),
+                const SizedBox(height: 4),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _clearAllEpisodes,
+                  icon: const Icon(Icons.delete_sweep_outlined,
+                      color: Colors.red),
+                  label: const Text('clear all episodes',
+                      style: TextStyle(color: Colors.red)),
+                ),
                 if (_lastError != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: Text(_lastError!,
-                          style: const TextStyle(color: Colors.red, fontSize: 12),
-                          maxLines: 5,
-                          overflow: TextOverflow.ellipsis),
+                    child: _LabStatusMessage(
+                      message: _lastError!,
+                      color: Colors.red,
                     ),
                   ),
                 if (_lastSuccess != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: Text(_lastSuccess!,
-                          style: const TextStyle(color: Colors.green, fontSize: 12),
-                          maxLines: 5,
-                          overflow: TextOverflow.ellipsis),
+                    child: _LabStatusMessage(
+                      message: _lastSuccess!,
+                      color: Colors.green,
                     ),
                   ),
               ],
@@ -778,17 +832,17 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text('最近 ${_recent.length} 张 memory_cards',
                     style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(width: 12),
                 Text('fragments ${_recentFragments.length}',
                     style: const TextStyle(fontSize: 11)),
-                const SizedBox(width: 12),
                 Text('episodes ${_recentEpisodes.length}',
                     style: const TextStyle(fontSize: 11)),
-                const Spacer(),
                 Text(
                   RecordOrganizerServiceV3.isInitialized
                       ? 'service: ready'
@@ -856,6 +910,37 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LabStatusMessage extends StatelessWidget {
+  const _LabStatusMessage({
+    required this.message,
+    required this.color,
+  });
+
+  final String message;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 96),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: color.withValues(alpha: 0.22)),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: SelectableText(
+            message,
+            style: TextStyle(color: color, fontSize: 12, height: 1.35),
+          ),
+        ),
       ),
     );
   }

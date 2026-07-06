@@ -40,7 +40,7 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
   Widget build(BuildContext context) {
     final labels = [
       UserStorage.l10n.bottomNavTimeline,
-      UserStorage.l10n.healthPanel,
+      'Health',
       UserStorage.l10n.personalCenter,
     ];
 

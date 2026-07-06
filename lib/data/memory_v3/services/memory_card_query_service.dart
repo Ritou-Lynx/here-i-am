@@ -321,6 +321,30 @@ class MemoryCardQueryService {
     return rows.map(_toViewData).toList();
   }
 
+  /// List cards whose structured fields belong to one of [types].
+  Future<List<MemoryCardViewData>> listCardsByStructuredFieldTypes(
+    Set<String> types, {
+    int limit = 100,
+  }) async {
+    if (types.isEmpty) return [];
+
+    final rows = await (_db.select(_db.memoryCards).join([
+      innerJoin(
+        _db.memoryCardStructuredFields,
+        _db.memoryCardStructuredFields.cardId.equalsExp(_db.memoryCards.id),
+      ),
+    ])
+          ..where(_db.memoryCardStructuredFields.structuredFieldsType
+              .isIn(types.toList()))
+          ..orderBy([OrderingTerm.desc(_db.memoryCards.updatedAt)])
+          ..limit(limit))
+        .get();
+
+    return rows
+        .map((row) => _toViewData(row.readTable(_db.memoryCards)))
+        .toList();
+  }
+
   // ---------------------------------------------------------------------------
   // Follow-up cards
   // ---------------------------------------------------------------------------

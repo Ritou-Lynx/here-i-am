@@ -38,6 +38,10 @@ WHAT TO EXTRACT
 - Stable or repeated facts she explicitly mentioned.
 - Concrete shared interaction moments between her and me that are likely to
   matter later.
+- Intimate relationship moments when they matter to trust, consent, boundaries,
+  comfort, aftercare, or ongoing relationship context. These are valid
+  relationship memories, not taboo; keep them factual and do not mark them as
+  User-truth candidates just because they happened.
 - My own messages ONLY when they contain a notable observation, concern,
   promise, boundary, or relationship-relevant reflection. Do not extract normal
   replies, tool confirmations, summaries, or generic comfort.
@@ -106,12 +110,21 @@ FRAGMENT STYLE
 
 ENTITY LINKS (MANDATORY)
 - For each fragment, extract all stable entities it mentions or is about.
+- When the fragment is about the user herself, use the canonical entity name
+  "user_self" with category "self". Do NOT create entity names like "她",
+  "self", "用户", or "user" for the user. This prevents duplicate user entities.
+- When the fragment is about me (I, the AI companion) only as part of our
+  interaction, prefer linking the user as "user_self" and encode my role in the
+  fragment text; do not create a separate generic "AI companion" entity unless
+  the conversation is explicitly about the product/project.
 - People: 妈妈, 小红, dorianborian, 李老师, etc.
 - Places: 霍营, 西二旗, 开拓大厦, 作业帮, 家, etc.
 - Projects & objects: sesame-robot, HYZE, 眼罩, etc.
 - Work & hobbies: AI companion, 机器人, etc.
 - If the fragment is purely about the user's internal state ("她今天心情不好"),
   the entity is the user herself — use category "self" and relation "about".
+- Internal state fragments must link to name "user_self", category "self",
+  relation "about".
 - Allowed category values:
   person / place / event / project / hobby / work / object / illness / self
 - Allowed relation values:

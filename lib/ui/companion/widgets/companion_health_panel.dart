@@ -3,15 +3,17 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
+import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/services/coros_mcp_service.dart';
+import 'package:memex/data/services/coros_sync_service.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/memory/widgets/memory_card_detail_screen_v3.dart';
 import 'package:memex/ui/memory/widgets/memory_summary_card_v3.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'health_stat_card.dart';
 
@@ -19,7 +21,7 @@ import 'health_stat_card.dart';
 ///
 /// Three data sources:
 /// 1. COROS watch metrics (steps, sleep, heart rate) via MCP
-/// 2. Sync button — attempts to open COROS app
+/// 2. Sync button — fetches COROS MCP data into the local data pool
 /// 3. Health-related Memory V3 cards
 class CompanionHealthPanel extends StatefulWidget {
   const CompanionHealthPanel({super.key});
@@ -33,6 +35,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   final _scrollController = ScrollController();
 
   bool _loading = true;
+  bool _syncing = false;
   String? _error;
 
   // COROS metrics
@@ -45,6 +48,16 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
 
   // Health memory cards
   List<MemoryCardViewData> _healthCards = const [];
+
+  MemoryCardQueryService? get _query {
+    if (!AppDatabase.isInitialized) return null;
+    return MemoryCardQueryService(AppDatabase.instance);
+  }
+
+  RecordOrganizerServiceV3? get _organizer =>
+      RecordOrganizerServiceV3.isInitialized
+          ? RecordOrganizerServiceV3.instance
+          : null;
 
   @override
   void initState() {
@@ -207,28 +220,21 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
 
   Future<void> _fetchHealthCards() async {
     try {
-      if (!AppDatabase.isInitialized) return;
-      final queryService = MemoryCardQueryService(AppDatabase.instance);
-
-      // Search with multiple health keywords
-      final keywords = [
-        '睡眠', '运动', '锻炼', '跑步', '健身',
-        '步数', '身体', '健康', '生病', '不舒服',
-        '体检', '医院', '感冒', '发烧', '头疼',
-      ];
-
+      final queryService = _query;
+      if (queryService == null) return;
       final results = <MemoryCardViewData>[];
       final seenIds = <String>{};
 
-      for (final kw in keywords) {
-        final hits = await queryService.searchCardsResolved(kw, limit: 5);
-        for (final card in hits) {
-          if (seenIds.add(card.id)) {
-            results.add(card);
-          }
-        }
-        // Stop collecting after enough unique results.
-        if (results.length >= 10) break;
+      final structuredHits = await queryService.listCardsByStructuredFieldTypes(
+        const {
+          'sleep_record',
+          'workout_record',
+          'health_observation',
+        },
+        limit: 20,
+      );
+      for (final card in structuredHits) {
+        if (seenIds.add(card.id)) results.add(card);
       }
 
       // Sort by recency descending.
@@ -244,19 +250,29 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
 
   // ── Sync ────────────────────────────────────────────────────────────────
 
-  Future<void> _openCorosApp() async {
+  Future<void> _syncCorosData() async {
+    if (_syncing) return;
+    final userId = await UserStorage.getUserId();
+    if (userId == null) return;
+
+    if (mounted) setState(() => _syncing = true);
+
     try {
-      // Common COROS Android package name.
-      const packageName = 'com.coros.watch';
-      final uri = Uri.parse('intent://#Intent;package=$packageName;end');
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!launched && mounted) {
+      final result = await CorosSyncService.syncDetailed(userId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
+      await _loadData();
+    } catch (e) {
+      _logger.warning('Failed to sync COROS MCP data: $e');
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法打开 COROS app，请手动打开同步数据')),
+          SnackBar(content: Text('COROS MCP 同步失败：$e')),
         );
       }
-    } catch (_) {
-      // Silently fail — user can open COROS manually.
+    } finally {
+      if (mounted) setState(() => _syncing = false);
     }
   }
 
@@ -296,8 +312,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       );
     }
 
-    // No data at all
-    if (_noData) {
+    // No data and no connected health source.
+    if (_noData && !_corosConnected) {
       return ListView(
         controller: _scrollController,
         children: [
@@ -389,6 +405,13 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         ));
       }
 
+      if (_steps == null &&
+          _sleepScore == null &&
+          _heartRate == null &&
+          _recovery == null) {
+        items.add(_emptyHint('暂无手表数据，点同步更新'));
+      }
+
       items.add(const SizedBox(height: 8));
     } else {
       items.add(_buildConnectPrompt());
@@ -429,7 +452,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       ),
       child: Column(
         children: [
-          Icon(Icons.watch_outlined, size: 48, color: AppColors.primary.withValues(alpha: 0.4)),
+          Icon(Icons.watch_outlined,
+              size: 48, color: AppColors.primary.withValues(alpha: 0.4)),
           const SizedBox(height: 12),
           const Text(
             '连接 COROS 获取手表数据',
@@ -460,29 +484,24 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   }
 
   Widget _syncButton() {
-    return GestureDetector(
-      onTap: _openCorosApp,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.sync, size: 14, color: AppColors.primary),
-            SizedBox(width: 4),
-            Text(
-              '同步',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primary,
-              ),
-            ),
-          ],
-        ),
+    return TextButton.icon(
+      onPressed: _syncing ? null : _syncCorosData,
+      icon: _syncing
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.sync, size: 16),
+      label: Text(_syncing ? '同步中' : '同步'),
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.primary,
+        backgroundColor: AppColors.primary.withValues(alpha: 0.08),
+        disabledForegroundColor: AppColors.textTertiary,
+        disabledBackgroundColor: AppColors.textTertiary.withValues(alpha: 0.08),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        minimumSize: const Size(72, 36),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }
@@ -501,14 +520,33 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     );
   }
 
-  void _openCardDetail(MemoryCardViewData card) {
-    // Reuse the V3 detail screen pattern.
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => _CardDetailView(card: card),
+  Widget _emptyHint(String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          color: AppColors.textTertiary,
+        ),
       ),
     );
+  }
+
+  Future<void> _openCardDetail(MemoryCardViewData card) async {
+    final queryService = _query;
+    if (queryService == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MemoryCardDetailScreenV3(
+          cardId: card.id,
+          queryService: queryService,
+          organizerService: _organizer,
+        ),
+      ),
+    );
+    await _fetchHealthCards();
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
@@ -525,32 +563,5 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     final h = minutes ~/ 60;
     final m = minutes % 60;
     return m > 0 ? '$h 小时 $m 分钟' : '$h 小时';
-  }
-}
-
-/// Minimal card detail view for health panel navigation.
-///
-/// Shows the full retrieval text. Detailed card view V3 would be used when
-/// the health panel gets its own detail screen.
-class _CardDetailView extends StatelessWidget {
-  const _CardDetailView({required this.card});
-
-  final MemoryCardViewData card;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(card.title.isEmpty ? card.dropletLabel : card.title),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: MemorySummaryCardV3(card: card),
-      ),
-    );
   }
 }

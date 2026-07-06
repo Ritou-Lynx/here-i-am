@@ -17,16 +17,27 @@ class CorosSyncService {
   /// Returns true if data was synced, false if COROS is not connected.
   /// Never throws — failures are logged and swallowed.
   static Future<bool> syncIfConfigured(String userId) async {
+    final result = await syncDetailed(userId);
+    return result.synced;
+  }
+
+  static Future<CorosSyncResult> syncDetailed(String userId) async {
     final storage = McpTokenStorage(userId: userId);
     final token = await storage.load();
     if (token == null) {
       _logger.info('COROS not connected, skipping sync');
-      return false;
+      return const CorosSyncResult(
+        synced: false,
+        message: 'COROS 尚未连接，请先在设置中完成授权',
+      );
     }
 
     if (token.isExpired) {
       _logger.info('COROS token expired, skipping sync');
-      return false;
+      return const CorosSyncResult(
+        synced: false,
+        message: 'COROS 授权已过期，请重新连接',
+      );
     }
 
     final fileService = FileSystemService.instance;
@@ -43,7 +54,12 @@ class CorosSyncService {
 
     try {
       await service.ensureConnected(userId: userId);
-      if (!service.isConnected) return false;
+      if (!service.isConnected) {
+        return const CorosSyncResult(
+          synced: false,
+          message: 'COROS MCP 连接失败，请稍后重试',
+        );
+      }
 
       // 1. User profile
       try {
@@ -76,7 +92,8 @@ class CorosSyncService {
       // 4. Fitness assessment overview
       try {
         final fitness = await service.queryFitnessAssessmentOverview();
-        await File('$dirPath/fitness_assessment.txt').writeAsString(fitness.text);
+        await File('$dirPath/fitness_assessment.txt')
+            .writeAsString(fitness.text);
         anySuccess = true;
       } catch (e) {
         _logger.warning('Failed to sync fitness assessment: $e');
@@ -94,7 +111,8 @@ class CorosSyncService {
       // 6. Recent sport records (last 7 days)
       try {
         final records = await service.querySportRecords(limit: 10);
-        await File('$dirPath/recent_sport_records.json').writeAsString(records.text);
+        await File('$dirPath/recent_sport_records.json')
+            .writeAsString(records.text);
         anySuccess = true;
       } catch (e) {
         _logger.warning('Failed to sync sport records: $e');
@@ -103,7 +121,8 @@ class CorosSyncService {
       // 7. Training schedule
       try {
         final schedule = await service.queryTrainingSchedule();
-        await File('$dirPath/training_schedule.json').writeAsString(schedule.text);
+        await File('$dirPath/training_schedule.json')
+            .writeAsString(schedule.text);
         anySuccess = true;
       } catch (e) {
         _logger.warning('Failed to sync training schedule: $e');
@@ -118,7 +137,10 @@ class CorosSyncService {
     }
 
     _logger.info('COROS sync ${anySuccess ? 'completed' : 'failed'}');
-    return anySuccess;
+    return CorosSyncResult(
+      synced: anySuccess,
+      message: anySuccess ? 'COROS MCP 数据已同步' : 'COROS MCP 已连接，但这次没有取到可写入的数据',
+    );
   }
 
   static Future<void> _writeSummary(
@@ -137,13 +159,25 @@ class CorosSyncService {
 
     buf.writeln('## Available Data Files');
     buf.writeln('- user_info.txt — Basic profile');
-    buf.writeln('- daily_health.json — Steps, calories, HR, stress, sleep (7 days)');
+    buf.writeln(
+        '- daily_health.json — Steps, calories, HR, stress, sleep (7 days)');
     buf.writeln('- sleep_data.json — Detailed sleep (7 days)');
-    buf.writeln('- fitness_assessment.txt — VO2max, running level, race predictions');
+    buf.writeln(
+        '- fitness_assessment.txt — VO2max, running level, race predictions');
     buf.writeln('- recovery_status.txt — Current recovery percentage');
     buf.writeln('- recent_sport_records.json — Recent workouts');
     buf.writeln('- training_schedule.json — Current training plan');
 
     await File('$dirPath/README.md').writeAsString(buf.toString());
   }
+}
+
+class CorosSyncResult {
+  const CorosSyncResult({
+    required this.synced,
+    required this.message,
+  });
+
+  final bool synced;
+  final String message;
 }

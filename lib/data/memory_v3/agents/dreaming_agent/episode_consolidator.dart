@@ -126,9 +126,8 @@ class EpisodeConsolidatorV3 {
               'id': f.id,
               'content': f.content,
               'emotionalWeight': f.emotionalWeight,
-              'createdAt':
-                  DateTime.fromMillisecondsSinceEpoch(f.createdAt)
-                      .toIso8601String(),
+              'createdAt': DateTime.fromMillisecondsSinceEpoch(f.createdAt)
+                  .toIso8601String(),
             })
         .toList();
 
@@ -248,7 +247,8 @@ class EpisodeConsolidatorV3 {
 
     final skipReason = map['skip_reason'] as String?;
     if (skipReason != null && skipReason.isNotEmpty) {
-      _logger.info('Episode Consolidator skipped entity $entityId: $skipReason');
+      _logger
+          .info('Episode Consolidator skipped entity $entityId: $skipReason');
       return EpisodeConsolidationResult(
         episodes: const [],
         skippedEntityIds: [entityId],
@@ -267,25 +267,25 @@ class EpisodeConsolidatorV3 {
 
     final episodes = episodeList.map((e) {
       final em = e as Map<String, dynamic>;
-      // Inject the primary entity ID from the caller, not trusting the LLM
+      final primaryEntityId = entityId == '__all__'
+          ? ((em['primaryEntityId'] as String?)?.trim().isNotEmpty == true
+              ? (em['primaryEntityId'] as String).trim()
+              : '__ungrouped__')
+          : entityId;
       return EpisodeConsolidationDraft(
         narrative: em['narrative'] as String,
-        primaryEntityId: entityId,
-        sourceFragmentIds:
-            (em['sourceFragmentIds'] as List).cast<String>(),
+        primaryEntityId: primaryEntityId,
+        sourceFragmentIds: (em['sourceFragmentIds'] as List).cast<String>(),
         significance: em['significance'] as int,
         confidence: em['confidence'] as String,
         valence: (em['valence'] as num).toDouble(),
         arousal: (em['arousal'] as num).toDouble(),
-        occurredAtStart:
-            (em['occurredAtRange'] as Map<String, dynamic>?)?['start']
-                as String?,
+        occurredAtStart: (em['occurredAtRange']
+            as Map<String, dynamic>?)?['start'] as String?,
         occurredAtEnd:
-            (em['occurredAtRange'] as Map<String, dynamic>?)?['end']
-                as String?,
-        linkedEntityIds: (em['linkedEntityIds'] as List?)
-                ?.cast<String>() ??
-            const [],
+            (em['occurredAtRange'] as Map<String, dynamic>?)?['end'] as String?,
+        linkedEntityIds:
+            (em['linkedEntityIds'] as List?)?.cast<String>() ?? const [],
       );
     }).toList();
 

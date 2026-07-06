@@ -59,19 +59,6 @@ Color get _personaTextMuted => HereIamThemeRuntime.current.textSecondary;
 Color get _personaAccent => HereIamThemeRuntime.current.accent;
 Color get _personaAccentCool => HereIamThemeRuntime.current.accentSoft;
 Color get _personaLine => HereIamThemeRuntime.current.surfaceDeep;
-Color get _personaCharacterBubble {
-  final tokens = HereIamThemeRuntime.current;
-  return tokens.brightness == Brightness.dark
-      ? const Color(0xFF241319).withValues(alpha: 0.74)
-      : tokens.glassFill;
-}
-
-Color get _personaUserBubble {
-  final tokens = HereIamThemeRuntime.current;
-  return tokens.brightness == Brightness.dark
-      ? const Color(0xFF3A1E24).withValues(alpha: 0.76)
-      : const Color(0x99C9A3B0);
-}
 
 const _voiceModeIdleFollowUpSilenceTimeout = Duration(seconds: 10);
 const _voiceModeMaxRecordingDuration = Duration(seconds: 120);
@@ -125,9 +112,7 @@ bool _personaChatAttachmentLooksLikeImage(Map<dynamic, dynamic> attachment) {
 }
 
 @visibleForTesting
-bool personaChatImageAttachmentCanBeRecorded(
-  Map<dynamic, dynamic> attachment,
-) {
+bool personaChatImageAttachmentCanBeRecorded(Map<dynamic, dynamic> attachment) {
   if (!_personaChatAttachmentLooksLikeImage(attachment)) return false;
   final base64 = attachment['base64']?.toString();
   return (base64 != null && base64.isNotEmpty) ||
@@ -254,10 +239,7 @@ class _PendingPersonaChatMessage {
 }
 
 class _VoiceModeOpening {
-  const _VoiceModeOpening({
-    required this.text,
-    required this.playbackId,
-  });
+  const _VoiceModeOpening({required this.text, required this.playbackId});
 
   final String text;
   final String playbackId;
@@ -352,15 +334,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         : tokens.glassFillSoft;
 
     return MarkdownStyleSheet(
-      p: TextStyle(
-        fontSize: 15,
-        height: 1.68,
-        color: tokens.textPrimary,
-      ),
-      strong: TextStyle(
-        fontWeight: FontWeight.w700,
-        color: tokens.textPrimary,
-      ),
+      p: TextStyle(fontSize: 15, height: 1.68, color: tokens.textPrimary),
+      strong: TextStyle(fontWeight: FontWeight.w700, color: tokens.textPrimary),
       em: const TextStyle(fontStyle: FontStyle.italic),
       listBullet: TextStyle(color: tokens.accent),
       code: TextStyle(
@@ -442,12 +417,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     }
 
     unawaited(
-      _ensureToyConnected(timeout: timeout).catchError(
-        (e) {
-          debugPrint('Toy background connection failed: $e');
-          return null;
-        },
-      ),
+      _ensureToyConnected(timeout: timeout).catchError((e) {
+        debugPrint('Toy background connection failed: $e');
+        return null;
+      }),
     );
   }
 
@@ -476,7 +449,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     WidgetsBinding.instance.addObserver(this);
     _textController.addListener(_onComposerTextChanged);
     unawaited(
-        ActivePersonaChatService.instance.markActive(_currentCharacterId));
+      ActivePersonaChatService.instance.markActive(_currentCharacterId),
+    );
     HardwareKeyboard.instance.addHandler(_handleHardwareKey);
     CharacterService.instance.addListener(_onCharacterUpdated);
     unawaited(_initMediaButtons());
@@ -540,16 +514,20 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
     // Diagnostic: log every key down so we can see what the page-turner sends.
     // Look at logcat for "VoiceInputKey" to confirm key codes.
-    debugPrint('VoiceInputKey: logical=${event.logicalKey.debugName} '
-        'physical=${event.physicalKey.debugName} '
-        'char=${event.character}');
+    debugPrint(
+      'VoiceInputKey: logical=${event.logicalKey.debugName} '
+      'physical=${event.physicalKey.debugName} '
+      'char=${event.character}',
+    );
 
     // Volume keys deliberately excluded; they conflict with TTS volume control.
     final key = event.logicalKey;
-    final isDown = key == LogicalKeyboardKey.pageDown ||
+    final isDown =
+        key == LogicalKeyboardKey.pageDown ||
         key == LogicalKeyboardKey.arrowDown ||
         key == LogicalKeyboardKey.mediaTrackNext;
-    final isUp = key == LogicalKeyboardKey.pageUp ||
+    final isUp =
+        key == LogicalKeyboardKey.pageUp ||
         key == LogicalKeyboardKey.arrowUp ||
         key == LogicalKeyboardKey.mediaTrackPrevious;
 
@@ -579,10 +557,12 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
     final result = await _voiceController.toggle(
       autoStop: true,
-      initialSilenceTimeout:
-          _isInlineVoiceMode ? _voiceModeIdleFollowUpSilenceTimeout : null,
-      maxRecordingDuration:
-          _isInlineVoiceMode ? _voiceModeMaxRecordingDuration : null,
+      initialSilenceTimeout: _isInlineVoiceMode
+          ? _voiceModeIdleFollowUpSilenceTimeout
+          : null,
+      maxRecordingDuration: _isInlineVoiceMode
+          ? _voiceModeMaxRecordingDuration
+          : null,
     );
     if (!mounted) return;
     if (result != null && result.isNotEmpty) {
@@ -706,10 +686,12 @@ only after you have written the goodbye you want the user to hear.''',
   void _queueVoiceModeRecordingStart({Duration delay = Duration.zero}) {
     if (_voiceModeStartQueued) return;
     _voiceModeStartQueued = true;
-    unawaited(Future<void>.delayed(delay).then((_) {
-      _voiceModeStartQueued = false;
-      unawaited(_startVoiceModeRecordingIfReady());
-    }));
+    unawaited(
+      Future<void>.delayed(delay).then((_) {
+        _voiceModeStartQueued = false;
+        unawaited(_startVoiceModeRecordingIfReady());
+      }),
+    );
   }
 
   void _queueVoiceModeOpening() {
@@ -1026,7 +1008,9 @@ only after you have written the goodbye you want the user to hear.''',
 
     _mediaButtonsActive = false;
     unawaited(
-      mediaButtons.deactivate(owner: _mediaButtonOwner).catchError(
+      mediaButtons
+          .deactivate(owner: _mediaButtonOwner)
+          .catchError(
             (e) => debugPrint('MediaButtonService deactivate failed: $e'),
           ),
     );
@@ -1041,8 +1025,10 @@ only after you have written the goodbye you want the user to hear.''',
     );
     final userAvatar = await MemexRouter().getUserAvatar();
 
-    final character = await CharacterService.instance
-        .getCharacter(userId, _currentCharacterId);
+    final character = await CharacterService.instance.getCharacter(
+      userId,
+      _currentCharacterId,
+    );
     final autoReadEnabled = await UserStorage.getCompanionAutoReadEnabled();
 
     final messages = await _chatService.getMessages(
@@ -1203,9 +1189,7 @@ only after you have written the goodbye you want the user to hear.''',
   void dispose() {
     // Auto-capture is gone; record button + floating ball are the only paths now.
     unawaited(
-      ActivePersonaChatService.instance.clear(
-        characterId: _currentCharacterId,
-      ),
+      ActivePersonaChatService.instance.clear(characterId: _currentCharacterId),
     );
     WidgetsBinding.instance.removeObserver(this);
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
@@ -1245,8 +1229,9 @@ only after you have written the goodbye you want the user to hear.''',
     final shouldShowJump = pos.pixels > 180;
     if (shouldShowJump != _showJumpToLatest && mounted) {
       debugPrint(
-          '[JumpButton] _onScroll pixels=${pos.pixels.toStringAsFixed(0)} '
-          'shouldShow=$shouldShowJump was=$_showJumpToLatest');
+        '[JumpButton] _onScroll pixels=${pos.pixels.toStringAsFixed(0)} '
+        'shouldShow=$shouldShowJump was=$_showJumpToLatest',
+      );
       setState(() => _showJumpToLatest = shouldShowJump);
     }
     if (!_hasMoreHistory || _isLoadingMore) return;
@@ -1286,18 +1271,18 @@ only after you have written the goodbye you want the user to hear.''',
     _chatService
         .getMessages(_currentCharacterId, limit: _messages.length + 5)
         .then((updated) {
-      if (!mounted) return;
-      setState(() => _messages = updated);
-      if (_autoReadEnabled || _isInlineVoiceMode) {
-        _autoReadNewestCharacterMessage(
-          previousMessages: previousMessages,
-          updatedMessages: updated,
-        );
-      } else {
-        _advanceAutoReadWatermark(updated);
-      }
-      _scrollToBottom();
-    });
+          if (!mounted) return;
+          setState(() => _messages = updated);
+          if (_autoReadEnabled || _isInlineVoiceMode) {
+            _autoReadNewestCharacterMessage(
+              previousMessages: previousMessages,
+              updatedMessages: updated,
+            );
+          } else {
+            _advanceAutoReadWatermark(updated);
+          }
+          _scrollToBottom();
+        });
   }
 
   void _onConversationCaptureRemembered(EventBusMessage message) {
@@ -1340,10 +1325,12 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   bool _refreshPersonaChatMessageAdded() {
-    unawaited(_refreshMessagesFromStore(
-      autoRead: _autoReadEnabled,
-      scrollToBottom: true,
-    ));
+    unawaited(
+      _refreshMessagesFromStore(
+        autoRead: _autoReadEnabled,
+        scrollToBottom: true,
+      ),
+    );
     return true;
   }
 
@@ -1445,7 +1432,8 @@ only after you have written the goodbye you want the user to hear.''',
 
     final sendCharacterId =
         queuedMessage?.characterId ?? forcedCharacterId ?? _currentCharacterId;
-    final sendCharacter = queuedMessage?.character ??
+    final sendCharacter =
+        queuedMessage?.character ??
         (forcedCharacterId == null ? _character : forcedCharacter);
 
     // While the character is still typing, queue the message; it will be sent
@@ -1498,13 +1486,13 @@ only after you have written the goodbye you want the user to hear.''',
     final userMessageId = isSynthetic
         ? -(DateTime.now().millisecondsSinceEpoch)
         : (queuedMessage?.messageId ??
-            await _chatService.addUserMessage(
-              sendCharacterId,
-              textToSend,
-              timestamp: userMessageTime,
-              attachments: compressedAttachments,
-              appendTimeline: false,
-            ));
+              await _chatService.addUserMessage(
+                sendCharacterId,
+                textToSend,
+                timestamp: userMessageTime,
+                attachments: compressedAttachments,
+                appendTimeline: false,
+              ));
     final sendSerial = ++_sendSerial;
     _activeSendSerial = sendSerial;
     _activeUserMessageId = userMessageId;
@@ -1570,7 +1558,8 @@ only after you have written the goodbye you want the user to hear.''',
           }
           final result = await analysisTool.tool(
             assetPath: image.path,
-            prompt: '用1-2句中文简要描述这张图片的内容。'
+            prompt:
+                '用1-2句中文简要描述这张图片的内容。'
                 '关注画面中可见的人、物体、文字、场景。'
                 '简洁客观。',
           );
@@ -1637,8 +1626,9 @@ only after you have written the goodbye you want the user to hear.''',
         chatMessage = textToSend;
       }
       final linkContext = _buildLinkConversationContext(textToSend);
-      final chatMessageWithContext =
-          linkContext == null ? chatMessage : '$linkContext\n\n$chatMessage';
+      final chatMessageWithContext = linkContext == null
+          ? chatMessage
+          : '$linkContext\n\n$chatMessage';
 
       final toyControlService = _readyToyControlService();
       if (toyControlService == null) {
@@ -1689,8 +1679,9 @@ only after you have written the goodbye you want the user to hear.''',
           return;
         }
         // Strip leaked reasoning tags before persisting.
-        final cleanResponse =
-            PersonaReplySanitizer.stripLeakedReasoning(fullResponse);
+        final cleanResponse = PersonaReplySanitizer.stripLeakedReasoning(
+          fullResponse,
+        );
         await _chatService.addCharacterMessage(
           sendCharacterId,
           cleanResponse,
@@ -1724,9 +1715,9 @@ only after you have written the goodbye you want the user to hear.''',
         final isViewingSendCharacter = _currentCharacterId == sendCharacterId;
         final firstNewCharacterMessageId =
             personaChatFirstNewCharacterMessageId(
-          previousMessages: messages,
-          updatedMessages: updated,
-        );
+              previousMessages: messages,
+              updatedMessages: updated,
+            );
         setState(() {
           if (isViewingSendCharacter) {
             _messages = updated;
@@ -1750,10 +1741,12 @@ only after you have written the goodbye you want the user to hear.''',
             _scrollToBottom();
           }
         } else {
-          unawaited(_refreshMessagesFromStore(
-            autoRead: _autoReadEnabled,
-            scrollToBottom: false,
-          ));
+          unawaited(
+            _refreshMessagesFromStore(
+              autoRead: _autoReadEnabled,
+              scrollToBottom: false,
+            ),
+          );
         }
         _sendPendingMessage();
       }
@@ -1784,9 +1777,9 @@ only after you have written the goodbye you want the user to hear.''',
         final isViewingSendCharacter = _currentCharacterId == sendCharacterId;
         final firstNewCharacterMessageId =
             personaChatFirstNewCharacterMessageId(
-          previousMessages: messages,
-          updatedMessages: updated,
-        );
+              previousMessages: messages,
+              updatedMessages: updated,
+            );
         setState(() {
           if (isViewingSendCharacter) {
             _messages = updated;
@@ -1810,14 +1803,16 @@ only after you have written the goodbye you want the user to hear.''',
             _scrollToBottom();
           }
         } else if (partialResponse.isEmpty && isViewingSendCharacter) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to get response: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to get response: $e')));
         } else if (!isViewingSendCharacter) {
-          unawaited(_refreshMessagesFromStore(
-            autoRead: _autoReadEnabled,
-            scrollToBottom: false,
-          ));
+          unawaited(
+            _refreshMessagesFromStore(
+              autoRead: _autoReadEnabled,
+              scrollToBottom: false,
+            ),
+          );
         }
         _sendPendingMessage();
       }
@@ -1971,11 +1966,13 @@ only after you have written the goodbye you want the user to hear.''',
   void _sendPendingMessage() {
     if (_pendingMessages.isEmpty) return;
     final pending = _pendingMessages.removeAt(0);
-    unawaited(_sendMessage(
-      forcedCharacterId: pending.characterId,
-      forcedCharacter: pending.character,
-      queuedMessage: pending,
-    ));
+    unawaited(
+      _sendMessage(
+        forcedCharacterId: pending.characterId,
+        forcedCharacter: pending.character,
+        queuedMessage: pending,
+      ),
+    );
   }
 
   // 鈹€鈹€ Image selection management 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
@@ -2056,19 +2053,12 @@ only after you have written the goodbye you want the user to hear.''',
         _ => 'image/jpeg',
       };
       debugPrint(
-          'Image fallback: read ${bytes.length} raw bytes, mime=$mimeType');
-      return {
-        'mimeType': mimeType,
-        'base64': base64,
-        'sourcePath': sourcePath,
-      };
+        'Image fallback: read ${bytes.length} raw bytes, mime=$mimeType',
+      );
+      return {'mimeType': mimeType, 'base64': base64, 'sourcePath': sourcePath};
     } catch (e) {
       debugPrint('Image raw fallback also failed: $e');
-      return {
-        'mimeType': 'image/jpeg',
-        'base64': '',
-        'sourcePath': sourcePath,
-      };
+      return {'mimeType': 'image/jpeg', 'base64': '', 'sourcePath': sourcePath};
     }
   }
 
@@ -2111,8 +2101,9 @@ only after you have written the goodbye you want the user to hear.''',
       message,
     );
     final neededDepth = newerCount + 1;
-    final limit =
-        neededDepth > _messages.length ? neededDepth : _messages.length;
+    final limit = neededDepth > _messages.length
+        ? neededDepth
+        : _messages.length;
     final messages = await _chatService.getMessages(
       _currentCharacterId,
       limit: limit,
@@ -2174,18 +2165,22 @@ only after you have written the goodbye you want the user to hear.''',
       // ── Pre-process media attachments ──────────────────────────
       final media = <MediaInputAttachment>[];
       final attachmentsJson = message.attachmentsJson;
-      debugPrint('[Record] msg#${message.id} attachmentsJson '
-          '${attachmentsJson != null ? "present (${attachmentsJson.length} chars)" : "null"}');
+      debugPrint(
+        '[Record] msg#${message.id} attachmentsJson '
+        '${attachmentsJson != null ? "present (${attachmentsJson.length} chars)" : "null"}',
+      );
       if (attachmentsJson != null && attachmentsJson.trim().isNotEmpty) {
         try {
           final List<dynamic> attachments = jsonDecode(attachmentsJson);
           debugPrint(
-              '[Record] msg#${message.id} parsed ${attachments.length} attachment(s)');
+            '[Record] msg#${message.id} parsed ${attachments.length} attachment(s)',
+          );
           // Extract existing analysis text from the [Image analysis: ...] prefix
           // that was injected into message.content during send.
           final existingAnalyses = _extractImageAnalyses(message.content);
           debugPrint(
-              '[Record] msg#${message.id} prefix analyses extracted: ${existingAnalyses.length}');
+            '[Record] msg#${message.id} prefix analyses extracted: ${existingAnalyses.length}',
+          );
           final fsService = FileSystemService.instance;
 
           // Close the initial "Recording…" snackbar once before processing images.
@@ -2200,14 +2195,18 @@ only after you have written the goodbye you want the user to hear.''',
             if (!_personaChatAttachmentLooksLikeImage(attachment)) continue;
             final mimeType = _personaChatImageMimeTypeForAttachment(attachment);
             final base64 = attachment['base64']?.toString();
-            final recoveryPath =
-                personaChatRecoverableImageAttachmentPath(attachment);
+            final recoveryPath = personaChatRecoverableImageAttachmentPath(
+              attachment,
+            );
             if (!personaChatImageAttachmentCanBeRecorded(attachment)) {
               debugPrint(
-                  '[Record] msg#${message.id} image#$i has neither base64 nor sourcePath');
-              media.add(const MediaInputAttachment(
-                error: 'image attachment has neither bytes nor sourcePath',
-              ));
+                '[Record] msg#${message.id} image#$i has neither base64 nor sourcePath',
+              );
+              media.add(
+                const MediaInputAttachment(
+                  error: 'image attachment has neither bytes nor sourcePath',
+                ),
+              );
               continue;
             }
 
@@ -2235,14 +2234,16 @@ only after you have written the goodbye you want the user to hear.''',
                   } catch (e) {
                     if (recoveryPath == null) rethrow;
                     debugPrint(
-                        '[Record] msg#${message.id} image#$i base64 decode failed; '
-                        'recovering from sourcePath: $e');
+                      '[Record] msg#${message.id} image#$i base64 decode failed; '
+                      'recovering from sourcePath: $e',
+                    );
                     sourcePathForSave = recoveryPath;
                   }
                 } else {
                   sourcePathForSave = recoveryPath!;
                   debugPrint(
-                      '[Record] msg#${message.id} image#$i recovering from sourcePath');
+                    '[Record] msg#${message.id} image#$i recovering from sourcePath',
+                  );
                 }
                 final sourceFile = File(sourcePathForSave);
                 if (!await sourceFile.exists()) {
@@ -2261,15 +2262,15 @@ only after you have written the goodbye you want the user to hear.''',
                     '#ts_${now.microsecondsSinceEpoch}';
                 late final String relativePath;
                 try {
-                  final (_, savedRelativePath) =
-                      await fsService.saveAssetFromFile(
-                    userId: userId,
-                    sourcePath: sourcePathForSave,
-                    assetType: 'img',
-                    index: i + 1,
-                    format: ext,
-                    factId: factId,
-                  );
+                  final (_, savedRelativePath) = await fsService
+                      .saveAssetFromFile(
+                        userId: userId,
+                        sourcePath: sourcePathForSave,
+                        assetType: 'img',
+                        index: i + 1,
+                        format: ext,
+                        factId: factId,
+                      );
                   relativePath = savedRelativePath;
                 } finally {
                   if (tempFile != null) {
@@ -2279,7 +2280,8 @@ only after you have written the goodbye you want the user to hear.''',
                   }
                 }
                 debugPrint(
-                    '[Record] msg#${message.id} image#$i saved: $relativePath');
+                  '[Record] msg#${message.id} image#$i saved: $relativePath',
+                );
 
                 // 3. Get or run image analysis (3-tier priority)
                 String? analysisText;
@@ -2287,7 +2289,8 @@ only after you have written the goodbye you want the user to hear.''',
                 if (i < existingAnalyses.length) {
                   analysisText = existingAnalyses[i];
                   debugPrint(
-                      '[Record] msg#${message.id} image#$i analysis from prefix');
+                    '[Record] msg#${message.id} image#$i analysis from prefix',
+                  );
                 }
                 // Tier 2: from attachment.analysis stored during send
                 if (analysisText == null || analysisText.trim().isEmpty) {
@@ -2296,20 +2299,22 @@ only after you have written the goodbye you want the user to hear.''',
                       storedAnalysis.trim().isNotEmpty) {
                     analysisText = storedAnalysis.trim();
                     debugPrint(
-                        '[Record] msg#${message.id} image#$i analysis from attachment '
-                        '(${analysisText.length} chars)');
+                      '[Record] msg#${message.id} image#$i analysis from attachment '
+                      '(${analysisText.length} chars)',
+                    );
                   }
                 }
                 // Tier 3: run inline AssetAnalysisTool
                 if (analysisText == null || analysisText.trim().isEmpty) {
                   try {
                     debugPrint(
-                        '[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…');
+                      '[Record] msg#${message.id} image#$i running inline AssetAnalysisTool…',
+                    );
                     final analysisResources =
                         await UserStorage.getAgentLLMResources(
-                      AgentDefinitions.analyzeAssets,
-                      defaultClientKey: LLMConfig.defaultClientKey,
-                    );
+                          AgentDefinitions.analyzeAssets,
+                          defaultClientKey: LLMConfig.defaultClientKey,
+                        );
                     final analysisTool = AssetAnalysisTool(
                       client: analysisResources.client,
                       modelConfig: analysisResources.modelConfig,
@@ -2317,44 +2322,54 @@ only after you have written the goodbye you want the user to hear.''',
                     final absPath = fsService.toAbsolutePath(relativePath);
                     final result = await analysisTool.tool(
                       assetPath: absPath,
-                      prompt: '用1-2句中文简要描述这张图片的内容。'
+                      prompt:
+                          '用1-2句中文简要描述这张图片的内容。'
                           '关注画面中可见的人、物体、文字、场景。'
                           '简洁客观。',
                     );
                     // Strip the "#Asset ... analysis result\n:" prefix
                     analysisText = result
                         .replaceFirst(
-                            RegExp(r'^#Asset .+ analysis result\n:'), '')
+                          RegExp(r'^#Asset .+ analysis result\n:'),
+                          '',
+                        )
                         .trim();
                     debugPrint(
-                        '[Record] msg#${message.id} image#$i inline analysis done '
-                        '(${analysisText.length} chars)');
+                      '[Record] msg#${message.id} image#$i inline analysis done '
+                      '(${analysisText.length} chars)',
+                    );
                   } catch (e) {
                     debugPrint(
-                        '[Record] msg#${message.id} image#$i inline analysis FAILED: $e');
+                      '[Record] msg#${message.id} image#$i inline analysis FAILED: $e',
+                    );
                   }
                 }
 
-                media.add(MediaInputAttachment(
-                  savedRelativePath: relativePath,
-                  analysisText: analysisText,
-                  kind: 'image',
-                ));
+                media.add(
+                  MediaInputAttachment(
+                    savedRelativePath: relativePath,
+                    analysisText: analysisText,
+                    kind: 'image',
+                  ),
+                );
                 debugPrint(
-                    '[Record] msg#${message.id} image#$i → media (usable=${media.last.isUsable}, '
-                    'hasAnalysis=${analysisText != null && analysisText.isNotEmpty})');
+                  '[Record] msg#${message.id} image#$i → media (usable=${media.last.isUsable}, '
+                  'hasAnalysis=${analysisText != null && analysisText.isNotEmpty})',
+                );
               } finally {
                 analyzing.close();
               }
             } catch (e) {
               debugPrint(
-                  '[Record] msg#${message.id} image#$i PROCESSING FAILED: $e');
+                '[Record] msg#${message.id} image#$i PROCESSING FAILED: $e',
+              );
               media.add(MediaInputAttachment(error: e.toString()));
             }
           }
         } catch (e) {
           debugPrint(
-              '[Record] msg#${message.id} parse attachmentsJson FAILED: $e');
+            '[Record] msg#${message.id} parse attachmentsJson FAILED: $e',
+          );
         }
       }
 
@@ -2362,8 +2377,10 @@ only after you have written the goodbye you want the user to hear.''',
       final cleanedContent = message.content
           .replaceFirst(RegExp(r'^\[Image analysis:.*?\](\n\n?)?'), '')
           .trim();
-      debugPrint('[Record] msg#${message.id} content="$cleanedContent", '
-          'mediaCount=${media.where((m) => m.isUsable).length}');
+      debugPrint(
+        '[Record] msg#${message.id} content="$cleanedContent", '
+        'mediaCount=${media.where((m) => m.isUsable).length}',
+      );
 
       // Restore progress toast before the LLM call.
       try {
@@ -2380,21 +2397,24 @@ only after you have written the goodbye you want the user to hear.''',
       );
       final inputMedia = media.isNotEmpty
           ? media
-              .map((m) => {
+                .map(
+                  (m) => {
                     'kind': m.kind,
                     if (m.savedRelativePath != null)
                       'path': m.savedRelativePath!,
                     if (m.analysisText != null) 'analysis': m.analysisText!,
-                  })
-              .toList()
+                  },
+                )
+                .toList()
           : null;
       final result = await RecordOrganizerServiceV3.instance.organizeAndPersist(
         client: resources.client,
         modelConfig: resources.modelConfig,
         source: RecordSource(
           sourceKind: 'record_button',
-          rawInput:
-              cleanedContent.isNotEmpty ? cleanedContent : message.content,
+          rawInput: cleanedContent.isNotEmpty
+              ? cleanedContent
+              : message.content,
         ),
         inputMedia: inputMedia,
       );
@@ -2544,20 +2564,19 @@ only after you have written the goodbye you want the user to hear.''',
     if (deleted == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_chatUiText(
-            zh: '这条消息已经不能撤回',
-            en: 'This message can no longer be recalled',
-          )),
+          content: Text(
+            _chatUiText(
+              zh: '这条消息已经不能撤回',
+              en: 'This message can no longer be recalled',
+            ),
+          ),
         ),
       );
       return;
     }
 
     _messageKeys.remove(message.id);
-    await _refreshMessagesFromStore(
-      autoRead: false,
-      scrollToBottom: false,
-    );
+    await _refreshMessagesFromStore(autoRead: false, scrollToBottom: false);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2717,11 +2736,13 @@ only after you have written the goodbye you want the user to hear.''',
       await _stopTtsPlayback();
       // Notify the character that the user hung up (unless the agent ended it).
       if (!wasAgentEnded) {
-        unawaited(_chatService.addCharacterMessage(
-          _currentCharacterId,
-          '📵 用户挂断了语音通话。',
-          isRead: true,
-        ));
+        unawaited(
+          _chatService.addCharacterMessage(
+            _currentCharacterId,
+            '📵 用户挂断了语音通话。',
+            isRead: true,
+          ),
+        );
       }
     }
   }
@@ -2802,9 +2823,9 @@ only after you have written the goodbye you want the user to hear.''',
     final voiceId = _character?.ttsVoiceId;
     if (voiceId == null || voiceId.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请先在角色设置中配置 TTS 语音 ID')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('请先在角色设置中配置 TTS 语音 ID')));
       }
       return;
     }
@@ -2850,9 +2871,7 @@ only after you have written the goodbye you want the user to hear.''',
           _isTtsLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
-          ),
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
         _queueVoiceModeRecordingStart();
       }
@@ -2985,8 +3004,8 @@ only after you have written the goodbye you want the user to hear.''',
                     color: _toyConnecting
                         ? const Color(0xFFFACC15)
                         : (_toyConnected
-                            ? const Color(0xFF4ADE80)
-                            : const Color(0xFF94A3B8)),
+                              ? const Color(0xFF4ADE80)
+                              : const Color(0xFF94A3B8)),
                   ),
                 ),
               ),
@@ -3103,9 +3122,7 @@ only after you have written the goodbye you want the user to hear.''',
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               color: _personaPanel.withValues(alpha: 0.82),
-              border: Border.all(
-                color: _personaAccent.withValues(alpha: 0.2),
-              ),
+              border: Border.all(color: _personaAccent.withValues(alpha: 0.2)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.18),
@@ -3125,10 +3142,7 @@ only after you have written the goodbye you want the user to hear.''',
                 const SizedBox(width: 4),
                 Text(
                   _chatUiText(zh: '回到最新', en: 'Back to latest'),
-                  style: TextStyle(
-                    color: _personaAccent,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: _personaAccent, fontSize: 13),
                 ),
               ],
             ),
@@ -3151,70 +3165,85 @@ only after you have written the goodbye you want the user to hear.''',
 
     if (_messages.isEmpty && extraItems == 0) return _buildEmptyState();
 
-    return ListView.builder(
-      controller: _scrollController,
-      reverse: true,
-      padding: const EdgeInsets.fromLTRB(10, 8, 12, 10),
-      itemCount: itemCount,
-      itemBuilder: (context, index) {
-        // Typing indicator or streaming message at the bottom (index 0 in reversed list)
-        if (extraItems == 1 && index == 0) {
-          if (showTypingIndicator) {
-            return _buildTypingIndicator();
-          }
-          return _buildStreamingReply(_streamingText);
-        }
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: NotificationListener<OverscrollIndicatorNotification>(
+            onNotification: (notification) {
+              notification.disallowIndicator();
+              return false;
+            },
+            child: ScrollConfiguration(
+              behavior: const _NoChatOverscrollBehavior(),
+              child: ListView.builder(
+                controller: _scrollController,
+                physics: const ClampingScrollPhysics(),
+                reverse: true,
+                padding: const EdgeInsets.fromLTRB(10, 18, 12, 30),
+                itemCount: itemCount,
+                itemBuilder: (context, index) {
+                  // Typing indicator or streaming message at the bottom (index 0 in reversed list)
+                  if (extraItems == 1 && index == 0) {
+                    if (showTypingIndicator) {
+                      return _buildTypingIndicator();
+                    }
+                    return _buildStreamingReply(_streamingText);
+                  }
 
-        // Load-more indicator at the top (last index in reversed list)
-        if (loadMoreItem == 1 && index == itemCount - 1) {
-          return _buildLoadMoreIndicator();
-        }
+                  // Load-more indicator at the top (last index in reversed list)
+                  if (loadMoreItem == 1 && index == itemCount - 1) {
+                    return _buildLoadMoreIndicator();
+                  }
 
-        final messageIndex = _messageIndexForListIndex(
-          listIndex: index,
-          extraItems: extraItems,
-        );
-        final msg = _messages[messageIndex];
-        final showDate = _shouldShowDateDivider(
-          messageIndex,
-          _messages,
-        );
-        final isHighlighted = msg.id == _highlightedMessageId;
+                  final messageIndex = _messageIndexForListIndex(
+                    listIndex: index,
+                    extraItems: extraItems,
+                  );
+                  final msg = _messages[messageIndex];
+                  final showDate = _shouldShowDateDivider(
+                    messageIndex,
+                    _messages,
+                  );
+                  final isHighlighted = msg.id == _highlightedMessageId;
 
-        return KeyedSubtree(
-          key: _messageKeys.putIfAbsent(msg.id, GlobalKey.new),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-            decoration: BoxDecoration(
-              color: isHighlighted
-                  ? _personaAccent.withValues(alpha: 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              children: [
-                if (showDate) _buildDateDivider(msg.timestamp),
-                if (msg.messageType == 'action')
-                  _buildActionMessage(text: msg.content)
-                else if (msg.isFromCharacter)
-                  _buildCharacterMessage(
-                    msg,
-                    isStreaming: false,
-                  )
-                else
-                  _buildBubble(
-                    text: msg.content,
-                    isCharacter: msg.isFromCharacter,
-                    message: msg,
-                    messageId: msg.id.toString(),
-                    attachmentsJson: msg.attachmentsJson,
-                  ),
-              ],
+                  return KeyedSubtree(
+                    key: _messageKeys.putIfAbsent(msg.id, GlobalKey.new),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      decoration: BoxDecoration(
+                        color: isHighlighted
+                            ? _personaAccent.withValues(alpha: 0.12)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          if (showDate) _buildDateDivider(msg.timestamp),
+                          if (msg.messageType == 'action')
+                            _buildActionMessage(text: msg.content)
+                          else if (msg.isFromCharacter)
+                            _buildCharacterMessage(msg, isStreaming: false)
+                          else
+                            _buildBubble(
+                              text: msg.content,
+                              isCharacter: msg.isFromCharacter,
+                              message: msg,
+                              messageId: msg.id.toString(),
+                              attachmentsJson: msg.attachmentsJson,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
-        );
-      },
+        ),
+        const _ChatListEdgeFade(alignment: Alignment.topCenter),
+        const _ChatListEdgeFade(alignment: Alignment.bottomCenter),
+      ],
     );
   }
 
@@ -3336,9 +3365,11 @@ only after you have written the goodbye you want the user to hear.''',
       return '${UserStorage.l10n.yesterday} $time';
     }
 
-    final daysAgo = DateTime(now.year, now.month, now.day)
-        .difference(DateTime(date.year, date.month, date.day))
-        .inDays;
+    final daysAgo = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).difference(DateTime(date.year, date.month, date.day)).inDays;
 
     if (daysAgo < 7) {
       final weekday = DateFormat.E(locale).format(date);
@@ -3438,14 +3469,14 @@ only after you have written the goodbye you want the user to hear.''',
     final userMessage = message;
     final attachmentWidgets =
         attachmentsJson != null && attachmentsJson.isNotEmpty
-            ? _buildAttachmentWidgets(
-                attachmentsJson,
-                message!.id,
-                onRecord: userMessage != null
-                    ? () => _recordMessage(userMessage)
-                    : null,
-              )
-            : <Widget>[];
+        ? _buildAttachmentWidgets(
+            attachmentsJson,
+            message!.id,
+            onRecord: userMessage != null
+                ? () => _recordMessage(userMessage)
+                : null,
+          )
+        : <Widget>[];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
@@ -3466,113 +3497,61 @@ only after you have written the goodbye you want the user to hear.''',
                 onDoubleTap: userMessage != null
                     ? () => _recordMessage(userMessage)
                     : null,
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.88,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(6),
-                      bottomLeft: Radius.circular(18),
-                      bottomRight: Radius.circular(18),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.28),
-                        blurRadius: 24,
-                        offset: const Offset(0, 14),
-                      ),
-                      BoxShadow(
-                        color: _personaAccent.withValues(alpha: 0.06),
-                        blurRadius: 18,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(6),
-                      bottomLeft: Radius.circular(18),
-                      bottomRight: Radius.circular(18),
-                    ),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-                      child: Container(
-                        padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
-                        decoration: BoxDecoration(
-                          color: _personaUserBubble,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.06),
-                          ),
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              const Color(0xFF5B3037).withValues(alpha: 0.44),
-                              _personaUserBubble,
-                              const Color(0xFF120B0E).withValues(alpha: 0.24),
-                            ],
-                            stops: const [0, 0.56, 1],
+                child: _FrostedChatBubbleSurface(
+                  isCharacter: false,
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (text.isNotEmpty)
+                        SelectionArea(
+                          child: Text(
+                            text,
+                            style: TextStyle(
+                              fontSize: 15,
+                              height: 1.55,
+                              color: _personaText,
+                            ),
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (text.isNotEmpty)
-                              SelectionArea(
-                                child: Text(
-                                  text,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    height: 1.55,
-                                    color: _personaText,
-                                  ),
+                      if (attachmentWidgets.isNotEmpty) ...[
+                        if (text.isNotEmpty) const SizedBox(height: 8),
+                        ...attachmentWidgets,
+                      ],
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: text));
+                            },
+                            child: Icon(
+                              Icons.copy_rounded,
+                              size: 14,
+                              color: _personaTextMuted,
+                            ),
+                          ),
+                          if (userMessage != null) ...[
+                            const SizedBox(width: 12),
+                            Semantics(
+                              button: true,
+                              label: 'Recall message',
+                              child: GestureDetector(
+                                onTap: () =>
+                                    _confirmRetractUserMessage(userMessage),
+                                child: Icon(
+                                  Icons.undo_rounded,
+                                  size: 15,
+                                  color: _personaTextMuted,
                                 ),
                               ),
-                            if (attachmentWidgets.isNotEmpty) ...[
-                              if (text.isNotEmpty) const SizedBox(height: 8),
-                              ...attachmentWidgets,
-                            ],
-                            const SizedBox(height: 6),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                GestureDetector(
-                                  onTap: () {
-                                    Clipboard.setData(
-                                        ClipboardData(text: text));
-                                  },
-                                  child: Icon(
-                                    Icons.copy_rounded,
-                                    size: 14,
-                                    color: _personaTextMuted,
-                                  ),
-                                ),
-                                if (userMessage != null) ...[
-                                  const SizedBox(width: 12),
-                                  Semantics(
-                                    button: true,
-                                    label: 'Recall message',
-                                    child: GestureDetector(
-                                      onTap: () => _confirmRetractUserMessage(
-                                          userMessage),
-                                      child: Icon(
-                                        Icons.undo_rounded,
-                                        size: 15,
-                                        color: _personaTextMuted,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
@@ -3584,10 +3563,7 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   Widget _buildStreamingReply(String text) {
-    return _buildCharacterMessageContent(
-      text: text,
-      isStreaming: true,
-    );
+    return _buildCharacterMessageContent(text: text, isStreaming: true);
   }
 
   Widget _buildCharacterMessage(
@@ -3634,13 +3610,15 @@ only after you have written the goodbye you want the user to hear.''',
     for (final segment in segments) {
       if (segment.type == PersonaReplySegmentType.action) {
         if (chatTexts.isNotEmpty) {
-          children.add(_buildBubble(
-            text: chatTexts.join('\n'),
-            isCharacter: true,
-            isStreaming: isStreaming,
-            messageId: nextChatMessageId(),
-            attachmentsJson: attachmentsJson,
-          ));
+          children.add(
+            _buildBubble(
+              text: chatTexts.join('\n'),
+              isCharacter: true,
+              isStreaming: isStreaming,
+              messageId: nextChatMessageId(),
+              attachmentsJson: attachmentsJson,
+            ),
+          );
           chatTexts.clear();
           attachmentsJson = null;
         }
@@ -3650,13 +3628,15 @@ only after you have written the goodbye you want the user to hear.''',
       }
     }
     if (chatTexts.isNotEmpty) {
-      children.add(_buildBubble(
-        text: chatTexts.join('\n'),
-        isCharacter: true,
-        isStreaming: isStreaming,
-        messageId: nextChatMessageId(),
-        attachmentsJson: attachmentsJson,
-      ));
+      children.add(
+        _buildBubble(
+          text: chatTexts.join('\n'),
+          isCharacter: true,
+          isStreaming: isStreaming,
+          messageId: nextChatMessageId(),
+          attachmentsJson: attachmentsJson,
+        ),
+      );
     }
 
     if (children.isEmpty) {
@@ -3844,28 +3824,10 @@ only after you have written the goodbye you want the user to hear.''',
               ),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-            decoration: BoxDecoration(
-              color: _personaCharacterBubble,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(6),
-                topRight: Radius.circular(12),
-                bottomLeft: Radius.circular(12),
-                bottomRight: Radius.circular(12),
-              ),
-              border: Border.all(
-                color: _personaLine.withValues(alpha: 0.7),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: _personaLine.withValues(alpha: 0.18),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: const _TypingDots(),
+          const _FrostedChatBubbleSurface(
+            isCharacter: true,
+            padding: EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+            child: _TypingDots(),
           ),
         ],
       ),
@@ -3880,12 +3842,11 @@ only after you have written the goodbye you want the user to hear.''',
       hintText: UserStorage.l10n.personaChatInputHint,
       voiceController: _voiceController,
       onVoiceTap: _onVoiceToggle,
-      isVoiceInputEnabled:
-          _isInlineVoiceMode ? !_isStreaming : !_isVoiceReplyActive,
+      isVoiceInputEnabled: _isInlineVoiceMode
+          ? !_isStreaming
+          : !_isVoiceReplyActive,
       isVoiceModeActive: _isInlineVoiceMode,
-      onVoiceModeTap: () => unawaited(
-        _setInlineVoiceMode(!_isInlineVoiceMode),
-      ),
+      onVoiceModeTap: () => unawaited(_setInlineVoiceMode(!_isInlineVoiceMode)),
       onAddTap: widget.enableRichCapture
           ? () => setState(() => _isMediaTrayOpen = !_isMediaTrayOpen)
           : null,
@@ -3915,8 +3876,10 @@ int? personaChatFirstNewCharacterMessageId({
 }) {
   final previousIds = previousMessages.map((message) => message.id).toSet();
   final candidates = updatedMessages
-      .where((message) =>
-          message.isFromCharacter && !previousIds.contains(message.id))
+      .where(
+        (message) =>
+            message.isFromCharacter && !previousIds.contains(message.id),
+      )
       .toList();
   if (candidates.isEmpty) return null;
   candidates.sort((a, b) {
@@ -3933,11 +3896,13 @@ List<PersonaChatMessage> personaChatGeneratedReadableMessagesInOrder({
 }) {
   final previousIds = previousMessages.map((message) => message.id).toSet();
   final candidates = updatedMessages
-      .where((message) =>
-          !previousIds.contains(message.id) &&
-          message.isFromCharacter &&
-          message.messageType == 'chat' &&
-          message.content.trim().isNotEmpty)
+      .where(
+        (message) =>
+            !previousIds.contains(message.id) &&
+            message.isFromCharacter &&
+            message.messageType == 'chat' &&
+            message.content.trim().isNotEmpty,
+      )
       .toList();
   candidates.sort((a, b) {
     final byTime = a.timestamp.compareTo(b.timestamp);
@@ -3949,7 +3914,8 @@ List<PersonaChatMessage> personaChatGeneratedReadableMessagesInOrder({
 @visibleForTesting
 String personaChatTtsPlaybackIdForMessage(PersonaChatMessage message) {
   final segments = PersonaReplySanitizer.splitVisibleReply(message.content);
-  final hasSplitSpeech = segments.length > 1 &&
+  final hasSplitSpeech =
+      segments.length > 1 &&
       segments.any((segment) => segment.type == PersonaReplySegmentType.chat);
   return hasSplitSpeech ? '${message.id}:0' : message.id.toString();
 }
@@ -4108,8 +4074,9 @@ class _PersonaChatSearchSheetState extends State<_PersonaChatSearchSheet> {
                                 fontSize: 15,
                               ),
                               border: InputBorder.none,
-                              contentPadding:
-                                  const EdgeInsets.symmetric(vertical: 12),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
                             ),
                           ),
                         ),
@@ -4159,10 +4126,8 @@ class _PersonaChatSearchSheetState extends State<_PersonaChatSearchSheet> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
       itemCount: _results.length,
-      separatorBuilder: (_, __) => Divider(
-        height: 1,
-        color: _personaLine.withValues(alpha: 0.5),
-      ),
+      separatorBuilder: (_, __) =>
+          Divider(height: 1, color: _personaLine.withValues(alpha: 0.5)),
       itemBuilder: (context, index) {
         final message = _results[index];
         return _SearchResultTile(
@@ -4210,8 +4175,9 @@ class _SearchResultTile extends StatelessWidget {
                   ? Icons.auto_awesome_rounded
                   : Icons.person_rounded,
               size: 18,
-              color:
-                  message.isFromCharacter ? _personaAccent : _personaAccentCool,
+              color: message.isFromCharacter
+                  ? _personaAccent
+                  : _personaAccentCool,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -4255,10 +4221,7 @@ class _SearchResultTile extends StatelessWidget {
               child: IconButton(
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 34,
-                  minHeight: 34,
-                ),
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
                 icon: Icon(
                   Icons.copy_rounded,
                   size: 17,
@@ -4277,10 +4240,7 @@ class _SearchResultTile extends StatelessWidget {
 }
 
 class _HighlightedSnippet extends StatelessWidget {
-  const _HighlightedSnippet({
-    required this.text,
-    required this.query,
-  });
+  const _HighlightedSnippet({required this.text, required this.query});
 
   final String text;
   final String query;
@@ -4334,10 +4294,7 @@ class _HighlightedSnippet extends StatelessWidget {
 }
 
 class _SearchEmptyState extends StatelessWidget {
-  const _SearchEmptyState({
-    required this.icon,
-    required this.label,
-  });
+  const _SearchEmptyState({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -4424,11 +4381,7 @@ class _ChatAtmosphereBackground extends StatelessWidget {
             ),
           ),
         if (!hasCustomBg)
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _ChatTexturePainter(),
-            ),
-          ),
+          Positioned.fill(child: CustomPaint(painter: _ChatTexturePainter())),
         if (!hasCustomBg) ...[
           Positioned(
             top: -88,
@@ -4522,11 +4475,7 @@ class _ChatTexturePainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 0.035)
       ..strokeWidth = 1;
     for (var y = 48.0; y < size.height; y += 72) {
-      canvas.drawLine(
-        Offset(0, y),
-        Offset(size.width, y + 18),
-        linePaint,
-      );
+      canvas.drawLine(Offset(0, y), Offset(size.width, y + 18), linePaint);
     }
 
     final dotPaint = Paint()
@@ -4545,10 +4494,7 @@ class _ChatTexturePainter extends CustomPainter {
 
 @visibleForTesting
 class ConversationCaptureRememberedNotice extends StatelessWidget {
-  const ConversationCaptureRememberedNotice({
-    super.key,
-    required this.onUndo,
-  });
+  const ConversationCaptureRememberedNotice({super.key, required this.onUndo});
 
   final VoidCallback onUndo;
 
@@ -4637,10 +4583,7 @@ class ConversationCaptureRememberedNotice extends StatelessWidget {
 }
 
 class _AtmosphereGlow extends StatelessWidget {
-  const _AtmosphereGlow({
-    required this.size,
-    required this.color,
-  });
+  const _AtmosphereGlow({required this.size, required this.color});
 
   final double size;
   final Color color;
@@ -4653,9 +4596,167 @@ class _AtmosphereGlow extends StatelessWidget {
         child: Container(
           width: size,
           height: size,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+class _NoChatOverscrollBehavior extends ScrollBehavior {
+  const _NoChatOverscrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child;
+  }
+}
+
+class _ChatListEdgeFade extends StatelessWidget {
+  const _ChatListEdgeFade({required this.alignment});
+
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    final isTop = alignment == Alignment.topCenter;
+    return Positioned(
+      top: isTop ? 0 : null,
+      bottom: isTop ? null : 0,
+      left: 0,
+      right: 0,
+      height: isTop ? 48 : 68,
+      child: IgnorePointer(
+        child: DecoratedBox(
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
+            gradient: LinearGradient(
+              begin: isTop ? Alignment.topCenter : Alignment.bottomCenter,
+              end: isTop ? Alignment.bottomCenter : Alignment.topCenter,
+              colors: [
+                const Color(0xFF090608).withValues(alpha: isTop ? 0.34 : 0.48),
+                const Color(0xFF241319).withValues(alpha: isTop ? 0.12 : 0.18),
+                Colors.transparent,
+              ],
+              stops: const [0, 0.56, 1],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FrostedChatBubbleSurface extends StatelessWidget {
+  const _FrostedChatBubbleSurface({
+    required this.child,
+    required this.isCharacter,
+    this.padding = const EdgeInsets.fromLTRB(18, 13, 18, 13),
+  });
+
+  final Widget child;
+  final bool isCharacter;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = isCharacter
+        ? const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+            bottomLeft: Radius.circular(8),
+            bottomRight: Radius.circular(24),
+          )
+        : const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(8),
+          );
+    final tint = isCharacter
+        ? const Color(0xFF241319)
+        : const Color(0xFF70403C);
+
+    return Container(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width * 0.88,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 44,
+            offset: const Offset(0, 18),
+          ),
+          BoxShadow(
+            color: const Color(0xFFFFECDD).withValues(alpha: 0.035),
+            blurRadius: 18,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 38, sigmaY: 38),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: tint.withValues(alpha: isCharacter ? 0.24 : 0.26),
+                    borderRadius: radius,
+                    border: Border.all(
+                      color:
+                          (isCharacter ? Colors.white : const Color(0xFFFFC6B5))
+                              .withValues(alpha: isCharacter ? 0.075 : 0.11),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: radius,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFFFFECDD).withValues(alpha: 0.16),
+                        const Color(0xFFFFECDD).withValues(alpha: 0.055),
+                        tint.withValues(alpha: 0.18),
+                        Colors.black.withValues(alpha: 0.10),
+                      ],
+                      stops: const [0, 0.38, 0.72, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: radius,
+                    gradient: RadialGradient(
+                      center: isCharacter
+                          ? const Alignment(-0.65, -0.78)
+                          : const Alignment(0.66, -0.74),
+                      radius: 0.92,
+                      colors: [
+                        const Color(0xFFFFFFFF).withValues(alpha: 0.105),
+                        const Color(0xFFFFECDD).withValues(alpha: 0.035),
+                        Colors.transparent,
+                      ],
+                      stops: const [0, 0.42, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(padding: padding, child: child),
+            ],
           ),
         ),
       ),
@@ -4670,68 +4771,7 @@ class _CharacterMessageFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = HereIamThemeRuntime.current;
-    final isDark = tokens.brightness == Brightness.dark;
-    const radius = BorderRadius.only(
-      topLeft: Radius.circular(7),
-      topRight: Radius.circular(18),
-      bottomLeft: Radius.circular(18),
-      bottomRight: Radius.circular(18),
-    );
-
-    return Container(
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.sizeOf(context).width * 0.88,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.30)
-                : tokens.textSecondary.withValues(alpha: 0.10),
-            blurRadius: 26,
-            offset: const Offset(0, 14),
-          ),
-          if (isDark)
-            BoxShadow(
-              color: tokens.accent.withValues(alpha: 0.05),
-              blurRadius: 20,
-              offset: const Offset(0, -2),
-            ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(18, 13, 18, 13),
-            decoration: BoxDecoration(
-              color: _personaCharacterBubble,
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : tokens.glassStroke,
-              ),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  isDark
-                      ? const Color(0xFF4A252B).withValues(alpha: 0.34)
-                      : const Color(0xFFFFECDD).withValues(alpha: 0.18),
-                  _personaCharacterBubble,
-                  const Color(0xFF120B0E).withValues(alpha: isDark ? 0.16 : 0),
-                ],
-                stops: const [0, 0.56, 1],
-              ),
-            ),
-            child: child,
-          ),
-        ),
-      ),
-    );
+    return _FrostedChatBubbleSurface(isCharacter: true, child: child);
   }
 }
 
@@ -4957,7 +4997,10 @@ class _TappableUserAvatarState extends State<_TappableUserAvatar>
     );
     _scale = Tween<double>(begin: 1.0, end: 0.82).animate(
       CurvedAnimation(
-          parent: _ctrl, curve: Curves.easeIn, reverseCurve: Curves.elasticOut),
+        parent: _ctrl,
+        curve: Curves.easeIn,
+        reverseCurve: Curves.elasticOut,
+      ),
     );
   }
 
@@ -4980,7 +5023,10 @@ class _TappableUserAvatarState extends State<_TappableUserAvatar>
   Widget build(BuildContext context) {
     if (widget.onTap == null) {
       return _UserAvatar(
-          avatar: widget.avatar, name: widget.name, size: widget.size);
+        avatar: widget.avatar,
+        name: widget.name,
+        size: widget.size,
+      );
     }
     return GestureDetector(
       onTapDown: _onTapDown,
@@ -4989,7 +5035,10 @@ class _TappableUserAvatarState extends State<_TappableUserAvatar>
       child: ScaleTransition(
         scale: _scale,
         child: _UserAvatar(
-            avatar: widget.avatar, name: widget.name, size: widget.size),
+          avatar: widget.avatar,
+          name: widget.name,
+          size: widget.size,
+        ),
       ),
     );
   }
@@ -5126,8 +5175,9 @@ class PersonaChatInputBar extends StatelessWidget {
                                       width: 18,
                                       height: 18,
                                       decoration: BoxDecoration(
-                                        color:
-                                            Colors.black.withValues(alpha: 0.6),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.6,
+                                        ),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Icon(
@@ -5225,19 +5275,17 @@ class PersonaChatInputBar extends StatelessWidget {
                                       showVoiceModeEnd: isVoiceModeActive,
                                     )
                                   : voiceController != null
-                                      ? _ChatVoiceActions(
-                                          key: const ValueKey('voice-actions'),
-                                          voiceController: voiceController,
-                                          onVoiceTap: onVoiceTap,
-                                          onVoiceModeTap: onVoiceModeTap,
-                                          isVoiceModeActive: isVoiceModeActive,
-                                          voiceInputEnabled:
-                                              isVoiceInputEnabled,
-                                          voiceModeEnabled:
-                                              isVoiceModeActive || !isStreaming,
-                                        )
-                                      : const SizedBox(
-                                          key: ValueKey('no-send')),
+                                  ? _ChatVoiceActions(
+                                      key: const ValueKey('voice-actions'),
+                                      voiceController: voiceController,
+                                      onVoiceTap: onVoiceTap,
+                                      onVoiceModeTap: onVoiceModeTap,
+                                      isVoiceModeActive: isVoiceModeActive,
+                                      voiceInputEnabled: isVoiceInputEnabled,
+                                      voiceModeEnabled:
+                                          isVoiceModeActive || !isStreaming,
+                                    )
+                                  : const SizedBox(key: ValueKey('no-send')),
                             ),
                           ),
                         ],
@@ -5255,10 +5303,7 @@ class PersonaChatInputBar extends StatelessWidget {
 }
 
 class _FloatingGlassInputCapsule extends StatelessWidget {
-  const _FloatingGlassInputCapsule({
-    required this.child,
-    required this.isDark,
-  });
+  const _FloatingGlassInputCapsule({required this.child, required this.isDark});
 
   final Widget child;
   final bool isDark;
@@ -5366,8 +5411,9 @@ class _AddButton extends StatelessWidget {
                   center: const Alignment(-0.36, -0.44),
                   radius: 1.08,
                   colors: [
-                    const Color(0xFFFFECDD)
-                        .withValues(alpha: active ? 0.13 : 0.08),
+                    const Color(
+                      0xFFFFECDD,
+                    ).withValues(alpha: active ? 0.13 : 0.08),
                     active
                         ? const Color(0xFF4D222B).withValues(alpha: 0.58)
                         : const Color(0xFF3A2123).withValues(alpha: 0.48),
@@ -5475,11 +5521,7 @@ class _SendAndMaybeEndVoiceMode extends StatelessWidget {
       children: [
         _SendButton(enabled: true, onTap: onSend),
         const SizedBox(width: 8),
-        _VoiceModeButton(
-          enabled: true,
-          active: true,
-          onTap: onVoiceModeTap!,
-        ),
+        _VoiceModeButton(enabled: true, active: true, onTap: onVoiceModeTap!),
       ],
     );
   }
@@ -5540,8 +5582,9 @@ class _VoiceModeButton extends StatelessWidget {
                 boxShadow: active
                     ? [
                         BoxShadow(
-                          color:
-                              const Color(0xFFC0646E).withValues(alpha: 0.16),
+                          color: const Color(
+                            0xFFC0646E,
+                          ).withValues(alpha: 0.16),
                           blurRadius: 16,
                           offset: Offset.zero,
                         ),
@@ -5602,10 +5645,7 @@ class _VoiceBarsIcon extends StatelessWidget {
 }
 
 class _SendButton extends StatelessWidget {
-  const _SendButton({
-    required this.enabled,
-    required this.onTap,
-  });
+  const _SendButton({required this.enabled, required this.onTap});
 
   final bool enabled;
   final VoidCallback onTap;
@@ -5773,8 +5813,8 @@ class _TypingDotsState extends State<_TypingDots>
             final offset = t < 0.3
                 ? -4.0 * (t / 0.3)
                 : t < 0.6
-                    ? -4.0 * (1 - (t - 0.3) / 0.3)
-                    : 0.0;
+                ? -4.0 * (1 - (t - 0.3) / 0.3)
+                : 0.0;
             return Padding(
               padding: EdgeInsets.only(right: i < 2 ? 4 : 0),
               child: Transform.translate(
