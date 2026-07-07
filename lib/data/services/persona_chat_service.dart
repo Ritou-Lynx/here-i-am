@@ -98,6 +98,18 @@ class PersonaChatService {
     // extraction and recall, so chat persistence must not create side records.
   }
 
+  Future<int> deleteMessage(String characterId, int messageId) async {
+    final deleted = await (_db.delete(_db.personaChatMessages)
+          ..where((t) =>
+              t.id.equals(messageId) &
+              t.characterId.equals(characterId)))
+        .go();
+    if (deleted > 0) {
+      _notifyMessageAdded(characterId);
+    }
+    return deleted;
+  }
+
   Future<int> retractUserMessage(String characterId, int messageId) async {
     final deleted = await (_db.delete(_db.personaChatMessages)
           ..where((t) =>

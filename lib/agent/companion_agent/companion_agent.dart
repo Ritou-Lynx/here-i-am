@@ -476,8 +476,24 @@ class CompanionAgent {
     buf.writeln('- When the user last messaged you and what was said');
     buf.writeln('- When you last sent a proactive push and what you said');
     buf.writeln();
-    buf.writeln('## Step 1 — Optional: fetch external context (0–2 calls, only '
-        'if useful)');
+    buf.writeln('## Step 1 — Read the room first');
+    buf.writeln();
+    buf.writeln('Before you fetch any data or decide what to do, read the '
+        'recent chat snapshot carefully. Understand:');
+    buf.writeln('- What is she talking about right now? What mood is she in?');
+    buf.writeln('- Where is the conversation — just getting started, in the '
+        'middle of something, or finished and quiet?');
+    buf.writeln('- What would feel natural for you to say next, given where '
+        'things are?');
+    buf.writeln();
+    buf.writeln('Your check-in must land INSIDE the current conversation, not '
+        'next to it. If she\'s talking about her birthday and you need to ask '
+        'about sleep, bridge them: "生日快乐～顺便问一句，昨晚睡得怎么样？" '
+        'If she\'s upset about work and you want to mention the weather, '
+        'acknowledge the work thing first. Never switch topics cold.');
+    buf.writeln();
+    buf.writeln('## Step 2 — Optional: fetch external data (only if it helps '
+        'the conversation)');
     buf.writeln();
     buf.writeln('You have access to `coros_query` (health/fitness data from '
         'the user\'s COROS watch).');
@@ -499,7 +515,7 @@ class CompanionAgent {
         'to Step 2. Do NOT call a tool just to fill space — a warm generic '
         'message beats a forced data query.');
     buf.writeln();
-    buf.writeln('## Step 2 — Decide and act');
+    buf.writeln('## Step 3 — Decide and act');
     buf.writeln();
     buf.writeln('If this is a user-set reminder: deliver it naturally. The '
         'user trusted you to remember — don\'t stay silent. But how you '

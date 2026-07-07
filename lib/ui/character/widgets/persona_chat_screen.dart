@@ -18,6 +18,7 @@ import 'package:memex/data/services/asr/asr_config.dart';
 import 'package:memex/data/services/asr/media_button_service.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
 import 'package:memex/data/services/active_persona_chat_service.dart';
+import 'package:memex/data/services/bad_case_collector.dart';
 import 'package:memex/data/services/tts_service.dart';
 import 'package:memex/data/services/buttplug_toy_controller.dart';
 import 'package:memex/data/services/magic_motion_flamingo_controller.dart';
@@ -257,6 +258,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   String? _userId;
   String? _userAvatar;
   List<PersonaChatMessage> _messages = [];
+  int? _lastBadCaseSaved;
   bool _isLoading = true;
   bool _isStreaming = false;
   String _streamingText = '';
@@ -2803,6 +2805,92 @@ only after you have written the goodbye you want the user to hear.''',
     }
   }
 
+  Future<void> _confirmDeleteMessage({
+    required String messageId,
+    required String characterId,
+  }) async {
+    final id = int.tryParse(messageId);
+    if (id == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除这条消息？'),
+        content: const Text('删除后无法恢复。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('删除', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _chatService.deleteMessage(characterId, id);
+      await _refreshMessagesFromStore(
+          autoRead: false, scrollToBottom: false);
+    } catch (e) {
+      debugPrint('deleteMessage failed: $e');
+    }
+  }
+
+  Future<void> _collectBadCase({
+    required String messageId,
+    required String text,
+  }) async {
+    try {
+      final id = int.tryParse(messageId);
+      if (id == null) return;
+
+      // Collect surrounding context (2 messages before and after).
+      final allMessages = _messages.toList();
+      final targetIndex = allMessages.indexWhere((m) => m.id == id);
+      final contextBefore = <String>[];
+      final contextAfter = <String>[];
+      if (targetIndex >= 0) {
+        for (var i = targetIndex - 1;
+            i >= 0 && contextBefore.length < 3;
+            i--) {
+          contextBefore.insert(
+              0, '[${allMessages[i].isFromCharacter ? "I" : "U"}] ${allMessages[i].content}');
+        }
+        for (var i = targetIndex + 1;
+            i < allMessages.length && contextAfter.length < 3;
+            i++) {
+          contextAfter.add(
+              '[${allMessages[i].isFromCharacter ? "I" : "U"}] ${allMessages[i].content}');
+        }
+      }
+
+      await BadCaseCollector.collect(
+        characterId: _character?.id ?? '',
+        targetMessageId: id,
+        targetContent: text,
+        targetTimestamp: targetIndex >= 0
+            ? allMessages[targetIndex].timestamp
+            : null,
+        contextBefore: contextBefore,
+        contextAfter: contextAfter,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _lastBadCaseSaved = id;
+      });
+      // Auto-clear the indicator after 2 seconds.
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && _lastBadCaseSaved == id) {
+          setState(() => _lastBadCaseSaved = null);
+        }
+      });
+    } catch (e) {
+      // Silently ignore collection failures — non-critical feature.
+      debugPrint('collectBadCase failed: $e');
+    }
+  }
+
   Future<void> _handleTtsPlay(
     String messageId,
     String text, {
@@ -3791,6 +3879,32 @@ only after you have written the goodbye you want the user to hear.''',
                                 color: _personaTextMuted,
                               ),
                             ),
+                            const SizedBox(width: 16),
+                            GestureDetector(
+                              onTap: () => _collectBadCase(
+                                messageId: messageId,
+                                text: text,
+                              ),
+                              child: Icon(
+                                Icons.bookmark_add_outlined,
+                                size: 16,
+                                color: _personaTextMuted,
+                              ),
+                            ),
+                            if (_character != null) ...[
+                              const SizedBox(width: 16),
+                              GestureDetector(
+                                onTap: () => _confirmDeleteMessage(
+                                  messageId: messageId!,
+                                  characterId: _character!.id,
+                                ),
+                                child: Icon(
+                                  Icons.delete_outline,
+                                  size: 15,
+                                  color: _personaTextMuted,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ],
