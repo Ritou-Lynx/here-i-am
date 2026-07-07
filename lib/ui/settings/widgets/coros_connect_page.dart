@@ -172,10 +172,14 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
         redirectUri: _redirectUri,
       );
 
-      // 7. Save token
+      // 7. Save token (with refresh metadata)
       final userId = await UserStorage.getUserId();
       if (userId != null) {
-        await McpTokenStorage(userId: userId).save(token);
+        await McpTokenStorage(userId: userId).save(
+          token,
+          clientId: clientId,
+          tokenEndpoint: metadata.tokenEndpoint,
+        );
       }
 
       if (mounted) {

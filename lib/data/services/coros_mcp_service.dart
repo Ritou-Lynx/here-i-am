@@ -1,5 +1,6 @@
 import 'package:logging/logging.dart';
 import 'package:memex/agent/mcp/mcp_client.dart';
+import 'package:memex/agent/mcp/mcp_oauth.dart';
 import 'package:memex/agent/mcp/mcp_protocol.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -12,6 +13,9 @@ class CorosMcpService {
 
   McpClient? _client;
   bool _initializing = false;
+  String? _lastError;
+
+  String? get lastError => _lastError;
 
   CorosMcpService._();
 
@@ -28,34 +32,62 @@ class CorosMcpService {
     if (_initializing) return;
 
     _initializing = true;
+    _lastError = null;
     try {
       userId ??= await UserStorage.getUserId();
       if (userId == null) {
-        _logger.warning('No user ID — cannot connect COROS MCP');
+        _lastError = 'COROS MCP: No user ID';
         return;
       }
 
       final storage = McpTokenStorage(userId: userId);
       final token = await storage.load();
       if (token == null) {
-        _logger.info('No COROS token stored — skipping MCP connection');
+        _lastError = 'COROS 尚未连接，请先在设置中授权';
         return;
       }
 
+      var accessToken = token.accessToken;
+
       if (token.isExpired) {
-        _logger.info('COROS token expired — need re-auth');
-        return;
+        _logger.info('COROS token expired — attempting refresh');
+        final meta = await storage.loadRefreshMeta();
+        if (meta != null && token.refreshToken != null) {
+          try {
+            final oauth = McpOAuth(
+                serverUrl: 'https://mcpcn.coros.com/mcp');
+            final newToken = await oauth.refreshToken(
+              metadata: McpOAuthMetadata(tokenEndpoint: meta.tokenEndpoint),
+              refreshToken: token.refreshToken!,
+              clientId: meta.clientId,
+            );
+            await storage.save(
+              newToken,
+              clientId: meta.clientId,
+              tokenEndpoint: meta.tokenEndpoint,
+            );
+            accessToken = newToken.accessToken;
+            _logger.info('COROS token refreshed successfully');
+          } catch (e) {
+            _lastError = 'COROS token 刷新失败: $e';
+            return;
+          }
+        } else {
+          _lastError = 'COROS 授权已过期，请重新连接（缺少刷新凭据）';
+          return;
+        }
       }
 
       _client = McpClient(
         serverUrl: 'https://mcpcn.coros.com/mcp',
-        accessToken: token.accessToken,
+        accessToken: accessToken,
       );
 
       await _client!.initialize();
       _logger.info('COROS MCP connected');
     } catch (e) {
-      _logger.warning('Failed to connect COROS MCP: $e');
+      _lastError = 'COROS MCP: $e';
+      _logger.warning(_lastError!);
       _client?.disconnect();
       _client = null;
     } finally {

@@ -15,8 +15,8 @@ class McpOAuthMetadata {
   final List<String> responseTypesSupported;
 
   const McpOAuthMetadata({
-    required this.issuer,
-    required this.authorizationEndpoint,
+    this.issuer = '',
+    this.authorizationEndpoint = '',
     required this.tokenEndpoint,
     this.registrationEndpoint,
     this.scopesSupported = const [],

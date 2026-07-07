@@ -32,14 +32,6 @@ class CorosSyncService {
       );
     }
 
-    if (token.isExpired) {
-      _logger.info('COROS token expired, skipping sync');
-      return const CorosSyncResult(
-        synced: false,
-        message: 'COROS 授权已过期，请重新连接',
-      );
-    }
-
     final fileService = FileSystemService.instance;
     final dirPath =
         '${fileService.getUserSettingsPath(userId)}/external_data/coros';
@@ -55,9 +47,10 @@ class CorosSyncService {
     try {
       await service.ensureConnected(userId: userId);
       if (!service.isConnected) {
-        return const CorosSyncResult(
+        final detail = service.lastError ?? 'MCP连接失败(no detail)';
+        return CorosSyncResult(
           synced: false,
-          message: 'COROS MCP 连接失败，请稍后重试',
+          message: detail,
         );
       }
 

@@ -35,7 +35,8 @@ class McpClient {
         ));
 
   McpInitializeResult? get initResult => _initResult;
-  bool get isConnected => _sessionId != null && !_disposed;
+  bool get isConnected =>
+      (_sessionId != null || _initResult != null) && !_disposed;
 
   // -----------------------------------------------------------------------
   // Public API

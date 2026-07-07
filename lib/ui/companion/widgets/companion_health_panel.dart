@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
@@ -116,26 +118,27 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     }
   }
 
-  // ── COROS data via MCP ──────────────────────────────────────────────────
+  // ── COROS data from synced files ────────────────────────────────────────
+
+  Future<String> _getCorosDir() async {
+    final userId = await UserStorage.getUserId();
+    if (userId == null) return '';
+    return '${FileSystemService.instance.getUserSettingsPath(userId)}/external_data/coros';
+  }
 
   Future<void> _fetchDailyHealth() async {
     try {
-      final svc = CorosMcpService.instance;
-      await svc.ensureConnected();
-      if (!svc.isConnected) return;
-
-      final result = await svc.queryDailyHealthData(days: 1);
-      if (result.isError || result.text.isEmpty) return;
-
-      // COROS returns JSON in the content text.
-      final data = jsonDecode(result.text) as Map<String, dynamic>;
-      final healthList = data['dailyHealthList'] as List<dynamic>?;
-      if (healthList == null || healthList.isEmpty) return;
-
-      final today = healthList.first as Map<String, dynamic>;
-      final steps = today['totalSteps'] as int?;
-      final avgHr = today['avgHeartRate'] as int?;
-
+      final dir = await _getCorosDir();
+      if (dir.isEmpty) return;
+      final file = File('$dir/daily_health.json');
+      if (!file.existsSync()) return;
+      final text = await file.readAsString();
+      // COROS returns formatted text, not JSON. Extract today's data.
+      final today = _extractTodaySection(text);
+      if (today.isEmpty) return;
+      final steps = _parseInt(today, 'Steps:');
+      final avgHr = _parseInt(today, 'Avg Heart Rate:') ??
+          _parseInt(today, 'Resting HR:');
       if (mounted) {
         setState(() {
           if (steps != null) _steps = _formatNumber(steps);
@@ -143,30 +146,54 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         });
       }
     } catch (e) {
-      _logger.warning('Failed to fetch daily health: $e');
+      _logger.warning('Failed to read daily health: $e');
     }
+  }
+
+  /// Extract today's section from COROS daily health text.
+  /// Format: "--- 20260707 ---" sections, first line is a header.
+  String _extractTodaySection(String text) {
+    final today =
+        DateTime.now().toIso8601String().substring(0, 10).replaceAll('-', '');
+    final marker = '--- $today ---';
+    final idx = text.indexOf(marker);
+    if (idx < 0) return '';
+    // Find the next "---" after this one
+    final rest = text.substring(idx + marker.length);
+    final nextIdx = rest.indexOf('\n--- ');
+    if (nextIdx >= 0) {
+      return rest.substring(0, nextIdx).trim();
+    }
+    return rest.trim();
+  }
+
+  int? _parseInt(String text, String prefix) {
+    final match = RegExp('$prefix\\s*([0-9,]+)').firstMatch(text);
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!.replaceAll(',', ''));
   }
 
   Future<void> _fetchSleep() async {
     try {
-      final svc = CorosMcpService.instance;
-      await svc.ensureConnected();
-      if (!svc.isConnected) return;
-
-      final result = await svc.querySleepData(days: 1);
-      if (result.isError || result.text.isEmpty) return;
-
-      final data = jsonDecode(result.text) as Map<String, dynamic>;
-      final sleepList = data['sleepList'] as List<dynamic>?;
-      if (sleepList == null || sleepList.isEmpty) return;
-
-      final today = sleepList.first as Map<String, dynamic>;
-      final score = today['sleepScore'] as int?;
-      final totalMin = today['totalSleepMinutes'] as int?;
-      final deepMin = today['deepSleepMinutes'] as int?;
-      final remMin = today['remSleepMinutes'] as int?;
-      final lightMin = today['lightSleepMinutes'] as int?;
-
+      final dir = await _getCorosDir();
+      if (dir.isEmpty) return;
+      final file = File('$dir/sleep_data.json');
+      if (!file.existsSync()) return;
+      final text = await file.readAsString();
+      // Sleep file format: date line, then key-value pairs, separated by \n\n
+      final sections = text.split('\n\n');
+      // Use the most recent date section (last one with a score).
+      String? latestSection;
+      for (final s in sections) {
+        if (s.contains('Sleep Score:')) latestSection = s;
+      }
+      if (latestSection == null) return;
+      final todaySection = latestSection;
+      final score = _parseInt(todaySection, 'Sleep Score:');
+      final totalMin = _parseDurationMin(todaySection, 'Main Sleep:');
+      final deepPct = _parseInt(todaySection, 'Deep Sleep Ratio:');
+      final remPct = _parseInt(todaySection, 'REM Ratio:');
+      final lightPct = _parseInt(todaySection, 'Light Sleep Ratio:');
       if (mounted) {
         setState(() {
           if (score != null) _sleepScore = '$score';
@@ -174,15 +201,9 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
             final hours = totalMin ~/ 60;
             final mins = totalMin % 60;
             final parts = <String>[];
-            if (deepMin != null && deepMin > 0) {
-              parts.add('深睡 ${_fmtMin(deepMin)}');
-            }
-            if (remMin != null && remMin > 0) {
-              parts.add('REM ${_fmtMin(remMin)}');
-            }
-            if (lightMin != null && lightMin > 0) {
-              parts.add('浅睡 ${_fmtMin(lightMin)}');
-            }
+            if (deepPct != null && deepPct > 0) parts.add('深睡 $deepPct%');
+            if (remPct != null && remPct > 0) parts.add('REM $remPct%');
+            if (lightPct != null && lightPct > 0) parts.add('浅睡 $lightPct%');
             _sleepBreakdown =
                 '${hours > 0 ? '$hours 小时 ' : ''}${mins > 0 ? '$mins 分钟' : ''}';
             if (parts.isNotEmpty) {
@@ -192,27 +213,39 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         });
       }
     } catch (e) {
-      _logger.warning('Failed to fetch sleep: $e');
+      _logger.warning('Failed to read sleep: $e');
     }
+  }
+
+  /// Parse duration like "7h 18min" or "7h" or "18min" → total minutes.
+  int? _parseDurationMin(String text, String prefix) {
+    final idx = text.indexOf(prefix);
+    if (idx < 0) return null;
+    final remainder = text.substring(idx + prefix.length).trim();
+    // e.g. "7h 18min" or "5h" or "42 min"
+    var hours = 0;
+    var mins = 0;
+    final hMatch = RegExp(r'(\d+)\s*h').firstMatch(remainder);
+    if (hMatch != null) hours = int.parse(hMatch.group(1)!);
+    final mMin = RegExp(r'(\d+)\s*min').firstMatch(remainder);
+    if (mMin != null) mins = int.parse(mMin.group(1)!);
+    if (hours == 0 && mins == 0) return null;
+    return hours * 60 + mins;
   }
 
   Future<void> _fetchRecovery() async {
     try {
-      final svc = CorosMcpService.instance;
-      await svc.ensureConnected();
-      if (!svc.isConnected) return;
-
-      final result = await svc.queryRecoveryStatus();
-      if (result.isError || result.text.isEmpty) return;
-
-      final data = jsonDecode(result.text) as Map<String, dynamic>;
-      final recovery = data['recoveryPercent'] as int?;
-
+      final dir = await _getCorosDir();
+      if (dir.isEmpty) return;
+      final file = File('$dir/recovery_status.txt');
+      if (!file.existsSync()) return;
+      final text = await file.readAsString();
+      final recovery = _parseInt(text, 'Recovery:');
       if (mounted && recovery != null) {
         setState(() => _recovery = '$recovery');
       }
     } catch (e) {
-      _logger.warning('Failed to fetch recovery: $e');
+      _logger.warning('Failed to read recovery: $e');
     }
   }
 
@@ -308,6 +341,17 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
               ),
             ),
           ),
+        ],
+      );
+    }
+
+    // Connected but no data yet.
+    if (_noData && _corosConnected) {
+      return ListView(
+        controller: _scrollController,
+        children: [
+          const SizedBox(height: 80),
+          _buildNoDataPrompt(),
         ],
       );
     }
@@ -433,6 +477,36 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     }
 
     return items;
+  }
+
+  Widget _buildNoDataPrompt() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.watch_outlined,
+              size: 48, color: AppColors.primary.withValues(alpha: 0.4)),
+          const SizedBox(height: 12),
+          const Text(
+            'COROS 已连接，暂无手表数据',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '请确认手表已同步至 COROS App，再点击同步。',
+            style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          _syncButton(),
+        ],
+      ),
+    );
   }
 
   Widget _buildConnectPrompt() {

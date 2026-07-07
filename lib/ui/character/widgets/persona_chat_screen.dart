@@ -2968,7 +2968,10 @@ only after you have written the goodbye you want the user to hear.''',
 
   @override
   Widget build(BuildContext context) {
+    final viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
+
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: _personaStageInk,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -2981,7 +2984,7 @@ only after you have written the goodbye you want the user to hear.''',
                 ),
                 Column(
                   children: [
-                    SizedBox(height: MediaQuery.of(context).padding.top),
+                    SizedBox(height: MediaQuery.paddingOf(context).top),
                     _buildHeader(),
                     const ChatTaskCapsule(),
                     Expanded(child: _buildMessageList()),
@@ -2992,6 +2995,7 @@ only after you have written the goodbye you want the user to hear.''',
                         onImagesPicked: _onImagesPicked,
                       ),
                     _buildInputBar(),
+                    SizedBox(height: viewInsetsBottom),
                   ],
                 ),
                 if (_isHeaderActionsOpen)
@@ -3010,7 +3014,7 @@ only after you have written the goodbye you want the user to hear.''',
   Widget _buildHeader() {
     final character = _character;
 
-    final content = Container(
+    return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
       child: Row(
         children: [
@@ -3027,59 +3031,43 @@ only after you have written the goodbye you want the user to hear.''',
             ),
           ],
           if (character != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => context.push(AppRoutes.aboutI),
+              child: _FloatingGlassCircle(
+                size: 44,
+                child: CharacterAvatar(
+                  avatar: character.avatar,
+                  name: character.name,
+                  size: 41,
+                  backgroundColor: _personaPanelSoft,
+                ),
+              ),
+            ),
             const SizedBox(width: 10),
             Expanded(
-              child: GestureDetector(
-                onTap: () => context.push(AppRoutes.aboutI),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      padding: const EdgeInsets.all(1.5),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: _personaAccent.withValues(alpha: 0.72),
-                          width: 1.2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.42),
-                            blurRadius: 22,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: CharacterAvatar(
-                        avatar: character.avatar,
-                        name: character.name,
-                        size: 41,
-                        backgroundColor: _personaPanelSoft,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        character.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 17,
-                          height: 1.1,
-                          fontWeight: FontWeight.w600,
-                          color: _personaText,
-                          letterSpacing: 0,
-                        ),
-                      ),
+              child: Text(
+                character.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 17,
+                  height: 1.1,
+                  fontWeight: FontWeight.w600,
+                  color: _personaText,
+                  letterSpacing: 0,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
               ),
             ),
-            // Toy connection indicator
             if (_toyControlService != null || _toyConnecting) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               Tooltip(
                 message: _toyConnecting
                     ? '玩具连接中'
@@ -3094,6 +3082,17 @@ only after you have written the goodbye you want the user to hear.''',
                         : (_toyConnected
                               ? const Color(0xFF4ADE80)
                               : const Color(0xFF94A3B8)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (_toyConnecting
+                                ? const Color(0xFFFACC15)
+                                : (_toyConnected
+                                    ? const Color(0xFF4ADE80)
+                                    : const Color(0xFF94A3B8)))
+                            .withValues(alpha: 0.5),
+                        blurRadius: 6,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -3117,12 +3116,10 @@ only after you have written the goodbye you want the user to hear.''',
         ],
       ),
     );
-
-    return content;
   }
 
   Widget _buildHeaderActionsOverlay() {
-    final top = MediaQuery.of(context).padding.top + 58;
+    final top = MediaQuery.paddingOf(context).top + 58;
     final actions = <Widget>[
       _HeaderActionButton(
         icon: Icons.search_rounded,
@@ -3329,8 +3326,6 @@ only after you have written the goodbye you want the user to hear.''',
             ),
           ),
         ),
-        const _ChatListEdgeFade(alignment: Alignment.topCenter),
-        const _ChatListEdgeFade(alignment: Alignment.bottomCenter),
       ],
     );
   }
@@ -3510,7 +3505,7 @@ only after you have written the goodbye you want the user to hear.''',
             flex: 0,
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.68,
+                maxWidth: MediaQuery.sizeOf(context).width * 0.68,
               ),
               child: SelectableText(
                 text,
@@ -4435,34 +4430,73 @@ class _SearchEmptyState extends StatelessWidget {
   }
 }
 
-class _ChatAtmosphereBackground extends StatelessWidget {
+class _ChatAtmosphereBackground extends StatefulWidget {
   const _ChatAtmosphereBackground({required this.character});
 
   final CharacterModel? character;
 
-  String _fileImageKey(String path) {
-    try {
-      final stat = File(path).statSync();
-      return '$path:${stat.size}:${stat.modified.millisecondsSinceEpoch}';
-    } catch (_) {
-      return path;
+  @override
+  State<_ChatAtmosphereBackground> createState() =>
+      _ChatAtmosphereBackgroundState();
+}
+
+class _ChatAtmosphereBackgroundState extends State<_ChatAtmosphereBackground> {
+  bool? _hasCustomBg;
+  String? _cachedBgPath;
+  String? _cachedImageKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshCache();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ChatAtmosphereBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.character?.chatBackground !=
+        oldWidget.character?.chatBackground) {
+      _refreshCache();
+    }
+  }
+
+  void _refreshCache() {
+    final bgPath = widget.character?.chatBackground;
+    if (bgPath != null && bgPath.isNotEmpty) {
+      _cachedBgPath = bgPath;
+      try {
+        final file = File(bgPath);
+        _hasCustomBg = file.existsSync();
+        if (_hasCustomBg!) {
+          final stat = file.statSync();
+          _cachedImageKey = '$bgPath:${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+        } else {
+          _cachedImageKey = null;
+        }
+      } catch (_) {
+        _hasCustomBg = false;
+        _cachedImageKey = null;
+      }
+    } else {
+      _hasCustomBg = false;
+      _cachedBgPath = null;
+      _cachedImageKey = null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final bgPath = character?.chatBackground;
-    final hasCustomBg =
-        bgPath != null && bgPath.isNotEmpty && File(bgPath).existsSync();
+    final hasCustomBg = _hasCustomBg ?? false;
+    final bgPath = _cachedBgPath;
     final tokens = context.hereIamTheme;
 
     return Stack(
       children: [
-        if (hasCustomBg)
+        if (hasCustomBg && bgPath != null)
           Positioned.fill(
             child: Image.file(
               File(bgPath),
-              key: ValueKey(_fileImageKey(bgPath)),
+              key: ValueKey(_cachedImageKey ?? bgPath),
               fit: BoxFit.cover,
             ),
           )
@@ -4614,11 +4648,12 @@ class ConversationCaptureRememberedNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
+    final viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
+    final paddingBottom = MediaQuery.paddingOf(context).bottom;
     return Positioned(
       left: 24,
       right: 24,
-      bottom: mediaQuery.viewInsets.bottom + mediaQuery.padding.bottom + 96,
+      bottom: viewInsetsBottom + paddingBottom + 96,
       child: Center(
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0, end: 1),
@@ -4633,16 +4668,13 @@ class ConversationCaptureRememberedNotice extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.fromLTRB(12, 7, 6, 7),
               decoration: BoxDecoration(
-                color: _personaPanel.withValues(alpha: 0.94),
+                color: _personaPanel.withValues(alpha: 0.88),
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: _personaAccent.withValues(alpha: 0.22),
-                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.34),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+                    color: Colors.black.withValues(alpha: 0.38),
+                    blurRadius: 22,
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
@@ -4730,40 +4762,6 @@ class _NoChatOverscrollBehavior extends ScrollBehavior {
   }
 }
 
-class _ChatListEdgeFade extends StatelessWidget {
-  const _ChatListEdgeFade({required this.alignment});
-
-  final Alignment alignment;
-
-  @override
-  Widget build(BuildContext context) {
-    final isTop = alignment == Alignment.topCenter;
-    return Positioned(
-      top: isTop ? 0 : null,
-      bottom: isTop ? null : 0,
-      left: 0,
-      right: 0,
-      height: isTop ? 48 : 68,
-      child: IgnorePointer(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: isTop ? Alignment.topCenter : Alignment.bottomCenter,
-              end: isTop ? Alignment.bottomCenter : Alignment.topCenter,
-              colors: [
-                const Color(0xFF090608).withValues(alpha: isTop ? 0.34 : 0.48),
-                const Color(0xFF241319).withValues(alpha: isTop ? 0.12 : 0.18),
-                Colors.transparent,
-              ],
-              stops: const [0, 0.56, 1],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _FrostedChatBubbleSurface extends StatelessWidget {
   const _FrostedChatBubbleSurface({
     required this.child,
@@ -4823,12 +4821,6 @@ class _FrostedChatBubbleSurface extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: tint.withValues(alpha: isCharacter ? 0.24 : 0.26),
-                    borderRadius: radius,
-                    border: Border.all(
-                      color:
-                          (isCharacter ? Colors.white : const Color(0xFFFFC6B5))
-                              .withValues(alpha: isCharacter ? 0.075 : 0.11),
-                    ),
                   ),
                 ),
               ),
@@ -4924,6 +4916,44 @@ class _FramedCharacterAvatar extends StatelessWidget {
         size: size - 3,
         backgroundColor: _personaPanelSoft,
       ),
+    );
+  }
+}
+
+/// A standalone frosted glass circle, used to make header elements float
+/// individually instead of sitting inside a monolithic bar.
+class _FloatingGlassCircle extends StatelessWidget {
+  const _FloatingGlassCircle({required this.size, required this.child});
+
+  final double size;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: _personaAccent.withValues(alpha: 0.5),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.52),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: _personaAccent.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: Offset.zero,
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }
@@ -5225,13 +5255,13 @@ class PersonaChatInputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
     final hasImages = selectedImages.isNotEmpty || isCompressing;
     final tokens = HereIamThemeRuntime.current;
     final isDark = tokens.brightness == Brightness.dark;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, bottomPadding + 16),
+      padding: EdgeInsets.fromLTRB(32, 10, 32, bottomPadding + 24),
       child: ValueListenableBuilder<TextEditingValue>(
         valueListenable: controller,
         builder: (context, value, _) {
@@ -5432,58 +5462,59 @@ class _FloatingGlassInputCapsule extends StatelessWidget {
         borderRadius: radius,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.16),
-            blurRadius: 34,
-            offset: const Offset(0, 12),
+            color: Colors.black.withValues(alpha: isDark ? 0.48 : 0.24),
+            blurRadius: 48,
+            offset: const Offset(0, 20),
           ),
           BoxShadow(
-            color: const Color(0xFFC0646E).withValues(alpha: 0.16),
-            blurRadius: 26,
+            color: const Color(0xFFC0646E).withValues(alpha: 0.10),
+            blurRadius: 32,
             offset: Offset.zero,
+          ),
+          BoxShadow(
+            color: const Color(0xFFFFFFFF).withValues(alpha: 0.04),
+            blurRadius: 2,
+            offset: const Offset(0, -1),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: radius,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF241319).withValues(alpha: 0.42),
-                    borderRadius: radius,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.035),
-                      width: 1,
+        child: RepaintBoundary(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF241319).withValues(alpha: 0.42),
                     ),
                   ),
                 ),
-              ),
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: radius,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFFFFECDD).withValues(alpha: 0.045),
-                        const Color(0xFFC08E96).withValues(alpha: 0.085),
-                        const Color(0xFF4D222B).withValues(alpha: 0.10),
-                        const Color(0xFF120B0E).withValues(alpha: 0.18),
-                      ],
-                      stops: const [0, 0.42, 0.74, 1],
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFFFFECDD).withValues(alpha: 0.045),
+                          const Color(0xFFC08E96).withValues(alpha: 0.085),
+                          const Color(0xFF4D222B).withValues(alpha: 0.10),
+                          const Color(0xFF120B0E).withValues(alpha: 0.18),
+                        ],
+                        stops: const [0, 0.42, 0.74, 1],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-                child: child,
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                  child: child,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -5511,9 +5542,10 @@ class _AddButton extends StatelessWidget {
       child: GestureDetector(
         onTap: enabled ? onTap : null,
         child: ClipOval(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: AnimatedContainer(
+          child: RepaintBoundary(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
               width: 38,
@@ -5561,6 +5593,7 @@ class _AddButton extends StatelessWidget {
                 size: 23,
               ),
             ),
+          ),
           ),
         ),
       ),
