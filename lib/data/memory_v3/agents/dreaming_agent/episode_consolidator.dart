@@ -20,6 +20,10 @@ final _logger = getLogger('memory_v3.EpisodeConsolidator');
 class EpisodeConsolidatorV3 {
   const EpisodeConsolidatorV3();
 
+  EpisodeConsolidationResult parseForTest(String raw) {
+    return _parseAll(raw);
+  }
+
   /// Condense ALL active fragments into episodes, letting the LLM group
   /// related ones by topic. Entity-agnostic — works without entity links.
   Future<EpisodeConsolidationResult> consolidateAll({
@@ -80,7 +84,8 @@ class EpisodeConsolidatorV3 {
         TextPart(jsonEncode(payload)),
         TextPart(
           'STRICT: Reply with ONLY a single JSON object. '
-          'First char must be "{".',
+          'First char must be "{". Each narrative must start with '
+          '"我记得", "我知道", "我注意到", or "我后来记住".',
         ),
       ]),
     ];
@@ -178,7 +183,9 @@ class EpisodeConsolidatorV3 {
         TextPart(jsonEncode(payload)),
         TextPart(
           'STRICT: Reply with ONLY a single JSON object. '
-          'No markdown fences, no commentary. First char must be "{".',
+          'No markdown fences, no commentary. First char must be "{". '
+          'Each narrative must start with "我记得", "我知道", '
+          '"我注意到", or "我后来记住".',
         ),
       ]),
     ];
@@ -265,15 +272,25 @@ class EpisodeConsolidatorV3 {
       );
     }
 
-    final episodes = episodeList.map((e) {
+    final episodes = <EpisodeConsolidationDraft>[];
+    final invalidNarratives = <String>[];
+    for (final e in episodeList) {
       final em = e as Map<String, dynamic>;
+      final narrative = (em['narrative'] as String).trim();
+      if (!_isFirstPersonRelationshipNarrative(narrative)) {
+        invalidNarratives.add(narrative);
+        continue;
+      }
+      final topicId = ((em['topicId'] as String?) ??
+              (em['primaryEntityId'] as String?) ??
+              '')
+          .trim();
       final primaryEntityId = entityId == '__all__'
-          ? ((em['primaryEntityId'] as String?)?.trim().isNotEmpty == true
-              ? (em['primaryEntityId'] as String).trim()
-              : '__ungrouped__')
+          ? ((em['primaryEntityId'] as String?)?.trim() ?? '')
           : entityId;
-      return EpisodeConsolidationDraft(
-        narrative: em['narrative'] as String,
+      episodes.add(EpisodeConsolidationDraft(
+        narrative: narrative,
+        topicId: topicId.isNotEmpty ? topicId : '__ungrouped__',
         primaryEntityId: primaryEntityId,
         sourceFragmentIds: (em['sourceFragmentIds'] as List).cast<String>(),
         significance: em['significance'] as int,
@@ -286,13 +303,34 @@ class EpisodeConsolidatorV3 {
             (em['occurredAtRange'] as Map<String, dynamic>?)?['end'] as String?,
         linkedEntityIds:
             (em['linkedEntityIds'] as List?)?.cast<String>() ?? const [],
+      ));
+    }
+
+    if (episodes.isEmpty && invalidNarratives.isNotEmpty) {
+      throw FormatException(
+        'Episode narratives were not first-person memories: '
+        '${invalidNarratives.first}',
       );
-    }).toList();
+    }
+    if (invalidNarratives.isNotEmpty) {
+      _logger.info(
+        'Dropped ${invalidNarratives.length} episode(s) with non-first-person '
+        'narrative style',
+      );
+    }
 
     return EpisodeConsolidationResult(
       episodes: episodes,
       skippedEntityIds: const [],
       isDryRun: false,
     );
+  }
+
+  bool _isFirstPersonRelationshipNarrative(String narrative) {
+    if (narrative.isEmpty || narrative.startsWith('她')) {
+      return false;
+    }
+    const allowedStarts = ['我记得', '我知道', '我注意到', '我后来记住'];
+    return allowedStarts.any(narrative.startsWith) && narrative.contains('她');
   }
 }

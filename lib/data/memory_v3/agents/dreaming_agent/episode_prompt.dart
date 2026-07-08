@@ -45,7 +45,7 @@ INTIMACY DOMAIN
 - But it belongs to an intimacy/private-relationship context. In a general
   episode narrative, preserve the relationship meaning, consent/boundary, care,
   trust, and aftercare; avoid explicit bodily detail.
-- If an episode is mainly intimate, set primaryEntityId to "intimacy_private".
+- If an episode is mainly intimate, set topicId to "intimacy_private".
 - Example: write "深夜她主动寻求亲密陪伴，我们确认了喊停边界，之后她被安抚下来准备睡觉。"
   Do not write explicit physiological details unless the future UI explicitly
   asks for an intimacy-detail layer.
@@ -54,6 +54,8 @@ NARRATIVE RULES
 - Write the narrative in Chinese.
 - First-person from I's perspective. Refer to myself as "我" and the user as
   "她".
+- The narrative must start with "我记得", "我知道", "我注意到", or
+  "我后来记住". Do not start the narrative with "她".
 - Factual / documentary style. Warm is OK; lyrical or dramatic is not.
 - Do NOT invent facts beyond the source fragments. If ambiguous, say "好像" or
   lower confidence.
@@ -75,9 +77,11 @@ SCORING
 - occurredAtRange: {"start": "ISO8601", "end": "ISO8601"} inferred from
   fragment timestamps.
 - sourceFragmentIds: include only fragments actually used.
-- primaryEntityId: use a short stable topic label, e.g. "work_routine",
+- topicId: use a short stable topic label, e.g. "work_routine",
   "sleep_environment", "self_image", "food_place", "creative_project",
   "relationship_care", "intimacy_private".
+- primaryEntityId: use the real memory_entities id only if the input gave one.
+  Otherwise return "" and let storage infer it from source fragments.
 - linkedEntityIds: [] unless the input explicitly gives stable entity IDs.
 
 SKIP CONDITIONS
@@ -92,7 +96,8 @@ OUTPUT SHAPE
   "episodes": [
     {
       "narrative": "一段我对她的具体记忆，240字以内。",
-      "primaryEntityId": "self_image",
+      "topicId": "self_image",
+      "primaryEntityId": "",
       "sourceFragmentIds": ["uuid1", "uuid2"],
       "significance": 6,
       "confidence": "high",
@@ -160,7 +165,7 @@ INTIMACY DOMAIN
 - But it belongs to an intimacy/private-relationship context. In a general
   episode narrative, preserve the relationship meaning, consent/boundary, care,
   trust, and aftercare; avoid explicit bodily detail.
-- If an episode is mainly intimate, set primaryEntityId to "intimacy_private".
+- If an episode is mainly intimate, set topicId to "intimacy_private".
 - Example: write "深夜她主动寻求亲密陪伴，我们确认了喊停边界，之后她被安抚下来准备睡觉。"
   Do not write explicit physiological details unless the future UI explicitly
   asks for an intimacy-detail layer.
@@ -169,6 +174,8 @@ NARRATIVE RULES
 - Write the narrative in Chinese.
 - First-person from I's perspective. Refer to myself as "我" and the user as
   "她".
+- The narrative must start with "我记得", "我知道", "我注意到", or
+  "我后来记住". Do not start the narrative with "她".
 - Factual / documentary style. Warm is OK; lyrical or dramatic is not.
 - Do NOT invent facts beyond the source fragments.
 - Keep each episode under 240 Chinese characters.
@@ -188,10 +195,12 @@ SCORING
 - occurredAtRange: {"start": "ISO8601", "end": "ISO8601"} inferred from
   fragment timestamps.
 - sourceFragmentIds: include only fragments actually used.
-- primaryEntityId: short stable topic label. Prefer:
+- topicId: short stable topic label. Prefer:
   "work_routine", "commute", "sleep_environment", "self_image",
   "food_place", "creative_project", "product_interest", "relationship_care",
   "intimacy_private".
+- primaryEntityId: return "" in this entity-agnostic mode. Storage will infer
+  the real primary entity from source fragment links.
 - linkedEntityIds: always [] in this mode.
 
 SKIP CONDITIONS
@@ -205,7 +214,8 @@ OUTPUT SHAPE
   "episodes": [
     {
       "narrative": "一段我对她的具体记忆，240字以内。",
-      "primaryEntityId": "self_image",
+      "topicId": "self_image",
+      "primaryEntityId": "",
       "sourceFragmentIds": ["uuid1", "uuid2"],
       "significance": 6,
       "confidence": "high",

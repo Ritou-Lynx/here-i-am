@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
 
 /// Thin, non-intrusive toast that replaces the default black SnackBar.
 ///
@@ -13,13 +12,28 @@ extension ShowToast on ScaffoldMessengerState {
     hideCurrentSnackBar();
     return showSnackBar(
       SnackBar(
-        content: Text(message, textAlign: TextAlign.center),
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFFF6F0EF),
+            fontSize: 13,
+            height: 1.25,
+          ),
+        ),
         duration: duration,
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(bottom: 96, left: 80, right: 80),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: AppColors.textPrimary.withAlpha(216),
+        margin: const EdgeInsets.only(bottom: 116, left: 78, right: 78),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
+          side: BorderSide(
+            color: const Color(0xFFFFC6B5).withValues(alpha: 0.12),
+          ),
+        ),
+        backgroundColor: const Color(0xFF241319).withValues(alpha: 0.88),
         elevation: 0,
       ),
     );

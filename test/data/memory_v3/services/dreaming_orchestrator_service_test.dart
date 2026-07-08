@@ -1,8 +1,10 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/data/memory_v3/agents/dreaming_agent/episode_consolidator.dart';
 import 'package:memex/data/memory_v3/agents/dreaming_agent/fragment_extractor.dart';
 import 'package:memex/data/memory_v3/models/dreaming_fragment.dart';
+import 'package:memex/data/memory_v3/models/episode_consolidation.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/db/app_database.dart';
 
@@ -234,6 +236,137 @@ void main() {
     expect(second.processedMessageCount, 0);
     expect(second.fragmentIds, isEmpty);
   });
+
+  test('episode consolidation stores topic separately from primary entity',
+      () async {
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '今天 mentor 对我很温柔，我有点想哭',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 7, 18),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '骑车路过路口时遇见 mentor，她跟我打招呼了',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 7, 19),
+    );
+
+    final persisted = await service.persistFragments(
+      extraction: DreamingFragmentExtraction(
+        fragments: [
+          DreamingFragmentDraft(
+            content: '她说今天mentor对她很温柔，感动得想哭',
+            sourceMessageIds: const [1],
+            emotionalWeight: 0.6,
+            isUserTruthCandidate: false,
+            entityLinks: [
+              DreamingEntityLinkDraft(
+                name: 'user_self',
+                category: 'self',
+                relation: 'about',
+                relationshipToUser: 'self',
+              ),
+              DreamingEntityLinkDraft(
+                name: 'mentor',
+                category: 'person',
+                relation: 'mentioned',
+                relationshipToUser: 'colleague',
+              ),
+            ],
+          ),
+          DreamingFragmentDraft(
+            content: '她骑车路过路口时遇见mentor打招呼',
+            sourceMessageIds: const [2],
+            emotionalWeight: 0.5,
+            isUserTruthCandidate: false,
+            entityLinks: [
+              DreamingEntityLinkDraft(
+                name: 'user_self',
+                category: 'self',
+                relation: 'about',
+                relationshipToUser: 'self',
+              ),
+              DreamingEntityLinkDraft(
+                name: 'mentor',
+                category: 'person',
+                relation: 'with',
+                relationshipToUser: 'colleague',
+              ),
+            ],
+          ),
+        ],
+      ),
+      processedMessageCount: 2,
+      lastProcessedMessageId: 2,
+    );
+
+    final result = await service.runEpisodeConsolidation(
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeEpisodeConsolidator(
+        EpisodeConsolidationResult(
+          episodes: [
+            EpisodeConsolidationDraft(
+              narrative: '我记得她那天因为mentor的温柔很受触动，后来骑车路过路口又遇见了mentor。',
+              topicId: 'work_routine',
+              primaryEntityId: 'work_routine',
+              sourceFragmentIds: persisted.fragmentIds,
+              significance: 6,
+              confidence: 'high',
+              valence: 0.4,
+              arousal: 0.4,
+            ),
+          ],
+          skippedEntityIds: const [],
+          isDryRun: false,
+        ),
+      ),
+    );
+
+    expect(result.episodeIds, hasLength(1));
+    final episode = (await db.select(db.memoryEpisodes).get()).single;
+    expect(episode.topicId, 'work_routine');
+    expect(episode.primaryEntityId, 'user_self');
+
+    final episodeLinks = await (db.select(db.memoryEntityLinks)
+          ..where((t) => t.sourceTable.equals('memory_episodes')))
+        .get();
+    expect(episodeLinks.map((link) => link.entityId), contains('user_self'));
+    expect(
+      episodeLinks.map((link) => link.entityId),
+      contains(persisted.entityIds.firstWhere((id) => id != 'user_self')),
+    );
+  });
+
+  test('episode consolidator rejects third-person database summaries', () {
+    const consolidator = EpisodeConsolidatorV3();
+
+    expect(
+      () => consolidator.parseForTest('''
+{
+  "episodes": [
+    {
+      "narrative": "她告诉我今天mentor对她很温柔。",
+      "topicId": "work_routine",
+      "primaryEntityId": "",
+      "sourceFragmentIds": ["f1", "f2"],
+      "significance": 6,
+      "confidence": "high",
+      "valence": 0.4,
+      "arousal": 0.4,
+      "occurredAtRange": null,
+      "linkedEntityIds": []
+    }
+  ],
+  "skip_reason": null
+}
+'''),
+      throwsFormatException,
+    );
+  });
 }
 
 Future<void> _insertMessage(
@@ -265,6 +398,21 @@ class _FakeDreamingExtractor extends DreamingFragmentExtractorV3 {
     required List<DreamingChatMessageInput> messages,
     required DateTime now,
     List<String> existingFragmentSummaries = const [],
+  }) async {
+    return output;
+  }
+}
+
+class _FakeEpisodeConsolidator extends EpisodeConsolidatorV3 {
+  const _FakeEpisodeConsolidator(this.output);
+
+  final EpisodeConsolidationResult output;
+
+  @override
+  Future<EpisodeConsolidationResult> consolidateAll({
+    required LLMClient client,
+    required ModelConfig modelConfig,
+    required List<MemoryFragment> fragments,
   }) async {
     return output;
   }

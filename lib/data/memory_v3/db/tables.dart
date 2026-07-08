@@ -36,13 +36,12 @@ class MemoryCards extends Table {
   RealColumn get valence => real()(); // -1.0 ~ 1.0
   RealColumn get arousal => real()(); // 0.0 ~ 1.0
 
-  TextColumn get status =>
-      text().nullable()(); // 仅 task/schedule/plan：active / completed / cancelled
+  TextColumn get status => text()
+      .nullable()(); // 仅 task/schedule/plan：active / completed / cancelled
   TextColumn get needsFollowUp =>
       text().nullable()(); // JSON [{field, question}]
 
-  IntColumn get schemaVersion =>
-      integer().withDefault(const Constant(1))();
+  IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
 
   IntColumn get createdAt => integer()(); // ms since epoch
   IntColumn get updatedAt => integer()();
@@ -65,8 +64,7 @@ class MemoryCardSources extends Table {
   /// 记录方式元数据：record_button / fab / natural_command / import / system 等。
   TextColumn get sourceKind => text()();
 
-  IntColumn get schemaVersion =>
-      integer().withDefault(const Constant(1))();
+  IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
 
   @override
   Set<Column> get primaryKey => {cardId};
@@ -85,8 +83,7 @@ class MemoryCardStructuredFields extends Table {
   BoolColumn get userCorrected =>
       boolean().withDefault(const Constant(false))();
 
-  IntColumn get schemaVersion =>
-      integer().withDefault(const Constant(1))();
+  IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
   TextColumn get generatedByVersion => text().nullable()();
 
   IntColumn get createdAt => integer()();
@@ -130,14 +127,14 @@ class MemoryFragments extends Table {
   TextColumn get id => text()();
   TextColumn get content => text()(); // ≤ 80 字
   TextColumn get sourceMessageIds => text().nullable()(); // JSON array<int>
-  TextColumn get sourceScope =>
-      text().withDefault(const Constant('main_chat'))(); // main_chat / script_session
+  TextColumn get sourceScope => text()
+      .withDefault(const Constant('main_chat'))(); // main_chat / script_session
 
   RealColumn get emotionalWeight =>
       real().withDefault(const Constant(0.0))(); // 0~1，单维度
 
-  TextColumn get status =>
-      text().withDefault(const Constant('active'))(); // active / consolidated / ignored / deleted
+  TextColumn get status => text().withDefault(
+      const Constant('active'))(); // active / consolidated / ignored / deleted
   BoolColumn get isUserTruthCandidate =>
       boolean().withDefault(const Constant(false))();
 
@@ -145,8 +142,7 @@ class MemoryFragments extends Table {
   BoolColumn get userCorrected =>
       boolean().withDefault(const Constant(false))();
 
-  IntColumn get schemaVersion =>
-      integer().withDefault(const Constant(1))();
+  IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
   IntColumn get createdAt => integer()();
 
   @override
@@ -160,8 +156,8 @@ class MemoryEntities extends Table {
   TextColumn get name => text()(); // 标准名
   TextColumn get category =>
       text()(); // person / place / event / project / hobby / work / object
-  TextColumn get status =>
-      text().withDefault(const Constant('seed'))(); // seed / active / merged / hidden / deleted
+  TextColumn get status => text().withDefault(
+      const Constant('seed'))(); // seed / active / merged / hidden / deleted
 
   TextColumn get aliases => text().nullable()(); // JSON array
   TextColumn get overview => text().nullable()(); // 一句话概述
@@ -170,8 +166,7 @@ class MemoryEntities extends Table {
 
   IntColumn get firstMentionedAt => integer().nullable()();
   IntColumn get lastMentionedAt => integer().nullable()();
-  IntColumn get fragmentCount =>
-      integer().withDefault(const Constant(0))();
+  IntColumn get fragmentCount => integer().withDefault(const Constant(0))();
 
   TextColumn get mergedIntoId => text().nullable()(); // 被合并时指向新 entity
 
@@ -179,8 +174,7 @@ class MemoryEntities extends Table {
   BoolColumn get userCorrected =>
       boolean().withDefault(const Constant(false))();
 
-  IntColumn get schemaVersion =>
-      integer().withDefault(const Constant(1))();
+  IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -195,8 +189,7 @@ class MemoryEntityLinks extends Table {
   TextColumn get entityId => text()();
   TextColumn get relation =>
       text()(); // mentioned / about / with / caused_by / located_at
-  RealColumn get confidence =>
-      real().withDefault(const Constant(1.0))();
+  RealColumn get confidence => real().withDefault(const Constant(1.0))();
 
   IntColumn get createdAt => integer()();
 
@@ -208,6 +201,8 @@ class MemoryEntityLinks extends Table {
 class MemoryEpisodes extends Table {
   TextColumn get id => text()();
   TextColumn get primaryEntityId => text()(); // soft FK → memory_entities.id
+  TextColumn get topicId =>
+      text().withDefault(const Constant('__ungrouped__'))();
 
   TextColumn get narrative => text()(); // 第一人称
   TextColumn get sourceFragmentIds => text()(); // JSON array
@@ -218,18 +213,16 @@ class MemoryEpisodes extends Table {
   RealColumn get valence => real()();
   RealColumn get arousal => real()();
 
-  TextColumn get occurredAtRange =>
-      text().nullable()(); // JSON {start, end}，可空
+  TextColumn get occurredAtRange => text().nullable()(); // JSON {start, end}，可空
 
-  TextColumn get status =>
-      text().withDefault(const Constant('active'))(); // active / hidden / stale / deleted
+  TextColumn get status => text().withDefault(
+      const Constant('active'))(); // active / hidden / stale / deleted
 
   TextColumn get generatedByVersion => text().nullable()();
   BoolColumn get userCorrected =>
       boolean().withDefault(const Constant(false))();
 
-  IntColumn get schemaVersion =>
-      integer().withDefault(const Constant(1))();
+  IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
 
   IntColumn get createdAt => integer()();
   IntColumn get updatedAt => integer()();
@@ -250,15 +243,14 @@ class MemorySagas extends Table {
   /// JSON {valence, arousal, connection}
   TextColumn get emotionalAxis => text()();
 
-  TextColumn get status =>
-      text().withDefault(const Constant('active'))(); // active / hidden / merged / stale / deleted
+  TextColumn get status => text().withDefault(
+      const Constant('active'))(); // active / hidden / merged / stale / deleted
 
   TextColumn get generatedByVersion => text().nullable()();
   BoolColumn get userCorrected =>
       boolean().withDefault(const Constant(false))();
 
-  IntColumn get schemaVersion =>
-      integer().withDefault(const Constant(1))();
+  IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
 
   IntColumn get createdAt => integer()();
   IntColumn get updatedAt => integer()();
@@ -298,11 +290,9 @@ class Assets extends Table {
   TextColumn get storagePath => text().nullable()();
   TextColumn get url => text().nullable()();
   TextColumn get mimeType => text().nullable()();
-  TextColumn get originatorRef =>
-      text().nullable()(); // 聊天消息 id / 外部导入批次 id
+  TextColumn get originatorRef => text().nullable()(); // 聊天消息 id / 外部导入批次 id
 
-  IntColumn get schemaVersion =>
-      integer().withDefault(const Constant(1))();
+  IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
 
   IntColumn get createdAt => integer()();
   IntColumn get deletedAt => integer().nullable()();

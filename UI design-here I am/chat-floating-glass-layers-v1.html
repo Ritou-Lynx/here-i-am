@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>暮雨玫瑰 Chat 悬浮液态玻璃样式板 v1</title>
+  <style>
+    :root {
+      --page-bg: #10080b;
+      --ink: rgba(248, 241, 239, 0.94);
+      --muted: rgba(248, 241, 239, 0.58);
+      --dim: rgba(248, 241, 239, 0.38);
+      --rose: rgba(198, 104, 116, 0.44);
+      --copper: rgba(255, 201, 178, 0.34);
+      --wine: rgba(36, 19, 25, 0.74);
+      --deep: rgba(9, 5, 7, 0.74);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Inter, "SF Pro Text", "Microsoft YaHei", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 16% 0%, rgba(255, 190, 174, 0.13), transparent 30%),
+        linear-gradient(180deg, rgba(10, 5, 8, 0.16), rgba(10, 5, 8, 0.88)),
+        url("雨夜玻璃.png") center / cover fixed,
+        var(--page-bg);
+    }
+
+    .page {
+      width: min(1500px, calc(100vw - 44px));
+      margin: 0 auto;
+      padding: 34px 0 54px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.18;
+      font-weight: 690;
+      letter-spacing: 0;
+    }
+
+    .note {
+      max-width: 900px;
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      min-width: 300px;
+    }
+
+    .chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: rgba(255, 236, 221, 0.78);
+      font-size: 12px;
+      background: rgba(36, 19, 25, 0.56);
+      border: 1px solid rgba(255, 236, 221, 0.10);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 18px;
+      align-items: start;
+    }
+
+    .option {
+      display: grid;
+      gap: 10px;
+    }
+
+    .option-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 46px;
+    }
+
+    .option-title h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 680;
+      letter-spacing: 0;
+    }
+
+    .option-title span {
+      color: var(--dim);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .phone {
+      --glass-bg: rgba(34, 17, 23, 0.58);
+      --glass-top: rgba(255, 232, 218, 0.16);
+      --glass-hot: rgba(255, 206, 190, 0.28);
+      --glass-edge: rgba(255, 229, 216, 0.10);
+      --glass-dark: rgba(0, 0, 0, 0.28);
+      --glass-shadow: rgba(0, 0, 0, 0.40);
+      --glass-glow: rgba(198, 104, 116, 0.18);
+      --role-bubble: rgba(245, 229, 221, 0.14);
+      --user-bubble: rgba(194, 104, 112, 0.20);
+      position: relative;
+      height: 760px;
+      min-height: 760px;
+      overflow: hidden;
+      border-radius: 38px;
+      background:
+        linear-gradient(180deg, rgba(13, 7, 10, 0.10), rgba(13, 7, 10, 0.42)),
+        url("雨夜玻璃.png") center / cover,
+        #170d11;
+      box-shadow:
+        0 42px 96px rgba(0, 0, 0, 0.48),
+        inset 0 0 0 1px rgba(255, 236, 221, 0.08);
+      isolation: isolate;
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(circle at 68% 24%, rgba(255, 150, 126, 0.18), transparent 18%),
+        radial-gradient(circle at 42% 68%, rgba(255, 198, 181, 0.13), transparent 24%),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.48));
+      pointer-events: none;
+    }
+
+    .phone::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.025), transparent 18%, transparent 82%, rgba(255,255,255,0.018)),
+        linear-gradient(180deg, rgba(255, 236, 221, 0.055), transparent 14%, transparent 84%, rgba(0,0,0,0.22));
+      pointer-events: none;
+    }
+
+    .v1 {
+      --glass-bg: rgba(25, 12, 17, 0.66);
+      --glass-top: rgba(255, 236, 221, 0.18);
+      --glass-hot: rgba(255, 198, 181, 0.34);
+      --glass-edge: rgba(255, 236, 221, 0.12);
+      --glass-dark: rgba(0, 0, 0, 0.34);
+      --glass-shadow: rgba(0, 0, 0, 0.48);
+      --glass-glow: rgba(198, 104, 116, 0.22);
+      --role-bubble: rgba(246, 232, 224, 0.13);
+      --user-bubble: rgba(147, 71, 78, 0.30);
+    }
+
+    .v2 {
+      --glass-bg: rgba(48, 25, 30, 0.50);
+      --glass-top: rgba(255, 235, 222, 0.24);
+      --glass-hot: rgba(255, 216, 202, 0.40);
+      --glass-edge: rgba(255, 236, 221, 0.16);
+      --glass-dark: rgba(0, 0, 0, 0.24);
+      --glass-shadow: rgba(0, 0, 0, 0.36);
+      --glass-glow: rgba(255, 169, 150, 0.20);
+      --role-bubble: rgba(255, 236, 221, 0.16);
+      --user-bubble: rgba(190, 101, 105, 0.25);
+    }
+
+    .v3 {
+      --glass-bg: rgba(36, 17, 25, 0.56);
+      --glass-top: rgba(255, 225, 214, 0.16);
+      --glass-hot: rgba(241, 157, 169, 0.36);
+      --glass-edge: rgba(255, 198, 181, 0.14);
+      --glass-dark: rgba(6, 3, 5, 0.36);
+      --glass-shadow: rgba(0, 0, 0, 0.44);
+      --glass-glow: rgba(210, 97, 133, 0.22);
+      --role-bubble: rgba(34, 17, 23, 0.38);
+      --user-bubble: rgba(152, 64, 80, 0.34);
+    }
+
+    .v4 {
+      --glass-bg: rgba(17, 9, 12, 0.72);
+      --glass-top: rgba(255, 236, 221, 0.12);
+      --glass-hot: rgba(255, 201, 178, 0.24);
+      --glass-edge: rgba(255, 236, 221, 0.085);
+      --glass-dark: rgba(0, 0, 0, 0.42);
+      --glass-shadow: rgba(0, 0, 0, 0.56);
+      --glass-glow: rgba(179, 75, 87, 0.14);
+      --role-bubble: rgba(244, 229, 220, 0.12);
+      --user-bubble: rgba(99, 45, 51, 0.46);
+    }
+
+    .status {
+      position: absolute;
+      z-index: 3;
+      top: 14px;
+      left: 24px;
+      right: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: rgba(255, 248, 245, 0.9);
+      font-size: 13px;
+      font-weight: 620;
+      pointer-events: none;
+    }
+
+    .signal {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .signal i {
+      display: block;
+      width: 16px;
+      height: 10px;
+      border: 2px solid rgba(255, 248, 245, 0.88);
+      border-top: 0;
+      transform: skew(-12deg);
+      border-radius: 2px;
+    }
+
+    .header {
+      position: absolute;
+      z-index: 4;
+      top: 52px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      font-weight: 680;
+    }
+
+    .name-pill {
+      --r: 22px;
+      min-width: 120px;
+      height: 50px;
+      padding: 7px 15px 8px;
+    }
+
+    .name {
+      font-size: 15px;
+      font-weight: 650;
+      line-height: 1.15;
+    }
+
+    .sub {
+      margin-top: 3px;
+      color: rgba(246, 240, 239, 0.50);
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .header-spacer {
+      flex: 1;
+    }
+
+    .header-button {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+    }
+
+    .search-icon {
+      position: relative;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 242, 238, 0.82);
+      border-radius: 50%;
+    }
+
+    .search-icon::after {
+      content: "";
+      position: absolute;
+      width: 8px;
+      height: 2px;
+      right: -6px;
+      bottom: -3px;
+      border-radius: 999px;
+      background: rgba(255, 242, 238, 0.82);
+      transform: rotate(45deg);
+    }
+
+    .task {
+      --r: 20px;
+      position: absolute;
+      z-index: 3;
+      top: 112px;
+      left: 64px;
+      right: 64px;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      font-size: 12px;
+      color: rgba(255, 241, 236, 0.78);
+    }
+
+    .task-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: rgba(255, 172, 158, 0.78);
+      box-shadow: 0 0 18px rgba(255, 172, 158, 0.40);
+    }
+
+    .messages {
+      position: absolute;
+      z-index: 2;
+      inset: 0;
+      padding: 174px 18px 170px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 13px;
+      pointer-events: none;
+    }
+
+    .bubble {
+      max-width: 82%;
+      min-height: 42px;
+      padding: 13px 15px;
+      border-radius: 24px;
+      color: rgba(255, 247, 244, 0.88);
+      font-size: 13px;
+      line-height: 1.55;
+      background:
+        radial-gradient(circle at 18% 4%, rgba(255, 255, 255, 0.12), transparent 36%),
+        linear-gradient(145deg, rgba(255, 236, 221, 0.12), rgba(255, 236, 221, 0.045) 48%, rgba(0, 0, 0, 0.10)),
+        var(--role-bubble);
+      border: 1px solid rgba(255, 236, 221, 0.055);
+      box-shadow:
+        0 14px 34px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(18px) saturate(122%);
+      -webkit-backdrop-filter: blur(18px) saturate(122%);
+    }
+
+    .bubble.user {
+      align-self: flex-end;
+      border-bottom-right-radius: 10px;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(255, 217, 204, 0.16), transparent 38%),
+        linear-gradient(145deg, rgba(255, 193, 178, 0.12), rgba(105, 44, 54, 0.16)),
+        var(--user-bubble);
+      border-color: rgba(255, 198, 181, 0.08);
+    }
+
+    .bubble.role {
+      align-self: flex-start;
+      border-bottom-left-radius: 10px;
+    }
+
+    .jump {
+      --r: 20px;
+      position: absolute;
+      z-index: 6;
+      left: 50%;
+      bottom: 130px;
+      transform: translateX(-50%);
+      min-width: 118px;
+      height: 38px;
+      padding: 0 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: rgba(255, 236, 221, 0.82);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .toast {
+      --r: 999px;
+      position: absolute;
+      z-index: 7;
+      left: 50%;
+      bottom: 190px;
+      transform: translateX(-50%);
+      width: 160px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      color: rgba(255, 242, 236, 0.88);
+      font-size: 12px;
+    }
+
+    .composer-wrap {
+      position: absolute;
+      z-index: 6;
+      left: 17px;
+      right: 17px;
+      bottom: 24px;
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    .composer {
+      --r: 26px;
+      min-height: 58px;
+      flex: 1;
+      padding: 9px 10px 9px 13px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .plus {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      flex: none;
+      color: rgba(255, 238, 231, 0.82);
+      font-size: 24px;
+      line-height: 1;
+      font-weight: 360;
+    }
+
+    .placeholder {
+      flex: 1;
+      color: rgba(255, 241, 236, 0.48);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .voice {
+      display: flex;
+      align-items: end;
+      gap: 3px;
+      width: 28px;
+      justify-content: center;
+    }
+
+    .voice span {
+      display: block;
+      width: 2px;
+      border-radius: 999px;
+      background: rgba(255, 238, 232, 0.76);
+    }
+
+    .voice span:nth-child(1) { height: 9px; }
+    .voice span:nth-child(2) { height: 15px; }
+    .voice span:nth-child(3) { height: 12px; }
+    .voice span:nth-child(4) { height: 18px; }
+
+    .mic {
+      position: relative;
+      width: 27px;
+      height: 27px;
+      flex: none;
+    }
+
+    .mic::before {
+      content: "";
+      position: absolute;
+      left: 8px;
+      top: 4px;
+      width: 10px;
+      height: 15px;
+      border: 2px solid rgba(255, 238, 232, 0.74);
+      border-radius: 999px;
+    }
+
+    .mic::after {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 13px;
+      width: 16px;
+      height: 10px;
+      border: 2px solid rgba(255, 238, 232, 0.74);
+      border-top: 0;
+      border-radius: 0 0 999px 999px;
+    }
+
+    .drop {
+      position: absolute;
+      z-index: 7;
+      right: 24px;
+      bottom: 98px;
+      width: 68px;
+      height: 64px;
+      border-radius: 54% 46% 53% 47% / 45% 44% 56% 55%;
+      transform: rotate(-6deg);
+      display: grid;
+      place-items: center;
+      animation: breathe 4.6s ease-in-out infinite;
+    }
+
+    .drop b {
+      position: relative;
+      z-index: 3;
+      display: block;
+      color: rgba(255, 226, 216, 0.84);
+      font-size: 36px;
+      font-weight: 300;
+      line-height: 1;
+      transform: rotate(6deg) translateY(-1px);
+      text-shadow: 0 1px 8px rgba(255, 206, 190, 0.18);
+    }
+
+    .glass {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--r, 999px);
+      background:
+        radial-gradient(circle at 22% 0%, var(--glass-top), transparent 40%),
+        radial-gradient(circle at 82% 84%, rgba(0, 0, 0, 0.16), transparent 42%),
+        linear-gradient(145deg, rgba(255, 236, 221, 0.08), rgba(255, 236, 221, 0.02) 28%, rgba(0, 0, 0, 0.15) 74%),
+        var(--glass-bg);
+      border: 1px solid var(--glass-edge);
+      box-shadow:
+        0 22px 44px var(--glass-shadow),
+        0 0 30px var(--glass-glow),
+        inset 0 1px 0 rgba(255, 248, 244, 0.10),
+        inset 0 -12px 22px var(--glass-dark);
+      backdrop-filter: blur(24px) saturate(135%);
+      -webkit-backdrop-filter: blur(24px) saturate(135%);
+    }
+
+    .glass::before {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      z-index: 1;
+      border-radius: inherit;
+      background:
+        radial-gradient(circle at 19% 8%, var(--glass-hot), transparent 20%),
+        radial-gradient(circle at 72% 30%, rgba(255, 236, 221, 0.08), transparent 16%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent 42%, rgba(0, 0, 0, 0.12));
+      pointer-events: none;
+    }
+
+    .glass::after {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      left: 10%;
+      right: 10%;
+      top: 2px;
+      height: 1px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, rgba(255, 218, 204, 0.32), rgba(255, 188, 172, 0.12), transparent);
+      opacity: 0.78;
+      pointer-events: none;
+    }
+
+    .glass > * {
+      position: relative;
+      z-index: 3;
+    }
+
+    .drop.glass {
+      border: 1px solid rgba(255, 236, 221, 0.16);
+      box-shadow:
+        0 24px 48px rgba(0, 0, 0, 0.50),
+        0 0 34px var(--glass-glow),
+        inset 9px 12px 16px rgba(255, 236, 221, 0.075),
+        inset -15px -18px 26px rgba(0, 0, 0, 0.28);
+    }
+
+    .drop.glass::before {
+      inset: 0;
+      background:
+        radial-gradient(circle at 28% 19%, rgba(255, 240, 232, 0.36), transparent 16%),
+        radial-gradient(circle at 41% 35%, rgba(255, 216, 202, 0.16), transparent 22%),
+        radial-gradient(circle at 74% 76%, rgba(0, 0, 0, 0.22), transparent 32%),
+        linear-gradient(150deg, rgba(255, 236, 221, 0.10), transparent 44%, rgba(0, 0, 0, 0.18));
+    }
+
+    .drop.glass::after {
+      left: 18%;
+      right: 28%;
+      top: 12%;
+      height: 20%;
+      border-radius: 50%;
+      background:
+        radial-gradient(ellipse at center, rgba(255, 246, 241, 0.26), transparent 66%);
+      filter: blur(1px);
+      transform: rotate(-22deg);
+      opacity: 0.72;
+    }
+
+    .v2 .glass {
+      box-shadow:
+        0 18px 38px rgba(0, 0, 0, 0.34),
+        0 0 42px rgba(255, 172, 158, 0.13),
+        inset 0 2px 0 rgba(255, 255, 255, 0.13),
+        inset 0 -14px 24px rgba(0, 0, 0, 0.20);
+    }
+
+    .v2 .glass::after {
+      left: 12%;
+      right: 12%;
+      opacity: 0.92;
+    }
+
+    .v3 .glass {
+      background:
+        radial-gradient(circle at 16% 4%, rgba(255, 210, 202, 0.13), transparent 34%),
+        radial-gradient(circle at 88% 42%, rgba(225, 91, 128, 0.13), transparent 24%),
+        linear-gradient(150deg, rgba(255, 236, 221, 0.055), rgba(114, 45, 65, 0.18), rgba(0, 0, 0, 0.22)),
+        var(--glass-bg);
+    }
+
+    .v3 .bubble.role {
+      color: rgba(255, 241, 236, 0.78);
+      background:
+        linear-gradient(145deg, rgba(255, 236, 221, 0.075), rgba(0, 0, 0, 0.16)),
+        var(--role-bubble);
+    }
+
+    .v4 .glass {
+      border-color: rgba(255, 236, 221, 0.065);
+      box-shadow:
+        0 28px 54px rgba(0, 0, 0, 0.58),
+        0 0 20px rgba(178, 75, 87, 0.10),
+        inset 0 1px 0 rgba(255, 248, 244, 0.07),
+        inset 0 -18px 30px rgba(0, 0, 0, 0.40);
+    }
+
+    .v4 .bubble {
+      box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .scanline {
+      position: absolute;
+      z-index: 5;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.18;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(255, 236, 221, 0.12), transparent 18%),
+        radial-gradient(circle at 88% 56%, rgba(255, 181, 158, 0.10), transparent 20%);
+      mix-blend-mode: screen;
+    }
+
+    @keyframes breathe {
+      0%, 100% { scale: 1; filter: brightness(1); }
+      50% { scale: 1.025; filter: brightness(1.055); }
+    }
+
+    .summary {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .summary-card {
+      min-height: 92px;
+      padding: 14px;
+      border-radius: 20px;
+      background: rgba(20, 10, 14, 0.54);
+      border: 1px solid rgba(255, 236, 221, 0.08);
+      box-shadow: 0 22px 44px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .summary-card b {
+      display: block;
+      margin-bottom: 7px;
+      color: rgba(255, 236, 221, 0.88);
+      font-size: 13px;
+    }
+
+    .summary-card p {
+      margin: 0;
+      color: rgba(255, 236, 221, 0.54);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 1280px) {
+      .grid,
+      .summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        width: min(430px, calc(100vw - 24px));
+        padding-top: 22px;
+      }
+
+      .hero {
+        display: block;
+      }
+
+      .chips {
+        justify-content: flex-start;
+        min-width: 0;
+        margin-top: 14px;
+      }
+
+      .grid,
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .phone {
+        height: 735px;
+        min-height: 735px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <h1>Chat 悬浮液态玻璃层级样式板 v1</h1>
+        <p class="note">目标不是换成花哨颜色，而是让顶部头像、回到最新、Toast、输入框和记录水滴像独立浮在雨夜玻璃上的立体物件；聊天气泡保持更软、更低调，避免所有东西糊成一层。</p>
+      </div>
+      <div class="chips">
+        <div class="chip">同一底图</div>
+        <div class="chip">同一聊天内容</div>
+        <div class="chip">只比较悬浮材质</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="option">
+        <div class="option-title">
+          <h2>L1 厚影浮雕玻璃</h2>
+          <span>最清晰 / 层级最强</span>
+        </div>
+        <div class="phone v1">
+          <div class="status"><span>22:47</span><span class="signal"><i></i><i></i><i></i></span></div>
+          <div class="header">
+            <div class="avatar glass">暮</div>
+            <div class="name-pill glass"><div class="name">暮雨</div><div class="sub">雨声很近</div></div>
+            <div class="header-spacer"></div>
+            <div class="header-button glass"><span class="search-icon"></span></div>
+          </div>
+          <div class="task glass"><span class="task-dot"></span><span>有 2 条观察等你确认</span></div>
+          <div class="messages">
+            <div class="bubble role">我在。今天这场雨像把整个房间都压低了一点。</div>
+            <div class="bubble user">所以我想让界面不要糊成一片，要有一点层级。</div>
+            <div class="bubble role">那就把功能控件做成更立体的液态玻璃，气泡反而收一点。</div>
+          </div>
+          <div class="toast glass">已复制</div>
+          <div class="jump glass">⌄ 回到最新</div>
+          <div class="drop glass"><b>+</b></div>
+          <div class="composer-wrap">
+            <div class="composer glass">
+              <div class="plus glass">+</div>
+              <div class="placeholder">发消息给暮雨…</div>
+              <div class="mic"></div>
+              <div class="voice"><span></span><span></span><span></span><span></span></div>
+            </div>
+          </div>
+          <div class="scanline"></div>
+        </div>
+      </article>
+
+      <article class="option">
+        <div class="option-title">
+          <h2>L2 凝露凸透镜</h2>
+          <span>更水润 / 更亲密</span>
+        </div>
+        <div class="phone v2">
+          <div class="status"><span>22:47</span><span class="signal"><i></i><i></i><i></i></span></div>
+          <div class="header">
+            <div class="avatar glass">暮</div>
+            <div class="name-pill glass"><div class="name">暮雨</div><div class="sub">雨声很近</div></div>
+            <div class="header-spacer"></div>
+            <div class="header-button glass"><span class="search-icon"></span></div>
+          </div>
+          <div class="task glass"><span class="task-dot"></span><span>有 2 条观察等你确认</span></div>
+          <div class="messages">
+            <div class="bubble role">我在。今天这场雨像把整个房间都压低了一点。</div>
+            <div class="bubble user">所以我想让界面不要糊成一片，要有一点层级。</div>
+            <div class="bubble role">那就把功能控件做成更立体的液态玻璃，气泡反而收一点。</div>
+          </div>
+          <div class="toast glass">已复制</div>
+          <div class="jump glass">⌄ 回到最新</div>
+          <div class="drop glass"><b>+</b></div>
+          <div class="composer-wrap">
+            <div class="composer glass">
+              <div class="plus glass">+</div>
+              <div class="placeholder">发消息给暮雨…</div>
+              <div class="mic"></div>
+              <div class="voice"><span></span><span></span><span></span><span></span></div>
+            </div>
+          </div>
+          <div class="scanline"></div>
+        </div>
+      </article>
+
+      <article class="option">
+        <div class="option-title">
+          <h2>L3 玫瑰折射层</h2>
+          <span>色相区分 / 情绪更浓</span>
+        </div>
+        <div class="phone v3">
+          <div class="status"><span>22:47</span><span class="signal"><i></i><i></i><i></i></span></div>
+          <div class="header">
+            <div class="avatar glass">暮</div>
+            <div class="name-pill glass"><div class="name">暮雨</div><div class="sub">雨声很近</div></div>
+            <div class="header-spacer"></div>
+            <div class="header-button glass"><span class="search-icon"></span></div>
+          </div>
+          <div class="task glass"><span class="task-dot"></span><span>有 2 条观察等你确认</span></div>
+          <div class="messages">
+            <div class="bubble role">我在。今天这场雨像把整个房间都压低了一点。</div>
+            <div class="bubble user">所以我想让界面不要糊成一片，要有一点层级。</div>
+            <div class="bubble role">那就把功能控件做成更立体的液态玻璃，气泡反而收一点。</div>
+          </div>
+          <div class="toast glass">已复制</div>
+          <div class="jump glass">⌄ 回到最新</div>
+          <div class="drop glass"><b>+</b></div>
+          <div class="composer-wrap">
+            <div class="composer glass">
+              <div class="plus glass">+</div>
+              <div class="placeholder">发消息给暮雨…</div>
+              <div class="mic"></div>
+              <div class="voice"><span></span><span></span><span></span><span></span></div>
+            </div>
+          </div>
+          <div class="scanline"></div>
+        </div>
+      </article>
+
+      <article class="option">
+        <div class="option-title">
+          <h2>L4 深场黑玻璃</h2>
+          <span>最克制 / 最不抢内容</span>
+        </div>
+        <div class="phone v4">
+          <div class="status"><span>22:47</span><span class="signal"><i></i><i></i><i></i></span></div>
+          <div class="header">
+            <div class="avatar glass">暮</div>
+            <div class="name-pill glass"><div class="name">暮雨</div><div class="sub">雨声很近</div></div>
+            <div class="header-spacer"></div>
+            <div class="header-button glass"><span class="search-icon"></span></div>
+          </div>
+          <div class="task glass"><span class="task-dot"></span><span>有 2 条观察等你确认</span></div>
+          <div class="messages">
+            <div class="bubble role">我在。今天这场雨像把整个房间都压低了一点。</div>
+            <div class="bubble user">所以我想让界面不要糊成一片，要有一点层级。</div>
+            <div class="bubble role">那就把功能控件做成更立体的液态玻璃，气泡反而收一点。</div>
+          </div>
+          <div class="toast glass">已复制</div>
+          <div class="jump glass">⌄ 回到最新</div>
+          <div class="drop glass"><b>+</b></div>
+          <div class="composer-wrap">
+            <div class="composer glass">
+              <div class="plus glass">+</div>
+              <div class="placeholder">发消息给暮雨…</div>
+              <div class="mic"></div>
+              <div class="voice"><span></span><span></span><span></span><span></span></div>
+            </div>
+          </div>
+          <div class="scanline"></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="summary">
+      <div class="summary-card">
+        <b>L1 厚影浮雕玻璃</b>
+        <p>最容易解决“糊在一起”。靠底部厚阴影、暗部压深和高光边缘把悬浮控件抬起来。</p>
+      </div>
+      <div class="summary-card">
+        <b>L2 凝露凸透镜</b>
+        <p>水润感最好，像真实水膜凸起。缺点是如果落 App 过亮，可能会稍微抢聊天内容。</p>
+      </div>
+      <div class="summary-card">
+        <b>L3 玫瑰折射层</b>
+        <p>通过玫瑰色折射把控件和气泡分开，情绪最强，但需要控制不要偏紫。</p>
+      </div>
+      <div class="summary-card">
+        <b>L4 深场黑玻璃</b>
+        <p>最安静，内容优先。区分度来自深色场和阴影，不靠明显亮边，适合长期使用。</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

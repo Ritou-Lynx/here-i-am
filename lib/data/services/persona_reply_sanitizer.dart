@@ -11,6 +11,10 @@ class PersonaReplySegment {
 }
 
 class PersonaReplySanitizer {
+  static const int defaultMaxChatBubbles = 6;
+  static const int _targetBubbleRunes = 46;
+  static const int _tinyBubbleRunes = 5;
+
   static final RegExp _thinkingBlock = RegExp(
     r'<(?:think|thinking)\b[^>]*>[\s\S]*?<\/(?:think|thinking)>',
     caseSensitive: false,
@@ -43,6 +47,10 @@ class PersonaReplySanitizer {
     r'^([\s\S]*?\S)\s*(\*{1,3}|_{1,3})(.+?)\2\s*$',
     dotAll: true,
   );
+  static final RegExp _inlineItalic = RegExp(
+    r'(\*{1,3}|_{1,3})(.+?)\1',
+    dotAll: true,
+  );
 
   static List<PersonaReplySegment> splitVisibleReply(String text) {
     final cleaned = stripLeakedReasoning(text).trim();
@@ -66,6 +74,31 @@ class PersonaReplySanitizer {
         .map((segment) => segment.text)
         .join('\n')
         .trim();
+  }
+
+  static List<String> splitChatIntoBubbles(
+    String text, {
+    int maxBubbles = defaultMaxChatBubbles,
+  }) {
+    final cleaned = text.trim();
+    if (cleaned.isEmpty) return const [];
+    if (maxBubbles <= 1 || _shouldKeepChatTogether(cleaned)) {
+      return [cleaned];
+    }
+
+    final rawPieces = <String>[];
+    for (final rawLine in cleaned.split(RegExp(r'\r?\n'))) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+      if (_shouldKeepChatTogether(line)) {
+        rawPieces.add(line);
+        continue;
+      }
+      rawPieces.addAll(_splitLongPieces(_splitSentencePieces(line)));
+    }
+
+    final merged = _mergeTinyPieces(rawPieces);
+    return _capBubbleCount(merged, maxBubbles);
   }
 
   static String stripLeakedReasoning(String text) {
@@ -95,6 +128,9 @@ class PersonaReplySanitizer {
   }
 
   static List<PersonaReplySegment> _splitLine(String line) {
+    final inlineSegments = _splitInlineItalicActions(line);
+    if (inlineSegments != null) return inlineSegments;
+
     final fullItalic = _fullItalicLine.firstMatch(line);
     if (fullItalic != null) {
       final action = fullItalic.group(2)!.trim();
@@ -151,6 +187,175 @@ class PersonaReplySanitizer {
       ),
     ];
   }
+
+  static List<PersonaReplySegment>? _splitInlineItalicActions(String line) {
+    final segments = <PersonaReplySegment>[];
+    final chatBuffer = StringBuffer();
+    var cursor = 0;
+    var foundAction = false;
+
+    void flushChat() {
+      final chat = chatBuffer.toString().trim();
+      if (chat.isEmpty) {
+        chatBuffer.clear();
+        return;
+      }
+      segments.add(PersonaReplySegment(
+        type: PersonaReplySegmentType.chat,
+        text: chat,
+      ));
+      chatBuffer.clear();
+    }
+
+    for (final match in _inlineItalic.allMatches(line)) {
+      chatBuffer.write(line.substring(cursor, match.start));
+      final raw = match.group(0)!;
+      final candidate = match.group(2)!.trim();
+      if (_looksLikeAction(candidate)) {
+        flushChat();
+        segments.add(PersonaReplySegment(
+          type: PersonaReplySegmentType.action,
+          text: _wrapAction(candidate),
+        ));
+        foundAction = true;
+      } else {
+        chatBuffer.write(raw);
+      }
+      cursor = match.end;
+    }
+
+    if (!foundAction) return null;
+
+    chatBuffer.write(line.substring(cursor));
+    flushChat();
+    return segments;
+  }
+
+  static bool _shouldKeepChatTogether(String text) {
+    if (text.contains('```')) return true;
+    if (RegExp(r'`[^`]+`').hasMatch(text)) return true;
+    if (RegExp(r'https?:\/\/\S+').hasMatch(text)) return true;
+    if (RegExp(r'\[[^\]]+\]\([^)]+\)').hasMatch(text)) return true;
+    final lines = text.split(RegExp(r'\r?\n'));
+    return lines.any((line) {
+      final trimmed = line.trimLeft();
+      return RegExp(r'^(?:[-*+]\s+|\d+[.)]\s+|>\s+|#{1,6}\s+|\|)')
+          .hasMatch(trimmed);
+    });
+  }
+
+  static List<String> _splitSentencePieces(String text) {
+    final pieces = <String>[];
+    final buffer = StringBuffer();
+    final runes = text.runes.toList();
+    for (var i = 0; i < runes.length; i++) {
+      final char = String.fromCharCode(runes[i]);
+      buffer.write(char);
+      if (!_isSentenceBoundary(char)) continue;
+
+      while (i + 1 < runes.length) {
+        final next = String.fromCharCode(runes[i + 1]);
+        if (!_isClosingPunctuation(next)) break;
+        buffer.write(next);
+        i++;
+      }
+
+      final piece = buffer.toString().trim();
+      if (piece.isNotEmpty) pieces.add(piece);
+      buffer.clear();
+    }
+
+    final tail = buffer.toString().trim();
+    if (tail.isNotEmpty) pieces.add(tail);
+    return pieces.isEmpty ? [text.trim()] : pieces;
+  }
+
+  static List<String> _splitLongPieces(List<String> pieces) {
+    final result = <String>[];
+    for (final piece in pieces) {
+      if (piece.runes.length <= _targetBubbleRunes * 2 ||
+          !_hasSoftBoundary(piece)) {
+        result.add(piece);
+        continue;
+      }
+      result.addAll(_splitBySoftBoundary(piece));
+    }
+    return result;
+  }
+
+  static List<String> _splitBySoftBoundary(String text) {
+    final pieces = <String>[];
+    final buffer = StringBuffer();
+    for (final rune in text.runes) {
+      final char = String.fromCharCode(rune);
+      buffer.write(char);
+      if (!_isSoftBoundary(char) ||
+          buffer.toString().trim().runes.length < _targetBubbleRunes) {
+        continue;
+      }
+      final piece = buffer.toString().trim();
+      if (piece.isNotEmpty) pieces.add(piece);
+      buffer.clear();
+    }
+    final tail = buffer.toString().trim();
+    if (tail.isNotEmpty) pieces.add(tail);
+    return pieces;
+  }
+
+  static List<String> _mergeTinyPieces(List<String> pieces) {
+    final result = <String>[];
+    for (final raw in pieces) {
+      final piece = raw.trim();
+      if (piece.isEmpty) continue;
+      if (piece.runes.length <= _tinyBubbleRunes && result.isNotEmpty) {
+        result[result.length - 1] = _joinAdjacentText(result.last, piece);
+        continue;
+      }
+      result.add(piece);
+    }
+    return result;
+  }
+
+  static List<String> _capBubbleCount(List<String> pieces, int maxBubbles) {
+    if (pieces.length <= maxBubbles) return pieces;
+    final result = pieces.take(maxBubbles - 1).toList();
+    result.add(_joinTextPieces(pieces.skip(maxBubbles - 1)));
+    return result;
+  }
+
+  static String _joinTextPieces(Iterable<String> pieces) {
+    var result = '';
+    for (final raw in pieces) {
+      final piece = raw.trim();
+      if (piece.isEmpty) continue;
+      result = result.isEmpty ? piece : _joinAdjacentText(result, piece);
+    }
+    return result;
+  }
+
+  static String _joinAdjacentText(String left, String right) {
+    if (_needsSpaceBetween(left, right)) return '$left $right';
+    return '$left$right';
+  }
+
+  static bool _needsSpaceBetween(String left, String right) {
+    if (left.isEmpty || right.isEmpty) return false;
+    final leftLast = String.fromCharCode(left.runes.last);
+    final rightFirst = String.fromCharCode(right.runes.first);
+    return RegExp(r'[A-Za-z0-9\)\]]').hasMatch(leftLast) &&
+        RegExp(r'[A-Za-z0-9\(\[]').hasMatch(rightFirst);
+  }
+
+  static bool _isSentenceBoundary(String char) =>
+      RegExp(r'[。！？!?…]+').hasMatch(char);
+
+  static bool _isClosingPunctuation(String char) =>
+      RegExp(r'[”’」』）)]').hasMatch(char);
+
+  static bool _hasSoftBoundary(String text) =>
+      text.contains(RegExp(r'[，,；;、]'));
+
+  static bool _isSoftBoundary(String char) => RegExp(r'[，,；;、]').hasMatch(char);
 
   static List<PersonaReplySegment> _mergeAdjacent(
     List<PersonaReplySegment> segments,

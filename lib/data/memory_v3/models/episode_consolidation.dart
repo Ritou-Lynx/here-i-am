@@ -7,6 +7,7 @@ library;
 class EpisodeConsolidationDraft {
   EpisodeConsolidationDraft({
     required this.narrative,
+    required this.topicId,
     required this.primaryEntityId,
     required this.sourceFragmentIds,
     required this.significance,
@@ -19,6 +20,7 @@ class EpisodeConsolidationDraft {
   });
 
   final String narrative;
+  final String topicId;
   final String primaryEntityId;
   final List<String> sourceFragmentIds;
   final int significance;
@@ -31,20 +33,23 @@ class EpisodeConsolidationDraft {
 
   factory EpisodeConsolidationDraft.fromJson(Map<String, dynamic> json) {
     final occurred = json['occurredAtRange'] as Map<String, dynamic>?;
+    final topicId = (json['topicId'] as String? ??
+            json['primaryEntityId'] as String? ??
+            '__ungrouped__')
+        .trim();
     return EpisodeConsolidationDraft(
       narrative: json['narrative'] as String,
-      primaryEntityId: json['primaryEntityId'] as String,
-      sourceFragmentIds:
-          (json['sourceFragmentIds'] as List).cast<String>(),
+      topicId: topicId.isNotEmpty ? topicId : '__ungrouped__',
+      primaryEntityId: (json['primaryEntityId'] as String? ?? '').trim(),
+      sourceFragmentIds: (json['sourceFragmentIds'] as List).cast<String>(),
       significance: json['significance'] as int,
       confidence: json['confidence'] as String,
       valence: (json['valence'] as num).toDouble(),
       arousal: (json['arousal'] as num).toDouble(),
       occurredAtStart: occurred?['start'] as String?,
       occurredAtEnd: occurred?['end'] as String?,
-      linkedEntityIds: (json['linkedEntityIds'] as List?)
-              ?.cast<String>() ??
-          const [],
+      linkedEntityIds:
+          (json['linkedEntityIds'] as List?)?.cast<String>() ?? const [],
     );
   }
 }
@@ -66,6 +71,7 @@ class EpisodeConsolidationResult {
         'episodes': episodes
             .map((e) => {
                   'narrative': e.narrative,
+                  'topicId': e.topicId,
                   'primaryEntityId': e.primaryEntityId,
                   'significance': e.significance,
                   'confidence': e.confidence,

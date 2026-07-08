@@ -524,12 +524,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
     // Volume keys deliberately excluded; they conflict with TTS volume control.
     final key = event.logicalKey;
-    final isDown =
-        key == LogicalKeyboardKey.pageDown ||
+    final isDown = key == LogicalKeyboardKey.pageDown ||
         key == LogicalKeyboardKey.arrowDown ||
         key == LogicalKeyboardKey.mediaTrackNext;
-    final isUp =
-        key == LogicalKeyboardKey.pageUp ||
+    final isUp = key == LogicalKeyboardKey.pageUp ||
         key == LogicalKeyboardKey.arrowUp ||
         key == LogicalKeyboardKey.mediaTrackPrevious;
 
@@ -559,12 +557,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
     final result = await _voiceController.toggle(
       autoStop: true,
-      initialSilenceTimeout: _isInlineVoiceMode
-          ? _voiceModeIdleFollowUpSilenceTimeout
-          : null,
-      maxRecordingDuration: _isInlineVoiceMode
-          ? _voiceModeMaxRecordingDuration
-          : null,
+      initialSilenceTimeout:
+          _isInlineVoiceMode ? _voiceModeIdleFollowUpSilenceTimeout : null,
+      maxRecordingDuration:
+          _isInlineVoiceMode ? _voiceModeMaxRecordingDuration : null,
     );
     if (!mounted) return;
     if (result != null && result.isNotEmpty) {
@@ -1010,9 +1006,7 @@ only after you have written the goodbye you want the user to hear.''',
 
     _mediaButtonsActive = false;
     unawaited(
-      mediaButtons
-          .deactivate(owner: _mediaButtonOwner)
-          .catchError(
+      mediaButtons.deactivate(owner: _mediaButtonOwner).catchError(
             (e) => debugPrint('MediaButtonService deactivate failed: $e'),
           ),
     );
@@ -1273,18 +1267,18 @@ only after you have written the goodbye you want the user to hear.''',
     _chatService
         .getMessages(_currentCharacterId, limit: _messages.length + 5)
         .then((updated) {
-          if (!mounted) return;
-          setState(() => _messages = updated);
-          if (_autoReadEnabled || _isInlineVoiceMode) {
-            _autoReadNewestCharacterMessage(
-              previousMessages: previousMessages,
-              updatedMessages: updated,
-            );
-          } else {
-            _advanceAutoReadWatermark(updated);
-          }
-          _scrollToBottom();
-        });
+      if (!mounted) return;
+      setState(() => _messages = updated);
+      if (_autoReadEnabled || _isInlineVoiceMode) {
+        _autoReadNewestCharacterMessage(
+          previousMessages: previousMessages,
+          updatedMessages: updated,
+        );
+      } else {
+        _advanceAutoReadWatermark(updated);
+      }
+      _scrollToBottom();
+    });
   }
 
   void _onConversationCaptureRemembered(EventBusMessage message) {
@@ -1434,8 +1428,7 @@ only after you have written the goodbye you want the user to hear.''',
 
     final sendCharacterId =
         queuedMessage?.characterId ?? forcedCharacterId ?? _currentCharacterId;
-    final sendCharacter =
-        queuedMessage?.character ??
+    final sendCharacter = queuedMessage?.character ??
         (forcedCharacterId == null ? _character : forcedCharacter);
 
     // While the character is still typing, queue the message; it will be sent
@@ -1488,13 +1481,13 @@ only after you have written the goodbye you want the user to hear.''',
     final userMessageId = isSynthetic
         ? -(DateTime.now().millisecondsSinceEpoch)
         : (queuedMessage?.messageId ??
-              await _chatService.addUserMessage(
-                sendCharacterId,
-                textToSend,
-                timestamp: userMessageTime,
-                attachments: compressedAttachments,
-                appendTimeline: false,
-              ));
+            await _chatService.addUserMessage(
+              sendCharacterId,
+              textToSend,
+              timestamp: userMessageTime,
+              attachments: compressedAttachments,
+              appendTimeline: false,
+            ));
     final sendSerial = ++_sendSerial;
     _activeSendSerial = sendSerial;
     _activeUserMessageId = userMessageId;
@@ -1560,8 +1553,7 @@ only after you have written the goodbye you want the user to hear.''',
           }
           final result = await analysisTool.tool(
             assetPath: image.path,
-            prompt:
-                '用1-2句中文简要描述这张图片的内容。'
+            prompt: '用1-2句中文简要描述这张图片的内容。'
                 '关注画面中可见的人、物体、文字、场景。'
                 '简洁客观。',
           );
@@ -1628,9 +1620,8 @@ only after you have written the goodbye you want the user to hear.''',
         chatMessage = textToSend;
       }
       final linkContext = _buildLinkConversationContext(textToSend);
-      final chatMessageWithContext = linkContext == null
-          ? chatMessage
-          : '$linkContext\n\n$chatMessage';
+      final chatMessageWithContext =
+          linkContext == null ? chatMessage : '$linkContext\n\n$chatMessage';
 
       final toyControlService = _readyToyControlService();
       if (toyControlService == null) {
@@ -1717,9 +1708,9 @@ only after you have written the goodbye you want the user to hear.''',
         final isViewingSendCharacter = _currentCharacterId == sendCharacterId;
         final firstNewCharacterMessageId =
             personaChatFirstNewCharacterMessageId(
-              previousMessages: messages,
-              updatedMessages: updated,
-            );
+          previousMessages: messages,
+          updatedMessages: updated,
+        );
         setState(() {
           if (isViewingSendCharacter) {
             _messages = updated;
@@ -1779,9 +1770,9 @@ only after you have written the goodbye you want the user to hear.''',
         final isViewingSendCharacter = _currentCharacterId == sendCharacterId;
         final firstNewCharacterMessageId =
             personaChatFirstNewCharacterMessageId(
-              previousMessages: messages,
-              updatedMessages: updated,
-            );
+          previousMessages: messages,
+          updatedMessages: updated,
+        );
         setState(() {
           if (isViewingSendCharacter) {
             _messages = updated;
@@ -2103,9 +2094,8 @@ only after you have written the goodbye you want the user to hear.''',
       message,
     );
     final neededDepth = newerCount + 1;
-    final limit = neededDepth > _messages.length
-        ? neededDepth
-        : _messages.length;
+    final limit =
+        neededDepth > _messages.length ? neededDepth : _messages.length;
     final messages = await _chatService.getMessages(
       _currentCharacterId,
       limit: limit,
@@ -2264,15 +2254,15 @@ only after you have written the goodbye you want the user to hear.''',
                     '#ts_${now.microsecondsSinceEpoch}';
                 late final String relativePath;
                 try {
-                  final (_, savedRelativePath) = await fsService
-                      .saveAssetFromFile(
-                        userId: userId,
-                        sourcePath: sourcePathForSave,
-                        assetType: 'img',
-                        index: i + 1,
-                        format: ext,
-                        factId: factId,
-                      );
+                  final (_, savedRelativePath) =
+                      await fsService.saveAssetFromFile(
+                    userId: userId,
+                    sourcePath: sourcePathForSave,
+                    assetType: 'img',
+                    index: i + 1,
+                    format: ext,
+                    factId: factId,
+                  );
                   relativePath = savedRelativePath;
                 } finally {
                   if (tempFile != null) {
@@ -2314,9 +2304,9 @@ only after you have written the goodbye you want the user to hear.''',
                     );
                     final analysisResources =
                         await UserStorage.getAgentLLMResources(
-                          AgentDefinitions.analyzeAssets,
-                          defaultClientKey: LLMConfig.defaultClientKey,
-                        );
+                      AgentDefinitions.analyzeAssets,
+                      defaultClientKey: LLMConfig.defaultClientKey,
+                    );
                     final analysisTool = AssetAnalysisTool(
                       client: analysisResources.client,
                       modelConfig: analysisResources.modelConfig,
@@ -2324,8 +2314,7 @@ only after you have written the goodbye you want the user to hear.''',
                     final absPath = fsService.toAbsolutePath(relativePath);
                     final result = await analysisTool.tool(
                       assetPath: absPath,
-                      prompt:
-                          '用1-2句中文简要描述这张图片的内容。'
+                      prompt: '用1-2句中文简要描述这张图片的内容。'
                           '关注画面中可见的人、物体、文字、场景。'
                           '简洁客观。',
                     );
@@ -2399,24 +2388,22 @@ only after you have written the goodbye you want the user to hear.''',
       );
       final inputMedia = media.isNotEmpty
           ? media
-                .map(
-                  (m) => {
-                    'kind': m.kind,
-                    if (m.savedRelativePath != null)
-                      'path': m.savedRelativePath!,
-                    if (m.analysisText != null) 'analysis': m.analysisText!,
-                  },
-                )
-                .toList()
+              .map(
+                (m) => {
+                  'kind': m.kind,
+                  if (m.savedRelativePath != null) 'path': m.savedRelativePath!,
+                  if (m.analysisText != null) 'analysis': m.analysisText!,
+                },
+              )
+              .toList()
           : null;
       final result = await RecordOrganizerServiceV3.instance.organizeAndPersist(
         client: resources.client,
         modelConfig: resources.modelConfig,
         source: RecordSource(
           sourceKind: 'record_button',
-          rawInput: cleanedContent.isNotEmpty
-              ? cleanedContent
-              : message.content,
+          rawInput:
+              cleanedContent.isNotEmpty ? cleanedContent : message.content,
         ),
         inputMedia: inputMedia,
       );
@@ -2829,8 +2816,7 @@ only after you have written the goodbye you want the user to hear.''',
     if (confirmed != true) return;
     try {
       await _chatService.deleteMessage(characterId, id);
-      await _refreshMessagesFromStore(
-          autoRead: false, scrollToBottom: false);
+      await _refreshMessagesFromStore(autoRead: false, scrollToBottom: false);
     } catch (e) {
       debugPrint('deleteMessage failed: $e');
     }
@@ -2850,11 +2836,9 @@ only after you have written the goodbye you want the user to hear.''',
       final contextBefore = <String>[];
       final contextAfter = <String>[];
       if (targetIndex >= 0) {
-        for (var i = targetIndex - 1;
-            i >= 0 && contextBefore.length < 3;
-            i--) {
-          contextBefore.insert(
-              0, '[${allMessages[i].isFromCharacter ? "I" : "U"}] ${allMessages[i].content}');
+        for (var i = targetIndex - 1; i >= 0 && contextBefore.length < 3; i--) {
+          contextBefore.insert(0,
+              '[${allMessages[i].isFromCharacter ? "I" : "U"}] ${allMessages[i].content}');
         }
         for (var i = targetIndex + 1;
             i < allMessages.length && contextAfter.length < 3;
@@ -2868,9 +2852,8 @@ only after you have written the goodbye you want the user to hear.''',
         characterId: _character?.id ?? '',
         targetMessageId: id,
         targetContent: text,
-        targetTimestamp: targetIndex >= 0
-            ? allMessages[targetIndex].timestamp
-            : null,
+        targetTimestamp:
+            targetIndex >= 0 ? allMessages[targetIndex].timestamp : null,
         contextBefore: contextBefore,
         contextAfter: contextAfter,
       );
@@ -2968,7 +2951,13 @@ only after you have written the goodbye you want the user to hear.''',
 
   @override
   Widget build(BuildContext context) {
-    final viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
+    final mediaQuery = MediaQuery.of(context);
+    final viewInsetsBottom = mediaQuery.viewInsets.bottom;
+    final safeBottom = mediaQuery.padding.bottom;
+    final hasVisibleMediaTray = widget.enableRichCapture && _isMediaTrayOpen;
+    final jumpToLatestBottom =
+        viewInsetsBottom + safeBottom + (hasVisibleMediaTray ? 204 : 116);
+    final mediaTrayBottom = viewInsetsBottom + safeBottom + 96;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -2982,21 +2971,41 @@ only after you have written the goodbye you want the user to hear.''',
                     child: _ChatAtmosphereBackground(character: _character),
                   ),
                 ),
-                Column(
-                  children: [
-                    SizedBox(height: MediaQuery.paddingOf(context).top),
-                    _buildHeader(),
-                    const ChatTaskCapsule(),
-                    Expanded(child: _buildMessageList()),
-                    if (_showJumpToLatest) _buildJumpToLatestPill(),
-                    if (widget.enableRichCapture)
-                      CompanionMediaTray(
-                        isOpen: _isMediaTrayOpen,
-                        onImagesPicked: _onImagesPicked,
-                      ),
-                    _buildInputBar(),
-                    SizedBox(height: viewInsetsBottom),
-                  ],
+                Positioned.fill(child: _buildMessageList()),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(bottom: false, child: _buildHeader()),
+                ),
+                Positioned(
+                  top: mediaQuery.padding.top + 62,
+                  left: 0,
+                  right: 0,
+                  child: const ChatTaskCapsule(),
+                ),
+                if (_showJumpToLatest)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: jumpToLatestBottom,
+                    child: _buildJumpToLatestPill(),
+                  ),
+                if (widget.enableRichCapture)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: mediaTrayBottom,
+                    child: CompanionMediaTray(
+                      isOpen: _isMediaTrayOpen,
+                      onImagesPicked: _onImagesPicked,
+                    ),
+                  ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: viewInsetsBottom,
+                  child: _buildInputBar(),
                 ),
                 if (_isHeaderActionsOpen)
                   Positioned.fill(
@@ -3080,8 +3089,8 @@ only after you have written the goodbye you want the user to hear.''',
                     color: _toyConnecting
                         ? const Color(0xFFFACC15)
                         : (_toyConnected
-                              ? const Color(0xFF4ADE80)
-                              : const Color(0xFF94A3B8)),
+                            ? const Color(0xFF4ADE80)
+                            : const Color(0xFF94A3B8)),
                     boxShadow: [
                       BoxShadow(
                         color: (_toyConnecting
@@ -3238,6 +3247,15 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   Widget _buildMessageList() {
+    final mediaQuery = MediaQuery.of(context);
+    final topPadding = mediaQuery.padding.top + 118;
+    final mediaTrayPadding =
+        widget.enableRichCapture && _isMediaTrayOpen ? 96.0 : 0.0;
+    final bottomPadding = mediaQuery.padding.bottom +
+        mediaQuery.viewInsets.bottom +
+        168 +
+        mediaTrayPadding;
+
     // Show typing indicator or streaming bubble at the end
     final showStreamingBubble =
         _isStreamingCurrentCharacter && _streamingText.isNotEmpty;
@@ -3248,7 +3266,12 @@ only after you have written the goodbye you want the user to hear.''',
     final loadMoreItem = (_hasMoreHistory || _isLoadingMore) ? 1 : 0;
     final itemCount = _messages.length + extraItems + loadMoreItem;
 
-    if (_messages.isEmpty && extraItems == 0) return _buildEmptyState();
+    if (_messages.isEmpty && extraItems == 0) {
+      return Padding(
+        padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+        child: _buildEmptyState(),
+      );
+    }
 
     return Stack(
       children: [
@@ -3264,7 +3287,12 @@ only after you have written the goodbye you want the user to hear.''',
                 controller: _scrollController,
                 physics: const ClampingScrollPhysics(),
                 reverse: true,
-                padding: const EdgeInsets.fromLTRB(10, 18, 12, 30),
+                padding: EdgeInsets.fromLTRB(
+                  10,
+                  topPadding,
+                  12,
+                  bottomPadding,
+                ),
                 itemCount: itemCount,
                 itemBuilder: (context, index) {
                   // Typing indicator or streaming message at the bottom (index 0 in reversed list)
@@ -3539,6 +3567,7 @@ only after you have written the goodbye you want the user to hear.''',
     PersonaChatMessage? message,
     String? messageId,
     String? attachmentsJson,
+    double characterBottomSpacing = 22,
   }) {
     if (isCharacter) {
       return _buildCharacterBubble(
@@ -3546,20 +3575,21 @@ only after you have written the goodbye you want the user to hear.''',
         isStreaming: isStreaming,
         messageId: messageId,
         attachmentsJson: attachmentsJson,
+        bottomSpacing: characterBottomSpacing,
       );
     }
 
     final userMessage = message;
     final attachmentWidgets =
         attachmentsJson != null && attachmentsJson.isNotEmpty
-        ? _buildAttachmentWidgets(
-            attachmentsJson,
-            message!.id,
-            onRecord: userMessage != null
-                ? () => _recordMessage(userMessage)
-                : null,
-          )
-        : <Widget>[];
+            ? _buildAttachmentWidgets(
+                attachmentsJson,
+                message!.id,
+                onRecord: userMessage != null
+                    ? () => _recordMessage(userMessage)
+                    : null,
+              )
+            : <Widget>[];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
@@ -3667,10 +3697,23 @@ only after you have written the goodbye you want the user to hear.''',
     String? messageId,
     String? attachmentsJson,
   }) {
-    final segments = PersonaReplySanitizer.splitVisibleReply(text);
-    if (segments.length <= 1 &&
-        (segments.isEmpty ||
-            segments.single.type == PersonaReplySegmentType.chat)) {
+    var segments = PersonaReplySanitizer.splitVisibleReply(text);
+    if (segments.isEmpty && text.trim().isNotEmpty) {
+      segments = [
+        PersonaReplySegment(
+          type: PersonaReplySegmentType.chat,
+          text: text.trim(),
+        ),
+      ];
+    }
+
+    final chatBubbleCount = _visibleCharacterChatBubbleCountForSegments(
+      segments,
+    );
+    final hasSingleChatBubble = segments.length == 1 &&
+        segments.single.type == PersonaReplySegmentType.chat &&
+        chatBubbleCount <= 1;
+    if (segments.isEmpty || hasSingleChatBubble) {
       return _buildBubble(
         text: segments.isEmpty ? text : segments.single.text,
         isCharacter: true,
@@ -3681,45 +3724,51 @@ only after you have written the goodbye you want the user to hear.''',
     }
 
     final children = <Widget>[];
-    final chatTexts = <String>[];
     var chatBubbleIndex = 0;
+    final useSplitMessageIds =
+        messageId != null && (segments.length > 1 || chatBubbleCount > 1);
 
     String? nextChatMessageId() {
       if (messageId == null) return null;
-      if (segments.length <= 1) return messageId;
+      if (!useSplitMessageIds) return messageId;
       return '$messageId:${chatBubbleIndex++}';
     }
 
-    for (final segment in segments) {
-      if (segment.type == PersonaReplySegmentType.action) {
-        if (chatTexts.isNotEmpty) {
-          children.add(
-            _buildBubble(
-              text: chatTexts.join('\n'),
-              isCharacter: true,
-              isStreaming: isStreaming,
-              messageId: nextChatMessageId(),
-              attachmentsJson: attachmentsJson,
-            ),
-          );
-          chatTexts.clear();
-          attachmentsJson = null;
-        }
-        children.add(_buildActionMessage(text: segment.text));
-      } else {
-        chatTexts.add(segment.text);
+    void addChatBubbles({
+      required String chatText,
+      required bool hasVisibleAfter,
+      String? blockAttachmentsJson,
+    }) {
+      final bubbles = PersonaReplySanitizer.splitChatIntoBubbles(chatText);
+      for (var i = 0; i < bubbles.length; i++) {
+        final isLastBubbleInBlock = i == bubbles.length - 1;
+        final isLastVisibleBubble = isLastBubbleInBlock && !hasVisibleAfter;
+        children.add(
+          _buildBubble(
+            text: bubbles[i],
+            isCharacter: true,
+            isStreaming: isStreaming,
+            messageId: nextChatMessageId(),
+            attachmentsJson: isLastBubbleInBlock ? blockAttachmentsJson : null,
+            characterBottomSpacing: isLastVisibleBubble ? 22 : 8,
+          ),
+        );
       }
     }
-    if (chatTexts.isNotEmpty) {
-      children.add(
-        _buildBubble(
-          text: chatTexts.join('\n'),
-          isCharacter: true,
-          isStreaming: isStreaming,
-          messageId: nextChatMessageId(),
-          attachmentsJson: attachmentsJson,
-        ),
-      );
+
+    for (var i = 0; i < segments.length; i++) {
+      final segment = segments[i];
+      final hasVisibleAfter = _hasVisibleSegmentsAfter(segments, i);
+      if (segment.type == PersonaReplySegmentType.action) {
+        children.add(_buildActionMessage(text: segment.text));
+      } else {
+        addChatBubbles(
+          chatText: segment.text,
+          hasVisibleAfter: hasVisibleAfter,
+          blockAttachmentsJson: attachmentsJson,
+        );
+        attachmentsJson = null;
+      }
     }
 
     if (children.isEmpty) {
@@ -3737,6 +3786,28 @@ only after you have written the goodbye you want the user to hear.''',
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
     );
+  }
+
+  int _visibleCharacterChatBubbleCountForSegments(
+    List<PersonaReplySegment> segments,
+  ) =>
+      _personaChatVisibleChatBubbleCountForSegments(segments);
+
+  bool _hasVisibleSegmentsAfter(
+    List<PersonaReplySegment> segments,
+    int index,
+  ) {
+    for (var i = index + 1; i < segments.length; i++) {
+      final segment = segments[i];
+      if (segment.type == PersonaReplySegmentType.action) {
+        if (segment.text.trim().isNotEmpty) return true;
+        continue;
+      }
+      if (PersonaReplySanitizer.splitChatIntoBubbles(segment.text).isNotEmpty) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Per-message image byte cache so base64 is decoded once and reused
@@ -3795,6 +3866,7 @@ only after you have written the goodbye you want the user to hear.''',
     required bool isStreaming,
     String? messageId,
     String? attachmentsJson,
+    double bottomSpacing = 22,
   }) {
     final isPlaying = messageId != null && _playingMessageId == messageId;
     final showSpeaker = !isStreaming && messageId != null;
@@ -3802,7 +3874,7 @@ only after you have written the goodbye you want the user to hear.''',
         attachmentsJson != null && attachmentsJson.trim().isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 22),
+      padding: EdgeInsets.only(bottom: bottomSpacing),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3951,9 +4023,8 @@ only after you have written the goodbye you want the user to hear.''',
       hintText: UserStorage.l10n.personaChatInputHint,
       voiceController: _voiceController,
       onVoiceTap: _onVoiceToggle,
-      isVoiceInputEnabled: _isInlineVoiceMode
-          ? !_isStreaming
-          : !_isVoiceReplyActive,
+      isVoiceInputEnabled:
+          _isInlineVoiceMode ? !_isStreaming : !_isVoiceReplyActive,
       isVoiceModeActive: _isInlineVoiceMode,
       onVoiceModeTap: () => unawaited(_setInlineVoiceMode(!_isInlineVoiceMode)),
       onAddTap: widget.enableRichCapture
@@ -3968,6 +4039,23 @@ only after you have written the goodbye you want the user to hear.''',
 
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+@visibleForTesting
+int personaChatVisibleChatBubbleCount(String text) {
+  final segments = PersonaReplySanitizer.splitVisibleReply(text);
+  return _personaChatVisibleChatBubbleCountForSegments(segments);
+}
+
+int _personaChatVisibleChatBubbleCountForSegments(
+  List<PersonaReplySegment> segments,
+) {
+  var count = 0;
+  for (final segment in segments) {
+    if (segment.type != PersonaReplySegmentType.chat) continue;
+    count += PersonaReplySanitizer.splitChatIntoBubbles(segment.text).length;
+  }
+  return count;
 }
 
 @visibleForTesting
@@ -4023,10 +4111,13 @@ List<PersonaChatMessage> personaChatGeneratedReadableMessagesInOrder({
 @visibleForTesting
 String personaChatTtsPlaybackIdForMessage(PersonaChatMessage message) {
   final segments = PersonaReplySanitizer.splitVisibleReply(message.content);
-  final hasSplitSpeech =
-      segments.length > 1 &&
+  final hasSplitSpeech = segments.length > 1 &&
       segments.any((segment) => segment.type == PersonaReplySegmentType.chat);
-  return hasSplitSpeech ? '${message.id}:0' : message.id.toString();
+  final hasSplitBubbles =
+      _personaChatVisibleChatBubbleCountForSegments(segments) > 1;
+  return hasSplitSpeech || hasSplitBubbles
+      ? '${message.id}:0'
+      : message.id.toString();
 }
 
 @visibleForTesting
@@ -4284,9 +4375,8 @@ class _SearchResultTile extends StatelessWidget {
                   ? Icons.auto_awesome_rounded
                   : Icons.person_rounded,
               size: 18,
-              color: message.isFromCharacter
-                  ? _personaAccent
-                  : _personaAccentCool,
+              color:
+                  message.isFromCharacter ? _personaAccent : _personaAccentCool,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -4469,7 +4559,8 @@ class _ChatAtmosphereBackgroundState extends State<_ChatAtmosphereBackground> {
         _hasCustomBg = file.existsSync();
         if (_hasCustomBg!) {
           final stat = file.statSync();
-          _cachedImageKey = '$bgPath:${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+          _cachedImageKey =
+              '$bgPath:${stat.size}:${stat.modified.millisecondsSinceEpoch}';
         } else {
           _cachedImageKey = null;
         }
@@ -4788,9 +4879,8 @@ class _FrostedChatBubbleSurface extends StatelessWidget {
             bottomLeft: Radius.circular(24),
             bottomRight: Radius.circular(8),
           );
-    final tint = isCharacter
-        ? const Color(0xFF241319)
-        : const Color(0xFF70403C);
+    final tint =
+        isCharacter ? const Color(0xFF241319) : const Color(0xFF70403C);
 
     return Container(
       constraints: BoxConstraints(
@@ -5419,17 +5509,19 @@ class PersonaChatInputBar extends StatelessWidget {
                                       showVoiceModeEnd: isVoiceModeActive,
                                     )
                                   : voiceController != null
-                                  ? _ChatVoiceActions(
-                                      key: const ValueKey('voice-actions'),
-                                      voiceController: voiceController,
-                                      onVoiceTap: onVoiceTap,
-                                      onVoiceModeTap: onVoiceModeTap,
-                                      isVoiceModeActive: isVoiceModeActive,
-                                      voiceInputEnabled: isVoiceInputEnabled,
-                                      voiceModeEnabled:
-                                          isVoiceModeActive || !isStreaming,
-                                    )
-                                  : const SizedBox(key: ValueKey('no-send')),
+                                      ? _ChatVoiceActions(
+                                          key: const ValueKey('voice-actions'),
+                                          voiceController: voiceController,
+                                          onVoiceTap: onVoiceTap,
+                                          onVoiceModeTap: onVoiceModeTap,
+                                          isVoiceModeActive: isVoiceModeActive,
+                                          voiceInputEnabled:
+                                              isVoiceInputEnabled,
+                                          voiceModeEnabled:
+                                              isVoiceModeActive || !isStreaming,
+                                        )
+                                      : const SizedBox(
+                                          key: ValueKey('no-send')),
                             ),
                           ),
                         ],
@@ -5546,54 +5638,54 @@ class _AddButton extends StatelessWidget {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
               child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF241319).withValues(alpha: 0.38),
-                gradient: RadialGradient(
-                  center: const Alignment(-0.36, -0.44),
-                  radius: 1.08,
-                  colors: [
-                    const Color(
-                      0xFFFFECDD,
-                    ).withValues(alpha: active ? 0.13 : 0.08),
-                    active
-                        ? const Color(0xFF4D222B).withValues(alpha: 0.58)
-                        : const Color(0xFF3A2123).withValues(alpha: 0.48),
-                    const Color(0xFF120B0E).withValues(alpha: 0.72),
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF241319).withValues(alpha: 0.38),
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.36, -0.44),
+                    radius: 1.08,
+                    colors: [
+                      const Color(
+                        0xFFFFECDD,
+                      ).withValues(alpha: active ? 0.13 : 0.08),
+                      active
+                          ? const Color(0xFF4D222B).withValues(alpha: 0.58)
+                          : const Color(0xFF3A2123).withValues(alpha: 0.48),
+                      const Color(0xFF120B0E).withValues(alpha: 0.72),
+                    ],
+                    stops: const [0, 0.54, 1],
+                  ),
+                  border: Border.all(
+                    color: active
+                        ? const Color(0xFFFFC6B5).withValues(alpha: 0.12)
+                        : Colors.white.withValues(alpha: 0.045),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.30),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFFC0646E).withValues(alpha: 0.10),
+                      blurRadius: 12,
+                      offset: Offset.zero,
+                    ),
                   ],
-                  stops: const [0, 0.54, 1],
                 ),
-                border: Border.all(
-                  color: active
-                      ? const Color(0xFFFFC6B5).withValues(alpha: 0.12)
-                      : Colors.white.withValues(alpha: 0.045),
+                child: Icon(
+                  active ? Icons.close_rounded : Icons.add_rounded,
+                  color: enabled
+                      ? const Color(0xFFF6F0EF).withValues(alpha: 0.86)
+                      : _personaTextMuted,
+                  size: 23,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.30),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFFC0646E).withValues(alpha: 0.10),
-                    blurRadius: 12,
-                    offset: Offset.zero,
-                  ),
-                ],
-              ),
-              child: Icon(
-                active ? Icons.close_rounded : Icons.add_rounded,
-                color: enabled
-                    ? const Color(0xFFF6F0EF).withValues(alpha: 0.86)
-                    : _personaTextMuted,
-                size: 23,
               ),
             ),
-          ),
           ),
         ),
       ),
@@ -5960,8 +6052,8 @@ class _TypingDotsState extends State<_TypingDots>
             final offset = t < 0.3
                 ? -4.0 * (t / 0.3)
                 : t < 0.6
-                ? -4.0 * (1 - (t - 0.3) / 0.3)
-                : 0.0;
+                    ? -4.0 * (1 - (t - 0.3) / 0.3)
+                    : 0.0;
             return Padding(
               padding: EdgeInsets.only(right: i < 2 ? 4 : 0),
               child: Transform.translate(

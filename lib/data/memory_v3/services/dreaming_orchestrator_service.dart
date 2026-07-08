@@ -396,14 +396,24 @@ class DreamingOrchestratorServiceV3 {
 
         for (final episode in result.episodes) {
           final episodeId = _uuid.v4();
-          final primaryEntityId = episode.primaryEntityId.isNotEmpty
-              ? episode.primaryEntityId
-              : '__ungrouped__';
+          final sourceEntityIds =
+              await _entityIdsForFragments(episode.sourceFragmentIds);
+          final primaryEntityId = await _primaryEntityIdForEpisode(
+            sourceEntityIds: sourceEntityIds,
+            preferredEntityId: episode.primaryEntityId,
+            now: now,
+          );
+          final linkedEntityIds = {
+            ...sourceEntityIds,
+            ...episode.linkedEntityIds,
+            primaryEntityId,
+          };
 
           await _db.into(_db.memoryEpisodes).insert(
                 MemoryEpisodesCompanion.insert(
                   id: episodeId,
                   primaryEntityId: primaryEntityId,
+                  topicId: Value(episode.topicId),
                   narrative: episode.narrative,
                   sourceFragmentIds: jsonEncode(episode.sourceFragmentIds),
                   significance: episode.significance,
@@ -427,15 +437,17 @@ class DreamingOrchestratorServiceV3 {
                 ),
               );
 
-          // Link episode to entities if any linkedEntityIds specified.
-          for (final linkedId in episode.linkedEntityIds) {
+          // Link each episode to the evidence-derived entities it actually
+          // summarizes, so retrieval does not depend on topic labels.
+          for (final linkedId in linkedEntityIds) {
             await _db.into(_db.memoryEntityLinks).insert(
                   MemoryEntityLinksCompanion.insert(
                     id: _uuid.v4(),
                     sourceTable: 'memory_episodes',
                     sourceId: episodeId,
                     entityId: linkedId,
-                    relation: 'mentioned',
+                    relation:
+                        linkedId == primaryEntityId ? 'about' : 'mentioned',
                     confidence: const Value(0.8),
                     createdAt: now,
                   ),
@@ -530,6 +542,91 @@ class DreamingOrchestratorServiceV3 {
       }
     }
     return result;
+  }
+
+  Future<List<String>> _entityIdsForFragments(List<String> fragmentIds) async {
+    if (fragmentIds.isEmpty) {
+      return const [];
+    }
+    final links = await (_db.select(_db.memoryEntityLinks)
+          ..where((t) =>
+              t.sourceTable.equals('memory_fragments') &
+              t.sourceId.isIn(fragmentIds)))
+        .get();
+    return links
+        .map((link) => link.entityId)
+        .where((id) => id.trim().isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+  }
+
+  Future<String> _primaryEntityIdForEpisode({
+    required List<String> sourceEntityIds,
+    required String preferredEntityId,
+    required int now,
+  }) async {
+    final preferred = preferredEntityId.trim();
+    if (preferred.isNotEmpty &&
+        await _memoryEntityExists(preferred) &&
+        !_isKnownDreamingTopic(preferred)) {
+      return preferred;
+    }
+
+    if (sourceEntityIds.contains('user_self')) {
+      return 'user_self';
+    }
+    if (sourceEntityIds.isNotEmpty) {
+      return sourceEntityIds.first;
+    }
+    return _ensureUserSelfEntity(now: now);
+  }
+
+  Future<bool> _memoryEntityExists(String entityId) async {
+    final row = await (_db.select(_db.memoryEntities)
+          ..where((t) =>
+              t.id.equals(entityId) &
+              t.status.isNotIn(const ['deleted', 'merged'])))
+        .getSingleOrNull();
+    return row != null;
+  }
+
+  bool _isKnownDreamingTopic(String value) {
+    const topics = {
+      'work_routine',
+      'commute',
+      'sleep_environment',
+      'self_image',
+      'food_place',
+      'creative_project',
+      'product_interest',
+      'relationship_care',
+      'intimacy_private',
+      '__ungrouped__',
+    };
+    return topics.contains(value);
+  }
+
+  Future<String> _ensureUserSelfEntity({required int now}) async {
+    final existing = await (_db.select(_db.memoryEntities)
+          ..where((t) => t.id.equals('user_self')))
+        .getSingleOrNull();
+    if (existing != null) {
+      return existing.id;
+    }
+    await _db.into(_db.memoryEntities).insert(
+          MemoryEntitiesCompanion.insert(
+            id: 'user_self',
+            name: 'user_self',
+            category: 'self',
+            status: const Value('seed'),
+            relationshipToUser: const Value('self'),
+            firstMentionedAt: Value(now),
+            lastMentionedAt: Value(now),
+            fragmentCount: const Value(0),
+            generatedByVersion: const Value(_episodeConsolidatorVersion),
+          ),
+        );
+    return 'user_self';
   }
 
   bool _passesRelationshipEvidenceGuard(
@@ -638,9 +735,13 @@ class DreamingOrchestratorServiceV3 {
     DreamingEntityLinkDraft link, {
     required int now,
   }) async {
+    final canonicalSelf = link.name.trim() == 'user_self';
     final existing = await (_db.select(_db.memoryEntities)
           ..where((t) =>
-              t.name.lower().equals(link.name.toLowerCase()) &
+              (canonicalSelf
+                  ? t.id.equals('user_self') |
+                      t.name.lower().equals(link.name.toLowerCase())
+                  : t.name.lower().equals(link.name.toLowerCase())) &
               t.status.isNotIn(const ['deleted', 'merged'])))
         .getSingleOrNull();
 
@@ -663,7 +764,7 @@ class DreamingOrchestratorServiceV3 {
       return existing.id;
     }
 
-    final id = _uuid.v4();
+    final id = canonicalSelf ? 'user_self' : _uuid.v4();
     await _db.into(_db.memoryEntities).insert(
           MemoryEntitiesCompanion.insert(
             id: id,

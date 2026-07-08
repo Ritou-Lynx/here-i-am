@@ -350,6 +350,24 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     });
 
     try {
+      var preProcessedMessageCount = 0;
+      var preFragmentCount = 0;
+      final characterId = await _latestChatCharacterId();
+      if (characterId != null) {
+        final fragmentResources = await UserStorage.getAgentLLMResources(
+          AgentDefinitions.recordOrganizerAgent,
+          defaultClientKey: LLMConfig.defaultClientKey,
+        );
+        final fragmentResult =
+            await DreamingOrchestratorServiceV3.instance.runDailyFragmentBatch(
+          characterId: characterId,
+          client: fragmentResources.client,
+          modelConfig: fragmentResources.modelConfig,
+        );
+        preProcessedMessageCount = fragmentResult.processedMessageCount;
+        preFragmentCount = fragmentResult.fragmentIds.length;
+      }
+
       // Episode uses the MAIN model (companion agent config).
       final resources = await UserStorage.getAgentLLMResources(
         AgentDefinitions.companionAgent,
@@ -370,7 +388,10 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
               '${result.skippedEntities.join("\n")}';
         } else {
           final entitySummary = result.consolidatedEntities.take(3).join(", ");
-          var msg = '凝结 ${result.episodeIds.length} 条 Episode\n'
+          var msg = preProcessedMessageCount > 0
+              ? '先处理 $preProcessedMessageCount 条聊天，写入 $preFragmentCount 个 fragment\n'
+              : '';
+          msg = '$msg凝结 ${result.episodeIds.length} 条 Episode\n'
               '实体: $entitySummary'
               '${result.consolidatedEntities.length > 3 ? " 等${result.consolidatedEntities.length}个" : ""}\n'
               '消耗 ${result.consolidatedFragmentCount} 条 fragment';
@@ -645,6 +666,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
           .map((e) => {
                 'id': e.id,
                 'primaryEntityId': e.primaryEntityId,
+                'topicId': e.topicId,
                 'narrative': e.narrative,
                 'sourceFragmentIds': _decode(e.sourceFragmentIds),
                 'significance': e.significance,
@@ -991,6 +1013,7 @@ class _EpisodeListTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   'sig ${episode.significance} · ${episode.confidence} · '
+                  '${episode.topicId} · '
                   'v ${episode.valence.toStringAsFixed(2)} '
                   'a ${episode.arousal.toStringAsFixed(2)} · '
                   '${episode.status} · $createdAt',
@@ -1239,8 +1262,7 @@ class _BadCasesSheetState extends State<_BadCasesSheet> {
         title: const Text('清空所有 Bad Cases？'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消')),
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
@@ -1288,8 +1310,7 @@ class _BadCaseTile extends StatelessWidget {
         children: [
           const SizedBox(height: 4),
           Text('#${entry.targetMessageId} · $timeStr',
-              style:
-                  TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
           if (entry.contextBefore.isNotEmpty) ...[
             const SizedBox(height: 4),
             ...entry.contextBefore.map((c) => Padding(
@@ -1297,8 +1318,8 @@ class _BadCaseTile extends StatelessWidget {
                   child: Text(c,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 10, color: Colors.black38)),
+                      style:
+                          const TextStyle(fontSize: 10, color: Colors.black38)),
                 )),
           ],
           if (entry.contextBefore.isNotEmpty ||
@@ -1317,8 +1338,8 @@ class _BadCaseTile extends StatelessWidget {
                   child: Text(c,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 10, color: Colors.black38)),
+                      style:
+                          const TextStyle(fontSize: 10, color: Colors.black38)),
                 )),
           ],
         ],

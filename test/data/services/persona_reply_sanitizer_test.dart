@@ -43,6 +43,67 @@ void main() {
       expect(segments[1].text, 'I am here.');
     });
 
+    test('splits inline roleplay action out of a chat line', () {
+      const source = '\u6211\u5728\u8fd9\u91cc\u3002'
+          '*\u5979\u4f4e\u5934\u7b11\u4e86\u4e00\u4e0b*'
+          '\u522b\u6015\u3002';
+
+      final segments = PersonaReplySanitizer.splitVisibleReply(source);
+
+      expect(segments, hasLength(3));
+      expect(segments[0].type, PersonaReplySegmentType.chat);
+      expect(segments[0].text, '\u6211\u5728\u8fd9\u91cc\u3002');
+      expect(segments[1].type, PersonaReplySegmentType.action);
+      expect(
+        segments[1].text,
+        '*\u5979\u4f4e\u5934\u7b11\u4e86\u4e00\u4e0b*',
+      );
+      expect(segments[2].type, PersonaReplySegmentType.chat);
+      expect(segments[2].text, '\u522b\u6015\u3002');
+    });
+
+    test('keeps inline non-action emphasis inside chat text', () {
+      const source = '\u6211 *\u771f\u7684* \u5728\u8fd9\u91cc\u3002';
+
+      final segments = PersonaReplySanitizer.splitVisibleReply(source);
+
+      expect(segments, hasLength(1));
+      expect(segments.single.type, PersonaReplySegmentType.chat);
+      expect(segments.single.text, source);
+    });
+
+    test('splits chat text into message-sized bubbles', () {
+      const source = '\u6211\u5728\u8fd9\u91cc\u3002'
+          '\u522b\u6015\uff0c\u6211\u4e0d\u4f1a\u8d70\u3002';
+
+      final bubbles = PersonaReplySanitizer.splitChatIntoBubbles(source);
+
+      expect(bubbles, [
+        '\u6211\u5728\u8fd9\u91cc\u3002',
+        '\u522b\u6015\uff0c\u6211\u4e0d\u4f1a\u8d70\u3002',
+      ]);
+    });
+
+    test('keeps markdown links in one bubble', () {
+      const source =
+          'Read [the note](https://example.com). Then tell me what you think.';
+
+      final bubbles = PersonaReplySanitizer.splitChatIntoBubbles(source);
+
+      expect(bubbles, [source]);
+    });
+
+    test('caps bubble count without crushing English spacing', () {
+      const source = 'First. Second. Third.';
+
+      final bubbles = PersonaReplySanitizer.splitChatIntoBubbles(
+        source,
+        maxBubbles: 2,
+      );
+
+      expect(bubbles, ['First.', 'Second. Third.']);
+    });
+
     test('spokenTextOnly removes action and leaked thinking blocks', () {
       const source = '''
 <thinking>The user is upset. I should comfort them.</thinking>
