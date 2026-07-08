@@ -736,14 +736,26 @@ class DreamingOrchestratorServiceV3 {
     required int now,
   }) async {
     final canonicalSelf = link.name.trim() == 'user_self';
-    final existing = await (_db.select(_db.memoryEntities)
-          ..where((t) =>
-              (canonicalSelf
-                  ? t.id.equals('user_self') |
-                      t.name.lower().equals(link.name.toLowerCase())
-                  : t.name.lower().equals(link.name.toLowerCase())) &
-              t.status.isNotIn(const ['deleted', 'merged'])))
-        .getSingleOrNull();
+    // When searching for user_self, prefer the canonical id='user_self' entity,
+    // then fall back to name match (there may be a pre-canonical clone).
+    List<MemoryEntity> candidates;
+    if (canonicalSelf) {
+      candidates = await (_db.select(_db.memoryEntities)
+            ..where((t) => t.id.equals('user_self') &
+                t.status.isNotIn(const ['deleted', 'merged'])))
+          .get();
+    }
+    candidates ??= const [];
+    if (candidates.isEmpty) {
+      candidates = await (_db.select(_db.memoryEntities)
+            ..where((t) =>
+                t.name.lower().equals(link.name.toLowerCase()) &
+                t.status.isNotIn(const ['deleted', 'merged'])))
+          .get();
+    }
+    // Prefer the entity with the most fragments (the active one).
+    candidates.sort((a, b) => b.fragmentCount.compareTo(a.fragmentCount));
+    final existing = candidates.isNotEmpty ? candidates.first : null;
 
     if (existing != null) {
       final nextCount = existing.fragmentCount + 1;

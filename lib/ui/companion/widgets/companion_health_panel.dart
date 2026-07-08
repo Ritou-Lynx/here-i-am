@@ -176,8 +176,9 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         toolName,
         arguments: arguments,
       );
-      final text = result.text;
-      // DIAGNOSTIC: log the raw API response so we can verify parsing
+      final rawText = result.text;
+      // COROS MCP returns literal \n escape sequences — normalize to real newlines
+      final text = rawText.replaceAll(r'\n', '\n');
       _logger.info('[COROS LIVE] $toolName → ${text.length} chars');
       _logger.info('[COROS RAW] $toolName:\n${text.length > 2000 ? text.substring(0, 2000) : text}');
       if (text.isNotEmpty) return text;
@@ -192,7 +193,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         if (dir.isEmpty) return null;
         final file = File('$dir/$fallbackFileName');
         if (file.existsSync()) {
-          final text = await file.readAsString();
+          final rawText = await file.readAsString();
+          final text = rawText.replaceAll(r'\n', '\n');
           _logger.info('[COROS CACHE] $toolName ← $fallbackFileName → ${text.length} chars');
           _logger.info('[CACHE RAW] $toolName:\n${text.length > 2000 ? text.substring(0, 2000) : text}');
           return text;
@@ -250,14 +252,10 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     );
     if (text == null) return;
 
-    // Sleep data format:
-    //   \n2026-07-06\nSleep Score: 79\nMain Sleep: 7h 4min\n...
-    // Parse by splitting on date-like lines. Don't rely on regex line
-    // anchors — COROS responses may use \r\n or other line endings.
-    final lines = text.split(RegExp(r'\r?\n'));
-    // DEBUG: dump first 10 lines to see what split produces
-    final preview = lines.take(15).map((l) => '[${l.length}]${l.substring(0, l.length > 60 ? 60 : l.length)}').join(' | ');
-    _logger.info('[PARSE] sleep split ${lines.length} lines, preview: $preview');
+    // COROS MCP returns literal \n escape sequences in the text, NOT actual
+    // newline characters. Normalize before parsing.
+    final normalized = text.replaceAll(r'\n', '\n');
+    final lines = normalized.split('\n');
     final dateIndices = <int, String>{}; // lineIndex → dateStr
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i].trim();

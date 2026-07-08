@@ -258,6 +258,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   String? _userId;
   String? _userAvatar;
   List<PersonaChatMessage> _messages = [];
+  bool _isSelecting = false;
+  final Set<int> _selectedMessageIds = {};
   int? _lastBadCaseSaved;
   bool _isLoading = true;
   bool _isStreaming = false;
@@ -2880,6 +2882,7 @@ only after you have written the goodbye you want the user to hear.''',
   }) {
     final isPlaying = _playingMessageId == messageId;
     final canDelete = _character != null;
+    final msgId = int.tryParse(messageId.split(':').first);
 
     showModalBottomSheet(
       context: context,
@@ -2908,6 +2911,13 @@ only after you have written the goodbye you want the user to hear.''',
             messageId: messageId,
             characterId: _character!.id,
           );
+        },
+        onBatchSelect: () {
+          Navigator.pop(ctx);
+          setState(() {
+            _isSelecting = true;
+            if (msgId != null) _selectedMessageIds.add(msgId);
+          });
         },
       ),
     );
@@ -3357,6 +3367,7 @@ only after you have written the goodbye you want the user to hear.''',
                     _messages,
                   );
                   final isHighlighted = msg.id == _highlightedMessageId;
+                  final isSelected = _selectedMessageIds.contains(msg.id);
 
                   return KeyedSubtree(
                     key: _messageKeys.putIfAbsent(msg.id, GlobalKey.new),
@@ -3366,26 +3377,76 @@ only after you have written the goodbye you want the user to hear.''',
                       decoration: BoxDecoration(
                         color: isHighlighted
                             ? _personaAccent.withValues(alpha: 0.12)
-                            : Colors.transparent,
+                            : isSelected
+                                ? _personaAccent.withValues(alpha: 0.08)
+                                : Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Column(
-                        children: [
-                          if (showDate) _buildDateDivider(msg.timestamp),
-                          if (msg.messageType == 'action')
-                            _buildActionMessage(text: msg.content)
-                          else if (msg.isFromCharacter)
-                            _buildCharacterMessage(msg, isStreaming: false)
-                          else
-                            _buildBubble(
-                              text: msg.content,
-                              isCharacter: msg.isFromCharacter,
-                              message: msg,
-                              messageId: msg.id.toString(),
-                              attachmentsJson: msg.attachmentsJson,
+                      child: _isSelecting
+                          ? GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  if (_selectedMessageIds.contains(msg.id)) {
+                                    _selectedMessageIds.remove(msg.id);
+                                  } else {
+                                    _selectedMessageIds.add(msg.id);
+                                  }
+                                });
+                              },
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 2, right: 6),
+                                    child: Icon(
+                                      isSelected
+                                          ? Icons.check_circle
+                                          : Icons.radio_button_unchecked,
+                                      size: 22,
+                                      color: isSelected
+                                          ? _personaAccent
+                                          : _personaTextMuted.withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        if (showDate) _buildDateDivider(msg.timestamp),
+                                        if (msg.messageType == 'action')
+                                          _buildActionMessage(text: msg.content)
+                                        else if (msg.isFromCharacter)
+                                          _buildCharacterMessage(msg, isStreaming: false)
+                                        else
+                                          _buildBubble(
+                                            text: msg.content,
+                                            isCharacter: msg.isFromCharacter,
+                                            message: msg,
+                                            messageId: msg.id.toString(),
+                                            attachmentsJson: msg.attachmentsJson,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : Column(
+                              children: [
+                                if (showDate) _buildDateDivider(msg.timestamp),
+                                if (msg.messageType == 'action')
+                                  _buildActionMessage(text: msg.content)
+                                else if (msg.isFromCharacter)
+                                  _buildCharacterMessage(msg, isStreaming: false)
+                                else
+                                  _buildBubble(
+                                    text: msg.content,
+                                    isCharacter: msg.isFromCharacter,
+                                    message: msg,
+                                    messageId: msg.id.toString(),
+                                    attachmentsJson: msg.attachmentsJson,
+                                  ),
+                              ],
                             ),
-                        ],
-                      ),
                     ),
                   );
                 },
@@ -3913,7 +3974,7 @@ only after you have written the goodbye you want the user to hear.''',
     String? attachmentsJson,
     double bottomSpacing = 22,
   }) {
-    final hasActions = !isStreaming && messageId != null;
+    final hasActions = !isStreaming && messageId != null && !_isSelecting;
     final hasAddenda =
         attachmentsJson != null && attachmentsJson.trim().isNotEmpty;
 
@@ -3930,7 +3991,7 @@ only after you have written the goodbye you want the user to hear.''',
                     ? () {
                         HapticFeedback.mediumImpact();
                         _showCharacterBubbleActions(
-                          messageId: messageId,
+                          messageId: messageId!,
                           text: text,
                         );
                       }
@@ -4977,6 +5038,7 @@ class _CharacterBubbleActionSheet extends StatelessWidget {
     required this.onCopy,
     required this.onBookmark,
     required this.onDelete,
+    required this.onBatchSelect,
   });
 
   final bool isPlaying;
@@ -4985,6 +5047,7 @@ class _CharacterBubbleActionSheet extends StatelessWidget {
   final VoidCallback onCopy;
   final VoidCallback onBookmark;
   final VoidCallback onDelete;
+  final VoidCallback onBatchSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -5038,6 +5101,14 @@ class _CharacterBubbleActionSheet extends StatelessWidget {
                 icon: Icons.bookmark_add_outlined,
                 label: '收录 Bad Case',
                 onTap: onBookmark,
+              ),
+              const _ActionDivider(),
+
+              // Batch select
+              _ActionTile(
+                icon: Icons.checklist_rounded,
+                label: '多选记录',
+                onTap: onBatchSelect,
               ),
 
               // Delete (conditional)
