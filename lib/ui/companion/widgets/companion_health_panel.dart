@@ -192,7 +192,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         if (dir.isEmpty) return null;
         final file = File('$dir/$fallbackFileName');
         if (file.existsSync()) {
-          final text = file.readAsString();
+          final text = await file.readAsString();
           _logger.info('[COROS CACHE] $toolName ← $fallbackFileName → ${text.length} chars');
           _logger.info('[CACHE RAW] $toolName:\n${text.length > 2000 ? text.substring(0, 2000) : text}');
           return text;
