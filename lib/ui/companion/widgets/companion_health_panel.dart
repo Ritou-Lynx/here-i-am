@@ -201,7 +201,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   Future<void> _fetchDailyHealthLive() async {
     final text = await _callCoros(
       'queryDailyHealthData',
-      arguments: {'days': 1, 'timezone': 'Asia/Shanghai'},
+      arguments: {'days': 2, 'timezone': 'Asia/Shanghai'},
       fallbackFileName: 'daily_health.json',
     );
     if (text == null) return;
@@ -233,7 +233,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   Future<void> _fetchSleepLive() async {
     final text = await _callCoros(
       'querySleepData',
-      arguments: {'days': 1, 'timezone': 'Asia/Shanghai'},
+      arguments: {'days': 2, 'timezone': 'Asia/Shanghai'},
       fallbackFileName: 'sleep_data.json',
     );
     if (text == null) return;
@@ -296,7 +296,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     // Use the dedicated resting HR endpoint — same as what 林埃 would use
     final text = await _callCoros(
       'queryRestingHeartRate',
-      arguments: {'days': 1, 'timezone': 'Asia/Shanghai'},
+      arguments: {'days': 2, 'timezone': 'Asia/Shanghai'},
       fallbackFileName: 'daily_health.json',
     );
     if (text == null) return;
@@ -322,7 +322,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   Future<void> _fetchStressLive() async {
     final text = await _callCoros(
       'queryStressLevel',
-      arguments: {'days': 1, 'timezone': 'Asia/Shanghai'},
+      arguments: {'days': 2, 'timezone': 'Asia/Shanghai'},
     );
     if (text == null) return;
 
@@ -347,7 +347,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   Future<void> _fetchHrvLive() async {
     final text = await _callCoros(
       'queryHrvAssessment',
-      arguments: {'days': 1, 'timezone': 'Asia/Shanghai'},
+      arguments: {'days': 2, 'timezone': 'Asia/Shanghai'},
     );
     if (text == null) return;
 

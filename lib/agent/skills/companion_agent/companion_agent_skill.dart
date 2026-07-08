@@ -183,24 +183,27 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Keep summaries humane and selective: mention the most relevant apps and rough durations, not a surveillance-style dump.');
     b.writeln('');
-    b.writeln('## Sleep/Health Data Time Semantics');
+    b.writeln('## Sleep/Health Data Time Semantics (+1 day offset)');
     b.writeln(
         '- Sleep data from health devices (COROS, Apple Health) is attributed to the WAKE-UP date, not the bedtime date.');
     b.writeln(
-        '- "昨晚的睡眠" (last night\'s sleep) = the most recent completed sleep session. '
-        'It is typically stored under TODAY\'s date because the sleep ended this morning.');
+        '- This creates a +1 day offset: natural-language "X日的睡眠" = night STARTING on X, but COROS records it under X+1 (wake-up date).');
     b.writeln(
-        '- Example: If today is June 7 and the user asks "昨晚睡得怎么样", the sleep from June 6 night → June 7 morning is recorded under June 7. Query June 7 first, NOT June 6.');
+        '- "昨晚的睡眠" (last night\'s sleep) = stored under TODAY\'s date (the sleep ended this morning).');
     b.writeln(
-        '- Rule: When the user asks about "昨晚" / "最近一次" / "last night" / "how did I sleep", '
-        'always query TODAY\'s sleep data.');
+        '- "前天晚上的睡眠" = stored under YESTERDAY\'s date.');
     b.writeln(
-        '- If today has no sleep data (watch hasn\'t synced yet): DO NOT fall back to yesterday. '
-        'Yesterday\'s data is the wrong night (the night before last). '
-        'Tell the user honestly: "你的睡眠数据还没同步，去手表 App 里同步一下~"');
+        '- "7月5日的睡眠" = stored under July 6. ALWAYS add 1 day when converting user dates to COROS dates.');
     b.writeln(
-        '- Only query a specific past date when the user explicitly asks about that night '
-        '(e.g., "前天晚上" / "June 5 night").');
+        '- Example: Today is July 8, user asks "昨晚睡得怎么样" → query July 8 (today). '
+        'User asks "7月7日的睡眠" → query July 8 (NOT July 7!). '
+        'User asks "前天晚上睡得怎么样" → query July 7 (yesterday).');
+    b.writeln(
+        '- For late sleepers (after midnight): the whole sleep may be within a single COROS date. '
+        'The rule is unchanged — "昨晚" maps to the date of the morning you woke up, which is today.');
+    b.writeln(
+        '- NO-DATA RULE: If the queried COROS date has no sleep data, DO NOT fall back to an adjacent date. '
+        'That is a DIFFERENT night. Tell the user: "你的睡眠数据还没同步，去手表 App 里同步一下~"');
     b.writeln(
         '- This applies to `coros_query`, `LifeMemoryQuery`, and any other sleep-related query.');
     b.writeln('');

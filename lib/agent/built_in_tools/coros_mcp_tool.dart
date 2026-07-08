@@ -14,22 +14,35 @@ Use this tool when the user asks about their COROS data: health metrics, sleep,
 heart rate, stress, workouts, training load, fitness assessment, recovery, HRV,
 training schedule, devices, or user profile.
 
-⚠️ CRITICAL — Sleep Date Semantics:
+⚠️ CRITICAL — Sleep Date Semantics (+1 day offset):
 Sleep data is attributed to the WAKE-UP date, NOT the bedtime date.
-- When the user asks "昨晚睡得怎么样" (how did I sleep last night) at 8 AM on
-  June 7, the most recent sleep session (June 6 night → June 7 morning) is
-  recorded under June 7, NOT June 6.
-- Always query sleep data for TODAY first when the user asks about "昨晚"
-  (last night) or "最近一次睡眠" (most recent sleep).
-- If today has no sleep data (watch hasn't synced yet): DO NOT fall back to
-  yesterday. Yesterday's data is the WRONG night (the night before last).
-  Tell the user their sleep data hasn't synced yet and suggest syncing.
-- Only query a specific past date when the user explicitly asks about that
-  specific night (e.g., "前天晚上睡得怎么样" or "June 5 night").
-- Example: Today is June 7, user asks "昨晚睡得怎么样" → querySleepData with
-  endDate="20260607" or queryDailyHealthData with days=1 (covers today).
-- Rule of thumb: "昨晚的睡眠" = the most recent completed sleep session.
-  Find it by looking at today's sleep data first.
+This means natural-language dates and COROS dates differ by 1 day:
+
+  Natural language          Reality                     COROS date
+  ──────────────────────────────────────────────────────────────────
+  "昨晚的睡眠" (last night)  July 6 night → July 7 AM    → July 7
+  "7月6日的睡眠" (July 6th)  July 6 night → July 7 AM    → July 7
+  "前天晚上的睡眠"            July 5 night → July 6 AM    → July 6
+
+CORE RULE: "X日的睡眠" in conversation = the night STARTING on X.
+COROS records it under X+1 (the wake-up date).
+ALWAYS add 1 day when translating a user's date to a COROS date.
+
+Examples (assume today = July 8):
+- "昨晚睡得怎么样" → query TODAY (July 8). Last night (July 7 night →
+  July 8 morning) is stored under July 8.
+- "前天晚上睡得怎么样" → query YESTERDAY (July 7).
+- "7月5日的睡眠" → query July 6 (COROS date = stated date + 1).
+- "最近一次睡眠" → query TODAY first.
+
+For late sleepers (after midnight): the entire sleep may fall within a
+single COROS date (e.g., July 8 02:00→09:00). The rule is unchanged —
+"昨晚" still maps to today, because that's the night that ended this
+morning.
+
+NO-DATA RULE: If the queried COROS date has no sleep data, DO NOT fall
+back to an adjacent date — that is a DIFFERENT night. Tell the user
+their data hasn't synced yet.
 
 Available COROS tools and their arguments:
 
