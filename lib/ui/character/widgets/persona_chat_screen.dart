@@ -2438,6 +2438,98 @@ only after you have written the goodbye you want the user to hear.''',
     }
   }
 
+  void _exitSelectMode() {
+    setState(() {
+      _isSelecting = false;
+      _selectedMessageIds.clear();
+    });
+  }
+
+  Future<void> _batchRecordSelectedMessages() async {
+    if (!RecordOrganizerServiceV3.isInitialized) return;
+    if (_selectedMessageIds.isEmpty) return;
+
+    final userId = _userId ?? await UserStorage.getUserId();
+    if (userId == null) return;
+    if (!mounted) return;
+
+    // Build ordered list of selected messages
+    final selected = _messages
+        .where((m) => _selectedMessageIds.contains(m.id))
+        .toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    if (selected.isEmpty) return;
+
+    // Build combined input
+    final buffer = StringBuffer();
+    for (final msg in selected) {
+      if (msg.isFromCharacter) {
+        buffer.writeln('林埃: ${msg.content}');
+      } else {
+        buffer.writeln('用户: ${msg.content}');
+      }
+    }
+    final combinedText = buffer.toString().trim();
+    if (combinedText.isEmpty) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final progress = messenger.showToast(
+      _chatUiText(zh: '正在记录…', en: 'Recording…'),
+      duration: const Duration(seconds: 30),
+    );
+
+    try {
+      final resources = await _resolveRecordResources(userId);
+      if (resources == null) {
+        progress.close();
+        if (mounted) {
+          messenger.showToast(
+            _chatUiText(zh: 'Agent 未初始化', en: 'Agent not initialized'),
+            duration: const Duration(seconds: 2),
+          );
+        }
+        return;
+      }
+
+      final result =
+          await RecordOrganizerServiceV3.instance.organizeAndPersist(
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+        source: RecordSource(
+          sourceKind: 'record_button',
+          rawInput: combinedText,
+        ),
+      );
+
+      progress.close();
+      if (!mounted) return;
+      if (result.isEmpty) {
+        messenger.showToast(
+          _chatUiText(zh: '未识别到可记录内容', en: 'Nothing to record'),
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        final count = result.cardIds.length;
+        messenger.showToast(
+          _chatUiText(zh: '已记录 $count 张卡片', en: 'Recorded $count card(s)'),
+          duration: const Duration(seconds: 2),
+        );
+      }
+    } catch (e, stack) {
+      progress.close();
+      debugPrint('[BatchRecord] failed: $e\n$stack');
+      if (mounted) {
+        messenger.showToast(
+          _chatUiText(zh: '记录失败：$e', en: 'Record failed: $e'),
+          duration: const Duration(seconds: 3),
+        );
+      }
+    }
+
+    _exitSelectMode();
+  }
+
   /// Maps a mime type (e.g. "image/png") to a file extension (e.g. "png").
   /// Image extension helper for media pre-processing.
   String _imageExtForMime(String mimeType) {
@@ -3454,6 +3546,84 @@ only after you have written the goodbye you want the user to hear.''',
             ),
           ),
         ),
+        if (_isSelecting)
+          Positioned(
+            bottom: bottomPadding - 56,
+            left: 16,
+            right: 16,
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Cancel button
+                  GestureDetector(
+                    onTap: _exitSelectMode,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _personaPanel,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: _personaTextMuted.withValues(alpha: 0.25),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '取消',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _personaTextMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Record button
+                  GestureDetector(
+                    onTap: _selectedMessageIds.isNotEmpty
+                        ? _batchRecordSelectedMessages
+                        : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _selectedMessageIds.isNotEmpty
+                            ? _personaAccent
+                            : _personaAccent.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _personaAccent.withValues(alpha: 0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '记录为卡片${_selectedMessageIds.isNotEmpty ? ' (${_selectedMessageIds.length})' : ''}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -3707,7 +3877,7 @@ only after you have written the goodbye you want the user to hear.''',
                 // also try to claim the event.  _recordingMessageIds guard
                 // prevents double-processing if both inner and outer fire.
                 behavior: HitTestBehavior.translucent,
-                onDoubleTap: userMessage != null
+                onDoubleTap: userMessage != null && !_isSelecting
                     ? () => _recordMessage(userMessage)
                     : null,
                 child: _FrostedChatBubbleSurface(
