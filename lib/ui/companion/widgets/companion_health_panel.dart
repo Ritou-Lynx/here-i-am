@@ -250,18 +250,45 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     );
     if (text == null) return;
 
-    final sections = _splitDatedSections(text);
-    // Keep only sections with actual sleep scores
-    final sleepSections = <String, String>{};
-    for (final e in sections.entries) {
-      if (e.value.contains('Sleep Score:')) {
-        sleepSections[e.key] = e.value;
+    // Sleep data format:
+    //   \n2026-07-06\nSleep Score: 79\nMain Sleep: 7h 4min\n...
+    // Parse by splitting on date-like lines. Don't rely on regex line
+    // anchors — COROS responses may use \r\n or other line endings.
+    final lines = text.split(RegExp(r'\r?\n'));
+    // DEBUG: dump first 10 lines to see what split produces
+    final preview = lines.take(15).map((l) => '[${l.length}]${l.substring(0, l.length > 60 ? 60 : l.length)}').join(' | ');
+    _logger.info('[PARSE] sleep split ${lines.length} lines, preview: $preview');
+    final dateIndices = <int, String>{}; // lineIndex → dateStr
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(line)) {
+        dateIndices[i] = line;
       }
     }
+    _logger.info('[PARSE] sleep date lines found: ${dateIndices.length} — ${dateIndices.values.toList()}');
+
+    if (dateIndices.isEmpty) return;
+
+    final dateList = dateIndices.entries.toList();
+    final sleepSections = <String, String>{};
+    for (int j = 0; j < dateList.length; j++) {
+      final dateStr = dateList[j].value;
+      // Content starts at the line after the date line
+      final contentStartLine = dateList[j].key + 1;
+      final contentEndLine = (j + 1 < dateList.length)
+          ? dateList[j + 1].key
+          : lines.length;
+      final sectionLines = lines.sublist(contentStartLine, contentEndLine);
+      final section = sectionLines.join('\n').trim();
+      _logger.info('[PARSE] sleep section $dateStr: ${sectionLines.length} lines, hasScore=${section.contains("Sleep Score:")}');
+      if (section.contains('Sleep Score:')) {
+        sleepSections[dateStr] = section;
+      }
+    }
+
     _logger.info('[PARSE] sleep sections with scores: ${sleepSections.keys.toList()..sort()}');
     if (sleepSections.isEmpty) return;
 
-    // FIX: pick newest date by date comparison, NOT by iteration order
     final newestDate = _pickNewestDate(sleepSections.keys.toList());
     _logger.info('[PARSE] sleep picked date: $newestDate');
     _applySleepSection(sleepSections[newestDate]!);
@@ -520,11 +547,20 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       if (!file.existsSync()) return;
       final text = await file.readAsString();
 
-      final sections = _splitDatedSections(text);
+      // Same dedicated sleep parser as live version
+      final datePattern = RegExp(r'\n(\d{4}-\d{2}-\d{2})\n');
+      final matches = datePattern.allMatches(text).toList();
+      if (matches.isEmpty) return;
+
       final sleepSections = <String, String>{};
-      for (final e in sections.entries) {
-        if (e.value.contains('Sleep Score:')) {
-          sleepSections[e.key] = e.value;
+      for (int i = 0; i < matches.length; i++) {
+        final dateStr = matches[i].group(1)!;
+        final contentStart = matches[i].end;
+        final contentEnd =
+            (i + 1 < matches.length) ? matches[i + 1].start : text.length;
+        final section = text.substring(contentStart, contentEnd).trim();
+        if (section.contains('Sleep Score:')) {
+          sleepSections[dateStr] = section;
         }
       }
       if (sleepSections.isEmpty) return;
@@ -581,7 +617,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     }
 
     // Pattern 2: bare "YYYY-MM-DD" on its own line  (sleep_data)
-    final m2 = RegExp(r'(?:^|\n)(\d{4}-\d{2}-\d{2})\s*\n');
+    // NOTE: use [ \t]* not \s* — \s* would greedily eat the \n we need to match
+    final m2 = RegExp(r'(?:^|\n)(\d{4}-\d{2}-\d{2})[ \t]*\r?\n');
     final m2Matches = m2.allMatches(text).toList();
     if (m2Matches.length >= 1) {
       for (int i = 0; i < m2Matches.length; i++) {

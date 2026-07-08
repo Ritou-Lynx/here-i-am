@@ -60,10 +60,12 @@ class EpisodeConsolidatorV3 {
       SystemMessage(systemPrompt),
       UserMessage([TextPart(jsonEncode(payload))]),
     ];
+    final extraAll = Map<String, dynamic>.from(modelConfig.extra ?? {});
+    extraAll['thinking'] = {'type': 'disabled'};
     final mc = ModelConfig(
       model: modelConfig.model,
       maxTokens: 8192,
-      extra: modelConfig.extra,
+      extra: extraAll,
     );
 
     final firstText =
@@ -155,10 +157,12 @@ class EpisodeConsolidatorV3 {
       SystemMessage(systemPrompt),
       UserMessage([TextPart(jsonEncode(payload))]),
     ];
+    final extraPerEntity = Map<String, dynamic>.from(modelConfig.extra ?? {});
+    extraPerEntity['thinking'] = {'type': 'disabled'};
     final mc = ModelConfig(
       model: modelConfig.model,
       maxTokens: 4096,
-      extra: modelConfig.extra,
+      extra: extraPerEntity,
     );
 
     final firstText =

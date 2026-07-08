@@ -64,10 +64,12 @@ class DreamingFragmentExtractorV3 {
       SystemMessage(systemPrompt),
       UserMessage([TextPart(jsonEncode(payload))]),
     ];
+    final extra = Map<String, dynamic>.from(modelConfig.extra ?? {});
+    extra['thinking'] = {'type': 'disabled'};
     final mc = ModelConfig(
       model: modelConfig.model,
-      maxTokens: 4096,
-      extra: modelConfig.extra,
+      maxTokens: 8192,
+      extra: extra,
     );
 
     final firstText =
