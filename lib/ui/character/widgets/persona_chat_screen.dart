@@ -2796,7 +2796,7 @@ only after you have written the goodbye you want the user to hear.''',
     required String messageId,
     required String characterId,
   }) async {
-    final id = int.tryParse(messageId);
+    final id = int.tryParse(messageId.split(':').first);
     if (id == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2827,7 +2827,7 @@ only after you have written the goodbye you want the user to hear.''',
     required String text,
   }) async {
     try {
-      final id = int.tryParse(messageId);
+      final id = int.tryParse(messageId.split(':').first);
       if (id == null) return;
 
       // Collect surrounding context (2 messages before and after).
