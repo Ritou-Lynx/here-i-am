@@ -35,7 +35,9 @@ import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/media_input_attachment.dart';
+import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/reading/reading_share_parser.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
@@ -1744,6 +1746,12 @@ only after you have written the goodbye you want the user to hear.''',
           );
         }
         _sendPendingMessage();
+        // Fire-and-forget lightweight dreaming tick after each reply.
+        if (AppDatabase.isInitialized) {
+          unawaited(DreamingSchedulerService.triggerLightweightTickStatic(
+            AppDatabase.instance,
+          ));
+        }
       }
     } catch (e) {
       if (_isSendCanceled(sendSerial, userMessageId)) {
@@ -2480,17 +2488,10 @@ only after you have written the goodbye you want the user to hear.''',
     );
 
     try {
-      final resources = await _resolveRecordResources(userId);
-      if (resources == null) {
-        progress.close();
-        if (mounted) {
-          messenger.showToast(
-            _chatUiText(zh: 'Agent 未初始化', en: 'Agent not initialized'),
-            duration: const Duration(seconds: 2),
-          );
-        }
-        return;
-      }
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.recordOrganizerAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
 
       final result =
           await RecordOrganizerServiceV3.instance.organizeAndPersist(
@@ -2966,53 +2967,6 @@ only after you have written the goodbye you want the user to hear.''',
       // Silently ignore collection failures — non-critical feature.
       debugPrint('collectBadCase failed: $e');
     }
-  }
-
-  void _showCharacterBubbleActions({
-    required String messageId,
-    required String text,
-  }) {
-    final isPlaying = _playingMessageId == messageId;
-    final canDelete = _character != null;
-    final msgId = int.tryParse(messageId.split(':').first);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black54,
-      builder: (ctx) => _CharacterBubbleActionSheet(
-        isPlaying: isPlaying,
-        canDelete: canDelete,
-        onSpeaker: () {
-          Navigator.pop(ctx);
-          _handleTtsPlay(messageId, text);
-        },
-        onCopy: () {
-          Navigator.pop(ctx);
-          Clipboard.setData(ClipboardData(text: text));
-        },
-        onBookmark: () {
-          Navigator.pop(ctx);
-          _collectBadCase(messageId: messageId, text: text);
-        },
-        onDelete: () {
-          Navigator.pop(ctx);
-          _confirmDeleteMessage(
-            messageId: messageId,
-            characterId: _character!.id,
-          );
-        },
-        onBatchSelect: () {
-          Navigator.pop(ctx);
-          setState(() {
-            _isSelecting = true;
-            if (msgId != null) _selectedMessageIds.add(msgId);
-          });
-        },
-      ),
-    );
   }
 
   Future<void> _handleTtsPlay(
@@ -3877,6 +3831,15 @@ only after you have written the goodbye you want the user to hear.''',
                 // also try to claim the event.  _recordingMessageIds guard
                 // prevents double-processing if both inner and outer fire.
                 behavior: HitTestBehavior.translucent,
+                onLongPress: userMessage != null && !_isSelecting
+                    ? () {
+                        HapticFeedback.mediumImpact();
+                        setState(() {
+                          _isSelecting = true;
+                          _selectedMessageIds.add(userMessage.id);
+                        });
+                      }
+                    : null,
                 onDoubleTap: userMessage != null && !_isSelecting
                     ? () => _recordMessage(userMessage)
                     : null,
@@ -3888,14 +3851,12 @@ only after you have written the goodbye you want the user to hear.''',
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (text.isNotEmpty)
-                        SelectionArea(
-                          child: Text(
-                            text,
-                            style: TextStyle(
-                              fontSize: 15,
-                              height: 1.55,
-                              color: _personaText,
-                            ),
+                        Text(
+                          text,
+                          style: TextStyle(
+                            fontSize: 15,
+                            height: 1.55,
+                            color: _personaText,
                           ),
                         ),
                       if (attachmentWidgets.isNotEmpty) ...[
@@ -3912,12 +3873,12 @@ only after you have written the goodbye you want the user to hear.''',
                             },
                             child: Icon(
                               Icons.copy_rounded,
-                              size: 14,
+                              size: 12,
                               color: _personaTextMuted,
                             ),
                           ),
                           if (userMessage != null) ...[
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8),
                             Semantics(
                               button: true,
                               label: 'Recall message',
@@ -3926,7 +3887,7 @@ only after you have written the goodbye you want the user to hear.''',
                                     _confirmRetractUserMessage(userMessage),
                                 child: Icon(
                                   Icons.undo_rounded,
-                                  size: 15,
+                                  size: 12,
                                   color: _personaTextMuted,
                                 ),
                               ),
@@ -4160,10 +4121,12 @@ only after you have written the goodbye you want the user to hear.''',
                 onLongPress: hasActions
                     ? () {
                         HapticFeedback.mediumImpact();
-                        _showCharacterBubbleActions(
-                          messageId: messageId!,
-                          text: text,
-                        );
+                        final msgId =
+                            int.tryParse(messageId.split(':').first);
+                        setState(() {
+                          _isSelecting = true;
+                          if (msgId != null) _selectedMessageIds.add(msgId);
+                        });
                       }
                     : null,
                 child: _CharacterMessageFrame(
@@ -5195,178 +5158,6 @@ class _CharacterMessageFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _FrostedChatBubbleSurface(isCharacter: true, child: child);
-  }
-}
-
-// ─── Character bubble long-press action sheet ───────────────────────────
-
-class _CharacterBubbleActionSheet extends StatelessWidget {
-  const _CharacterBubbleActionSheet({
-    required this.isPlaying,
-    required this.canDelete,
-    required this.onSpeaker,
-    required this.onCopy,
-    required this.onBookmark,
-    required this.onDelete,
-    required this.onBatchSelect,
-  });
-
-  final bool isPlaying;
-  final bool canDelete;
-  final VoidCallback onSpeaker;
-  final VoidCallback onCopy;
-  final VoidCallback onBookmark;
-  final VoidCallback onDelete;
-  final VoidCallback onBatchSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-            color: _personaPanel,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(22),
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Drag handle
-              Container(
-                width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _personaTextMuted.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // TTS / Speaker
-              _ActionTile(
-                icon: isPlaying ? Icons.volume_up : Icons.volume_up_outlined,
-                label: isPlaying ? '停止播放' : '语音朗读',
-                highlight: isPlaying,
-                onTap: onSpeaker,
-              ),
-              const _ActionDivider(),
-
-              // Copy
-              _ActionTile(
-                icon: Icons.copy_rounded,
-                label: '复制文本',
-                onTap: onCopy,
-              ),
-              const _ActionDivider(),
-
-              // Bookmark / Bad case
-              _ActionTile(
-                icon: Icons.bookmark_add_outlined,
-                label: '收录 Bad Case',
-                onTap: onBookmark,
-              ),
-              const _ActionDivider(),
-
-              // Batch select
-              _ActionTile(
-                icon: Icons.checklist_rounded,
-                label: '多选记录',
-                onTap: onBatchSelect,
-              ),
-
-              // Delete (conditional)
-              if (canDelete) ...[
-                const _ActionDivider(),
-                _ActionTile(
-                  icon: Icons.delete_outline,
-                  label: '删除消息',
-                  destructive: true,
-                  onTap: onDelete,
-                ),
-              ],
-
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Action sheet helper widgets ────────────────────────────────────────
-
-class _ActionDivider extends StatelessWidget {
-  const _ActionDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Divider(
-        color: _personaTextMuted.withValues(alpha: 0.10),
-        height: 1,
-      ),
-    );
-  }
-}
-
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.highlight = false,
-    this.destructive = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool highlight;
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    final effectiveColor = destructive
-        ? const Color(0xFFEF5350)
-        : highlight
-            ? _personaAccent
-            : _personaText;
-
-    return SizedBox(
-      height: 48,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Icon(icon, size: 22, color: effectiveColor),
-                const SizedBox(width: 16),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: effectiveColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
