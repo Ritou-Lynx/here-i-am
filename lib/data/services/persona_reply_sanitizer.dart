@@ -416,21 +416,36 @@ class PersonaReplySanitizer {
     ).hasMatch(normalized);
   }
 
-  /// Replace self-referential third-person name with "我" inside action text.
+  /// Strip self-referential subjects from action text.
   ///
-  /// When the AI writes "*林埃笑了*" it should read "*我笑了*" — the action
-  /// is the character's own inner monologue, not a narrator's description.
+  /// Chinese stage directions / inner monologue don't need a subject pronoun —
+  /// "靠在椅背上，看着屏幕笑了一下。" reads more naturally than either
+  /// "林埃靠在椅背上…" or "我靠在椅背上…". The subject is always the speaker.
   static String _normalizeActionText(String actionText, String? characterName) {
-    if (characterName == null || characterName.isEmpty) return actionText;
     if (!actionText.startsWith('*') || !actionText.endsWith('*')) {
       return actionText;
     }
-    final inner = actionText.substring(1, actionText.length - 1);
-    // Replace the character name only when it appears as a standalone name
-    // (not part of another word). The character name in Chinese is typically
-    // 2-3 characters; we replace exact occurrences.
-    final normalized = inner.replaceAll(characterName, '我');
-    return '*$normalized*';
+    var inner = actionText.substring(1, actionText.length - 1);
+
+    // Strip leading subjects: the character name (e.g. "林埃") or first-person
+    // pronoun "我". These are always redundant in action lines.
+    final subjects = <String>['我'];
+    if (characterName != null && characterName.isNotEmpty) {
+      subjects.add(characterName);
+    }
+    for (final sub in subjects) {
+      // Leading subject, optionally followed by punctuation
+      inner = inner.replaceAll(RegExp('^$sub[，,。.]?\\s*'), '');
+    }
+
+    // Remove any remaining occurrences in the middle of the text
+    for (final sub in subjects) {
+      inner = inner.replaceAll(sub, '');
+    }
+
+    inner = inner.trim();
+    if (inner.isEmpty) return actionText; // safety
+    return '*$inner*';
   }
 
   /// Apply action-perspective normalization to every action segment in [segments].

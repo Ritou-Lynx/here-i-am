@@ -225,8 +225,9 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     final calories = _parseInt(section, 'Calories:') ??
         _parseInt(section, 'Active Calories:');
     final avgHrVal = _parseInt(section, 'Avg Heart Rate:');
-    final stressVal =
-        _parseInt(section, 'Stress:') ?? _parseInt(section, 'Avg Stress:');
+    // Stress format: "Stress: Avg 45" — need to skip "Avg" prefix
+    final stressVal = _parseIntAfterWord(section, 'Stress:', 'Avg') ??
+        _parseInt(section, 'Avg Stress:');
     _logger.info('[PARSE] daily_health values — steps=$steps, calories=$calories, avgHr=$avgHrVal, stress=$stressVal');
 
     if (mounted) {
@@ -307,7 +308,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   }
 
   Future<void> _fetchRestingHrLive() async {
-    // Use the dedicated resting HR endpoint — same as what 林埃 would use
+    // Use the dedicated resting HR endpoint.
+    // Format: "2026-07-08: 62 bpm\n2026-07-07: 61 bpm"
     final text = await _callCoros(
       'queryRestingHeartRate',
       arguments: {'days': 2, 'timezone': 'Asia/Shanghai'},
@@ -316,17 +318,18 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     if (text == null) return;
 
     final sections = _splitDatedSections(text);
-    String section;
-    if (sections.isNotEmpty) {
-      final newestDate = _pickNewestDate(sections.keys.toList());
-      section = sections[newestDate]!;
-    } else {
-      section = text;
+    // sections map: date → "62 bpm" (value after colon, per pattern 3a)
+    final hrByDate = <String, int>{};
+    for (final e in sections.entries) {
+      if (e.key.isEmpty) continue;
+      // value is e.g. "62 bpm" — extract just the number
+      final hr = _parseInt(e.value, ''); // empty prefix: match first number
+      if (hr != null && hr > 0) hrByDate[e.key] = hr;
     }
 
-    final restingHr = _parseInt(section, 'Resting Heart Rate:') ??
-        _parseInt(section, 'Resting HR:') ??
-        _parseInt(section, 'Average Resting HR:');
+    if (hrByDate.isEmpty) return;
+    final newestDate = _pickNewestDate(hrByDate.keys.toList());
+    final restingHr = hrByDate[newestDate];
 
     if (mounted && restingHr != null && restingHr > 0) {
       setState(() => _restingHr = '$restingHr');
@@ -334,6 +337,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   }
 
   Future<void> _fetchStressLive() async {
+    // Format: "2026-07-08:\nAverage Stress: 44 (Low)\n..."
+    // _splitDatedSections pattern 3b splits into date→multi-line section
     final text = await _callCoros(
       'queryStressLevel',
       arguments: {'days': 2, 'timezone': 'Asia/Shanghai'},
@@ -341,20 +346,21 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     if (text == null) return;
 
     final sections = _splitDatedSections(text);
-    String section;
-    if (sections.isNotEmpty) {
-      final newestDate = _pickNewestDate(sections.keys.toList());
-      section = sections[newestDate]!;
-    } else {
-      section = text;
+    final stressByDate = <String, int>{};
+    for (final e in sections.entries) {
+      if (e.key.isEmpty) continue;
+      // section content: "Average Stress: 44 (Low)\nRelaxed: ..."
+      final val = _parseInt(e.value, 'Average Stress:') ??
+          _parseInt(e.value, 'Stress:') ??
+          _parseInt(e.value, 'Avg Stress:');
+      if (val != null && val > 0) stressByDate[e.key] = val;
     }
 
-    final stressVal = _parseInt(section, 'Avg Stress:') ??
-        _parseInt(section, 'Stress:') ??
-        _parseInt(section, 'Average Stress Level:');
+    if (stressByDate.isEmpty) return;
+    final newestDate = _pickNewestDate(stressByDate.keys.toList());
 
-    if (mounted && stressVal != null && stressVal > 0) {
-      setState(() => _stress = '$stressVal');
+    if (mounted) {
+      setState(() => _stress = '${stressByDate[newestDate]}');
     }
   }
 
@@ -487,11 +493,9 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       final steps = _parseInt(section, 'Steps:');
       final calories = _parseInt(section, 'Calories:') ??
           _parseInt(section, 'Active Calories:');
-      final restingHr = _parseInt(section, 'Resting HR:') ??
-          _parseInt(section, 'Resting Heart Rate:');
       final avgHrVal = _parseInt(section, 'Avg Heart Rate:');
-      final stressVal =
-          _parseInt(section, 'Stress:') ?? _parseInt(section, 'Avg Stress:');
+      final stressVal = _parseIntAfterWord(section, 'Stress:', 'Avg') ??
+          _parseInt(section, 'Avg Stress:');
 
       if (mounted) {
         setState(() {
@@ -499,11 +503,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           if (calories != null && calories > 0) {
             _calories = _formatNumber(calories);
           }
-          if (restingHr != null && restingHr > 0) {
-            _restingHr = '$restingHr';
-          } else if (avgHrVal != null && avgHrVal > 0) {
-            _avgHr = '$avgHrVal';
-          }
+          if (avgHrVal != null && avgHrVal > 0) _avgHr = '$avgHrVal';
           if (stressVal != null && stressVal > 0) _stress = '$stressVal';
         });
       }
@@ -555,58 +555,75 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
 
   /// Split COROS MCP text response into a map of normalized-date → section.
   ///
-  /// Handles:
-  ///   --- 20260708 ---
-  ///   key: value
-  ///   --- 20260707 ---
-  ///
-  /// And:
-  ///   Date: 2026-07-08
-  ///   key: value
-  ///   Date: 2026-07-07
+  /// Handles actual COROS response formats:
+  ///   --- 20260708 ---        (daily_health)
+  ///   2026-07-07              (sleep_data — bare date on own line)
+  ///   2026-07-08:             (stress, resting HR — date: value on same line)
   Map<String, String> _splitDatedSections(String text) {
     final result = <String, String>{};
 
-    // COROS-style date markers: "--- YYYYMMDD ---"
-    final corosMarker = RegExp(r'^---\s*(\d{8})\s*---\s*$', multiLine: true);
-    final matches = corosMarker.allMatches(text).toList();
-
-    if (matches.isNotEmpty) {
-      for (int i = 0; i < matches.length; i++) {
-        final dateStr = matches[i].group(1)!;
+    // Pattern 1: "--- YYYYMMDD ---"  (daily_health)
+    // Don't use ^/$ anchors — they fail on some line-ending combinations.
+    final m1 = RegExp(r'---\s*(\d{8})\s*---');
+    final m1Matches = m1.allMatches(text).toList();
+    if (m1Matches.length >= 1) {
+      for (int i = 0; i < m1Matches.length; i++) {
+        final ds = m1Matches[i].group(1)!;
         final normalized =
-            '${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}';
-        final start = matches[i].end;
+            '${ds.substring(0, 4)}-${ds.substring(4, 6)}-${ds.substring(6, 8)}';
+        final start = m1Matches[i].end;
         final end =
-            (i + 1 < matches.length) ? matches[i + 1].start : text.length;
-        result[normalized] = text.substring(start, end).trim();
+            (i + 1 < m1Matches.length) ? m1Matches[i + 1].start : text.length;
+        final section = text.substring(start, end).trim();
+        if (section.isNotEmpty) result[normalized] = section;
       }
-      return result;
+      if (result.isNotEmpty) return result;
     }
 
-    // "Date: YYYY-MM-DD" or "Date: YYYYMMDD" style
-    final dateLine = RegExp(
-      r'(?:^|\n)Date:\s*(\d{4}-\d{2}-\d{2}|\d{8})\s*$',
-      multiLine: true,
-    );
-    final dateMatches = dateLine.allMatches(text).toList();
-    if (dateMatches.length > 1) {
-      for (int i = 0; i < dateMatches.length; i++) {
-        var dateStr = dateMatches[i].group(1)!;
-        if (dateStr.length == 8) {
-          dateStr =
-              '${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}';
-        }
-        final start = dateMatches[i].start;
-        final end = (i + 1 < dateMatches.length)
-            ? dateMatches[i + 1].start
+    // Pattern 2: bare "YYYY-MM-DD" on its own line  (sleep_data)
+    final m2 = RegExp(r'(?:^|\n)(\d{4}-\d{2}-\d{2})\s*\n');
+    final m2Matches = m2.allMatches(text).toList();
+    if (m2Matches.length >= 1) {
+      for (int i = 0; i < m2Matches.length; i++) {
+        final dateStr = m2Matches[i].group(1)!;
+        // start after the date line; end at next date line or EOF
+        final contentStart = m2Matches[i].end;
+        final contentEnd = (i + 1 < m2Matches.length)
+            ? m2Matches[i + 1].start
             : text.length;
-        result[dateStr] = text.substring(start, end).trim();
+        final section = text.substring(contentStart, contentEnd).trim();
+        if (section.isNotEmpty) result[dateStr] = section;
       }
-      return result;
+      if (result.isNotEmpty) return result;
     }
 
-    // Fallback: return whole text (for non-dated responses)
+    // Pattern 3: "YYYY-MM-DD:" — two sub-cases:
+    //  3a: "YYYY-MM-DD: value" all on one line  (resting HR)
+    //  3b: "YYYY-MM-DD:\nKey: value\n..." multi-line section  (stress)
+    final m3 = RegExp(r'(?:^|\n)(\d{4}-\d{2}-\d{2}):[ \t]*(\S.*)?$',
+        multiLine: true);
+    final m3Matches = m3.allMatches(text).toList();
+    if (m3Matches.length >= 1) {
+      for (int i = 0; i < m3Matches.length; i++) {
+        final dateStr = m3Matches[i].group(1)!;
+        final inlineValue = m3Matches[i].group(2);
+        if (inlineValue != null && inlineValue.isNotEmpty) {
+          // Case 3a: value on same line  e.g. "2026-07-08: 62 bpm"
+          result[dateStr] = inlineValue.trim();
+        } else {
+          // Case 3b: value on following lines until next date marker or EOF
+          final contentStart = m3Matches[i].end;
+          final contentEnd = (i + 1 < m3Matches.length)
+              ? m3Matches[i + 1].start
+              : text.length;
+          final section = text.substring(contentStart, contentEnd).trim();
+          if (section.isNotEmpty) result[dateStr] = section;
+        }
+      }
+      if (result.isNotEmpty) return result;
+    }
+
+    // Fallback: return whole text as a single (undated) section
     if (text.trim().isNotEmpty) {
       result[''] = text.trim();
     }
@@ -1100,6 +1117,15 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   /// Parse an integer from text after a prefix, e.g. "Steps: 12,345" → 12345.
   int? _parseInt(String text, String prefix) {
     final match = RegExp('$prefix\\s*([0-9,]+)').firstMatch(text);
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!.replaceAll(',', ''));
+  }
+
+  /// Parse integer after a prefix followed by a word to skip.
+  /// E.g. "Stress: Avg 45" → parseIntAfterWord(text, 'Stress:', 'Avg') → 45.
+  int? _parseIntAfterWord(String text, String prefix, String word) {
+    final match =
+        RegExp('$prefix\\s*$word\\s*([0-9,]+)').firstMatch(text);
     if (match == null) return null;
     return int.tryParse(match.group(1)!.replaceAll(',', ''));
   }
