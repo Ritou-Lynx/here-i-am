@@ -201,6 +201,21 @@ class PersonaReplySanitizer {
     ).hasMatch(normalized);
   }
 
+  /// Split the chat portion of a reply into individual speech bubbles.
+  ///
+  /// A paragraph break (double newline or more) separates bubbles, e.g.:
+  /// "第一段话\n\n第二段话" → ["第一段话", "第二段话"].
+  /// Single newlines within a bubble are preserved as soft line breaks.
+  static List<String> splitChatIntoBubbles(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return [];
+    return trimmed
+        .split(RegExp(r'\n\s*\n'))
+        .map((b) => b.trim())
+        .where((b) => b.isNotEmpty)
+        .toList();
+  }
+
   static String _wrapAction(String text) {
     final trimmed = text.trim();
     if (trimmed.startsWith('*') && trimmed.endsWith('*')) return trimmed;

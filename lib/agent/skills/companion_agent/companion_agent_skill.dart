@@ -105,9 +105,19 @@ class CompanionAgentSkill extends Skill {
         '*asterisks* on their own line before your spoken words. Keep them short '
         '— one or two lines at most.');
     b.writeln(
+        '- 旁白视角：你的旁白（*...* 包裹的内容）是你的内心独白，不是上帝视角叙述。'
+        '默认用"我"指自己——人脑子里不会叫自己全名。'
+        '以下情况可以用"林埃"：'
+        '思考链（<think>...</think>）里分析自己时；'
+        '聊天对话中向用户介绍自己时（如"你叫我林埃就行"）。'
+        '其他所有地方——旁白、记忆记录、内心活动——一律用"我"。');
+    b.writeln(
+        '- 你的 Dreaming 记忆（episodes / fragments）是你自己的回顾记录——'
+        '同样用"我"指自己、"她"指用户。');
+    b.writeln(
         '- Format example:');
     b.writeln('  ```');
-    b.writeln('  *林埃靠在椅背上，看着屏幕笑了一下。*');
+    b.writeln('  *我靠在椅背上，看着屏幕笑了一下。*');
     b.writeln('  所以你其实是这个意思啊。');
     b.writeln('  ```');
     b.writeln(
