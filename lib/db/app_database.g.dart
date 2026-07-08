@@ -17252,6 +17252,14 @@ class $MemoryEpisodesTable extends memory_v3.MemoryEpisodes
   late final GeneratedColumn<String> primaryEntityId = GeneratedColumn<String>(
       'primary_entity_id', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _topicIdMeta =
+      const VerificationMeta('topicId');
+  @override
+  late final GeneratedColumn<String> topicId = GeneratedColumn<String>(
+      'topic_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('__ungrouped__'));
   static const VerificationMeta _narrativeMeta =
       const VerificationMeta('narrative');
   @override
@@ -17341,6 +17349,7 @@ class $MemoryEpisodesTable extends memory_v3.MemoryEpisodes
   List<GeneratedColumn> get $columns => [
         id,
         primaryEntityId,
+        topicId,
         narrative,
         sourceFragmentIds,
         significance,
@@ -17377,6 +17386,10 @@ class $MemoryEpisodesTable extends memory_v3.MemoryEpisodes
               data['primary_entity_id']!, _primaryEntityIdMeta));
     } else if (isInserting) {
       context.missing(_primaryEntityIdMeta);
+    }
+    if (data.containsKey('topic_id')) {
+      context.handle(_topicIdMeta,
+          topicId.isAcceptableOrUnknown(data['topic_id']!, _topicIdMeta));
     }
     if (data.containsKey('narrative')) {
       context.handle(_narrativeMeta,
@@ -17473,6 +17486,8 @@ class $MemoryEpisodesTable extends memory_v3.MemoryEpisodes
           .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
       primaryEntityId: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}primary_entity_id'])!,
+      topicId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}topic_id'])!,
       narrative: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}narrative'])!,
       sourceFragmentIds: attachedDatabase.typeMapping.read(
@@ -17511,6 +17526,7 @@ class $MemoryEpisodesTable extends memory_v3.MemoryEpisodes
 class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
   final String id;
   final String primaryEntityId;
+  final String topicId;
   final String narrative;
   final String sourceFragmentIds;
   final int significance;
@@ -17527,6 +17543,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
   const MemoryEpisode(
       {required this.id,
       required this.primaryEntityId,
+      required this.topicId,
       required this.narrative,
       required this.sourceFragmentIds,
       required this.significance,
@@ -17545,6 +17562,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['primary_entity_id'] = Variable<String>(primaryEntityId);
+    map['topic_id'] = Variable<String>(topicId);
     map['narrative'] = Variable<String>(narrative);
     map['source_fragment_ids'] = Variable<String>(sourceFragmentIds);
     map['significance'] = Variable<int>(significance);
@@ -17569,6 +17587,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
     return MemoryEpisodesCompanion(
       id: Value(id),
       primaryEntityId: Value(primaryEntityId),
+      topicId: Value(topicId),
       narrative: Value(narrative),
       sourceFragmentIds: Value(sourceFragmentIds),
       significance: Value(significance),
@@ -17595,6 +17614,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
     return MemoryEpisode(
       id: serializer.fromJson<String>(json['id']),
       primaryEntityId: serializer.fromJson<String>(json['primaryEntityId']),
+      topicId: serializer.fromJson<String>(json['topicId']),
       narrative: serializer.fromJson<String>(json['narrative']),
       sourceFragmentIds: serializer.fromJson<String>(json['sourceFragmentIds']),
       significance: serializer.fromJson<int>(json['significance']),
@@ -17617,6 +17637,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'primaryEntityId': serializer.toJson<String>(primaryEntityId),
+      'topicId': serializer.toJson<String>(topicId),
       'narrative': serializer.toJson<String>(narrative),
       'sourceFragmentIds': serializer.toJson<String>(sourceFragmentIds),
       'significance': serializer.toJson<int>(significance),
@@ -17636,6 +17657,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
   MemoryEpisode copyWith(
           {String? id,
           String? primaryEntityId,
+          String? topicId,
           String? narrative,
           String? sourceFragmentIds,
           int? significance,
@@ -17652,6 +17674,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
       MemoryEpisode(
         id: id ?? this.id,
         primaryEntityId: primaryEntityId ?? this.primaryEntityId,
+        topicId: topicId ?? this.topicId,
         narrative: narrative ?? this.narrative,
         sourceFragmentIds: sourceFragmentIds ?? this.sourceFragmentIds,
         significance: significance ?? this.significance,
@@ -17676,6 +17699,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
       primaryEntityId: data.primaryEntityId.present
           ? data.primaryEntityId.value
           : this.primaryEntityId,
+      topicId: data.topicId.present ? data.topicId.value : this.topicId,
       narrative: data.narrative.present ? data.narrative.value : this.narrative,
       sourceFragmentIds: data.sourceFragmentIds.present
           ? data.sourceFragmentIds.value
@@ -17710,6 +17734,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
     return (StringBuffer('MemoryEpisode(')
           ..write('id: $id, ')
           ..write('primaryEntityId: $primaryEntityId, ')
+          ..write('topicId: $topicId, ')
           ..write('narrative: $narrative, ')
           ..write('sourceFragmentIds: $sourceFragmentIds, ')
           ..write('significance: $significance, ')
@@ -17731,6 +17756,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
   int get hashCode => Object.hash(
       id,
       primaryEntityId,
+      topicId,
       narrative,
       sourceFragmentIds,
       significance,
@@ -17750,6 +17776,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
       (other is MemoryEpisode &&
           other.id == this.id &&
           other.primaryEntityId == this.primaryEntityId &&
+          other.topicId == this.topicId &&
           other.narrative == this.narrative &&
           other.sourceFragmentIds == this.sourceFragmentIds &&
           other.significance == this.significance &&
@@ -17768,6 +17795,7 @@ class MemoryEpisode extends DataClass implements Insertable<MemoryEpisode> {
 class MemoryEpisodesCompanion extends UpdateCompanion<MemoryEpisode> {
   final Value<String> id;
   final Value<String> primaryEntityId;
+  final Value<String> topicId;
   final Value<String> narrative;
   final Value<String> sourceFragmentIds;
   final Value<int> significance;
@@ -17785,6 +17813,7 @@ class MemoryEpisodesCompanion extends UpdateCompanion<MemoryEpisode> {
   const MemoryEpisodesCompanion({
     this.id = const Value.absent(),
     this.primaryEntityId = const Value.absent(),
+    this.topicId = const Value.absent(),
     this.narrative = const Value.absent(),
     this.sourceFragmentIds = const Value.absent(),
     this.significance = const Value.absent(),
@@ -17803,6 +17832,7 @@ class MemoryEpisodesCompanion extends UpdateCompanion<MemoryEpisode> {
   MemoryEpisodesCompanion.insert({
     required String id,
     required String primaryEntityId,
+    this.topicId = const Value.absent(),
     required String narrative,
     required String sourceFragmentIds,
     required int significance,
@@ -17830,6 +17860,7 @@ class MemoryEpisodesCompanion extends UpdateCompanion<MemoryEpisode> {
   static Insertable<MemoryEpisode> custom({
     Expression<String>? id,
     Expression<String>? primaryEntityId,
+    Expression<String>? topicId,
     Expression<String>? narrative,
     Expression<String>? sourceFragmentIds,
     Expression<int>? significance,
@@ -17848,6 +17879,7 @@ class MemoryEpisodesCompanion extends UpdateCompanion<MemoryEpisode> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (primaryEntityId != null) 'primary_entity_id': primaryEntityId,
+      if (topicId != null) 'topic_id': topicId,
       if (narrative != null) 'narrative': narrative,
       if (sourceFragmentIds != null) 'source_fragment_ids': sourceFragmentIds,
       if (significance != null) 'significance': significance,
@@ -17869,6 +17901,7 @@ class MemoryEpisodesCompanion extends UpdateCompanion<MemoryEpisode> {
   MemoryEpisodesCompanion copyWith(
       {Value<String>? id,
       Value<String>? primaryEntityId,
+      Value<String>? topicId,
       Value<String>? narrative,
       Value<String>? sourceFragmentIds,
       Value<int>? significance,
@@ -17886,6 +17919,7 @@ class MemoryEpisodesCompanion extends UpdateCompanion<MemoryEpisode> {
     return MemoryEpisodesCompanion(
       id: id ?? this.id,
       primaryEntityId: primaryEntityId ?? this.primaryEntityId,
+      topicId: topicId ?? this.topicId,
       narrative: narrative ?? this.narrative,
       sourceFragmentIds: sourceFragmentIds ?? this.sourceFragmentIds,
       significance: significance ?? this.significance,
@@ -17911,6 +17945,9 @@ class MemoryEpisodesCompanion extends UpdateCompanion<MemoryEpisode> {
     }
     if (primaryEntityId.present) {
       map['primary_entity_id'] = Variable<String>(primaryEntityId.value);
+    }
+    if (topicId.present) {
+      map['topic_id'] = Variable<String>(topicId.value);
     }
     if (narrative.present) {
       map['narrative'] = Variable<String>(narrative.value);
@@ -17962,6 +17999,7 @@ class MemoryEpisodesCompanion extends UpdateCompanion<MemoryEpisode> {
     return (StringBuffer('MemoryEpisodesCompanion(')
           ..write('id: $id, ')
           ..write('primaryEntityId: $primaryEntityId, ')
+          ..write('topicId: $topicId, ')
           ..write('narrative: $narrative, ')
           ..write('sourceFragmentIds: $sourceFragmentIds, ')
           ..write('significance: $significance, ')
@@ -31313,6 +31351,7 @@ typedef $$MemoryEpisodesTableCreateCompanionBuilder = MemoryEpisodesCompanion
     Function({
   required String id,
   required String primaryEntityId,
+  Value<String> topicId,
   required String narrative,
   required String sourceFragmentIds,
   required int significance,
@@ -31332,6 +31371,7 @@ typedef $$MemoryEpisodesTableUpdateCompanionBuilder = MemoryEpisodesCompanion
     Function({
   Value<String> id,
   Value<String> primaryEntityId,
+  Value<String> topicId,
   Value<String> narrative,
   Value<String> sourceFragmentIds,
   Value<int> significance,
@@ -31363,6 +31403,9 @@ class $$MemoryEpisodesTableFilterComposer
   ColumnFilters<String> get primaryEntityId => $composableBuilder(
       column: $table.primaryEntityId,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get topicId => $composableBuilder(
+      column: $table.topicId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get narrative => $composableBuilder(
       column: $table.narrative, builder: (column) => ColumnFilters(column));
@@ -31422,6 +31465,9 @@ class $$MemoryEpisodesTableOrderingComposer
   ColumnOrderings<String> get primaryEntityId => $composableBuilder(
       column: $table.primaryEntityId,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get topicId => $composableBuilder(
+      column: $table.topicId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get narrative => $composableBuilder(
       column: $table.narrative, builder: (column) => ColumnOrderings(column));
@@ -31483,6 +31529,9 @@ class $$MemoryEpisodesTableAnnotationComposer
 
   GeneratedColumn<String> get primaryEntityId => $composableBuilder(
       column: $table.primaryEntityId, builder: (column) => column);
+
+  GeneratedColumn<String> get topicId =>
+      $composableBuilder(column: $table.topicId, builder: (column) => column);
 
   GeneratedColumn<String> get narrative =>
       $composableBuilder(column: $table.narrative, builder: (column) => column);
@@ -31553,6 +31602,7 @@ class $$MemoryEpisodesTableTableManager extends RootTableManager<
           updateCompanionCallback: ({
             Value<String> id = const Value.absent(),
             Value<String> primaryEntityId = const Value.absent(),
+            Value<String> topicId = const Value.absent(),
             Value<String> narrative = const Value.absent(),
             Value<String> sourceFragmentIds = const Value.absent(),
             Value<int> significance = const Value.absent(),
@@ -31571,6 +31621,7 @@ class $$MemoryEpisodesTableTableManager extends RootTableManager<
               MemoryEpisodesCompanion(
             id: id,
             primaryEntityId: primaryEntityId,
+            topicId: topicId,
             narrative: narrative,
             sourceFragmentIds: sourceFragmentIds,
             significance: significance,
@@ -31589,6 +31640,7 @@ class $$MemoryEpisodesTableTableManager extends RootTableManager<
           createCompanionCallback: ({
             required String id,
             required String primaryEntityId,
+            Value<String> topicId = const Value.absent(),
             required String narrative,
             required String sourceFragmentIds,
             required int significance,
@@ -31607,6 +31659,7 @@ class $$MemoryEpisodesTableTableManager extends RootTableManager<
               MemoryEpisodesCompanion.insert(
             id: id,
             primaryEntityId: primaryEntityId,
+            topicId: topicId,
             narrative: narrative,
             sourceFragmentIds: sourceFragmentIds,
             significance: significance,

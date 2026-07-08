@@ -119,7 +119,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 38;
+  int get schemaVersion => 39;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -491,12 +491,9 @@ class AppDatabase extends _$AppDatabase {
           if (from < 35) {
             // Memory Card v3: place + droplet label.
             const entTable = 'shared_life_entities';
-            await _addColumnIfMissing(
-                '$entTable ADD COLUMN place_name TEXT');
-            await _addColumnIfMissing(
-                '$entTable ADD COLUMN place_lat REAL');
-            await _addColumnIfMissing(
-                '$entTable ADD COLUMN place_lng REAL');
+            await _addColumnIfMissing('$entTable ADD COLUMN place_name TEXT');
+            await _addColumnIfMissing('$entTable ADD COLUMN place_lat REAL');
+            await _addColumnIfMissing('$entTable ADD COLUMN place_lng REAL');
             await _addColumnIfMissing(
                 '$entTable ADD COLUMN droplet_label TEXT');
           }
@@ -522,6 +519,33 @@ class AppDatabase extends _$AppDatabase {
             // Patch: ensure memory_v3_fts exists for installs that upgraded to
             // v37 before createFtsTables was included in that migration step.
             await searchDao.createFtsTables();
+          }
+          if (from < 39) {
+            await _addColumnIfMissing(
+              "memory_episodes ADD COLUMN topic_id TEXT NOT NULL DEFAULT '__ungrouped__'",
+            );
+            await customStatement(
+              "INSERT OR IGNORE INTO memory_entities("
+              "id, name, category, status, relationship_to_user, "
+              "fragment_count, generated_by_version, user_corrected, "
+              "schema_version"
+              ") VALUES ("
+              "'user_self', 'user_self', 'self', 'seed', 'self', "
+              "0, 'migration.v39', 0, 1"
+              ")",
+            );
+            await customStatement(
+              "UPDATE memory_episodes "
+              "SET topic_id = primary_entity_id "
+              "WHERE topic_id = '__ungrouped__'",
+            );
+            await customStatement(
+              "UPDATE memory_episodes "
+              "SET primary_entity_id = 'user_self' "
+              "WHERE primary_entity_id NOT IN ("
+              "SELECT id FROM memory_entities"
+              ")",
+            );
           }
         },
       );
@@ -556,8 +580,7 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_memory_cards_scope_type '
         'ON memory_cards(memory_scope, type)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_memory_cards_updated '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_memory_cards_updated '
         'ON memory_cards(updated_at)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_memory_card_sources_kind '
@@ -577,14 +600,11 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_memory_episodes_entity_status '
         'ON memory_episodes(primary_entity_id, status)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_memory_sagas_status '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_memory_sagas_status '
         'ON memory_sagas(status)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_assets_type_created '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_assets_type_created '
         'ON assets(asset_type, created_at)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_asset_analysis_asset '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_asset_analysis_asset '
         'ON asset_analysis(asset_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_user_corrections_target '
