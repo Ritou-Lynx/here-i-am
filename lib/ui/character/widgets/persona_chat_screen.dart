@@ -3699,7 +3699,10 @@ only after you have written the goodbye you want the user to hear.''',
   }) {
     var segments = PersonaReplySanitizer.splitVisibleReply(
       text,
-      characterName: _character?.name,
+      // The companion prompt hardcodes "林埃" as the character's Chinese name.
+      // The stored character.name ("I") is the English name and won't match
+      // the self-referential text in Chinese actions.
+      characterName: '林埃',
     );
     if (segments.isEmpty && text.trim().isNotEmpty) {
       segments = [
