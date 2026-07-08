@@ -52,7 +52,7 @@ Available COROS tools and their arguments:
 - queryAvgHeartRate — daily average HR. Args: days (int), timezone (string)
 - queryRestingHeartRate — daily resting HR. Args: days (int), timezone (string)
 - queryStressLevel — daily stress. Args: days (int), timezone (string)
-- queryHrvAssessment — HRV data. Args: days (int), timezone (string)
+- queryHrv — HRV data. Args: days (int), timezone (string). If this tool name fails, try: queryHrvAssessment, getHrvData
 - queryRecoveryStatus — current recovery %. No args.
 - queryTrainingLoadAssessment — training load. Args: days (int)
 - queryFitnessAssessmentOverview — VO2max, running level, race predictions. No args.

@@ -139,13 +139,13 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       }
 
       // Fire all queries in parallel (matching what 林埃 can access)
+      // NOTE: _fetchHrvLive disabled — COROS tool name TBD (server returned "Unknown tool")
       await Future.wait([
         _fetchDailyHealthLive(),
         _fetchSleepLive(),
         _fetchRecoveryLive(),
         _fetchRestingHrLive(),
         _fetchStressLive(),
-        _fetchHrvLive(),
         _fetchFitnessLive(),
         _fetchRecentWorkoutsLive(),
       ], eagerError: false);
