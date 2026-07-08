@@ -177,6 +177,9 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         arguments: arguments,
       );
       final text = result.text;
+      // DIAGNOSTIC: log the raw API response so we can verify parsing
+      _logger.info('[COROS LIVE] $toolName → ${text.length} chars');
+      _logger.info('[COROS RAW] $toolName:\n${text.length > 2000 ? text.substring(0, 2000) : text}');
       if (text.isNotEmpty) return text;
     } catch (e) {
       _logger.info('Live $toolName failed, trying file fallback: $e');
@@ -188,7 +191,12 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         final dir = await _getCorosDir();
         if (dir.isEmpty) return null;
         final file = File('$dir/$fallbackFileName');
-        if (file.existsSync()) return file.readAsString();
+        if (file.existsSync()) {
+          final text = file.readAsString();
+          _logger.info('[COROS CACHE] $toolName ← $fallbackFileName → ${text.length} chars');
+          _logger.info('[CACHE RAW] $toolName:\n${text.length > 2000 ? text.substring(0, 2000) : text}');
+          return text;
+        }
       } catch (e) {
         _logger.warning('File fallback for $toolName failed: $e');
       }
@@ -207,9 +215,11 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     if (text == null) return;
 
     final sections = _splitDatedSections(text);
+    _logger.info('[PARSE] daily_health sections: ${sections.keys.toList()..sort()}');
     if (sections.isEmpty) return;
     final newestDate = _pickNewestDate(sections.keys.toList());
     final section = sections[newestDate]!;
+    _logger.info('[PARSE] daily_health picked date: $newestDate, section preview: ${section.substring(0, section.length > 300 ? 300 : section.length)}');
 
     final steps = _parseInt(section, 'Steps:');
     final calories = _parseInt(section, 'Calories:') ??
@@ -217,6 +227,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     final avgHrVal = _parseInt(section, 'Avg Heart Rate:');
     final stressVal =
         _parseInt(section, 'Stress:') ?? _parseInt(section, 'Avg Stress:');
+    _logger.info('[PARSE] daily_health values — steps=$steps, calories=$calories, avgHr=$avgHrVal, stress=$stressVal');
 
     if (mounted) {
       setState(() {
@@ -246,10 +257,12 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         sleepSections[e.key] = e.value;
       }
     }
+    _logger.info('[PARSE] sleep sections with scores: ${sleepSections.keys.toList()..sort()}');
     if (sleepSections.isEmpty) return;
 
     // FIX: pick newest date by date comparison, NOT by iteration order
     final newestDate = _pickNewestDate(sleepSections.keys.toList());
+    _logger.info('[PARSE] sleep picked date: $newestDate');
     _applySleepSection(sleepSections[newestDate]!);
   }
 
@@ -259,6 +272,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     final deepPct = _parseInt(section, 'Deep Sleep Ratio:');
     final remPct = _parseInt(section, 'REM Ratio:');
     final lightPct = _parseInt(section, 'Light Sleep Ratio:');
+    _logger.info('[PARSE] sleep values — score=$score, totalMin=$totalMin, deep=$deepPct%, rem=$remPct%, light=$lightPct%');
 
     if (mounted) {
       setState(() {
