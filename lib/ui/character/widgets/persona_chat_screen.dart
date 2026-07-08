@@ -3697,7 +3697,10 @@ only after you have written the goodbye you want the user to hear.''',
     String? messageId,
     String? attachmentsJson,
   }) {
-    var segments = PersonaReplySanitizer.splitVisibleReply(text);
+    var segments = PersonaReplySanitizer.splitVisibleReply(
+      text,
+      characterName: _character?.name,
+    );
     if (segments.isEmpty && text.trim().isNotEmpty) {
       segments = [
         PersonaReplySegment(

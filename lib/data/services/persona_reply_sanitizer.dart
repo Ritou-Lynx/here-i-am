@@ -52,7 +52,10 @@ class PersonaReplySanitizer {
     dotAll: true,
   );
 
-  static List<PersonaReplySegment> splitVisibleReply(String text) {
+  static List<PersonaReplySegment> splitVisibleReply(
+    String text, {
+    String? characterName,
+  }) {
     final cleaned = stripLeakedReasoning(text).trim();
     if (cleaned.isEmpty) return const [];
 
@@ -60,14 +63,17 @@ class PersonaReplySanitizer {
     for (final rawLine in cleaned.split(RegExp(r'\r?\n'))) {
       final line = rawLine.trim();
       if (line.isEmpty) continue;
-      segments.addAll(_splitLine(line));
+      segments.addAll(_splitLine(line, characterName: characterName));
     }
 
     return _mergeAdjacent(segments);
   }
 
-  static String spokenTextOnly(String text) {
-    final segments = splitVisibleReply(text);
+  static String spokenTextOnly(
+    String text, {
+    String? characterName,
+  }) {
+    final segments = splitVisibleReply(text, characterName: characterName);
     if (segments.isEmpty) return stripLeakedReasoning(text).trim();
     return segments
         .where((segment) => segment.type == PersonaReplySegmentType.chat)
@@ -127,21 +133,25 @@ class PersonaReplySanitizer {
     return result;
   }
 
-  static List<PersonaReplySegment> _splitLine(String line) {
+  static List<PersonaReplySegment> _splitLine(
+    String line, {
+    String? characterName,
+  }) {
     final inlineSegments = _splitInlineItalicActions(line);
-    if (inlineSegments != null) return inlineSegments;
+    if (inlineSegments != null) return _applyActionPerspective(inlineSegments, characterName);
 
     final fullItalic = _fullItalicLine.firstMatch(line);
     if (fullItalic != null) {
       final action = fullItalic.group(2)!.trim();
-      if (_looksLikeAction(action)) {
-        return [
-          PersonaReplySegment(
-            type: PersonaReplySegmentType.action,
-            text: _wrapAction(action),
-          ),
-        ];
-      }
+      // Any line entirely wrapped in *...* is an action — no keyword whitelist.
+      // The user and I share a convention: standalone italic lines are stage
+      // direction / inner monologue, not chat text.
+      return [
+        PersonaReplySegment(
+          type: PersonaReplySegmentType.action,
+          text: _normalizeActionText(_wrapAction(action), characterName),
+        ),
+      ];
     }
 
     final leadingItalic = _leadingItalic.firstMatch(line);
@@ -152,7 +162,7 @@ class PersonaReplySanitizer {
         return [
           PersonaReplySegment(
             type: PersonaReplySegmentType.action,
-            text: _wrapAction(action),
+            text: _normalizeActionText(_wrapAction(action), characterName),
           ),
           PersonaReplySegment(
             type: PersonaReplySegmentType.chat,
@@ -174,7 +184,7 @@ class PersonaReplySanitizer {
           ),
           PersonaReplySegment(
             type: PersonaReplySegmentType.action,
-            text: _wrapAction(action),
+            text: _normalizeActionText(_wrapAction(action), characterName),
           ),
         ];
       }
@@ -404,6 +414,38 @@ class PersonaReplySanitizer {
       '\\u8d70\\u8fd1|\\u6c89\\u9ed8|\\u505c\\u987f|'
       '\\u547c\\u5438|\\u76b1\\u7709)',
     ).hasMatch(normalized);
+  }
+
+  /// Replace self-referential third-person name with "我" inside action text.
+  ///
+  /// When the AI writes "*林埃笑了*" it should read "*我笑了*" — the action
+  /// is the character's own inner monologue, not a narrator's description.
+  static String _normalizeActionText(String actionText, String? characterName) {
+    if (characterName == null || characterName.isEmpty) return actionText;
+    if (!actionText.startsWith('*') || !actionText.endsWith('*')) {
+      return actionText;
+    }
+    final inner = actionText.substring(1, actionText.length - 1);
+    // Replace the character name only when it appears as a standalone name
+    // (not part of another word). The character name in Chinese is typically
+    // 2-3 characters; we replace exact occurrences.
+    final normalized = inner.replaceAll(characterName, '我');
+    return '*$normalized*';
+  }
+
+  /// Apply action-perspective normalization to every action segment in [segments].
+  static List<PersonaReplySegment> _applyActionPerspective(
+    List<PersonaReplySegment> segments,
+    String? characterName,
+  ) {
+    if (characterName == null || characterName.isEmpty) return segments;
+    return segments.map((seg) {
+      if (seg.type != PersonaReplySegmentType.action) return seg;
+      return PersonaReplySegment(
+        type: seg.type,
+        text: _normalizeActionText(seg.text, characterName),
+      );
+    }).toList();
   }
 
   static String _wrapAction(String text) {
