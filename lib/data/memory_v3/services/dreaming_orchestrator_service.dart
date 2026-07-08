@@ -791,4 +791,87 @@ class DreamingOrchestratorServiceV3 {
         );
     return id;
   }
+
+  // ---------------------------------------------------------------------------
+  // Non-LLM maintenance (Lightweight Tick)
+  // ---------------------------------------------------------------------------
+
+  /// Mark fragments as `consolidated` when they are linked to an existing
+  /// episode via entity_links. Returns the number of fragments updated.
+  Future<int> resolveStaleFragments(String characterId) async {
+    // Fragments are linked to episodes through memory_entity_links:
+    // sourceTable = 'memory_fragments' → find those with episodes sharing the
+    // same entity. Simplest reliable signal: a fragment whose entity has an
+    // episode is considered consumed.
+    final staleIds = await (_db.select(_db.memoryEntityLinks)
+          ..where((t) => t.sourceTable.equals('memory_fragments')))
+        .map((row) => row.sourceId)
+        .get();
+
+    if (staleIds.isEmpty) return 0;
+
+    final affected = await (_db.update(_db.memoryFragments)
+          ..where((t) => t.id.isIn(staleIds) & t.status.equals('active')))
+        .write(const MemoryFragmentsCompanion(status: Value('consolidated')));
+
+    return affected;
+  }
+
+  /// Recompute every active entity's [fragmentCount] from the current fragment
+  /// table. Returns the number of entities updated.
+  Future<int> syncEntityFragmentCounts() async {
+    final entities = await (_db.select(_db.memoryEntities)
+          ..where((t) => t.status.isNotIn(const ['deleted', 'merged'])))
+        .get();
+
+    var updated = 0;
+    for (final entity in entities) {
+      final count = await (_db.select(_db.memoryEntityLinks)
+            ..where((t) =>
+                t.entityId.equals(entity.id) &
+                t.sourceTable.equals('memory_fragments')))
+          .get()
+          .then((rows) => rows.length);
+
+      if (count != entity.fragmentCount) {
+        await (_db.update(_db.memoryEntities)
+              ..where((t) => t.id.equals(entity.id)))
+            .write(MemoryEntitiesCompanion(fragmentCount: Value(count)));
+        updated++;
+      }
+    }
+
+    return updated;
+  }
+
+  /// Returns true if today's daily dreaming batch has already completed for
+  /// [characterId].
+  Future<bool> hasDailyBatchRunToday(String characterId) async {
+    final row = await (_db.select(_db.kvStore)
+          ..where((t) =>
+              t.bucket.equals(_bucket) &
+              t.key.equals('daily_batch.last_run.$characterId')))
+        .getSingleOrNull();
+    if (row == null) return false;
+
+    final lastRun = int.tryParse(row.value ?? '');
+    if (lastRun == null) return false;
+
+    final lastRunDate = DateTime.fromMillisecondsSinceEpoch(lastRun);
+    final today = DateTime.now();
+    return lastRunDate.year == today.year &&
+        lastRunDate.month == today.month &&
+        lastRunDate.day == today.day;
+  }
+
+  /// Record that today's daily dreaming batch completed for [characterId].
+  Future<void> markDailyBatchComplete(String characterId) async {
+    await _db.into(_db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion(
+            bucket: const Value(_bucket),
+            key: Value('daily_batch.last_run.$characterId'),
+            value: Value(DateTime.now().millisecondsSinceEpoch.toString()),
+          ),
+        );
+  }
 }

@@ -14,6 +14,7 @@ import 'package:memex/utils/logger.dart';
 import 'package:memex/data/services/background_task_drain_service.dart';
 import 'package:memex/data/services/background_task_foreground_service.dart';
 import 'package:memex/data/services/companion_foreground_task.dart';
+import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/utils/user_storage.dart';
 
 /// Configuration for handling a specific Health Data Type
@@ -371,6 +372,27 @@ void callbackDispatcher() {
           debugPrint('Checkin: failed to start foreground service: $e');
         }
         return Future.value(true);
+      }
+
+      if (task == DreamingSchedulerService.dailyBatchTaskName) {
+        // ---------- Daily Dreaming batch ----------
+        debugPrint('Dreaming batch: starting background run');
+        final prefs = await SharedPreferences.getInstance();
+        final userId = prefs.getString('current_user_id');
+        if (userId == null) {
+          debugPrint('Dreaming batch: no user ID, skipping');
+          return Future.value(false);
+        }
+        if (!AppDatabase.isInitialized) {
+          await AppDatabase.init(userId);
+        }
+        await UserStorage.initL10n();
+        final ok = await DreamingSchedulerService.runDailyDreamingFromBackground(
+          db: AppDatabase.instance,
+          characterId: 'i',
+        );
+        debugPrint('Dreaming batch: ${ok ? "completed" : "skipped"}');
+        return Future.value(ok);
       }
 
       // ---------- Original pedometer logic ----------

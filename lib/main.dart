@@ -40,6 +40,7 @@ import 'package:memex/data/services/whisper_service.dart';
 import 'package:memex/data/services/streaming_transcriber.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/data/services/callkit_service.dart';
@@ -762,6 +763,25 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // Register stochastic checkin pulse task (WorkManager, best-effort)
     CheckinService.instance.ensureCheckinTaskRegistered().catchError((e) {
       _logger.severe('Failed to register checkin task: $e');
+    });
+
+    // Register dreaming daily batch task (WorkManager, charging + network).
+    Workmanager().registerPeriodicTask(
+      DreamingSchedulerService.dailyBatchTaskName,
+      DreamingSchedulerService.dailyBatchTaskName,
+      constraints: Constraints(
+        networkType: NetworkType.connected,
+        requiresBatteryNotLow: true,
+        requiresCharging: true,
+        requiresDeviceIdle: false,
+        requiresStorageNotLow: false,
+      ),
+      frequency: const Duration(hours: 4),
+      backoffPolicy: BackoffPolicy.linear,
+      backoffPolicyDelay: const Duration(hours: 2),
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+    ).catchError((e) {
+      _logger.warning('Failed to register dreaming daily batch task: $e');
     });
     // Schedule reliable AlarmManager alarm (bypasses Doze + Samsung Freecess).
     // This self-reschedules after each fire so it survives without WorkManager.

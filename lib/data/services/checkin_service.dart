@@ -321,6 +321,16 @@ class CheckinService {
                 updatedAt: Value(ts),
               ),
             );
+        // Also write a dreaming-level active-user heartbeat so the
+        // Dreaming daily batch can skip when the user is actively chatting.
+        await _db.into(_db.kvStore).insertOnConflictUpdate(
+              KvStoreCompanion.insert(
+                key: 'last_user_active',
+                bucket: const Value('memory_v3.dreaming'),
+                value: Value(DateTime.now().millisecondsSinceEpoch.toString()),
+                updatedAt: Value(ts),
+              ),
+            );
       } catch (_) {
         // Never throw from a heartbeat — it's best-effort.
       }

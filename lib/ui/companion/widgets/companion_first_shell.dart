@@ -5,6 +5,8 @@ import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/domain/models/character_model.dart';
+import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/utils/logger.dart';
@@ -28,6 +30,7 @@ class CompanionFirstShell extends StatefulWidget {
 class CompanionFirstShellState extends State<CompanionFirstShell> {
   final _logger = getLogger('CompanionFirstShell');
   String? _characterId;
+  DreamingSchedulerService? _dreamingScheduler;
   PersonaChatOpenRequest? _pendingOpenRequest;
   bool _startVoiceMode = false;
   bool _isLoading = true;
@@ -61,10 +64,19 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
       _handleOpenChatRequest,
     );
     _loadInitialCharacter();
+
+    // Start the dreaming lightweight tick while the companion shell is visible.
+    if (AppDatabase.isInitialized) {
+      _dreamingScheduler = DreamingSchedulerService(
+        db: AppDatabase.instance,
+      );
+      _dreamingScheduler!.startForegroundTick();
+    }
   }
 
   @override
   void dispose() {
+    _dreamingScheduler?.stopForegroundTick();
     _retryTimer?.cancel();
     _openChatSub?.cancel();
     super.dispose();
