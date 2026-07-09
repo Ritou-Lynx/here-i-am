@@ -332,6 +332,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   static const Duration _recallGracePeriod = Duration(milliseconds: 900);
   bool _hasMoreHistory = true;
   bool _isLoadingMore = false;
+  // True while showing a history window jumped-to from search. Suppresses the
+  // periodic refresh timer (which reloads the latest page and would yank the
+  // scroll position away from the searched message).
+  bool _viewingHistoryWindow = false;
 
   MarkdownStyleSheet get _messageMarkdownStyle {
     final tokens = HereIamThemeRuntime.current;
@@ -1264,6 +1268,9 @@ only after you have written the goodbye you want the user to hear.''',
     if (message is! PersonaChatMessageAddedMessage) return;
     if (message.characterId != _currentCharacterId) return;
     if (!mounted) return;
+    // Viewing a searched history window: ignore live updates so the window and
+    // scroll position stay put until the user returns to latest.
+    if (_viewingHistoryWindow) return;
     if (_refreshPersonaChatMessageAdded()) return;
     final previousMessages = List<PersonaChatMessage>.of(_messages);
     // New message arrived; reload the latest page and keep any older
@@ -1338,6 +1345,9 @@ only after you have written the goodbye you want the user to hear.''',
     _messageRefreshTimer?.cancel();
     _messageRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (_isLoading || _isStreaming || _isAppInBackground) return;
+      // While viewing a searched history window, don't reload the latest page —
+      // it would replace the window and yank the scroll away from the target.
+      if (_viewingHistoryWindow) return;
       unawaited(
         _refreshMessagesFromStore(
           autoRead: _autoReadEnabled,
@@ -2065,6 +2075,25 @@ only after you have written the goodbye you want the user to hear.''',
     }
   }
 
+  // Tapping "back to latest": if we're in a searched history window, reload the
+  // real latest page first, then scroll to bottom. Otherwise just scroll.
+  Future<void> _returnToLatest() async {
+    if (_viewingHistoryWindow) {
+      final messages = await _chatService.getMessages(
+        _currentCharacterId,
+        limit: _pageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages = messages;
+        _hasMoreHistory = messages.length >= _pageSize;
+        _viewingHistoryWindow = false;
+        _highlightedMessageId = null;
+      });
+    }
+    _scrollToBottom();
+  }
+
   void _scrollToBottom() {
     if (_showJumpToLatest && mounted) {
       setState(() => _showJumpToLatest = false);
@@ -2095,6 +2124,11 @@ only after you have written the goodbye you want the user to hear.''',
       ),
     );
     if (selected == null || !mounted) return;
+    // Wait for the bottom sheet dismiss animation (~300ms) to finish before
+    // scrolling, otherwise ensureVisible fires while the modal overlay is still
+    // covering the chat list and the scroll is silently swallowed.
+    await Future.delayed(const Duration(milliseconds: 350));
+    if (!mounted) return;
     await _jumpToMessage(selected);
   }
 
@@ -2103,42 +2137,65 @@ only after you have written the goodbye you want the user to hear.''',
       _currentCharacterId,
       message,
     );
-    final neededDepth = newerCount + 1;
-    final limit =
-        neededDepth > _messages.length ? neededDepth : _messages.length;
+    // Load a window of messages around the target instead of the entire tail.
+    // This bounds the scroll estimation error to ~windowHalf * avgHeightError
+    // instead of newerCount * avgHeightError (which fails for long histories).
+    const windowSize = 60;
+    const windowHalf = 30;
+    final windowOffset = newerCount <= windowHalf ? 0 : newerCount - windowHalf;
     final messages = await _chatService.getMessages(
       _currentCharacterId,
-      limit: limit,
+      limit: windowSize,
+      offset: windowOffset,
     );
     if (!mounted) return;
+    final targetIndexInWindow = newerCount - windowOffset;
     _highlightTimer?.cancel();
     setState(() {
       _messages = messages;
-      _hasMoreHistory = messages.length >= limit;
+      _hasMoreHistory = messages.length >= windowSize;
       _highlightedMessageId = message.id;
       _showJumpToLatest = true;
+      // windowOffset > 0 means this is a deep history window, not the latest
+      // page; suppress auto-refresh so the target stays put.
+      _viewingHistoryWindow = windowOffset > 0;
     });
-    _scrollToMessage(message.id);
+    _scrollToMessage(message.id, newerCount: targetIndexInWindow);
     _highlightTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) setState(() => _highlightedMessageId = null);
     });
   }
 
-  void _scrollToMessage(int messageId, {double alignment = 0.45}) {
+  void _scrollToMessage(int messageId, {double alignment = 0.45, int newerCount = 0}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Timer(const Duration(milliseconds: 24), () {
-        if (!mounted) return;
-        final messageContext = _messageKeys[messageId]?.currentContext;
-        if (messageContext == null || !messageContext.mounted) return;
+      if (!mounted || !_scrollController.hasClients) return;
+      const avgItemHeight = 80.0;
+      final estimated = (newerCount * avgItemHeight)
+          .clamp(0.0, _scrollController.position.maxScrollExtent);
+      _scrollController.jumpTo(estimated);
+      _ensureVisibleWithRetry(messageId, alignment: alignment, retriesLeft: 3);
+    });
+  }
+
+  void _ensureVisibleWithRetry(int messageId, {double alignment = 0.45, int retriesLeft = 3}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final messageContext = _messageKeys[messageId]?.currentContext;
+      if (messageContext != null && messageContext.mounted) {
         unawaited(
           Scrollable.ensureVisible(
             messageContext,
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeOutCubic,
             alignment: alignment,
           ),
         );
-      });
+        return;
+      }
+      if (retriesLeft <= 0 || !_scrollController.hasClients) return;
+      final pos = _scrollController.position;
+      final nudge = pos.viewportDimension * 0.8;
+      final next = (pos.pixels + nudge).clamp(0.0, pos.maxScrollExtent);
+      _scrollController.jumpTo(next);
+      _ensureVisibleWithRetry(messageId, alignment: alignment, retriesLeft: retriesLeft - 1);
     });
   }
 
@@ -3304,7 +3361,7 @@ only after you have written the goodbye you want the user to hear.''',
       ),
       child: Center(
         child: GestureDetector(
-          onTap: _scrollToBottom,
+          onTap: () => unawaited(_returnToLatest()),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             margin: const EdgeInsets.only(bottom: 4),
