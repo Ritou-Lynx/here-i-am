@@ -305,16 +305,19 @@ class DreamingOrchestratorServiceV3 {
       final episodeCount = await (_db.delete(_db.memoryEpisodes)).go();
       _logger.info('clearAllEpisodes: removed $episodeCount episode(s)');
 
-      if (sourceFragmentIds.isNotEmpty) {
-        final fragmentAffected = await (_db.update(_db.memoryFragments)
-              ..where((t) => t.id.isIn(sourceFragmentIds)))
-            .write(const MemoryFragmentsCompanion(
-          status: Value('active'),
-        ));
-        _logger.info(
-          'clearAllEpisodes: reactivated $fragmentAffected source fragment(s)',
-        );
-      }
+      // Reset ALL consolidated fragments, not just the ones referenced by
+      // episodes. Fragments can end up consolidated-but-unreferenced when the
+      // LLM skips them during consolidation, leaving orphaned rows that would
+      // otherwise be silently excluded from future consolidation runs.
+      final fragmentAffected = await (_db.update(_db.memoryFragments)
+            ..where((t) => t.status.equals('consolidated')))
+          .write(const MemoryFragmentsCompanion(
+        status: Value('active'),
+      ));
+      _logger.info(
+        'clearAllEpisodes: reactivated $fragmentAffected fragment(s) '
+        '(all consolidated, including ${sourceFragmentIds.length} episode-referenced)',
+      );
 
       return episodeCount;
     });
@@ -333,8 +336,22 @@ class DreamingOrchestratorServiceV3 {
     required LLMClient client,
     required ModelConfig modelConfig,
     int minFragments = 2,
+    int chunkSize = 40,
     EpisodeConsolidatorV3 agent = const EpisodeConsolidatorV3(),
   }) async {
+    // Self-heal: reactivate any fragment stuck in 'consolidated' that is not
+    // actually referenced by an episode. Such orphans arise when a prior bug
+    // (or an episode deletion) retired a fragment without it ever being folded
+    // into an episode. Without this, those fragments are invisible to
+    // consolidation forever and never make it into an episode.
+    final reactivated = await _reactivateOrphanConsolidatedFragments();
+    if (reactivated > 0) {
+      _logger.info(
+        'Episode: reactivated $reactivated orphaned consolidated fragment(s) '
+        'before consolidation',
+      );
+    }
+
     // Fetch all active fragments. Entity links are optional — the LLM
     // may not have generated them. We send ALL active fragments to the
     // consolidator and let it group related ones into episodes.
@@ -363,121 +380,141 @@ class DreamingOrchestratorServiceV3 {
       );
     }
 
+    // Split into chunks to stay under the ~130s API proxy timeout.
+    final chunks = <List<MemoryFragment>>[];
+    for (var i = 0; i < allFragments.length; i += chunkSize) {
+      chunks.add(allFragments.sublist(
+        i,
+        i + chunkSize > allFragments.length ? allFragments.length : i + chunkSize,
+      ));
+    }
+
     _logger.info(
       'Episode: consolidating ${allFragments.length} active fragments '
-      '(entity-agnostic mode)',
+      'in ${chunks.length} chunk(s) of ≤$chunkSize (entity-agnostic mode)',
     );
 
     final episodeIds = <String>[];
     final skippedEntities = <String>[];
     var totalConsolidatedFragments = 0;
 
-    try {
-      final result = await agent.consolidateAll(
-        client: client,
-        modelConfig: modelConfig,
-        fragments: allFragments,
+    for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      final chunk = chunks[chunkIndex];
+      _logger.info(
+        'Episode: chunk ${chunkIndex + 1}/${chunks.length} — ${chunk.length} fragments',
       );
 
-      if (result.episodes.isEmpty) {
-        skippedEntities.add(result.skippedEntityIds.isNotEmpty
-            ? result.skippedEntityIds.first
-            : 'LLM returned no episodes');
-        return EpisodeConsolidationRunResult(
-          episodeIds: const [],
-          consolidatedEntities: const [],
-          skippedEntities: skippedEntities,
-          consolidatedFragmentCount: 0,
+      try {
+        final result = await agent.consolidateAll(
+          client: client,
+          modelConfig: modelConfig,
+          fragments: chunk,
         );
-      }
 
-      await _db.transaction(() async {
-        final now = DateTime.now().millisecondsSinceEpoch;
+        if (result.episodes.isEmpty) {
+          skippedEntities.add(result.skippedEntityIds.isNotEmpty
+              ? result.skippedEntityIds.first
+              : 'chunk ${chunkIndex + 1}: LLM returned no episodes');
+          continue;
+        }
 
-        for (final episode in result.episodes) {
-          final episodeId = _uuid.v4();
-          final sourceEntityIds =
-              await _entityIdsForFragments(episode.sourceFragmentIds);
-          final primaryEntityId = await _primaryEntityIdForEpisode(
-            sourceEntityIds: sourceEntityIds,
-            preferredEntityId: episode.primaryEntityId,
-            now: now,
-          );
-          final linkedEntityIds = {
-            ...sourceEntityIds,
-            ...episode.linkedEntityIds,
-            primaryEntityId,
-          };
+        await _db.transaction(() async {
+          final now = DateTime.now().millisecondsSinceEpoch;
 
-          await _db.into(_db.memoryEpisodes).insert(
-                MemoryEpisodesCompanion.insert(
-                  id: episodeId,
-                  primaryEntityId: primaryEntityId,
-                  topicId: Value(episode.topicId),
-                  narrative: episode.narrative,
-                  sourceFragmentIds: jsonEncode(episode.sourceFragmentIds),
-                  significance: episode.significance,
-                  confidence: episode.confidence,
-                  valence: episode.valence,
-                  arousal: episode.arousal,
-                  occurredAtRange: Value(
-                    (episode.occurredAtStart != null ||
-                            episode.occurredAtEnd != null)
-                        ? jsonEncode({
-                            if (episode.occurredAtStart != null)
-                              'start': episode.occurredAtStart,
-                            if (episode.occurredAtEnd != null)
-                              'end': episode.occurredAtEnd,
-                          })
-                        : null,
-                  ),
-                  generatedByVersion: const Value(_episodeConsolidatorVersion),
-                  createdAt: now,
-                  updatedAt: now,
-                ),
-              );
+          for (final episode in result.episodes) {
+            final episodeId = _uuid.v4();
+            final sourceEntityIds =
+                await _entityIdsForFragments(episode.sourceFragmentIds);
+            final primaryEntityId = await _primaryEntityIdForEpisode(
+              sourceEntityIds: sourceEntityIds,
+              preferredEntityId: episode.primaryEntityId,
+              now: now,
+            );
+            final linkedEntityIds = {
+              ...sourceEntityIds,
+              ...episode.linkedEntityIds,
+              primaryEntityId,
+            };
 
-          // Link each episode to the evidence-derived entities it actually
-          // summarizes, so retrieval does not depend on topic labels.
-          for (final linkedId in linkedEntityIds) {
-            await _db.into(_db.memoryEntityLinks).insert(
-                  MemoryEntityLinksCompanion.insert(
-                    id: _uuid.v4(),
-                    sourceTable: 'memory_episodes',
-                    sourceId: episodeId,
-                    entityId: linkedId,
-                    relation:
-                        linkedId == primaryEntityId ? 'about' : 'mentioned',
-                    confidence: const Value(0.8),
+            await _db.into(_db.memoryEpisodes).insert(
+                  MemoryEpisodesCompanion.insert(
+                    id: episodeId,
+                    primaryEntityId: primaryEntityId,
+                    topicId: Value(episode.topicId),
+                    narrative: episode.narrative,
+                    sourceFragmentIds: jsonEncode(episode.sourceFragmentIds),
+                    significance: episode.significance,
+                    confidence: episode.confidence,
+                    valence: episode.valence,
+                    arousal: episode.arousal,
+                    occurredAtRange: Value(
+                      (episode.occurredAtStart != null ||
+                              episode.occurredAtEnd != null)
+                          ? jsonEncode({
+                              if (episode.occurredAtStart != null)
+                                'start': episode.occurredAtStart,
+                              if (episode.occurredAtEnd != null)
+                                'end': episode.occurredAtEnd,
+                            })
+                          : null,
+                    ),
+                    generatedByVersion: const Value(_episodeConsolidatorVersion),
                     createdAt: now,
+                    updatedAt: now,
                   ),
                 );
+
+            // Link each episode to the evidence-derived entities it actually
+            // summarizes, so retrieval does not depend on topic labels.
+            for (final linkedId in linkedEntityIds) {
+              await _db.into(_db.memoryEntityLinks).insert(
+                    MemoryEntityLinksCompanion.insert(
+                      id: _uuid.v4(),
+                      sourceTable: 'memory_episodes',
+                      sourceId: episodeId,
+                      entityId: linkedId,
+                      relation:
+                          linkedId == primaryEntityId ? 'about' : 'mentioned',
+                      confidence: const Value(0.8),
+                      createdAt: now,
+                    ),
+                  );
+            }
+
+            episodeIds.add(episodeId);
           }
 
-          episodeIds.add(episodeId);
-        }
-
-        // Mark source fragments as consolidated.
-        for (final episode in result.episodes) {
-          for (final fid in episode.sourceFragmentIds) {
-            await (_db.update(_db.memoryFragments)
-                  ..where((t) => t.id.equals(fid)))
-                .write(const MemoryFragmentsCompanion(
-              status: Value('consolidated'),
-            ));
+          // Mark source fragments as consolidated.
+          for (final episode in result.episodes) {
+            for (final fid in episode.sourceFragmentIds) {
+              await (_db.update(_db.memoryFragments)
+                    ..where((t) => t.id.equals(fid)))
+                  .write(const MemoryFragmentsCompanion(
+                status: Value('consolidated'),
+              ));
+            }
+            totalConsolidatedFragments += episode.sourceFragmentIds.length;
           }
-          totalConsolidatedFragments += episode.sourceFragmentIds.length;
-        }
-      });
+        });
 
-      _logger.info(
-        'Episode: persisted ${episodeIds.length} episode(s) from '
-        '$totalConsolidatedFragments fragments',
-      );
-    } catch (e, stack) {
-      _logger.warning('Episode consolidation failed', e, stack);
-      skippedEntities.add('error: $e');
+        _logger.info(
+          'Episode: chunk ${chunkIndex + 1}/${chunks.length} persisted '
+          '${result.episodes.length} episode(s)',
+        );
+      } catch (e, stack) {
+        _logger.warning(
+          'Episode consolidation failed at chunk ${chunkIndex + 1}/${chunks.length}',
+          e,
+          stack,
+        );
+        skippedEntities.add('chunk ${chunkIndex + 1} error: $e');
+      }
     }
+
+    _logger.info(
+      'Episode: persisted ${episodeIds.length} total episode(s) from '
+      '$totalConsolidatedFragments fragments across ${chunks.length} chunk(s)',
+    );
 
     return EpisodeConsolidationRunResult(
       episodeIds: episodeIds,
@@ -799,25 +836,65 @@ class DreamingOrchestratorServiceV3 {
   /// Mark fragments as `consolidated` when they are linked to an existing
   /// episode via entity_links. Returns the number of fragments updated.
   Future<int> resolveStaleFragments(String characterId) async {
-    // Fragments are linked to episodes through memory_entity_links:
-    // sourceTable = 'memory_fragments' → find those with episodes sharing the
-    // same entity. Simplest reliable signal: a fragment whose entity has an
-    // episode is considered consumed.
-    final staleIds = await (_db.select(_db.memoryEntityLinks)
-          ..where((t) => t.sourceTable.equals('memory_fragments')))
-        .map((row) => row.sourceId)
-        .get();
+    // A fragment is "consumed" only when it has actually been folded into an
+    // episode — i.e. its id appears in some episode's sourceFragmentIds.
+    //
+    // NOTE: we must NOT use memory_entity_links as the signal here. Entity
+    // links are created at fragment EXTRACTION time (every extracted fragment
+    // gets one), so keying off link presence retires fragments the moment they
+    // are born — before consolidation ever runs. That silently starved episode
+    // consolidation of its inputs (it always saw 0 active fragments).
+    final episodeRows = await (_db.select(_db.memoryEpisodes)).get();
+    final consumedIds = <String>{};
+    for (final ep in episodeRows) {
+      try {
+        final decoded = jsonDecode(ep.sourceFragmentIds);
+        if (decoded is List) {
+          consumedIds.addAll(decoded.whereType<String>());
+        }
+      } catch (_) {
+        // Malformed JSON — skip, don't let one bad row abort the sweep.
+      }
+    }
 
-    if (staleIds.isEmpty) return 0;
+    if (consumedIds.isEmpty) return 0;
 
     final affected = await (_db.update(_db.memoryFragments)
-          ..where((t) => t.id.isIn(staleIds) & t.status.equals('active')))
+          ..where((t) =>
+              t.id.isIn(consumedIds) & t.status.equals('active')))
         .write(const MemoryFragmentsCompanion(status: Value('consolidated')));
 
     return affected;
   }
 
-  /// Recompute every active entity's [fragmentCount] from the current fragment
+  /// Reactivate fragments stuck in status='consolidated' that are not
+  /// referenced by any episode's sourceFragmentIds. Returns the count changed.
+  ///
+  /// Shares the "consumed = referenced by an episode" definition with
+  /// [resolveStaleFragments] — the two are inverses and must stay consistent.
+  Future<int> _reactivateOrphanConsolidatedFragments() async {
+    final episodeRows = await (_db.select(_db.memoryEpisodes)).get();
+    final consumedIds = <String>{};
+    for (final ep in episodeRows) {
+      try {
+        final decoded = jsonDecode(ep.sourceFragmentIds);
+        if (decoded is List) {
+          consumedIds.addAll(decoded.whereType<String>());
+        }
+      } catch (_) {
+        // Malformed JSON — skip.
+      }
+    }
+
+    final query = _db.update(_db.memoryFragments)
+      ..where((t) => t.status.equals('consolidated'));
+    // Exclude genuinely-consumed fragments from reactivation.
+    if (consumedIds.isNotEmpty) {
+      query.where((t) => t.id.isNotIn(consumedIds));
+    }
+    return query
+        .write(const MemoryFragmentsCompanion(status: Value('active')));
+  }
   /// table. Returns the number of entities updated.
   Future<int> syncEntityFragmentCounts() async {
     final entities = await (_db.select(_db.memoryEntities)
@@ -874,4 +951,114 @@ class DreamingOrchestratorServiceV3 {
           ),
         );
   }
+
+  /// Return recent dreaming output for companion context injection.
+  ///
+  /// When [queryHint] is provided, fragments and episodes are scored by keyword
+  /// overlap first, then supplemented with the most-recent ones up to the
+  /// respective limits. This ensures a specific past event (e.g. "remember when
+  /// you lied") surfaces even when it is older than [recentFragmentLimit].
+  Future<({List<MemoryEpisode> episodes, List<MemoryFragment> fragments})>
+      queryRecentDreamingContext({
+    String queryHint = '',
+    int episodeLimit = 8,
+    int recentFragmentLimit = 6,
+  }) async {
+    final keywords = _extractKeywords(queryHint);
+
+    // --- Episodes ---
+    final List<MemoryEpisode> episodes;
+    if (keywords.isNotEmpty) {
+      // Pull a broader pool, score in-memory, take top episodeLimit.
+      final pool = await (_db.select(_db.memoryEpisodes)
+            ..where((t) => t.status.equals('active'))
+            ..orderBy([
+              (t) => OrderingTerm.desc(t.significance),
+              (t) => OrderingTerm.desc(t.createdAt),
+            ])
+            ..limit(episodeLimit * 4))
+          .get();
+      pool.sort((a, b) {
+        final sa = _keywordScore(a.narrative.toLowerCase(), keywords);
+        final sb = _keywordScore(b.narrative.toLowerCase(), keywords);
+        if (sb != sa) return sb.compareTo(sa);
+        if (b.significance != a.significance) {
+          return b.significance.compareTo(a.significance);
+        }
+        return b.createdAt.compareTo(a.createdAt);
+      });
+      episodes = pool.take(episodeLimit).toList(growable: false);
+    } else {
+      episodes = await (_db.select(_db.memoryEpisodes)
+            ..where((t) => t.status.equals('active'))
+            ..orderBy([
+              (t) => OrderingTerm.desc(t.significance),
+              (t) => OrderingTerm.desc(t.createdAt),
+            ])
+            ..limit(episodeLimit))
+          .get();
+    }
+
+    // --- Fragments ---
+    final List<MemoryFragment> fragments;
+    if (keywords.isNotEmpty) {
+      // Pull recent pool, score by keyword match, then supplement with recency.
+      final pool = await (_db.select(_db.memoryFragments)
+            ..where((t) => t.status.equals('active'))
+            ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+            ..limit(recentFragmentLimit * 6))
+          .get();
+      pool.sort((a, b) {
+        final sa = _keywordScore(a.content.toLowerCase(), keywords);
+        final sb = _keywordScore(b.content.toLowerCase(), keywords);
+        if (sb != sa) return sb.compareTo(sa);
+        return b.createdAt.compareTo(a.createdAt);
+      });
+      fragments = pool.take(recentFragmentLimit).toList(growable: false);
+    } else {
+      fragments = await (_db.select(_db.memoryFragments)
+            ..where((t) => t.status.equals('active'))
+            ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+            ..limit(recentFragmentLimit))
+          .get();
+    }
+
+    return (episodes: episodes, fragments: fragments);
+  }
+
+  /// Count how many keywords appear in [text].
+  int _keywordScore(String text, List<String> keywords) =>
+      keywords.where(text.contains).length;
+
+  /// Extract search keywords from a query hint.
+  ///
+  /// For space-delimited tokens (English/mixed), takes words ≥2 chars.
+  /// For Chinese text (no spaces), generates CJK bigrams so short fragments
+  /// like "骗" + "女人" score correctly even when the query is a full sentence.
+  List<String> _extractKeywords(String hint) {
+    if (hint.trim().isEmpty) return const [];
+    final result = <String>{};
+    final lower = hint.toLowerCase();
+
+    // Word-level tokens split on whitespace / punctuation.
+    result.addAll(
+      lower
+          .split(RegExp(r'[\s,，。！？!?、；;：:""''\(\)（）【】「」]+'))
+          .where((w) => w.length >= 2),
+    );
+
+    // CJK bigrams — walk adjacent character pairs.
+    for (var i = 0; i < lower.length - 1; i++) {
+      final c1 = lower.codeUnitAt(i);
+      final c2 = lower.codeUnitAt(i + 1);
+      if (_isCjk(c1) && _isCjk(c2)) {
+        result.add(lower.substring(i, i + 2));
+      }
+    }
+
+    return result.toList(growable: false);
+  }
+
+  bool _isCjk(int cp) =>
+      (cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0x3400 && cp <= 0x4DBF);
 }

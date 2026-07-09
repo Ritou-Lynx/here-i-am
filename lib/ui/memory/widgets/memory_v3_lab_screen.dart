@@ -195,19 +195,29 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     });
 
     try {
+      final characterId = await _latestChatCharacterId();
+      if (characterId == null) {
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _lastError = '没有可处理的聊天消息';
+        });
+        return;
+      }
+
       final beforeFragmentCount = await _tableCount('memory_fragments');
       final beforeEpisodeCount = await _tableCount('memory_episodes');
-      final beforeWatermark = await _dreamingWatermark();
+      final beforeWatermark = await _dreamingWatermark(characterId);
       final latestMessageId = await _latestChatMessageId();
 
       final ok = await DreamingSchedulerService.runDailyDreamingFromBackground(
         db: AppDatabase.instance,
-        characterId: 'i',
+        characterId: characterId,
         forceRun: true,
       );
       final afterFragmentCount = await _tableCount('memory_fragments');
       final afterEpisodeCount = await _tableCount('memory_episodes');
-      final afterWatermark = await _dreamingWatermark();
+      final afterWatermark = await _dreamingWatermark(characterId);
       await _loadRecentFragments();
       await _loadRecentEpisodes();
       if (!mounted) return;
@@ -239,11 +249,11 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     return row.read<int>('c');
   }
 
-  Future<int> _dreamingWatermark() async {
+  Future<int> _dreamingWatermark(String characterId) async {
     final row = await (AppDatabase.instance.select(AppDatabase.instance.kvStore)
           ..where((t) =>
               t.bucket.equals('memory_v3.dreaming') &
-              t.key.equals('dreaming.fragment.last_message_id.i')))
+              t.key.equals('dreaming.fragment.last_message_id.$characterId')))
         .getSingleOrNull();
     return int.tryParse(row?.value ?? '') ?? 0;
   }

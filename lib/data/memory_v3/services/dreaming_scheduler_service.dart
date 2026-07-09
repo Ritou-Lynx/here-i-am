@@ -139,9 +139,22 @@ class DreamingSchedulerService {
       );
 
       if (fragResult.isEmpty && fragResult.processedMessageCount == 0) {
-        _logger.info('Daily batch: no new messages to process');
-        await orchestrator.markDailyBatchComplete(characterId);
-        return true;
+        // No new messages — but there may still be active fragments waiting
+        // to be consolidated (e.g. after clearAllEpisodes). Check before
+        // skipping episode consolidation.
+        final activeFragmentCount = await (db.select(db.memoryFragments)
+              ..where((t) => t.status.equals('active')))
+            .get()
+            .then((rows) => rows.length);
+        if (activeFragmentCount == 0) {
+          _logger.info('Daily batch: no new messages and no active fragments');
+          await orchestrator.markDailyBatchComplete(characterId);
+          return true;
+        }
+        _logger.info(
+          'Daily batch: no new messages but $activeFragmentCount active '
+          'fragment(s) pending consolidation — continuing to episode step',
+        );
       }
 
       _logger.info(

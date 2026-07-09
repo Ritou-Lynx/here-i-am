@@ -13,6 +13,7 @@ import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
@@ -263,6 +264,45 @@ class CompanionAgent {
       }
     } else {
       state.systemReminders.remove('memory_v3_cards');
+    }
+    // Inject recent dreaming output (episodes + fragments) as relationship context.
+    if (DreamingOrchestratorServiceV3.isInitialized) {
+      try {
+        final ctx = await DreamingOrchestratorServiceV3.instance
+            .queryRecentDreamingContext(queryHint: queryHint);
+        if (ctx.episodes.isNotEmpty || ctx.fragments.isNotEmpty) {
+          final buf = StringBuffer();
+          buf.writeln('## Dreaming Context (你对用户的后台记忆整理)');
+          buf.writeln('以下内容来自后台 Dreaming 对话分析，代表你已沉淀的关系认知。优先参考。');
+          if (ctx.episodes.isNotEmpty) {
+            buf.writeln();
+            buf.writeln('### 记忆章节');
+            for (final ep in ctx.episodes) {
+              final topic = ep.topicId != null && ep.topicId!.isNotEmpty &&
+                      ep.topicId != '__ungrouped__'
+                  ? ' [${ep.topicId}]'
+                  : '';
+              buf.writeln('- $topic ${ep.narrative}');
+            }
+          }
+          if (ctx.fragments.isNotEmpty) {
+            buf.writeln();
+            buf.writeln('### 活跃碎片');
+            for (final f in ctx.fragments) {
+              final tag = f.isUserTruthCandidate ? ' [user_truth]' : '';
+              buf.writeln('- ${f.content}$tag');
+            }
+          }
+          state.systemReminders['dreaming_context'] = buf.toString();
+        } else {
+          state.systemReminders.remove('dreaming_context');
+        }
+      } catch (e) {
+        _logger.warning('Failed to load dreaming context: $e');
+        state.systemReminders.remove('dreaming_context');
+      }
+    } else {
+      state.systemReminders.remove('dreaming_context');
     }
     state.systemReminders.remove('post_history_instructions');
 

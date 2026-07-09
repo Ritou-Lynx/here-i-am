@@ -387,9 +387,16 @@ void callbackDispatcher() {
           await AppDatabase.init(userId);
         }
         await UserStorage.initL10n();
+        final charRow = await AppDatabase.instance
+            .customSelect(
+              'SELECT character_id FROM persona_chat_messages '
+              'ORDER BY timestamp DESC, id DESC LIMIT 1',
+            )
+            .getSingleOrNull();
+        final characterId = charRow?.read<String>('character_id') ?? 'i';
         final ok = await DreamingSchedulerService.runDailyDreamingFromBackground(
           db: AppDatabase.instance,
-          characterId: 'i',
+          characterId: characterId,
         );
         debugPrint('Dreaming batch: ${ok ? "completed" : "skipped"}');
         return Future.value(ok);
