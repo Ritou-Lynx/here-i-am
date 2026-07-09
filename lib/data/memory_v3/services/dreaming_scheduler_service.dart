@@ -21,10 +21,8 @@ final _logger = getLogger('memory_v3.DreamingSchedulerService');
 
 class DreamingSchedulerService {
   DreamingSchedulerService({required AppDatabase db})
-      : _db = db,
-        _orchestrator = DreamingOrchestratorServiceV3.instance;
+      : _orchestrator = DreamingOrchestratorServiceV3.instance;
 
-  final AppDatabase _db;
   final DreamingOrchestratorServiceV3 _orchestrator;
 
   Timer? _foregroundTickTimer;
@@ -46,13 +44,15 @@ class DreamingSchedulerService {
       final orchestrator = DreamingOrchestratorServiceV3.instance;
       await orchestrator.resolveStaleFragments('i');
     } catch (e, stack) {
-      _logger.warning('Lightweight tick: resolveStaleFragments failed', e, stack);
+      _logger.warning(
+          'Lightweight tick: resolveStaleFragments failed', e, stack);
     }
     try {
       final orchestrator = DreamingOrchestratorServiceV3.instance;
       await orchestrator.syncEntityFragmentCounts();
     } catch (e, stack) {
-      _logger.warning('Lightweight tick: syncEntityFragmentCounts failed', e, stack);
+      _logger.warning(
+          'Lightweight tick: syncEntityFragmentCounts failed', e, stack);
     }
   }
 
@@ -62,7 +62,8 @@ class DreamingSchedulerService {
     _foregroundTickTimer = Timer.periodic(_foregroundTickInterval, (_) {
       _doLightweightTick();
     });
-    _logger.info('Foreground tick started (${_foregroundTickInterval.inMinutes}min)');
+    _logger.info(
+        'Foreground tick started (${_foregroundTickInterval.inMinutes}min)');
   }
 
   /// Stop the periodic lightweight tick (e.g. app backgrounded).
@@ -92,17 +93,18 @@ class DreamingSchedulerService {
   static Future<bool> runDailyDreamingFromBackground({
     required AppDatabase db,
     required String characterId,
+    bool forceRun = false,
   }) async {
     final orchestrator = DreamingOrchestratorServiceV3.instance;
 
     // 1. Already ran today?
-    if (await orchestrator.hasDailyBatchRunToday(characterId)) {
+    if (!forceRun && await orchestrator.hasDailyBatchRunToday(characterId)) {
       _logger.info('Daily batch: already ran today, skipping');
       return false;
     }
 
     // 2. Is user actively chatting?
-    if (await _isUserActive(db)) {
+    if (!forceRun && await _isUserActive(db)) {
       _logger.info('Daily batch: user active, deferring');
       return false;
     }
@@ -113,7 +115,7 @@ class DreamingSchedulerService {
     //    because we don't have battery_plus or connectivity_plus. Instead
     //    we rely on Workmanager's constraint system + the idle-duration
     //    check via KvStore heartbeat.
-    if (!await _hasSufficientIdleTime(db)) {
+    if (!forceRun && !await _hasSufficientIdleTime(db)) {
       _logger.info('Daily batch: insufficient idle time, deferring');
       return false;
     }
@@ -191,13 +193,15 @@ class DreamingSchedulerService {
     try {
       await _orchestrator.resolveStaleFragments('i');
     } catch (e, stack) {
-      _logger.warning('Lightweight tick: resolveStaleFragments failed', e, stack);
+      _logger.warning(
+          'Lightweight tick: resolveStaleFragments failed', e, stack);
     }
 
     try {
       await _orchestrator.syncEntityFragmentCounts();
     } catch (e, stack) {
-      _logger.warning('Lightweight tick: syncEntityFragmentCounts failed', e, stack);
+      _logger.warning(
+          'Lightweight tick: syncEntityFragmentCounts failed', e, stack);
     }
   }
 
@@ -206,7 +210,8 @@ class DreamingSchedulerService {
     try {
       final row = await (db.select(db.kvStore)
             ..where((t) =>
-                t.bucket.equals('memory_v3.dreaming') & t.key.equals('last_user_active')))
+                t.bucket.equals('memory_v3.dreaming') &
+                t.key.equals('last_user_active')))
           .getSingleOrNull();
       if (row == null || row.value == null) return false;
 
@@ -226,7 +231,8 @@ class DreamingSchedulerService {
     try {
       final row = await (db.select(db.kvStore)
             ..where((t) =>
-                t.bucket.equals('memory_v3.dreaming') & t.key.equals('last_user_active')))
+                t.bucket.equals('memory_v3.dreaming') &
+                t.key.equals('last_user_active')))
           .getSingleOrNull();
       if (row == null || row.value == null) {
         // No heartbeat recorded — first run, consider idle enough.
@@ -236,8 +242,8 @@ class DreamingSchedulerService {
       final lastActive = int.tryParse(row.value!);
       if (lastActive == null) return true;
 
-      final idleMinutes = (DateTime.now().millisecondsSinceEpoch - lastActive) /
-          (60 * 1000);
+      final idleMinutes =
+          (DateTime.now().millisecondsSinceEpoch - lastActive) / (60 * 1000);
       // Gate: idle > 30 min OR in preferred night window with idle > 2 hours.
       if (idleMinutes >= 30) return true;
 
@@ -252,5 +258,4 @@ class DreamingSchedulerService {
       return true; // allow on error
     }
   }
-
 }

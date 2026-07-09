@@ -1,8 +1,7 @@
 /// V3 Lab — dev / debug screen for the Memory V3 backend.
 ///
-/// Lets you exercise [RecordOrganizerServiceV3.organizeAndPersist] end-to-end
-/// against the user-configured "Record Organizer" model, list the newest
-/// memory_cards, inspect each card's full V3 fields, and delete cards.
+/// Lets you verify the Memory V3 / Dreaming backend, inspect recent
+/// memory_cards written by real app entry points, and export debug data.
 ///
 /// Intentionally minimal styling — this is a backend test rig, not the
 /// production Memory Review surface. The production UI redesign lives in
@@ -17,7 +16,7 @@ import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
-import 'package:memex/data/services/bad_case_collector.dart';
+import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/query_log_service.dart';
@@ -42,7 +41,6 @@ class MemoryV3LabScreen extends StatefulWidget {
 }
 
 class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
-  final _inputController = TextEditingController();
   final _scrollController = ScrollController();
   bool _busy = false;
   String? _lastError;
@@ -64,7 +62,6 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
 
   @override
   void dispose() {
-    _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -133,72 +130,6 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     );
   }
 
-  void _showBadCases() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => _BadCasesSheet(onChanged: () {}),
-    );
-  }
-
-  Future<void> _organizeAndSave() async {
-    final input = _inputController.text.trim();
-    if (input.isEmpty) {
-      setState(() => _lastError = '空输入');
-      return;
-    }
-    if (!RecordOrganizerServiceV3.isInitialized) {
-      setState(() => _lastError = 'V3 service 未初始化 (memex_router 未跑过 init?)');
-      return;
-    }
-
-    setState(() {
-      _busy = true;
-      _lastError = null;
-      _lastSuccess = null;
-    });
-
-    try {
-      final resources = await UserStorage.getAgentLLMResources(
-        AgentDefinitions.recordOrganizerAgent,
-        defaultClientKey: LLMConfig.defaultClientKey,
-      );
-
-      // Pass recent cards as context so the agent can suggest merges
-      // (V3 § 9.6). We keep the summary short to control tokens.
-      final summaries = await _recentCardSummaries(limit: 20);
-      final entityNames = await _recentActiveEntityNames(limit: 20);
-
-      final result = await RecordOrganizerServiceV3.instance.organizeAndPersist(
-        client: resources.client,
-        modelConfig: resources.modelConfig,
-        source: RecordSource(
-          sourceKind: 'dev_screen',
-          rawInput: input,
-        ),
-        relevantExistingCardSummaries: summaries,
-        recentEntityNames: entityNames,
-      );
-
-      _inputController.clear();
-      await _loadRecent();
-      if (!mounted) return;
-      setState(() {
-        _lastSuccess = result.isEmpty
-            ? '已调用但没有产生卡片'
-            : '已写入 ${result.cardIds.length} 张卡，${result.entityIds.length} 个 entity';
-      });
-    } catch (e, stack) {
-      _logger.warning('organizeAndPersist failed', e, stack);
-      if (!mounted) return;
-      setState(() => _lastError = '失败：$e');
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
-  }
-
   Future<void> _runDreamingFragmentBatch() async {
     if (!DreamingOrchestratorServiceV3.isInitialized) {
       setState(() => _lastError = 'Dreaming service 未初始化');
@@ -249,6 +180,72 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         setState(() => _busy = false);
       }
     }
+  }
+
+  Future<void> _runDailyDreamingBatchNow() async {
+    if (!DreamingOrchestratorServiceV3.isInitialized) {
+      setState(() => _lastError = 'Dreaming service 未初始化');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+
+    try {
+      final beforeFragmentCount = await _tableCount('memory_fragments');
+      final beforeEpisodeCount = await _tableCount('memory_episodes');
+      final beforeWatermark = await _dreamingWatermark();
+      final latestMessageId = await _latestChatMessageId();
+
+      final ok = await DreamingSchedulerService.runDailyDreamingFromBackground(
+        db: AppDatabase.instance,
+        characterId: 'i',
+        forceRun: true,
+      );
+      final afterFragmentCount = await _tableCount('memory_fragments');
+      final afterEpisodeCount = await _tableCount('memory_episodes');
+      final afterWatermark = await _dreamingWatermark();
+      await _loadRecentFragments();
+      await _loadRecentEpisodes();
+      if (!mounted) return;
+      final processed = latestMessageId == null
+          ? 0
+          : (latestMessageId - beforeWatermark).clamp(0, latestMessageId);
+      final fragmentDelta = afterFragmentCount - beforeFragmentCount;
+      final episodeDelta = afterEpisodeCount - beforeEpisodeCount;
+      setState(() {
+        _lastSuccess = ok
+            ? 'Daily Dreaming 已跑完：处理约 $processed 条新聊天'
+                '（水位线 $beforeWatermark → $afterWatermark）\n'
+                '新增 $fragmentDelta 个 fragment，新增 $episodeDelta 个 episode'
+            : 'Daily Dreaming 未执行；请查看日志确认跳过原因';
+      });
+    } catch (e, stack) {
+      _logger.warning('runDailyDreamingBatchNow failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = 'Daily Dreaming 失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<int> _tableCount(String tableName) async {
+    final row = await AppDatabase.instance
+        .customSelect('SELECT COUNT(*) AS c FROM $tableName')
+        .getSingle();
+    return row.read<int>('c');
+  }
+
+  Future<int> _dreamingWatermark() async {
+    final row = await (AppDatabase.instance.select(AppDatabase.instance.kvStore)
+          ..where((t) =>
+              t.bucket.equals('memory_v3.dreaming') &
+              t.key.equals('dreaming.fragment.last_message_id.i')))
+        .getSingleOrNull();
+    return int.tryParse(row?.value ?? '') ?? 0;
   }
 
   Future<void> _clearAllFragments() async {
@@ -424,37 +421,15 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     return rows.isEmpty ? null : rows.single.characterId;
   }
 
-  /// Compact one-line summaries of the most recent N cards, for feeding to
-  /// the Record Organizer as merge-suggestion context.
-  Future<List<String>> _recentCardSummaries({required int limit}) async {
+  Future<int?> _latestChatMessageId() async {
     final db = AppDatabase.instance;
-    final rows = await (db.select(db.memoryCards)
-          ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)])
-          ..limit(limit))
+    final rows = await (db.select(db.personaChatMessages)
+          ..where((t) => t.messageType.equals('chat'))
+          ..orderBy([(t) => drift.OrderingTerm.desc(t.id)])
+          ..limit(1))
         .get();
-    return rows
-        .map((c) =>
-            '[${c.id.substring(0, 8)}] ${c.type} · ${c.dropletLabel} · ${_truncate(c.retrievalText, 60)}')
-        .toList(growable: false);
+    return rows.isEmpty ? null : rows.single.id;
   }
-
-  /// Names of recently mentioned active entities, for the agent to prefer
-  /// reusing names instead of inventing new ones.
-  Future<List<String>> _recentActiveEntityNames({required int limit}) async {
-    final db = AppDatabase.instance;
-    final rows = await (db.select(db.memoryEntities)
-          ..where((t) => t.status.equals('active'))
-          ..orderBy([
-            (t) => drift.OrderingTerm.desc(t.lastMentionedAt),
-            (t) => drift.OrderingTerm.desc(t.firstMentionedAt),
-          ])
-          ..limit(limit))
-        .get();
-    return rows.map((e) => e.name).toList(growable: false);
-  }
-
-  String _truncate(String text, int max) =>
-      text.length <= max ? text : '${text.substring(0, max)}…';
 
   Future<void> _deleteCard(MemoryCard card) async {
     final confirmed = await showDialog<bool>(
@@ -778,11 +753,6 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             onPressed: _showQueryLog,
             tooltip: '查询日志（零结果: $_zeroResultCount）',
           ),
-          IconButton(
-            icon: const Icon(Icons.bookmark_outline),
-            onPressed: _showBadCases,
-            tooltip: 'Bad cases 收藏',
-          ),
         ],
       ),
       body: Column(
@@ -792,59 +762,64 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: _inputController,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: '输入要记录的内容（中文）',
-                    hintText: '例：今天午饭跟小红吃了麻辣烫花了 78',
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.zero,
+                  initiallyExpanded: true,
+                  title: const Text('Dreaming 调试'),
+                  subtitle: Text(
+                    'fragments ${_recentFragments.length} · episodes ${_recentEpisodes.length}',
+                    style: const TextStyle(fontSize: 12),
                   ),
-                ),
-                const SizedBox(height: 8),
-                FilledButton.icon(
-                  onPressed: _busy ? null : _organizeAndSave,
-                  icon: _busy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save),
-                  label: Text(_busy ? '整理中…' : 'organize + persist'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: _busy ? null : _runDreamingFragmentBatch,
-                  icon: const Icon(Icons.nightlight_round),
-                  label: const Text('run Dreaming fragment batch'),
-                ),
-                const SizedBox(height: 4),
-                OutlinedButton.icon(
-                  onPressed: _busy ? null : _clearAllFragments,
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  label: const Text('清空所有 fragments',
-                      style: TextStyle(color: Colors.red)),
-                ),
-                const SizedBox(height: 4),
-                FilledButton.icon(
-                  onPressed: _busy ? null : _runEpisodeConsolidation,
-                  icon: _busy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome),
-                  label: Text(_busy ? '凝结中…' : 'run Episode consolidation'),
-                ),
-                const SizedBox(height: 4),
-                OutlinedButton.icon(
-                  onPressed: _busy ? null : _clearAllEpisodes,
-                  icon: const Icon(Icons.delete_sweep_outlined,
-                      color: Colors.red),
-                  label: const Text('clear all episodes',
-                      style: TextStyle(color: Colors.red)),
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: _busy ? null : _runDailyDreamingBatchNow,
+                            icon: _busy
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.bedtime_outlined),
+                            label: Text(
+                              _busy ? 'running…' : 'run daily batch now',
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _runDreamingFragmentBatch,
+                            icon: const Icon(Icons.nightlight_round),
+                            label: const Text('fragments only'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _runEpisodeConsolidation,
+                            icon: const Icon(Icons.auto_awesome),
+                            label: const Text('episodes only'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _clearAllEpisodes,
+                            icon: const Icon(Icons.delete_sweep_outlined,
+                                color: Colors.red),
+                            label: const Text('clear episodes',
+                                style: TextStyle(color: Colors.red)),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _clearAllFragments,
+                            icon: const Icon(Icons.delete_outline,
+                                color: Colors.red),
+                            label: const Text('clear fragments',
+                                style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 if (_lastError != null)
                   Padding(
@@ -896,52 +871,64 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             child: ListView(
               controller: _scrollController,
               children: [
-                if (_recent.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: Text('（暂无 memory_cards）')),
-                  )
-                else
-                  ..._recent.map(
-                    (card) => _CardListTile(
-                      card: card,
-                      onTap: () => _showCardDetail(card),
-                      onLongPress: () => _deleteCard(card),
-                      onPreview: () => _previewCard(card),
-                    ),
-                  ),
-                const Divider(height: 1),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Text('最近 Dreaming fragments',
+                ExpansionTile(
+                  title: Text('最近 memory_cards',
                       style: Theme.of(context).textTheme.titleSmall),
+                  subtitle: Text('${_recent.length} 张 · 来自真实记录入口',
+                      style: const TextStyle(fontSize: 11)),
+                  children: _recent.isEmpty
+                      ? const [
+                          Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: Text('（暂无 memory_cards）')),
+                          ),
+                        ]
+                      : _recent
+                          .map(
+                            (card) => _CardListTile(
+                              card: card,
+                              onTap: () => _showCardDetail(card),
+                              onLongPress: () => _deleteCard(card),
+                              onPreview: () => _previewCard(card),
+                            ),
+                          )
+                          .toList(growable: false),
                 ),
-                if (_recentFragments.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: Text('（暂无 fragments）')),
-                  )
-                else
-                  ..._recentFragments.map(
-                    (fragment) => _FragmentListTile(fragment: fragment),
-                  ),
                 const Divider(height: 1),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Text('最近 Episodes',
+                ExpansionTile(
+                  title: Text('最近 Dreaming fragments',
                       style: Theme.of(context).textTheme.titleSmall),
+                  subtitle: Text('${_recentFragments.length} 条',
+                      style: const TextStyle(fontSize: 11)),
+                  children: _recentFragments.isEmpty
+                      ? const [
+                          Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: Text('（暂无 fragments）')),
+                          ),
+                        ]
+                      : _recentFragments
+                          .map((fragment) =>
+                              _FragmentListTile(fragment: fragment))
+                          .toList(growable: false),
                 ),
-                if (_recentEpisodes.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: Text('（暂无 episodes）')),
-                  )
-                else
-                  ..._recentEpisodes.map(
-                    (ep) => _EpisodeListTile(episode: ep),
-                  ),
+                const Divider(height: 1),
+                ExpansionTile(
+                  title: Text('最近 Episodes',
+                      style: Theme.of(context).textTheme.titleSmall),
+                  subtitle: Text('${_recentEpisodes.length} 条',
+                      style: const TextStyle(fontSize: 11)),
+                  children: _recentEpisodes.isEmpty
+                      ? const [
+                          Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: Text('（暂无 episodes）')),
+                          ),
+                        ]
+                      : _recentEpisodes
+                          .map((ep) => _EpisodeListTile(episode: ep))
+                          .toList(growable: false),
+                ),
               ],
             ),
           ),
@@ -1158,193 +1145,6 @@ class _CardListTile extends StatelessWidget {
     if (valence > 0.3) return Colors.orange.shade300;
     if (valence < -0.3) return Colors.blueGrey.shade400;
     return Colors.amber.shade200;
-  }
-}
-
-/// Bottom sheet that displays the Memory V3 query log for Phase 3 Lite+
-/// bad-case accumulation.
-class _BadCasesSheet extends StatefulWidget {
-  const _BadCasesSheet({required this.onChanged});
-
-  final VoidCallback onChanged;
-
-  @override
-  State<_BadCasesSheet> createState() => _BadCasesSheetState();
-}
-
-class _BadCasesSheetState extends State<_BadCasesSheet> {
-  List<BadCaseEntry> _entries = const [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final entries = await BadCaseCollector.readAll();
-    if (!mounted) return;
-    setState(() {
-      _entries = entries;
-      _loading = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.3,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (ctx, scrollController) => Column(
-        children: [
-          Center(
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Row(
-              children: [
-                Text('Bad Cases (${_entries.length})',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
-                if (_entries.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    onPressed: () => _confirmClear(context),
-                    tooltip: '清空',
-                  ),
-              ],
-            ),
-          ),
-          const Divider(),
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _entries.isEmpty
-                    ? const Center(
-                        child: Text('暂无收藏',
-                            style: TextStyle(color: Colors.black45)))
-                    : ListView.separated(
-                        controller: scrollController,
-                        itemCount: _entries.length,
-                        separatorBuilder: (_, __) =>
-                            const Divider(height: 1, indent: 16),
-                        itemBuilder: (ctx, i) => _BadCaseTile(
-                          entry: _entries[i],
-                          index: i,
-                          onDelete: () async {
-                            await BadCaseCollector.delete(i);
-                            await _load();
-                          },
-                        ),
-                      ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmClear(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('清空所有 Bad Cases？'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await BadCaseCollector.clear();
-              await _load();
-            },
-            child: const Text('清空', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BadCaseTile extends StatelessWidget {
-  const _BadCaseTile({
-    required this.entry,
-    required this.index,
-    required this.onDelete,
-  });
-
-  final BadCaseEntry entry;
-  final int index;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final time = entry.collectedAt;
-    final timeStr =
-        '${time.month}/${time.day} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-    return ListTile(
-      dense: true,
-      leading: IconButton(
-        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-        onPressed: onDelete,
-      ),
-      title: Text(
-        entry.targetContent,
-        maxLines: 4,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 13),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 4),
-          Text('#${entry.targetMessageId} · $timeStr',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-          if (entry.contextBefore.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            ...entry.contextBefore.map((c) => Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(c,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(fontSize: 10, color: Colors.black38)),
-                )),
-          ],
-          if (entry.contextBefore.isNotEmpty ||
-              entry.contextAfter.isNotEmpty) ...[
-            const Divider(height: 8),
-            Text(entry.targetContent,
-                style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.red,
-                    fontWeight: FontWeight.w600)),
-          ],
-          if (entry.contextAfter.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            ...entry.contextAfter.map((c) => Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(c,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(fontSize: 10, color: Colors.black38)),
-                )),
-          ],
-        ],
-      ),
-    );
   }
 }
 
