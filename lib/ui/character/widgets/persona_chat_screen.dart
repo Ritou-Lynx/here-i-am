@@ -37,7 +37,6 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/media_input_attachment.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
-import 'package:memex/db/app_database.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/reading/reading_share_parser.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
@@ -47,6 +46,7 @@ import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
+import 'package:memex/ui/core/widgets/here_iam_glass_surface.dart';
 import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -3196,11 +3196,11 @@ only after you have written the goodbye you want the user to hear.''',
             GestureDetector(
               onTap: () => context.push(AppRoutes.aboutI),
               child: _FloatingGlassCircle(
-                size: 44,
+                size: 50,
                 child: CharacterAvatar(
                   avatar: character.avatar,
                   name: character.name,
-                  size: 41,
+                  size: 42,
                   backgroundColor: _personaPanelSoft,
                 ),
               ),
@@ -5267,29 +5267,12 @@ class _FloatingGlassCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return HereIamGlassSurface(
+      level: HereIamGlassLevel.hero,
+      shape: BoxShape.circle,
       width: size,
       height: size,
-      padding: const EdgeInsets.all(1.5),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: _personaAccent.withValues(alpha: 0.5),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.52),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
-          ),
-          BoxShadow(
-            color: _personaAccent.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: Offset.zero,
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.all(4),
       child: child,
     );
   }
@@ -5302,25 +5285,14 @@ class _FrostedCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 38,
-      height: 38,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: _personaPanel.withValues(alpha: 0.62),
-        border: Border.all(color: _personaAccent.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.34),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+    return HereIamGlassSurface(
+      level: HereIamGlassLevel.raised,
+      shape: BoxShape.circle,
+      width: 40,
+      height: 40,
       child: IconTheme(
         data: IconThemeData(color: _personaText),
-        child: child,
+        child: Center(child: child),
       ),
     );
   }
@@ -5345,32 +5317,17 @@ class _HeaderActionButton extends StatelessWidget {
       message: label,
       child: GestureDetector(
         onTap: onTap,
-        child: Container(
-          width: 38,
-          height: 38,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: active
-                ? _personaAccent.withValues(alpha: 0.18)
-                : _personaPanel.withValues(alpha: 0.68),
-            border: Border.all(
-              color: active
-                  ? _personaAccent.withValues(alpha: 0.5)
-                  : _personaAccent.withValues(alpha: 0.22),
+        child: HereIamGlassSurface(
+          level: active ? HereIamGlassLevel.hero : HereIamGlassLevel.raised,
+          shape: BoxShape.circle,
+          width: 40,
+          height: 40,
+          child: Center(
+            child: Icon(
+              icon,
+              size: 18,
+              color: active ? _personaAccent : _personaText,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.34),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Icon(
-            icon,
-            size: 18,
-            color: active ? _personaAccent : _personaText,
           ),
         ),
       ),
@@ -5793,70 +5750,12 @@ class _FloatingGlassInputCapsule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(22);
-
-    return Container(
-      constraints: const BoxConstraints(minHeight: 56),
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.48 : 0.24),
-            blurRadius: 48,
-            offset: const Offset(0, 20),
-          ),
-          BoxShadow(
-            color: const Color(0xFFC0646E).withValues(alpha: 0.10),
-            blurRadius: 32,
-            offset: Offset.zero,
-          ),
-          BoxShadow(
-            color: const Color(0xFFFFFFFF).withValues(alpha: 0.04),
-            blurRadius: 2,
-            offset: const Offset(0, -1),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: RepaintBoundary(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF241319).withValues(alpha: 0.42),
-                    ),
-                  ),
-                ),
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          const Color(0xFFFFECDD).withValues(alpha: 0.045),
-                          const Color(0xFFC08E96).withValues(alpha: 0.085),
-                          const Color(0xFF4D222B).withValues(alpha: 0.10),
-                          const Color(0xFF120B0E).withValues(alpha: 0.18),
-                        ],
-                        stops: const [0, 0.42, 0.74, 1],
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-                  child: child,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return HereIamGlassSurface(
+      level: HereIamGlassLevel.raised,
+      borderRadius: BorderRadius.circular(27),
+      constraints: const BoxConstraints(minHeight: 66),
+      padding: const EdgeInsets.fromLTRB(9, 7, 9, 7),
+      child: child,
     );
   }
 }

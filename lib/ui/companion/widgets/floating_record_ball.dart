@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -36,7 +35,7 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
   double _right = 16;
   double _bottom = 110;
   static const double _controlWidth = 72;
-  static const double _controlHeight = 62;
+  static const double _controlHeight = 68;
   // Track drag so we can skip _showQuickSave after a real drag gesture
   bool _dragging = false;
 
@@ -120,7 +119,6 @@ class _BallWidgetState extends State<_BallWidget>
     return AnimatedBuilder(
       animation: _breathController,
       builder: (context, child) {
-        final phase = _breathController.value;
         return Transform.scale(
           scale: _breath.value,
           child: SizedBox(
@@ -131,32 +129,32 @@ class _BallWidgetState extends State<_BallWidget>
               child: ClipPath(
                 clipper: const _DropletClipper(),
                 child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                  filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
                   child: Stack(
                     children: [
                       Positioned.fill(
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             gradient: RadialGradient(
-                              center: const Alignment(-0.18, -0.34),
-                              radius: 1.08,
+                              center: const Alignment(-0.24, -0.38),
+                              radius: 1.12,
                               colors: [
-                                const Color(0xFFFFECDD)
-                                    .withValues(alpha: 0.075),
-                                const Color(0xFF74464B).withValues(alpha: 0.30),
-                                const Color(0xFF3A2123).withValues(alpha: 0.70),
-                                const Color(0xFF090608).withValues(alpha: 0.92),
+                                const Color(0xFFFFECDD).withValues(alpha: 0.13),
+                                const Color(
+                                  0xFFFFC4B5,
+                                ).withValues(alpha: 0.065),
+                                const Color(0xFF74464B).withValues(alpha: 0.34),
+                                const Color(0xFF2A1219).withValues(alpha: 0.76),
+                                const Color(0xFF080406).withValues(alpha: 0.94),
                               ],
-                              stops: const [0, 0.27, 0.66, 1],
+                              stops: const [0, 0.24, 0.48, 0.78, 1],
                             ),
                           ),
                         ),
                       ),
-                      Positioned.fill(
+                      const Positioned.fill(
                         child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _DropletLiquidPainter(phase),
-                          ),
+                          child: CustomPaint(painter: _DropletLiquidPainter()),
                         ),
                       ),
                       Center(
@@ -225,23 +223,20 @@ class _DropletPlusMark extends StatelessWidget {
 }
 
 class _DropletLiquidPainter extends CustomPainter {
-  const _DropletLiquidPainter(this.phase);
-
-  final double phase;
+  const _DropletLiquidPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
-    final shimmer = (math.sin(phase * math.pi * 2) + 1) / 2;
 
     final lensWash = Paint()
       ..shader = RadialGradient(
-        center: Alignment(-0.34 + shimmer * 0.08, -0.42 + shimmer * 0.06),
+        center: const Alignment(-0.34, -0.42),
         radius: 0.92,
         colors: [
-          const Color(0xFFFFECDD).withValues(alpha: 0.10),
-          const Color(0xFFFFC6B5).withValues(alpha: 0.04),
+          const Color(0xFFFFECDD).withValues(alpha: 0.16),
+          const Color(0xFFFFC6B5).withValues(alpha: 0.07),
           Colors.transparent,
         ],
         stops: const [0, 0.42, 1],
@@ -249,7 +244,7 @@ class _DropletLiquidPainter extends CustomPainter {
     canvas.drawRect(Offset.zero & size, lensWash);
 
     final upperOval = Rect.fromLTWH(
-      w * (0.09 + shimmer * 0.015),
+      w * 0.09,
       h * 0.06,
       w * 0.54,
       h * 0.28,
@@ -265,8 +260,8 @@ class _DropletLiquidPainter extends CustomPainter {
           center: const Alignment(-0.38, -0.35),
           radius: 0.9,
           colors: [
-            const Color(0xFFFFF6EF).withValues(alpha: 0.14),
-            const Color(0xFFFFC6B5).withValues(alpha: 0.04),
+            const Color(0xFFFFF6EF).withValues(alpha: 0.22),
+            const Color(0xFFFFC6B5).withValues(alpha: 0.06),
             Colors.transparent,
           ],
           stops: const [0, 0.36, 1],
@@ -278,7 +273,7 @@ class _DropletLiquidPainter extends CustomPainter {
       ..moveTo(w * 0.26, h * 0.23)
       ..cubicTo(
         w * 0.40,
-        h * (0.13 + shimmer * 0.012),
+        h * 0.13,
         w * 0.58,
         h * 0.15,
         w * 0.70,
@@ -288,19 +283,19 @@ class _DropletLiquidPainter extends CustomPainter {
       crescent,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 6
+        ..strokeWidth = 7
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFFFECDD).withValues(alpha: 0.024)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+        ..color = const Color(0xFFFFECDD).withValues(alpha: 0.018)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
     );
     canvas.drawPath(
       crescent,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.7
+        ..strokeWidth = 0.5
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFFFECDD).withValues(alpha: 0.038)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
+        ..color = const Color(0xFFFFECDD).withValues(alpha: 0.024)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
     );
 
     final lowerGlow = Rect.fromLTWH(w * 0.50, h * 0.54, w * 0.42, h * 0.34);
@@ -308,11 +303,11 @@ class _DropletLiquidPainter extends CustomPainter {
       lowerGlow,
       Paint()
         ..shader = RadialGradient(
-          center: Alignment(0.34 - shimmer * 0.06, 0.30),
+          center: const Alignment(0.34, 0.30),
           radius: 0.88,
           colors: [
-            const Color(0xFFC0646E).withValues(alpha: 0.15),
-            const Color(0xFFFFC6B5).withValues(alpha: 0.045),
+            const Color(0xFFC0646E).withValues(alpha: 0.20),
+            const Color(0xFFFFC6B5).withValues(alpha: 0.06),
             Colors.transparent,
           ],
           stops: const [0, 0.45, 1],
@@ -327,17 +322,22 @@ class _DropletLiquidPainter extends CustomPainter {
           center: const Alignment(-0.15, 0.4),
           radius: 0.9,
           colors: [
-            Colors.black.withValues(alpha: 0.12),
+            Colors.black.withValues(alpha: 0.20),
             Colors.transparent,
           ],
         ).createShader(depth),
     );
+
+    final rim = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..color = const Color(0xFFFFECDD).withValues(alpha: 0.055)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6);
+    canvas.drawPath(_dropletPath(size).shift(const Offset(0, 0.4)), rim);
   }
 
   @override
-  bool shouldRepaint(covariant _DropletLiquidPainter oldDelegate) {
-    return oldDelegate.phase != phase;
-  }
+  bool shouldRepaint(covariant _DropletLiquidPainter oldDelegate) => false;
 }
 
 class _DropletClipper extends CustomClipper<Path> {
@@ -347,7 +347,7 @@ class _DropletClipper extends CustomClipper<Path> {
   Path getClip(Size size) => _dropletPath(size);
 
   @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+  bool shouldReclip(covariant _DropletClipper oldClipper) => false;
 }
 
 class _DropletShadowPainter extends CustomPainter {
@@ -357,23 +357,26 @@ class _DropletShadowPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final path = _dropletPath(size).shift(const Offset(0, 1));
     canvas
-      ..drawShadow(path, Colors.black.withValues(alpha: 0.38), 14, true)
+      ..drawShadow(path, Colors.black.withValues(alpha: 0.46), 18, true)
       ..drawShadow(
         path,
-        const Color(0xFFD36F7E).withValues(alpha: 0.20),
-        18,
+        const Color(0xFFD36F7E).withValues(alpha: 0.24),
+        24,
         true,
       );
 
     final highlight = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.9
-      ..color = const Color(0xFFEECDBF).withValues(alpha: 0.12);
-    canvas.drawPath(_dropletPath(size).shift(const Offset(0, 0.5)), highlight);
+      ..color = const Color(0xFFEECDBF).withValues(alpha: 0.15);
+    canvas.drawPath(
+      _dropletPath(size).shift(const Offset(0, 0.5)),
+      highlight,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DropletShadowPainter oldDelegate) => false;
 }
 
 Path _dropletPath(Size size) {
@@ -381,10 +384,38 @@ Path _dropletPath(Size size) {
   final h = size.height;
   return Path()
     ..moveTo(w * 0.40, h * 0.07)
-    ..cubicTo(w * 0.63, h * 0.00, w * 0.92, h * 0.15, w * 0.94, h * 0.45)
-    ..cubicTo(w * 0.96, h * 0.75, w * 0.76, h * 0.99, w * 0.48, h * 0.97)
-    ..cubicTo(w * 0.20, h * 0.95, w * 0.03, h * 0.72, w * 0.08, h * 0.47)
-    ..cubicTo(w * 0.12, h * 0.24, w * 0.23, h * 0.12, w * 0.40, h * 0.07)
+    ..cubicTo(
+      w * 0.63,
+      h * 0.00,
+      w * 0.92,
+      h * 0.15,
+      w * 0.94,
+      h * 0.45,
+    )
+    ..cubicTo(
+      w * 0.96,
+      h * 0.75,
+      w * 0.76,
+      h * 0.99,
+      w * 0.48,
+      h * 0.97,
+    )
+    ..cubicTo(
+      w * 0.20,
+      h * 0.95,
+      w * 0.03,
+      h * 0.72,
+      w * 0.08,
+      h * 0.47,
+    )
+    ..cubicTo(
+      w * 0.12,
+      h * 0.24,
+      w * 0.23,
+      h * 0.12,
+      w * 0.40,
+      h * 0.07,
+    )
     ..close();
 }
 

@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>暮雨玫瑰 Chat 四件套 Liquid Glass v2</title>
+  <style>
+    :root {
+      --ink: rgba(248, 241, 239, 0.94);
+      --muted: rgba(248, 241, 239, 0.58);
+      --dim: rgba(248, 241, 239, 0.40);
+      --rose: rgba(202, 105, 118, 0.42);
+      --rose-hot: rgba(255, 172, 158, 0.42);
+      --copper: rgba(255, 207, 187, 0.36);
+      --wine: rgba(34, 16, 22, 0.70);
+      --deep: rgba(9, 4, 7, 0.82);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Inter, "SF Pro Text", "Microsoft YaHei", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 17% 0%, rgba(255, 190, 170, 0.16), transparent 31%),
+        radial-gradient(circle at 80% 18%, rgba(180, 74, 96, 0.16), transparent 29%),
+        linear-gradient(180deg, rgba(9, 5, 7, 0.10), rgba(9, 5, 7, 0.88)),
+        url("雨夜玻璃.png") center / cover fixed,
+        #10070b;
+    }
+
+    svg.defs {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+    }
+
+    .page {
+      width: min(1420px, calc(100vw - 44px));
+      margin: 0 auto;
+      padding: 34px 0 54px;
+    }
+
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 30px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.18;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .note {
+      max-width: 890px;
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .scope {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      min-width: 330px;
+    }
+
+    .scope span {
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: rgba(255, 236, 221, 0.82);
+      font-size: 12px;
+      background: rgba(32, 15, 21, 0.52);
+      border: 1px solid rgba(255, 236, 221, 0.09);
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: minmax(390px, 470px) minmax(0, 1fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .phone {
+      position: sticky;
+      top: 24px;
+      height: 780px;
+      overflow: hidden;
+      border-radius: 40px;
+      background:
+        linear-gradient(180deg, rgba(10, 5, 8, 0.06), rgba(10, 5, 8, 0.48)),
+        url("雨夜玻璃.png") center / cover,
+        #170b10;
+      box-shadow:
+        0 42px 96px rgba(0, 0, 0, 0.52),
+        inset 0 0 0 1px rgba(255, 236, 221, 0.08);
+      isolation: isolate;
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(circle at 68% 24%, rgba(255, 148, 126, 0.18), transparent 18%),
+        radial-gradient(circle at 44% 70%, rgba(255, 198, 181, 0.12), transparent 25%),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.50));
+      pointer-events: none;
+    }
+
+    .phone::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(255, 236, 221, 0.045), transparent 16%, transparent 84%, rgba(0, 0, 0, 0.24)),
+        linear-gradient(90deg, rgba(255,255,255,0.018), transparent 20%, transparent 82%, rgba(255,255,255,0.016));
+    }
+
+    .status {
+      position: absolute;
+      z-index: 3;
+      top: 14px;
+      left: 24px;
+      right: 24px;
+      display: flex;
+      justify-content: space-between;
+      color: rgba(255, 248, 245, 0.88);
+      font-size: 13px;
+      font-weight: 620;
+    }
+
+    .header-row {
+      position: absolute;
+      z-index: 6;
+      top: 54px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar-lens {
+      --r: 50%;
+      --filter: url(#lensHero);
+      width: 62px;
+      height: 62px;
+      padding: 5px;
+      border-radius: 50%;
+    }
+
+    .avatar-core {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: rgba(255, 238, 232, 0.96);
+      font-size: 22px;
+      font-weight: 700;
+      background:
+        radial-gradient(circle at 36% 20%, rgba(255, 230, 218, 0.26), transparent 32%),
+        linear-gradient(145deg, rgba(118, 52, 61, 0.74), rgba(29, 13, 18, 0.88));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.17),
+        inset 0 -10px 18px rgba(0, 0, 0, 0.28);
+    }
+
+    .name-block {
+      line-height: 1.2;
+      text-shadow: 0 2px 16px rgba(0, 0, 0, 0.48);
+    }
+
+    .name-block b {
+      display: block;
+      font-size: 16px;
+      font-weight: 660;
+    }
+
+    .name-block span {
+      color: rgba(255, 236, 221, 0.52);
+      font-size: 11px;
+    }
+
+    .spacer { flex: 1; }
+
+    .more-lens {
+      --r: 50%;
+      --filter: url(#lensButton);
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+    }
+
+    .dots {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .dots i {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: rgba(255, 238, 232, 0.88);
+      box-shadow: 0 0 10px rgba(255, 212, 200, 0.25);
+    }
+
+    .ambient-messages {
+      position: absolute;
+      z-index: 2;
+      inset: 0;
+      padding: 164px 18px 176px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 13px;
+      opacity: 0.64;
+    }
+
+    .bubble {
+      max-width: 82%;
+      padding: 13px 15px;
+      border-radius: 24px;
+      color: rgba(255, 247, 244, 0.68);
+      font-size: 13px;
+      line-height: 1.55;
+      background:
+        linear-gradient(145deg, rgba(255, 236, 221, 0.07), rgba(255, 236, 221, 0.028), rgba(0, 0, 0, 0.10)),
+        rgba(34, 17, 23, 0.26);
+      border: 1px solid rgba(255, 236, 221, 0.04);
+      box-shadow:
+        0 14px 34px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.035);
+      backdrop-filter: blur(16px) saturate(110%);
+      -webkit-backdrop-filter: blur(16px) saturate(110%);
+    }
+
+    .bubble.user {
+      align-self: flex-end;
+      border-bottom-right-radius: 10px;
+      background:
+        linear-gradient(145deg, rgba(255, 193, 178, 0.075), rgba(96, 40, 49, 0.13)),
+        rgba(109, 46, 54, 0.22);
+    }
+
+    .bubble.role {
+      align-self: flex-start;
+      border-bottom-left-radius: 10px;
+    }
+
+    .composer-fake {
+      --r: 27px;
+      position: absolute;
+      z-index: 6;
+      left: 28px;
+      right: 28px;
+      bottom: 24px;
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 12px 13px 12px 15px;
+      border-radius: 27px;
+    }
+
+    .add {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: rgba(255, 238, 231, 0.84);
+      font-size: 25px;
+      line-height: 1;
+      font-weight: 340;
+      background: rgba(255, 236, 221, 0.045);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .placeholder {
+      flex: 1;
+      min-width: 0;
+      color: rgba(255, 241, 236, 0.52);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .bars {
+      width: 28px;
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      gap: 3px;
+    }
+
+    .bars i {
+      width: 2px;
+      border-radius: 999px;
+      background: rgba(255, 238, 232, 0.74);
+    }
+
+    .bars i:nth-child(1) { height: 9px; }
+    .bars i:nth-child(2) { height: 16px; }
+    .bars i:nth-child(3) { height: 12px; }
+    .bars i:nth-child(4) { height: 18px; }
+
+    .mic {
+      position: relative;
+      width: 26px;
+      height: 28px;
+      flex: none;
+    }
+
+    .mic::before {
+      content: "";
+      position: absolute;
+      left: 8px;
+      top: 4px;
+      width: 10px;
+      height: 15px;
+      border: 2px solid rgba(255, 238, 232, 0.74);
+      border-radius: 999px;
+    }
+
+    .mic::after {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 13px;
+      width: 16px;
+      height: 10px;
+      border: 2px solid rgba(255, 238, 232, 0.74);
+      border-top: 0;
+      border-radius: 0 0 999px 999px;
+    }
+
+    .record-orb {
+      --r: 54% 46% 53% 47% / 45% 44% 56% 55%;
+      --filter: url(#lensOrb);
+      position: absolute;
+      z-index: 7;
+      right: 24px;
+      bottom: 104px;
+      width: 72px;
+      height: 68px;
+      border-radius: var(--r);
+      transform: rotate(-6deg);
+      display: grid;
+      place-items: center;
+      animation: jelly 4.8s ease-in-out infinite;
+    }
+
+    .record-orb b {
+      position: relative;
+      z-index: 3;
+      color: rgba(255, 226, 216, 0.88);
+      font-size: 38px;
+      font-weight: 300;
+      line-height: 1;
+      transform: rotate(6deg) translateY(-1px);
+      text-shadow: 0 1px 8px rgba(255, 206, 190, 0.18);
+    }
+
+    .lens {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--r, 999px);
+      background: rgba(24, 12, 17, 0.36);
+      border: 1px solid rgba(255, 236, 221, 0.12);
+      box-shadow:
+        0 26px 52px rgba(0, 0, 0, 0.48),
+        0 0 34px rgba(201, 103, 116, 0.18),
+        inset 0 1px 0 rgba(255, 248, 244, 0.12),
+        inset 0 -15px 26px rgba(0, 0, 0, 0.30);
+      backdrop-filter: blur(7px) saturate(140%);
+      -webkit-backdrop-filter: blur(7px) saturate(140%);
+    }
+
+    .lens::before {
+      content: "";
+      position: absolute;
+      inset: -18%;
+      z-index: 0;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.12)),
+        url("雨夜玻璃.png") center / cover fixed;
+      filter: var(--filter) saturate(1.38) contrast(1.08) brightness(1.06);
+      opacity: 0.72;
+      transform: scale(1.08);
+      pointer-events: none;
+    }
+
+    .lens::after {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      z-index: 1;
+      border-radius: inherit;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 27% 18%, rgba(255, 244, 239, 0.28), transparent 16%),
+        radial-gradient(circle at 74% 78%, rgba(0, 0, 0, 0.22), transparent 34%),
+        linear-gradient(140deg, rgba(255, 236, 221, 0.12), transparent 45%, rgba(0,0,0,0.16));
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 236, 221, 0.065),
+        inset 10px 12px 18px rgba(255, 236, 221, 0.045),
+        inset -16px -18px 26px rgba(0,0,0,0.20);
+    }
+
+    .lens > * {
+      position: relative;
+      z-index: 2;
+    }
+
+    .fake-glass {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--r, 24px);
+      background:
+        radial-gradient(ellipse at 18% 0%, rgba(255, 236, 221, 0.16), transparent 34%),
+        radial-gradient(ellipse at 88% 88%, rgba(0, 0, 0, 0.28), transparent 38%),
+        linear-gradient(145deg, rgba(255, 236, 221, 0.095), rgba(255, 236, 221, 0.035) 34%, rgba(0,0,0,0.22) 76%),
+        rgba(28, 12, 19, 0.66);
+      border: 1px solid rgba(255, 236, 221, 0.105);
+      box-shadow:
+        0 32px 70px rgba(0, 0, 0, 0.56),
+        0 0 36px rgba(201, 103, 116, 0.18),
+        inset 0 1px 0 rgba(255, 248, 244, 0.13),
+        inset 0 -22px 34px rgba(0, 0, 0, 0.34),
+        inset 10px 12px 22px rgba(255, 236, 221, 0.035);
+      backdrop-filter: blur(30px) saturate(150%) contrast(1.04);
+      -webkit-backdrop-filter: blur(30px) saturate(150%) contrast(1.04);
+    }
+
+    .fake-glass::before {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      pointer-events: none;
+      border-radius: inherit;
+      background:
+        radial-gradient(ellipse at 18% 3%, rgba(255, 235, 225, 0.24), transparent 28%),
+        radial-gradient(ellipse at 62% 18%, rgba(255, 196, 179, 0.10), transparent 20%),
+        linear-gradient(180deg, rgba(255,255,255,0.05), transparent 38%, rgba(0,0,0,0.18));
+    }
+
+    .fake-glass::after {
+      content: "";
+      position: absolute;
+      left: 11%;
+      right: 11%;
+      top: 2px;
+      height: 2px;
+      border-radius: 999px;
+      background:
+        linear-gradient(90deg, transparent, rgba(255, 226, 214, 0.40), rgba(255, 186, 170, 0.14), transparent);
+      filter: blur(0.2px);
+      pointer-events: none;
+    }
+
+    .fake-glass > * {
+      position: relative;
+      z-index: 2;
+    }
+
+    .mechanics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .panel {
+      min-height: 250px;
+      overflow: hidden;
+      border-radius: 28px;
+      padding: 18px;
+      background:
+        linear-gradient(160deg, rgba(255, 236, 221, 0.055), rgba(36, 19, 25, 0.34) 42%, rgba(8, 4, 7, 0.52)),
+        rgba(18, 9, 13, 0.58);
+      border: 1px solid rgba(255, 236, 221, 0.075);
+      box-shadow: 0 28px 66px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .panel h2 {
+      margin: 0 0 6px;
+      font-size: 15px;
+      font-weight: 680;
+      letter-spacing: 0;
+    }
+
+    .panel p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .sample {
+      height: 136px;
+      margin-top: 16px;
+      display: grid;
+      place-items: center;
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at 70% 30%, rgba(255, 160, 130, 0.18), transparent 24%),
+        url("雨夜玻璃.png") center / cover;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+    }
+
+    .sample .avatar-lens {
+      width: 84px;
+      height: 84px;
+    }
+
+    .sample .more-lens {
+      width: 64px;
+      height: 64px;
+    }
+
+    .sample .composer-fake {
+      position: relative;
+      inset: auto;
+      width: min(96%, 360px);
+      min-height: 66px;
+    }
+
+    .sample .record-orb {
+      position: relative;
+      inset: auto;
+      width: 88px;
+      height: 82px;
+    }
+
+    .code-chip {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      color: rgba(255, 231, 222, 0.78);
+      font-size: 11px;
+      background: rgba(0,0,0,0.22);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    @keyframes jelly {
+      0%, 100% {
+        scale: 1;
+        border-radius: 54% 46% 53% 47% / 45% 44% 56% 55%;
+        filter: brightness(1);
+      }
+      42% {
+        scale: 1.035 0.985;
+        border-radius: 50% 50% 48% 52% / 41% 48% 52% 59%;
+        filter: brightness(1.06);
+      }
+      70% {
+        scale: 0.992 1.018;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .board {
+        grid-template-columns: 1fr;
+      }
+
+      .phone {
+        position: relative;
+        top: auto;
+        width: min(470px, 100%);
+        margin: 0 auto;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        width: min(430px, calc(100vw - 24px));
+        padding-top: 22px;
+      }
+
+      header {
+        display: block;
+      }
+
+      .scope {
+        justify-content: flex-start;
+        min-width: 0;
+        margin-top: 14px;
+      }
+
+      .mechanics {
+        grid-template-columns: 1fr;
+      }
+
+      .phone {
+        height: 735px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg class="defs" aria-hidden="true">
+    <filter id="lensHero" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.020 0.032" numOctaves="2" seed="8" result="noise"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="14" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+      <feGaussianBlur stdDeviation="0.18"></feGaussianBlur>
+    </filter>
+    <filter id="lensButton" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.026 0.040" numOctaves="2" seed="4" result="noise"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+    </filter>
+    <filter id="lensOrb" x="-24%" y="-24%" width="148%" height="148%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018 0.034" numOctaves="2" seed="12" result="noise"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="18" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+      <feGaussianBlur stdDeviation="0.12"></feGaussianBlur>
+    </filter>
+  </svg>
+
+  <main class="page">
+    <header>
+      <div>
+        <h1>Chat 四件套 Liquid Glass v2</h1>
+        <p class="note">这版不再堆半透明层。头像、更多、悬浮球用“背景像素复制 + SVG displacement”模拟开源 liquid glass 的折射；输入框按 FakeGlass 路线保稳定。</p>
+      </div>
+      <div class="scope">
+        <span>头像外框：refraction</span>
+        <span>更多：glass glow</span>
+        <span>输入框：FakeGlass</span>
+        <span>悬浮球：jelly stretch</span>
+      </div>
+    </header>
+
+    <section class="board">
+      <div class="phone">
+        <div class="status"><span>22:47</span><span>◒ ◼</span></div>
+        <div class="header-row">
+          <div class="avatar-lens lens"><div class="avatar-core">暮</div></div>
+          <div class="name-block"><b>暮雨</b><span>雨声很近</span></div>
+          <div class="spacer"></div>
+          <div class="more-lens lens"><span class="dots"><i></i><i></i><i></i></span></div>
+        </div>
+        <div class="ambient-messages">
+          <div class="bubble role">我在。现在这几个控件应该像真正压在玻璃上的水膜，而不是几层阴影。</div>
+          <div class="bubble user">也就是说，不要重影，要有折射。</div>
+          <div class="bubble role">对。水滴和头像负责真实感，输入框负责稳定和清晰。</div>
+        </div>
+        <div class="record-orb lens"><b>+</b></div>
+        <div class="composer-fake fake-glass">
+          <div class="add">+</div>
+          <div class="placeholder">发消息给暮雨…</div>
+          <div class="mic"></div>
+          <div class="bars"><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
+
+      <div class="mechanics">
+        <article class="panel">
+          <h2>1. 头像外框：LiquidGlass refraction</h2>
+          <p>借 `LiquidGlassLayer + LiquidGlass + LiquidRoundedSuperellipse` 的思路：它不是一层亮边，而是把背后的雨夜像素扭曲后封在圆形外框里。</p>
+          <span class="code-chip">thickness / refractiveIndex / lightIntensity</span>
+          <div class="sample">
+            <div class="avatar-lens lens"><div class="avatar-core">暮</div></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>2. 右上角更多：GlassGlow 小玻璃珠</h2>
+          <p>借 `GlassGlow` 和小型 `LiquidGlass.withOwnLayer`：按钮本体轻，但边缘和按压点要亮，像头像旁边的一颗小水珠。</p>
+          <span class="code-chip">withOwnLayer / GlassGlow / grouped feel</span>
+          <div class="sample">
+            <div class="more-lens lens"><span class="dots"><i></i><i></i><i></i></span></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>3. 输入框：FakeGlass fallback</h2>
+          <p>借 `FakeGlass` 的策略：输入框不做真实折射，避免键盘、多行输入和文字可读性出问题。它只保留稳定 blur、柔边、内暗部和轻高光。</p>
+          <span class="code-chip">FakeGlass / blur / glassColor</span>
+          <div class="sample">
+            <div class="composer-fake fake-glass">
+              <div class="add">+</div>
+              <div class="placeholder">发消息给暮雨…</div>
+              <div class="mic"></div>
+              <div class="bars"><i></i><i></i><i></i><i></i></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>4. 悬浮球：LiquidStretch + lens orb</h2>
+          <p>借 `LiquidStretch`：水滴不只是发光，还要有轻微呼吸、受压和形状回弹。内部只保留圆润加号，避免再次变成普通 UI 按钮。</p>
+          <span class="code-chip">LiquidStretch / refraction / organic shape</span>
+          <div class="sample">
+            <div class="record-orb lens"><b>+</b></div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
