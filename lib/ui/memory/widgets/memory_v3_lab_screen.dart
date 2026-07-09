@@ -16,6 +16,7 @@ import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
+import 'package:memex/data/memory_v3/services/dreaming_recall_log_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
@@ -49,7 +50,9 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
   List<MemoryFragment> _recentFragments = const [];
   List<MemoryEpisode> _recentEpisodes = const [];
   List<QueryLogEntry> _queryLogEntries = const [];
+  List<DreamingRecallLogEntry> _dreamingRecallLogEntries = const [];
   int _zeroResultCount = 0;
+  int _zeroDreamingRecallCount = 0;
 
   @override
   void initState() {
@@ -58,6 +61,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     unawaited(_loadRecentFragments());
     unawaited(_loadRecentEpisodes());
     unawaited(_loadQueryLog());
+    unawaited(_loadDreamingRecallLog());
   }
 
   @override
@@ -109,6 +113,16 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     });
   }
 
+  Future<void> _loadDreamingRecallLog() async {
+    final entries = await DreamingRecallLogService.readAll();
+    final zeros = await DreamingRecallLogService.zeroResultCount();
+    if (!mounted) return;
+    setState(() {
+      _dreamingRecallLogEntries = entries;
+      _zeroDreamingRecallCount = zeros;
+    });
+  }
+
   void _showQueryLog() {
     showModalBottomSheet(
       context: context,
@@ -125,6 +139,27 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
           // ignore: use_build_context_synchronously
           Navigator.pop(ctx);
           _showQueryLog();
+        },
+      ),
+    );
+  }
+
+  void _showDreamingRecallLog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _DreamingRecallLogSheet(
+        entries: _dreamingRecallLogEntries,
+        zeroCount: _zeroDreamingRecallCount,
+        onClear: () async {
+          await DreamingRecallLogService.clear();
+          await _loadDreamingRecallLog();
+        },
+        onRefresh: () async {
+          await _loadDreamingRecallLog();
+          // ignore: use_build_context_synchronously
+          Navigator.pop(ctx);
+          _showDreamingRecallLog();
         },
       ),
     );
@@ -745,6 +780,8 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
               unawaited(_loadRecent());
               unawaited(_loadRecentFragments());
               unawaited(_loadRecentEpisodes());
+              unawaited(_loadQueryLog());
+              unawaited(_loadDreamingRecallLog());
             },
             tooltip: '刷新',
           ),
@@ -762,6 +799,16 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
             ),
             onPressed: _showQueryLog,
             tooltip: '查询日志（零结果: $_zeroResultCount）',
+          ),
+          IconButton(
+            icon: Badge(
+              isLabelVisible: _zeroDreamingRecallCount > 0,
+              label: Text('$_zeroDreamingRecallCount',
+                  style: const TextStyle(fontSize: 11)),
+              child: const Icon(Icons.auto_awesome_motion_outlined),
+            ),
+            onPressed: _showDreamingRecallLog,
+            tooltip: 'Dreaming 召回日志（零结果: $_zeroDreamingRecallCount）',
           ),
         ],
       ),
@@ -863,6 +910,8 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                 Text('fragments ${_recentFragments.length}',
                     style: const TextStyle(fontSize: 11)),
                 Text('episodes ${_recentEpisodes.length}',
+                    style: const TextStyle(fontSize: 11)),
+                Text('recall logs ${_dreamingRecallLogEntries.length}',
                     style: const TextStyle(fontSize: 11)),
                 Text(
                   RecordOrganizerServiceV3.isInitialized
@@ -1316,6 +1365,244 @@ class _QueryLogTile extends StatelessWidget {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+      ),
+    );
+  }
+}
+
+class _DreamingRecallLogSheet extends StatelessWidget {
+  const _DreamingRecallLogSheet({
+    required this.entries,
+    required this.zeroCount,
+    required this.onClear,
+    required this.onRefresh,
+  });
+
+  final List<DreamingRecallLogEntry> entries;
+  final int zeroCount;
+  final VoidCallback onClear;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.76,
+      minChildSize: 0.3,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollController) => Column(
+        children: [
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                Text('Dreaming 召回日志',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(width: 8),
+                if (zeroCount > 0)
+                  Chip(
+                    label: Text('$zeroCount 条零结果',
+                        style: const TextStyle(fontSize: 11)),
+                    backgroundColor: Colors.orange.shade100,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                const Spacer(),
+                if (entries.isNotEmpty) ...[
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    onPressed: () => _confirmClear(context),
+                    tooltip: '清空日志',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 20),
+                    onPressed: onRefresh,
+                    tooltip: '刷新',
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Divider(),
+          Expanded(
+            child: entries.isEmpty
+                ? const Center(
+                    child: Text('暂无 Dreaming 召回记录',
+                        style: TextStyle(color: Colors.black45)))
+                : ListView.separated(
+                    controller: scrollController,
+                    itemCount: entries.length,
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, indent: 16),
+                    itemBuilder: (ctx, i) =>
+                        _DreamingRecallLogTile(entry: entries[i]),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClear(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清空 Dreaming 召回日志？'),
+        content: const Text('这会删除所有 Dreaming context 注入记录。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onClear();
+              Navigator.pop(context);
+            },
+            child: const Text('清空'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DreamingRecallLogTile extends StatelessWidget {
+  const _DreamingRecallLogTile({required this.entry});
+
+  final DreamingRecallLogEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final isZero = entry.isZeroResult;
+    final time = entry.dateTime;
+    final timeStr =
+        '${time.month}/${time.day} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    final color = isZero ? Colors.red : Colors.deepPurple;
+
+    return ExpansionTile(
+      dense: true,
+      leading: CircleAvatar(
+        radius: 13,
+        backgroundColor: color.shade100,
+        child: Text(
+          '${entry.episodeCount}/${entry.fragmentCount}',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: color.shade700,
+          ),
+        ),
+      ),
+      title: Text(
+        entry.query.trim().isEmpty ? '（空 query）' : entry.query,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 14),
+      ),
+      subtitle: Text(
+        '$timeStr · episode ${entry.episodeCount} · fragment ${entry.fragmentCount} · ${entry.actualSummary}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+      ),
+      children: [
+        if (entry.episodes.isNotEmpty)
+          _RecallSection(
+            title: 'Episodes',
+            children: entry.episodes
+                .map((hit) => _RecallHitText(
+                      title:
+                          'score ${hit.score} · sig ${hit.significance} · ${hit.topicId ?? '__ungrouped__'}',
+                      body: hit.narrative,
+                    ))
+                .toList(growable: false),
+          ),
+        if (entry.fragments.isNotEmpty)
+          _RecallSection(
+            title: 'Fragments',
+            children: entry.fragments
+                .map((hit) => _RecallHitText(
+                      title:
+                          'score ${hit.score} · weight ${hit.emotionalWeight.toStringAsFixed(2)}${hit.isUserTruthCandidate ? ' · user_truth' : ''}',
+                      body: hit.content,
+                    ))
+                .toList(growable: false),
+          ),
+        _RecallSection(
+          title: 'Injected context',
+          children: [
+            SelectableText(
+              entry.injectedContext.trim().isEmpty
+                  ? '（本轮没有注入 dreaming_context）'
+                  : entry.injectedContext,
+              style: const TextStyle(fontSize: 11, height: 1.35),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RecallSection extends StatelessWidget {
+  const _RecallSection({
+    required this.title,
+    required this.children,
+  });
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(56, 4, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style:
+                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _RecallHitText extends StatelessWidget {
+  const _RecallHitText({
+    required this.title,
+    required this.body,
+  });
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          const SizedBox(height: 2),
+          SelectableText(body, style: const TextStyle(fontSize: 12)),
+        ],
       ),
     );
   }

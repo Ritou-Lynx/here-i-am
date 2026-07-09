@@ -85,8 +85,11 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 
 - `DreamingFragmentExtractorV3` 只做低层证据抽取：输入一批主聊天消息，输出 `fragments` JSON。
 - `DreamingOrchestratorServiceV3` 维护每个角色的抽取水位线，成功后写入 `memory_fragments` / `memory_entity_links`。
+- `EpisodeConsolidatorV3` 已接入 Daily Dreaming 和 Lab 手动入口，把 active fragments 凝结为第一人称 `memory_episodes`。
+- Companion 每轮对话会自动查询最近/相关 episodes + active fragments，并以 `dreaming_context` 注入。
+- Dreaming recall log 会记录每轮 query、命中的 episodes / fragments、关键词分数和最终注入内容，供 Lab 调试。
 - Dreaming 自动产物只进入自动层，不写 `memory_cards`，也不等同于用户确认资料。
-- Episode / Saga 凝结还未接入；当前版本先为后续凝结积累可溯源 fragments。
+- Saga / Deep Dreaming 还未接入；当前版本以 Fragment + Episode + 召回观测为 MVP 闭环。
 
 ### Project Memory 边界
 

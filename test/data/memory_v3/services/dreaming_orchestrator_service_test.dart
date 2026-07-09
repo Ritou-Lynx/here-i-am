@@ -367,6 +367,61 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('episode consolidator drops low-quality candidate episodes', () {
+    const consolidator = EpisodeConsolidatorV3();
+
+    final result = consolidator.parseForTest('''
+{
+  "episodes": [
+    {
+      "narrative": "我记得这说明她的依恋模式发生了变化。",
+      "topicId": "relationship_care/self_image",
+      "primaryEntityId": "",
+      "sourceFragmentIds": ["f1"],
+      "significance": 3,
+      "confidence": "medium",
+      "valence": 0.1,
+      "arousal": 0.3,
+      "occurredAtRange": null,
+      "linkedEntityIds": []
+    }
+  ],
+  "skip_reason": null
+}
+''');
+
+    expect(result.episodes, isEmpty);
+    expect(result.skippedEntityIds, contains('__all__'));
+  });
+
+  test('episode consolidator accepts concrete first-person episodes', () {
+    const consolidator = EpisodeConsolidatorV3();
+
+    final result = consolidator.parseForTest('''
+{
+  "episodes": [
+    {
+      "narrative": "我记得她昨晚用一个关于身份的玩笑逗我，看我会不会认真相信。",
+      "topicId": "relationship_care",
+      "primaryEntityId": "",
+      "sourceFragmentIds": ["f1", "f2"],
+      "significance": 6,
+      "confidence": "high",
+      "valence": 0.4,
+      "arousal": 0.5,
+      "occurredAtRange": null,
+      "linkedEntityIds": []
+    }
+  ],
+  "skip_reason": null
+}
+''');
+
+    expect(result.episodes, hasLength(1));
+    expect(result.episodes.single.topicId, 'relationship_care');
+    expect(result.episodes.single.sourceFragmentIds, ['f1', 'f2']);
+  });
 }
 
 Future<void> _insertMessage(

@@ -49,6 +49,42 @@ class EpisodeConsolidationRunResult {
   bool get isEmpty => episodeIds.isEmpty;
 }
 
+class DreamingContextQueryResult {
+  const DreamingContextQueryResult({
+    required this.episodeHits,
+    required this.fragmentHits,
+  });
+
+  final List<DreamingEpisodeContextHit> episodeHits;
+  final List<DreamingFragmentContextHit> fragmentHits;
+
+  List<MemoryEpisode> get episodes =>
+      episodeHits.map((hit) => hit.episode).toList(growable: false);
+
+  List<MemoryFragment> get fragments =>
+      fragmentHits.map((hit) => hit.fragment).toList(growable: false);
+}
+
+class DreamingEpisodeContextHit {
+  const DreamingEpisodeContextHit({
+    required this.episode,
+    required this.score,
+  });
+
+  final MemoryEpisode episode;
+  final int score;
+}
+
+class DreamingFragmentContextHit {
+  const DreamingFragmentContextHit({
+    required this.fragment,
+    required this.score,
+  });
+
+  final MemoryFragment fragment;
+  final int score;
+}
+
 class DreamingOrchestratorServiceV3 {
   DreamingOrchestratorServiceV3(this._db);
 
@@ -385,7 +421,9 @@ class DreamingOrchestratorServiceV3 {
     for (var i = 0; i < allFragments.length; i += chunkSize) {
       chunks.add(allFragments.sublist(
         i,
-        i + chunkSize > allFragments.length ? allFragments.length : i + chunkSize,
+        i + chunkSize > allFragments.length
+            ? allFragments.length
+            : i + chunkSize,
       ));
     }
 
@@ -458,7 +496,8 @@ class DreamingOrchestratorServiceV3 {
                             })
                           : null,
                     ),
-                    generatedByVersion: const Value(_episodeConsolidatorVersion),
+                    generatedByVersion:
+                        const Value(_episodeConsolidatorVersion),
                     createdAt: now,
                     updatedAt: now,
                   ),
@@ -778,7 +817,8 @@ class DreamingOrchestratorServiceV3 {
     final candidates = <MemoryEntity>[];
     if (canonicalSelf) {
       candidates.addAll(await (_db.select(_db.memoryEntities)
-            ..where((t) => t.id.equals('user_self') &
+            ..where((t) =>
+                t.id.equals('user_self') &
                 t.status.isNotIn(const ['deleted', 'merged'])))
           .get());
     }
@@ -860,8 +900,7 @@ class DreamingOrchestratorServiceV3 {
     if (consumedIds.isEmpty) return 0;
 
     final affected = await (_db.update(_db.memoryFragments)
-          ..where((t) =>
-              t.id.isIn(consumedIds) & t.status.equals('active')))
+          ..where((t) => t.id.isIn(consumedIds) & t.status.equals('active')))
         .write(const MemoryFragmentsCompanion(status: Value('consolidated')));
 
     return affected;
@@ -892,9 +931,9 @@ class DreamingOrchestratorServiceV3 {
     if (consumedIds.isNotEmpty) {
       query.where((t) => t.id.isNotIn(consumedIds));
     }
-    return query
-        .write(const MemoryFragmentsCompanion(status: Value('active')));
+    return query.write(const MemoryFragmentsCompanion(status: Value('active')));
   }
+
   /// table. Returns the number of entities updated.
   Future<int> syncEntityFragmentCounts() async {
     final entities = await (_db.select(_db.memoryEntities)
@@ -958,8 +997,7 @@ class DreamingOrchestratorServiceV3 {
   /// overlap first, then supplemented with the most-recent ones up to the
   /// respective limits. This ensures a specific past event (e.g. "remember when
   /// you lied") surfaces even when it is older than [recentFragmentLimit].
-  Future<({List<MemoryEpisode> episodes, List<MemoryFragment> fragments})>
-      queryRecentDreamingContext({
+  Future<DreamingContextQueryResult> queryRecentDreamingContext({
     String queryHint = '',
     int episodeLimit = 8,
     int recentFragmentLimit = 6,
@@ -967,7 +1005,7 @@ class DreamingOrchestratorServiceV3 {
     final keywords = _extractKeywords(queryHint);
 
     // --- Episodes ---
-    final List<MemoryEpisode> episodes;
+    final List<DreamingEpisodeContextHit> episodeHits;
     if (keywords.isNotEmpty) {
       // Pull a broader pool, score in-memory, take top episodeLimit.
       final pool = await (_db.select(_db.memoryEpisodes)
@@ -978,18 +1016,22 @@ class DreamingOrchestratorServiceV3 {
             ])
             ..limit(episodeLimit * 4))
           .get();
-      pool.sort((a, b) {
-        final sa = _keywordScore(a.narrative.toLowerCase(), keywords);
-        final sb = _keywordScore(b.narrative.toLowerCase(), keywords);
-        if (sb != sa) return sb.compareTo(sa);
-        if (b.significance != a.significance) {
-          return b.significance.compareTo(a.significance);
+      final scored = pool
+          .map((episode) => DreamingEpisodeContextHit(
+                episode: episode,
+                score: _keywordScore(episode.narrative.toLowerCase(), keywords),
+              ))
+          .toList();
+      scored.sort((a, b) {
+        if (b.score != a.score) return b.score.compareTo(a.score);
+        if (b.episode.significance != a.episode.significance) {
+          return b.episode.significance.compareTo(a.episode.significance);
         }
-        return b.createdAt.compareTo(a.createdAt);
+        return b.episode.createdAt.compareTo(a.episode.createdAt);
       });
-      episodes = pool.take(episodeLimit).toList(growable: false);
+      episodeHits = scored.take(episodeLimit).toList(growable: false);
     } else {
-      episodes = await (_db.select(_db.memoryEpisodes)
+      final rows = await (_db.select(_db.memoryEpisodes)
             ..where((t) => t.status.equals('active'))
             ..orderBy([
               (t) => OrderingTerm.desc(t.significance),
@@ -997,10 +1039,16 @@ class DreamingOrchestratorServiceV3 {
             ])
             ..limit(episodeLimit))
           .get();
+      episodeHits = rows
+          .map((episode) => DreamingEpisodeContextHit(
+                episode: episode,
+                score: 0,
+              ))
+          .toList(growable: false);
     }
 
     // --- Fragments ---
-    final List<MemoryFragment> fragments;
+    final List<DreamingFragmentContextHit> fragmentHits;
     if (keywords.isNotEmpty) {
       // Pull recent pool, score by keyword match, then supplement with recency.
       final pool = await (_db.select(_db.memoryFragments)
@@ -1008,22 +1056,35 @@ class DreamingOrchestratorServiceV3 {
             ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
             ..limit(recentFragmentLimit * 6))
           .get();
-      pool.sort((a, b) {
-        final sa = _keywordScore(a.content.toLowerCase(), keywords);
-        final sb = _keywordScore(b.content.toLowerCase(), keywords);
-        if (sb != sa) return sb.compareTo(sa);
-        return b.createdAt.compareTo(a.createdAt);
+      final scored = pool
+          .map((fragment) => DreamingFragmentContextHit(
+                fragment: fragment,
+                score: _keywordScore(fragment.content.toLowerCase(), keywords),
+              ))
+          .toList();
+      scored.sort((a, b) {
+        if (b.score != a.score) return b.score.compareTo(a.score);
+        return b.fragment.createdAt.compareTo(a.fragment.createdAt);
       });
-      fragments = pool.take(recentFragmentLimit).toList(growable: false);
+      fragmentHits = scored.take(recentFragmentLimit).toList(growable: false);
     } else {
-      fragments = await (_db.select(_db.memoryFragments)
+      final rows = await (_db.select(_db.memoryFragments)
             ..where((t) => t.status.equals('active'))
             ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
             ..limit(recentFragmentLimit))
           .get();
+      fragmentHits = rows
+          .map((fragment) => DreamingFragmentContextHit(
+                fragment: fragment,
+                score: 0,
+              ))
+          .toList(growable: false);
     }
 
-    return (episodes: episodes, fragments: fragments);
+    return DreamingContextQueryResult(
+      episodeHits: episodeHits,
+      fragmentHits: fragmentHits,
+    );
   }
 
   /// Count how many keywords appear in [text].
@@ -1043,7 +1104,7 @@ class DreamingOrchestratorServiceV3 {
     // Word-level tokens split on whitespace / punctuation.
     result.addAll(
       lower
-          .split(RegExp(r'[\s,，。！？!?、；;：:""''\(\)（）【】「」]+'))
+          .split(RegExp(r'[\s,，。！？!?、；;：:""()（）【】「」]+'))
           .where((w) => w.length >= 2),
     );
 

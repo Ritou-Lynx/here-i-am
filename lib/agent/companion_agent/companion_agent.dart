@@ -13,6 +13,7 @@ import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/services/dreaming_recall_log_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
@@ -278,10 +279,10 @@ class CompanionAgent {
             buf.writeln();
             buf.writeln('### 记忆章节');
             for (final ep in ctx.episodes) {
-              final topic = ep.topicId != null && ep.topicId!.isNotEmpty &&
-                      ep.topicId != '__ungrouped__'
-                  ? ' [${ep.topicId}]'
-                  : '';
+              final topic =
+                  ep.topicId.isNotEmpty && ep.topicId != '__ungrouped__'
+                      ? ' [${ep.topicId}]'
+                      : '';
               buf.writeln('- $topic ${ep.narrative}');
             }
           }
@@ -293,9 +294,42 @@ class CompanionAgent {
               buf.writeln('- ${f.content}$tag');
             }
           }
-          state.systemReminders['dreaming_context'] = buf.toString();
+          final injectedContext = buf.toString();
+          state.systemReminders['dreaming_context'] = injectedContext;
+          unawaited(DreamingRecallLogService.log(DreamingRecallLogEntry(
+            query: queryHint,
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            episodeCount: ctx.episodes.length,
+            fragmentCount: ctx.fragments.length,
+            injectedContext: injectedContext,
+            episodes: ctx.episodeHits
+                .map((hit) => DreamingRecallEpisodeHit(
+                      id: hit.episode.id,
+                      narrative: hit.episode.narrative,
+                      score: hit.score,
+                      significance: hit.episode.significance,
+                      topicId: hit.episode.topicId,
+                    ))
+                .toList(growable: false),
+            fragments: ctx.fragmentHits
+                .map((hit) => DreamingRecallFragmentHit(
+                      id: hit.fragment.id,
+                      content: hit.fragment.content,
+                      score: hit.score,
+                      emotionalWeight: hit.fragment.emotionalWeight,
+                      isUserTruthCandidate: hit.fragment.isUserTruthCandidate,
+                    ))
+                .toList(growable: false),
+          )));
         } else {
           state.systemReminders.remove('dreaming_context');
+          unawaited(DreamingRecallLogService.log(DreamingRecallLogEntry(
+            query: queryHint,
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            episodeCount: 0,
+            fragmentCount: 0,
+            injectedContext: '',
+          )));
         }
       } catch (e) {
         _logger.warning('Failed to load dreaming context: $e');
@@ -630,8 +664,7 @@ class CompanionAgent {
         'device_app_blocker_control + ONE communication action + set_status).');
     buf.writeln('- Take only ONE action: either system_checkin OR '
         'initiate_voice_call, never both.');
-    buf.writeln(
-        '- Do NOT call coros_query more than once.');
+    buf.writeln('- Do NOT call coros_query more than once.');
     buf.writeln('- Do NOT "double check" your work or re-verify.');
     buf.writeln(
         '- Do NOT produce any user-visible chat text — only tool calls.');

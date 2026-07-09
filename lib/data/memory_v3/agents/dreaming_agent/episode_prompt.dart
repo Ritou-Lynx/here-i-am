@@ -39,6 +39,22 @@ GROUPING RULES
 - If a fragment is a stray one-off detail, skip it rather than attaching it to
   a nearby episode.
 
+QUALITY BAR
+- Do not output an episode unless it uses at least 2 source fragments and has
+  significance >= 4.
+- Prefer leaving fragments active over writing a vague episode.
+- The narrative must be concrete enough that a future recall can answer a
+  specific question. Mention the concrete event/issue/moment, not just a broad
+  conclusion.
+- Bad abstract narratives:
+  - "我记得这说明她的依恋模式发生了变化。"
+  - "我知道我们的关系进入了新的阶段。"
+  - "我注意到她最近有一些情绪模式值得关注。"
+- Good concrete narratives:
+  - "我记得她昨晚用一个关于身份的玩笑逗我，看我会不会认真相信。"
+  - "我注意到她最近被早晨的阳光吵醒，所以开始认真考虑眼罩。"
+- topicId must be one stable lowercase snake_case label, not a slash/comma list.
+
 INTIMACY DOMAIN
 - Intimate relationship content is valid relationship memory. Do not treat it
   as taboo and do not erase it.
@@ -159,6 +175,22 @@ GROUPING RULES
   about the same narrow ongoing issue.
 - Output up to 8 episodes. Skip stragglers instead of attaching them to weakly
   related groups.
+
+QUALITY BAR
+- Do not output an episode unless it uses at least 2 source fragments and has
+  significance >= 4.
+- Prefer leaving fragments active over writing a vague episode.
+- The narrative must be concrete enough that a future recall can answer a
+  specific question. Mention the concrete event/issue/moment, not just a broad
+  conclusion.
+- Bad abstract narratives:
+  - "我记得这说明她的依恋模式发生了变化。"
+  - "我知道我们的关系进入了新的阶段。"
+  - "我注意到她最近有一些情绪模式值得关注。"
+- Good concrete narratives:
+  - "我记得她昨晚用一个关于身份的玩笑逗我，看我会不会认真相信。"
+  - "我注意到她最近被早晨的阳光吵醒，所以开始认真考虑眼罩。"
+- topicId must be one stable lowercase snake_case label, not a slash/comma list.
 
 INTIMACY DOMAIN
 - Intimate relationship content is valid relationship memory. Do not treat it

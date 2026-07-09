@@ -278,6 +278,7 @@ class EpisodeConsolidatorV3 {
 
     final episodes = <EpisodeConsolidationDraft>[];
     final invalidNarratives = <String>[];
+    final rejectedReasons = <String>[];
     for (final e in episodeList) {
       final em = e as Map<String, dynamic>;
       final narrative = (em['narrative'] as String).trim();
@@ -289,6 +290,19 @@ class EpisodeConsolidatorV3 {
               (em['primaryEntityId'] as String?) ??
               '')
           .trim();
+      final sourceFragmentIds =
+          (em['sourceFragmentIds'] as List).cast<String>().toSet().toList();
+      final significance = em['significance'] as int;
+      final qualityIssue = _episodeQualityIssue(
+        narrative: narrative,
+        topicId: topicId.isNotEmpty ? topicId : '__ungrouped__',
+        sourceFragmentIds: sourceFragmentIds,
+        significance: significance,
+      );
+      if (qualityIssue != null) {
+        rejectedReasons.add(qualityIssue);
+        continue;
+      }
       final primaryEntityId = entityId == '__all__'
           ? ((em['primaryEntityId'] as String?)?.trim() ?? '')
           : entityId;
@@ -296,8 +310,8 @@ class EpisodeConsolidatorV3 {
         narrative: narrative,
         topicId: topicId.isNotEmpty ? topicId : '__ungrouped__',
         primaryEntityId: primaryEntityId,
-        sourceFragmentIds: (em['sourceFragmentIds'] as List).cast<String>(),
-        significance: em['significance'] as int,
+        sourceFragmentIds: sourceFragmentIds,
+        significance: significance,
         confidence: em['confidence'] as String,
         valence: (em['valence'] as num).toDouble(),
         arousal: (em['arousal'] as num).toDouble(),
@@ -322,6 +336,23 @@ class EpisodeConsolidatorV3 {
         'narrative style',
       );
     }
+    if (episodes.isEmpty && rejectedReasons.isNotEmpty) {
+      _logger.info(
+        'Episode Consolidator rejected all candidate episode(s): '
+        '${rejectedReasons.join('; ')}',
+      );
+      return EpisodeConsolidationResult(
+        episodes: const [],
+        skippedEntityIds: [entityId],
+        isDryRun: false,
+      );
+    }
+    if (rejectedReasons.isNotEmpty) {
+      _logger.info(
+        'Dropped ${rejectedReasons.length} low-quality episode(s): '
+        '${rejectedReasons.join('; ')}',
+      );
+    }
 
     return EpisodeConsolidationResult(
       episodes: episodes,
@@ -336,5 +367,53 @@ class EpisodeConsolidatorV3 {
     }
     const allowedStarts = ['我记得', '我知道', '我注意到', '我后来记住'];
     return allowedStarts.any(narrative.startsWith) && narrative.contains('她');
+  }
+
+  String? _episodeQualityIssue({
+    required String narrative,
+    required String topicId,
+    required List<String> sourceFragmentIds,
+    required int significance,
+  }) {
+    if (sourceFragmentIds.length < 2) {
+      return 'needs at least 2 source fragments';
+    }
+    if (significance < 4) {
+      return 'significance below 4';
+    }
+    if (narrative.length > 240) {
+      return 'narrative longer than 240 chars';
+    }
+    if (!_isStableTopicId(topicId)) {
+      return 'unstable topicId: $topicId';
+    }
+    if (_looksAbstract(narrative)) {
+      return 'abstract narrative: $narrative';
+    }
+    return null;
+  }
+
+  bool _isStableTopicId(String topicId) {
+    if (topicId == '__ungrouped__') return true;
+    return RegExp(r'^[a-z][a-z0-9_]{2,40}$').hasMatch(topicId);
+  }
+
+  bool _looksAbstract(String narrative) {
+    const abstractPhrases = [
+      '依恋模式',
+      '关系进入',
+      '新的阶段',
+      '情绪模式',
+      '值得关注',
+      '心理状态',
+      '关系动态',
+      '内在需求',
+      '深层需求',
+      '自我认知发生',
+      '说明她',
+      '体现了她',
+      '反映出她',
+    ];
+    return abstractPhrases.any(narrative.contains);
   }
 }
