@@ -96,17 +96,19 @@ $Registry.schema_version = 1
 $Registry.projects = @($OtherProjects + $HereIAm)
 $RegistryJson = $Registry | ConvertTo-Json -Depth 20
 $RegistryTemp = "$RegistryPath.$PID.tmp"
+$RegistryBackup = "$RegistryPath.$PID.bak"
 try {
   [System.IO.File]::WriteAllText($RegistryTemp, "$RegistryJson`n", $Utf8NoBom)
   & $Node (Join-Path $Runtime 'validate_i_project_registry.mjs') $RegistryTemp | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Proposed i Project Registry failed strict validation.' }
   if (Test-Path -LiteralPath $RegistryPath) {
-    [System.IO.File]::Replace($RegistryTemp, $RegistryPath, $null)
+    [System.IO.File]::Replace($RegistryTemp, $RegistryPath, $RegistryBackup)
   } else {
     [System.IO.File]::Move($RegistryTemp, $RegistryPath)
   }
 } finally {
   Remove-Item -LiteralPath $RegistryTemp -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $RegistryBackup -Force -ErrorAction SilentlyContinue
 }
 
 function Update-ManagedBlock([string]$Path, [string]$Body) {
