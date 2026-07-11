@@ -29,19 +29,32 @@ class HereIamGlassSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final spec = _GlassSpec.forLevel(level);
-    final effectiveRadius = shape == BoxShape.circle ? null : borderRadius;
+    final isCircle = shape == BoxShape.circle;
+    final effectiveRadius = isCircle ? null : borderRadius;
+    final circleExtent = _circleExtent(width, height);
+    final shadowAlpha = isCircle ? spec.shadowAlpha * 0.46 : spec.shadowAlpha;
+    final shadowBlur = isCircle ? spec.shadowBlur * 0.46 : spec.shadowBlur;
+    final shadowOffset =
+        isCircle ? spec.shadowOffset * 0.36 : spec.shadowOffset;
+    final glowAlpha = isCircle ? spec.glowAlpha * 0.72 : spec.glowAlpha;
+    final glowBlur = isCircle ? spec.glowBlur * 0.62 : spec.glowBlur;
+    final bottomDepthAlpha =
+        isCircle ? spec.bottomDepthAlpha * 0.28 : spec.bottomDepthAlpha;
+    final bottomDepthHeight = isCircle
+        ? (circleExtent * 0.28).clamp(8.0, 12.0)
+        : spec.bottomDepthHeight;
     final outerDecoration = BoxDecoration(
       shape: shape,
       borderRadius: effectiveRadius,
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: spec.shadowAlpha),
-          blurRadius: spec.shadowBlur,
-          offset: Offset(0, spec.shadowOffset),
+          color: Colors.black.withValues(alpha: shadowAlpha),
+          blurRadius: shadowBlur,
+          offset: Offset(0, shadowOffset),
         ),
         BoxShadow(
-          color: const Color(0xFFC86774).withValues(alpha: spec.glowAlpha),
-          blurRadius: spec.glowBlur,
+          color: const Color(0xFFC86774).withValues(alpha: glowAlpha),
+          blurRadius: glowBlur,
           offset: Offset.zero,
         ),
       ],
@@ -110,34 +123,35 @@ class HereIamGlassSurface extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            left: shape == BoxShape.circle ? 8 : 18,
-            right: shape == BoxShape.circle ? 8 : 18,
-            top: 1,
-            height: spec.topLineHeight,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.transparent,
-                    const Color(0xFFFFE2D6).withValues(
-                      alpha: spec.edgeLightAlpha,
-                    ),
-                    const Color(0xFFFFBAAA).withValues(
-                      alpha: spec.edgeWarmAlpha,
-                    ),
-                    Colors.transparent,
-                  ],
+          if (!isCircle)
+            Positioned(
+              left: 18,
+              right: 18,
+              top: 1,
+              height: spec.topLineHeight,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      const Color(0xFFFFE2D6).withValues(
+                        alpha: spec.edgeLightAlpha,
+                      ),
+                      const Color(0xFFFFBAAA).withValues(
+                        alpha: spec.edgeWarmAlpha,
+                      ),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            height: spec.bottomDepthHeight,
+            height: bottomDepthHeight,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 shape: shape,
@@ -147,7 +161,7 @@ class HereIamGlassSurface extends StatelessWidget {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withValues(alpha: spec.bottomDepthAlpha),
+                    Colors.black.withValues(alpha: bottomDepthAlpha),
                   ],
                 ),
               ),
@@ -172,6 +186,11 @@ class HereIamGlassSurface extends StatelessWidget {
         child: filtered,
       ),
     );
+  }
+
+  double _circleExtent(double? width, double? height) {
+    if (width != null && height != null) return width < height ? width : height;
+    return width ?? height ?? 40;
   }
 }
 

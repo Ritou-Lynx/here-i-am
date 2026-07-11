@@ -1720,11 +1720,6 @@ only after you have written the goodbye you want the user to hear.''',
       );
       if (mounted) {
         final isViewingSendCharacter = _currentCharacterId == sendCharacterId;
-        final firstNewCharacterMessageId =
-            personaChatFirstNewCharacterMessageId(
-          previousMessages: messages,
-          updatedMessages: updated,
-        );
         setState(() {
           if (isViewingSendCharacter) {
             _messages = updated;
@@ -1742,11 +1737,10 @@ only after you have written the goodbye you want the user to hear.''',
           } else {
             _advanceAutoReadWatermark(updated);
           }
-          if (firstNewCharacterMessageId != null) {
-            _scrollToMessage(firstNewCharacterMessageId, alignment: 0.12);
-          } else {
-            _scrollToBottom();
-          }
+          // Active sends should keep the reversed list pinned to the latest
+          // edge. Message-level focusing belongs to explicit search jumps; using
+          // it here can pull the view up to an older part of the conversation.
+          _scrollToBottom();
         } else {
           unawaited(
             _refreshMessagesFromStore(
@@ -1788,11 +1782,6 @@ only after you have written the goodbye you want the user to hear.''',
       );
       if (mounted) {
         final isViewingSendCharacter = _currentCharacterId == sendCharacterId;
-        final firstNewCharacterMessageId =
-            personaChatFirstNewCharacterMessageId(
-          previousMessages: messages,
-          updatedMessages: updated,
-        );
         setState(() {
           if (isViewingSendCharacter) {
             _messages = updated;
@@ -1810,11 +1799,7 @@ only after you have written the goodbye you want the user to hear.''',
           } else {
             _advanceAutoReadWatermark(updated);
           }
-          if (firstNewCharacterMessageId != null) {
-            _scrollToMessage(firstNewCharacterMessageId, alignment: 0.12);
-          } else {
-            _scrollToBottom();
-          }
+          _scrollToBottom();
         } else if (partialResponse.isEmpty && isViewingSendCharacter) {
           ScaffoldMessenger.of(
             context,
@@ -2843,11 +2828,16 @@ only after you have written the goodbye you want the user to hear.''',
       if (!enabled) {
         await _stopTtsPlayback();
       }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showToast(
+        enabled ? '自动朗读已开启' : '自动朗读已关闭',
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _autoReadEnabled = !enabled);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save auto read setting: $e')),
+      ScaffoldMessenger.of(context).showToast(
+        '自动朗读设置保存失败',
+        duration: const Duration(seconds: 2),
       );
     }
   }
@@ -3192,41 +3182,17 @@ only after you have written the goodbye you want the user to hear.''',
             ),
           ],
           if (character != null) ...[
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => context.push(AppRoutes.aboutI),
-              child: _FloatingGlassCircle(
-                size: 50,
-                child: CharacterAvatar(
-                  avatar: character.avatar,
-                  name: character.name,
+            if (_hasUsableHeaderAvatar(character)) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => context.push(AppRoutes.aboutI),
+                child: _HeaderImageAvatar(
+                  avatar: character.avatar!,
                   size: 42,
-                  backgroundColor: _personaPanelSoft,
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                character.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 17,
-                  height: 1.1,
-                  fontWeight: FontWeight.w600,
-                  color: _personaText,
-                  letterSpacing: 0,
-                  shadows: [
-                    Shadow(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            ],
+            const Spacer(),
             if (_toyControlService != null || _toyConnecting) ...[
               const SizedBox(width: 4),
               Tooltip(
@@ -3277,6 +3243,15 @@ only after you have written the goodbye you want the user to hear.''',
         ],
       ),
     );
+  }
+
+  bool _hasUsableHeaderAvatar(CharacterModel character) {
+    final avatar = character.avatar;
+    if (avatar == null || avatar.isEmpty || !isImageAvatar(avatar)) {
+      return false;
+    }
+    if (avatar.startsWith('/')) return File(avatar).existsSync();
+    return true;
   }
 
   Widget _buildHeaderActionsOverlay() {
@@ -4866,8 +4841,6 @@ class _ChatAtmosphereBackgroundState extends State<_ChatAtmosphereBackground> {
               ),
             ),
           ),
-        if (!hasCustomBg)
-          Positioned.fill(child: CustomPaint(painter: _ChatTexturePainter())),
         if (!hasCustomBg) ...[
           Positioned(
             top: -88,
@@ -4944,38 +4917,14 @@ class _ChatAtmosphereBackgroundState extends State<_ChatAtmosphereBackground> {
           ),
         const Positioned.fill(
           child: HereIamRainLayer(
-            opacity: 0.56,
-            microOpacity: 0.16,
-            dropletOpacity: 0.34,
+            opacity: 0.0,
+            microOpacity: 0.0,
+            dropletOpacity: 0.0,
           ),
         ),
       ],
     );
   }
-}
-
-class _ChatTexturePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.035)
-      ..strokeWidth = 1;
-    for (var y = 48.0; y < size.height; y += 72) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y + 18), linePaint);
-    }
-
-    final dotPaint = Paint()
-      ..color = _personaAccent.withValues(alpha: 0.04)
-      ..style = PaintingStyle.fill;
-    for (var y = 36.0; y < size.height; y += 56) {
-      for (var x = 24.0; x < size.width; x += 64) {
-        canvas.drawCircle(Offset(x, y), 1.2, dotPaint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 @visibleForTesting
@@ -5257,27 +5206,6 @@ class _FramedCharacterAvatar extends StatelessWidget {
   }
 }
 
-/// A standalone frosted glass circle, used to make header elements float
-/// individually instead of sitting inside a monolithic bar.
-class _FloatingGlassCircle extends StatelessWidget {
-  const _FloatingGlassCircle({required this.size, required this.child});
-
-  final double size;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return HereIamGlassSurface(
-      level: HereIamGlassLevel.hero,
-      shape: BoxShape.circle,
-      width: size,
-      height: size,
-      padding: const EdgeInsets.all(4),
-      child: child,
-    );
-  }
-}
-
 class _FrostedCircleButton extends StatelessWidget {
   const _FrostedCircleButton({required this.child});
 
@@ -5285,14 +5213,60 @@ class _FrostedCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return HereIamGlassSurface(
-      level: HereIamGlassLevel.raised,
-      shape: BoxShape.circle,
-      width: 40,
-      height: 40,
-      child: IconTheme(
-        data: IconThemeData(color: _personaText),
-        child: Center(child: child),
+    return ClipOval(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0xFF241319).withValues(alpha: 0.24),
+            border: Border.all(
+              color: const Color(0xFFFFECDD).withValues(alpha: 0.045),
+              width: 0.8,
+            ),
+            gradient: RadialGradient(
+              center: const Alignment(-0.45, -0.55),
+              radius: 1.05,
+              colors: [
+                const Color(0xFFFFECDD).withValues(alpha: 0.105),
+                const Color(0xFFC86774).withValues(alpha: 0.055),
+                Colors.black.withValues(alpha: 0.045),
+              ],
+              stops: const [0, 0.52, 1],
+            ),
+          ),
+          child: IconTheme(
+            data: IconThemeData(color: _personaText),
+            child: Center(child: child),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderImageAvatar extends StatelessWidget {
+  const _HeaderImageAvatar({
+    required this.avatar,
+    required this.size,
+  });
+
+  final String avatar;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipOval(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Image.file(
+          File(avatar),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        ),
       ),
     );
   }
