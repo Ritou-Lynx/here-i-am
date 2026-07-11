@@ -144,7 +144,8 @@ class MemoryFragments extends Table {
 
   IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
   IntColumn get createdAt => integer()();
-  IntColumn get eventTime => integer().nullable()(); // ms since epoch; when the event actually happened (from source message timestamps)
+  IntColumn get eventTime => integer()
+      .nullable()(); // ms since epoch; when the event actually happened (from source message timestamps)
 
   @override
   Set<Column> get primaryKey => {id};
@@ -391,4 +392,55 @@ class MemoryEmbeddings extends Table {
 
   @override
   Set<Column> get primaryKey => {targetTable, targetId};
+}
+
+// ============================================================================
+// 五、Project Memory 投影层 — i Continuity Gateway Phase 3
+// ============================================================================
+
+/// Policy-filtered current projection of one external project closeout.
+///
+/// This is deliberately separate from [MemoryCards]: project work is not
+/// User-truth and must never enter ordinary life-memory candidate generation.
+class ProjectMemoryItems extends Table {
+  TextColumn get id => text()(); // stable Gateway event id
+  TextColumn get projectId => text()(); // opaque user-level Gateway id
+  TextColumn get projectKey => text()();
+  TextColumn get itemType => text().withDefault(const Constant('closeout'))();
+  TextColumn get summary => text()();
+  TextColumn get decisionsJson => text().withDefault(const Constant('[]'))();
+  TextColumn get openLoopsJson => text().withDefault(const Constant('[]'))();
+  TextColumn get artifactRefsJson => text().withDefault(const Constant('[]'))();
+  TextColumn get retrievalText => text()();
+  TextColumn get status => text().withDefault(const Constant('active'))();
+  TextColumn get policyId => text()();
+  IntColumn get policyVersion => integer().withDefault(const Constant(1))();
+  TextColumn get memoryV3Policy => text()();
+  TextColumn get sensitivity => text()();
+  TextColumn get redactionState => text()();
+  TextColumn get authority => text()();
+  TextColumn get trustLevel => text()();
+  IntColumn get occurredAt => integer()();
+  IntColumn get receivedAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Provenance for a [ProjectMemoryItems] projection.
+///
+/// No transcript, shell output, diff, credential, or absolute path is stored.
+class ProjectMemorySources extends Table {
+  TextColumn get id => text()();
+  TextColumn get itemId => text()(); // soft FK -> project_memory_items.id
+  TextColumn get sourceEventId => text()();
+  TextColumn get sourceUri => text()();
+  TextColumn get sourceTool => text()();
+  TextColumn get sourceSessionId => text()();
+  TextColumn get contentHash => text()();
+  IntColumn get receivedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
 }

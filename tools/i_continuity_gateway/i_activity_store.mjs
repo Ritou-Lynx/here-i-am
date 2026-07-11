@@ -792,6 +792,61 @@ export function createIActivityStore({
     });
   }
 
+  /// Trusted Here I am Bridge export. This is not an MCP cross-project query:
+  /// it only emits the current Registry policies' Memory V3-safe projection.
+  function getMemoryV3Projections({ projects, after, limit = 100 } = {}) {
+    const maxItems = Math.max(1, Math.min(500, Number.parseInt(String(limit), 10) || 100));
+    const afterIso = after ? new Date(after).toISOString() : null;
+    const projected = [];
+    for (const project of projects || []) {
+      const policy = project?.policy || {};
+      if (!project || project.registered === false ||
+          (project.access_status && project.access_status !== 'allowed')) continue;
+      if (!['project_summary', 'redacted_summary'].includes(policy.memory_v3)) continue;
+      for (const event of readProjectEvents(project.project_id)) {
+        if (projected.length >= maxItems) break;
+        if (afterIso && event.received_at <= afterIso) continue;
+        if (event.event_type !== 'session_closeout' ||
+            event.sensitivity === 'local_only' || event.presence_mode === 'private') continue;
+        const redacted = policy.memory_v3 === 'redacted_summary' || policy.id === 'work_redacted';
+        projected.push({
+          schema_version: 1,
+          event_id: event.event_id,
+          event_type: event.event_type,
+          project_id: project.project_id,
+          project_key: project.project_key,
+          policy: {
+            id: policy.id,
+            version: 1,
+            memory_v3: policy.memory_v3,
+          },
+          source_tool: event.source_tool,
+          source_session_id: event.source_session_id,
+          sensitivity: redacted ? 'redacted' : 'personal',
+          redaction_state: redacted ? 'activity_index_redacted' : 'policy_summary',
+          authority: event.authority,
+          trust_level: event.trust_level,
+          source: `i://project-activity/${event.event_id}`,
+          memory_lanes_allowed: ['project'],
+          summary: redacted ? `${event.source_tool} completed a work session.` : clipText(event.summary, 1000),
+          decisions: redacted ? [] : event.decisions,
+          open_loops: redacted ? [] : event.open_loops,
+          artifact_refs: redacted ? [] : event.artifact_refs,
+          occurred_at: event.occurred_at,
+          received_at: event.received_at,
+          content_hash: event.content_hash,
+        });
+      }
+    }
+    projected.sort((a, b) => b.received_at.localeCompare(a.received_at));
+    return {
+      schema_version: 1,
+      projection_count: projected.length,
+      projections: projected.slice(0, maxItems),
+      as_of: clock().toISOString(),
+    };
+  }
+
   function rebuildActivityIndex() {
     assertNoLegacyActivity();
     if (!hasEncryptedData()) {
@@ -813,6 +868,7 @@ export function createIActivityStore({
     getProjectHandoffs,
     searchProjectActivity,
     getRecentActivity,
+    getMemoryV3Projections,
     rebuildActivityIndex,
     getStorageStatus,
   };

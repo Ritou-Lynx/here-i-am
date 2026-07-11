@@ -10,10 +10,13 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { URL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createIActivityStore } from '../i_continuity_gateway/i_activity_store.mjs';
+import { loadProjectRegistry } from '../i_continuity_gateway/i_project_registry.mjs';
 
 const host = process.env.DEV_AGENT_BRIDGE_HOST || '127.0.0.1';
 const port = Number(process.env.DEV_AGENT_BRIDGE_PORT || 47831);
@@ -24,6 +27,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const statePath = process.env.DEV_AGENT_BRIDGE_STATE ||
   join(scriptDir, '.state', 'runs.json');
 const runs = new Map();
+const iHome = process.env.I_HOME || join(homedir(), '.i');
 
 const terminalStatuses = new Set(['done', 'failed', 'aborted']);
 
@@ -607,7 +611,7 @@ async function handle(req, res) {
         bridge_id: 'local-dev-agent-bridge',
         version: '0.1.0',
         agents: ['claude_code', 'codex'],
-        features: ['git_status', 'git_pull', 'git_push'],
+        features: ['git_status', 'git_pull', 'git_push', 'project_memory_projection'],
         transport: certPath && keyPath ? 'https' : 'http-local',
       });
       return;
@@ -907,6 +911,22 @@ async function handle(req, res) {
       } catch (err) {
         json(res, 422, { error: 'git_status_error', message: err.message });
       }
+      return;
+    }
+
+    if (req.method === 'GET' && path === '/v1/project-memory/projections') {
+      const registry = loadProjectRegistry({ iHome });
+      if (registry.status !== 'ready') {
+        json(res, 503, { error: 'i_registry_unavailable', status: registry.status });
+        return;
+      }
+      const store = createIActivityStore({ iHome });
+      const payload = store.getMemoryV3Projections({
+        projects: registry.projects,
+        after: url.searchParams.get('after') || undefined,
+        limit: Number(url.searchParams.get('limit') || 100),
+      });
+      json(res, 200, payload);
       return;
     }
 

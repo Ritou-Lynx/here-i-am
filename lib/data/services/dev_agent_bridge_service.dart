@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
+import 'package:memex/data/memory_v3/services/project_memory_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -115,6 +117,20 @@ class DevGitOperationResult {
           : null,
     );
   }
+}
+
+class ProjectMemorySyncResult {
+  const ProjectMemorySyncResult({
+    required this.received,
+    required this.inserted,
+    required this.duplicates,
+    required this.asOf,
+  });
+
+  final int received;
+  final int inserted;
+  final int duplicates;
+  final String? asOf;
 }
 
 /// App-side control surface for the remote development bridge.
@@ -562,7 +578,7 @@ class DevAgentBridgeService {
     }
     final agents = data['agents'];
     final features = data['features'];
-    return DevAgentBridgeHealth(
+    final health = DevAgentBridgeHealth(
       ok: data['ok'] == true,
       bridgeId: data['bridge_id']?.toString() ?? 'unknown',
       version: data['version']?.toString() ?? 'unknown',
@@ -571,6 +587,64 @@ class DevAgentBridgeService {
           ? features.map((e) => e.toString()).toList()
           : const [],
     );
+    if (health.ok && health.features.contains('project_memory_projection')) {
+      unawaited(syncProjectMemory(bridgeUrl).catchError((Object error) {
+        _logger.warning('Background Project Memory sync skipped: $error');
+        return const ProjectMemorySyncResult(
+          received: 0,
+          inserted: 0,
+          duplicates: 0,
+          asOf: null,
+        );
+      }));
+    }
+    return health;
+  }
+
+  /// Pulls only policy-approved Project Memory projections from the trusted
+  /// Dev Room Bridge. The projection service revalidates every envelope and
+  /// writes idempotently; no raw Gateway ledger or transcript reaches the app.
+  Future<ProjectMemorySyncResult> syncProjectMemory(
+    String bridgeUrl, {
+    DateTime? after,
+    int limit = 100,
+  }) async {
+    _validateBridgeUrl(bridgeUrl);
+    final uri = _bridgeUri(bridgeUrl, '/v1/project-memory/projections').replace(
+      queryParameters: {
+        if (after != null) 'after': after.toUtc().toIso8601String(),
+        'limit': limit.clamp(1, 500).toString(),
+      },
+    );
+    try {
+      final response = await _dio.getUri<Map<String, dynamic>>(uri);
+      final data = response.data ?? const <String, dynamic>{};
+      final raw = data['projections'];
+      final projections = raw is List ? raw : const [];
+      final service = ProjectMemoryService(_db);
+      var inserted = 0;
+      var duplicates = 0;
+      for (final value in projections) {
+        if (value is! Map) continue;
+        final envelope = ProjectMemoryProjectionEnvelope.fromJson(
+          Map<String, dynamic>.from(value),
+        );
+        if (await service.project(envelope)) {
+          inserted += 1;
+        } else {
+          duplicates += 1;
+        }
+      }
+      return ProjectMemorySyncResult(
+        received: projections.length,
+        inserted: inserted,
+        duplicates: duplicates,
+        asOf: data['as_of']?.toString(),
+      );
+    } catch (error, stack) {
+      _logger.warning('Project Memory sync failed', error, stack);
+      throw DevAgentBridgeException('Project Memory sync failed: $error');
+    }
   }
 
   Future<int> refreshActiveRuns({String? projectId}) async {

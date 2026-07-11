@@ -71,6 +71,18 @@ class SearchDao {
         tokenize='unicode61'
       )
     ''');
+    await _db.customStatement('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS project_memory_fts USING fts5(
+        item_id UNINDEXED,
+        project_id UNINDEXED,
+        project_key UNINDEXED,
+        summary,
+        decisions,
+        open_loops,
+        artifact_refs,
+        tokenize='unicode61'
+      )
+    ''');
     await createCharacterFtsTables();
   }
 
@@ -482,6 +494,74 @@ class SearchDao {
               'card_id': row.read<String>('card_id'),
               'label_snippet': row.read<String>('label_snippet'),
               'text_snippet': row.read<String>('text_snippet'),
+              'rank': row.read<double>('rank'),
+            })
+        .toList();
+  }
+
+  Future<void> upsertProjectMemoryFts({
+    required String itemId,
+    required String projectId,
+    required String projectKey,
+    required String summary,
+    required String decisions,
+    required String openLoops,
+    required String artifactRefs,
+  }) async {
+    await deleteProjectMemoryFts(itemId);
+    await _db.customStatement(
+      'INSERT INTO project_memory_fts('
+      'item_id, project_id, project_key, summary, decisions, open_loops, artifact_refs'
+      ') VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [
+        itemId,
+        projectId,
+        projectKey,
+        await tokenizeForIndex(summary),
+        await tokenizeForIndex(decisions),
+        await tokenizeForIndex(openLoops),
+        await tokenizeForIndex(artifactRefs),
+      ],
+    );
+  }
+
+  Future<void> deleteProjectMemoryFts(String itemId) async {
+    await _db.customStatement(
+      'DELETE FROM project_memory_fts WHERE item_id = ?',
+      [itemId],
+    );
+  }
+
+  /// Project filtering is part of candidate generation, before rank/limit.
+  Future<List<Map<String, dynamic>>> searchProjectMemory(
+    String query, {
+    required Set<String> allowedProjectIds,
+    int limit = 20,
+  }) async {
+    if (allowedProjectIds.isEmpty) return [];
+    final ftsQuery = await tokenizeForQuery(query);
+    if (ftsQuery.isEmpty) return [];
+    final placeholders = List.filled(allowedProjectIds.length, '?').join(',');
+    final results = await _db.customSelect(
+      '''SELECT item_id, project_id, project_key,
+                snippet(project_memory_fts, 3, '<b>', '</b>', '...', 64) AS summary_snippet,
+                rank
+         FROM project_memory_fts
+         WHERE project_memory_fts MATCH ?
+           AND project_id IN ($placeholders)
+         ORDER BY rank LIMIT ?''',
+      variables: [
+        Variable<String>(ftsQuery),
+        ...allowedProjectIds.map(Variable<String>.new),
+        Variable<int>(limit),
+      ],
+    ).get();
+    return results
+        .map((row) => {
+              'item_id': row.read<String>('item_id'),
+              'project_id': row.read<String>('project_id'),
+              'project_key': row.read<String>('project_key'),
+              'summary_snippet': row.read<String>('summary_snippet'),
               'rank': row.read<double>('rank'),
             })
         .toList();

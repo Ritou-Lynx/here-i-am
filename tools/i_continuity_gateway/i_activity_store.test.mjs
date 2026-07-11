@@ -160,6 +160,45 @@ test('personal closeout is appended with server-owned provenance and indexed', (
   assert.equal(recent.activities[0].summary, closeout().summary);
 });
 
+test('Memory V3 export includes personal details and redacts work details', (t) => {
+  const { store } = harness(t);
+  const personal = project();
+  const work = project({
+    id: 'project-work-0001',
+    key: 'work',
+    policy: {
+      id: 'work_redacted',
+      classification: 'work',
+      cross_project_visibility: 'summary',
+      memory_v3: 'redacted_summary',
+    },
+  });
+  store.closeSession({ project: personal, clientId: 'codex', input: closeout() });
+  store.closeSession({
+    project: work,
+    clientId: 'claude-code',
+    input: closeout({
+      session_id: 'session-work-0001',
+      idempotency_key: 'closeout-work-0001',
+      summary: 'Confidential client detail.',
+      decisions: ['Secret decision.'],
+      open_loops: ['Secret task.'],
+      artifact_refs: ['private/plan.md'],
+    }),
+  });
+
+  const result = store.getMemoryV3Projections({ projects: [personal, work] });
+  assert.equal(result.projection_count, 2);
+  const personalProjection = result.projections.find((item) => item.project_id === personal.project_id);
+  assert.deepEqual(personalProjection.decisions, ['Use an append-only JSONL ledger.']);
+  assert.equal(personalProjection.redaction_state, 'policy_summary');
+  const workProjection = result.projections.find((item) => item.project_id === work.project_id);
+  assert.equal(workProjection.summary, 'claude-code completed a work session.');
+  assert.deepEqual(workProjection.decisions, []);
+  assert.deepEqual(workProjection.open_loops, []);
+  assert.deepEqual(workProjection.artifact_refs, []);
+});
+
 test('same idempotency key and content returns the original event without appending', (t) => {
   const { iHome, store } = harness(t);
   const activeProject = project();

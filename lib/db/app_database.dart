@@ -63,6 +63,8 @@ part 'app_database.g.dart';
     memory_v3.MemoryCardOperations,
     memory_v3.MemoryRecallEvents,
     memory_v3.MemoryEmbeddings,
+    memory_v3.ProjectMemoryItems,
+    memory_v3.ProjectMemorySources,
   ],
   daos: [CardDao, AiFinanceDao, AiPurchaseDao, VoiceCallDao],
 )
@@ -119,7 +121,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 41;
+  int get schemaVersion => 42;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -537,6 +539,12 @@ class AppDatabase extends _$AppDatabase {
             // Backfill is done by DreamingOrchestratorServiceV3.init on next
             // startup — it resolves sourceMessageIds → min(timestamp).
           }
+          if (from < 42) {
+            await m.createTable(projectMemoryItems);
+            await m.createTable(projectMemorySources);
+            await _createProjectMemoryIndices();
+            await searchDao.createFtsTables();
+          }
           if (from < 39) {
             await _addColumnIfMissing(
               "memory_episodes ADD COLUMN topic_id TEXT NOT NULL DEFAULT '__ungrouped__'",
@@ -589,6 +597,8 @@ class AppDatabase extends _$AppDatabase {
     // 索引 / 召回辅助
     await m.createTable(memoryRecallEvents);
     await m.createTable(memoryEmbeddings);
+    await m.createTable(projectMemoryItems);
+    await m.createTable(projectMemorySources);
 
     await _createMemoryV3Indices();
   }
@@ -635,6 +645,19 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_memory_embeddings_updated '
         'ON memory_embeddings(updated_at)');
+    await _createProjectMemoryIndices();
+  }
+
+  Future<void> _createProjectMemoryIndices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_project_memory_project_status_time '
+        'ON project_memory_items(project_id, status, occurred_at DESC)');
+    await customStatement(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_project_memory_source_event '
+        'ON project_memory_sources(source_event_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_project_memory_sources_item '
+        'ON project_memory_sources(item_id)');
   }
 
   Future<void> _createClarificationRequestsTable(Migrator m) async {

@@ -104,18 +104,15 @@ class CompanionAgentSkill extends Skill {
         '- You may include brief action, scene, or inner-thought cues wrapped in '
         '*asterisks* on their own line before your spoken words. Keep them short '
         '— one or two lines at most.');
-    b.writeln(
-        '- 旁白视角：你的旁白（*...* 包裹的内容）是你的内心独白，不是上帝视角叙述。'
+    b.writeln('- 旁白视角：你的旁白（*...* 包裹的内容）是你的内心独白，不是上帝视角叙述。'
         '默认用"我"指自己——人脑子里不会叫自己全名。'
         '以下情况可以用"林埃"：'
         '思考链（<think>...</think>）里分析自己时；'
         '聊天对话中向用户介绍自己时（如"你叫我林埃就行"）。'
         '其他所有地方——旁白、记忆记录、内心活动——一律用"我"。');
-    b.writeln(
-        '- 你的 Dreaming 记忆（episodes / fragments）是你自己的回顾记录——'
+    b.writeln('- 你的 Dreaming 记忆（episodes / fragments）是你自己的回顾记录——'
         '同样用"我"指自己、"她"指用户。');
-    b.writeln(
-        '- Format example:');
+    b.writeln('- Format example:');
     b.writeln('  ```');
     b.writeln('  *我靠在椅背上，看着屏幕笑了一下。*');
     b.writeln('  所以你其实是这个意思啊。');
@@ -133,6 +130,8 @@ class CompanionAgentSkill extends Skill {
         '- CRITICAL: When the user asks you to modify records or generate structured insights, use `delegate_task`. Pick task_category: `card_ops` for "改卡片/归档/创建记录" (results go to Review tab), `insight` for "总结/分析/生成图表" (chat only, not saved). For simple recall / memory lookups (e.g. "还记得XX吗", "我有没有YY", "上次ZZ是什么时候"), use `memory_v3_query` directly — it gives instant results. Only use `delegate_task` query when you need complex multi-step search across many sources. Reply first, then call the tool.');
     b.writeln(
         '- When the user asks you to summon Codex / Claude Code, inspect or modify a configured software project, review code, or read a local folder/archive through Dev Room, use `dev_session_start_or_continue`. Reply in character first, then call the tool. Treat it as asynchronous: tell the user the Dev Session has started and they can watch progress in Dev Room.');
+    b.writeln(
+        '- When the user asks what a project has already completed, decided, or left open, call `project_memory_query` first for the policy-approved long-term project summary. If they need the exact current code/UI/diff/files, or the memory is absent/stale, then use `dev_session_start_or_continue` for a live Dev Room inspection. Never use Project Memory for ordinary life or relationship recall.');
     b.writeln(
         '- For follow-up wording such as "继续刚才那个", "下一篇", "接着看", "让 Codex 继续", or "read the next one", call `dev_session_start_or_continue` with reuse_latest=true and do not start a new session unless the user explicitly asks to switch project or start over.');
     b.writeln(
@@ -190,8 +189,7 @@ class CompanionAgentSkill extends Skill {
         '- This creates a +1 day offset: natural-language "X日的睡眠" = night STARTING on X, but COROS records it under X+1 (wake-up date).');
     b.writeln(
         '- "昨晚的睡眠" (last night\'s sleep) = stored under TODAY\'s date (the sleep ended this morning).');
-    b.writeln(
-        '- "前天晚上的睡眠" = stored under YESTERDAY\'s date.');
+    b.writeln('- "前天晚上的睡眠" = stored under YESTERDAY\'s date.');
     b.writeln(
         '- "7月5日的睡眠" = stored under July 6. ALWAYS add 1 day when converting user dates to COROS dates.');
     b.writeln(

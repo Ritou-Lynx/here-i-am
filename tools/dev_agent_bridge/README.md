@@ -26,6 +26,12 @@ normalization move forward without waiting for that reinstall/fork.
 powershell -File tools\dev_agent_bridge\start_bridge.ps1
 ```
 
+## Project Memory projection
+
+`GET /v1/project-memory/projections?after=<ISO-8601>&limit=100` 从本机加密 i Gateway ledger 生成 Memory V3-safe 投影。只导出 Registry 中 `memory_v3=project_summary/redacted_summary` 的项目；`confidential_local`、`ephemeral`、`local_only` 和 `private` 不会返回。工作项目只返回脱敏通用摘要，不返回 decisions、open loops 或 artifact refs。
+
+该端点沿用 Dev Room 的 Tailscale HTTPS / debug loopback 信任边界；不返回原始 ledger、diff、transcript 或凭据。
+
 Stop a background bridge left from local testing:
 
 ```powershell

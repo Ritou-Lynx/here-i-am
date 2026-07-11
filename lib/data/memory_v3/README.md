@@ -101,6 +101,10 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 - DEVLOG / commit / Dev Room run / closeout 产生的是项目事件史；先进入用户级隔离 Project Space，只有项目政策允许的内容才投影到 Project Memory domain，而不是 `memory_cards` 的普通 User-truth 流。
 - 原始 run / diff / approval 仍归 Dev Room 表管理；Project Memory 只保存可检索摘要和决策。
 - 林埃只有在项目相关问题中检索 Project Memory，普通生活聊天默认不注入。
+- Phase 3 使用独立 `project_memory_items` / `project_memory_sources` 与 `project_memory_fts`，不复用 `memory_cards`，因此不会污染 User-truth。
+- `ProjectMemoryService` 只接受 `personal_full/project_summary` 或已清空细节的 `work_redacted/redacted_summary` envelope；`local_only`、`private`、`confidential_local` fail closed。
+- `project_memory_query` 经过本地项目意图门禁；普通生活与关系问题即使误调用也生成零候选。明确项目问题先读 Project Memory 概况，需要当前代码/UI/diff 时再走 Dev Room。
+- Dev Room Bridge 只导出 Registry 当前政策允许的投影，不发送原始加密 ledger、完整 transcript 或 shell 输出；App 在 Bridge health 成功后幂等拉取。
 - `confidential_local / ephemeral` 项目不得进入 Here I am；FTS / embedding 必须先按 project / policy 过滤，再做 top-k。
 
 每切完一段，旧的对应代码可以删。

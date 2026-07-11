@@ -21639,6 +21639,1395 @@ class MemoryEmbeddingsCompanion extends UpdateCompanion<MemoryEmbedding> {
   }
 }
 
+class $ProjectMemoryItemsTable extends memory_v3.ProjectMemoryItems
+    with TableInfo<$ProjectMemoryItemsTable, ProjectMemoryItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProjectMemoryItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _projectIdMeta =
+      const VerificationMeta('projectId');
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+      'project_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _projectKeyMeta =
+      const VerificationMeta('projectKey');
+  @override
+  late final GeneratedColumn<String> projectKey = GeneratedColumn<String>(
+      'project_key', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _itemTypeMeta =
+      const VerificationMeta('itemType');
+  @override
+  late final GeneratedColumn<String> itemType = GeneratedColumn<String>(
+      'item_type', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('closeout'));
+  static const VerificationMeta _summaryMeta =
+      const VerificationMeta('summary');
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+      'summary', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _decisionsJsonMeta =
+      const VerificationMeta('decisionsJson');
+  @override
+  late final GeneratedColumn<String> decisionsJson = GeneratedColumn<String>(
+      'decisions_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
+  static const VerificationMeta _openLoopsJsonMeta =
+      const VerificationMeta('openLoopsJson');
+  @override
+  late final GeneratedColumn<String> openLoopsJson = GeneratedColumn<String>(
+      'open_loops_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
+  static const VerificationMeta _artifactRefsJsonMeta =
+      const VerificationMeta('artifactRefsJson');
+  @override
+  late final GeneratedColumn<String> artifactRefsJson = GeneratedColumn<String>(
+      'artifact_refs_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
+  static const VerificationMeta _retrievalTextMeta =
+      const VerificationMeta('retrievalText');
+  @override
+  late final GeneratedColumn<String> retrievalText = GeneratedColumn<String>(
+      'retrieval_text', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _policyIdMeta =
+      const VerificationMeta('policyId');
+  @override
+  late final GeneratedColumn<String> policyId = GeneratedColumn<String>(
+      'policy_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _policyVersionMeta =
+      const VerificationMeta('policyVersion');
+  @override
+  late final GeneratedColumn<int> policyVersion = GeneratedColumn<int>(
+      'policy_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _memoryV3PolicyMeta =
+      const VerificationMeta('memoryV3Policy');
+  @override
+  late final GeneratedColumn<String> memoryV3Policy = GeneratedColumn<String>(
+      'memory_v3_policy', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sensitivityMeta =
+      const VerificationMeta('sensitivity');
+  @override
+  late final GeneratedColumn<String> sensitivity = GeneratedColumn<String>(
+      'sensitivity', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _redactionStateMeta =
+      const VerificationMeta('redactionState');
+  @override
+  late final GeneratedColumn<String> redactionState = GeneratedColumn<String>(
+      'redaction_state', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _authorityMeta =
+      const VerificationMeta('authority');
+  @override
+  late final GeneratedColumn<String> authority = GeneratedColumn<String>(
+      'authority', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _trustLevelMeta =
+      const VerificationMeta('trustLevel');
+  @override
+  late final GeneratedColumn<String> trustLevel = GeneratedColumn<String>(
+      'trust_level', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _occurredAtMeta =
+      const VerificationMeta('occurredAt');
+  @override
+  late final GeneratedColumn<int> occurredAt = GeneratedColumn<int>(
+      'occurred_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _receivedAtMeta =
+      const VerificationMeta('receivedAt');
+  @override
+  late final GeneratedColumn<int> receivedAt = GeneratedColumn<int>(
+      'received_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        projectId,
+        projectKey,
+        itemType,
+        summary,
+        decisionsJson,
+        openLoopsJson,
+        artifactRefsJson,
+        retrievalText,
+        status,
+        policyId,
+        policyVersion,
+        memoryV3Policy,
+        sensitivity,
+        redactionState,
+        authority,
+        trustLevel,
+        occurredAt,
+        receivedAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'project_memory_items';
+  @override
+  VerificationContext validateIntegrity(Insertable<ProjectMemoryItem> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(_projectIdMeta,
+          projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta));
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('project_key')) {
+      context.handle(
+          _projectKeyMeta,
+          projectKey.isAcceptableOrUnknown(
+              data['project_key']!, _projectKeyMeta));
+    } else if (isInserting) {
+      context.missing(_projectKeyMeta);
+    }
+    if (data.containsKey('item_type')) {
+      context.handle(_itemTypeMeta,
+          itemType.isAcceptableOrUnknown(data['item_type']!, _itemTypeMeta));
+    }
+    if (data.containsKey('summary')) {
+      context.handle(_summaryMeta,
+          summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta));
+    } else if (isInserting) {
+      context.missing(_summaryMeta);
+    }
+    if (data.containsKey('decisions_json')) {
+      context.handle(
+          _decisionsJsonMeta,
+          decisionsJson.isAcceptableOrUnknown(
+              data['decisions_json']!, _decisionsJsonMeta));
+    }
+    if (data.containsKey('open_loops_json')) {
+      context.handle(
+          _openLoopsJsonMeta,
+          openLoopsJson.isAcceptableOrUnknown(
+              data['open_loops_json']!, _openLoopsJsonMeta));
+    }
+    if (data.containsKey('artifact_refs_json')) {
+      context.handle(
+          _artifactRefsJsonMeta,
+          artifactRefsJson.isAcceptableOrUnknown(
+              data['artifact_refs_json']!, _artifactRefsJsonMeta));
+    }
+    if (data.containsKey('retrieval_text')) {
+      context.handle(
+          _retrievalTextMeta,
+          retrievalText.isAcceptableOrUnknown(
+              data['retrieval_text']!, _retrievalTextMeta));
+    } else if (isInserting) {
+      context.missing(_retrievalTextMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('policy_id')) {
+      context.handle(_policyIdMeta,
+          policyId.isAcceptableOrUnknown(data['policy_id']!, _policyIdMeta));
+    } else if (isInserting) {
+      context.missing(_policyIdMeta);
+    }
+    if (data.containsKey('policy_version')) {
+      context.handle(
+          _policyVersionMeta,
+          policyVersion.isAcceptableOrUnknown(
+              data['policy_version']!, _policyVersionMeta));
+    }
+    if (data.containsKey('memory_v3_policy')) {
+      context.handle(
+          _memoryV3PolicyMeta,
+          memoryV3Policy.isAcceptableOrUnknown(
+              data['memory_v3_policy']!, _memoryV3PolicyMeta));
+    } else if (isInserting) {
+      context.missing(_memoryV3PolicyMeta);
+    }
+    if (data.containsKey('sensitivity')) {
+      context.handle(
+          _sensitivityMeta,
+          sensitivity.isAcceptableOrUnknown(
+              data['sensitivity']!, _sensitivityMeta));
+    } else if (isInserting) {
+      context.missing(_sensitivityMeta);
+    }
+    if (data.containsKey('redaction_state')) {
+      context.handle(
+          _redactionStateMeta,
+          redactionState.isAcceptableOrUnknown(
+              data['redaction_state']!, _redactionStateMeta));
+    } else if (isInserting) {
+      context.missing(_redactionStateMeta);
+    }
+    if (data.containsKey('authority')) {
+      context.handle(_authorityMeta,
+          authority.isAcceptableOrUnknown(data['authority']!, _authorityMeta));
+    } else if (isInserting) {
+      context.missing(_authorityMeta);
+    }
+    if (data.containsKey('trust_level')) {
+      context.handle(
+          _trustLevelMeta,
+          trustLevel.isAcceptableOrUnknown(
+              data['trust_level']!, _trustLevelMeta));
+    } else if (isInserting) {
+      context.missing(_trustLevelMeta);
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+          _occurredAtMeta,
+          occurredAt.isAcceptableOrUnknown(
+              data['occurred_at']!, _occurredAtMeta));
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('received_at')) {
+      context.handle(
+          _receivedAtMeta,
+          receivedAt.isAcceptableOrUnknown(
+              data['received_at']!, _receivedAtMeta));
+    } else if (isInserting) {
+      context.missing(_receivedAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ProjectMemoryItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProjectMemoryItem(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      projectId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}project_id'])!,
+      projectKey: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}project_key'])!,
+      itemType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}item_type'])!,
+      summary: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}summary'])!,
+      decisionsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}decisions_json'])!,
+      openLoopsJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}open_loops_json'])!,
+      artifactRefsJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}artifact_refs_json'])!,
+      retrievalText: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}retrieval_text'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      policyId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}policy_id'])!,
+      policyVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}policy_version'])!,
+      memoryV3Policy: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}memory_v3_policy'])!,
+      sensitivity: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}sensitivity'])!,
+      redactionState: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}redaction_state'])!,
+      authority: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}authority'])!,
+      trustLevel: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}trust_level'])!,
+      occurredAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}occurred_at'])!,
+      receivedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}received_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $ProjectMemoryItemsTable createAlias(String alias) {
+    return $ProjectMemoryItemsTable(attachedDatabase, alias);
+  }
+}
+
+class ProjectMemoryItem extends DataClass
+    implements Insertable<ProjectMemoryItem> {
+  final String id;
+  final String projectId;
+  final String projectKey;
+  final String itemType;
+  final String summary;
+  final String decisionsJson;
+  final String openLoopsJson;
+  final String artifactRefsJson;
+  final String retrievalText;
+  final String status;
+  final String policyId;
+  final int policyVersion;
+  final String memoryV3Policy;
+  final String sensitivity;
+  final String redactionState;
+  final String authority;
+  final String trustLevel;
+  final int occurredAt;
+  final int receivedAt;
+  final int updatedAt;
+  const ProjectMemoryItem(
+      {required this.id,
+      required this.projectId,
+      required this.projectKey,
+      required this.itemType,
+      required this.summary,
+      required this.decisionsJson,
+      required this.openLoopsJson,
+      required this.artifactRefsJson,
+      required this.retrievalText,
+      required this.status,
+      required this.policyId,
+      required this.policyVersion,
+      required this.memoryV3Policy,
+      required this.sensitivity,
+      required this.redactionState,
+      required this.authority,
+      required this.trustLevel,
+      required this.occurredAt,
+      required this.receivedAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['project_id'] = Variable<String>(projectId);
+    map['project_key'] = Variable<String>(projectKey);
+    map['item_type'] = Variable<String>(itemType);
+    map['summary'] = Variable<String>(summary);
+    map['decisions_json'] = Variable<String>(decisionsJson);
+    map['open_loops_json'] = Variable<String>(openLoopsJson);
+    map['artifact_refs_json'] = Variable<String>(artifactRefsJson);
+    map['retrieval_text'] = Variable<String>(retrievalText);
+    map['status'] = Variable<String>(status);
+    map['policy_id'] = Variable<String>(policyId);
+    map['policy_version'] = Variable<int>(policyVersion);
+    map['memory_v3_policy'] = Variable<String>(memoryV3Policy);
+    map['sensitivity'] = Variable<String>(sensitivity);
+    map['redaction_state'] = Variable<String>(redactionState);
+    map['authority'] = Variable<String>(authority);
+    map['trust_level'] = Variable<String>(trustLevel);
+    map['occurred_at'] = Variable<int>(occurredAt);
+    map['received_at'] = Variable<int>(receivedAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  ProjectMemoryItemsCompanion toCompanion(bool nullToAbsent) {
+    return ProjectMemoryItemsCompanion(
+      id: Value(id),
+      projectId: Value(projectId),
+      projectKey: Value(projectKey),
+      itemType: Value(itemType),
+      summary: Value(summary),
+      decisionsJson: Value(decisionsJson),
+      openLoopsJson: Value(openLoopsJson),
+      artifactRefsJson: Value(artifactRefsJson),
+      retrievalText: Value(retrievalText),
+      status: Value(status),
+      policyId: Value(policyId),
+      policyVersion: Value(policyVersion),
+      memoryV3Policy: Value(memoryV3Policy),
+      sensitivity: Value(sensitivity),
+      redactionState: Value(redactionState),
+      authority: Value(authority),
+      trustLevel: Value(trustLevel),
+      occurredAt: Value(occurredAt),
+      receivedAt: Value(receivedAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ProjectMemoryItem.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProjectMemoryItem(
+      id: serializer.fromJson<String>(json['id']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      projectKey: serializer.fromJson<String>(json['projectKey']),
+      itemType: serializer.fromJson<String>(json['itemType']),
+      summary: serializer.fromJson<String>(json['summary']),
+      decisionsJson: serializer.fromJson<String>(json['decisionsJson']),
+      openLoopsJson: serializer.fromJson<String>(json['openLoopsJson']),
+      artifactRefsJson: serializer.fromJson<String>(json['artifactRefsJson']),
+      retrievalText: serializer.fromJson<String>(json['retrievalText']),
+      status: serializer.fromJson<String>(json['status']),
+      policyId: serializer.fromJson<String>(json['policyId']),
+      policyVersion: serializer.fromJson<int>(json['policyVersion']),
+      memoryV3Policy: serializer.fromJson<String>(json['memoryV3Policy']),
+      sensitivity: serializer.fromJson<String>(json['sensitivity']),
+      redactionState: serializer.fromJson<String>(json['redactionState']),
+      authority: serializer.fromJson<String>(json['authority']),
+      trustLevel: serializer.fromJson<String>(json['trustLevel']),
+      occurredAt: serializer.fromJson<int>(json['occurredAt']),
+      receivedAt: serializer.fromJson<int>(json['receivedAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'projectId': serializer.toJson<String>(projectId),
+      'projectKey': serializer.toJson<String>(projectKey),
+      'itemType': serializer.toJson<String>(itemType),
+      'summary': serializer.toJson<String>(summary),
+      'decisionsJson': serializer.toJson<String>(decisionsJson),
+      'openLoopsJson': serializer.toJson<String>(openLoopsJson),
+      'artifactRefsJson': serializer.toJson<String>(artifactRefsJson),
+      'retrievalText': serializer.toJson<String>(retrievalText),
+      'status': serializer.toJson<String>(status),
+      'policyId': serializer.toJson<String>(policyId),
+      'policyVersion': serializer.toJson<int>(policyVersion),
+      'memoryV3Policy': serializer.toJson<String>(memoryV3Policy),
+      'sensitivity': serializer.toJson<String>(sensitivity),
+      'redactionState': serializer.toJson<String>(redactionState),
+      'authority': serializer.toJson<String>(authority),
+      'trustLevel': serializer.toJson<String>(trustLevel),
+      'occurredAt': serializer.toJson<int>(occurredAt),
+      'receivedAt': serializer.toJson<int>(receivedAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  ProjectMemoryItem copyWith(
+          {String? id,
+          String? projectId,
+          String? projectKey,
+          String? itemType,
+          String? summary,
+          String? decisionsJson,
+          String? openLoopsJson,
+          String? artifactRefsJson,
+          String? retrievalText,
+          String? status,
+          String? policyId,
+          int? policyVersion,
+          String? memoryV3Policy,
+          String? sensitivity,
+          String? redactionState,
+          String? authority,
+          String? trustLevel,
+          int? occurredAt,
+          int? receivedAt,
+          int? updatedAt}) =>
+      ProjectMemoryItem(
+        id: id ?? this.id,
+        projectId: projectId ?? this.projectId,
+        projectKey: projectKey ?? this.projectKey,
+        itemType: itemType ?? this.itemType,
+        summary: summary ?? this.summary,
+        decisionsJson: decisionsJson ?? this.decisionsJson,
+        openLoopsJson: openLoopsJson ?? this.openLoopsJson,
+        artifactRefsJson: artifactRefsJson ?? this.artifactRefsJson,
+        retrievalText: retrievalText ?? this.retrievalText,
+        status: status ?? this.status,
+        policyId: policyId ?? this.policyId,
+        policyVersion: policyVersion ?? this.policyVersion,
+        memoryV3Policy: memoryV3Policy ?? this.memoryV3Policy,
+        sensitivity: sensitivity ?? this.sensitivity,
+        redactionState: redactionState ?? this.redactionState,
+        authority: authority ?? this.authority,
+        trustLevel: trustLevel ?? this.trustLevel,
+        occurredAt: occurredAt ?? this.occurredAt,
+        receivedAt: receivedAt ?? this.receivedAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  ProjectMemoryItem copyWithCompanion(ProjectMemoryItemsCompanion data) {
+    return ProjectMemoryItem(
+      id: data.id.present ? data.id.value : this.id,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      projectKey:
+          data.projectKey.present ? data.projectKey.value : this.projectKey,
+      itemType: data.itemType.present ? data.itemType.value : this.itemType,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      decisionsJson: data.decisionsJson.present
+          ? data.decisionsJson.value
+          : this.decisionsJson,
+      openLoopsJson: data.openLoopsJson.present
+          ? data.openLoopsJson.value
+          : this.openLoopsJson,
+      artifactRefsJson: data.artifactRefsJson.present
+          ? data.artifactRefsJson.value
+          : this.artifactRefsJson,
+      retrievalText: data.retrievalText.present
+          ? data.retrievalText.value
+          : this.retrievalText,
+      status: data.status.present ? data.status.value : this.status,
+      policyId: data.policyId.present ? data.policyId.value : this.policyId,
+      policyVersion: data.policyVersion.present
+          ? data.policyVersion.value
+          : this.policyVersion,
+      memoryV3Policy: data.memoryV3Policy.present
+          ? data.memoryV3Policy.value
+          : this.memoryV3Policy,
+      sensitivity:
+          data.sensitivity.present ? data.sensitivity.value : this.sensitivity,
+      redactionState: data.redactionState.present
+          ? data.redactionState.value
+          : this.redactionState,
+      authority: data.authority.present ? data.authority.value : this.authority,
+      trustLevel:
+          data.trustLevel.present ? data.trustLevel.value : this.trustLevel,
+      occurredAt:
+          data.occurredAt.present ? data.occurredAt.value : this.occurredAt,
+      receivedAt:
+          data.receivedAt.present ? data.receivedAt.value : this.receivedAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectMemoryItem(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('projectKey: $projectKey, ')
+          ..write('itemType: $itemType, ')
+          ..write('summary: $summary, ')
+          ..write('decisionsJson: $decisionsJson, ')
+          ..write('openLoopsJson: $openLoopsJson, ')
+          ..write('artifactRefsJson: $artifactRefsJson, ')
+          ..write('retrievalText: $retrievalText, ')
+          ..write('status: $status, ')
+          ..write('policyId: $policyId, ')
+          ..write('policyVersion: $policyVersion, ')
+          ..write('memoryV3Policy: $memoryV3Policy, ')
+          ..write('sensitivity: $sensitivity, ')
+          ..write('redactionState: $redactionState, ')
+          ..write('authority: $authority, ')
+          ..write('trustLevel: $trustLevel, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('receivedAt: $receivedAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      projectId,
+      projectKey,
+      itemType,
+      summary,
+      decisionsJson,
+      openLoopsJson,
+      artifactRefsJson,
+      retrievalText,
+      status,
+      policyId,
+      policyVersion,
+      memoryV3Policy,
+      sensitivity,
+      redactionState,
+      authority,
+      trustLevel,
+      occurredAt,
+      receivedAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProjectMemoryItem &&
+          other.id == this.id &&
+          other.projectId == this.projectId &&
+          other.projectKey == this.projectKey &&
+          other.itemType == this.itemType &&
+          other.summary == this.summary &&
+          other.decisionsJson == this.decisionsJson &&
+          other.openLoopsJson == this.openLoopsJson &&
+          other.artifactRefsJson == this.artifactRefsJson &&
+          other.retrievalText == this.retrievalText &&
+          other.status == this.status &&
+          other.policyId == this.policyId &&
+          other.policyVersion == this.policyVersion &&
+          other.memoryV3Policy == this.memoryV3Policy &&
+          other.sensitivity == this.sensitivity &&
+          other.redactionState == this.redactionState &&
+          other.authority == this.authority &&
+          other.trustLevel == this.trustLevel &&
+          other.occurredAt == this.occurredAt &&
+          other.receivedAt == this.receivedAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ProjectMemoryItemsCompanion extends UpdateCompanion<ProjectMemoryItem> {
+  final Value<String> id;
+  final Value<String> projectId;
+  final Value<String> projectKey;
+  final Value<String> itemType;
+  final Value<String> summary;
+  final Value<String> decisionsJson;
+  final Value<String> openLoopsJson;
+  final Value<String> artifactRefsJson;
+  final Value<String> retrievalText;
+  final Value<String> status;
+  final Value<String> policyId;
+  final Value<int> policyVersion;
+  final Value<String> memoryV3Policy;
+  final Value<String> sensitivity;
+  final Value<String> redactionState;
+  final Value<String> authority;
+  final Value<String> trustLevel;
+  final Value<int> occurredAt;
+  final Value<int> receivedAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const ProjectMemoryItemsCompanion({
+    this.id = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.projectKey = const Value.absent(),
+    this.itemType = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.decisionsJson = const Value.absent(),
+    this.openLoopsJson = const Value.absent(),
+    this.artifactRefsJson = const Value.absent(),
+    this.retrievalText = const Value.absent(),
+    this.status = const Value.absent(),
+    this.policyId = const Value.absent(),
+    this.policyVersion = const Value.absent(),
+    this.memoryV3Policy = const Value.absent(),
+    this.sensitivity = const Value.absent(),
+    this.redactionState = const Value.absent(),
+    this.authority = const Value.absent(),
+    this.trustLevel = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.receivedAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProjectMemoryItemsCompanion.insert({
+    required String id,
+    required String projectId,
+    required String projectKey,
+    this.itemType = const Value.absent(),
+    required String summary,
+    this.decisionsJson = const Value.absent(),
+    this.openLoopsJson = const Value.absent(),
+    this.artifactRefsJson = const Value.absent(),
+    required String retrievalText,
+    this.status = const Value.absent(),
+    required String policyId,
+    this.policyVersion = const Value.absent(),
+    required String memoryV3Policy,
+    required String sensitivity,
+    required String redactionState,
+    required String authority,
+    required String trustLevel,
+    required int occurredAt,
+    required int receivedAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        projectId = Value(projectId),
+        projectKey = Value(projectKey),
+        summary = Value(summary),
+        retrievalText = Value(retrievalText),
+        policyId = Value(policyId),
+        memoryV3Policy = Value(memoryV3Policy),
+        sensitivity = Value(sensitivity),
+        redactionState = Value(redactionState),
+        authority = Value(authority),
+        trustLevel = Value(trustLevel),
+        occurredAt = Value(occurredAt),
+        receivedAt = Value(receivedAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<ProjectMemoryItem> custom({
+    Expression<String>? id,
+    Expression<String>? projectId,
+    Expression<String>? projectKey,
+    Expression<String>? itemType,
+    Expression<String>? summary,
+    Expression<String>? decisionsJson,
+    Expression<String>? openLoopsJson,
+    Expression<String>? artifactRefsJson,
+    Expression<String>? retrievalText,
+    Expression<String>? status,
+    Expression<String>? policyId,
+    Expression<int>? policyVersion,
+    Expression<String>? memoryV3Policy,
+    Expression<String>? sensitivity,
+    Expression<String>? redactionState,
+    Expression<String>? authority,
+    Expression<String>? trustLevel,
+    Expression<int>? occurredAt,
+    Expression<int>? receivedAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (projectId != null) 'project_id': projectId,
+      if (projectKey != null) 'project_key': projectKey,
+      if (itemType != null) 'item_type': itemType,
+      if (summary != null) 'summary': summary,
+      if (decisionsJson != null) 'decisions_json': decisionsJson,
+      if (openLoopsJson != null) 'open_loops_json': openLoopsJson,
+      if (artifactRefsJson != null) 'artifact_refs_json': artifactRefsJson,
+      if (retrievalText != null) 'retrieval_text': retrievalText,
+      if (status != null) 'status': status,
+      if (policyId != null) 'policy_id': policyId,
+      if (policyVersion != null) 'policy_version': policyVersion,
+      if (memoryV3Policy != null) 'memory_v3_policy': memoryV3Policy,
+      if (sensitivity != null) 'sensitivity': sensitivity,
+      if (redactionState != null) 'redaction_state': redactionState,
+      if (authority != null) 'authority': authority,
+      if (trustLevel != null) 'trust_level': trustLevel,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (receivedAt != null) 'received_at': receivedAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProjectMemoryItemsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? projectId,
+      Value<String>? projectKey,
+      Value<String>? itemType,
+      Value<String>? summary,
+      Value<String>? decisionsJson,
+      Value<String>? openLoopsJson,
+      Value<String>? artifactRefsJson,
+      Value<String>? retrievalText,
+      Value<String>? status,
+      Value<String>? policyId,
+      Value<int>? policyVersion,
+      Value<String>? memoryV3Policy,
+      Value<String>? sensitivity,
+      Value<String>? redactionState,
+      Value<String>? authority,
+      Value<String>? trustLevel,
+      Value<int>? occurredAt,
+      Value<int>? receivedAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return ProjectMemoryItemsCompanion(
+      id: id ?? this.id,
+      projectId: projectId ?? this.projectId,
+      projectKey: projectKey ?? this.projectKey,
+      itemType: itemType ?? this.itemType,
+      summary: summary ?? this.summary,
+      decisionsJson: decisionsJson ?? this.decisionsJson,
+      openLoopsJson: openLoopsJson ?? this.openLoopsJson,
+      artifactRefsJson: artifactRefsJson ?? this.artifactRefsJson,
+      retrievalText: retrievalText ?? this.retrievalText,
+      status: status ?? this.status,
+      policyId: policyId ?? this.policyId,
+      policyVersion: policyVersion ?? this.policyVersion,
+      memoryV3Policy: memoryV3Policy ?? this.memoryV3Policy,
+      sensitivity: sensitivity ?? this.sensitivity,
+      redactionState: redactionState ?? this.redactionState,
+      authority: authority ?? this.authority,
+      trustLevel: trustLevel ?? this.trustLevel,
+      occurredAt: occurredAt ?? this.occurredAt,
+      receivedAt: receivedAt ?? this.receivedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (projectKey.present) {
+      map['project_key'] = Variable<String>(projectKey.value);
+    }
+    if (itemType.present) {
+      map['item_type'] = Variable<String>(itemType.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (decisionsJson.present) {
+      map['decisions_json'] = Variable<String>(decisionsJson.value);
+    }
+    if (openLoopsJson.present) {
+      map['open_loops_json'] = Variable<String>(openLoopsJson.value);
+    }
+    if (artifactRefsJson.present) {
+      map['artifact_refs_json'] = Variable<String>(artifactRefsJson.value);
+    }
+    if (retrievalText.present) {
+      map['retrieval_text'] = Variable<String>(retrievalText.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (policyId.present) {
+      map['policy_id'] = Variable<String>(policyId.value);
+    }
+    if (policyVersion.present) {
+      map['policy_version'] = Variable<int>(policyVersion.value);
+    }
+    if (memoryV3Policy.present) {
+      map['memory_v3_policy'] = Variable<String>(memoryV3Policy.value);
+    }
+    if (sensitivity.present) {
+      map['sensitivity'] = Variable<String>(sensitivity.value);
+    }
+    if (redactionState.present) {
+      map['redaction_state'] = Variable<String>(redactionState.value);
+    }
+    if (authority.present) {
+      map['authority'] = Variable<String>(authority.value);
+    }
+    if (trustLevel.present) {
+      map['trust_level'] = Variable<String>(trustLevel.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<int>(occurredAt.value);
+    }
+    if (receivedAt.present) {
+      map['received_at'] = Variable<int>(receivedAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectMemoryItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('projectKey: $projectKey, ')
+          ..write('itemType: $itemType, ')
+          ..write('summary: $summary, ')
+          ..write('decisionsJson: $decisionsJson, ')
+          ..write('openLoopsJson: $openLoopsJson, ')
+          ..write('artifactRefsJson: $artifactRefsJson, ')
+          ..write('retrievalText: $retrievalText, ')
+          ..write('status: $status, ')
+          ..write('policyId: $policyId, ')
+          ..write('policyVersion: $policyVersion, ')
+          ..write('memoryV3Policy: $memoryV3Policy, ')
+          ..write('sensitivity: $sensitivity, ')
+          ..write('redactionState: $redactionState, ')
+          ..write('authority: $authority, ')
+          ..write('trustLevel: $trustLevel, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('receivedAt: $receivedAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ProjectMemorySourcesTable extends memory_v3.ProjectMemorySources
+    with TableInfo<$ProjectMemorySourcesTable, ProjectMemorySource> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProjectMemorySourcesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _itemIdMeta = const VerificationMeta('itemId');
+  @override
+  late final GeneratedColumn<String> itemId = GeneratedColumn<String>(
+      'item_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceEventIdMeta =
+      const VerificationMeta('sourceEventId');
+  @override
+  late final GeneratedColumn<String> sourceEventId = GeneratedColumn<String>(
+      'source_event_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceUriMeta =
+      const VerificationMeta('sourceUri');
+  @override
+  late final GeneratedColumn<String> sourceUri = GeneratedColumn<String>(
+      'source_uri', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceToolMeta =
+      const VerificationMeta('sourceTool');
+  @override
+  late final GeneratedColumn<String> sourceTool = GeneratedColumn<String>(
+      'source_tool', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceSessionIdMeta =
+      const VerificationMeta('sourceSessionId');
+  @override
+  late final GeneratedColumn<String> sourceSessionId = GeneratedColumn<String>(
+      'source_session_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentHashMeta =
+      const VerificationMeta('contentHash');
+  @override
+  late final GeneratedColumn<String> contentHash = GeneratedColumn<String>(
+      'content_hash', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _receivedAtMeta =
+      const VerificationMeta('receivedAt');
+  @override
+  late final GeneratedColumn<int> receivedAt = GeneratedColumn<int>(
+      'received_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        itemId,
+        sourceEventId,
+        sourceUri,
+        sourceTool,
+        sourceSessionId,
+        contentHash,
+        receivedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'project_memory_sources';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<ProjectMemorySource> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('item_id')) {
+      context.handle(_itemIdMeta,
+          itemId.isAcceptableOrUnknown(data['item_id']!, _itemIdMeta));
+    } else if (isInserting) {
+      context.missing(_itemIdMeta);
+    }
+    if (data.containsKey('source_event_id')) {
+      context.handle(
+          _sourceEventIdMeta,
+          sourceEventId.isAcceptableOrUnknown(
+              data['source_event_id']!, _sourceEventIdMeta));
+    } else if (isInserting) {
+      context.missing(_sourceEventIdMeta);
+    }
+    if (data.containsKey('source_uri')) {
+      context.handle(_sourceUriMeta,
+          sourceUri.isAcceptableOrUnknown(data['source_uri']!, _sourceUriMeta));
+    } else if (isInserting) {
+      context.missing(_sourceUriMeta);
+    }
+    if (data.containsKey('source_tool')) {
+      context.handle(
+          _sourceToolMeta,
+          sourceTool.isAcceptableOrUnknown(
+              data['source_tool']!, _sourceToolMeta));
+    } else if (isInserting) {
+      context.missing(_sourceToolMeta);
+    }
+    if (data.containsKey('source_session_id')) {
+      context.handle(
+          _sourceSessionIdMeta,
+          sourceSessionId.isAcceptableOrUnknown(
+              data['source_session_id']!, _sourceSessionIdMeta));
+    } else if (isInserting) {
+      context.missing(_sourceSessionIdMeta);
+    }
+    if (data.containsKey('content_hash')) {
+      context.handle(
+          _contentHashMeta,
+          contentHash.isAcceptableOrUnknown(
+              data['content_hash']!, _contentHashMeta));
+    } else if (isInserting) {
+      context.missing(_contentHashMeta);
+    }
+    if (data.containsKey('received_at')) {
+      context.handle(
+          _receivedAtMeta,
+          receivedAt.isAcceptableOrUnknown(
+              data['received_at']!, _receivedAtMeta));
+    } else if (isInserting) {
+      context.missing(_receivedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ProjectMemorySource map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProjectMemorySource(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      itemId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}item_id'])!,
+      sourceEventId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_event_id'])!,
+      sourceUri: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_uri'])!,
+      sourceTool: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_tool'])!,
+      sourceSessionId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_session_id'])!,
+      contentHash: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content_hash'])!,
+      receivedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}received_at'])!,
+    );
+  }
+
+  @override
+  $ProjectMemorySourcesTable createAlias(String alias) {
+    return $ProjectMemorySourcesTable(attachedDatabase, alias);
+  }
+}
+
+class ProjectMemorySource extends DataClass
+    implements Insertable<ProjectMemorySource> {
+  final String id;
+  final String itemId;
+  final String sourceEventId;
+  final String sourceUri;
+  final String sourceTool;
+  final String sourceSessionId;
+  final String contentHash;
+  final int receivedAt;
+  const ProjectMemorySource(
+      {required this.id,
+      required this.itemId,
+      required this.sourceEventId,
+      required this.sourceUri,
+      required this.sourceTool,
+      required this.sourceSessionId,
+      required this.contentHash,
+      required this.receivedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['item_id'] = Variable<String>(itemId);
+    map['source_event_id'] = Variable<String>(sourceEventId);
+    map['source_uri'] = Variable<String>(sourceUri);
+    map['source_tool'] = Variable<String>(sourceTool);
+    map['source_session_id'] = Variable<String>(sourceSessionId);
+    map['content_hash'] = Variable<String>(contentHash);
+    map['received_at'] = Variable<int>(receivedAt);
+    return map;
+  }
+
+  ProjectMemorySourcesCompanion toCompanion(bool nullToAbsent) {
+    return ProjectMemorySourcesCompanion(
+      id: Value(id),
+      itemId: Value(itemId),
+      sourceEventId: Value(sourceEventId),
+      sourceUri: Value(sourceUri),
+      sourceTool: Value(sourceTool),
+      sourceSessionId: Value(sourceSessionId),
+      contentHash: Value(contentHash),
+      receivedAt: Value(receivedAt),
+    );
+  }
+
+  factory ProjectMemorySource.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProjectMemorySource(
+      id: serializer.fromJson<String>(json['id']),
+      itemId: serializer.fromJson<String>(json['itemId']),
+      sourceEventId: serializer.fromJson<String>(json['sourceEventId']),
+      sourceUri: serializer.fromJson<String>(json['sourceUri']),
+      sourceTool: serializer.fromJson<String>(json['sourceTool']),
+      sourceSessionId: serializer.fromJson<String>(json['sourceSessionId']),
+      contentHash: serializer.fromJson<String>(json['contentHash']),
+      receivedAt: serializer.fromJson<int>(json['receivedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'itemId': serializer.toJson<String>(itemId),
+      'sourceEventId': serializer.toJson<String>(sourceEventId),
+      'sourceUri': serializer.toJson<String>(sourceUri),
+      'sourceTool': serializer.toJson<String>(sourceTool),
+      'sourceSessionId': serializer.toJson<String>(sourceSessionId),
+      'contentHash': serializer.toJson<String>(contentHash),
+      'receivedAt': serializer.toJson<int>(receivedAt),
+    };
+  }
+
+  ProjectMemorySource copyWith(
+          {String? id,
+          String? itemId,
+          String? sourceEventId,
+          String? sourceUri,
+          String? sourceTool,
+          String? sourceSessionId,
+          String? contentHash,
+          int? receivedAt}) =>
+      ProjectMemorySource(
+        id: id ?? this.id,
+        itemId: itemId ?? this.itemId,
+        sourceEventId: sourceEventId ?? this.sourceEventId,
+        sourceUri: sourceUri ?? this.sourceUri,
+        sourceTool: sourceTool ?? this.sourceTool,
+        sourceSessionId: sourceSessionId ?? this.sourceSessionId,
+        contentHash: contentHash ?? this.contentHash,
+        receivedAt: receivedAt ?? this.receivedAt,
+      );
+  ProjectMemorySource copyWithCompanion(ProjectMemorySourcesCompanion data) {
+    return ProjectMemorySource(
+      id: data.id.present ? data.id.value : this.id,
+      itemId: data.itemId.present ? data.itemId.value : this.itemId,
+      sourceEventId: data.sourceEventId.present
+          ? data.sourceEventId.value
+          : this.sourceEventId,
+      sourceUri: data.sourceUri.present ? data.sourceUri.value : this.sourceUri,
+      sourceTool:
+          data.sourceTool.present ? data.sourceTool.value : this.sourceTool,
+      sourceSessionId: data.sourceSessionId.present
+          ? data.sourceSessionId.value
+          : this.sourceSessionId,
+      contentHash:
+          data.contentHash.present ? data.contentHash.value : this.contentHash,
+      receivedAt:
+          data.receivedAt.present ? data.receivedAt.value : this.receivedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectMemorySource(')
+          ..write('id: $id, ')
+          ..write('itemId: $itemId, ')
+          ..write('sourceEventId: $sourceEventId, ')
+          ..write('sourceUri: $sourceUri, ')
+          ..write('sourceTool: $sourceTool, ')
+          ..write('sourceSessionId: $sourceSessionId, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('receivedAt: $receivedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, itemId, sourceEventId, sourceUri,
+      sourceTool, sourceSessionId, contentHash, receivedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProjectMemorySource &&
+          other.id == this.id &&
+          other.itemId == this.itemId &&
+          other.sourceEventId == this.sourceEventId &&
+          other.sourceUri == this.sourceUri &&
+          other.sourceTool == this.sourceTool &&
+          other.sourceSessionId == this.sourceSessionId &&
+          other.contentHash == this.contentHash &&
+          other.receivedAt == this.receivedAt);
+}
+
+class ProjectMemorySourcesCompanion
+    extends UpdateCompanion<ProjectMemorySource> {
+  final Value<String> id;
+  final Value<String> itemId;
+  final Value<String> sourceEventId;
+  final Value<String> sourceUri;
+  final Value<String> sourceTool;
+  final Value<String> sourceSessionId;
+  final Value<String> contentHash;
+  final Value<int> receivedAt;
+  final Value<int> rowid;
+  const ProjectMemorySourcesCompanion({
+    this.id = const Value.absent(),
+    this.itemId = const Value.absent(),
+    this.sourceEventId = const Value.absent(),
+    this.sourceUri = const Value.absent(),
+    this.sourceTool = const Value.absent(),
+    this.sourceSessionId = const Value.absent(),
+    this.contentHash = const Value.absent(),
+    this.receivedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProjectMemorySourcesCompanion.insert({
+    required String id,
+    required String itemId,
+    required String sourceEventId,
+    required String sourceUri,
+    required String sourceTool,
+    required String sourceSessionId,
+    required String contentHash,
+    required int receivedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        itemId = Value(itemId),
+        sourceEventId = Value(sourceEventId),
+        sourceUri = Value(sourceUri),
+        sourceTool = Value(sourceTool),
+        sourceSessionId = Value(sourceSessionId),
+        contentHash = Value(contentHash),
+        receivedAt = Value(receivedAt);
+  static Insertable<ProjectMemorySource> custom({
+    Expression<String>? id,
+    Expression<String>? itemId,
+    Expression<String>? sourceEventId,
+    Expression<String>? sourceUri,
+    Expression<String>? sourceTool,
+    Expression<String>? sourceSessionId,
+    Expression<String>? contentHash,
+    Expression<int>? receivedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (itemId != null) 'item_id': itemId,
+      if (sourceEventId != null) 'source_event_id': sourceEventId,
+      if (sourceUri != null) 'source_uri': sourceUri,
+      if (sourceTool != null) 'source_tool': sourceTool,
+      if (sourceSessionId != null) 'source_session_id': sourceSessionId,
+      if (contentHash != null) 'content_hash': contentHash,
+      if (receivedAt != null) 'received_at': receivedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProjectMemorySourcesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? itemId,
+      Value<String>? sourceEventId,
+      Value<String>? sourceUri,
+      Value<String>? sourceTool,
+      Value<String>? sourceSessionId,
+      Value<String>? contentHash,
+      Value<int>? receivedAt,
+      Value<int>? rowid}) {
+    return ProjectMemorySourcesCompanion(
+      id: id ?? this.id,
+      itemId: itemId ?? this.itemId,
+      sourceEventId: sourceEventId ?? this.sourceEventId,
+      sourceUri: sourceUri ?? this.sourceUri,
+      sourceTool: sourceTool ?? this.sourceTool,
+      sourceSessionId: sourceSessionId ?? this.sourceSessionId,
+      contentHash: contentHash ?? this.contentHash,
+      receivedAt: receivedAt ?? this.receivedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (itemId.present) {
+      map['item_id'] = Variable<String>(itemId.value);
+    }
+    if (sourceEventId.present) {
+      map['source_event_id'] = Variable<String>(sourceEventId.value);
+    }
+    if (sourceUri.present) {
+      map['source_uri'] = Variable<String>(sourceUri.value);
+    }
+    if (sourceTool.present) {
+      map['source_tool'] = Variable<String>(sourceTool.value);
+    }
+    if (sourceSessionId.present) {
+      map['source_session_id'] = Variable<String>(sourceSessionId.value);
+    }
+    if (contentHash.present) {
+      map['content_hash'] = Variable<String>(contentHash.value);
+    }
+    if (receivedAt.present) {
+      map['received_at'] = Variable<int>(receivedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectMemorySourcesCompanion(')
+          ..write('id: $id, ')
+          ..write('itemId: $itemId, ')
+          ..write('sourceEventId: $sourceEventId, ')
+          ..write('sourceUri: $sourceUri, ')
+          ..write('sourceTool: $sourceTool, ')
+          ..write('sourceSessionId: $sourceSessionId, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('receivedAt: $receivedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -21714,6 +23103,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $MemoryRecallEventsTable(this);
   late final $MemoryEmbeddingsTable memoryEmbeddings =
       $MemoryEmbeddingsTable(this);
+  late final $ProjectMemoryItemsTable projectMemoryItems =
+      $ProjectMemoryItemsTable(this);
+  late final $ProjectMemorySourcesTable projectMemorySources =
+      $ProjectMemorySourcesTable(this);
   late final CardDao cardDao = CardDao(this as AppDatabase);
   late final AiFinanceDao aiFinanceDao = AiFinanceDao(this as AppDatabase);
   late final AiPurchaseDao aiPurchaseDao = AiPurchaseDao(this as AppDatabase);
@@ -21765,7 +23158,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         userCorrections,
         memoryCardOperations,
         memoryRecallEvents,
-        memoryEmbeddings
+        memoryEmbeddings,
+        projectMemoryItems,
+        projectMemorySources
       ];
 }
 
@@ -33529,6 +34924,643 @@ typedef $$MemoryEmbeddingsTableProcessedTableManager = ProcessedTableManager<
     ),
     MemoryEmbedding,
     PrefetchHooks Function()>;
+typedef $$ProjectMemoryItemsTableCreateCompanionBuilder
+    = ProjectMemoryItemsCompanion Function({
+  required String id,
+  required String projectId,
+  required String projectKey,
+  Value<String> itemType,
+  required String summary,
+  Value<String> decisionsJson,
+  Value<String> openLoopsJson,
+  Value<String> artifactRefsJson,
+  required String retrievalText,
+  Value<String> status,
+  required String policyId,
+  Value<int> policyVersion,
+  required String memoryV3Policy,
+  required String sensitivity,
+  required String redactionState,
+  required String authority,
+  required String trustLevel,
+  required int occurredAt,
+  required int receivedAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$ProjectMemoryItemsTableUpdateCompanionBuilder
+    = ProjectMemoryItemsCompanion Function({
+  Value<String> id,
+  Value<String> projectId,
+  Value<String> projectKey,
+  Value<String> itemType,
+  Value<String> summary,
+  Value<String> decisionsJson,
+  Value<String> openLoopsJson,
+  Value<String> artifactRefsJson,
+  Value<String> retrievalText,
+  Value<String> status,
+  Value<String> policyId,
+  Value<int> policyVersion,
+  Value<String> memoryV3Policy,
+  Value<String> sensitivity,
+  Value<String> redactionState,
+  Value<String> authority,
+  Value<String> trustLevel,
+  Value<int> occurredAt,
+  Value<int> receivedAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$ProjectMemoryItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $ProjectMemoryItemsTable> {
+  $$ProjectMemoryItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get projectId => $composableBuilder(
+      column: $table.projectId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get projectKey => $composableBuilder(
+      column: $table.projectKey, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get itemType => $composableBuilder(
+      column: $table.itemType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get summary => $composableBuilder(
+      column: $table.summary, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get decisionsJson => $composableBuilder(
+      column: $table.decisionsJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get openLoopsJson => $composableBuilder(
+      column: $table.openLoopsJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get artifactRefsJson => $composableBuilder(
+      column: $table.artifactRefsJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get retrievalText => $composableBuilder(
+      column: $table.retrievalText, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get policyId => $composableBuilder(
+      column: $table.policyId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get policyVersion => $composableBuilder(
+      column: $table.policyVersion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get memoryV3Policy => $composableBuilder(
+      column: $table.memoryV3Policy,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sensitivity => $composableBuilder(
+      column: $table.sensitivity, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get redactionState => $composableBuilder(
+      column: $table.redactionState,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get trustLevel => $composableBuilder(
+      column: $table.trustLevel, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get occurredAt => $composableBuilder(
+      column: $table.occurredAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get receivedAt => $composableBuilder(
+      column: $table.receivedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$ProjectMemoryItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProjectMemoryItemsTable> {
+  $$ProjectMemoryItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get projectId => $composableBuilder(
+      column: $table.projectId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get projectKey => $composableBuilder(
+      column: $table.projectKey, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get itemType => $composableBuilder(
+      column: $table.itemType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+      column: $table.summary, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get decisionsJson => $composableBuilder(
+      column: $table.decisionsJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get openLoopsJson => $composableBuilder(
+      column: $table.openLoopsJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get artifactRefsJson => $composableBuilder(
+      column: $table.artifactRefsJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get retrievalText => $composableBuilder(
+      column: $table.retrievalText,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get policyId => $composableBuilder(
+      column: $table.policyId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get policyVersion => $composableBuilder(
+      column: $table.policyVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get memoryV3Policy => $composableBuilder(
+      column: $table.memoryV3Policy,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sensitivity => $composableBuilder(
+      column: $table.sensitivity, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get redactionState => $composableBuilder(
+      column: $table.redactionState,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get trustLevel => $composableBuilder(
+      column: $table.trustLevel, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get occurredAt => $composableBuilder(
+      column: $table.occurredAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get receivedAt => $composableBuilder(
+      column: $table.receivedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ProjectMemoryItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProjectMemoryItemsTable> {
+  $$ProjectMemoryItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get projectId =>
+      $composableBuilder(column: $table.projectId, builder: (column) => column);
+
+  GeneratedColumn<String> get projectKey => $composableBuilder(
+      column: $table.projectKey, builder: (column) => column);
+
+  GeneratedColumn<String> get itemType =>
+      $composableBuilder(column: $table.itemType, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get decisionsJson => $composableBuilder(
+      column: $table.decisionsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get openLoopsJson => $composableBuilder(
+      column: $table.openLoopsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get artifactRefsJson => $composableBuilder(
+      column: $table.artifactRefsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get retrievalText => $composableBuilder(
+      column: $table.retrievalText, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get policyId =>
+      $composableBuilder(column: $table.policyId, builder: (column) => column);
+
+  GeneratedColumn<int> get policyVersion => $composableBuilder(
+      column: $table.policyVersion, builder: (column) => column);
+
+  GeneratedColumn<String> get memoryV3Policy => $composableBuilder(
+      column: $table.memoryV3Policy, builder: (column) => column);
+
+  GeneratedColumn<String> get sensitivity => $composableBuilder(
+      column: $table.sensitivity, builder: (column) => column);
+
+  GeneratedColumn<String> get redactionState => $composableBuilder(
+      column: $table.redactionState, builder: (column) => column);
+
+  GeneratedColumn<String> get authority =>
+      $composableBuilder(column: $table.authority, builder: (column) => column);
+
+  GeneratedColumn<String> get trustLevel => $composableBuilder(
+      column: $table.trustLevel, builder: (column) => column);
+
+  GeneratedColumn<int> get occurredAt => $composableBuilder(
+      column: $table.occurredAt, builder: (column) => column);
+
+  GeneratedColumn<int> get receivedAt => $composableBuilder(
+      column: $table.receivedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ProjectMemoryItemsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ProjectMemoryItemsTable,
+    ProjectMemoryItem,
+    $$ProjectMemoryItemsTableFilterComposer,
+    $$ProjectMemoryItemsTableOrderingComposer,
+    $$ProjectMemoryItemsTableAnnotationComposer,
+    $$ProjectMemoryItemsTableCreateCompanionBuilder,
+    $$ProjectMemoryItemsTableUpdateCompanionBuilder,
+    (
+      ProjectMemoryItem,
+      BaseReferences<_$AppDatabase, $ProjectMemoryItemsTable, ProjectMemoryItem>
+    ),
+    ProjectMemoryItem,
+    PrefetchHooks Function()> {
+  $$ProjectMemoryItemsTableTableManager(
+      _$AppDatabase db, $ProjectMemoryItemsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProjectMemoryItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProjectMemoryItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProjectMemoryItemsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> projectId = const Value.absent(),
+            Value<String> projectKey = const Value.absent(),
+            Value<String> itemType = const Value.absent(),
+            Value<String> summary = const Value.absent(),
+            Value<String> decisionsJson = const Value.absent(),
+            Value<String> openLoopsJson = const Value.absent(),
+            Value<String> artifactRefsJson = const Value.absent(),
+            Value<String> retrievalText = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String> policyId = const Value.absent(),
+            Value<int> policyVersion = const Value.absent(),
+            Value<String> memoryV3Policy = const Value.absent(),
+            Value<String> sensitivity = const Value.absent(),
+            Value<String> redactionState = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            Value<String> trustLevel = const Value.absent(),
+            Value<int> occurredAt = const Value.absent(),
+            Value<int> receivedAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ProjectMemoryItemsCompanion(
+            id: id,
+            projectId: projectId,
+            projectKey: projectKey,
+            itemType: itemType,
+            summary: summary,
+            decisionsJson: decisionsJson,
+            openLoopsJson: openLoopsJson,
+            artifactRefsJson: artifactRefsJson,
+            retrievalText: retrievalText,
+            status: status,
+            policyId: policyId,
+            policyVersion: policyVersion,
+            memoryV3Policy: memoryV3Policy,
+            sensitivity: sensitivity,
+            redactionState: redactionState,
+            authority: authority,
+            trustLevel: trustLevel,
+            occurredAt: occurredAt,
+            receivedAt: receivedAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String projectId,
+            required String projectKey,
+            Value<String> itemType = const Value.absent(),
+            required String summary,
+            Value<String> decisionsJson = const Value.absent(),
+            Value<String> openLoopsJson = const Value.absent(),
+            Value<String> artifactRefsJson = const Value.absent(),
+            required String retrievalText,
+            Value<String> status = const Value.absent(),
+            required String policyId,
+            Value<int> policyVersion = const Value.absent(),
+            required String memoryV3Policy,
+            required String sensitivity,
+            required String redactionState,
+            required String authority,
+            required String trustLevel,
+            required int occurredAt,
+            required int receivedAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ProjectMemoryItemsCompanion.insert(
+            id: id,
+            projectId: projectId,
+            projectKey: projectKey,
+            itemType: itemType,
+            summary: summary,
+            decisionsJson: decisionsJson,
+            openLoopsJson: openLoopsJson,
+            artifactRefsJson: artifactRefsJson,
+            retrievalText: retrievalText,
+            status: status,
+            policyId: policyId,
+            policyVersion: policyVersion,
+            memoryV3Policy: memoryV3Policy,
+            sensitivity: sensitivity,
+            redactionState: redactionState,
+            authority: authority,
+            trustLevel: trustLevel,
+            occurredAt: occurredAt,
+            receivedAt: receivedAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ProjectMemoryItemsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ProjectMemoryItemsTable,
+    ProjectMemoryItem,
+    $$ProjectMemoryItemsTableFilterComposer,
+    $$ProjectMemoryItemsTableOrderingComposer,
+    $$ProjectMemoryItemsTableAnnotationComposer,
+    $$ProjectMemoryItemsTableCreateCompanionBuilder,
+    $$ProjectMemoryItemsTableUpdateCompanionBuilder,
+    (
+      ProjectMemoryItem,
+      BaseReferences<_$AppDatabase, $ProjectMemoryItemsTable, ProjectMemoryItem>
+    ),
+    ProjectMemoryItem,
+    PrefetchHooks Function()>;
+typedef $$ProjectMemorySourcesTableCreateCompanionBuilder
+    = ProjectMemorySourcesCompanion Function({
+  required String id,
+  required String itemId,
+  required String sourceEventId,
+  required String sourceUri,
+  required String sourceTool,
+  required String sourceSessionId,
+  required String contentHash,
+  required int receivedAt,
+  Value<int> rowid,
+});
+typedef $$ProjectMemorySourcesTableUpdateCompanionBuilder
+    = ProjectMemorySourcesCompanion Function({
+  Value<String> id,
+  Value<String> itemId,
+  Value<String> sourceEventId,
+  Value<String> sourceUri,
+  Value<String> sourceTool,
+  Value<String> sourceSessionId,
+  Value<String> contentHash,
+  Value<int> receivedAt,
+  Value<int> rowid,
+});
+
+class $$ProjectMemorySourcesTableFilterComposer
+    extends Composer<_$AppDatabase, $ProjectMemorySourcesTable> {
+  $$ProjectMemorySourcesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get itemId => $composableBuilder(
+      column: $table.itemId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceEventId => $composableBuilder(
+      column: $table.sourceEventId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceUri => $composableBuilder(
+      column: $table.sourceUri, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceTool => $composableBuilder(
+      column: $table.sourceTool, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceSessionId => $composableBuilder(
+      column: $table.sourceSessionId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get receivedAt => $composableBuilder(
+      column: $table.receivedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$ProjectMemorySourcesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProjectMemorySourcesTable> {
+  $$ProjectMemorySourcesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get itemId => $composableBuilder(
+      column: $table.itemId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceEventId => $composableBuilder(
+      column: $table.sourceEventId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceUri => $composableBuilder(
+      column: $table.sourceUri, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceTool => $composableBuilder(
+      column: $table.sourceTool, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceSessionId => $composableBuilder(
+      column: $table.sourceSessionId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get receivedAt => $composableBuilder(
+      column: $table.receivedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ProjectMemorySourcesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProjectMemorySourcesTable> {
+  $$ProjectMemorySourcesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get itemId =>
+      $composableBuilder(column: $table.itemId, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceEventId => $composableBuilder(
+      column: $table.sourceEventId, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceUri =>
+      $composableBuilder(column: $table.sourceUri, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceTool => $composableBuilder(
+      column: $table.sourceTool, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceSessionId => $composableBuilder(
+      column: $table.sourceSessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => column);
+
+  GeneratedColumn<int> get receivedAt => $composableBuilder(
+      column: $table.receivedAt, builder: (column) => column);
+}
+
+class $$ProjectMemorySourcesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ProjectMemorySourcesTable,
+    ProjectMemorySource,
+    $$ProjectMemorySourcesTableFilterComposer,
+    $$ProjectMemorySourcesTableOrderingComposer,
+    $$ProjectMemorySourcesTableAnnotationComposer,
+    $$ProjectMemorySourcesTableCreateCompanionBuilder,
+    $$ProjectMemorySourcesTableUpdateCompanionBuilder,
+    (
+      ProjectMemorySource,
+      BaseReferences<_$AppDatabase, $ProjectMemorySourcesTable,
+          ProjectMemorySource>
+    ),
+    ProjectMemorySource,
+    PrefetchHooks Function()> {
+  $$ProjectMemorySourcesTableTableManager(
+      _$AppDatabase db, $ProjectMemorySourcesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProjectMemorySourcesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProjectMemorySourcesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProjectMemorySourcesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> itemId = const Value.absent(),
+            Value<String> sourceEventId = const Value.absent(),
+            Value<String> sourceUri = const Value.absent(),
+            Value<String> sourceTool = const Value.absent(),
+            Value<String> sourceSessionId = const Value.absent(),
+            Value<String> contentHash = const Value.absent(),
+            Value<int> receivedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ProjectMemorySourcesCompanion(
+            id: id,
+            itemId: itemId,
+            sourceEventId: sourceEventId,
+            sourceUri: sourceUri,
+            sourceTool: sourceTool,
+            sourceSessionId: sourceSessionId,
+            contentHash: contentHash,
+            receivedAt: receivedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String itemId,
+            required String sourceEventId,
+            required String sourceUri,
+            required String sourceTool,
+            required String sourceSessionId,
+            required String contentHash,
+            required int receivedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ProjectMemorySourcesCompanion.insert(
+            id: id,
+            itemId: itemId,
+            sourceEventId: sourceEventId,
+            sourceUri: sourceUri,
+            sourceTool: sourceTool,
+            sourceSessionId: sourceSessionId,
+            contentHash: contentHash,
+            receivedAt: receivedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ProjectMemorySourcesTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $ProjectMemorySourcesTable,
+        ProjectMemorySource,
+        $$ProjectMemorySourcesTableFilterComposer,
+        $$ProjectMemorySourcesTableOrderingComposer,
+        $$ProjectMemorySourcesTableAnnotationComposer,
+        $$ProjectMemorySourcesTableCreateCompanionBuilder,
+        $$ProjectMemorySourcesTableUpdateCompanionBuilder,
+        (
+          ProjectMemorySource,
+          BaseReferences<_$AppDatabase, $ProjectMemorySourcesTable,
+              ProjectMemorySource>
+        ),
+        ProjectMemorySource,
+        PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -33625,4 +35657,8 @@ class $AppDatabaseManager {
       $$MemoryRecallEventsTableTableManager(_db, _db.memoryRecallEvents);
   $$MemoryEmbeddingsTableTableManager get memoryEmbeddings =>
       $$MemoryEmbeddingsTableTableManager(_db, _db.memoryEmbeddings);
+  $$ProjectMemoryItemsTableTableManager get projectMemoryItems =>
+      $$ProjectMemoryItemsTableTableManager(_db, _db.projectMemoryItems);
+  $$ProjectMemorySourcesTableTableManager get projectMemorySources =>
+      $$ProjectMemorySourcesTableTableManager(_db, _db.projectMemorySources);
 }
