@@ -12,6 +12,7 @@ import 'package:memex/data/memory_v3/agents/dreaming_agent/episode_consolidator.
 import 'package:memex/data/memory_v3/agents/dreaming_agent/fragment_extractor.dart';
 import 'package:memex/data/memory_v3/models/dreaming_fragment.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/data/services/search/query_matcher.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:uuid/uuid.dart';
 
@@ -1169,6 +1170,39 @@ class DreamingOrchestratorServiceV3 {
       }
     }
 
+    // Substring fallback: when FTS returned nothing but we have content
+    // keywords, do an in-memory substring scan over a broader pool of active
+    // episodes. This catches short queries like "破甲" that FTS misses.
+    if (ftsHits.isEmpty && queryHint.isNotEmpty) {
+      try {
+        final keywords = await QueryMatcher.contentKeywords(queryHint);
+        if (keywords.isNotEmpty) {
+          final pool = await (_db.select(_db.memoryEpisodes)
+                ..where((t) => t.status.equals('active'))
+                ..orderBy([
+                  (t) => OrderingTerm.desc(t.significance),
+                  (t) => OrderingTerm.desc(t.createdAt),
+                ])
+                ..limit(limit * 5))
+              .get();
+          for (final ep in pool) {
+            if (ftsHits.length >= limit) break;
+            final narrative = ep.narrative.toLowerCase();
+            final hits =
+                keywords.where((kw) => narrative.contains(kw)).length;
+            if (hits > 0 && seenIds.add(ep.id)) {
+              ftsHits.add(DreamingEpisodeContextHit(
+                episode: ep,
+                score: hits * 5,
+              ));
+            }
+          }
+        }
+      } catch (e, s) {
+        _logger.warning('Episode substring fallback failed', e, s);
+      }
+    }
+
     if (ftsHits.length >= limit) {
       return List.unmodifiable(ftsHits);
     }
@@ -1231,6 +1265,33 @@ class DreamingOrchestratorServiceV3 {
       } catch (e, s) {
         _logger.warning(
             'Fragment FTS search failed; falling back to recency', e, s);
+      }
+    }
+
+    if (ftsHits.isEmpty && queryHint.isNotEmpty) {
+      try {
+        final keywords = await QueryMatcher.contentKeywords(queryHint);
+        if (keywords.isNotEmpty) {
+          final pool = await (_db.select(_db.memoryFragments)
+                ..where((t) => t.status.equals('active'))
+                ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+                ..limit(limit * 6))
+              .get();
+          for (final fr in pool) {
+            if (ftsHits.length >= limit) break;
+            final content = fr.content.toLowerCase();
+            final hits =
+                keywords.where((kw) => content.contains(kw)).length;
+            if (hits > 0 && seenIds.add(fr.id)) {
+              ftsHits.add(DreamingFragmentContextHit(
+                fragment: fr,
+                score: hits * 5,
+              ));
+            }
+          }
+        }
+      } catch (e, s) {
+        _logger.warning('Fragment substring fallback failed', e, s);
       }
     }
 

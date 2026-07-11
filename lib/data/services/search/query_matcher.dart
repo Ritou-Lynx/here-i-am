@@ -262,4 +262,32 @@ class QueryMatcher {
     '然后', '但是', '因为', '所以', '如果', '虽然',
     '今天', '昨天', '明天', '现在', '之前', '以后',
   };
+
+  /// Return content keywords suitable for substring fallback search.
+  /// Jieba-segmented, stopword-filtered, deduplicated, max [limit] tokens.
+  static Future<List<String>> contentKeywords(String query,
+      {int limit = 5}) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+    await JiebaSegmenter.instance.ensureLoaded();
+    final result = <String>[];
+    final seen = <String>{};
+    if (JiebaSegmenter.instance.isLoaded && _containsCjk(trimmed)) {
+      for (final word in JiebaSegmenter.instance.cut(trimmed)) {
+        final token = word.trim();
+        if (token.isEmpty || token.length < 2) continue;
+        if (_cjkStopwords.contains(token)) continue;
+        if (seen.add(token)) result.add(token);
+        if (result.length >= limit) break;
+      }
+    } else {
+      for (final word in trimmed.split(RegExp(r'\s+'))) {
+        final clean = word.replaceAll(RegExp(r'[^\w\-]'), '').toLowerCase();
+        if (clean.length < 2) continue;
+        if (seen.add(clean)) result.add(clean);
+        if (result.length >= limit) break;
+      }
+    }
+    return result;
+  }
 }
