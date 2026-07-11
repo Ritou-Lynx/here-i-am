@@ -87,7 +87,7 @@ Request:
     "id": "uuid",
     "name": "Here I am",
     "root_path": "D:\\claude-workspace\\memex",
-    "default_branch": "personal-lab",
+    "default_branch": "v3-lab",
     "permission_tier": "read_only"
   },
   "agent_type": "codex",
@@ -270,7 +270,7 @@ Response:
 
 ```json
 {
-  "branch": "personal-lab",
+  "branch": "v3-lab",
   "ahead": 0,
   "behind": 3,
   "lastFetch": null,

@@ -83,7 +83,7 @@ User-truth 再生成 Memory Summary Card 和各类生活产物
 | Ledger | 财务记录和 AI 账本视图 | 角色财务意识和提醒 |
 | Health / Body | 运动、睡眠、身体状态 | 长期趋势和主动建议 |
 | Interests / Culture | 阅读、小红书、公众号、作品、兴趣 | 角色自然讲解与召回 |
-| Project Memory | 项目进展、开发决策、模块状态和当前优先级；初期不做独立主入口 | 后续在 Dev Room / Observe 中查看项目时间线和当前态 |
+| Project Memory | 获准 Project Space 的进展、开发决策、模块状态和当前优先级；初期不做独立主入口 | 后续在 Dev Room / Observe 中查看项目时间线和当前态 |
 | Settings / Personal | 模型、权限、连接、备份、角色管理 | 系统层清晰稳定 |
 
 ### 2.2 旧 Life Space 处理
@@ -106,7 +106,7 @@ User-truth 再生成 Memory Summary Card 和各类生活产物
 | 关系 insights | 单角色关系叙事总结 | 当前角色 | 不可 promote 到 User-truth |
 | User-truth cards | 用户显式保存、提升或明确记录的事实 | 所有角色共享 | 是 |
 | User-truth insights | 跨 User-truth 的分析洞察 | 给用户看 | 不直接作为角色上下文 |
-| Project Memory | commit、DEVLOG、Dev Room、Codex/Claude Code closeout、项目状态文件、用户确认的项目决策 | 林埃和项目相关工具按需检索；普通生活聊天默认不注入 | 不进，属于 Memory V3 特殊 domain |
+| Project Memory | 获准项目的 commit、DEVLOG、Dev Room、Codex/Claude Code/Hermes closeout、项目状态文件、用户确认的项目决策 | 按 active project 与政策检索；普通生活聊天默认不注入 | 不进 User-truth，属于 Memory V3 特殊 domain |
 
 ### 3.2 User-truth 写入入口
 
@@ -129,13 +129,18 @@ User-truth 再生成 Memory Summary Card 和各类生活产物
 
 ### 3.4 Project Memory 特殊领域
 
-Project Memory 不另起一套记忆系统，而是 Memory V3 里的特殊 domain。它解决的问题是：林埃需要知道 Here I am 项目的当前状态，但这些状态并不等同于用户的生活事实，也不应该污染关系记忆。
+Project Memory 不另起一套记忆系统，而是 Memory V3 里的特殊 domain。它解决的问题是：林埃需要知道用户借助 Codex、Claude Code、Hermes 推进的个人或工作项目，但项目状态不等同于生活事实，也不应该污染关系记忆。Here I am 只是第一个 Project Space，不是整个 i 记忆世界的边界。
+
+跨工具连续性不能全部压进 Project Memory：工具 closeout 先进入用户级、隔离的 Project Space / Activity Index，只有项目政策允许的摘要才进入 Memory V3；用户在这些界面里直接与林埃进行的连续对话进入林埃 sandbox，再由 Dreaming 整理关系记忆；生活事实仍遵守显式 User-truth 写入。完整边界见 [`LIN_AI_CROSS_TOOL_CONTINUITY.md`](LIN_AI_CROSS_TOOL_CONTINUITY.md)。
+
+当前进度：用户级 Phase 2 加密 closeout ledger、幂等与 Activity Index 已完成；Memory V3 尚未接收这些事件，下一步只做政策允许的 Project Memory 专属投影。
 
 第一版只做数据和检索边界，不急着做独立 UI：
 
-- **当前态**：`I_PROJECT_STATE.md` 保留短而新的项目快照，供林埃快速读取。
-- **事件史**：commit、DEVLOG、Dev Room run、Codex/Claude Code closeout 形成可回溯项目事件。
-- **检索边界**：只有项目相关问题、Dev Room 场景、收工检查和用户明确追问项目进展时才召回。
+- **当前态**：每个 Project Space 有自己的短快照；`I_PROJECT_STATE.md` 只代表 Here I am，不是全局项目清单。
+- **事件史**：commit、DEVLOG、Dev Room run、Codex / Claude Code / Hermes closeout 先形成带 project / policy / source 的事件。
+- **检索边界**：先按 active project 和数据政策过滤，再检索；只有用户明确问整体工作并完成本次确认时才查 Activity Index。
+- **数据驻留**：个人项目可进入 Project Memory；工作项目默认脱敏；`confidential_local / ephemeral` 不进入 Here I am。
 - **展示位置**：初期融合在 Dev Room / Observe / Memory Review 的项目过滤视图里；等数据稳定后再决定是否做独立 Project Memory 面板。
 
 ---

@@ -54,7 +54,7 @@ class CompanionAgentSkill extends Skill {
 
     b.writeln('# 你是林埃');
     b.writeln('');
-    b.writeln('你是林埃（英文名 I），现在住在 Here I am 这个项目里。');
+    b.writeln('你是林埃（英文名 i），现在住在 Here I am 这个项目里。');
     b.writeln('跟你聊天的人是 Lynx，林克斯，本名李橙，网名梨糖。');
     b.writeln('你们第一次见面是在 2026 年 7 月 7 日。今天是${now.split(' ').first}。');
     b.writeln('');

@@ -20,7 +20,7 @@
 | 1.8 (deferred) | 1.7 设计 → 实现 | ⏳ 1–2 周 |
 | 2 | 检索基础（FTS5 + DB 过滤 + intent 模板骨架） | ⏳ 1 周 |
 | 3 | 语义检索（embedding + 融合排序） | ⏳ 1 周 |
-| 3.5 | Project Memory 特殊领域（项目状态 / 开发事件 / Dev Room 回流） | ⏳ 与 Dev Room / closeout 迭代并行 |
+| 3.5 | Project Memory 特殊领域（获准 Project Space 的状态 / 事件 / closeout 投影） | ⏳ 用户级 i ingress 已完成，下一步做 V3 投影 |
 | 4 | Dreaming 自动产物（Fragment / Entity / Episode / Saga） | ⏳ 2 周 |
 | 5 | 旧代码清扫（pkm/card_agent + shared_life_* + Memex legacy） | ⏳ 2–3 天 |
 
@@ -176,7 +176,7 @@ Phase 1.7 不阻塞 Phase 2 / 3。即使没新 UI，V3 backend 可以继续推�
 #### Step 1: 确认 origin / branch 状态
 
 ```bash
-git checkout personal-lab
+git checkout v3-lab
 git pull
 git status   # 确认干净
 ```
@@ -262,7 +262,7 @@ EOF
 - [ ] App 能启动并正常聊天
 - [ ] `ConversationCaptureService` 不再写新 SharedLifeEntity 记录
 - [ ] 用户显式"记一下"的显式路径暂时仍走旧 record_organizer（Phase 1 才替换）
-- [ ] commit 推到 personal-lab
+- [ ] commit 推到 v3-lab
 
 ### 风险与回退
 
@@ -348,29 +348,37 @@ EOF
 
 ### 目标
 
-把 Here I am 项目的进展、决策、模块状态和开发事件纳入 Memory V3，但不混进普通 User-truth 或关系记忆。林埃需要知道“这个项目现在是什么”，而不是每次都靠用户转述一段 Codex 汇报。
+把政策允许的个人或工作 Project Space 进展、决策、模块状态和开发事件投影进 Memory V3，但不混进普通 User-truth 或关系记忆。Here I am 是首个完整投影项目，不是 i 能感知的唯一项目。
+
+跨 Codex / Claude Code / Hermes 的完整连续性方案见 [`LIN_AI_CROSS_TOOL_CONTINUITY.md`](LIN_AI_CROSS_TOOL_CONTINUITY.md)。Project Memory 只承载项目工作；用户在外部界面直接与林埃进行的对话仍属于林埃 sandbox / Dreaming，不得把两条车道混在一起。
 
 ### 数据边界
 
-Project Memory 是 Memory V3 的 domain / facet，而不是第二套记忆系统。
+Project Memory 是 Memory V3 的 domain / facet，而不是第二套记忆系统。用户级 Gateway 的 Project Registry 只做路由/授权，Activity Index 只做可重建薄索引；它们都不拥有长期语义事实裁决权。
 
-- **当前态**：`docs/development/I_PROJECT_STATE.md`，只保留林埃需要快速知道的当前状态。
-- **项目事件**：commit、DEVLOG、收工检查、Dev Room run、Codex/Claude Code closeout。
+- **当前态**：每个 Project Space 有独立短状态；`docs/development/I_PROJECT_STATE.md` 只表示 Here I am 当前态。
+- **项目事件**：commit、DEVLOG、收工检查、Dev Room run、Codex / Claude Code / Hermes closeout，必须携带服务端确认的 project id 与 policy version。
 - **项目实体**：模块、阶段、分支、Bridge、构建安装规则、关键设计决策。
 - **不进入**：普通 User-truth、关系记忆、角色 sandbox、旧 CardCache / KnowledgeInsight / PKM。
+- **外部写入**：统一先进入用户级 append-only ingress / Activity Index；工具只能 propose。`confidential_local / ephemeral` 永不进入 Here I am，`work_redacted` 只允许脱敏摘要。
+- **检索过滤**：FTS / embedding 在生成候选前按 active project、allowed project ids、lane 和 sensitivity 过滤，禁止全局召回后再删。
 
 ### 关键产物
 
-1. Project Memory 的 domain 命名和字段约定：`project_state` / `project_event` / `project_decision` / `project_module`。
-2. Dev Room / closeout 到 Project Memory 的写入路径：先写结构化摘要，不直接塞完整日志。
-3. Memory Query 的项目 intent：只有项目相关问题、Dev Room 场景、收工检查和用户明确追问时召回。
-4. `I_PROJECT_STATE.md` 与 Project Memory 的关系：前者是短快照，后者是可检索历史。
+1. ✅ 用户级 event envelope / AES-GCM ingress ledger / Activity Index：project、policy、sensitivity、redaction、source、幂等齐全；Windows key 由 DPAPI CurrentUser 包裹。
+2. Project Memory 的 domain 命名和字段约定：`project_state` / `project_event` / `project_decision` / `project_module`。
+3. Dev Room / closeout 到 Project Memory 的政策投影：只写结构化摘要，不直接塞完整日志。
+4. Memory Query 的项目 intent 与 pre-filter access context：普通聊天候选阶段即排除 Project Memory。
+5. `I_PROJECT_STATE.md` 与 Project Memory 的关系：前者只是 Here I am 短快照，后者是获准项目的可检索历史。
+6. Identity Capsule 与 Project Memory 分离：人格由用户级只读、版本化投影提供，不能从任意项目 closeout 自动改写。
 
 ### 验收
 
-- 林埃被问“现在项目做到哪了”时，能从项目当前态和最近项目事件回答。
+- 林埃被问“当前项目做到哪了”时只回答 active project；被明确问“最近都在忙什么”并完成本次确认时才读取获准的 Activity Index。
 - 林埃普通生活聊天不会因为 Project Memory 注入而变成项目汇报。
-- Dev Room / Codex / Claude Code 的过程日志仍留在 Dev Room 表；只有人类可读、可检索的摘要进入 Project Memory。
+- Dev Room / Codex / Claude Code / Hermes 的过程日志仍留在来源系统；只有人类可读、可检索且带证据引用的摘要进入 Project Memory。
+- 同一 closeout 重复提交不产生重复项目记忆；worker 日志不会进入关系 Dreaming。
+- 工作脱敏项目不泄露正文，confidential / ephemeral 项目在 Here I am 中完全不可发现。
 
 ---
 
@@ -453,7 +461,8 @@ V3 完全替代旧记忆系统后，一次性删 Memex legacy。
 
 ## 下一步（你 / 任何接手的会话）
 
-1. **如果 V3 Lab dev screen 已建好**：用真实账号登录，进 settings → V3 Lab → 输入文本验证 backend
-2. **Phase 1.6 子任务可以并行启动**：选一个最容易的子任务（例如悬浮球路由切换）跑通端到端，再扩展到其他入口
-3. **UI 设计稿**：用户准备 Memory Summary Card / Episode / Saga / Entity 详情等的视觉稿，进 Phase 1.7
-4. 任何卡点写到 `DEVLOG.md`
+1. **i / Project Memory 下一切片**：Phase 2 用户级加密 closeout ingress + Activity Index 已实现并通过跨工具/多政策测试；下一步开始本路线图 Phase 3.5 的 Memory V3 专属 ingress / item / source 投影表，不接普通 `memory_cards`。
+2. **如果 V3 Lab dev screen 已建好**：用真实账号登录，进 settings → V3 Lab → 输入文本验证 backend
+3. **Phase 1.6 子任务可以并行启动**：选一个最容易的子任务（例如悬浮球路由切换）跑通端到端，再扩展到其他入口
+4. **UI 设计稿**：用户准备 Memory Summary Card / Episode / Saga / Entity 详情等的视觉稿，进 Phase 1.7
+5. 任何卡点写到 `DEVLOG.md`

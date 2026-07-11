@@ -31,7 +31,7 @@ V3 不替换 PRD V2，是 PRD 记忆章节的工程蓝本。落地施工时 PRD 
 - 外部数据流（截图 OCR、健康同步、账单导入等明确功能入口）
 - 在 Memory Review 里把某条 Episode 升格成 Memory Card
 
-Dreaming 产生的 Fragment / Episode / Saga **不进入 User-truth**，它们属于 I 的关系记忆（Insight 体系），跟 User-truth 在数据库和呈现层都隔离。
+Dreaming 产生的 Fragment / Episode / Saga **不直接写入 `memory_cards` 表**，它们进入 Insight 体系。但 Dreaming 承载的**同时是事件事实和关系认知** —— 关系不能剥离事实，"她 07-07 早上开月报翻车" 既是事件也是关系上下文，两者不能割。Dreaming 与 Memory Card 的差别不是"关系 vs 事实"，而是**自动观察 vs 用户确认**（详见 § 2.5）。数据库上 Dreaming 表族与 Card 表族保持独立，但用户在 Memory Review 里可以把高置信 Episode 显式升格成 Memory Card。
 
 ### 契约 2：用户主权高于审计完整性
 
@@ -51,6 +51,24 @@ Dreaming 产生的 Fragment / Episode / Saga **不进入 User-truth**，它们�
 - 拒绝 "farewell-guilt"、"streak"、"未读提醒堆积"等留存暗黑模式
 
 这条来自 kimi-core 的 affect-driven 原则，单独抽出来作为硬约束。
+
+### § 2.5 Dreaming 与 User-truth 的关系（2026-07-10 修订）
+
+早期设计把 Dreaming 表述为"关系记忆"、Memory Card 表述为"事实"。实际实现和真实聊天数据证明这种二分是错的抽象 —— 关系由具体事件堆出来，抹掉事件的关系是空的形容词。
+
+正确的分工是：
+
+| 维度 | Dreaming | Memory Card |
+|------|----------|-------------|
+| **写入方式** | AI 后台自动抽取 / 凝结 | 用户显式动作（按钮 / 悬浮球 / "记一下"） |
+| **覆盖面** | 广（几乎所有值得回想的聊天） | 窄（用户主动认证的高价值条目） |
+| **可信度** | 中（AI 观察，可能有偏差） | 高（用户确认） |
+| **内容形状** | 第一人称叙事 + 时间锚点 | 结构化字段 + 时间戳 |
+| **可修改** | 用户可编辑，但主要是删除 / 修正 | 用户主动创建和维护 |
+
+**两者形状趋同不是 bug**，是同一记忆库的自动层与确认层。真实使用中，用户不会为每件值得记的事按记录按钮，Dreaming 覆盖大多数聊天上下文；Card 覆盖用户认定"值得留档"的少数条目。
+
+**未来 pathway**：Memory Review 里对高置信 Dreaming Episode 展示 "记为 Memory Card" 的入口，让用户可以把 AI 观察升格为确认事实。
 
 ---
 
@@ -202,7 +220,8 @@ Dreaming 每次跑时从聊天里抽出的事实碎片，第三人称，单条�
 | `isUserTruthCandidate` | bool | Dreaming 觉得值得用户确认升格 |
 | `generatedByVersion` | text | |
 | `userCorrected` | bool | |
-| `createdAt` | integer | |
+| `eventTime` | integer | **原始事件发生时间**。从 `sourceMessageIds` 指向的 `persona_chat_messages.timestamp` 取最小值，由代码算，不由 LLM 输出。用于 Episode 时间锚点和召回时的时间前缀。见 § 5.6。 |
+| `createdAt` | integer | 抽取时间（Dreaming 跑批的时刻，非事件时间） |
 
 **emotionalWeight 跟 valence/arousal 分开**：Fragment 数量大，单维度足够服务检索权重；Episode/Card 才打二维情绪坐标。
 
@@ -255,7 +274,7 @@ Fragment / Memory Card / Episode 与 Entity 的多对多。
 | `confidence` | text | `high` / `medium` / `low` |
 | `valence` | real | -1.0 ~ 1.0 |
 | `arousal` | real | 0.0 ~ 1.0 |
-| `occurredAtRange` | text (JSON) | `{start, end}`，可空 |
+| `occurredAtRange` | text (JSON) | `{start, end}`。**由代码从源 fragment 的 `eventTime` 集合算 min/max**，不由 LLM 输出。见 § 5.6。 |
 | `status` | text | `active` / `hidden` / `stale` / `deleted` |
 | `generatedByVersion` | text | |
 | `userCorrected` | bool | |
@@ -293,6 +312,16 @@ Fragment / Memory Card / Episode 与 Entity 的多对多。
 **生成条件**：新 episode ≥ 5 或每周一次。频率比 Episode 低，注入也罕见（只在反思 / 情绪 / 主动陪伴 / 深度谈话 / 睡前回顾时使用）。
 
 Saga 被用户编辑/隐藏/删除后立即失效，相关召回不再返回。
+
+### § 5.6 时间锚点契约（2026-07-10 新增）
+
+Dreaming 产出必须承载**真实事件时间**，不是**处理时间**：
+
+- `memory_fragments.eventTime` = 源聊天消息的最早时间。由 orchestrator 在 persist 时从 `sourceMessageIds` 反查算出，**不允许由 LLM 输出**（LLM 抽取时容易漏字段或格式乱，代码算是确定性的）。
+- `memory_episodes.occurredAtRange` = 源 fragment 的 `eventTime` 集合的 min/max。由 orchestrator 在 persist 时代码算出，**不允许由 LLM 输出**。
+- Episode narrative 可以用相对措辞（"那天""前几天"）保持可读性，具体日期在**注入 prompt 时**由 companion agent 从 `occurredAtRange` 前缀化。
+
+**反面教材**：过去的实现让 LLM 从 `fragment.createdAt`（抽取时间）推 `occurredAtRange`，导致 07-07 12:00 发生的月报事件被 episode 记成 07-08 的事，进而让 companion 在 07-10 把"月报"当成今天的任务。这个 bug 是"时间锚点用了错的字段"造成的，不是 LLM 能力问题。
 
 ---
 

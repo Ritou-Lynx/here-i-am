@@ -34,6 +34,7 @@
 ### 几次重要的方向校正（防止以后忘）
 
 1. **Phase 5 的主体不是 CC/Codex 人格化，而是角色召唤工具**：用户最终想要的是"某个角色替我叫 Codex/Claude Code 做事"，而不是把 Codex 本身变成伴侣角色。agency 留在角色，工具放大角色能力。
+   - 2026-07-10 补充：用户在 Codex / Claude Code / Hermes 原生界面里也可以通过 Identity Capsule 看到同一个林埃会话壳；这不把 execution agent 变成新的关系主体。工具动作继续真实署名，林埃负责连续身份、记忆、解释和决策。详见 `LIN_AI_CROSS_TOOL_CONTINUITY.md`。
 2. **必须引入 Dev Session**：一次性 run 无法支撑"读第一篇 → 讨论 → 再读第二篇 → 追问 → 改方案"这种场景。Phase 5 的核心数据结构是可多轮 `DevAgentSessions`，run 只是 session 里的执行回合。
 3. **Dev Room 保留为多轮控制台**：用户可以在主聊天里让角色继续一个 Dev Session，也可以自己打开 Dev Room 直接追问、查看 diff、apply/discard。Dev Room 不是主关系入口，但必须是可靠的过程空间。
 4. **绑定仍用独立表，不污染 CharacterModel**：新增 `DevAgentToolBindings` 或 `DevAgentSessionOwners` 这类独立表，记录哪个角色可召唤哪个项目/agent/权限档。普通角色模型不新增 Memex 特有耦合字段。
@@ -199,7 +200,7 @@ class DevAgentApprovals extends Table {
 ### 完成判定
 - 给 CC 一个真实任务（"在 worktree 里补 RecordOrganizerService 的单测"）
 - 手机看到 5+ 次审批请求，全部正确响应
-- 任务完成后看到 diff，Apply 后 merge 到 personal-lab，无冲突无残留
+- 任务完成后看到 diff，Apply 后 merge 到 v3-lab，无冲突无残留
 
 ### 触发下一步
 连续 10 次任务无错误 merge / 无意外文件改动。
@@ -300,7 +301,7 @@ Agent 改代码产生的 commit 仍然走 Phase 2 的 worktree → Apply 流程�
 
 **场景 A — 出门前同步**：打开 Dev Room，项目卡片角标显示"远程领先 3 commits"→ 点「拉取最新」→ 审批弹窗显示具体命令 → 确认 → 几秒后完成。
 
-**场景 B — agent 改完代码后推送**：agent run 完成 → 看 diff → Apply（merge 到 personal-lab）→ 项目卡片显示"本地领先 1 commit"+「推送到远程」按钮 → 点按钮 → 审批弹窗 → 确认 → push 完成。
+**场景 B — agent 改完代码后推送**：agent run 完成 → 看 diff → Apply（merge 到 v3-lab）→ 项目卡片显示"本地领先 1 commit"+「推送到远程」按钮 → 点按钮 → 审批弹窗 → 确认 → push 完成。
 
 ### Bridge 新增端点
 
@@ -336,7 +337,7 @@ Pull 和 Push 各产生一条 `DevAgentApprovals`，kind 分别为 `git_pull` / 
 │                                  │
 │ 将在 D:\鱼\here-i-am 执行：       │
 │ git fetch && git merge --ff-only │
-│ origin/personal-lab              │
+│ origin/v3-lab                    │
 │                                  │
 │ 预计快进合并 3 个 commit。         │
 │                                  │
@@ -353,7 +354,7 @@ Pull 和 Push 各产生一条 `DevAgentApprovals`，kind 分别为 `git_pull` / 
 ```
 ┌──────────────────────────────────┐
 │ 🔴 here-i-am                📋  │
-│ personal-lab                     │
+│ v3-lab                           │
 │                                  │
 │ ⚠ 远程领先 3 commits · 2h 前     │  ← 仅 behind > 0 时显示
 │                                  │
@@ -384,8 +385,8 @@ Pull 按钮仅 behind > 0 时显示。Push 按钮仅 ahead > 0 时显示。两�
 
 ### 与 Phase 4b（PR 自动开）的关系
 
-Phase 4b 的 `release_ops` 模式下，Apply 不再直接 fast-forward merge 到 `personal-lab`，而是 `git push origin dev-agent/{short} && gh pr create`。此时：
-- Push 按钮操作的不是 worktree 分支，而是主分支 `personal-lab`
+Phase 4b 的 `release_ops` 模式下，Apply 不再直接 fast-forward merge 到 `v3-lab`，而是 `git push origin dev-agent/{short} && gh pr create`。此时：
+- Push 按钮操作的不是 worktree 分支，而是主分支 `v3-lab`
 - 如果用户想手动 push 主分支（不走 PR），仍然可以用 Push 按钮
 - Phase 4b 不改本 Phase 的端点，只在 Apply 逻辑里加分支
 
@@ -525,7 +526,7 @@ worktree 隔离 / decision 日志 / apply / discard 全部保留，但可以出�
 按钮直接调 Bridge decision；结果同时写入 session message：
 
 ```text
-[系统] 已合并到 personal-lab。
+[系统] 已合并到 v3-lab。
 ```
 
 ### 完成判定
