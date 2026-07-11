@@ -1248,7 +1248,7 @@ class DreamingOrchestratorServiceV3 {
           final activeRows = await (_db.select(_db.memoryFragments)
                 ..where((t) =>
                     t.id.isIn(ranks.keys.toList(growable: false)) &
-                    t.status.equals('active')))
+                    t.status.isIn(const ['active', 'consolidated'])))
               .get();
           activeRows.sort(
               (a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
@@ -1273,7 +1273,7 @@ class DreamingOrchestratorServiceV3 {
         final keywords = await QueryMatcher.contentKeywords(queryHint);
         if (keywords.isNotEmpty) {
           final pool = await (_db.select(_db.memoryFragments)
-                ..where((t) => t.status.equals('active'))
+                ..where((t) => t.status.isIn(const ['active', 'consolidated']))
                 ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
                 ..limit(limit * 6))
               .get();
@@ -1300,7 +1300,7 @@ class DreamingOrchestratorServiceV3 {
     }
 
     final fillQuery = _db.select(_db.memoryFragments)
-      ..where((t) => t.status.equals('active'))
+      ..where((t) => t.status.isIn(const ['active', 'consolidated']))
       ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
       ..limit(limit + seenIds.length);
     if (seenIds.isNotEmpty) {
