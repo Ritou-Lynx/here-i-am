@@ -765,14 +765,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       _logger.severe('Failed to register checkin task: $e');
     });
 
-    // Register dreaming daily batch task (WorkManager, charging + network).
+    // Register dreaming daily batch task (WorkManager, battery not low).
     Workmanager().registerPeriodicTask(
       DreamingSchedulerService.dailyBatchTaskName,
       DreamingSchedulerService.dailyBatchTaskName,
       constraints: Constraints(
-        networkType: NetworkType.connected,
+        networkType: NetworkType.not_required,
         requiresBatteryNotLow: true,
-        requiresCharging: true,
+        requiresCharging: false,
         requiresDeviceIdle: false,
         requiresStorageNotLow: false,
       ),
