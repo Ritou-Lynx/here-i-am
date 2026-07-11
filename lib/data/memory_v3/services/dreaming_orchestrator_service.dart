@@ -111,6 +111,26 @@ class DreamingOrchestratorServiceV3 {
 
   static void init(AppDatabase db) {
     _instance = DreamingOrchestratorServiceV3(db);
+    // Schedule a one-time FTS backfill for Dreaming episodes and fragments.
+    // Non-blocking; runs in the next microtask so it does not delay startup.
+    // upsertMemoryEpisodeFts / upsertMemoryFragmentFts are idempotent (they
+    // DELETE-then-INSERT), so this is safe on every launch. Cost scales with
+    // active fragment / episode count, which is bounded in the MVP.
+    Future.microtask(() async {
+      try {
+        // Ensure the FTS virtual tables exist; migration should have run this
+        // but createFtsTables is idempotent and cheap.
+        await db.searchDao.createFtsTables();
+        final ep = await _instance!.reindexAllEpisodes();
+        final fr = await _instance!.reindexAllFragments();
+        _logger.info(
+            'Dreaming FTS backfill: $ep episode(s), $fr fragment(s) indexed');
+        await _instance!.backfillFragmentEventTimes();
+        await _instance!.recomputeAllEpisodeOccurredAtRange();
+      } catch (e, s) {
+        _logger.warning('Dreaming FTS backfill failed', e, s);
+      }
+    });
   }
 
   static void reset() => _instance = null;
@@ -231,6 +251,8 @@ class DreamingOrchestratorServiceV3 {
 
         final fragmentId = _uuid.v4();
         fragmentIds.add(fragmentId);
+
+        final eventTime = _computeEventTime(sourceMessages);
         await _db.into(_db.memoryFragments).insert(
               MemoryFragmentsCompanion.insert(
                 id: fragmentId,
@@ -243,8 +265,18 @@ class DreamingOrchestratorServiceV3 {
                 isUserTruthCandidate: Value(draft.isUserTruthCandidate),
                 generatedByVersion: const Value(_extractorVersion),
                 createdAt: now,
+                eventTime: Value(eventTime),
               ),
             );
+
+        try {
+          await _db.searchDao.upsertMemoryFragmentFts(
+            fragmentId: fragmentId,
+            content: draft.content,
+          );
+        } catch (e, s) {
+          _logger.warning('FTS upsert failed for fragment $fragmentId', e, s);
+        }
 
         for (final link in draft.entityLinks) {
           final entityId = await _resolveDreamingEntity(link, now: now);
@@ -297,6 +329,12 @@ class DreamingOrchestratorServiceV3 {
       final fragmentCount = await (_db.delete(_db.memoryFragments)).go();
       _logger.info('clearAllFragments: removed $fragmentCount fragment(s)');
 
+      try {
+        await _db.searchDao.clearMemoryFragmentFts();
+      } catch (e, s) {
+        _logger.warning('clearAllFragments: failed to clear FTS', e, s);
+      }
+
       // 3) Wipe all dreaming watermarks so the next run starts from message 0.
       final wmAffected = await (_db.delete(_db.kvStore)
             ..where((t) => t.bucket.equals(_bucket)))
@@ -340,6 +378,12 @@ class DreamingOrchestratorServiceV3 {
 
       final episodeCount = await (_db.delete(_db.memoryEpisodes)).go();
       _logger.info('clearAllEpisodes: removed $episodeCount episode(s)');
+
+      try {
+        await _db.searchDao.clearMemoryEpisodeFts();
+      } catch (e, s) {
+        _logger.warning('clearAllEpisodes: failed to clear FTS', e, s);
+      }
 
       // Reset ALL consolidated fragments, not just the ones referenced by
       // episodes. Fragments can end up consolidated-but-unreferenced when the
@@ -474,6 +518,9 @@ class DreamingOrchestratorServiceV3 {
               primaryEntityId,
             };
 
+            final computedRange =
+                await _computeOccurredAtRange(episode.sourceFragmentIds);
+
             await _db.into(_db.memoryEpisodes).insert(
                   MemoryEpisodesCompanion.insert(
                     id: episodeId,
@@ -485,17 +532,7 @@ class DreamingOrchestratorServiceV3 {
                     confidence: episode.confidence,
                     valence: episode.valence,
                     arousal: episode.arousal,
-                    occurredAtRange: Value(
-                      (episode.occurredAtStart != null ||
-                              episode.occurredAtEnd != null)
-                          ? jsonEncode({
-                              if (episode.occurredAtStart != null)
-                                'start': episode.occurredAtStart,
-                              if (episode.occurredAtEnd != null)
-                                'end': episode.occurredAtEnd,
-                            })
-                          : null,
-                    ),
+                    occurredAtRange: Value(computedRange),
                     generatedByVersion:
                         const Value(_episodeConsolidatorVersion),
                     createdAt: now,
@@ -518,6 +555,16 @@ class DreamingOrchestratorServiceV3 {
                       createdAt: now,
                     ),
                   );
+            }
+
+            try {
+              await _db.searchDao.upsertMemoryEpisodeFts(
+                episodeId: episodeId,
+                narrative: episode.narrative,
+                topicId: episode.topicId,
+              );
+            } catch (e, s) {
+              _logger.warning('FTS upsert failed for episode $episodeId', e, s);
             }
 
             episodeIds.add(episodeId);
@@ -618,6 +665,67 @@ class DreamingOrchestratorServiceV3 {
       }
     }
     return result;
+  }
+
+  int? _computeEventTime(List<PersonaChatMessage> messages) {
+    if (messages.isEmpty) return null;
+    final timestamps = messages.map((m) => m.timestamp.millisecondsSinceEpoch);
+    return timestamps.reduce((a, b) => a < b ? a : b);
+  }
+
+  Future<String?> _computeOccurredAtRange(List<String> fragmentIds) async {
+    if (fragmentIds.isEmpty) return null;
+    final rows = await (_db.select(_db.memoryFragments)
+          ..where((t) => t.id.isIn(fragmentIds) & t.eventTime.isNotNull()))
+        .get();
+    if (rows.isEmpty) return null;
+    final times = rows.map((r) => r.eventTime!).toList();
+    final minMs = times.reduce((a, b) => a < b ? a : b);
+    final maxMs = times.reduce((a, b) => a > b ? a : b);
+    final start = DateTime.fromMillisecondsSinceEpoch(minMs).toIso8601String();
+    final end = DateTime.fromMillisecondsSinceEpoch(maxMs).toIso8601String();
+    return jsonEncode({'start': start, 'end': end});
+  }
+
+  Future<int> recomputeAllEpisodeOccurredAtRange() async {
+    final episodes = await _db.select(_db.memoryEpisodes).get();
+    _logger.info(
+        'recomputeAllEpisodeOccurredAtRange: ${episodes.length} episodes');
+    var updated = 0;
+    for (final ep in episodes) {
+      final fragIds =
+          (jsonDecode(ep.sourceFragmentIds) as List).cast<String>();
+      final range = await _computeOccurredAtRange(fragIds);
+      if (range != null && range != ep.occurredAtRange) {
+        await (_db.update(_db.memoryEpisodes)
+              ..where((t) => t.id.equals(ep.id)))
+            .write(MemoryEpisodesCompanion(occurredAtRange: Value(range)));
+        updated++;
+      }
+    }
+    _logger.info('recomputeAllEpisodeOccurredAtRange: updated $updated');
+    return updated;
+  }
+
+  Future<void> backfillFragmentEventTimes() async {
+    final rows = await (_db.select(_db.memoryFragments)
+          ..where((t) => t.eventTime.isNull() & t.sourceMessageIds.isNotNull()))
+        .get();
+    _logger.info('backfillFragmentEventTimes: ${rows.length} fragments to fill');
+    var filled = 0;
+    for (final frag in rows) {
+      final ids = (jsonDecode(frag.sourceMessageIds!) as List).cast<int>();
+      if (ids.isEmpty) continue;
+      final messages = await _sourceMessagesFor(ids);
+      final et = _computeEventTime(messages);
+      if (et != null) {
+        await (_db.update(_db.memoryFragments)
+              ..where((t) => t.id.equals(frag.id)))
+            .write(MemoryFragmentsCompanion(eventTime: Value(et)));
+        filled++;
+      }
+    }
+    _logger.info('backfillFragmentEventTimes: filled $filled');
   }
 
   Future<List<String>> _entityIdsForFragments(List<String> fragmentIds) async {
@@ -993,93 +1101,26 @@ class DreamingOrchestratorServiceV3 {
 
   /// Return recent dreaming output for companion context injection.
   ///
-  /// When [queryHint] is provided, fragments and episodes are scored by keyword
-  /// overlap first, then supplemented with the most-recent ones up to the
-  /// respective limits. This ensures a specific past event (e.g. "remember when
-  /// you lied") surfaces even when it is older than [recentFragmentLimit].
+  /// When [queryHint] is non-empty, episodes and fragments are ranked by FTS5
+  /// bm25 (jieba-tokenized) first, then any remaining slots are filled with
+  /// significance/recency-ordered rows so the companion never sees an empty
+  /// context. FTS-matched entries carry a positive [score]; recency fills
+  /// carry score=0, which the Lab recall log surfaces plainly.
   Future<DreamingContextQueryResult> queryRecentDreamingContext({
     String queryHint = '',
     int episodeLimit = 8,
     int recentFragmentLimit = 6,
   }) async {
-    final keywords = _extractKeywords(queryHint);
+    final trimmedHint = queryHint.trim();
 
-    // --- Episodes ---
-    final List<DreamingEpisodeContextHit> episodeHits;
-    if (keywords.isNotEmpty) {
-      // Pull a broader pool, score in-memory, take top episodeLimit.
-      final pool = await (_db.select(_db.memoryEpisodes)
-            ..where((t) => t.status.equals('active'))
-            ..orderBy([
-              (t) => OrderingTerm.desc(t.significance),
-              (t) => OrderingTerm.desc(t.createdAt),
-            ])
-            ..limit(episodeLimit * 4))
-          .get();
-      final scored = pool
-          .map((episode) => DreamingEpisodeContextHit(
-                episode: episode,
-                score: _keywordScore(episode.narrative.toLowerCase(), keywords),
-              ))
-          .toList();
-      scored.sort((a, b) {
-        if (b.score != a.score) return b.score.compareTo(a.score);
-        if (b.episode.significance != a.episode.significance) {
-          return b.episode.significance.compareTo(a.episode.significance);
-        }
-        return b.episode.createdAt.compareTo(a.episode.createdAt);
-      });
-      episodeHits = scored.take(episodeLimit).toList(growable: false);
-    } else {
-      final rows = await (_db.select(_db.memoryEpisodes)
-            ..where((t) => t.status.equals('active'))
-            ..orderBy([
-              (t) => OrderingTerm.desc(t.significance),
-              (t) => OrderingTerm.desc(t.createdAt),
-            ])
-            ..limit(episodeLimit))
-          .get();
-      episodeHits = rows
-          .map((episode) => DreamingEpisodeContextHit(
-                episode: episode,
-                score: 0,
-              ))
-          .toList(growable: false);
-    }
-
-    // --- Fragments ---
-    final List<DreamingFragmentContextHit> fragmentHits;
-    if (keywords.isNotEmpty) {
-      // Pull recent pool, score by keyword match, then supplement with recency.
-      final pool = await (_db.select(_db.memoryFragments)
-            ..where((t) => t.status.equals('active'))
-            ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
-            ..limit(recentFragmentLimit * 6))
-          .get();
-      final scored = pool
-          .map((fragment) => DreamingFragmentContextHit(
-                fragment: fragment,
-                score: _keywordScore(fragment.content.toLowerCase(), keywords),
-              ))
-          .toList();
-      scored.sort((a, b) {
-        if (b.score != a.score) return b.score.compareTo(a.score);
-        return b.fragment.createdAt.compareTo(a.fragment.createdAt);
-      });
-      fragmentHits = scored.take(recentFragmentLimit).toList(growable: false);
-    } else {
-      final rows = await (_db.select(_db.memoryFragments)
-            ..where((t) => t.status.equals('active'))
-            ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
-            ..limit(recentFragmentLimit))
-          .get();
-      fragmentHits = rows
-          .map((fragment) => DreamingFragmentContextHit(
-                fragment: fragment,
-                score: 0,
-              ))
-          .toList(growable: false);
-    }
+    final episodeHits = await _queryEpisodesForContext(
+      queryHint: trimmedHint,
+      limit: episodeLimit,
+    );
+    final fragmentHits = await _queryFragmentsForContext(
+      queryHint: trimmedHint,
+      limit: recentFragmentLimit,
+    );
 
     return DreamingContextQueryResult(
       episodeHits: episodeHits,
@@ -1087,39 +1128,184 @@ class DreamingOrchestratorServiceV3 {
     );
   }
 
-  /// Count how many keywords appear in [text].
-  int _keywordScore(String text, List<String> keywords) =>
-      keywords.where(text.contains).length;
+  Future<List<DreamingEpisodeContextHit>> _queryEpisodesForContext({
+    required String queryHint,
+    required int limit,
+  }) async {
+    final ftsHits = <DreamingEpisodeContextHit>[];
+    final seenIds = <String>{};
 
-  /// Extract search keywords from a query hint.
-  ///
-  /// For space-delimited tokens (English/mixed), takes words ≥2 chars.
-  /// For Chinese text (no spaces), generates CJK bigrams so short fragments
-  /// like "骗" + "女人" score correctly even when the query is a full sentence.
-  List<String> _extractKeywords(String hint) {
-    if (hint.trim().isEmpty) return const [];
-    final result = <String>{};
-    final lower = hint.toLowerCase();
-
-    // Word-level tokens split on whitespace / punctuation.
-    result.addAll(
-      lower
-          .split(RegExp(r'[\s,，。！？!?、；;：:""()（）【】「」]+'))
-          .where((w) => w.length >= 2),
-    );
-
-    // CJK bigrams — walk adjacent character pairs.
-    for (var i = 0; i < lower.length - 1; i++) {
-      final c1 = lower.codeUnitAt(i);
-      final c2 = lower.codeUnitAt(i + 1);
-      if (_isCjk(c1) && _isCjk(c2)) {
-        result.add(lower.substring(i, i + 2));
+    if (queryHint.isNotEmpty) {
+      try {
+        final rows = await _db.searchDao.searchMemoryEpisodes(
+          queryHint,
+          limit: limit * 3,
+        );
+        if (rows.isNotEmpty) {
+          final ranks = <String, double>{
+            for (final row in rows)
+              row['episode_id'] as String: (row['rank'] as num).toDouble(),
+          };
+          final activeRows = await (_db.select(_db.memoryEpisodes)
+                ..where((t) =>
+                    t.id.isIn(ranks.keys.toList(growable: false)) &
+                    t.status.equals('active')))
+              .get();
+          activeRows.sort(
+              (a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
+          for (final ep in activeRows) {
+            if (ftsHits.length >= limit) break;
+            if (seenIds.add(ep.id)) {
+              ftsHits.add(DreamingEpisodeContextHit(
+                episode: ep,
+                score: _bm25ToScore(ranks[ep.id]),
+              ));
+            }
+          }
+        }
+      } catch (e, s) {
+        _logger.warning(
+            'Episode FTS search failed; falling back to recency', e, s);
       }
     }
 
-    return result.toList(growable: false);
+    if (ftsHits.length >= limit) {
+      return List.unmodifiable(ftsHits);
+    }
+
+    final fillQuery = _db.select(_db.memoryEpisodes)
+      ..where((t) => t.status.equals('active'))
+      ..orderBy([
+        (t) => OrderingTerm.desc(t.significance),
+        (t) => OrderingTerm.desc(t.createdAt),
+      ])
+      ..limit(limit + seenIds.length);
+    if (seenIds.isNotEmpty) {
+      fillQuery.where((t) => t.id.isNotIn(seenIds.toList(growable: false)));
+    }
+    final fillRows = await fillQuery.get();
+
+    final result = List<DreamingEpisodeContextHit>.of(ftsHits);
+    for (final ep in fillRows) {
+      if (result.length >= limit) break;
+      result.add(DreamingEpisodeContextHit(episode: ep, score: 0));
+    }
+    return List.unmodifiable(result);
   }
 
-  bool _isCjk(int cp) =>
-      (cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0x3400 && cp <= 0x4DBF);
+  Future<List<DreamingFragmentContextHit>> _queryFragmentsForContext({
+    required String queryHint,
+    required int limit,
+  }) async {
+    final ftsHits = <DreamingFragmentContextHit>[];
+    final seenIds = <String>{};
+
+    if (queryHint.isNotEmpty) {
+      try {
+        final rows = await _db.searchDao.searchMemoryFragments(
+          queryHint,
+          limit: limit * 4,
+        );
+        if (rows.isNotEmpty) {
+          final ranks = <String, double>{
+            for (final row in rows)
+              row['fragment_id'] as String: (row['rank'] as num).toDouble(),
+          };
+          final activeRows = await (_db.select(_db.memoryFragments)
+                ..where((t) =>
+                    t.id.isIn(ranks.keys.toList(growable: false)) &
+                    t.status.equals('active')))
+              .get();
+          activeRows.sort(
+              (a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
+          for (final fr in activeRows) {
+            if (ftsHits.length >= limit) break;
+            if (seenIds.add(fr.id)) {
+              ftsHits.add(DreamingFragmentContextHit(
+                fragment: fr,
+                score: _bm25ToScore(ranks[fr.id]),
+              ));
+            }
+          }
+        }
+      } catch (e, s) {
+        _logger.warning(
+            'Fragment FTS search failed; falling back to recency', e, s);
+      }
+    }
+
+    if (ftsHits.length >= limit) {
+      return List.unmodifiable(ftsHits);
+    }
+
+    final fillQuery = _db.select(_db.memoryFragments)
+      ..where((t) => t.status.equals('active'))
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+      ..limit(limit + seenIds.length);
+    if (seenIds.isNotEmpty) {
+      fillQuery.where((t) => t.id.isNotIn(seenIds.toList(growable: false)));
+    }
+    final fillRows = await fillQuery.get();
+
+    final result = List<DreamingFragmentContextHit>.of(ftsHits);
+    for (final fr in fillRows) {
+      if (result.length >= limit) break;
+      result.add(DreamingFragmentContextHit(fragment: fr, score: 0));
+    }
+    return List.unmodifiable(result);
+  }
+
+  /// Convert an FTS5 bm25 rank (negative float, more-negative = better match)
+  /// into the positive integer score the recall log stores. A typical strong
+  /// bm25 match ~ -3.0 → 30; borderline ~ -0.5 → 5. Clamped defensively.
+  int _bm25ToScore(double? rank) {
+    if (rank == null) return 0;
+    final score = (-rank * 10).round();
+    if (score < 0) return 0;
+    if (score > 9999) return 9999;
+    return score;
+  }
+
+  /// Rebuild the fragment FTS index from all non-deleted rows. Idempotent and
+  /// safe to run on every launch; scheduled from [init].
+  Future<int> reindexAllFragments() async {
+    final rows = await (_db.select(_db.memoryFragments)
+          ..where((t) => t.status.isNotIn(const ['deleted'])))
+        .get();
+    var count = 0;
+    for (final row in rows) {
+      try {
+        await _db.searchDao.upsertMemoryFragmentFts(
+          fragmentId: row.id,
+          content: row.content,
+        );
+        count++;
+      } catch (e, s) {
+        _logger.warning('reindexAllFragments: failed for ${row.id}', e, s);
+      }
+    }
+    return count;
+  }
+
+  /// Rebuild the episode FTS index from all non-deleted rows. Idempotent and
+  /// safe to run on every launch; scheduled from [init].
+  Future<int> reindexAllEpisodes() async {
+    final rows = await (_db.select(_db.memoryEpisodes)
+          ..where((t) => t.status.isNotIn(const ['deleted'])))
+        .get();
+    var count = 0;
+    for (final row in rows) {
+      try {
+        await _db.searchDao.upsertMemoryEpisodeFts(
+          episodeId: row.id,
+          narrative: row.narrative,
+          topicId: row.topicId,
+        );
+        count++;
+      } catch (e, s) {
+        _logger.warning('reindexAllEpisodes: failed for ${row.id}', e, s);
+      }
+    }
+    return count;
+  }
 }

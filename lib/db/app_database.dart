@@ -119,7 +119,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 39;
+  int get schemaVersion => 41;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -519,6 +519,23 @@ class AppDatabase extends _$AppDatabase {
             // Patch: ensure memory_v3_fts exists for installs that upgraded to
             // v37 before createFtsTables was included in that migration step.
             await searchDao.createFtsTables();
+          }
+          if (from < 40) {
+            // Dreaming recall FTS5: index memory_episodes.narrative /
+            // memory_fragments.content so queryRecentDreamingContext can rank
+            // by bm25 instead of hand-rolled bigram scoring.
+            // createFtsTables is idempotent (IF NOT EXISTS) and covers the new
+            // memory_episodes_fts / memory_fragments_fts tables added in v40.
+            await searchDao.createFtsTables();
+            // Backfill is scheduled by DreamingOrchestratorServiceV3.init on
+            // next startup — the migration itself has no access to tokenizers.
+          }
+          if (from < 41) {
+            await _addColumnIfMissing(
+              "memory_fragments ADD COLUMN event_time INTEGER",
+            );
+            // Backfill is done by DreamingOrchestratorServiceV3.init on next
+            // startup — it resolves sourceMessageIds → min(timestamp).
           }
           if (from < 39) {
             await _addColumnIfMissing(

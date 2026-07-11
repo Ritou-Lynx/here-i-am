@@ -15625,6 +15625,12 @@ class $MemoryFragmentsTable extends memory_v3.MemoryFragments
   late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
       'created_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _eventTimeMeta =
+      const VerificationMeta('eventTime');
+  @override
+  late final GeneratedColumn<int> eventTime = GeneratedColumn<int>(
+      'event_time', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -15637,7 +15643,8 @@ class $MemoryFragmentsTable extends memory_v3.MemoryFragments
         generatedByVersion,
         userCorrected,
         schemaVersion,
-        createdAt
+        createdAt,
+        eventTime
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -15712,6 +15719,10 @@ class $MemoryFragmentsTable extends memory_v3.MemoryFragments
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('event_time')) {
+      context.handle(_eventTimeMeta,
+          eventTime.isAcceptableOrUnknown(data['event_time']!, _eventTimeMeta));
+    }
     return context;
   }
 
@@ -15743,6 +15754,8 @@ class $MemoryFragmentsTable extends memory_v3.MemoryFragments
           .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      eventTime: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}event_time']),
     );
   }
 
@@ -15764,6 +15777,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
   final bool userCorrected;
   final int schemaVersion;
   final int createdAt;
+  final int? eventTime;
   const MemoryFragment(
       {required this.id,
       required this.content,
@@ -15775,7 +15789,8 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       this.generatedByVersion,
       required this.userCorrected,
       required this.schemaVersion,
-      required this.createdAt});
+      required this.createdAt,
+      this.eventTime});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -15794,6 +15809,9 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
     map['user_corrected'] = Variable<bool>(userCorrected);
     map['schema_version'] = Variable<int>(schemaVersion);
     map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || eventTime != null) {
+      map['event_time'] = Variable<int>(eventTime);
+    }
     return map;
   }
 
@@ -15814,6 +15832,9 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       userCorrected: Value(userCorrected),
       schemaVersion: Value(schemaVersion),
       createdAt: Value(createdAt),
+      eventTime: eventTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(eventTime),
     );
   }
 
@@ -15834,6 +15855,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       userCorrected: serializer.fromJson<bool>(json['userCorrected']),
       schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
+      eventTime: serializer.fromJson<int?>(json['eventTime']),
     );
   }
   @override
@@ -15851,6 +15873,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       'userCorrected': serializer.toJson<bool>(userCorrected),
       'schemaVersion': serializer.toJson<int>(schemaVersion),
       'createdAt': serializer.toJson<int>(createdAt),
+      'eventTime': serializer.toJson<int?>(eventTime),
     };
   }
 
@@ -15865,7 +15888,8 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
           Value<String?> generatedByVersion = const Value.absent(),
           bool? userCorrected,
           int? schemaVersion,
-          int? createdAt}) =>
+          int? createdAt,
+          Value<int?> eventTime = const Value.absent()}) =>
       MemoryFragment(
         id: id ?? this.id,
         content: content ?? this.content,
@@ -15882,6 +15906,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
         userCorrected: userCorrected ?? this.userCorrected,
         schemaVersion: schemaVersion ?? this.schemaVersion,
         createdAt: createdAt ?? this.createdAt,
+        eventTime: eventTime.present ? eventTime.value : this.eventTime,
       );
   MemoryFragment copyWithCompanion(MemoryFragmentsCompanion data) {
     return MemoryFragment(
@@ -15909,6 +15934,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
           ? data.schemaVersion.value
           : this.schemaVersion,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      eventTime: data.eventTime.present ? data.eventTime.value : this.eventTime,
     );
   }
 
@@ -15925,7 +15951,8 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
           ..write('generatedByVersion: $generatedByVersion, ')
           ..write('userCorrected: $userCorrected, ')
           ..write('schemaVersion: $schemaVersion, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('eventTime: $eventTime')
           ..write(')'))
         .toString();
   }
@@ -15942,7 +15969,8 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       generatedByVersion,
       userCorrected,
       schemaVersion,
-      createdAt);
+      createdAt,
+      eventTime);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -15957,7 +15985,8 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
           other.generatedByVersion == this.generatedByVersion &&
           other.userCorrected == this.userCorrected &&
           other.schemaVersion == this.schemaVersion &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.eventTime == this.eventTime);
 }
 
 class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
@@ -15972,6 +16001,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
   final Value<bool> userCorrected;
   final Value<int> schemaVersion;
   final Value<int> createdAt;
+  final Value<int?> eventTime;
   final Value<int> rowid;
   const MemoryFragmentsCompanion({
     this.id = const Value.absent(),
@@ -15985,6 +16015,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
     this.userCorrected = const Value.absent(),
     this.schemaVersion = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.eventTime = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MemoryFragmentsCompanion.insert({
@@ -15999,6 +16030,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
     this.userCorrected = const Value.absent(),
     this.schemaVersion = const Value.absent(),
     required int createdAt,
+    this.eventTime = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         content = Value(content),
@@ -16015,6 +16047,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
     Expression<bool>? userCorrected,
     Expression<int>? schemaVersion,
     Expression<int>? createdAt,
+    Expression<int>? eventTime,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -16031,6 +16064,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
       if (userCorrected != null) 'user_corrected': userCorrected,
       if (schemaVersion != null) 'schema_version': schemaVersion,
       if (createdAt != null) 'created_at': createdAt,
+      if (eventTime != null) 'event_time': eventTime,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -16047,6 +16081,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
       Value<bool>? userCorrected,
       Value<int>? schemaVersion,
       Value<int>? createdAt,
+      Value<int?>? eventTime,
       Value<int>? rowid}) {
     return MemoryFragmentsCompanion(
       id: id ?? this.id,
@@ -16060,6 +16095,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
       userCorrected: userCorrected ?? this.userCorrected,
       schemaVersion: schemaVersion ?? this.schemaVersion,
       createdAt: createdAt ?? this.createdAt,
+      eventTime: eventTime ?? this.eventTime,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -16101,6 +16137,9 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
+    if (eventTime.present) {
+      map['event_time'] = Variable<int>(eventTime.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -16121,6 +16160,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
           ..write('userCorrected: $userCorrected, ')
           ..write('schemaVersion: $schemaVersion, ')
           ..write('createdAt: $createdAt, ')
+          ..write('eventTime: $eventTime, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -30560,6 +30600,7 @@ typedef $$MemoryFragmentsTableCreateCompanionBuilder = MemoryFragmentsCompanion
   Value<bool> userCorrected,
   Value<int> schemaVersion,
   required int createdAt,
+  Value<int?> eventTime,
   Value<int> rowid,
 });
 typedef $$MemoryFragmentsTableUpdateCompanionBuilder = MemoryFragmentsCompanion
@@ -30575,6 +30616,7 @@ typedef $$MemoryFragmentsTableUpdateCompanionBuilder = MemoryFragmentsCompanion
   Value<bool> userCorrected,
   Value<int> schemaVersion,
   Value<int> createdAt,
+  Value<int?> eventTime,
   Value<int> rowid,
 });
 
@@ -30623,6 +30665,9 @@ class $$MemoryFragmentsTableFilterComposer
 
   ColumnFilters<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get eventTime => $composableBuilder(
+      column: $table.eventTime, builder: (column) => ColumnFilters(column));
 }
 
 class $$MemoryFragmentsTableOrderingComposer
@@ -30672,6 +30717,9 @@ class $$MemoryFragmentsTableOrderingComposer
 
   ColumnOrderings<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get eventTime => $composableBuilder(
+      column: $table.eventTime, builder: (column) => ColumnOrderings(column));
 }
 
 class $$MemoryFragmentsTableAnnotationComposer
@@ -30715,6 +30763,9 @@ class $$MemoryFragmentsTableAnnotationComposer
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get eventTime =>
+      $composableBuilder(column: $table.eventTime, builder: (column) => column);
 }
 
 class $$MemoryFragmentsTableTableManager extends RootTableManager<
@@ -30755,6 +30806,7 @@ class $$MemoryFragmentsTableTableManager extends RootTableManager<
             Value<bool> userCorrected = const Value.absent(),
             Value<int> schemaVersion = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
+            Value<int?> eventTime = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               MemoryFragmentsCompanion(
@@ -30769,6 +30821,7 @@ class $$MemoryFragmentsTableTableManager extends RootTableManager<
             userCorrected: userCorrected,
             schemaVersion: schemaVersion,
             createdAt: createdAt,
+            eventTime: eventTime,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -30783,6 +30836,7 @@ class $$MemoryFragmentsTableTableManager extends RootTableManager<
             Value<bool> userCorrected = const Value.absent(),
             Value<int> schemaVersion = const Value.absent(),
             required int createdAt,
+            Value<int?> eventTime = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               MemoryFragmentsCompanion.insert(
@@ -30797,6 +30851,7 @@ class $$MemoryFragmentsTableTableManager extends RootTableManager<
             userCorrected: userCorrected,
             schemaVersion: schemaVersion,
             createdAt: createdAt,
+            eventTime: eventTime,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

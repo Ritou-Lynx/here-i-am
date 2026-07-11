@@ -30,26 +30,28 @@ class QueryMatcher {
 
     await JiebaSegmenter.instance.ensureLoaded();
     if (JiebaSegmenter.instance.isLoaded && _containsCjk(trimmed)) {
-      final tokens = <String>[];
+      final allCjkTokens = <String>[];
+      final filteredTokens = <String>[];
       for (final word in JiebaSegmenter.instance.cut(trimmed)) {
         final token = word.trim();
         if (token.isEmpty) continue;
         if (_containsCjk(token)) {
-          // CJK token: exact match (no prefix wildcard — FTS5 doesn't support
-          // prefix search on CJK characters anyway).
-          tokens.add('"$token"');
+          allCjkTokens.add(token);
+          if (_cjkStopwords.contains(token)) continue;
+          filteredTokens.add('"$token"');
         } else {
-          // ASCII token: keep only alphanumeric/underscore/hyphen characters.
-          // Punctuation-only tokens (e.g. ".", "!", "[") cause FTS5 syntax
-          // errors when used with the prefix wildcard operator.
           final clean = token.replaceAll(RegExp(r'[^\w\-]'), '').trim();
           if (clean.length >= 2) {
-            tokens.add('"$clean"*');
+            filteredTokens.add('"$clean"*');
           }
         }
       }
-      if (tokens.isEmpty) return '';
-      return tokens.join(' OR ');
+      if (filteredTokens.isNotEmpty) return filteredTokens.join(' OR ');
+      // All tokens were stopwords — use the longest CJK tokens as fallback.
+      final fallback = allCjkTokens.toList()
+        ..sort((a, b) => b.length.compareTo(a.length));
+      final top = fallback.take(3).map((t) => '"$t"').toList();
+      return top.isEmpty ? '' : top.join(' OR ');
     }
 
     return _tokenizeQueryFallback(trimmed);
@@ -245,4 +247,19 @@ class QueryMatcher {
     if (!_containsCjk(trimmed) && trimmed.length < 2) return;
     tokens.add(trimmed);
   }
+
+  static const _cjkStopwords = <String>{
+    '我', '你', '她', '他', '它', '们', '的', '了', '吗', '呢', '吧', '啊',
+    '哦', '嘛', '呀', '哈', '嗯', '噢', '哎', '唉',
+    '是', '在', '有', '没', '不', '也', '就', '都', '还', '会', '要', '能',
+    '可', '可以', '这', '那', '什么', '怎么', '哪', '谁', '多', '几',
+    '和', '跟', '与', '把', '被', '让', '给', '对', '从', '到', '向',
+    '很', '太', '真', '好', '过', '着', '得', '地',
+    '个', '些', '种', '点', '下', '上', '里', '天', '来', '去',
+    '起', '出', '回', '做', '说', '看', '想', '知道',
+    '时候', '东西', '事情', '一个', '自己', '什', '么',
+    '记得', '记', '时', '候', '哪天', '一下', '一点',
+    '然后', '但是', '因为', '所以', '如果', '虽然',
+    '今天', '昨天', '明天', '现在', '之前', '以后',
+  };
 }

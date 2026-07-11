@@ -61,6 +61,70 @@ class CompanionAgent {
   static bool containsTimeRequestForTesting(String text) =>
       _containsTimeRequest(text);
 
+  // ---------------------------------------------------------------------------
+  // Dreaming context time-anchor helpers (V3 § 5.6)
+  //
+  // Every injected episode/fragment gets a "(MM-DD · N 天前)" prefix so the
+  // model can tell past events from the current moment. Without this the
+  // model treats no-date narratives as "recent/ongoing" and produces
+  // hallucinations like "搞定这个月报" when the月报 actually happened days ago.
+  // ---------------------------------------------------------------------------
+
+  static String _fmtYmd(DateTime dt) =>
+      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
+      '${dt.day.toString().padLeft(2, '0')}';
+
+  static String _cnWeekday(int weekday) {
+    const names = ['一', '二', '三', '四', '五', '六', '日'];
+    if (weekday < 1 || weekday > 7) return '?';
+    return names[weekday - 1];
+  }
+
+  /// Resolve the best event-date anchor for a dreaming record and format it
+  /// as "MM-DD · 相对措辞" (e.g. "07-08 · 2 天前"). Prefers a parsed
+  /// `occurredAtRange.start` (episode), falls back to `fallbackCreatedAt`.
+  static String _fmtEventDate({
+    required String? occurredAtRangeJson,
+    required int fallbackCreatedAt,
+    required DateTime now,
+  }) {
+    DateTime? eventDt;
+    if (occurredAtRangeJson != null && occurredAtRangeJson.trim().isNotEmpty) {
+      try {
+        final parsed = jsonDecode(occurredAtRangeJson);
+        if (parsed is Map<String, dynamic>) {
+          final start = parsed['start'];
+          if (start is String && start.isNotEmpty) {
+            eventDt = DateTime.tryParse(start);
+          }
+        }
+      } catch (_) {
+        // Malformed occurredAtRange — silently fall back.
+      }
+    }
+    eventDt ??= DateTime.fromMillisecondsSinceEpoch(fallbackCreatedAt);
+
+    final today = DateTime(now.year, now.month, now.day);
+    final eventDay = DateTime(eventDt.year, eventDt.month, eventDt.day);
+    final diffDays = today.difference(eventDay).inDays;
+    final mmdd = '${eventDt.month.toString().padLeft(2, '0')}-'
+        '${eventDt.day.toString().padLeft(2, '0')}';
+    if (diffDays == 0) return '$mmdd · 今天';
+    if (diffDays == 1) return '$mmdd · 昨天';
+    if (diffDays > 1 && diffDays <= 6) return '$mmdd · $diffDays 天前';
+    if (diffDays > 6 && diffDays <= 30) {
+      return '$mmdd · ${(diffDays / 7).round()} 周前';
+    }
+    if (diffDays > 30 && diffDays <= 365) {
+      return '$mmdd · ${(diffDays / 30).round()} 月前';
+    }
+    if (diffDays < 0) {
+      // Future date — probably data bug; show absolute only, no relative label.
+      return mmdd;
+    }
+    return '${eventDt.year}-$mmdd';
+  }
+
   /// Patterns indicating the agent's text output contains a time-based promise.
   static final List<RegExp> _timeCommitmentPatterns = [
     RegExp(
@@ -273,25 +337,41 @@ class CompanionAgent {
             .queryRecentDreamingContext(queryHint: queryHint);
         if (ctx.episodes.isNotEmpty || ctx.fragments.isNotEmpty) {
           final buf = StringBuffer();
-          buf.writeln('## Dreaming Context (你对用户的后台记忆整理)');
-          buf.writeln('以下内容来自后台 Dreaming 对话分析，代表你已沉淀的关系认知。优先参考。');
+          final now = DateTime.now();
+          final todayStr = _fmtYmd(now);
+          final weekdayCn = _cnWeekday(now.weekday);
+          buf.writeln('## Dreaming Context — 过去的关系记忆');
+          buf.writeln('今天：$todayStr 周$weekdayCn。以下是你之前已经沉淀下来的');
+          buf.writeln('记忆片段。每条前的日期是**事情实际发生的时间**，不是今');
+          buf.writeln('天，除非明确标了"今天"。参考它们理解用户，但不要把过去');
+          buf.writeln('的事当作正在发生。');
           if (ctx.episodes.isNotEmpty) {
             buf.writeln();
-            buf.writeln('### 记忆章节');
+            buf.writeln('### 过往章节');
             for (final ep in ctx.episodes) {
               final topic =
                   ep.topicId.isNotEmpty && ep.topicId != '__ungrouped__'
                       ? ' [${ep.topicId}]'
                       : '';
-              buf.writeln('- $topic ${ep.narrative}');
+              final dateStr = _fmtEventDate(
+                occurredAtRangeJson: ep.occurredAtRange,
+                fallbackCreatedAt: ep.createdAt,
+                now: now,
+              );
+              buf.writeln('- ($dateStr)$topic ${ep.narrative}');
             }
           }
           if (ctx.fragments.isNotEmpty) {
             buf.writeln();
-            buf.writeln('### 活跃碎片');
+            buf.writeln('### 过往碎片');
             for (final f in ctx.fragments) {
               final tag = f.isUserTruthCandidate ? ' [user_truth]' : '';
-              buf.writeln('- ${f.content}$tag');
+              final dateStr = _fmtEventDate(
+                occurredAtRangeJson: null,
+                fallbackCreatedAt: f.eventTime ?? f.createdAt,
+                now: now,
+              );
+              buf.writeln('- ($dateStr) ${f.content}$tag');
             }
           }
           final injectedContext = buf.toString();

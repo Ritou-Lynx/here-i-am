@@ -56,6 +56,21 @@ class SearchDao {
         tokenize='unicode61'
       )
     ''');
+    await _db.customStatement('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_episodes_fts USING fts5(
+        episode_id UNINDEXED,
+        narrative,
+        topic_id,
+        tokenize='unicode61'
+      )
+    ''');
+    await _db.customStatement('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_fragments_fts USING fts5(
+        fragment_id UNINDEXED,
+        content,
+        tokenize='unicode61'
+      )
+    ''');
     await createCharacterFtsTables();
   }
 
@@ -467,6 +482,106 @@ class SearchDao {
               'card_id': row.read<String>('card_id'),
               'label_snippet': row.read<String>('label_snippet'),
               'text_snippet': row.read<String>('text_snippet'),
+              'rank': row.read<double>('rank'),
+            })
+        .toList();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Memory V3 Dreaming FTS (episodes + fragments)
+  // ---------------------------------------------------------------------------
+
+  Future<void> upsertMemoryEpisodeFts({
+    required String episodeId,
+    required String narrative,
+    required String topicId,
+  }) async {
+    await deleteMemoryEpisodeFts(episodeId);
+    await _db.customStatement(
+      'INSERT INTO memory_episodes_fts(episode_id, narrative, topic_id) '
+      'VALUES (?, ?, ?)',
+      [
+        episodeId,
+        await tokenizeForIndex(narrative),
+        await tokenizeForIndex(topicId),
+      ],
+    );
+  }
+
+  Future<void> deleteMemoryEpisodeFts(String episodeId) async {
+    await _db.customStatement(
+      'DELETE FROM memory_episodes_fts WHERE episode_id = ?',
+      [episodeId],
+    );
+  }
+
+  Future<void> clearMemoryEpisodeFts() async {
+    await _db.customStatement('DELETE FROM memory_episodes_fts');
+  }
+
+  /// Search Dreaming episodes via FTS5. Returns `episode_id` and `rank`
+  /// (bm25 — lower is better). Narrative is weighted higher than topic id.
+  Future<List<Map<String, dynamic>>> searchMemoryEpisodes(
+    String query, {
+    int limit = 40,
+  }) async {
+    final ftsQuery = await tokenizeForQuery(query);
+    if (ftsQuery.isEmpty) return [];
+    final results = await _db.customSelect(
+      '''SELECT episode_id, bm25(memory_episodes_fts, 4.0, 1.0) AS rank
+      FROM memory_episodes_fts
+      WHERE memory_episodes_fts MATCH ?
+      ORDER BY rank LIMIT ?''',
+      variables: [Variable<String>(ftsQuery), Variable<int>(limit)],
+    ).get();
+    return results
+        .map((row) => {
+              'episode_id': row.read<String>('episode_id'),
+              'rank': row.read<double>('rank'),
+            })
+        .toList();
+  }
+
+  Future<void> upsertMemoryFragmentFts({
+    required String fragmentId,
+    required String content,
+  }) async {
+    await deleteMemoryFragmentFts(fragmentId);
+    await _db.customStatement(
+      'INSERT INTO memory_fragments_fts(fragment_id, content) VALUES (?, ?)',
+      [fragmentId, await tokenizeForIndex(content)],
+    );
+  }
+
+  Future<void> deleteMemoryFragmentFts(String fragmentId) async {
+    await _db.customStatement(
+      'DELETE FROM memory_fragments_fts WHERE fragment_id = ?',
+      [fragmentId],
+    );
+  }
+
+  Future<void> clearMemoryFragmentFts() async {
+    await _db.customStatement('DELETE FROM memory_fragments_fts');
+  }
+
+  /// Search Dreaming fragments via FTS5. Returns `fragment_id` and `rank`
+  /// (bm25 — lower is better).
+  Future<List<Map<String, dynamic>>> searchMemoryFragments(
+    String query, {
+    int limit = 60,
+  }) async {
+    final ftsQuery = await tokenizeForQuery(query);
+    if (ftsQuery.isEmpty) return [];
+    final results = await _db.customSelect(
+      '''SELECT fragment_id, bm25(memory_fragments_fts) AS rank
+      FROM memory_fragments_fts
+      WHERE memory_fragments_fts MATCH ?
+      ORDER BY rank LIMIT ?''',
+      variables: [Variable<String>(ftsQuery), Variable<int>(limit)],
+    ).get();
+    return results
+        .map((row) => {
+              'fragment_id': row.read<String>('fragment_id'),
               'rank': row.read<double>('rank'),
             })
         .toList();

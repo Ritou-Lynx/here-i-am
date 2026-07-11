@@ -144,6 +144,7 @@ class MemoryFragments extends Table {
 
   IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
   IntColumn get createdAt => integer()();
+  IntColumn get eventTime => integer().nullable()(); // ms since epoch; when the event actually happened (from source message timestamps)
 
   @override
   Set<Column> get primaryKey => {id};
