@@ -1089,13 +1089,40 @@ class DreamingOrchestratorServiceV3 {
         lastRunDate.day == today.day;
   }
 
-  /// Record that today's daily dreaming batch completed for [characterId].
+  /// Record batch completion with data-driven metadata for next trigger check.
   Future<void> markDailyBatchComplete(String characterId) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Get the current watermark (last processed message ID)
+    final watermarkRow = await (_db.select(_db.kvStore)
+          ..where((t) =>
+              t.bucket.equals(_bucket) &
+              t.key.equals(_watermarkKey(characterId))))
+        .getSingleOrNull();
+    final currentWatermark = watermarkRow?.value ?? '0';
+
+    // Record batch completion time and watermark for next data-driven check
+    await _db.into(_db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion(
+            bucket: const Value(_bucket),
+            key: Value('dreaming.batch.last_run_time.$characterId'),
+            value: Value(now.toString()),
+          ),
+        );
+    await _db.into(_db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion(
+            bucket: const Value(_bucket),
+            key: Value('dreaming.batch.last_watermark.$characterId'),
+            value: Value(currentWatermark),
+          ),
+        );
+
+    // Keep legacy key for backward compatibility
     await _db.into(_db.kvStore).insertOnConflictUpdate(
           KvStoreCompanion(
             bucket: const Value(_bucket),
             key: Value('daily_batch.last_run.$characterId'),
-            value: Value(DateTime.now().millisecondsSinceEpoch.toString()),
+            value: Value(now.toString()),
           ),
         );
   }

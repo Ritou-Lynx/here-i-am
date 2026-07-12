@@ -97,9 +97,9 @@ class DreamingSchedulerService {
   }) async {
     final orchestrator = DreamingOrchestratorServiceV3.instance;
 
-    // 1. Already ran today?
-    if (!forceRun && await orchestrator.hasDailyBatchRunToday(characterId)) {
-      _logger.info('Daily batch: already ran today, skipping');
+    // 1. Data-driven check: enough time passed + sufficient new messages?
+    if (!forceRun && !await _shouldRunBatch(db, characterId)) {
+      _logger.info('Daily batch: insufficient time or messages since last batch, deferring');
       return false;
     }
 
@@ -239,7 +239,55 @@ class DreamingSchedulerService {
     }
   }
 
-  /// Best-effort idle check via the last_user_active KvStore key.
+  /// Data-driven batch trigger: check if enough time has passed and new messages
+  /// have accumulated since the last batch.
+  /// Returns true if: (time since last batch >= 1 hour) OR (new messages >= 100)
+  static Future<bool> _shouldRunBatch(AppDatabase db, String characterId) async {
+    try {
+      const minIntervalMinutes = 60;
+      const messageThreshold = 100;
+
+      // Get last batch time and watermark
+      final timeRow = await (db.select(db.kvStore)
+            ..where((t) =>
+                t.bucket.equals('memory_v3.dreaming') &
+                t.key.equals('dreaming.batch.last_run_time.$characterId')))
+          .getSingleOrNull();
+      final watermarkRow = await (db.select(db.kvStore)
+            ..where((t) =>
+                t.bucket.equals('memory_v3.dreaming') &
+                t.key.equals('dreaming.batch.last_watermark.$characterId')))
+          .getSingleOrNull();
+
+      final lastRunTime = timeRow?.value != null ? int.tryParse(timeRow!.value!) : null;
+      final lastWatermark = watermarkRow?.value != null ? int.tryParse(watermarkRow!.value!) : 0;
+
+      // First run or no prior batch — always allow
+      if (lastRunTime == null) return true;
+
+      // Check time since last batch
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final minutesSinceLastBatch = (now - lastRunTime) / (60 * 1000);
+      if (minutesSinceLastBatch >= minIntervalMinutes) return true;
+
+      // Check new message count
+      final latestMessageId = await (db.selectOnly(db.personaChatMessages)
+            ..addColumns([db.personaChatMessages.id])
+            ..where(db.personaChatMessages.characterId.equals(characterId))
+            ..orderBy([OrderingTerm.desc(db.personaChatMessages.id)])
+            ..limit(1))
+          .map((row) => row.read<int>(db.personaChatMessages.id))
+          .getSingleOrNull();
+
+      if (latestMessageId == null) return false;
+
+      final newMessages = (latestMessageId - (lastWatermark ?? 0)).abs();
+      return newMessages >= messageThreshold;
+    } catch (e) {
+      _logger.warning('_shouldRunBatch check failed', e);
+      return true; // allow on error
+    }
+  }
   static Future<bool> _hasSufficientIdleTime(AppDatabase db) async {
     try {
       final row = await (db.select(db.kvStore)
