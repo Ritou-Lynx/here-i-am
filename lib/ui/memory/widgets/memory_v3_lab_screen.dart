@@ -1385,6 +1385,7 @@ class _DreamingRecallLogSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final coverage = DreamingRecallCoverage.fromEntries(entries);
     return DraggableScrollableSheet(
       initialChildSize: 0.76,
       minChildSize: 0.3,
@@ -1405,32 +1406,40 @@ class _DreamingRecallLogSheet extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Dreaming 召回日志',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(width: 8),
-                if (zeroCount > 0)
-                  Chip(
-                    label: Text('$zeroCount 条零结果',
-                        style: const TextStyle(fontSize: 11)),
-                    backgroundColor: Colors.orange.shade100,
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                Row(
+                  children: [
+                    Text('Dreaming 召回日志',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const Spacer(),
+                    if (entries.isNotEmpty) ...[
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        onPressed: () => _confirmClear(context),
+                        tooltip: '清空日志',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, size: 20),
+                        onPressed: onRefresh,
+                        tooltip: '刷新',
+                      ),
+                    ],
+                  ],
+                ),
+                if (coverage.total > 0)
+                  Text(
+                    '近 ${coverage.total} 轮：Episode 命中 ${coverage.episodeMatched} · '
+                    '仅 Fragment ${coverage.fragmentOnly} · '
+                    '零结果 $zeroCount',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: zeroCount > 0
+                          ? Colors.orange.shade800
+                          : Colors.grey.shade600,
+                    ),
                   ),
-                const Spacer(),
-                if (entries.isNotEmpty) ...[
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    onPressed: () => _confirmClear(context),
-                    tooltip: '清空日志',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, size: 20),
-                    onPressed: onRefresh,
-                    tooltip: '刷新',
-                  ),
-                ],
               ],
             ),
           ),

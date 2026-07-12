@@ -35,8 +35,11 @@ class DreamingRecallLogEntry {
 
   int get totalCount => episodeCount + fragmentCount;
 
-  bool get isZeroResult =>
-      episodes.every((e) => e.score == 0) && fragments.every((f) => f.score == 0);
+  bool get hasEpisodeMatch => episodes.any((e) => e.score > 0);
+
+  bool get hasFragmentMatch => fragments.any((e) => e.score > 0);
+
+  bool get isZeroResult => !hasEpisodeMatch && !hasFragmentMatch;
 
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
 
@@ -77,6 +80,46 @@ class DreamingRecallLogEntry {
                 .toList() ??
             const [],
       );
+}
+
+/// Coverage breakdown for deciding which part of the Dreaming pipeline needs
+/// attention: episode consolidation, fragment extraction, or retrieval.
+class DreamingRecallCoverage {
+  const DreamingRecallCoverage({
+    required this.episodeMatched,
+    required this.fragmentOnly,
+    required this.zeroResult,
+  });
+
+  final int episodeMatched;
+  final int fragmentOnly;
+  final int zeroResult;
+
+  int get total => episodeMatched + fragmentOnly + zeroResult;
+
+  factory DreamingRecallCoverage.fromEntries(
+    Iterable<DreamingRecallLogEntry> entries,
+  ) {
+    var episodeMatched = 0;
+    var fragmentOnly = 0;
+    var zeroResult = 0;
+
+    for (final entry in entries) {
+      if (entry.hasEpisodeMatch) {
+        episodeMatched++;
+      } else if (entry.hasFragmentMatch) {
+        fragmentOnly++;
+      } else {
+        zeroResult++;
+      }
+    }
+
+    return DreamingRecallCoverage(
+      episodeMatched: episodeMatched,
+      fragmentOnly: fragmentOnly,
+      zeroResult: zeroResult,
+    );
+  }
 }
 
 class DreamingRecallEpisodeHit {
