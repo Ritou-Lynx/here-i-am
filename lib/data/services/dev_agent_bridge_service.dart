@@ -607,10 +607,10 @@ class DevAgentBridgeService {
   /// is contacted only once. Callers should not block app startup on failure.
   Future<ProjectMemorySyncResult> syncConfiguredProjectMemory() async {
     final projects = await listProjects();
-    final bridgeUrls = projects
-        .map((project) => project.bridgeUrl.trim())
-        .where((url) => url.isNotEmpty)
-        .toSet();
+    final bridgeUrls = projectMemoryBridgeUrlsForTesting(
+      projects.map((project) => project.bridgeUrl),
+      includeDebugLoopback: kDebugMode,
+    );
     var received = 0;
     var inserted = 0;
     var duplicates = 0;
@@ -634,6 +634,24 @@ class DevAgentBridgeService {
       duplicates: duplicates,
       asOf: latestAsOf,
     );
+  }
+
+  @visibleForTesting
+  static Set<String> projectMemoryBridgeUrlsForTesting(
+    Iterable<String> configuredUrls, {
+    required bool includeDebugLoopback,
+  }) {
+    final urls = configuredUrls
+        .map((url) => url.trim())
+        .where((url) => url.isNotEmpty)
+        .toSet();
+    // USB reverse maps the phone's loopback port to the trusted development
+    // machine. This keeps debug Project Memory usable even when the Dev Room
+    // project table is empty (for example after restoring/reinstalling data).
+    if (includeDebugLoopback) {
+      urls.add('http://127.0.0.1:47831');
+    }
+    return urls;
   }
 
   /// Pulls only policy-approved Project Memory projections from the trusted

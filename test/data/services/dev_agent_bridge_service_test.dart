@@ -36,4 +36,31 @@ void main() {
       );
     });
   });
+
+  group('Project Memory Bridge discovery', () {
+    test('debug loopback remains available without saved Dev Room projects',
+        () {
+      expect(
+        DevAgentBridgeService.projectMemoryBridgeUrlsForTesting(
+          const [],
+          includeDebugLoopback: true,
+        ),
+        {'http://127.0.0.1:47831'},
+      );
+    });
+
+    test('release discovery uses only configured unique URLs', () {
+      expect(
+        DevAgentBridgeService.projectMemoryBridgeUrlsForTesting(
+          const [
+            ' https://host.example.invalid ',
+            'https://host.example.invalid',
+            '',
+          ],
+          includeDebugLoopback: false,
+        ),
+        {'https://host.example.invalid'},
+      );
+    });
+  });
 }
