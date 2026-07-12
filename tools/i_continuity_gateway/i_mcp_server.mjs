@@ -126,7 +126,7 @@ const tools = [
         },
         sensitivity: {
           type: 'string', enum: ['project_default', 'local_only', 'private'], default: 'project_default',
-          description: '只能把单条事件收紧为 local_only/private，不能放宽项目政策。',
+          description: '普通交接默认 project_default。只有用户明确要求仅本机或该单条事项明确不应跨设备时才收紧为 local_only/private；不得仅因论文、工作或个人主题自行收紧。',
         },
         summary: { type: 'string', minLength: 1, maxLength: 2000 },
         decisions: {
