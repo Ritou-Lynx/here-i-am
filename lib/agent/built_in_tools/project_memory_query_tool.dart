@@ -43,7 +43,10 @@ Use this when the user explicitly asks about a software/product/research/writing
       final out =
           StringBuffer('Found ${hits.length} project memory item(s):\n');
       for (final hit in hits.take(8)) {
-        out.writeln('\n- [${hit.projectKey}] ${hit.summary}');
+        final stale = hit.isStale() ? '; STALE — refresh with Dev Room' : '';
+        out.writeln('\n- [${hit.projectKey}] CURRENT as of '
+            '${hit.asOf.toIso8601String()}$stale');
+        out.writeln('  ${hit.summary}');
         if (hit.decisions.isNotEmpty) {
           out.writeln('  Decisions: ${hit.decisions.join('; ')}');
         }
@@ -53,8 +56,7 @@ Use this when the user explicitly asks about a software/product/research/writing
         if (hit.artifactRefs.isNotEmpty) {
           out.writeln('  Artifacts: ${hit.artifactRefs.join(', ')}');
         }
-        out.writeln('  Source: ${hit.sourceTool}; '
-            '${DateTime.fromMillisecondsSinceEpoch(hit.occurredAt).toIso8601String()}');
+        out.writeln('  Source: ${hit.sourceTool}');
       }
       return out.toString();
     },

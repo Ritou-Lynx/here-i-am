@@ -326,9 +326,12 @@ class CompanionAgent {
           final buf = StringBuffer();
           buf.writeln('## Project Memory (auto-looked up for this turn)');
           buf.writeln(
-              'These are policy-approved project records. Answer the user from them; do not say there is no record.');
+              'Each entry is the latest policy-approved current snapshot for that project; older closeouts are historical evidence and are not injected. Answer from these snapshots and state their as-of time. If an entry is marked stale, say that a live Dev Room refresh is needed for current status.');
           for (final hit in projectHits) {
-            buf.writeln('\n- [${hit.projectKey}] ${hit.summary}');
+            final stale = hit.isStale() ? ' [STALE]' : '';
+            buf.writeln('\n- [${hit.projectKey}] CURRENT as of '
+                '${hit.asOf.toIso8601String()}$stale');
+            buf.writeln('  ${hit.summary}');
             if (hit.decisions.isNotEmpty) {
               buf.writeln('  Decisions: ${hit.decisions.join('; ')}');
             }

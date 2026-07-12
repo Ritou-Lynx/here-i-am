@@ -104,6 +104,41 @@ void main() {
     expect(hits.single.projectId, 'paper-project');
   });
 
+  test('current projection returns only the latest closeout per project',
+      () async {
+    if (!fts5Available) return;
+    await service.project(_personalEnvelope(
+      eventId: 'event-old',
+      summary: 'Old project state.',
+      occurredAt: DateTime.utc(2026, 7, 1),
+    ));
+    await service.project(_personalEnvelope(
+      eventId: 'event-current',
+      summary: 'Current project state.',
+      occurredAt: DateTime.utc(2026, 7, 12),
+    ));
+
+    final hits = await service.search(
+      'tokens-with-no-literal-overlap',
+      scope: const ProjectMemoryQueryScope(
+        isProjectIntent: true,
+        allowedProjectIds: {'paper-project'},
+      ),
+    );
+
+    expect(hits, hasLength(1));
+    expect(hits.single.itemId, 'event-current');
+    expect(hits.single.summary, 'Current project state.');
+    expect(
+      hits.single.isStale(now: DateTime.utc(2026, 7, 20)),
+      isTrue,
+    );
+    expect(
+      hits.single.isStale(now: DateTime.utc(2026, 7, 18)),
+      isFalse,
+    );
+  });
+
   test('confidential and unredacted work envelopes fail closed', () async {
     if (!fts5Available) return;
     expect(
@@ -151,6 +186,8 @@ ProjectMemoryProjectionEnvelope _personalEnvelope({
   String policyId = 'personal_full',
   String memoryV3Policy = 'project_summary',
   String redactionState = 'policy_summary',
+  String summary = '整理了直播带货论文材料。',
+  DateTime? occurredAt,
 }) {
   return ProjectMemoryProjectionEnvelope(
     eventId: eventId,
@@ -166,11 +203,11 @@ ProjectMemoryProjectionEnvelope _personalEnvelope({
     sourceTool: 'codex',
     sourceSessionId: 'session-paper',
     sourceUri: 'i://project-activity/$eventId',
-    summary: '整理了直播带货论文材料。',
+    summary: summary,
     decisions: const ['使用国际中文教育投稿格式'],
     openLoops: const ['完成论文写作计划'],
     artifactRefs: const ['初期思路.docx'],
-    occurredAt: DateTime.utc(2026, 7, 11, 10),
+    occurredAt: occurredAt ?? DateTime.utc(2026, 7, 11, 10),
     receivedAt: DateTime.utc(2026, 7, 11, 10, 1),
   );
 }

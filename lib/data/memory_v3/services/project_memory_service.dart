@@ -125,6 +125,16 @@ class ProjectMemoryHit {
   final String sourceTool;
   final int occurredAt;
   final double rank;
+
+  DateTime get asOf => DateTime.fromMillisecondsSinceEpoch(occurredAt);
+
+  bool isStale({
+    DateTime? now,
+    Duration maxAge = const Duration(days: 7),
+  }) {
+    final reference = now ?? DateTime.now();
+    return reference.difference(asOf) > maxAge;
+  }
 }
 
 class ProjectMemoryService {
@@ -224,69 +234,77 @@ class ProjectMemoryService {
     int limit = 10,
   }) async {
     if (!scope.isProjectIntent || scope.allowedProjectIds.isEmpty) return [];
+    final currentItems = await _currentItems(
+      scope.allowedProjectIds,
+      limit: limit,
+    );
+    if (currentItems.isEmpty) return [];
+    final currentById = {for (final item in currentItems) item.id: item};
     final raw = await _db.searchDao.searchProjectMemory(
       query,
       allowedProjectIds: scope.allowedProjectIds,
-      limit: limit,
+      // Historical rows can occupy rank slots. Search a wider evidence window
+      // and retain only the latest row for each project below.
+      limit: limit * 10,
     );
-    // Cross-language or broad progress questions may share no literal FTS
-    // token with an English closeout. For explicit project intent only, fall
-    // back to the most recent active items inside the already-authorized
-    // project set. Filtering still happens before limit.
-    if (raw.isEmpty) {
-      final recent = await (_db.select(_db.projectMemoryItems)
-            ..where((table) =>
-                table.status.equals('active') &
-                table.projectId.isIn(scope.allowedProjectIds.toList()))
-            ..orderBy([
-              (table) => OrderingTerm.desc(table.occurredAt),
-            ])
-            ..limit(limit))
-          .get();
-      return Future.wait(recent.map((item) async {
-        final source = await (_db.select(_db.projectMemorySources)
-              ..where((table) => table.itemId.equals(item.id)))
-            .getSingle();
-        return ProjectMemoryHit(
-          itemId: item.id,
-          projectId: item.projectId,
-          projectKey: item.projectKey,
-          summary: item.summary,
-          decisions: _decodeList(item.decisionsJson),
-          openLoops: _decodeList(item.openLoopsJson),
-          artifactRefs: _decodeList(item.artifactRefsJson),
-          sourceTool: source.sourceTool,
-          occurredAt: item.occurredAt,
-          rank: 0,
-        );
-      }));
-    }
     final hits = <ProjectMemoryHit>[];
     for (final result in raw) {
-      final item = await (_db.select(_db.projectMemoryItems)
-            ..where((table) =>
-                table.id.equals(result['item_id'] as String) &
-                table.status.equals('active') &
-                table.projectId.isIn(scope.allowedProjectIds.toList())))
-          .getSingleOrNull();
+      final item = currentById[result['item_id'] as String];
       if (item == null) continue;
-      hits.add(ProjectMemoryHit(
-        itemId: item.id,
-        projectId: item.projectId,
-        projectKey: item.projectKey,
-        summary: item.summary,
-        decisions: _decodeList(item.decisionsJson),
-        openLoops: _decodeList(item.openLoopsJson),
-        artifactRefs: _decodeList(item.artifactRefsJson),
-        sourceTool: (await (_db.select(_db.projectMemorySources)
-                  ..where((table) => table.itemId.equals(item.id)))
-                .getSingle())
-            .sourceTool,
-        occurredAt: item.occurredAt,
+      hits.add(await _toHit(
+        item,
         rank: (result['rank'] as num).toDouble(),
       ));
+      if (hits.length >= limit) break;
     }
-    return hits;
+    if (hits.isNotEmpty) return hits;
+    // Cross-language or broad progress questions can have no literal FTS
+    // overlap. Fall back only to current rows, never historical closeouts.
+    return Future.wait(currentItems.map((item) => _toHit(item, rank: 0)));
+  }
+
+  Future<List<ProjectMemoryItem>> _currentItems(
+    Set<String> allowedProjectIds, {
+    required int limit,
+  }) async {
+    final rows = await (_db.select(_db.projectMemoryItems)
+          ..where((table) =>
+              table.status.equals('active') &
+              table.projectId.isIn(allowedProjectIds.toList()))
+          ..orderBy([
+            (table) => OrderingTerm.desc(table.occurredAt),
+            (table) => OrderingTerm.desc(table.receivedAt),
+          ]))
+        .get();
+    final seenProjects = <String>{};
+    final current = <ProjectMemoryItem>[];
+    for (final row in rows) {
+      if (!seenProjects.add(row.projectId)) continue;
+      current.add(row);
+      if (current.length >= limit) break;
+    }
+    return current;
+  }
+
+  Future<ProjectMemoryHit> _toHit(
+    ProjectMemoryItem item, {
+    required double rank,
+  }) async {
+    final source = await (_db.select(_db.projectMemorySources)
+          ..where((table) => table.itemId.equals(item.id)))
+        .getSingle();
+    return ProjectMemoryHit(
+      itemId: item.id,
+      projectId: item.projectId,
+      projectKey: item.projectKey,
+      summary: item.summary,
+      decisions: _decodeList(item.decisionsJson),
+      openLoops: _decodeList(item.openLoopsJson),
+      artifactRefs: _decodeList(item.artifactRefsJson),
+      sourceTool: source.sourceTool,
+      occurredAt: item.occurredAt,
+      rank: rank,
+    );
   }
 
   static List<String> _decodeList(String value) {
