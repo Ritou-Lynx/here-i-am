@@ -12,10 +12,13 @@ import 'package:memex/data/services/location_context_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
+import 'package:memex/data/memory_v3/retrieval/project_memory_intent_classifier.dart';
+import 'package:memex/data/memory_v3/services/project_memory_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_recall_log_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
+import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
 import 'package:memex/db/app_database.dart';
@@ -299,6 +302,53 @@ class CompanionAgent {
       }
     } else {
       state.systemReminders.remove('shared_life_entities');
+    }
+    // Project questions are resolved in code before the model responds. This
+    // avoids relying on model-specific tool selection (some models repeatedly
+    // choose the ordinary memory tool even when project_memory_query exists).
+    if (RecordOrganizerServiceV3.isInitialized &&
+        ProjectMemoryIntentClassifier.isProjectIntent(queryHint)) {
+      try {
+        // Await a best-effort refresh for this project turn. The service is
+        // idempotent and policy-validates every envelope before persistence.
+        await DevAgentBridgeService.instance.syncConfiguredProjectMemory();
+        final projectService = ProjectMemoryService(AppDatabase.instance);
+        final allowedProjectIds = await projectService.projectedProjectIds();
+        final projectHits = await projectService.search(
+          queryHint,
+          scope: ProjectMemoryQueryScope(
+            isProjectIntent: true,
+            allowedProjectIds: allowedProjectIds,
+          ),
+          limit: 8,
+        );
+        if (projectHits.isNotEmpty) {
+          final buf = StringBuffer();
+          buf.writeln('## Project Memory (auto-looked up for this turn)');
+          buf.writeln(
+              'These are policy-approved project records. Answer the user from them; do not say there is no record.');
+          for (final hit in projectHits) {
+            buf.writeln('\n- [${hit.projectKey}] ${hit.summary}');
+            if (hit.decisions.isNotEmpty) {
+              buf.writeln('  Decisions: ${hit.decisions.join('; ')}');
+            }
+            if (hit.openLoops.isNotEmpty) {
+              buf.writeln('  Open loops: ${hit.openLoops.join('; ')}');
+            }
+            if (hit.artifactRefs.isNotEmpty) {
+              buf.writeln('  Artifacts: ${hit.artifactRefs.join(', ')}');
+            }
+          }
+          state.systemReminders['project_memory_context'] = buf.toString();
+        } else {
+          state.systemReminders.remove('project_memory_context');
+        }
+      } catch (e) {
+        _logger.warning('Failed to auto-lookup Project Memory: $e');
+        state.systemReminders.remove('project_memory_context');
+      }
+    } else {
+      state.systemReminders.remove('project_memory_context');
     }
     // Auto-lookup Memory V3 cards before every conversation turn.
     // This guarantees the LLM sees matching cards without needing to
