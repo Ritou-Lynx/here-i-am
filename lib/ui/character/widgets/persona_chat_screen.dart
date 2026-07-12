@@ -2573,10 +2573,57 @@ only after you have written the goodbye you want the user to hear.''',
     _exitSelectMode();
   }
 
-  /// Maps a mime type (e.g. "image/png") to a file extension (e.g. "png").
-  /// Image extension helper for media pre-processing.
-  String _imageExtForMime(String mimeType) {
-    final lower = mimeType.toLowerCase();
+  Future<void> _batchDeleteSelectedMessages() async {
+    if (_selectedMessageIds.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_chatUiText(zh: '删除消息', en: 'Delete messages')),
+        content: Text(_chatUiText(
+          zh: '确定要删除选中的 ${_selectedMessageIds.length} 条消息吗？删除后将不会被提取到记忆中。',
+          en: 'Delete ${_selectedMessageIds.length} selected message(s)? They will not be extracted into memory.',
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(_chatUiText(zh: '取消', en: 'Cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              _chatUiText(zh: '删除', en: 'Delete'),
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      for (final id in _selectedMessageIds) {
+        await _chatService.deleteMessage(characterId, id);
+      }
+      await _refreshMessagesFromStore(autoRead: false, scrollToBottom: false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showToast(
+          _chatUiText(zh: '已删除', en: 'Deleted'),
+          duration: const Duration(seconds: 2),
+        );
+      }
+    } catch (e) {
+      debugPrint('batchDeleteMessages failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showToast(
+          _chatUiText(zh: '删除失败', en: 'Delete failed'),
+          duration: const Duration(seconds: 2),
+        );
+      }
+    }
+
+    _exitSelectMode();
+  }
     if (lower.contains('webp')) return 'webp';
     if (lower.contains('png')) return 'png';
     if (lower.contains('gif')) return 'gif';
@@ -3568,6 +3615,40 @@ only after you have written the goodbye you want the user to hear.''',
                         style: TextStyle(
                           fontSize: 14,
                           color: _personaTextMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Delete button
+                  GestureDetector(
+                    onTap: _selectedMessageIds.isNotEmpty
+                        ? _batchDeleteSelectedMessages
+                        : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _selectedMessageIds.isNotEmpty
+                            ? Colors.red.withValues(alpha: 0.8)
+                            : Colors.red.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withValues(alpha: 0.2),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        _chatUiText(zh: '删除', en: 'Delete'),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
                       ),
                     ),
