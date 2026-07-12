@@ -2603,7 +2603,7 @@ only after you have written the goodbye you want the user to hear.''',
 
     try {
       for (final id in _selectedMessageIds) {
-        await _chatService.deleteMessage(characterId, id);
+        await _chatService.deleteMessage(_currentCharacterId, id);
       }
       await _refreshMessagesFromStore(autoRead: false, scrollToBottom: false);
       if (mounted) {
@@ -2624,6 +2624,11 @@ only after you have written the goodbye you want the user to hear.''',
 
     _exitSelectMode();
   }
+
+  /// Maps a mime type (e.g. "image/png") to a file extension (e.g. "png").
+  /// Image extension helper for media pre-processing.
+  String _imageExtForMime(String mimeType) {
+    final lower = mimeType.toLowerCase();
     if (lower.contains('webp')) return 'webp';
     if (lower.contains('png')) return 'png';
     if (lower.contains('gif')) return 'gif';
@@ -3173,7 +3178,7 @@ only after you have written the goodbye you want the user to hear.''',
                   right: 0,
                   child: const ChatTaskCapsule(),
                 ),
-                if (_showJumpToLatest)
+                if (_showJumpToLatest && !_isSelecting)
                   Positioned(
                     left: 0,
                     right: 0,
@@ -3857,42 +3862,53 @@ only after you have written the goodbye you want the user to hear.''',
   Widget _buildActionMessage({required String text}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 24),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: 0.5,
-              color: _personaLine.withValues(alpha: 0.4),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            flex: 0,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(context).width * 0.68,
-              ),
-              child: SelectableText(
-                text,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  height: 1.6,
-                  fontStyle: FontStyle.italic,
-                  color: _personaTextMuted,
-                  letterSpacing: 0.1,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Base the italic aside's max width on the *actual* available width
+          // (which shrinks in selection mode when a checkbox is prepended),
+          // not the full screen width, otherwise the two dividers + gaps can
+          // exceed the row and overflow by a few pixels.
+          final available = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : MediaQuery.sizeOf(context).width;
+          return Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 0.5,
+                  color: _personaLine.withValues(alpha: 0.4),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Container(
-              height: 0.5,
-              color: _personaLine.withValues(alpha: 0.4),
-            ),
-          ),
-        ],
+              const SizedBox(width: 12),
+              Flexible(
+                flex: 0,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: available * 0.68,
+                  ),
+                  child: SelectableText(
+                    text,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      height: 1.6,
+                      fontStyle: FontStyle.italic,
+                      color: _personaTextMuted,
+                      letterSpacing: 0.1,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  height: 0.5,
+                  color: _personaLine.withValues(alpha: 0.4),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
