@@ -47,7 +47,14 @@ class QueryMatcher {
         }
       }
       if (filteredTokens.isNotEmpty) return filteredTokens.join(' OR ');
-      // All tokens were stopwords — use the longest CJK tokens as fallback.
+      // All tokens were stopwords — try emotion/relationship keywords first.
+      for (final token in allCjkTokens) {
+        if (_emotionKeywords.contains(token)) {
+          filteredTokens.add('"$token"');
+        }
+      }
+      if (filteredTokens.isNotEmpty) return filteredTokens.join(' OR ');
+      // Final fallback: use the longest CJK tokens.
       final fallback = allCjkTokens.toList()
         ..sort((a, b) => b.length.compareTo(a.length));
       final top = fallback.take(3).map((t) => '"$t"').toList();
@@ -251,7 +258,7 @@ class QueryMatcher {
   static const _cjkStopwords = <String>{
     '我', '你', '她', '他', '它', '们', '的', '了', '吗', '呢', '吧', '啊',
     '哦', '嘛', '呀', '哈', '嗯', '噢', '哎', '唉',
-    '是', '在', '有', '没', '不', '也', '就', '都', '还', '会', '要', '能',
+    '是', '在', '有', '没', '也', '就', '都', '还', '会', '要', '能',
     '可', '可以', '这', '那', '什么', '怎么', '哪', '谁', '多', '几',
     '和', '跟', '与', '把', '被', '让', '给', '对', '从', '到', '向',
     '很', '太', '真', '好', '过', '着', '得', '地',
@@ -261,6 +268,19 @@ class QueryMatcher {
     '记得', '记', '时', '候', '哪天', '一下', '一点',
     '然后', '但是', '因为', '所以', '如果', '虽然',
     '今天', '昨天', '明天', '现在', '之前', '以后',
+    // 保留情感/关系词不在停用词里（眼泪、拒绝、在乎等本身有语义）
+  };
+
+  // 情感/关系关键词白名单——在 FTS 停用词过滤后补充进查询，
+  // 避免"别管眼泪""不在乎"这类情绪句因所有词都被过滤而召回全空。
+  static const _emotionKeywords = <String>{
+    '眼泪', '哭', '难过', '伤心', '生气', '愤怒', '委屈', '害怕', '担心',
+    '开心', '高兴', '快乐', '幸福', '感动', '温暖', '期待', '失望',
+    '在乎', '拒绝', '接受', '允许', '答应', '拒', '不理', '不管',
+    '亲', '吻', '抱', '碰', '触', '抚摸', '靠近', '离开',
+    '想你', '爱你', '喜欢', '讨厌', '嫌弃', '需要', '依赖',
+    '坚持', '放弃', '忍', '憋', '忍不住',
+    '界限', '底线', '松动', '破防', '让步',
   };
 
   /// Return content keywords suitable for substring fallback search.
@@ -273,12 +293,23 @@ class QueryMatcher {
     final result = <String>[];
     final seen = <String>{};
     if (JiebaSegmenter.instance.isLoaded && _containsCjk(trimmed)) {
+      final allTokens = <String>[];
       for (final word in JiebaSegmenter.instance.cut(trimmed)) {
         final token = word.trim();
         if (token.isEmpty || token.length < 2) continue;
+        allTokens.add(token);
         if (_cjkStopwords.contains(token)) continue;
         if (seen.add(token)) result.add(token);
         if (result.length >= limit) break;
+      }
+      // If all tokens were stopwords, try emotion/relationship keywords.
+      if (result.isEmpty) {
+        for (final token in allTokens) {
+          if (_emotionKeywords.contains(token) && seen.add(token)) {
+            result.add(token);
+            if (result.length >= limit) break;
+          }
+        }
       }
     } else {
       for (final word in trimmed.split(RegExp(r'\s+'))) {

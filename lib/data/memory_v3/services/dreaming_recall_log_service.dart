@@ -35,7 +35,8 @@ class DreamingRecallLogEntry {
 
   int get totalCount => episodeCount + fragmentCount;
 
-  bool get isZeroResult => totalCount == 0;
+  bool get isZeroResult =>
+      episodes.every((e) => e.score == 0) && fragments.every((f) => f.score == 0);
 
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
 
