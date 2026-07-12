@@ -3,12 +3,15 @@ import 'dart:typed_data';
 /// Supported image generation providers.
 enum ImageGenProvider {
   tongyiWanxiang,
-  minimax;
+  minimax,
+  openaiCompatible;
 
   static ImageGenProvider fromString(String value) {
     switch (value) {
       case 'minimax':
         return ImageGenProvider.minimax;
+      case 'openai_compatible':
+        return ImageGenProvider.openaiCompatible;
       default:
         return ImageGenProvider.tongyiWanxiang;
     }
@@ -20,6 +23,8 @@ enum ImageGenProvider {
         return 'tongyi_wanxiang';
       case ImageGenProvider.minimax:
         return 'minimax';
+      case ImageGenProvider.openaiCompatible:
+        return 'openai_compatible';
     }
   }
 
@@ -29,6 +34,8 @@ enum ImageGenProvider {
         return '通义万相 (Aliyun)';
       case ImageGenProvider.minimax:
         return 'MiniMax';
+      case ImageGenProvider.openaiCompatible:
+        return '自定义 (OpenAI 兼容)';
     }
   }
 }

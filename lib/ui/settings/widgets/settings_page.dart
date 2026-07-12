@@ -25,6 +25,7 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/main.dart' show rootShellKey;
+import 'package:memex/domain/models/llm_config.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -42,6 +43,8 @@ class _SettingsPageState extends State<SettingsPage> {
   final _miniMaxGroupIdController = TextEditingController();
   String _ttsProvider = 'elevenlabs';
   String _imageGenProvider = 'tongyi_wanxiang';
+  String? _imageGenLlmConfigKey;
+  List<LLMConfig> _llmConfigs = [];
 
   @override
   void initState() {
@@ -69,7 +72,15 @@ class _SettingsPageState extends State<SettingsPage> {
       }
       if (mounted) setState(() => _ttsProvider = ttsProvider);
       final imageGenProvider = await UserStorage.getImageGenProvider();
-      if (mounted) setState(() => _imageGenProvider = imageGenProvider);
+      final imageGenLlmConfigKey = await UserStorage.getImageGenLlmConfigKey();
+      final llmConfigs = await UserStorage.getLLMConfigs();
+      if (mounted) {
+        setState(() {
+          _imageGenProvider = imageGenProvider;
+          _imageGenLlmConfigKey = imageGenLlmConfigKey;
+          _llmConfigs = llmConfigs;
+        });
+      }
     }
     if (mounted) {
       setState(() {
@@ -113,6 +124,11 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _setImageGenProvider(String provider) async {
     setState(() => _imageGenProvider = provider);
     await UserStorage.setImageGenProvider(provider);
+  }
+
+  Future<void> _setImageGenLlmConfigKey(String configKey) async {
+    setState(() => _imageGenLlmConfigKey = configKey);
+    await UserStorage.setImageGenLlmConfigKey(configKey);
   }
 
   Future<void> _saveMiniMaxApiKey() async {
@@ -353,13 +369,19 @@ class _SettingsPageState extends State<SettingsPage> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     _imageGenProviderChip('通义万相', 'tongyi_wanxiang'),
-                    const SizedBox(width: 8),
                     _imageGenProviderChip('MiniMax', 'minimax'),
+                    _imageGenProviderChip('自定义', 'openai_compatible'),
                   ],
                 ),
+                if (_imageGenProvider == 'openai_compatible') ...[
+                  const SizedBox(height: 12),
+                  _buildLlmConfigSelector(),
+                ],
               ],
             ),
           ),
@@ -1412,6 +1434,55 @@ class _SettingsPageState extends State<SettingsPage> {
             color: isSelected ? Colors.white : Colors.grey[600],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLlmConfigSelector() {
+    if (_llmConfigs.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          '请先在模型配置中添加一个 OpenAI 兼容的模型配置',
+          style: TextStyle(fontSize: 13, color: Colors.orange[700]),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '选择模型配置：',
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 6),
+          DropdownButton<String>(
+            value: _imageGenLlmConfigKey,
+            isExpanded: true,
+            hint: const Text('选择一个模型配置'),
+            items: _llmConfigs.map((config) {
+              return DropdownMenuItem(
+                value: config.key,
+                child: Text(
+                  '${config.key} (${config.modelId})',
+                  style: const TextStyle(fontSize: 14),
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                _setImageGenLlmConfigKey(value);
+              }
+            },
+          ),
+        ],
       ),
     );
   }

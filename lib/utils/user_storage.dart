@@ -367,6 +367,7 @@ class UserStorage {
   static const String _keyMiniMaxApiKey = 'minimax_api_key';
   static const String _keyMiniMaxGroupId = 'minimax_group_id';
   static const String _keyImageGenProvider = 'image_gen_provider';
+  static const String _keyImageGenLlmConfigKey = 'image_gen_llm_config_key';
 
   /// Get specified agent config
   static Future<AgentConfig> getAgentConfig(String agentId) async {
@@ -490,6 +491,24 @@ class UserStorage {
       await prefs.setString(_keyImageGenProvider, provider);
     } catch (e) {
       throw Exception('Failed to save image gen provider: $e');
+    }
+  }
+
+  static Future<String?> getImageGenLlmConfigKey() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyImageGenLlmConfigKey);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<void> setImageGenLlmConfigKey(String configKey) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyImageGenLlmConfigKey, configKey);
+    } catch (e) {
+      throw Exception('Failed to save image gen LLM config key: $e');
     }
   }
 

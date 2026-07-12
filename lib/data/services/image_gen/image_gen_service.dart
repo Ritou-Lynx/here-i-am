@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:memex/data/services/image_gen/image_gen_provider.dart';
 import 'package:memex/data/services/image_gen/minimax_image_service.dart';
+import 'package:memex/data/services/image_gen/openai_compatible_image_service.dart';
 import 'package:memex/data/services/image_gen/tongyi_wanxiang_image_service.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -31,6 +32,8 @@ class ImageGenService {
         return MiniMaxImageService.generate(request);
       case ImageGenProvider.tongyiWanxiang:
         return TongyiWanxiangImageService.generate(request);
+      case ImageGenProvider.openaiCompatible:
+        return OpenAICompatibleImageService.generate(request);
     }
   }
 }
