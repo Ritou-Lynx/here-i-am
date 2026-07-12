@@ -32,6 +32,8 @@ powershell -File tools\dev_agent_bridge\start_bridge.ps1
 
 该端点沿用 Dev Room 的 Tailscale HTTPS / debug loopback 信任边界；不返回原始 ledger、diff、transcript 或凭据。
 
+成功的 Dev Room run 会自动刷新项目 closeout：若 Codex / Claude Code 已通过 `i_close_session` 成功写入，Bridge 不重复；否则 Bridge 以不超过 2,000 字的最终摘要兜底。失败、中止、未注册或项目政策拒绝的 run 不写入。已注册的非 Git 文档项目也支持 Codex 只读 run。
+
 Stop a background bridge left from local testing:
 
 ```powershell

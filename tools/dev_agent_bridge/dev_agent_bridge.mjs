@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createIActivityStore } from '../i_continuity_gateway/i_activity_store.mjs';
 import { loadProjectRegistry } from '../i_continuity_gateway/i_project_registry.mjs';
+import { persistDevRoomCloseout } from './project_memory_closeout.mjs';
 
 const host = process.env.DEV_AGENT_BRIDGE_HOST || '127.0.0.1';
 const port = Number(process.env.DEV_AGENT_BRIDGE_PORT || 47831);
@@ -251,6 +252,7 @@ function commandFor(agentType, project, prompt, mode, cwd) {
       '--json',
       '--sandbox',
       isWrite ? 'workspace-write' : 'read-only',
+      '--skip-git-repo-check',
       '--cd',
       cwd,
     ];
@@ -597,6 +599,20 @@ function startProcess(run, agentType, project, prompt, mode) {
         addEvent(run, 'error', { message: `post-run finalize failed: ${err.message}` });
       }
     }
+    if (run.status === 'done') {
+      try {
+        const closeout = persistDevRoomCloseout({ run, iHome });
+        addEvent(run, 'project_memory_closeout', {
+          persisted: closeout.persisted === true,
+          duplicate: closeout.duplicate === true,
+          reason: closeout.reason || null,
+        });
+      } catch (err) {
+        addEvent(run, 'error', {
+          message: `Project Memory closeout skipped: ${err.message}`,
+        });
+      }
+    }
   });
 }
 
@@ -611,7 +627,7 @@ async function handle(req, res) {
         bridge_id: 'local-dev-agent-bridge',
         version: '0.1.0',
         agents: ['claude_code', 'codex'],
-        features: ['git_status', 'git_pull', 'git_push', 'project_memory_projection'],
+        features: ['git_status', 'git_pull', 'git_push', 'project_memory_projection', 'project_memory_auto_closeout'],
         transport: certPath && keyPath ? 'https' : 'http-local',
       });
       return;
