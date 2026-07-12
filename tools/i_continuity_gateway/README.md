@@ -4,6 +4,8 @@
 
 Phase 2 在用户级、多项目、只读控制面之上增加了**加密 Project closeout**：一个工具完成的结果、决策和未完事项，会进入当前项目隔离的 append-only ledger；下一个工具 bootstrap 时能接到最近 handoff。它仍不直接写 Here I am 的 Memory V3、User-truth、Dreaming 或关系 sandbox。
 
+Phase 4 的最小多设备闭环使用独立的加密传输目录。设备导出身份一致性断言与政策允许的 closeout；导入端只接收本机已经注册的同名 Project Space。项目路径、凭据、完整对话、`local_only` / `private` / `confidential_local` 内容都不会进入传输包。
+
 ## 当前能力
 
 - `i_bootstrap`：读取全局 i Identity Capsule、当前项目状态和最近 tool handoff；不会顺带读取其他项目。
@@ -88,6 +90,7 @@ Gateway 不扫描磁盘，也不会自行注册用户的其他项目。注册是
 node --test tools\i_continuity_gateway\i_activity_crypto.test.mjs `
   tools\i_continuity_gateway\i_activity_key_provider.test.mjs `
   tools\i_continuity_gateway\i_activity_store.test.mjs `
+  tools\i_continuity_gateway\i_device_sync.test.mjs `
   tools\i_continuity_gateway\i_context.test.mjs
 node tools\i_continuity_gateway\probe_i_gateway.mjs
 codex mcp get i
@@ -100,6 +103,17 @@ hermes mcp test i
 ```powershell
 node "$env:USERPROFILE\.i\runtime\rebuild_i_activity_index.mjs"
 ```
+
+### 多设备同步（最小闭环）
+
+两台电脑分别安装 Gateway，并各自在本机注册允许使用的项目。准备一个**独立私有 Git 仓库**作为传输目录；不要使用 Here I am 代码仓库。两端分别运行一次安全配置入口并输入同一个不少于 16 字符的同步口令。口令由 Windows DPAPI CurrentUser 本地包裹，不写入仓库、命令历史或永久环境变量：
+
+```powershell
+& "$env:USERPROFILE\.i\runtime\configure_i_device_sync.ps1"
+& "$env:USERPROFILE\.i\runtime\invoke_i_device_sync.ps1" -Operation sync -SyncRoot 'D:\i-sync-private'
+```
+
+`sync` 先导入远端已有包，再为本机生成一个新的不可变加密包。随后由用户正常执行私有同步仓库的 pull / commit / push。同步包可安全进入私有远端，但 DPAPI 口令文件、`~/.i/keys`、`device.json` 和 `sync-import-state.json` 不得提交或复制到另一台设备。
 
 损坏的 key、ledger integrity error 或遗留明文 Phase 2 原型数据都会 fail closed，不会静默新建 key 或混读明密文。
 

@@ -855,6 +855,68 @@ export function createIActivityStore({
     return withWriteLock(activityBaseRoot, () => rebuildIndexLocked(clock()));
   }
 
+  function exportSyncCloseouts({ projects } = {}) {
+    const allowed = new Map((projects || []).map((project) => [project.project_id, project]));
+    const closeouts = [];
+    for (const [projectId, project] of allowed) {
+      if (!project || project.registered === false ||
+          (project.access_status && project.access_status !== 'allowed') ||
+          ['confidential_local', 'ephemeral'].includes(project.policy?.id)) continue;
+      for (const event of readProjectEvents(projectId)) {
+        if (event.event_type !== 'session_closeout' || event.sensitivity === 'local_only' ||
+            event.sensitivity === 'private' || event.presence_mode === 'private') continue;
+        closeouts.push({
+          schema_version: 1,
+          project_key: project.project_key,
+          source_tool: event.source_tool,
+          source_session_id: event.source_session_id,
+          idempotency_key: event.idempotency_key,
+          presence_mode: event.presence_mode,
+          sensitivity: 'project_default',
+          summary: event.summary,
+          decisions: event.decisions,
+          open_loops: event.open_loops,
+          artifact_refs: event.artifact_refs,
+          occurred_at: event.occurred_at,
+        });
+      }
+    }
+    closeouts.sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
+    return closeouts;
+  }
+
+  function importSyncCloseouts({ projects, closeouts } = {}) {
+    const byKey = new Map((projects || []).map((project) => [project.project_key, project]));
+    const result = { imported: 0, duplicates: 0, skipped_unknown_project: 0 };
+    for (const item of Array.isArray(closeouts) ? closeouts : []) {
+      if (!item || item.schema_version !== 1) throw new Error('sync closeout is invalid');
+      const project = byKey.get(String(item.project_key || ''));
+      if (!project) {
+        result.skipped_unknown_project += 1;
+        continue;
+      }
+      const saved = closeSession({
+        project: { ...project, registered: true, access_status: 'allowed' },
+        clientId: item.source_tool,
+        input: {
+          session_id: item.source_session_id,
+          idempotency_key: item.idempotency_key,
+          presence_mode: item.presence_mode,
+          sensitivity: item.sensitivity,
+          summary: item.summary,
+          decisions: item.decisions,
+          open_loops: item.open_loops,
+          artifact_refs: item.artifact_refs,
+          occurred_at: item.occurred_at,
+        },
+      });
+      if (!saved.persisted) continue;
+      if (saved.duplicate) result.duplicates += 1;
+      else result.imported += 1;
+    }
+    return result;
+  }
+
   function getStorageStatus() {
     if (hasLegacyActivity()) return 'migration_required';
     if (!activityKeyProvider.isSupported) return 'unsupported_platform';
@@ -869,6 +931,8 @@ export function createIActivityStore({
     searchProjectActivity,
     getRecentActivity,
     getMemoryV3Projections,
+    exportSyncCloseouts,
+    importSyncCloseouts,
     rebuildActivityIndex,
     getStorageStatus,
   };

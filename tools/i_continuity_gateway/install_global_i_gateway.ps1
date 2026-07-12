@@ -29,10 +29,14 @@ foreach ($File in @(
   'i_activity_crypto.mjs',
   'i_activity_key_provider.mjs',
   'i_activity_store.mjs',
+  'i_device_sync.mjs',
   'i_context.mjs',
   'i_mcp_server.mjs',
   'rebuild_i_activity_index.mjs',
   'validate_i_project_registry.mjs'
+  'sync_i_devices.mjs'
+  'configure_i_device_sync.ps1'
+  'invoke_i_device_sync.ps1'
 )) {
   Copy-Item -Force (Join-Path $PSScriptRoot $File) (Join-Path $Runtime $File)
 }
@@ -195,5 +199,5 @@ if (-not $SkipGuidance) {
   project_key = 'here-i-am'
   branch = $Branch
   mode = 'project_closeout_ingress'
-  phase = '2'
+  phase = '4.5'
 } | ConvertTo-Json
