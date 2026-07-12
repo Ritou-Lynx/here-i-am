@@ -83,6 +83,27 @@ void main() {
     expect(hits.single.openLoops, contains('完成论文写作计划'));
   });
 
+  test('explicit project intent falls back within allowed projects', () async {
+    if (!fts5Available) return;
+    await service.project(_personalEnvelope());
+    await service.project(_personalEnvelope(
+      eventId: 'event-other',
+      projectId: 'other-project',
+      projectKey: 'other',
+    ));
+
+    final hits = await service.search(
+      'tokens-with-no-literal-overlap',
+      scope: const ProjectMemoryQueryScope(
+        isProjectIntent: true,
+        allowedProjectIds: {'paper-project'},
+      ),
+    );
+
+    expect(hits, hasLength(1));
+    expect(hits.single.projectId, 'paper-project');
+  });
+
   test('confidential and unredacted work envelopes fail closed', () async {
     if (!fts5Available) return;
     expect(

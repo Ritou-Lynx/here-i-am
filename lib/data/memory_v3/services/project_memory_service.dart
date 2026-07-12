@@ -229,6 +229,38 @@ class ProjectMemoryService {
       allowedProjectIds: scope.allowedProjectIds,
       limit: limit,
     );
+    // Cross-language or broad progress questions may share no literal FTS
+    // token with an English closeout. For explicit project intent only, fall
+    // back to the most recent active items inside the already-authorized
+    // project set. Filtering still happens before limit.
+    if (raw.isEmpty) {
+      final recent = await (_db.select(_db.projectMemoryItems)
+            ..where((table) =>
+                table.status.equals('active') &
+                table.projectId.isIn(scope.allowedProjectIds.toList()))
+            ..orderBy([
+              (table) => OrderingTerm.desc(table.occurredAt),
+            ])
+            ..limit(limit))
+          .get();
+      return Future.wait(recent.map((item) async {
+        final source = await (_db.select(_db.projectMemorySources)
+              ..where((table) => table.itemId.equals(item.id)))
+            .getSingle();
+        return ProjectMemoryHit(
+          itemId: item.id,
+          projectId: item.projectId,
+          projectKey: item.projectKey,
+          summary: item.summary,
+          decisions: _decodeList(item.decisionsJson),
+          openLoops: _decodeList(item.openLoopsJson),
+          artifactRefs: _decodeList(item.artifactRefsJson),
+          sourceTool: source.sourceTool,
+          occurredAt: item.occurredAt,
+          rank: 0,
+        );
+      }));
+    }
     final hits = <ProjectMemoryHit>[];
     for (final result in raw) {
       final item = await (_db.select(_db.projectMemoryItems)

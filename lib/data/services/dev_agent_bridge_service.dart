@@ -601,6 +601,41 @@ class DevAgentBridgeService {
     return health;
   }
 
+  /// Best-effort startup refresh for every configured Bridge endpoint.
+  ///
+  /// Multiple Dev Room projects may share one Bridge, so each normalized URL
+  /// is contacted only once. Callers should not block app startup on failure.
+  Future<ProjectMemorySyncResult> syncConfiguredProjectMemory() async {
+    final projects = await listProjects();
+    final bridgeUrls = projects
+        .map((project) => project.bridgeUrl.trim())
+        .where((url) => url.isNotEmpty)
+        .toSet();
+    var received = 0;
+    var inserted = 0;
+    var duplicates = 0;
+    String? latestAsOf;
+    for (final bridgeUrl in bridgeUrls) {
+      try {
+        final result = await syncProjectMemory(bridgeUrl);
+        received += result.received;
+        inserted += result.inserted;
+        duplicates += result.duplicates;
+        latestAsOf = result.asOf ?? latestAsOf;
+      } catch (error) {
+        _logger.warning(
+          'Startup Project Memory sync skipped for $bridgeUrl: $error',
+        );
+      }
+    }
+    return ProjectMemorySyncResult(
+      received: received,
+      inserted: inserted,
+      duplicates: duplicates,
+      asOf: latestAsOf,
+    );
+  }
+
   /// Pulls only policy-approved Project Memory projections from the trusted
   /// Dev Room Bridge. The projection service revalidates every envelope and
   /// writes idempotently; no raw Gateway ledger or transcript reaches the app.
