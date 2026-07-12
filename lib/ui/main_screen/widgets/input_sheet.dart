@@ -426,7 +426,10 @@ class _InputSheetState extends State<InputSheet>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _draftSaveDebounce?.cancel();
-    if (widget.isOpen || _textController.text.trim().isNotEmpty) {
+    // Don't re-save draft while submitting — the text is being processed and
+    // clearActiveDraft() will run (or already ran) in _handleSubmit.
+    if (!_isSubmitting &&
+        (widget.isOpen || _textController.text.trim().isNotEmpty)) {
       unawaited(_draftService.saveTextDraft(_textController.text));
     }
     _audioStreamSub?.cancel();
@@ -1206,11 +1209,16 @@ class _InputSheetState extends State<InputSheet>
     setState(() => _isSubmitting = true);
     await _flushDraft();
     final submitted = await widget.onSubmit(inputData);
+
+    // Clear draft before checking mounted — the content was already submitted,
+    // so the draft must go regardless of whether the widget is still in the tree.
+    if (submitted) {
+      await _draftService.clearActiveDraft();
+    }
+
     if (!mounted) return;
 
     if (submitted) {
-      await _draftService.clearActiveDraft();
-      if (!mounted) return;
       _resetForm();
       _setRestoredDraft(false);
     } else {
