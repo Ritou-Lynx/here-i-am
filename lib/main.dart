@@ -770,7 +770,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       DreamingSchedulerService.dailyBatchTaskName,
       DreamingSchedulerService.dailyBatchTaskName,
       constraints: Constraints(
-        networkType: NetworkType.not_required,
+        networkType: NetworkType.notRequired,
         requiresBatteryNotLow: true,
         requiresCharging: false,
         requiresDeviceIdle: false,
