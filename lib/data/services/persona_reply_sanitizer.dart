@@ -35,14 +35,23 @@ class PersonaReplySanitizer {
     r')',
     caseSensitive: false,
   );
-  static final RegExp _englishMetaReference = RegExp(
-    r"\b(?:the\s+user(?:'s)?|user|the\s+conversation|chat\s+history)\b",
+  static final RegExp _visibleReplyBlock = RegExp(
+    r'<visible_reply\b[^>]*>([\s\S]*?)<\/visible_reply>',
+    caseSensitive: false,
+  );
+  static final RegExp _visibleReplyOpen = RegExp(
+    r'<visible_reply\b[^>]*>',
+    caseSensitive: false,
+  );
+  static final RegExp _visibleReplyClose = RegExp(
+    r'<\/visible_reply>',
     caseSensitive: false,
   );
   static final RegExp _englishResponsePlanning = RegExp(
     r"\b(?:i\s+(?:should|need|must|will|want\s+to|ought\s+to)|"
     r'we\s+need\s+to)\b[\s\S]{0,160}\b(?:respond|reply|acknowledge|ask|'
-    r'clarify|address|mention|express|show|avoid|focus|figure\s+out|'
+    r'clarify|address|mention|express|show|avoid|focus|figure\s+out|deliver|'
+    r'keep\s+my\s+reasoning|visible\s+response|dialogue|'
     r'use\s+(?:chinese|english)|stay\s+in\s+character)\b',
     caseSensitive: false,
   );
@@ -134,11 +143,29 @@ class PersonaReplySanitizer {
   }
 
   static String stripLeakedReasoning(String text) {
+    // A response envelope is the primary safety boundary. Compatible models
+    // may emit untagged analysis before their answer even on a non-streaming
+    // request; anything outside this envelope is never user-visible.
+    final visibleBlock = _visibleReplyBlock.firstMatch(text);
+    if (visibleBlock != null) {
+      return visibleBlock.group(1)!.trim();
+    }
+    final visibleOpen = _visibleReplyOpen.firstMatch(text);
+    if (visibleOpen != null) {
+      return text
+          .substring(visibleOpen.end)
+          .replaceFirst(_visibleReplyClose, '')
+          .trim();
+    }
+
     // Strip fully-closed think blocks first, then any unclosed open tag.
     var result = text
         .replaceAll(_thinkingBlock, '')
         .replaceAll(_unclosedThink, '')
         .trim();
+    if (result.isEmpty) return result;
+
+    result = _stripLeadingReasoningSentences(result);
     if (result.isEmpty) return result;
 
     final lines = result.split(RegExp(r'\r?\n'));
@@ -159,14 +186,39 @@ class PersonaReplySanitizer {
     return result;
   }
 
+  static String _stripLeadingReasoningSentences(String text) {
+    var remainder = text.trimLeft();
+    while (remainder.isNotEmpty) {
+      final boundary = RegExp(r'[.!?。！？](?:\s+|(?=[\u3400-\u9fff*<]))')
+          .firstMatch(remainder);
+      final lineBreak = remainder.indexOf('\n');
+      final boundaryEnd = boundary?.end;
+      final candidateEnd = switch ((boundaryEnd, lineBreak)) {
+        (final int sentenceEnd, final int newline) when newline >= 0 =>
+          sentenceEnd < newline ? sentenceEnd : newline,
+        (final int sentenceEnd, _) => sentenceEnd,
+        (_, final int newline) when newline >= 0 => newline,
+        _ => remainder.length,
+      };
+      final candidate = remainder.substring(0, candidateEnd).trim();
+      if (!_looksLikeLeakedReasoning(candidate)) break;
+      remainder = remainder.substring(candidateEnd).trimLeft();
+    }
+    return remainder.trim();
+  }
+
   static bool _looksLikeLeakedReasoning(String text) {
     final line = text.trim();
     if (line.isEmpty) return false;
     if (_leadingReasoningLine.hasMatch(line)) return true;
 
-    final englishMeta = _englishMetaReference.hasMatch(line);
+    if (RegExp(r"^(?:the\s+user(?:'s)?|user)\b", caseSensitive: false)
+        .hasMatch(line)) {
+      return true;
+    }
+
     final englishPlanning = _englishResponsePlanning.hasMatch(line);
-    if (englishMeta && englishPlanning) return true;
+    if (englishPlanning) return true;
 
     final chineseMeta = _chineseMetaReference.hasMatch(line);
     final chinesePlanning = _chineseResponsePlanning.hasMatch(line);
@@ -179,7 +231,9 @@ class PersonaReplySanitizer {
     String? characterName,
   }) {
     final inlineSegments = _splitInlineItalicActions(line);
-    if (inlineSegments != null) return _applyActionPerspective(inlineSegments, characterName);
+    if (inlineSegments != null) {
+      return _applyActionPerspective(inlineSegments, characterName);
+    }
 
     final fullItalic = _fullItalicLine.firstMatch(line);
     if (fullItalic != null) {

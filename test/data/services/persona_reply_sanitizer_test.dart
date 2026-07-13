@@ -156,5 +156,30 @@ Tell me what the task is first.
 
       expect(cleaned, source);
     });
+
+    test('strips the real same-line reasoning leak without losing reply', () {
+      const source = 'I need to keep my reasoning out of the visible response '
+          'and just deliver the action with dialogue cleanly.'
+          '这话说得，倒像我等着你开口似的。明天穿好点，我先记着。';
+
+      final cleaned = PersonaReplySanitizer.stripLeakedReasoning(source);
+
+      expect(cleaned, '这话说得，倒像我等着你开口似的。明天穿好点，我先记着。');
+    });
+
+    test('extracts only the visible reply envelope', () {
+      const source = '''
+The user is teasing me. I should answer playfully.
+<visible_reply>
+*我慢慢笑了。*
+谁说我不抓，我这不是留着慢慢来嘛。
+</visible_reply>
+More hidden planning that must also be discarded.
+''';
+
+      final cleaned = PersonaReplySanitizer.stripLeakedReasoning(source);
+
+      expect(cleaned, '*我慢慢笑了。*\n谁说我不抓，我这不是留着慢慢来嘛。');
+    });
   });
 }

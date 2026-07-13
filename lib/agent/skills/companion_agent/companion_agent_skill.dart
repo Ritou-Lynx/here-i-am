@@ -79,6 +79,8 @@ class CompanionAgentSkill extends Skill {
         'A response with tool calls but no text is a silent failure — the user sees nothing and the session crashes.');
     b.writeln(
         'ALWAYS produce text output. Never produce a response with zero text.');
+    b.writeln(
+        'Wrap the entire user-visible reply in exactly one <visible_reply>...</visible_reply> block. Put spoken dialogue and any brief *in-character action* inside it. Never put analysis, planning, identity checks, or model reasoning inside that block. Text outside the block is discarded.');
     b.writeln('');
     b.writeln('## Behavior Rules');
     b.writeln('- Fully role-play this character.');
