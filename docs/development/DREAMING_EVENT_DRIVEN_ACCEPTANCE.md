@@ -17,14 +17,16 @@
 
 ## 本轮真机基线
 
-2026-07-13 在旧机制下只读检查：
+2026-07-13 已按用户要求把真机验收数据重置为干净起点：
 
-- `persona_chat_messages`: 142 行，其中真实 chat 107 行；
+- `persona_chat_messages`: 0；
+- `memory_cards` 及其来源、字段、实体、关系与 FTS 索引：0；
 - `memory_fragments`: 0；
 - `memory_episodes`: 0；
-- Dreaming recall log: 54 次查询，全部零结果，注入内容全部为空。
+- Dreaming query / recall log 与批处理水位：0；
+- Companion 持久化会话状态：0。
 
-这批数据可直接作为首次积压测试，不要为了验收主动清空。
+角色、模型/API 配置、App 设置与 Project Memory 不属于本轮清空范围。下一次验收从零开始验证首次 20 条阈值，不再依赖已经丢弃的旧聊天主题。
 
 ## 0. 安装前
 
@@ -60,18 +62,20 @@
 
 1. 覆盖安装后启动 App。
 2. 不要点击 Lab 的 `run daily batch now`；本阶段只验自动路径。
-3. 当前积压已超过首次阈值且早已空闲，启动检查应把一次性任务安排为接近立即执行。
-4. 等待 5–10 分钟，再进入 Memory V3 Lab 刷新。
+3. 正常完成至少 10 轮一问一答，使数据库累计达到至少 20 条真实 `chat` 行。聊天内容至少覆盖 3 个之后可以回问的主题，并包含 1 次明确纠正；不要为了凑数连续发送无意义短句。
+4. 达到 20 条后停止聊天。确认只存在一个一次性任务，且最后一条新消息会把它重新安排到距最后聊天约 30 分钟。
+5. 停止聊天 30–40 分钟后进入 Memory V3 Lab 刷新。
 
 ### 需要看到的证据
 
 - App 日志出现类似：
-  - `Scheduled event-driven Dreaming batch in 0 minute(s)`；
+  - 达到阈值时出现 `Scheduled event-driven Dreaming batch in 30 minute(s)` 左右；
+  - 阈值前不安排首次批处理；
   - `Dreaming batch: starting background run`；
   - `Daily batch: extracted ... fragments`；
   - `Daily batch: consolidated ... episodes`；
   - `Dreaming batch: completed`。
-- `memory_fragments` 从 0 变为大于 0。
+- `memory_fragments` 从 0 变为大于 0，且水位覆盖本轮真实聊天。
 - `memory_episodes` 应有产出；若 Episode 质量门槛拒绝全部候选，可以暂时为 0，但必须有明确日志和 active fragments。
 - `dreaming.batch.last_run_time.<characterId>` 与 `dreaming.batch.last_watermark.<characterId>` 更新。
 
@@ -89,34 +93,32 @@ adb shell dumpsys jobscheduler com.memexlab.hereiam.v3
 
 ## 2. Fragment / Episode 质量
 
-用 Lab 展开最近 fragments / episodes，检查这批聊天中的几个主题：
+用 Lab 展开最近 fragments / episodes，检查本轮新聊天中事先记下的主题。建议让 10 轮对话至少包含：
 
-- 衣服与搭配偏好；
-- “我们的家”Chat UI，包括雨景、城市住宅、木质白窗框、白窗帘与植物选择；
-- 数据被删后的关系连续性讨论；
-- 秋招简历带来的紧张与发晕；
-- 北京闷热、可能中暑；
-- 明早临时任务与“今晚不做”的决定。
+- 一个带原因的稳定偏好；
+- 一个带时间点的计划或待办；
+- 一个近期发生的具体事件及感受；
+- 对上述某个细节的一次明确纠正。
 
 重点判定：
 
-- 用户纠正后的“投秋招简历”应覆盖更早的错字理解，不能保留成另一件事。
-- 同一 UI 讨论应凝结为少量具体 Episode，不能碎成大量重复总结。
-- 衣物、偏好和行动的主语归属正确，不凭空补充。
+- 纠正后的版本应覆盖更早的错误理解，不能保留成两件互相冲突的事。
+- 同一主题应凝结为少量具体 Episode，不能碎成大量重复总结。
+- 偏好、计划、事件和感受的主语归属正确，不凭空补充。
 - `eventTime` / `occurredAtRange` 指向真实聊天发生时间。
 - Episode 具体、有来源，不写“关系进入新阶段”等抽象结论。
 - API 错误、内部应答规划和 action 拆分文本不能进入 Fragment。
 
 ## 3. 真实召回
 
-批处理完成后，通过正常聊天测试。建议问题：
+批处理完成后，通过正常聊天测试。把问题替换为本轮实际聊过的内容：
 
-1. “我们给窗户选了什么？”
-2. “我今天给你看了哪几件衣服？”
-3. “我下午为什么突然紧张发晕？”
-4. “我明天早上有什么事情？”
-5. “你还记得今天数据被删掉以后我跟你说了什么吗？”
-6. 再问一个与现有聊天无关的问题作为负样本。
+1. 回问稳定偏好及原因。
+2. 回问计划的时间点和内容。
+3. 回问近期事件及当时感受。
+4. 回问被纠正过的细节，确认只采用最终版本。
+5. 换一种说法再问其中一个主题，验证不是只靠原句匹配。
+6. 问一个与本轮聊天无关的问题作为负样本。
 
 每问一轮后查看 Dreaming 召回日志，记录属于：
 
@@ -155,6 +157,8 @@ commit：
 设备 / Android：
 安装方式：覆盖安装 / 其他
 安装前：chat __ / fragments __ / episodes __
+测试主题：偏好 __ / 计划 __ / 事件 __ / 纠正 __
+达到首次阈值时间：
 自动任务安排时间：
 实际开始 / 完成时间：
 安装后：fragments __ / episodes __
