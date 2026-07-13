@@ -40,6 +40,7 @@ import 'package:memex/data/services/whisper_service.dart';
 import 'package:memex/data/services/streaming_transcriber.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/services/proactive_outing_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
@@ -744,6 +745,13 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       final userId = await UserStorage.getUserId();
       if (userId != null && !AppDatabase.isInitialized) {
         await AppDatabase.init(userId);
+      }
+      if (userId != null && AppDatabase.isInitialized) {
+        try {
+          await ProactiveOutingService.instance.refreshSchedule();
+        } catch (e) {
+          _logger.warning('Failed to refresh proactive outing schedule: $e');
+        }
       }
       _eventBus.connect();
 

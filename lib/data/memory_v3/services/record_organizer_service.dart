@@ -12,10 +12,12 @@
 ///   query layer reads only the projection tables.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:drift/drift.dart';
+import 'package:memex/data/services/proactive_outing_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:uuid/uuid.dart';
@@ -434,8 +436,22 @@ class RecordOrganizerServiceV3 {
       _logger.info('card[$i] type=${organized.cards[i].type} '
           'blocks=${jsonEncode(organized.cards[i].presentationModule['blocks'])}');
     }
-    return persist(
-        organized: organized, source: source, inputMedia: enrichedMedia);
+    final result = await persist(
+      organized: organized,
+      source: source,
+      inputMedia: enrichedMedia,
+    );
+    if (!result.isEmpty) {
+      unawaited(
+        ProactiveOutingService.instance.refreshSchedule().catchError((error) {
+          _logger.warning(
+            'organizeAndPersist: proactive outing refresh failed: $error',
+          );
+          return 0;
+        }),
+      );
+    }
+    return result;
   }
 
   /// Soft-delete a memory card. Per V3 § 8 contract, this writes a `delete`

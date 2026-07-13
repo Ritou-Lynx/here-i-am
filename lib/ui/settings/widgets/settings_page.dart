@@ -14,6 +14,7 @@ import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
 import 'package:memex/ui/settings/widgets/xhs_connect_page.dart';
 import 'package:memex/data/services/reading/xhs/xhs_cookie_repository.dart';
 import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/services/proactive_outing_service.dart';
 import 'package:memex/data/services/custom_agent_config_service.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
@@ -1011,8 +1012,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     if (v) {
                       await CheckinService.instance
                           .ensureCheckinTaskRegistered();
+                      await ProactiveOutingService.instance.refreshSchedule();
                     } else {
                       await CheckinService.instance.cancelCheckinTask();
+                      await ProactiveOutingService.instance
+                          .cancelPendingCheckpoints();
                     }
                     setState(() => _checkinEnabled = v);
                   },

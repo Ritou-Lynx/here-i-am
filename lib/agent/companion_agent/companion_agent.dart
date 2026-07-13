@@ -668,25 +668,47 @@ class CompanionAgent {
   /// prescribe which action to take.
   static String _directiveForTrigger(SystemMessageQueueData trigger) {
     final buf = StringBuffer();
+    Map<String, dynamic>? triggerContext;
+    if (trigger.context != null && trigger.context!.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(trigger.context!);
+        if (decoded is Map) {
+          triggerContext = decoded.cast<String, dynamic>();
+        }
+      } catch (_) {}
+    }
+    final isProactiveOuting = triggerContext?['kind'] == 'proactive_outing';
     buf.writeln('SYSTEM DIRECTIVE (background task, single turn):');
     buf.writeln();
     buf.writeln('## Why you were woken up');
 
-    if (trigger.triggerType == 'reminder') {
+    if (trigger.triggerType == 'reminder' && isProactiveOuting) {
+      buf.writeln(
+          'This is a PROACTIVE OUTING CHECKPOINT. It was scheduled because '
+          'the user enabled proactive pushes and explicitly saved an upcoming '
+          'plan that appears to involve leaving home. It is not a user-set '
+          'reminder, so you may stay silent if there is no useful action now.');
+      buf.writeln('Checkpoint: ${trigger.body}');
+      buf.writeln('Plan title: ${triggerContext?['title'] ?? 'unknown'}');
+      buf.writeln('Plan time: ${triggerContext?['event_at'] ?? 'unknown'}');
+      if (triggerContext?['place_hint'] != null) {
+        buf.writeln('Place hint: ${triggerContext?['place_hint']}');
+      }
+      if (triggerContext?['walking_minutes'] != null) {
+        buf.writeln(
+            'Outdoor walking estimate: ${triggerContext?['walking_minutes']} minutes');
+      }
+    } else if (trigger.triggerType == 'reminder') {
       buf.writeln(
           'This is a USER-SET REMINDER. The user explicitly asked to be '
           'reminded at this time.');
       buf.writeln('Reminder text: ${trigger.body}');
       // Surface any context hint (e.g. action=call) without mandating it.
-      if (trigger.context != null && trigger.context!.isNotEmpty) {
-        try {
-          final ctx = jsonDecode(trigger.context!);
-          if (ctx is Map<String, dynamic> && ctx.containsKey('action')) {
-            buf.writeln('Context hint: the user mentioned "${ctx['action']}" '
-                'when setting this reminder. This is a suggestion — use your '
-                'own judgment on the best way to respond.');
-          }
-        } catch (_) {}
+      if (triggerContext?.containsKey('action') == true) {
+        buf.writeln(
+            'Context hint: the user mentioned "${triggerContext?['action']}" '
+            'when setting this reminder. This is a suggestion — use your '
+            'own judgment on the best way to respond.');
       }
     } else {
       buf.writeln('This is a discretionary check-in pulse. You are free to '
@@ -697,6 +719,7 @@ class CompanionAgent {
     buf.writeln('Read the "recent_activity_snapshot" in system_reminders. '
         'It tells you:');
     buf.writeln('- What the user recorded in the last 12 hours');
+    buf.writeln('- Explicit outing plans coming up in the next 24 hours');
     buf.writeln('- When the user last messaged you and what was said');
     buf.writeln('- When you last sent a proactive push and what you said');
     buf.writeln();
@@ -720,7 +743,8 @@ class CompanionAgent {
         'the conversation)');
     buf.writeln();
     buf.writeln('You have access to `coros_query` (health/fitness data from '
-        'the user\'s COROS watch).');
+        'the user\'s COROS watch) and `WeatherOutingRiskCheck` (practical '
+        'rain, temperature, wind, and walking-exposure risk).');
     buf.writeln();
     buf.writeln('Call it only when there is a specific reason — not every '
         'time:');
@@ -734,6 +758,16 @@ class CompanionAgent {
         '"昨晚的睡眠" (last night\'s sleep) → query TODAY. If today has '
         'no data, DO NOT fall back to yesterday. Tell the user to sync their '
         'watch.');
+    buf.writeln('- `WeatherOutingRiskCheck`: use it when an upcoming outing, '
+        'commute, appointment, or meaningful outdoor walking segment appears. '
+        'Pass the place hint and walking minutes when available; otherwise let '
+        'the tool infer the city from current location.');
+    if (isProactiveOuting) {
+      buf.writeln('  For this proactive outing checkpoint, call '
+          '`WeatherOutingRiskCheck` once before deciding. If configuration or '
+          'location is unavailable, do not send a generic weather guess. Only '
+          'notify when the saved plan itself still supports a useful reminder.');
+    }
     buf.writeln();
     buf.writeln('If it\'s not relevant right now, skip it and go straight '
         'to Step 2. Do NOT call a tool just to fill space — a warm generic '
@@ -741,10 +775,15 @@ class CompanionAgent {
     buf.writeln();
     buf.writeln('## Step 3 — Decide and act');
     buf.writeln();
-    buf.writeln('If this is a user-set reminder: deliver it naturally. The '
+    buf.writeln('If this is a user-set reminder (not a proactive outing '
+        'checkpoint): deliver it naturally. The '
         'user trusted you to remember — don\'t stay silent. But how you '
         'deliver is up to you: a notification is usually enough, a call is '
         'for something important or emotional.');
+    buf.writeln('If this is a proactive outing checkpoint: notify only with '
+        'an action the user can take now, such as taking an umbrella, adding a '
+        'layer, leaving earlier, or avoiding a long exposed walk. If there is '
+        'no action-relevant risk, choose silent. Never recite a forecast.');
     buf.writeln();
     buf.writeln('If this is a discretionary check-in: decide naturally based '
         'on all context. Bias toward warm, useful contact.');
@@ -810,11 +849,12 @@ class CompanionAgent {
     buf.writeln('2. Call `set_system_message_status` ONCE with status="done"');
     buf.writeln();
     buf.writeln('HARD STOP RULES:');
-    buf.writeln('- Total tool calls: 2-6 (0-2 optional queries + optional '
+    buf.writeln('- Total tool calls: 2-7 (0-3 optional queries + optional '
         'device_app_blocker_control + ONE communication action + set_status).');
     buf.writeln('- Take only ONE action: either system_checkin OR '
         'initiate_voice_call, never both.');
     buf.writeln('- Do NOT call coros_query more than once.');
+    buf.writeln('- Do NOT call WeatherOutingRiskCheck more than once.');
     buf.writeln('- Do NOT "double check" your work or re-verify.');
     buf.writeln(
         '- Do NOT produce any user-visible chat text — only tool calls.');

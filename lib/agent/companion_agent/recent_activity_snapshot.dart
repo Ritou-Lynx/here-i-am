@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:yaml/yaml.dart';
 
 import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/services/proactive_outing_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 
@@ -49,6 +50,30 @@ class RecentActivitySnapshot {
       }
     } catch (e) {
       _logger.warning('Failed to load recent records: $e');
+    }
+
+    // --- Upcoming explicit outings ---
+    try {
+      final outings = await ProactiveOutingService.instance
+          .findUpcomingCandidates(now: now, horizon: const Duration(hours: 24));
+      parts.add('');
+      parts.add('## Upcoming Outings (next 24h)');
+      if (outings.isEmpty) {
+        parts.add('No explicit outing plans in this window.');
+      } else {
+        for (final outing in outings.take(5)) {
+          final details = <String>[
+            _fmtTime(outing.eventAt),
+            outing.title,
+            if (outing.placeHint != null) 'place: ${outing.placeHint}',
+            if (outing.walkingMinutes != null)
+              'walking: ${outing.walkingMinutes} min',
+          ];
+          parts.add('- ${details.join(' | ')}');
+        }
+      }
+    } catch (e) {
+      _logger.warning('Failed to load upcoming outings: $e');
     }
 
     // --- Last chat activity ---

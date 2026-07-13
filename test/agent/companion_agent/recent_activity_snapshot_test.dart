@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
@@ -65,5 +68,55 @@ void main() {
     expect(snapshot, contains('海龟汤开始'));
     expect(snapshot, contains('他以前喝过真正的海龟汤吗'));
     expect(snapshot, contains('所以他发现这次味道不一样'));
+  });
+
+  test('snapshot includes explicit outings in the next 24 hours', () async {
+    final now = DateTime.now();
+    final eventAt = now.add(const Duration(hours: 3));
+    final createdAt = now.millisecondsSinceEpoch;
+    await db.into(db.memoryCards).insert(
+          MemoryCardsCompanion.insert(
+            id: 'outing-card',
+            type: 'schedule',
+            title: '去机场接人',
+            dropletLabel: '接人',
+            presentationModule: '[]',
+            retrievalText: '下午去机场接人',
+            valence: 0.2,
+            arousal: 0.3,
+            status: const Value('active'),
+            createdAt: createdAt,
+            updatedAt: createdAt,
+          ),
+        );
+    await db.into(db.memoryCardSources).insert(
+          MemoryCardSourcesCompanion.insert(
+            cardId: 'outing-card',
+            rawInput: '记一下，下午去机场接人',
+            recordedAt: createdAt,
+            sourceKind: 'record_button',
+          ),
+        );
+    await db.into(db.memoryCardStructuredFields).insert(
+          MemoryCardStructuredFieldsCompanion.insert(
+            cardId: 'outing-card',
+            structuredFieldsType: 'general',
+            fieldsJson: jsonEncode({
+              'startAt': eventAt.toIso8601String(),
+              'location': '首都机场',
+            }),
+            createdAt: createdAt,
+            updatedAt: createdAt,
+          ),
+        );
+
+    final snapshot = await RecentActivitySnapshot.build(
+      userId: 'user-1',
+      characterId: 'char-1',
+    );
+
+    expect(snapshot, contains('Upcoming Outings (next 24h)'));
+    expect(snapshot, contains('去机场接人'));
+    expect(snapshot, contains('place: 首都机场'));
   });
 }
