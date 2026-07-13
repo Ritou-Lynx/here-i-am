@@ -23,6 +23,10 @@ class ProjectMemoryIntentClassifier {
     'ui搭建',
     'ui 搭建',
     '界面搭建',
+    '记得什么项目',
+    '知道什么项目',
+    '工作进展',
+    'here i am',
   ];
 
   static const _progressTerms = <String>[
@@ -34,6 +38,10 @@ class ProjectMemoryIntentClassifier {
     '决策',
     '收工',
     '交接',
+    '记得',
+    '知道',
+    '忙什么',
+    '在搞',
   ];
 
   static bool isProjectIntent(String query) {
@@ -41,9 +49,9 @@ class ProjectMemoryIntentClassifier {
     if (normalized.isEmpty) return false;
     if (_strongTerms.any(normalized.contains)) return true;
 
-    // Progress words alone are ordinary life/task language. Require an
-    // engineering/work noun before opening the project lane.
-    const workNouns = ['功能', '模块', '产品', 'app', '仓库', '文档', '研究', '写作'];
+    const workNouns = [
+      '功能', '模块', '产品', 'app', '仓库', '文档', '研究', '写作', '项目',
+    ];
     return _progressTerms.any(normalized.contains) &&
         workNouns.any(normalized.contains);
   }

@@ -27,6 +27,10 @@ class ConfigSyncS3 {
       secretKey: config.secretKey,
       useSSL: config.useSSL,
       region: config.region,
+      // Aliyun OSS (and most S3-compatible services) require virtual-hosted
+      // style: <bucket>.<endpoint>. Path-style is rejected with 403
+      // SecondLevelDomainForbidden.
+      pathStyle: false,
     );
   }
 
