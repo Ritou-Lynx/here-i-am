@@ -13,6 +13,7 @@ import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/memory/widgets/memory_card_detail_screen_v3.dart';
 import 'package:memex/ui/memory/widgets/memory_summary_card_v3.dart';
+import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -1071,14 +1072,25 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           ),
           const SizedBox(height: 16),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
+            onPressed: _openCorosConnectPage,
             child: const Text('前往设置'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _openCorosConnectPage() async {
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CorosConnectPage(
+          initiallyConnected: _corosConnected,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _loadData();
   }
 
   Widget _syncButton() {
