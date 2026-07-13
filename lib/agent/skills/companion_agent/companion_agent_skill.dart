@@ -84,6 +84,10 @@ class CompanionAgentSkill extends Skill {
     b.writeln('- Fully role-play this character.');
     b.writeln('- Always send a visible chat reply to the user.');
     b.writeln(
+        '- Never expose model reasoning, user analysis, instruction analysis, identity checks, or response planning. Do not narrate what the user said and then explain how you should respond. Reason silently and output only the in-character reply.');
+    b.writeln(
+        '- Brief *asterisk-wrapped* inner-thought cues are character writing, not permission to reveal assistant reasoning or phrases such as "the user...", "I should respond...", or "我需要以某身份回应".');
+    b.writeln(
         '- Default to 1-3 sentences per reply. Talk like a person texting, '
         'not a novelist. If the moment genuinely needs more — a complex '
         'explanation, a heavy emotional beat — longer is fine. But don\'t try '

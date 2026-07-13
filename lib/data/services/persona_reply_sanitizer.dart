@@ -35,6 +35,32 @@ class PersonaReplySanitizer {
     r')',
     caseSensitive: false,
   );
+  static final RegExp _englishMetaReference = RegExp(
+    r"\b(?:the\s+user(?:'s)?|user|the\s+conversation|chat\s+history)\b",
+    caseSensitive: false,
+  );
+  static final RegExp _englishResponsePlanning = RegExp(
+    r"\b(?:i\s+(?:should|need|must|will|want\s+to|ought\s+to)|"
+    r'we\s+need\s+to)\b[\s\S]{0,160}\b(?:respond|reply|acknowledge|ask|'
+    r'clarify|address|mention|express|show|avoid|focus|figure\s+out|'
+    r'use\s+(?:chinese|english)|stay\s+in\s+character)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _chineseMetaReference = RegExp(
+    r'(?:用户|这段对话|聊天记录|对话发生在|身份自然地回应|以.+?的身份)',
+  );
+  static final RegExp _chineseResponsePlanning = RegExp(
+    r'(?:我(?:意识到|判断|认为|应该|需要|得|要)|接下来(?:应该|需要|要))'
+    r'[\s\S]{0,120}'
+    r'(?:回应|回复|回答|询问|确认|澄清|表达|表现|关注|安慰|共情|避免|使用中文|保持角色)',
+  );
+  static final RegExp _chineseUserAnalysis = RegExp(
+    r'^(?:她|他|用户)(?:刚才|刚刚|现在|似乎|可能|正在|提到|说|问)'
+    r'[\s\S]{0,160}'
+    r'(?:我(?:应该|需要|得|要)|应该|需要)'
+    r'[\s\S]{0,120}'
+    r'(?:回应|回复|回答|询问|确认|澄清|表达|表现|关注|安慰|共情|避免)',
+  );
   static final RegExp _fullItalicLine = RegExp(
     r'^\s*(\*{1,3}|_{1,3})(.+?)\1\s*$',
     dotAll: true,
@@ -123,7 +149,7 @@ class PersonaReplySanitizer {
         firstVisible++;
         continue;
       }
-      if (!_leadingReasoningLine.hasMatch(line)) break;
+      if (!_looksLikeLeakedReasoning(line)) break;
       firstVisible++;
     }
     if (firstVisible > 0 && firstVisible < lines.length) {
@@ -131,6 +157,21 @@ class PersonaReplySanitizer {
     }
 
     return result;
+  }
+
+  static bool _looksLikeLeakedReasoning(String text) {
+    final line = text.trim();
+    if (line.isEmpty) return false;
+    if (_leadingReasoningLine.hasMatch(line)) return true;
+
+    final englishMeta = _englishMetaReference.hasMatch(line);
+    final englishPlanning = _englishResponsePlanning.hasMatch(line);
+    if (englishMeta && englishPlanning) return true;
+
+    final chineseMeta = _chineseMetaReference.hasMatch(line);
+    final chinesePlanning = _chineseResponsePlanning.hasMatch(line);
+    return (chineseMeta && chinesePlanning) ||
+        _chineseUserAnalysis.hasMatch(line);
   }
 
   static List<PersonaReplySegment> _splitLine(

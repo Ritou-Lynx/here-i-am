@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/db/app_database.dart';
 
@@ -88,6 +90,7 @@ class PersonaChatService {
           ),
         );
     _notifyMessageAdded(characterId);
+    _scheduleDreaming(characterId);
     _ignoreLegacyTimelineFlag(appendTimeline);
     return id;
   }
@@ -101,8 +104,7 @@ class PersonaChatService {
   Future<int> deleteMessage(String characterId, int messageId) async {
     final deleted = await (_db.delete(_db.personaChatMessages)
           ..where((t) =>
-              t.id.equals(messageId) &
-              t.characterId.equals(characterId)))
+              t.id.equals(messageId) & t.characterId.equals(characterId)))
         .go();
     if (deleted > 0) {
       _notifyMessageAdded(characterId);
@@ -146,6 +148,7 @@ class PersonaChatService {
           ),
         );
     _notifyMessageAdded(characterId);
+    _scheduleDreaming(characterId);
     return id;
   }
 
@@ -284,6 +287,15 @@ class PersonaChatService {
   void _notifyMessageAdded(String characterId) {
     EventBusService.instance.emitEvent(
       PersonaChatMessageAddedMessage(characterId: characterId),
+    );
+  }
+
+  void _scheduleDreaming(String characterId) {
+    unawaited(
+      DreamingSchedulerService.scheduleEventDrivenBatchIfNeeded(
+        db: _db,
+        characterId: characterId,
+      ),
     );
   }
 }

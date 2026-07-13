@@ -8,6 +8,7 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
@@ -16,6 +17,7 @@ import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:workmanager/workmanager.dart';
 
 final _logger = getLogger('memory_v3.DreamingSchedulerService');
 
@@ -29,9 +31,14 @@ class DreamingSchedulerService {
 
   static const _foregroundTickInterval = Duration(minutes: 5);
   static const _userActiveThreshold = Duration(minutes: 2);
+  static const eventDrivenIdleDelay = Duration(minutes: 30);
+  static const eventDrivenInitialChatThreshold = 20;
+  static const eventDrivenChatThreshold = 100;
+  static const minBatchInterval = Duration(minutes: 60);
 
   // Workmanager task name registered in health_service.dart.
   static const dailyBatchTaskName = 'dreaming_daily_batch';
+  static const eventDrivenTaskUniqueName = 'dreaming_event_driven_batch';
 
   // ---------------------------------------------------------------------------
   // Foreground lifecycle
@@ -54,6 +61,92 @@ class DreamingSchedulerService {
       _logger.warning(
           'Lightweight tick: syncEntityFragmentCounts failed', e, stack);
     }
+  }
+
+  /// Debounce a real Dreaming batch after enough chat data has accumulated.
+  ///
+  /// Re-registering with [ExistingWorkPolicy.replace] moves the task to
+  /// [eventDrivenIdleDelay] after the latest chat message. The periodic
+  /// four-hour task remains only as a fallback if Android drops this work.
+  static Future<void> scheduleEventDrivenBatchIfNeeded({
+    required AppDatabase db,
+    required String characterId,
+  }) async {
+    if (!Platform.isAndroid) return;
+
+    try {
+      if (!await shouldScheduleEventDrivenBatch(
+        db: db,
+        characterId: characterId,
+      )) {
+        return;
+      }
+
+      final chatAge = await _latestChatAge(db, characterId) ?? Duration.zero;
+      final initialDelay = chatAge >= eventDrivenIdleDelay
+          ? Duration.zero
+          : eventDrivenIdleDelay - chatAge;
+
+      await Workmanager().registerOneOffTask(
+        eventDrivenTaskUniqueName,
+        dailyBatchTaskName,
+        initialDelay: initialDelay,
+        constraints: Constraints(
+          networkType: NetworkType.notRequired,
+          requiresBatteryNotLow: true,
+          requiresCharging: false,
+          requiresDeviceIdle: false,
+          requiresStorageNotLow: false,
+        ),
+        existingWorkPolicy: ExistingWorkPolicy.replace,
+        backoffPolicy: BackoffPolicy.linear,
+        backoffPolicyDelay: const Duration(minutes: 15),
+      );
+      _logger.info(
+        'Scheduled event-driven Dreaming batch in '
+        '${initialDelay.inMinutes} minute(s) ($characterId)',
+      );
+    } catch (e, stack) {
+      _logger.warning(
+          'Failed to schedule event-driven Dreaming batch', e, stack);
+    }
+  }
+
+  /// Schedule existing backlog on startup, without requiring another message.
+  static Future<void> scheduleExistingBacklog(AppDatabase db) async {
+    final latest = await (db.select(db.personaChatMessages)
+          ..where((t) => t.messageType.equals('chat'))
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.timestamp),
+            (t) => OrderingTerm.desc(t.id),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
+    if (latest == null) return;
+    await scheduleEventDrivenBatchIfNeeded(
+      db: db,
+      characterId: latest.characterId,
+    );
+  }
+
+  /// Exposed for regression tests and Lab diagnostics. This decides whether
+  /// chat activity should create a one-off task; it does not contact Android.
+  static Future<bool> shouldScheduleEventDrivenBatch({
+    required AppDatabase db,
+    required String characterId,
+    DateTime? now,
+  }) async {
+    final snapshot = await _loadBatchTriggerSnapshot(
+      db,
+      characterId,
+      now: now,
+    );
+    if (snapshot.pendingChatCount == 0) return false;
+    if (snapshot.lastRunTime == null) {
+      return snapshot.pendingChatCount >= eventDrivenInitialChatThreshold;
+    }
+    if (snapshot.pendingChatCount >= eventDrivenChatThreshold) return true;
+    return snapshot.elapsedSinceLastRun >= minBatchInterval;
   }
 
   /// Start the periodic lightweight tick while the app is visible.
@@ -99,12 +192,13 @@ class DreamingSchedulerService {
 
     // 1. Data-driven check: enough time passed + sufficient new messages?
     if (!forceRun && !await _shouldRunBatch(db, characterId)) {
-      _logger.info('Daily batch: insufficient time or messages since last batch, deferring');
+      _logger.info(
+          'Daily batch: insufficient time or messages since last batch, deferring');
       return false;
     }
 
     // 2. Is user actively chatting?
-    if (!forceRun && await _isUserActive(db)) {
+    if (!forceRun && await _isUserActive(db, characterId)) {
       _logger.info('Daily batch: user active, deferring');
       return false;
     }
@@ -114,8 +208,8 @@ class DreamingSchedulerService {
     //    We skip the full charging/wifi check in the background isolate
     //    because we don't have battery_plus or connectivity_plus. Instead
     //    we rely on Workmanager's constraint system + the idle-duration
-    //    check via KvStore heartbeat.
-    if (!forceRun && !await _hasSufficientIdleTime(db)) {
+    //    check based on the latest real chat message.
+    if (!forceRun && !await _hasSufficientIdleTime(db, characterId)) {
       _logger.info('Daily batch: insufficient idle time, deferring');
       return false;
     }
@@ -218,21 +312,15 @@ class DreamingSchedulerService {
     }
   }
 
-  /// Check KvStore for a recent foreground heartbeat.
-  static Future<bool> _isUserActive(AppDatabase db) async {
+  /// A visible app is not necessarily an active conversation. Use the latest
+  /// real chat message rather than the foreground heartbeat shared by check-in.
+  static Future<bool> _isUserActive(
+    AppDatabase db,
+    String characterId,
+  ) async {
     try {
-      final row = await (db.select(db.kvStore)
-            ..where((t) =>
-                t.bucket.equals('memory_v3.dreaming') &
-                t.key.equals('last_user_active')))
-          .getSingleOrNull();
-      if (row == null || row.value == null) return false;
-
-      final lastActive = int.tryParse(row.value!);
-      if (lastActive == null) return false;
-
-      final elapsed = DateTime.now().millisecondsSinceEpoch - lastActive;
-      return elapsed < _userActiveThreshold.inMilliseconds;
+      final age = await _latestChatAge(db, characterId);
+      return age != null && age < _userActiveThreshold;
     } catch (e) {
       _logger.warning('_isUserActive check failed', e);
       return false; // safe default: don't skip on error
@@ -242,81 +330,107 @@ class DreamingSchedulerService {
   /// Data-driven batch trigger: check if enough time has passed and new messages
   /// have accumulated since the last batch.
   /// Returns true if: (time since last batch >= 1 hour) OR (new messages >= 100)
-  static Future<bool> _shouldRunBatch(AppDatabase db, String characterId) async {
+  static Future<bool> _shouldRunBatch(
+      AppDatabase db, String characterId) async {
     try {
-      const minIntervalMinutes = 60;
-      const messageThreshold = 100;
-
-      // Get last batch time and watermark
-      final timeRow = await (db.select(db.kvStore)
-            ..where((t) =>
-                t.bucket.equals('memory_v3.dreaming') &
-                t.key.equals('dreaming.batch.last_run_time.$characterId')))
-          .getSingleOrNull();
-      final watermarkRow = await (db.select(db.kvStore)
-            ..where((t) =>
-                t.bucket.equals('memory_v3.dreaming') &
-                t.key.equals('dreaming.batch.last_watermark.$characterId')))
-          .getSingleOrNull();
-
-      final lastRunTime = timeRow?.value != null ? int.tryParse(timeRow!.value!) : null;
-      final lastWatermark = watermarkRow?.value != null ? int.tryParse(watermarkRow!.value!) : 0;
+      final snapshot = await _loadBatchTriggerSnapshot(db, characterId);
 
       // First run or no prior batch — always allow
-      if (lastRunTime == null) return true;
+      if (snapshot.lastRunTime == null) return true;
 
       // Check time since last batch
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final minutesSinceLastBatch = (now - lastRunTime) / (60 * 1000);
-      if (minutesSinceLastBatch >= minIntervalMinutes) return true;
+      if (snapshot.elapsedSinceLastRun >= minBatchInterval) return true;
 
-      // Check new message count
-      final latestMessageId = await (db.selectOnly(db.personaChatMessages)
-            ..addColumns([db.personaChatMessages.id])
-            ..where(db.personaChatMessages.characterId.equals(characterId))
-            ..orderBy([OrderingTerm.desc(db.personaChatMessages.id)])
-            ..limit(1))
-          .map((row) => row.read<int>(db.personaChatMessages.id))
-          .getSingleOrNull();
-
-      if (latestMessageId == null) return false;
-
-      final newMessages = (latestMessageId - (lastWatermark ?? 0)).abs();
-      return newMessages >= messageThreshold;
+      return snapshot.pendingChatCount >= eventDrivenChatThreshold;
     } catch (e) {
       _logger.warning('_shouldRunBatch check failed', e);
       return true; // allow on error
     }
   }
-  static Future<bool> _hasSufficientIdleTime(AppDatabase db) async {
+
+  static Future<bool> _hasSufficientIdleTime(
+    AppDatabase db,
+    String characterId,
+  ) async {
     try {
-      final row = await (db.select(db.kvStore)
-            ..where((t) =>
-                t.bucket.equals('memory_v3.dreaming') &
-                t.key.equals('last_user_active')))
-          .getSingleOrNull();
-      if (row == null || row.value == null) {
-        // No heartbeat recorded — first run, consider idle enough.
-        return true;
-      }
-
-      final lastActive = int.tryParse(row.value!);
-      if (lastActive == null) return true;
-
-      final idleMinutes =
-          (DateTime.now().millisecondsSinceEpoch - lastActive) / (60 * 1000);
-      // Gate: idle > 30 min OR in preferred night window with idle > 2 hours.
-      if (idleMinutes >= 30) return true;
-
-      final hour = DateTime.now().hour;
-      if (hour >= 22 || hour < 6) {
-        return idleMinutes >= 120;
-      }
-
-      return false;
+      final age = await _latestChatAge(db, characterId);
+      if (age == null) return true;
+      return age >= eventDrivenIdleDelay;
     } catch (e) {
       _logger.warning('_hasSufficientIdleTime check failed', e);
       return true; // allow on error
     }
   }
+
+  static Future<Duration?> _latestChatAge(
+    AppDatabase db,
+    String characterId,
+  ) async {
+    final latest = await (db.select(db.personaChatMessages)
+          ..where((t) =>
+              t.characterId.equals(characterId) & t.messageType.equals('chat'))
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.timestamp),
+            (t) => OrderingTerm.desc(t.id),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
+    if (latest == null) return null;
+    final age = DateTime.now().difference(latest.timestamp);
+    return age.isNegative ? Duration.zero : age;
+  }
+
+  static Future<_BatchTriggerSnapshot> _loadBatchTriggerSnapshot(
+    AppDatabase db,
+    String characterId, {
+    DateTime? now,
+  }) async {
+    final timeRow = await (db.select(db.kvStore)
+          ..where((t) =>
+              t.bucket.equals('memory_v3.dreaming') &
+              t.key.equals('dreaming.batch.last_run_time.$characterId')))
+        .getSingleOrNull();
+    final watermarkRow = await (db.select(db.kvStore)
+          ..where((t) =>
+              t.bucket.equals('memory_v3.dreaming') &
+              t.key.equals('dreaming.batch.last_watermark.$characterId')))
+        .getSingleOrNull();
+
+    final lastRunMillis = int.tryParse(timeRow?.value ?? '');
+    final lastRunTime = lastRunMillis == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(lastRunMillis);
+    final lastWatermark = int.tryParse(watermarkRow?.value ?? '') ?? 0;
+    final countExpression = db.personaChatMessages.id.count();
+    final countRow = await (db.selectOnly(db.personaChatMessages)
+          ..addColumns([countExpression])
+          ..where(
+            db.personaChatMessages.characterId.equals(characterId) &
+                db.personaChatMessages.messageType.equals('chat') &
+                db.personaChatMessages.id.isBiggerThanValue(lastWatermark),
+          ))
+        .getSingle();
+    final pendingChatCount = countRow.read(countExpression) ?? 0;
+    final currentTime = now ?? DateTime.now();
+
+    return _BatchTriggerSnapshot(
+      lastRunTime: lastRunTime,
+      pendingChatCount: pendingChatCount,
+      elapsedSinceLastRun: lastRunTime == null
+          ? Duration.zero
+          : currentTime.difference(lastRunTime),
+    );
+  }
+}
+
+class _BatchTriggerSnapshot {
+  const _BatchTriggerSnapshot({
+    required this.lastRunTime,
+    required this.pendingChatCount,
+    required this.elapsedSinceLastRun,
+  });
+
+  final DateTime? lastRunTime;
+  final int pendingChatCount;
+  final Duration elapsedSinceLastRun;
 }

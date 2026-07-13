@@ -233,6 +233,34 @@ void main() {
     );
   });
 
+  test('composer stale guard survives empty callbacks until a late IME commit',
+      () {
+    final guard = PersonaChatComposerStaleGuard();
+    const sent = '我现在在回去的路上嘛，我不是从公司到地铁站要走一段嘛，'
+        '现在路上感觉吹吹风还挺舒服的，但是今天不像前几天，一到傍晚就下雨，今天居然没有下雨';
+
+    guard.arm(sent);
+
+    // Clearing the controller and subsequent frames can emit empty values for
+    // an arbitrary amount of time. They must not expire the quarantine.
+    expect(guard.shouldClear(''), isFalse);
+    expect(guard.shouldClear('   '), isFalse);
+    expect(guard.isArmed, isTrue);
+
+    // This is the exact delayed suffix observed on the affected Android IME.
+    expect(
+      guard.shouldClear('公司到地铁站要走一段。现在路上感觉吹吹风还挺舒服的，'
+          '但是今天不像前几天，一到傍晚就下雨，今天居然没有下雨'),
+      isTrue,
+    );
+    expect(guard.isArmed, isTrue);
+
+    // A distinct edit starts a new input session and ends the quarantine.
+    expect(guard.shouldClear('这是下一条消息'), isFalse);
+    expect(guard.isArmed, isFalse);
+    expect(guard.shouldClear(sent), isFalse);
+  });
+
   testWidgets('rich capture entry is opt-in and invokes its callback',
       (tester) async {
     final controller = TextEditingController();

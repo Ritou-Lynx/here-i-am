@@ -9,6 +9,7 @@ import 'package:memex/agent/skills/companion_agent/companion_agent_skill.dart';
 import 'package:memex/agent/state_util.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/data/services/location_context_service.dart';
+import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
@@ -995,6 +996,12 @@ class CompanionAgent {
           }
         }
       }
+
+      // Some compatible providers occasionally place their internal response
+      // planning in textOutput instead of the provider-native thought field.
+      // Sanitize before any UI chunk is emitted so hidden reasoning cannot
+      // flash on screen, become a chat message, or enter Dreaming extraction.
+      foundText = PersonaReplySanitizer.stripLeakedReasoning(foundText);
 
       // Post-processing: if the agent made a time commitment in text but
       // didn't call reminder_create, run a silent correction turn so the

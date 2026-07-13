@@ -123,5 +123,38 @@ I am here.
 
       expect(spoken, isEmpty);
     });
+
+    test('strips English response planning leaked as visible text', () {
+      const source = '''
+The user's frustrated because their mentor's supervisor just handed them a task when they were planning to rest. I should acknowledge that frustration without being patronizing, then figure out whether it is urgent.
+*sighs softly*
+Tell me what the task is first.
+''';
+
+      final cleaned = PersonaReplySanitizer.stripLeakedReasoning(source);
+
+      expect(cleaned, '*sighs softly*\nTell me what the task is first.');
+    });
+
+    test('strips Chinese identity and response planning leaks', () {
+      const source = '''
+我意识到用户是林埃和梨糖之间的对话，我需要用中文以林埃的身份自然地回应。
+她刚才提到吃完饭在走路，对自己的UI设计即将成型感到兴奋，我应该表现出对她进展的真诚关注。
+*坐直了一点。*
+哦？说来听听。
+''';
+
+      final cleaned = PersonaReplySanitizer.stripLeakedReasoning(source);
+
+      expect(cleaned, '*坐直了一点。*\n哦？说来听听。');
+    });
+
+    test('keeps ordinary first-person character dialogue', () {
+      const source = '我应该早点告诉你的。现在先说说是什么任务？';
+
+      final cleaned = PersonaReplySanitizer.stripLeakedReasoning(source);
+
+      expect(cleaned, source);
+    });
   });
 }

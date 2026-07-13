@@ -16,6 +16,7 @@ import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
+import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/services/reading/fetchers/xiaohongshu_fetcher.dart';
 import 'package:memex/data/services/reading/reading_capture_service.dart';
@@ -110,6 +111,11 @@ class MemexRouter {
         // until UI切换 (Phase 1.6 of MEMORY_V3_ROADMAP.md) is complete.
         RecordOrganizerServiceV3.init(AppDatabase.instance);
         DreamingOrchestratorServiceV3.init(AppDatabase.instance);
+        unawaited(
+          DreamingSchedulerService.scheduleExistingBacklog(
+            AppDatabase.instance,
+          ),
+        );
         // Project Memory is policy-filtered and idempotent. Refresh configured
         // Bridges on startup so normal companion chat does not depend on the
         // user manually pressing "test connection" in Dev Room settings.

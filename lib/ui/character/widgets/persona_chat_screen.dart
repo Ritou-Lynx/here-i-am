@@ -66,7 +66,6 @@ Color get _personaLine => HereIamThemeRuntime.current.surfaceDeep;
 const _voiceModeIdleFollowUpSilenceTimeout = Duration(seconds: 10);
 const _voiceModeMaxRecordingDuration = Duration(seconds: 120);
 const _voiceModeMaxSilentFollowUps = 8;
-const _composerStaleGuardDuration = Duration(seconds: 2);
 const _composerStaleGuardPollDelays = <Duration>[
   Duration(milliseconds: 50),
   Duration(milliseconds: 150),
@@ -190,7 +189,24 @@ bool personaChatComposerTextLooksLikeSentRemnant({
   // Chinese IMEs and speech input can commit only the final phrase after the
   // app has already cleared the composer. Guard only non-trivial suffixes so a
   // quick new reply like "好" is not swallowed.
-  return currentCore.runes.length >= 3 && sentCore.endsWith(currentCore);
+  final currentRunes = currentCore.runes.toList(growable: false);
+  if (currentRunes.length >= 3 && sentCore.endsWith(currentCore)) return true;
+
+  // A delayed IME commit may also rewrite the boundary at the start of the
+  // restored tail (for example "走一段嘛，现在" becomes "走一段。现在"). Treat
+  // it as stale when a sufficiently long ending still covers most of the
+  // current value. Requiring both six runes and 70% coverage avoids swallowing
+  // an unrelated new draft that merely ends with a common short phrase.
+  final sentRunes = sentCore.runes.toList(growable: false);
+  var commonSuffixLength = 0;
+  while (commonSuffixLength < currentRunes.length &&
+      commonSuffixLength < sentRunes.length &&
+      currentRunes[currentRunes.length - 1 - commonSuffixLength] ==
+          sentRunes[sentRunes.length - 1 - commonSuffixLength]) {
+    commonSuffixLength++;
+  }
+  return commonSuffixLength >= 6 &&
+      commonSuffixLength / currentRunes.length >= 0.7;
 }
 
 String _normalizeComposerGuardText(String text) =>
@@ -200,6 +216,41 @@ String _stripComposerGuardEdgePunctuation(String text) {
   return text
       .replaceAll(RegExp(r'^[\s，。！？；：,.!?;:、]+'), '')
       .replaceAll(RegExp(r'[\s，。！？；：,.!?;:、]+$'), '');
+}
+
+/// Keeps a sent composer value quarantined until the next genuine edit.
+///
+/// Some Android IMEs commit the old composing region well after the field was
+/// cleared (sometimes after the two-second window used by the old guard). An
+/// elapsed-time cutoff therefore cannot reliably distinguish that stale commit
+/// from a new draft. Empty notifications keep the guard armed; the first
+/// non-matching edit proves that a new input session has started and disarms it.
+@visibleForTesting
+class PersonaChatComposerStaleGuard {
+  String? _sentText;
+
+  bool get isArmed => _sentText != null;
+
+  void arm(String? sentText) {
+    final normalized = _normalizeComposerGuardText(sentText ?? '');
+    _sentText = normalized.isEmpty ? null : normalized;
+  }
+
+  void disarm() => _sentText = null;
+
+  bool shouldClear(String currentText) {
+    final sentText = _sentText;
+    if (sentText == null || currentText.trim().isEmpty) return false;
+    if (personaChatComposerTextLooksLikeSentRemnant(
+      currentText: currentText,
+      sentText: sentText,
+    )) {
+      return true;
+    }
+
+    disarm();
+    return false;
+  }
 }
 
 /// 1-on-1 chat screen with an AI companion character.
@@ -313,9 +364,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _mediaButtonsActivating = false;
   bool _refreshingMessages = false;
   int _composerClearToken = 0;
-  String? _composerStaleText;
-  Timer? _composerStaleGuardTimer;
-  DateTime? _composerStaleGuardUntil;
+  final _composerStaleGuard = PersonaChatComposerStaleGuard();
   bool _isProgrammaticComposerClear = false;
   final _messageKeys = <int, GlobalKey>{};
   Timer? _highlightTimer;
@@ -1208,7 +1257,6 @@ only after you have written the goodbye you want the user to hear.''',
       _onConversationCaptureRemembered,
     );
     _scrollController.removeListener(_onScroll);
-    _composerStaleGuardTimer?.cancel();
     _textController.removeListener(_onComposerTextChanged);
     _textController.dispose();
     _scrollController.dispose();
@@ -1882,10 +1930,9 @@ only after you have written the goodbye you want the user to hear.''',
   void _clearComposerText({String? staleText}) {
     final token = ++_composerClearToken;
     _armComposerStaleGuard(staleText);
-    // Force the IME to finalize any composing region before we clear.
-    // Without this, Chinese IMEs may commit composing text *after* we
-    // read/clear the field, leaving residue that doesn't match staleText.
-    _textController.clearComposing();
+    // Replace text, selection, and composing range atomically. Calling
+    // clearComposing() first emits an intermediate controller value; Gboard and
+    // other IMEs can respond by restoring that composing region.
     _setComposerTextEmpty();
 
     // IMEs (especially Chinese) can restore composing text across multiple
@@ -1923,25 +1970,7 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   void _armComposerStaleGuard(String? staleText) {
-    final normalized = _normalizeComposerGuardText(staleText ?? '');
-    if (normalized.isEmpty) {
-      _disarmComposerStaleGuard();
-      return;
-    }
-    _composerStaleText = normalized;
-    _composerStaleGuardUntil = DateTime.now().add(_composerStaleGuardDuration);
-    _composerStaleGuardTimer?.cancel();
-    _composerStaleGuardTimer = Timer(
-      _composerStaleGuardDuration,
-      _disarmComposerStaleGuard,
-    );
-  }
-
-  void _disarmComposerStaleGuard() {
-    _composerStaleText = null;
-    _composerStaleGuardUntil = null;
-    _composerStaleGuardTimer?.cancel();
-    _composerStaleGuardTimer = null;
+    _composerStaleGuard.arm(staleText);
   }
 
   void _onComposerTextChanged() {
@@ -1950,25 +1979,9 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   bool _clearComposerIfStaleText() {
-    final staleText = _composerStaleText;
-    final guardUntil = _composerStaleGuardUntil;
-    if (staleText == null || guardUntil == null) return false;
-    if (DateTime.now().isAfter(guardUntil)) {
-      _disarmComposerStaleGuard();
-      return false;
-    }
-
     final currentText = _textController.text;
-    if (currentText.trim().isEmpty) return false;
-    if (!personaChatComposerTextLooksLikeSentRemnant(
-      currentText: currentText,
-      sentText: staleText,
-    )) {
-      _disarmComposerStaleGuard();
-      return false;
-    }
+    if (!_composerStaleGuard.shouldClear(currentText)) return false;
 
-    _textController.clearComposing();
     _setComposerTextEmpty();
     return true;
   }
@@ -2213,7 +2226,8 @@ only after you have written the goodbye you want the user to hear.''',
     });
   }
 
-  void _scrollToMessage(int messageId, {double alignment = 0.45, int newerCount = 0}) {
+  void _scrollToMessage(int messageId,
+      {double alignment = 0.45, int newerCount = 0}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
       const avgItemHeight = 80.0;
@@ -2224,7 +2238,8 @@ only after you have written the goodbye you want the user to hear.''',
     });
   }
 
-  void _ensureVisibleWithRetry(int messageId, {double alignment = 0.45, int retriesLeft = 3}) {
+  void _ensureVisibleWithRetry(int messageId,
+      {double alignment = 0.45, int retriesLeft = 3}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final messageContext = _messageKeys[messageId]?.currentContext;
@@ -2242,7 +2257,8 @@ only after you have written the goodbye you want the user to hear.''',
       final nudge = pos.viewportDimension * 0.8;
       final next = (pos.pixels + nudge).clamp(0.0, pos.maxScrollExtent);
       _scrollController.jumpTo(next);
-      _ensureVisibleWithRetry(messageId, alignment: alignment, retriesLeft: retriesLeft - 1);
+      _ensureVisibleWithRetry(messageId,
+          alignment: alignment, retriesLeft: retriesLeft - 1);
     });
   }
 
@@ -2597,8 +2613,7 @@ only after you have written the goodbye you want the user to hear.''',
         defaultClientKey: LLMConfig.defaultClientKey,
       );
 
-      final result =
-          await RecordOrganizerServiceV3.instance.organizeAndPersist(
+      final result = await RecordOrganizerServiceV3.instance.organizeAndPersist(
         client: resources.client,
         modelConfig: resources.modelConfig,
         source: RecordSource(
@@ -3594,7 +3609,8 @@ only after you have written the goodbye you want the user to hear.''',
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   Padding(
-                                    padding: const EdgeInsets.only(left: 2, right: 6),
+                                    padding: const EdgeInsets.only(
+                                        left: 2, right: 6),
                                     child: Icon(
                                       isSelected
                                           ? Icons.check_circle
@@ -3602,24 +3618,28 @@ only after you have written the goodbye you want the user to hear.''',
                                       size: 22,
                                       color: isSelected
                                           ? _personaAccent
-                                          : _personaTextMuted.withValues(alpha: 0.4),
+                                          : _personaTextMuted.withValues(
+                                              alpha: 0.4),
                                     ),
                                   ),
                                   Expanded(
                                     child: Column(
                                       children: [
-                                        if (showDate) _buildDateDivider(msg.timestamp),
+                                        if (showDate)
+                                          _buildDateDivider(msg.timestamp),
                                         if (msg.messageType == 'action')
                                           _buildActionMessage(text: msg.content)
                                         else if (msg.isFromCharacter)
-                                          _buildCharacterMessage(msg, isStreaming: false)
+                                          _buildCharacterMessage(msg,
+                                              isStreaming: false)
                                         else
                                           _buildBubble(
                                             text: msg.content,
                                             isCharacter: msg.isFromCharacter,
                                             message: msg,
                                             messageId: msg.id.toString(),
-                                            attachmentsJson: msg.attachmentsJson,
+                                            attachmentsJson:
+                                                msg.attachmentsJson,
                                           ),
                                       ],
                                     ),
@@ -3633,7 +3653,8 @@ only after you have written the goodbye you want the user to hear.''',
                                 if (msg.messageType == 'action')
                                   _buildActionMessage(text: msg.content)
                                 else if (msg.isFromCharacter)
-                                  _buildCharacterMessage(msg, isStreaming: false)
+                                  _buildCharacterMessage(msg,
+                                      isStreaming: false)
                                 else
                                   _buildBubble(
                                     text: msg.content,
@@ -4317,8 +4338,7 @@ only after you have written the goodbye you want the user to hear.''',
                 onLongPress: hasActions
                     ? () {
                         HapticFeedback.mediumImpact();
-                        final msgId =
-                            int.tryParse(messageId.split(':').first);
+                        final msgId = int.tryParse(messageId.split(':').first);
                         setState(() {
                           _isSelecting = true;
                           if (msgId != null) _selectedMessageIds.add(msgId);
