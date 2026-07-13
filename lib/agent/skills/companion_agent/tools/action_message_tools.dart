@@ -8,6 +8,7 @@ import 'package:memex/data/services/persona_chat_service.dart';
 /// chat UI — no speech bubble, italic text, centred.
 class ActionMessageToolFactory {
   final String characterId;
+  final Set<String> _sentActionKeys = <String>{};
 
   ActionMessageToolFactory({required this.characterId});
 
@@ -37,6 +38,10 @@ Do NOT put dialogue or spoken words in this tool.''',
         if (trimmed.isEmpty) {
           return 'Error: action text cannot be empty.';
         }
+        final actionKey = _canonicalActionKey(trimmed);
+        if (!_sentActionKeys.add(actionKey)) {
+          return 'Action message already sent in this turn. Do not send it again.';
+        }
         // Wrap in asterisks if not already wrapped.
         final wrapped = (trimmed.startsWith('*') && trimmed.endsWith('*'))
             ? trimmed
@@ -49,9 +54,20 @@ Do NOT put dialogue or spoken words in this tool.''',
           );
           return 'Action message sent.';
         } catch (e) {
+          _sentActionKeys.remove(actionKey);
           return 'Error sending action message: $e';
         }
       },
     );
+  }
+
+  static String _canonicalActionKey(String action) {
+    var normalized = action.trim();
+    while (normalized.length >= 2 &&
+        normalized.startsWith('*') &&
+        normalized.endsWith('*')) {
+      normalized = normalized.substring(1, normalized.length - 1).trim();
+    }
+    return normalized.replaceAll(RegExp(r'\s+'), ' ');
   }
 }

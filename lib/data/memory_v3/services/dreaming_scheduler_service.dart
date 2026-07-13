@@ -75,17 +75,11 @@ class DreamingSchedulerService {
     if (!Platform.isAndroid) return;
 
     try {
-      if (!await shouldScheduleEventDrivenBatch(
+      final initialDelay = await eventDrivenScheduleDelay(
         db: db,
         characterId: characterId,
-      )) {
-        return;
-      }
-
-      final chatAge = await _latestChatAge(db, characterId) ?? Duration.zero;
-      final initialDelay = chatAge >= eventDrivenIdleDelay
-          ? Duration.zero
-          : eventDrivenIdleDelay - chatAge;
+      );
+      if (initialDelay == null) return;
 
       await Workmanager().registerOneOffTask(
         eventDrivenTaskUniqueName,
@@ -136,17 +130,47 @@ class DreamingSchedulerService {
     required String characterId,
     DateTime? now,
   }) async {
+    return await eventDrivenScheduleDelay(
+          db: db,
+          characterId: characterId,
+          now: now,
+        ) !=
+        null;
+  }
+
+  /// Return the delay for a one-off batch, or null when there is not yet enough
+  /// first-run data. Sparse post-batch messages are scheduled for the future so
+  /// they cannot fall through to the four-hour fallback merely because the
+  /// 60-minute interval had not elapsed at insert time.
+  static Future<Duration?> eventDrivenScheduleDelay({
+    required AppDatabase db,
+    required String characterId,
+    DateTime? now,
+  }) async {
+    final currentTime = now ?? DateTime.now();
     final snapshot = await _loadBatchTriggerSnapshot(
       db,
       characterId,
-      now: now,
+      now: currentTime,
     );
-    if (snapshot.pendingChatCount == 0) return false;
+    if (snapshot.pendingChatCount == 0) return null;
     if (snapshot.lastRunTime == null) {
-      return snapshot.pendingChatCount >= eventDrivenInitialChatThreshold;
+      if (snapshot.pendingChatCount < eventDrivenInitialChatThreshold) {
+        return null;
+      }
     }
-    if (snapshot.pendingChatCount >= eventDrivenChatThreshold) return true;
-    return snapshot.elapsedSinceLastRun >= minBatchInterval;
+
+    final chatAge = snapshot.latestChatTime == null
+        ? Duration.zero
+        : currentTime.difference(snapshot.latestChatTime!);
+    final idleRemaining = _remaining(eventDrivenIdleDelay, chatAge);
+    final intervalRemaining = snapshot.lastRunTime != null &&
+            snapshot.pendingChatCount < eventDrivenChatThreshold
+        ? _remaining(minBatchInterval, snapshot.elapsedSinceLastRun)
+        : Duration.zero;
+    return idleRemaining >= intervalRemaining
+        ? idleRemaining
+        : intervalRemaining;
   }
 
   /// Start the periodic lightweight tick while the app is visible.
@@ -411,26 +435,44 @@ class DreamingSchedulerService {
           ))
         .getSingle();
     final pendingChatCount = countRow.read(countExpression) ?? 0;
+    final latestChat = await (db.select(db.personaChatMessages)
+          ..where((t) =>
+              t.characterId.equals(characterId) & t.messageType.equals('chat'))
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.timestamp),
+            (t) => OrderingTerm.desc(t.id),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
     final currentTime = now ?? DateTime.now();
 
     return _BatchTriggerSnapshot(
       lastRunTime: lastRunTime,
+      latestChatTime: latestChat?.timestamp,
       pendingChatCount: pendingChatCount,
       elapsedSinceLastRun: lastRunTime == null
           ? Duration.zero
           : currentTime.difference(lastRunTime),
     );
   }
+
+  static Duration _remaining(Duration required, Duration elapsed) {
+    if (elapsed >= required) return Duration.zero;
+    if (elapsed.isNegative) return required;
+    return required - elapsed;
+  }
 }
 
 class _BatchTriggerSnapshot {
   const _BatchTriggerSnapshot({
     required this.lastRunTime,
+    required this.latestChatTime,
     required this.pendingChatCount,
     required this.elapsedSinceLastRun,
   });
 
   final DateTime? lastRunTime;
+  final DateTime? latestChatTime;
   final int pendingChatCount;
   final Duration elapsedSinceLastRun;
 }

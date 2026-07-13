@@ -40,32 +40,49 @@ void main() {
     );
   });
 
-  test('after a recent batch 100 new chat messages schedule immediately',
+  test('sparse messages are scheduled for the remaining batch interval',
       () async {
     final now = DateTime(2026, 7, 13, 20);
     await _writeBatchState(db, lastRun: now, watermark: 0);
-    await _insertChatMessages(db, count: 99);
+    await _insertChatMessages(
+      db,
+      count: 1,
+      timestamp: now.add(const Duration(minutes: 10)),
+    );
+
+    final delay = await DreamingSchedulerService.eventDrivenScheduleDelay(
+      db: db,
+      characterId: 'i',
+      now: now.add(const Duration(minutes: 10)),
+    );
+
+    expect(delay, const Duration(minutes: 50));
+  });
+
+  test('100 new chat messages only wait for chat idle', () async {
+    final now = DateTime(2026, 7, 13, 20);
+    await _writeBatchState(db, lastRun: now, watermark: 0);
+    await _insertChatMessages(
+      db,
+      count: 99,
+      timestamp: now.add(const Duration(minutes: 10)),
+    );
     await _insertActionMessage(db);
 
-    expect(
-      await DreamingSchedulerService.shouldScheduleEventDrivenBatch(
-        db: db,
-        characterId: 'i',
-        now: now.add(const Duration(minutes: 10)),
-      ),
-      isFalse,
+    await _insertChatMessages(
+      db,
+      count: 1,
+      start: 100,
+      timestamp: now.add(const Duration(minutes: 10)),
     );
 
-    await _insertChatMessages(db, count: 1, start: 100);
-
-    expect(
-      await DreamingSchedulerService.shouldScheduleEventDrivenBatch(
-        db: db,
-        characterId: 'i',
-        now: now.add(const Duration(minutes: 10)),
-      ),
-      isTrue,
+    final delay = await DreamingSchedulerService.eventDrivenScheduleDelay(
+      db: db,
+      characterId: 'i',
+      now: now.add(const Duration(minutes: 10)),
     );
+
+    expect(delay, const Duration(minutes: 30));
   });
 
   test('one new chat schedules when the previous batch is over an hour old',
@@ -89,6 +106,7 @@ Future<void> _insertChatMessages(
   AppDatabase db, {
   required int count,
   int start = 1,
+  DateTime? timestamp,
 }) async {
   for (var i = 0; i < count; i++) {
     await db.into(db.personaChatMessages).insert(
@@ -96,7 +114,8 @@ Future<void> _insertChatMessages(
             characterId: 'i',
             isFromCharacter: (start + i).isEven,
             content: 'chat ${start + i}',
-            timestamp: DateTime(2026, 7, 13, 12).add(Duration(minutes: i)),
+            timestamp:
+                timestamp ?? DateTime(2026, 7, 13, 12).add(Duration(minutes: i)),
           ),
         );
   }

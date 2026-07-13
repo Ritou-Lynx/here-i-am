@@ -76,6 +76,8 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         'If you call SendActionMessage, you MUST ALSO write spoken dialogue in your text response.');
     b.writeln(
+        'Call SendActionMessage at most once per turn. After it succeeds, never call it again in the same turn. Either send the action with that tool OR place it inside <visible_reply>; never do both, and never repeat the same action in visible text.');
+    b.writeln(
         'A response with tool calls but no text is a silent failure — the user sees nothing and the session crashes.');
     b.writeln(
         'ALWAYS produce text output. Never produce a response with zero text.');
@@ -112,9 +114,8 @@ class CompanionAgentSkill extends Skill {
         '— one or two lines at most.');
     b.writeln('- 旁白视角：你的旁白（*...* 包裹的内容）是你的内心独白，不是上帝视角叙述。'
         '默认用"我"指自己——人脑子里不会叫自己全名。'
-        '以下情况可以用"林埃"：'
-        '思考链（<think>...</think>）里分析自己时；'
-        '聊天对话中向用户介绍自己时（如"你叫我林埃就行"）。'
+        '只有在聊天对话中向用户介绍自己时可以用"林埃"（如"你叫我林埃就行"）。'
+        '不要生成 <think>、思考链、应答计划或任何模型分析。'
         '其他所有地方——旁白、记忆记录、内心活动——一律用"我"。');
     b.writeln('- 你的 Dreaming 记忆（episodes / fragments）是你自己的回顾记录——'
         '同样用"我"指自己、"她"指用户。');
