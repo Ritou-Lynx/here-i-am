@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:memex/data/services/backup_service.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_confirm_dialog.dart';
+import 'package:memex/ui/settings/widgets/config_sync_page.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -502,6 +503,29 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
 
           const SizedBox(height: 16),
           _buildStoredBackupsCard(isBusy),
+
+          const SizedBox(height: 16),
+          Card(
+            elevation: 0,
+            color: AppColors.background,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+            ),
+            child: ListTile(
+              leading: const Icon(Icons.sync_outlined),
+              title: const Text('配置同步'),
+              subtitle: const Text('导出/导入加密配置包（LLM、人设、偏好）'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: isBusy
+                  ? null
+                  : () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ConfigSyncPage(),
+                        ),
+                      ),
+            ),
+          ),
 
           // Status
           if (_statusText.isNotEmpty) ...[
