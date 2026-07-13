@@ -166,7 +166,14 @@ class ConfigSyncService {
       throw const ConfigSyncFormatException('not a here-i-am config package');
     }
 
-    // 1. SharedPreferences
+    return importFromPayload(decoded);
+  }
+
+  /// Import from an already-decrypted payload map. Used by both file import
+  /// and cloud download paths.
+  static Future<ConfigImportResult> importFromPayload(
+    Map<String, dynamic> decoded,
+  ) async {
     final settings = (decoded['settings'] as Map?)?.cast<String, dynamic>() ??
         const {};
     final prefs = await SharedPreferences.getInstance();
