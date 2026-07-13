@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
@@ -19,6 +18,7 @@ class ConfigSyncS3 {
   static final Logger _logger = getLogger('ConfigSyncS3');
 
   static const String objectKey = 'here-i-am/config_latest.memexcfg';
+  static const String dataObjectKey = 'here-i-am/data_latest.memexdata';
 
   static Minio _client(S3Config config) {
     return Minio(
@@ -38,8 +38,9 @@ class ConfigSyncS3 {
   /// Returns the ETag on success.
   static Future<String> upload(
     S3Config config,
-    Map<String, dynamic> envelope,
-  ) async {
+    Map<String, dynamic> envelope, {
+    String targetObjectKey = objectKey,
+  }) async {
     final minio = _client(config);
 
     final exists = await minio.bucketExists(config.bucket);
@@ -54,20 +55,24 @@ class ConfigSyncS3 {
 
     final etag = await minio.putObject(
       config.bucket,
-      objectKey,
+      targetObjectKey,
       stream,
       size: bytes.length,
       metadata: {'Content-Type': 'application/json'},
     );
 
-    _logger.info('Config uploaded to s3://${config.bucket}/$objectKey '
+    _logger.info('Encrypted package uploaded to '
+        's3://${config.bucket}/$targetObjectKey '
         '(${bytes.length} bytes, etag: $etag)');
     return etag;
   }
 
   /// Download the encrypted config envelope from S3.
   /// Returns the parsed JSON map (still encrypted — caller decrypts).
-  static Future<Map<String, dynamic>> download(S3Config config) async {
+  static Future<Map<String, dynamic>> download(
+    S3Config config, {
+    String targetObjectKey = objectKey,
+  }) async {
     final minio = _client(config);
 
     final exists = await minio.bucketExists(config.bucket);
@@ -79,11 +84,11 @@ class ConfigSyncS3 {
 
     final MinioByteStream response;
     try {
-      response = await minio.getObject(config.bucket, objectKey);
+      response = await minio.getObject(config.bucket, targetObjectKey);
     } on MinioS3Error catch (e) {
       if (e.error?.code == 'NoSuchKey') {
         throw const ConfigSyncS3Exception(
-          'No config package found in cloud. Export and upload first.',
+          'No encrypted package found in cloud. Upload one first.',
         );
       }
       rethrow;
@@ -101,17 +106,21 @@ class ConfigSyncS3 {
       envelope = jsonDecode(json) as Map<String, dynamic>;
     } on FormatException {
       throw const ConfigSyncS3Exception(
-        'Downloaded file is not a valid config package.',
+        'Downloaded file is not a valid encrypted package.',
       );
     }
 
-    _logger.info('Config downloaded from s3://${config.bucket}/$objectKey '
+    _logger.info('Encrypted package downloaded from '
+        's3://${config.bucket}/$targetObjectKey '
         '(${allBytes.length} bytes)');
     return envelope;
   }
 
   /// Check if a config package exists in the bucket.
-  static Future<ConfigSyncS3Status> status(S3Config config) async {
+  static Future<ConfigSyncS3Status> status(
+    S3Config config, {
+    String targetObjectKey = objectKey,
+  }) async {
     final minio = _client(config);
 
     final bucketOk = await minio.bucketExists(config.bucket);
@@ -123,7 +132,7 @@ class ConfigSyncS3 {
     }
 
     try {
-      final stat = await minio.statObject(config.bucket, objectKey);
+      final stat = await minio.statObject(config.bucket, targetObjectKey);
       return ConfigSyncS3Status(
         exists: true,
         lastModified: stat.lastModified,

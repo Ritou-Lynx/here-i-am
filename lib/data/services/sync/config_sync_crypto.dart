@@ -21,6 +21,10 @@ class ConfigSyncCrypto {
   static const int _tagBytes = 16;
   static const int _keyBytes = 32;
   static const int maxPackageBytes = 16 * 1024 * 1024;
+  // AES-GCM is currently one-shot in the Dart implementation. Keep a hard
+  // ceiling to avoid multiplying memory usage on mobile while framing,
+  // encrypting and JSON-encoding a snapshot.
+  static const int maxDataPackageBytes = 128 * 1024 * 1024;
 
   static const int schemaVersion = 1;
   static const String envelopeType = 'i.device-sync.encrypted';
@@ -34,12 +38,35 @@ class ConfigSyncCrypto {
     Object? value,
     String passphrase,
   ) async {
+    return _sealPlaintext(utf8.encode(jsonEncode(value)), passphrase);
+  }
+
+  /// Encrypt arbitrary bytes with the same envelope used by [seal].
+  ///
+  /// Data snapshots use this to avoid base64-encoding a backup inside another
+  /// base64-encoded ciphertext. The envelope remains the shared AES-GCM
+  /// format; callers are responsible for framing and identifying the bytes.
+  static Future<Map<String, dynamic>> sealBytes(
+    List<int> bytes,
+    String passphrase,
+  ) {
+    if (bytes.length > maxDataPackageBytes) {
+      throw const ConfigSyncFormatException(
+        'data package is too large for on-device encryption',
+      );
+    }
+    return _sealPlaintext(bytes, passphrase);
+  }
+
+  static Future<Map<String, dynamic>> _sealPlaintext(
+    List<int> plaintext,
+    String passphrase,
+  ) async {
     _requirePassphrase(passphrase);
     final salt = _randomBytes(_saltBytes);
     final iv = _randomBytes(_ivBytes);
     final key = await _deriveKey(passphrase, salt);
 
-    final plaintext = utf8.encode(jsonEncode(value));
     final algorithm = AesGcm.with256bits(nonceLength: _ivBytes);
     final secretBox = await algorithm.encrypt(
       plaintext,
@@ -72,6 +99,33 @@ class ConfigSyncCrypto {
     Map<String, dynamic> envelope,
     String passphrase,
   ) async {
+    final plaintext = await _openPlaintext(
+      envelope,
+      passphrase,
+      maxCiphertextBytes: maxPackageBytes,
+    );
+    return jsonDecode(utf8.decode(plaintext));
+  }
+
+  /// Decrypt an arbitrary-byte envelope produced by [sealBytes].
+  static Future<Uint8List> openBytes(
+    Map<String, dynamic> envelope,
+    String passphrase, {
+    int maxCiphertextBytes = maxDataPackageBytes,
+  }) async {
+    final plaintext = await _openPlaintext(
+      envelope,
+      passphrase,
+      maxCiphertextBytes: maxCiphertextBytes,
+    );
+    return Uint8List.fromList(plaintext);
+  }
+
+  static Future<List<int>> _openPlaintext(
+    Map<String, dynamic> envelope,
+    String passphrase, {
+    required int maxCiphertextBytes,
+  }) async {
     _requirePassphrase(passphrase);
     _validateEnvelope(envelope);
 
@@ -85,7 +139,7 @@ class ConfigSyncCrypto {
     if (salt.length != _saltBytes ||
         iv.length != _ivBytes ||
         tag.length != _tagBytes ||
-        ciphertext.length > maxPackageBytes) {
+        ciphertext.length > maxCiphertextBytes) {
       throw const ConfigSyncFormatException(
         'sync package cryptographic fields are invalid',
       );
@@ -103,7 +157,7 @@ class ConfigSyncCrypto {
         'wrong passphrase or corrupted sync package',
       );
     }
-    return jsonDecode(utf8.decode(plaintext));
+    return plaintext;
   }
 
   static void _validateEnvelope(Map<String, dynamic> envelope) {

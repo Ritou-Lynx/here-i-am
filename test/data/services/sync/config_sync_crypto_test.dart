@@ -22,6 +22,15 @@ void main() {
     expect(restored, equals(value));
   });
 
+  test('sealBytes then openBytes round-trips binary data', () async {
+    final value = List<int>.generate(1024, (index) => index % 251);
+
+    final envelope = await ConfigSyncCrypto.sealBytes(value, passphrase);
+    final restored = await ConfigSyncCrypto.openBytes(envelope, passphrase);
+
+    expect(restored, equals(value));
+  });
+
   test('envelope carries the shared gateway-compatible format', () async {
     final envelope = await ConfigSyncCrypto.seal({'a': 1}, passphrase);
 
@@ -47,8 +56,7 @@ void main() {
     final envelope = await ConfigSyncCrypto.seal({'a': 1}, passphrase);
     final ct = envelope['ciphertext'] as String;
     // Flip the first character to reliably corrupt the ciphertext bytes.
-    envelope['ciphertext'] =
-        (ct.startsWith('A') ? 'B' : 'A') + ct.substring(1);
+    envelope['ciphertext'] = (ct.startsWith('A') ? 'B' : 'A') + ct.substring(1);
 
     expect(
       () => ConfigSyncCrypto.open(envelope, passphrase),
