@@ -25,6 +25,22 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/time_context.dart';
 
+/// Thrown when a companion chat turn fails because of an API/connection error
+/// (quota exhausted, timeout, 4xx/5xx from the provider) rather than a normal
+/// empty response. The UI catches this to show a transient retry prompt instead
+/// of persisting the raw error as a chat message (which would also pollute
+/// Dreaming extraction).
+class CompanionApiException implements Exception {
+  CompanionApiException(this.cause, [this.stackTrace]);
+
+  /// Full underlying error, for logs / Lab debug only — never shown to the user.
+  final Object cause;
+  final StackTrace? stackTrace;
+
+  @override
+  String toString() => 'CompanionApiException: $cause';
+}
+
 /// Companion chat agent implemented with StatefulAgent for architecture parity
 /// with other scene agents (e.g., CommentAgent).
 class CompanionAgent {
@@ -1041,11 +1057,13 @@ class CompanionAgent {
           yield recoveredText;
         }
       } else {
-        if (debugErrorOutput) {
-          yield '\n[Connection interrupted: $e]';
-        } else {
-          yield '\n[Connection interrupted]';
-        }
+        // Real API/connection failure (quota exhausted, 4xx/5xx, timeout).
+        // Throw a typed exception instead of yielding the raw error as chat
+        // text — otherwise the error dump gets persisted as a character
+        // message and later ingested into Dreaming. The UI catches this and
+        // shows a transient toast without saving anything. Full detail
+        // ($e) is preserved on the exception for logs/Lab, never shown raw.
+        throw CompanionApiException(e, st);
       }
     }
   }

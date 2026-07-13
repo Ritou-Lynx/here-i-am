@@ -1757,6 +1757,46 @@ only after you have written the goodbye you want the user to hear.''',
           ));
         }
       }
+    } on CompanionApiException catch (e) {
+      // API/connection failure (quota exhausted, 4xx/5xx, timeout). Nothing was
+      // yielded, so there is no partial reply to persist — and critically, we do
+      // NOT write the raw error as a character message (that would both look bad
+      // and pollute Dreaming extraction). Full detail goes to logs only; the
+      // user sees a transient toast with a Retry action.
+      debugPrint('CompanionApiException during send: ${e.cause}');
+      if (_isSendCanceled(sendSerial, userMessageId)) {
+        _finishCanceledSend(sendSerial);
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _isStreaming = false;
+          _streamingText = '';
+        });
+        _finishActiveSend(sendSerial);
+        final isViewingSendCharacter = _currentCharacterId == sendCharacterId;
+        // Only offer retry for a real persisted user message (id > 0). Synthetic
+        // turns (negative id) have no stored message to regenerate from.
+        final canRetry = isViewingSendCharacter && userMessageId > 0;
+        ScaffoldMessenger.of(context).showToast(
+          _chatUiText(
+            zh: '连接不太稳，消息没发出去',
+            en: 'Connection unstable, message not sent',
+          ),
+          duration: const Duration(seconds: 5),
+          actionLabel: canRetry ? _chatUiText(zh: '重试', en: 'Retry') : null,
+          onAction: canRetry
+              ? () => _retryLastSend(
+                    characterId: sendCharacterId,
+                    character: sendCharacter,
+                    userMessageId: userMessageId,
+                    text: textToSend,
+                    timestamp: userMessageTime,
+                  )
+              : null,
+        );
+        _sendPendingMessage();
+      }
     } catch (e) {
       if (_isSendCanceled(sendSerial, userMessageId)) {
         _finishCanceledSend(sendSerial);
@@ -1815,6 +1855,28 @@ only after you have written the goodbye you want the user to hear.''',
         _sendPendingMessage();
       }
     }
+  }
+
+  /// Regenerates a character reply for an already-persisted user message after
+  /// an API failure. Reuses the queued-message path so the user message is not
+  /// re-persisted (no duplicate) and history/recall see it exactly once.
+  void _retryLastSend({
+    required String characterId,
+    required CharacterModel? character,
+    required int userMessageId,
+    required String text,
+    required DateTime timestamp,
+  }) {
+    if (_isStreaming) return;
+    final retryMessage = _PendingPersonaChatMessage(
+      characterId: characterId,
+      character: character,
+      messageId: userMessageId,
+      timestamp: timestamp,
+      text: text,
+      images: const [],
+    );
+    unawaited(_sendMessage(queuedMessage: retryMessage));
   }
 
   void _clearComposerText({String? staleText}) {

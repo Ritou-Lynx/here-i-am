@@ -8,6 +8,8 @@ extension ShowToast on ScaffoldMessengerState {
   ScaffoldFeatureController<SnackBar, SnackBarClosedReason> showToast(
     String message, {
     Duration duration = const Duration(seconds: 1),
+    String? actionLabel,
+    VoidCallback? onAction,
   }) {
     hideCurrentSnackBar();
     return showSnackBar(
@@ -35,6 +37,13 @@ extension ShowToast on ScaffoldMessengerState {
         ),
         backgroundColor: const Color(0xFF241319).withValues(alpha: 0.88),
         elevation: 0,
+        action: (actionLabel != null && onAction != null)
+            ? SnackBarAction(
+                label: actionLabel,
+                textColor: const Color(0xFFFFC6B5),
+                onPressed: onAction,
+              )
+            : null,
       ),
     );
   }
