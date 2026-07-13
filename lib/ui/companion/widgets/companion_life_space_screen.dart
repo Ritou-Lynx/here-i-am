@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:memex/data/services/ai_finance_service.dart';
+import 'package:memex/db/app_database.dart';
+import 'package:memex/ui/companion/view_models/ledger_view_model.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:provider/provider.dart';
 
 import 'companion_health_panel.dart';
+import 'companion_ledger_panel.dart';
 import 'companion_review_screen.dart';
 
 /// Secondary life space. Chat remains the app home; this screen is opened only
@@ -15,10 +20,14 @@ class CompanionLifeSpaceScreen extends StatefulWidget {
   const CompanionLifeSpaceScreen({
     super.key,
     this.timelineViewModel,
+    this.financeService,
   });
 
   /// No longer used — kept for caller compatibility during transition.
   final dynamic timelineViewModel;
+
+  /// Optional injection point for tests; production uses the app database.
+  final AiFinanceService? financeService;
 
   @override
   State<CompanionLifeSpaceScreen> createState() =>
@@ -40,6 +49,7 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
   Widget build(BuildContext context) {
     final labels = [
       UserStorage.l10n.bottomNavTimeline,
+      'Ledger',
       'Health',
       UserStorage.l10n.personalCenter,
     ];
@@ -75,7 +85,14 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
   Widget _buildTab(int index) {
     return switch (index) {
       0 => const CompanionReviewScreen(),
-      1 => const CompanionHealthPanel(),
+      1 => ChangeNotifierProvider(
+          create: (_) => LedgerViewModel(
+            service: widget.financeService ??
+                AiFinanceService(db: AppDatabase.instance),
+          )..load.execute(),
+          child: const CompanionLedgerPanel(),
+        ),
+      2 => const CompanionHealthPanel(),
       _ => const PersonalCenterScreen(),
     };
   }

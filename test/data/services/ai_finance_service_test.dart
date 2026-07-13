@@ -211,5 +211,67 @@ void main() {
       expect(entries, hasLength(2));
       expect(summary['income'], 600);
     });
+
+    test('builds a real cash overview and derived user/AI split', () async {
+      await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'income',
+        totalAmount: 1000,
+        aiAmount: 300,
+        purpose: '制作收入',
+      );
+      await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'cost',
+        totalAmount: 100,
+        aiAmount: 80,
+        purpose: 'API 套餐',
+      );
+      await service.recordEntry(
+        characterId: 'char-a',
+        entryType: 'reward',
+        totalAmount: 20,
+        aiAmount: 20,
+        purpose: '奖励',
+      );
+      await service.recordEntry(
+        characterId: 'char-a',
+        entryType: 'penalty',
+        totalAmount: 10,
+        aiAmount: 10,
+        purpose: '罚款',
+      );
+
+      final overview = await service.getLedgerOverview();
+
+      expect(overview['external_income'], 1000);
+      expect(overview['external_expense'], 100);
+      expect(overview['cash_net'], 900);
+      expect(overview['my_income_share'], 700);
+      expect(overview['my_expense_share'], 20);
+      expect(overview['my_allocated_net'], 690);
+      expect(overview['ai_income_share'], 300);
+      expect(overview['ai_expense_share'], 80);
+      expect(overview['ai_all_time_balance'], 210);
+      expect(overview['entry_count'], 4);
+    });
+
+    test('stores a manually selected occurrence date', () async {
+      final occurredAt = DateTime(2025, 12, 31);
+      await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'income',
+        totalAmount: 200,
+        aiAmount: 50,
+        purpose: '旧收入',
+        occurredAt: occurredAt,
+      );
+
+      final entries = await service.getRecentEntries();
+      expect(
+        entries.single['recorded_at'],
+        occurredAt.millisecondsSinceEpoch ~/ 1000,
+      );
+    });
   });
 }

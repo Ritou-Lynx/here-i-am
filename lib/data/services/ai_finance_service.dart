@@ -38,6 +38,7 @@ class AiFinanceService {
     String? purpose,
     String? linkedFactId,
     String? notes,
+    DateTime? occurredAt,
   }) async {
     final result = await recordEntryWithResult(
       characterId: characterId,
@@ -50,6 +51,7 @@ class AiFinanceService {
       purpose: purpose,
       linkedFactId: linkedFactId,
       notes: notes,
+      occurredAt: occurredAt,
     );
     return result.id;
   }
@@ -65,10 +67,11 @@ class AiFinanceService {
     String? purpose,
     String? linkedFactId,
     String? notes,
+    DateTime? occurredAt,
   }) async {
     return _recordLock.synchronized(() async {
       final id = _uuid.v4();
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final now = (occurredAt ?? DateTime.now()).millisecondsSinceEpoch ~/ 1000;
       final normalizedEntryType = entryType.trim().toLowerCase();
       final duplicate = await _findDuplicateEntry(
         entryType: normalizedEntryType,
@@ -106,6 +109,99 @@ class AiFinanceService {
       ));
       return AiFinanceRecordResult(id: id, created: true);
     });
+  }
+
+  /// Returns the user-facing real ledger alongside the derived AI position.
+  ///
+  /// Income and cost are external cash movements. Reward, penalty, loan and
+  /// repayment are internal settlements between the user and the shared AI
+  /// account, so they change each side's allocation without changing the
+  /// external cash result.
+  Future<Map<String, dynamic>> getLedgerOverview({
+    String? month,
+  }) async {
+    int? sinceEpoch;
+    int? untilEpoch;
+    if (month != null) {
+      final parts = month.split('-');
+      final start = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+      final end = DateTime(start.year, start.month + 1);
+      sinceEpoch = start.millisecondsSinceEpoch ~/ 1000;
+      untilEpoch = end.millisecondsSinceEpoch ~/ 1000 - 1;
+    }
+
+    final rows = _dedupeLedgerRows(await _dao.getSharedEntriesForPeriod(
+      sinceEpoch: sinceEpoch,
+      untilEpoch: untilEpoch,
+    ));
+    final allRows = month == null
+        ? rows
+        : _dedupeLedgerRows(await _dao.getSharedEntriesForPeriod());
+
+    Map<String, double> calculate(List<AiFinanceLedgerData> source) {
+      var externalIncome = 0.0;
+      var externalExpense = 0.0;
+      var myIncomeShare = 0.0;
+      var myExpenseShare = 0.0;
+      var receivedFromAi = 0.0;
+      var paidToAi = 0.0;
+      var loanedToAi = 0.0;
+      var repaidByAi = 0.0;
+
+      for (final row in source) {
+        final aiShare = row.aiAmount.clamp(0.0, row.totalAmount).toDouble();
+        switch (row.entryType) {
+          case 'income':
+            externalIncome += row.totalAmount;
+            myIncomeShare += row.totalAmount - aiShare;
+          case 'cost':
+            externalExpense += row.totalAmount;
+            myExpenseShare += row.totalAmount - aiShare;
+          case 'reward':
+            receivedFromAi += row.aiAmount;
+          case 'penalty':
+            paidToAi += row.aiAmount;
+          case 'loan':
+            loanedToAi += row.aiAmount;
+          case 'repayment':
+            repaidByAi += row.aiAmount;
+        }
+      }
+
+      return {
+        'external_income': externalIncome,
+        'external_expense': externalExpense,
+        'cash_net': externalIncome - externalExpense,
+        'my_income_share': myIncomeShare,
+        'my_expense_share': myExpenseShare,
+        'received_from_ai': receivedFromAi,
+        'paid_to_ai': paidToAi,
+        'loaned_to_ai': loanedToAi,
+        'repaid_by_ai': repaidByAi,
+        'my_allocated_net': myIncomeShare -
+            myExpenseShare +
+            receivedFromAi -
+            paidToAi -
+            loanedToAi +
+            repaidByAi,
+      };
+    }
+
+    final period = calculate(rows);
+    final allTime = calculate(allRows);
+    final aiSummary = await getSummary(month: month);
+    return {
+      'period': month ?? 'all_time',
+      ...period,
+      'ai_income_share': _sumAiAmount(rows, 'income'),
+      'ai_expense_share': _sumAiAmount(rows, 'cost'),
+      'ai_period_net': aiSummary['period_net'],
+      'ai_all_time_balance': aiSummary['all_time_balance'],
+      'ai_savings': aiSummary['savings'],
+      'ai_owes_user': aiSummary['owes_user'],
+      'all_time_my_allocated_net': allTime['my_allocated_net'],
+      'entry_count': rows.length,
+    };
   }
 
   /// Returns a structured summary for the shared AI ledger.
@@ -260,6 +356,10 @@ class AiFinanceService {
     return null;
   }
 }
+
+double _sumAiAmount(List<AiFinanceLedgerData> rows, String entryType) => rows
+    .where((row) => row.entryType == entryType)
+    .fold(0.0, (sum, row) => sum + row.aiAmount);
 
 bool _sameMoney(double a, double b) => (a - b).abs() < 0.005;
 
