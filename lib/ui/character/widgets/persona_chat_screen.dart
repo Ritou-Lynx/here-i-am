@@ -3296,16 +3296,21 @@ only after you have written the goodbye you want the user to hear.''',
             ),
           ],
           if (character != null) ...[
-            if (_hasUsableHeaderAvatar(character)) ...[
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => context.push(AppRoutes.aboutI),
-                child: _HeaderImageAvatar(
-                  avatar: character.avatar!,
-                  size: 42,
-                ),
-              ),
-            ],
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => context.push(AppRoutes.aboutI),
+              child: _hasUsableHeaderAvatar(character)
+                  ? _HeaderImageAvatar(
+                      avatar: character.avatar!,
+                      size: 42,
+                    )
+                  : CharacterAvatar(
+                      avatar: character.avatar,
+                      name: character.name,
+                      size: 42,
+                      backgroundColor: _personaPanelSoft,
+                    ),
+            ),
             const Spacer(),
             if (_toyControlService != null || _toyConnecting) ...[
               const SizedBox(width: 4),
