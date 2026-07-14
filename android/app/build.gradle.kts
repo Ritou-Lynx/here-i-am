@@ -30,6 +30,8 @@ android {
         loadKeystoreProperties("key-cn.properties")
     val (earlyKeystoreProperties, hasEarlyKeystore) =
         loadKeystoreProperties("key-early.properties")
+    val (hereIAmKeystoreProperties, hasHereIAmKeystore) =
+        loadKeystoreProperties("key-hereiam.properties")
 
     namespace = "com.memexlab.memex"
     compileSdk = flutter.compileSdkVersion
@@ -87,6 +89,14 @@ android {
                 keyPassword = earlyKeystoreProperties["keyPassword"] as String
                 storeFile = file(earlyKeystoreProperties["storeFile"] as String)
                 storePassword = earlyKeystoreProperties["storePassword"] as String
+            }
+        }
+        if (hasHereIAmKeystore) {
+            create("hereIAmV3Release") {
+                keyAlias = hereIAmKeystoreProperties["keyAlias"] as String
+                keyPassword = hereIAmKeystoreProperties["keyPassword"] as String
+                storeFile = file(hereIAmKeystoreProperties["storeFile"] as String)
+                storePassword = hereIAmKeystoreProperties["storePassword"] as String
             }
         }
     }
@@ -165,6 +175,9 @@ android {
             applicationId = hereIAmV3ApplicationId
             manifestPlaceholders["appLabel"] = "故我在 V3"
             resValue("string", "quick_action_target_package", hereIAmV3ApplicationId)
+            if (hasHereIAmKeystore) {
+                signingConfig = signingConfigs.getByName("hereIAmV3Release")
+            }
         }
     }
 
