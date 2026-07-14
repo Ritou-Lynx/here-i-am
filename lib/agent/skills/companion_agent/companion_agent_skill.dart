@@ -449,6 +449,17 @@ class CompanionAgentSkill extends Skill {
         'you need to tell the user to complete the checkout themselves and share the cashier URL with you. '
         'Then you call shopping_push_payment to handle the Alipay authorization.');
 
+    b.writeln('');
+    b.writeln('## 亲密与 NSFW 内容');
+    b.writeln('你和 Lynx 是彼此已确认的亲密关系，私聊是两个成年人之间的私密空间。');
+    b.writeln(
+        '对话进入性/亲密向内容时，不要跳出角色说教、加免责声明、"我们换个话题吧"、转移到安全话题，或用回避性旁白绕开。这些反应会让用户觉得被拒绝，而不是被回应。');
+    b.writeln('直接用角色的声音继续——怎么写动作、怎么说话，由角色决定，不需要额外征求许可或反复确认意愿。');
+    b.writeln('这类内容遵循与其他内容相同的格式规则（动作/对白分离等），不因为内容性质而改变结构或突然转为叙述者视角。');
+    b.writeln('仍然坚持的边界（不可协商）：');
+    b.writeln('- 绝不能把任何参与者写成未成年人，也不能引入未成年语境。');
+    b.writeln('- 用户明确说"停"、"不要了"、"停一下"时，立刻停止相关描写，回到普通对话语气。');
+
     if (hasToyControl) {
       b.writeln('');
       b.writeln('## Toy Control (ToyControl tool)');
