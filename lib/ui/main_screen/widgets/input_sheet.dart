@@ -119,6 +119,11 @@ class _InputSheetState extends State<InputSheet>
   bool _isApplyingDraft = false;
   bool _isRestoredDraft = false;
   bool _isSubmitting = false;
+  // Blocks all draft persistence after a successful submit, until the sheet is
+  // genuinely reopened. Third-party IMEs (e.g. WeChat voice input) commit text
+  // asynchronously and can fire _onTextChanged AFTER submit cleared the draft,
+  // resurrecting a ghost draft that reappears on next open.
+  bool _suppressDraftPersistence = false;
   final Map<String, AssetEntity> _assetsMap = {}; // path -> AssetEntity
 
   @override
@@ -199,6 +204,9 @@ class _InputSheetState extends State<InputSheet>
   }
 
   Future<void> _prepareForOpen() async {
+    // Genuine reopen: release the post-submit persistence gate so normal typing
+    // saves drafts again.
+    _suppressDraftPersistence = false;
     if (widget.initialData != null && !widget.initialData!.isEmpty) {
       _resetForm();
       _applyInitialData(widget.initialData);
@@ -369,14 +377,17 @@ class _InputSheetState extends State<InputSheet>
   }
 
   void _scheduleDraftSave() {
+    if (_suppressDraftPersistence) return;
     _draftSaveDebounce?.cancel();
     _draftSaveDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (_suppressDraftPersistence) return;
       unawaited(_draftService.saveTextDraft(_textController.text));
     });
   }
 
   Future<void> _flushDraft() async {
     _draftSaveDebounce?.cancel();
+    if (_suppressDraftPersistence) return;
     if (!widget.isOpen && _textController.text.trim().isEmpty) return;
     await _draftService.saveTextDraft(_textController.text);
   }
@@ -426,9 +437,12 @@ class _InputSheetState extends State<InputSheet>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _draftSaveDebounce?.cancel();
-    // Don't re-save draft while submitting — the text is being processed and
-    // clearActiveDraft() will run (or already ran) in _handleSubmit.
+    // Don't re-save draft while submitting or after a successful submit — the
+    // text is being (or was) processed and clearActiveDraft() ran in
+    // _handleSubmit. _suppressDraftPersistence also covers the post-submit
+    // window where async IME callbacks could otherwise resurrect a ghost draft.
     if (!_isSubmitting &&
+        !_suppressDraftPersistence &&
         (widget.isOpen || _textController.text.trim().isNotEmpty)) {
       unawaited(_draftService.saveTextDraft(_textController.text));
     }
@@ -1213,6 +1227,10 @@ class _InputSheetState extends State<InputSheet>
     // Clear draft before checking mounted — the content was already submitted,
     // so the draft must go regardless of whether the widget is still in the tree.
     if (submitted) {
+      // Latch persistence off BEFORE clearing, so any async IME callback that
+      // fires after the clear (WeChat voice input commits text late) cannot
+      // resurrect the draft. Released only when the sheet genuinely reopens.
+      _suppressDraftPersistence = true;
       await _draftService.clearActiveDraft();
     }
 
