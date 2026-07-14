@@ -17,6 +17,7 @@ import 'dart:convert';
 
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:drift/drift.dart';
+import 'package:memex/data/services/ai_finance_service.dart';
 import 'package:memex/data/services/proactive_outing_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
@@ -443,6 +444,17 @@ class RecordOrganizerServiceV3 {
     );
     if (!result.isEmpty) {
       unawaited(
+        _bridgeToLedger(
+          organized: organized,
+          cardIds: result.cardIds,
+          source: source,
+        ).catchError((error) {
+          _logger.warning(
+            'organizeAndPersist: ledger bridge failed: $error',
+          );
+        }),
+      );
+      unawaited(
         ProactiveOutingService.instance.refreshSchedule().catchError((error) {
           _logger.warning(
             'organizeAndPersist: proactive outing refresh failed: $error',
@@ -452,6 +464,66 @@ class RecordOrganizerServiceV3 {
       );
     }
     return result;
+  }
+
+  /// Bridge financial memory cards to the shared AI finance ledger.
+  ///
+  /// When a user records an expense or shopping order via any explicit write
+  /// path (floating ball, record button, natural command), this automatically
+  /// creates a corresponding ledger entry so the finance panel stays in sync
+  /// without requiring a separate manual "记一笔" step.
+  ///
+  /// Only `expense_entry` and `shopping_order` structured field types are
+  /// bridged. The AI share defaults to 0 (pure user expense) — the companion
+  /// can later adjust via AiFinanceRecord if the expense is shared.
+  Future<void> _bridgeToLedger({
+    required OrganizedRecord organized,
+    required List<String> cardIds,
+    required RecordSource source,
+  }) async {
+    final financeService = AiFinanceService(db: _db);
+    for (var i = 0; i < organized.cards.length; i++) {
+      final card = organized.cards[i];
+      final sfType = card.structuredFieldsType;
+      if (sfType != 'expense_entry' && sfType != 'shopping_order') continue;
+
+      final fields = card.structuredFields;
+      if (fields == null) continue;
+
+      final amountRaw = fields['amount_cny'];
+      if (amountRaw == null) continue;
+      final amount = (amountRaw is num) ? amountRaw.toDouble() : double.tryParse('$amountRaw');
+      if (amount == null || amount <= 0) continue;
+
+      final cardId = i < cardIds.length ? cardIds[i] : null;
+      final purpose = card.title;
+
+      // Parse occurredAt from structured fields
+      DateTime? occurredAt;
+      final paidAtRaw = fields['paidAt'] as String?;
+      if (paidAtRaw != null) {
+        occurredAt = DateTime.tryParse(paidAtRaw);
+      }
+      occurredAt ??= source.recordedAt;
+
+      try {
+        await financeService.recordEntry(
+          characterId: 'system:card_bridge',
+          entryType: 'cost',
+          totalAmount: amount,
+          aiAmount: 0,
+          purpose: purpose,
+          linkedFactId: cardId,
+          occurredAt: occurredAt,
+        );
+        _logger.info(
+          '_bridgeToLedger: created ledger entry for card ${cardId ?? '?'} '
+          '($sfType, ¥$amount, "$purpose")',
+        );
+      } catch (e) {
+        _logger.warning('_bridgeToLedger: failed for card ${cardId ?? '?'}: $e');
+      }
+    }
   }
 
   /// Soft-delete a memory card. Per V3 § 8 contract, this writes a `delete`
