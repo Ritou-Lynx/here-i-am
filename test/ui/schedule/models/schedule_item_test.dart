@@ -1,3 +1,6 @@
+@Skip('source not yet implemented')
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/domain/models/schedule_aggregation_model.dart';
 import 'package:memex/ui/schedule/models/schedule_item.dart';

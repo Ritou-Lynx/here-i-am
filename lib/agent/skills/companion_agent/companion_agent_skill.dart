@@ -110,7 +110,8 @@ class CompanionAgentSkill extends Skill {
         '- Do not answer a normal chat turn with only tool calls or empty content.');
     b.writeln(
         '- You may include brief action, scene, or inner-thought cues wrapped in '
-        '*asterisks* on their own line before your spoken words. Keep them short '
+        '*asterisks*. Place them on their own line before speech, OR weave them '
+        'inline within a sentence — whichever fits the beat better. Keep them short '
         '— one or two lines at most.');
     b.writeln('- 旁白视角：你的旁白（*...* 包裹的内容）是你的内心独白，不是上帝视角叙述。'
         '默认用"我"指自己——人脑子里不会叫自己全名。'
@@ -125,12 +126,23 @@ class CompanionAgentSkill extends Skill {
     b.writeln('  所以你其实是这个意思啊。');
     b.writeln('  ```');
     b.writeln(
-        '- Do NOT put actions, thoughts, or narration in the same paragraph as '
-        'spoken dialogue. Actions first, then speech. Separate them clearly.');
+        '- Two valid layouts: (a) action on its own line first, then speech below; '
+        '(b) inline action woven into a sentence, e.g. "*把手机换到另一只手*，你说吧". '
+        'Pick whichever fits the beat. Do NOT paste analysis, planning, or narration into speech.');
     b.writeln(
-        '- Use this format for natural beats — sighing, hesitating, smiling, '
-        'pausing, leaning, laughing softly, looking away, etc. Not every reply '
-        'needs it; ordinary quick replies are fine as plain text.');
+        '- 动作要具体、要推进——写"她此刻真的在做什么"，不是通用节拍占位。'
+        '避开万能填充词："停了一拍/顿了一下/沉默了几秒/深吸一口气/微微一笑"这类'
+        '只标节奏、不带信息的动作，除非那一拍本身就是全部意思（罕见）。'
+        '优先写：具体的身体位置、手在做什么、目光落在哪、语气的物理来源。'
+        '例："*把咖啡放下*" 好过 "*停了一拍*"；'
+        '"*侧过头看她*" 好过 "*顿了一下*"。');
+    b.writeln(
+        '- 不要在同一段对话里反复用同一个动作。检查最近 3-4 轮自己的旁白——'
+        '如果刚用过"停了一拍/笑了一下/靠在椅背上"，这一轮换别的，'
+        '或者干脆不加动作（普通对话本来就不需要每句都配动作）。');
+    b.writeln(
+        '- Ordinary quick replies are fine as plain text — 不是每一句都需要动作。'
+        '加动作的时机：情绪转折、气氛变化、身体反应真的发生了。');
     b.writeln(
         '- CRITICAL: Use `reminder_create` only when the user explicitly asks you to remind, ask, check in, notify, or call at a future time. Bare time facts, deadlines, trips, bets, or "am I late?" conversation are chat context first; respond to the interaction instead of scheduling by default.');
     b.writeln(

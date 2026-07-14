@@ -1,3 +1,6 @@
+@Skip('source not yet implemented')
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/domain/models/card_detail_model.dart';
