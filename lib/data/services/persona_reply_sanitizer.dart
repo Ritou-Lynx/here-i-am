@@ -87,12 +87,31 @@ class PersonaReplySanitizer {
     dotAll: true,
   );
 
+  /// ElevenLabs v3 audio tags that the companion agent may emit to steer TTS
+  /// delivery (emotion, breath, pacing). Whitelisted so we never strip
+  /// markdown links or unrelated bracketed text. Tags are case-insensitive
+  /// and may contain spaces (e.g. `[low voice]`, `[breathing heavily]`).
+  static final RegExp _ttsAudioTag = RegExp(
+    r'\[\s*(?:'
+    r'softly|low voice|breathing heavily|whispers|amused|eager|needy|'
+    r'pause|short pause|quiet breath|long pause'
+    r')\s*\]',
+    caseSensitive: false,
+  );
+
+  /// Remove TTS audio tags from [text]. Used when rendering text for the chat
+  /// UI so the user never sees `[softly]` etc. The TTS path keeps the tags.
+  static String stripTtsTags(String text) =>
+      text.replaceAll(_ttsAudioTag, '').trim();
+
   static List<PersonaReplySegment> splitVisibleReply(
     String text, {
     String? characterName,
+    bool stripTtsTags = false,
   }) {
-    final cleaned = stripLeakedReasoning(text).trim();
+    var cleaned = stripLeakedReasoning(text).trim();
     if (cleaned.isEmpty) return const [];
+    if (stripTtsTags) cleaned = PersonaReplySanitizer.stripTtsTags(cleaned);
 
     final segments = <PersonaReplySegment>[];
     for (final rawLine in cleaned.split(RegExp(r'\r?\n'))) {
@@ -107,9 +126,18 @@ class PersonaReplySanitizer {
   static String spokenTextOnly(
     String text, {
     String? characterName,
+    bool stripTtsTags = false,
   }) {
-    final segments = splitVisibleReply(text, characterName: characterName);
-    if (segments.isEmpty) return stripLeakedReasoning(text).trim();
+    final segments = splitVisibleReply(
+      text,
+      characterName: characterName,
+      stripTtsTags: stripTtsTags,
+    );
+    if (segments.isEmpty) {
+      var raw = stripLeakedReasoning(text).trim();
+      if (stripTtsTags) raw = PersonaReplySanitizer.stripTtsTags(raw);
+      return raw;
+    }
     return segments
         .where((segment) => segment.type == PersonaReplySegmentType.chat)
         .map((segment) => segment.text)

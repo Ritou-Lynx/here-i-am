@@ -4151,6 +4151,9 @@ only after you have written the goodbye you want the user to hear.''',
       // The stored character.name ("I") is the English name and won't match
       // the self-referential text in Chinese actions.
       characterName: '林埃',
+      // Strip TTS audio tags ([softly], [low voice], etc.) from what the user
+      // sees in chat bubbles. Tags are preserved on the TTS path.
+      stripTtsTags: true,
     );
     if (segments.isEmpty && text.trim().isNotEmpty) {
       segments = [
@@ -4449,7 +4452,10 @@ only after you have written the goodbye you want the user to hear.''',
 
 @visibleForTesting
 int personaChatVisibleChatBubbleCount(String text) {
-  final segments = PersonaReplySanitizer.splitVisibleReply(text);
+  final segments = PersonaReplySanitizer.splitVisibleReply(
+    text,
+    stripTtsTags: true,
+  );
   return _personaChatVisibleChatBubbleCountForSegments(segments);
 }
 
@@ -4516,7 +4522,10 @@ List<PersonaChatMessage> personaChatGeneratedReadableMessagesInOrder({
 
 @visibleForTesting
 String personaChatTtsPlaybackIdForMessage(PersonaChatMessage message) {
-  final segments = PersonaReplySanitizer.splitVisibleReply(message.content);
+  final segments = PersonaReplySanitizer.splitVisibleReply(
+    message.content,
+    stripTtsTags: true,
+  );
   final hasSplitSpeech = segments.length > 1 &&
       segments.any((segment) => segment.type == PersonaReplySegmentType.chat);
   final hasSplitBubbles =

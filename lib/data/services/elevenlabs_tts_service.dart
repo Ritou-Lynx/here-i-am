@@ -44,8 +44,14 @@ class ElevenLabsTtsService {
         'text': speechText,
         'model_id': _modelId,
         'voice_settings': {
-          'stability': 0.5,
+          // Stability low (Creative end) lets pitch/pace/breath vary naturally
+          // per the voice-test plan v1 + ELevenlabs-TTS.md guidance.
+          // Style high to carry emotional intensity. Speaker boost keeps the
+          // voice anchored to the base timbre without over-rigid cloning.
+          'stability': 0.25,
           'similarity_boost': 0.75,
+          'style': 0.84,
+          'use_speaker_boost': true,
         },
       }),
     );
@@ -80,6 +86,13 @@ class ElevenLabsTtsService {
       RegExp(r'([。！？!?；;])\s*'),
       (match) => '${match.group(1)} [short pause] ',
     );
+
+    // If the text already opens with a TTS audio tag (e.g. [softly]),
+    // prepending [short pause] would stack two tags and dilute the opening
+    // emotion. Let the character's opening tag lead.
+    if (RegExp(r'^\s*\[[^\]]+\]').hasMatch(withSentencePauses)) {
+      return withSentencePauses.trim();
+    }
     return '[short pause] $withSentencePauses'.trim();
   }
 
