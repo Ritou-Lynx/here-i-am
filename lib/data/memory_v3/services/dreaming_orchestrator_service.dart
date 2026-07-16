@@ -141,6 +141,16 @@ class DreamingOrchestratorServiceV3 {
   /// The batch is capped to V3 § 10.4's 60-message limit. This method does not
   /// decide charging/Wi-Fi/idle policy; callers should invoke it only when the
   /// environment is appropriate.
+  ///
+  /// Watermark advancement: the watermark is advanced to the last processed
+  /// message id even when extraction throws (e.g. model refuses sensitive
+  /// content, returns invalid JSON after retry, or API errors). Without this,
+  /// a single failed batch would leave the watermark stuck at the old value,
+  /// causing every subsequent trigger to re-read the SAME messages and hit the
+  /// SAME failure forever - effectively permanently stalling Dreaming for that
+  /// character. The fragments that were in the failed batch are lost (they
+  /// will not be retried), but this is the correct trade-off: it is better to
+  /// skip one batch's worth of memories than to block all future Dreaming.
   Future<DreamingFragmentPersistResult> runDailyFragmentBatch({
     required String characterId,
     required LLMClient client,
@@ -183,13 +193,30 @@ class DreamingOrchestratorServiceV3 {
             ))
         .toList(growable: false);
     final existing = await _recentFragmentSummaries();
-    final extracted = await agent.extract(
-      client: client,
-      modelConfig: modelConfig,
-      messages: inputs,
-      now: DateTime.now(),
-      existingFragmentSummaries: existing,
-    );
+
+    DreamingFragmentExtraction extracted;
+    try {
+      extracted = await agent.extract(
+        client: client,
+        modelConfig: modelConfig,
+        messages: inputs,
+        now: DateTime.now(),
+        existingFragmentSummaries: existing,
+      );
+    } catch (e, s) {
+      // Advance the watermark past this batch so the next run does not
+      // re-read and re-fail on the same messages. The batch's fragments are
+      // lost, but future batches will process future messages normally.
+      _logger.warning(
+        'Fragment extraction failed for $characterId; advancing watermark '
+        'to ${rows.last.id} to avoid retrying the same failed batch. '
+        'Error: $e',
+        e,
+        s,
+      );
+      await _writeWatermark(characterId, rows.last.id);
+      rethrow;
+    }
     final result = await persistFragments(
       extraction: extracted,
       processedMessageCount: rows.length,
@@ -1373,6 +1400,305 @@ class DreamingOrchestratorServiceV3 {
       }
     }
     return count;
+  }
+
+  /// Correct one or more fields of an existing memory fragment.
+  ///
+  /// This is the Lab-screen / user-initiated edit path. It does NOT touch
+  /// immutable evidence fields ([id], [sourceMessageIds], [generatedByVersion],
+  /// [schemaVersion], [createdAt]) — those are the Dreaming pipeline's own
+  /// provenance. If you want to change a fragment's source, delete this one
+  /// and let the next extraction pass recreate it from messages.
+  ///
+  /// Writable fields:
+  /// - [content] (≤80 chars, matching the extractor hard cap)
+  /// - [emotionalWeight] (0.0..1.0)
+  /// - [isUserTruthCandidate]
+  /// - [status] (active / consolidated / ignored / deleted)
+  /// - [eventTime] (ms epoch, when the user says "actually this was on X")
+  ///
+  /// On any successful edit, [userCorrected] is flipped to true so future
+  /// extractors can avoid overwriting. Content edits also rewrite the FTS
+  /// row. Returns the updated fragment, or null if [fragmentId] not found.
+  Future<MemoryFragment?> updateFragment(
+    String fragmentId, {
+    String? content,
+    double? emotionalWeight,
+    bool? isUserTruthCandidate,
+    String? status,
+    int? eventTime,
+    String sourceKind = 'lab_edit',
+  }) async {
+    return _db.transaction(() async {
+      final row = await (_db.select(_db.memoryFragments)
+            ..where((t) => t.id.equals(fragmentId)))
+          .getSingleOrNull();
+      if (row == null) {
+        _logger.warning('updateFragment: $fragmentId not found, no-op');
+        return null;
+      }
+
+      // Validate content length matches the extractor hard cap.
+      if (content != null && content.length > 80) {
+        throw ArgumentError(
+          'fragment content exceeds 80 chars (${content.length}); '
+          'match the extractor cap',
+        );
+      }
+      if (emotionalWeight != null &&
+          (emotionalWeight < 0.0 || emotionalWeight > 1.0)) {
+        throw ArgumentError(
+          'emotionalWeight must be in [0.0, 1.0], got $emotionalWeight',
+        );
+      }
+      if (status != null &&
+          !const {'active', 'consolidated', 'ignored', 'deleted'}
+              .contains(status)) {
+        throw ArgumentError('invalid fragment status: $status');
+      }
+
+      // Build diff for audit (only fields that actually change).
+      final changes = <String, dynamic>{};
+      if (content != null && content != row.content) {
+        changes['content'] = {'old': row.content, 'new': content};
+      }
+      if (emotionalWeight != null && emotionalWeight != row.emotionalWeight) {
+        changes['emotionalWeight'] = {
+          'old': row.emotionalWeight,
+          'new': emotionalWeight,
+        };
+      }
+      if (isUserTruthCandidate != null &&
+          isUserTruthCandidate != row.isUserTruthCandidate) {
+        changes['isUserTruthCandidate'] = {
+          'old': row.isUserTruthCandidate,
+          'new': isUserTruthCandidate,
+        };
+      }
+      if (status != null && status != row.status) {
+        changes['status'] = {'old': row.status, 'new': status};
+      }
+      if (eventTime != null && eventTime != row.eventTime) {
+        changes['eventTime'] = {'old': row.eventTime, 'new': eventTime};
+      }
+
+      if (changes.isEmpty) {
+        _logger.info('updateFragment: no changes for $fragmentId');
+        return row;
+      }
+
+      // Apply update. Mark userCorrected=true so future extractors know
+      // the human has reviewed this row.
+      await (_db.update(_db.memoryFragments)
+            ..where((t) => t.id.equals(fragmentId)))
+          .write(MemoryFragmentsCompanion(
+        content: content != null ? Value(content) : const Value.absent(),
+        emotionalWeight: emotionalWeight != null
+            ? Value(emotionalWeight)
+            : const Value.absent(),
+        isUserTruthCandidate: isUserTruthCandidate != null
+            ? Value(isUserTruthCandidate)
+            : const Value.absent(),
+        status: status != null ? Value(status) : const Value.absent(),
+        eventTime: eventTime != null ? Value(eventTime) : const Value.absent(),
+        userCorrected: const Value(true),
+      ));
+
+      // FTS handling. We don't have a fragment_operations audit table yet
+      // (deferred to a future migration); for now content changes rewrite
+      // the FTS row, and status='deleted' clears it so it's invisible to
+      // context injection.
+      final becameDeleted = (status == 'deleted');
+      final contentChanged = content != null && content != row.content;
+      try {
+        if (becameDeleted) {
+          await _db.searchDao.deleteMemoryFragmentFts(fragmentId);
+        } else if (contentChanged) {
+          await _db.searchDao.upsertMemoryFragmentFts(
+            fragmentId: fragmentId,
+            content: content,
+          );
+        }
+      } catch (e, s) {
+        _logger.warning('updateFragment: FTS update failed for $fragmentId',
+            e, s);
+      }
+
+      _logger.info('updateFragment: $fragmentId fields=${changes.keys.join(',')} '
+          'source=$sourceKind');
+      final updated = await (_db.select(_db.memoryFragments)
+            ..where((t) => t.id.equals(fragmentId)))
+          .getSingle();
+      return updated;
+    });
+  }
+
+  /// Correct one or more fields of an existing memory episode.
+  ///
+  /// Mirror of [updateFragment] for episodes. Immutable evidence fields
+  /// ([id], [primaryEntityId], [sourceFragmentIds], [generatedByVersion],
+  /// [schemaVersion], [createdAt]) are not writable; they encode the
+  /// pipeline's own provenance and changing them would silently break the
+  /// link back to source fragments.
+  ///
+  /// Writable fields:
+  /// - [narrative] (the first-person summary; the user-visible "what I
+  ///   remember about us" text)
+  /// - [topicId] (e.g. `relationship_care`, `__ungrouped__`)
+  /// - [confidence] (`high` / `medium` / `low`)
+  /// - [significance] (1..10)
+  /// - [valence] (-1.0..1.0)
+  /// - [arousal] (0.0..1.0)
+  /// - [occurredAtRange] (JSON `{start, end}` ms or null to clear)
+  /// - [status] (`active` / `hidden` / `stale` / `deleted`)
+  ///
+  /// On any successful edit, [userCorrected] flips to true so future
+  /// consolidators know the human has reviewed this row. Narrative edits
+  /// rewrite the FTS row; status=`deleted` clears it.
+  Future<MemoryEpisode?> updateEpisode(
+    String episodeId, {
+    String? narrative,
+    String? topicId,
+    String? confidence,
+    int? significance,
+    double? valence,
+    double? arousal,
+    String? occurredAtRange,
+    String? status,
+    String sourceKind = 'lab_edit',
+  }) async {
+    return _db.transaction(() async {
+      final row = await (_db.select(_db.memoryEpisodes)
+            ..where((t) => t.id.equals(episodeId)))
+          .getSingleOrNull();
+      if (row == null) {
+        _logger.warning('updateEpisode: $episodeId not found, no-op');
+        return null;
+      }
+
+      // Validate.
+      if (significance != null && (significance < 1 || significance > 10)) {
+        throw ArgumentError(
+          'significance must be in [1, 10], got $significance',
+        );
+      }
+      if (valence != null && (valence < -1.0 || valence > 1.0)) {
+        throw ArgumentError('valence must be in [-1.0, 1.0], got $valence');
+      }
+      if (arousal != null && (arousal < 0.0 || arousal > 1.0)) {
+        throw ArgumentError('arousal must be in [0.0, 1.0], got $arousal');
+      }
+      if (confidence != null &&
+          !const {'high', 'medium', 'low'}.contains(confidence)) {
+        throw ArgumentError(
+          'confidence must be one of high/medium/low, got $confidence',
+        );
+      }
+      if (status != null &&
+          !const {'active', 'hidden', 'stale', 'deleted'}.contains(status)) {
+        throw ArgumentError('invalid episode status: $status');
+      }
+      // If occurredAtRange is provided, it must be a valid JSON object
+      // string (or null/empty to clear).
+      if (occurredAtRange != null && occurredAtRange.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(occurredAtRange);
+          if (decoded is! Map) {
+            throw const FormatException('not a JSON object');
+          }
+        } catch (e) {
+          throw ArgumentError(
+            'occurredAtRange must be a JSON object string like '
+            '\'{"start": <ms>, "end": <ms>}\', got: $e',
+          );
+        }
+      }
+
+      // Build diff for audit.
+      final changes = <String, dynamic>{};
+      if (narrative != null && narrative != row.narrative) {
+        changes['narrative'] = {'old': row.narrative, 'new': narrative};
+      }
+      if (topicId != null && topicId != row.topicId) {
+        changes['topicId'] = {'old': row.topicId, 'new': topicId};
+      }
+      if (confidence != null && confidence != row.confidence) {
+        changes['confidence'] = {'old': row.confidence, 'new': confidence};
+      }
+      if (significance != null && significance != row.significance) {
+        changes['significance'] = {
+          'old': row.significance,
+          'new': significance,
+        };
+      }
+      if (valence != null && valence != row.valence) {
+        changes['valence'] = {'old': row.valence, 'new': valence};
+      }
+      if (arousal != null && arousal != row.arousal) {
+        changes['arousal'] = {'old': row.arousal, 'new': arousal};
+      }
+      if (occurredAtRange != null && occurredAtRange != row.occurredAtRange) {
+        changes['occurredAtRange'] = {
+          'old': row.occurredAtRange,
+          'new': occurredAtRange.isEmpty ? null : occurredAtRange,
+        };
+      }
+      if (status != null && status != row.status) {
+        changes['status'] = {'old': row.status, 'new': status};
+      }
+
+      if (changes.isEmpty) {
+        _logger.info('updateEpisode: no changes for $episodeId');
+        return row;
+      }
+
+      // Apply update.
+      await (_db.update(_db.memoryEpisodes)
+            ..where((t) => t.id.equals(episodeId)))
+          .write(MemoryEpisodesCompanion(
+        narrative:
+            narrative != null ? Value(narrative) : const Value.absent(),
+        topicId: topicId != null ? Value(topicId) : const Value.absent(),
+        confidence:
+            confidence != null ? Value(confidence) : const Value.absent(),
+        significance:
+            significance != null ? Value(significance) : const Value.absent(),
+        valence: valence != null ? Value(valence) : const Value.absent(),
+        arousal: arousal != null ? Value(arousal) : const Value.absent(),
+        occurredAtRange: occurredAtRange != null
+            ? Value(occurredAtRange.isEmpty ? null : occurredAtRange)
+            : const Value.absent(),
+        status: status != null ? Value(status) : const Value.absent(),
+        userCorrected: const Value(true),
+      ));
+
+      // FTS handling.
+      final becameDeleted = (status == 'deleted');
+      final narrativeChanged =
+          narrative != null && narrative != row.narrative;
+      final topicChanged = topicId != null && topicId != row.topicId;
+      try {
+        if (becameDeleted) {
+          await _db.searchDao.deleteMemoryEpisodeFts(episodeId);
+        } else if (narrativeChanged || topicChanged) {
+          await _db.searchDao.upsertMemoryEpisodeFts(
+            episodeId: episodeId,
+            narrative: narrative ?? row.narrative,
+            topicId: topicId ?? row.topicId,
+          );
+        }
+      } catch (e, s) {
+        _logger.warning('updateEpisode: FTS update failed for $episodeId',
+            e, s);
+      }
+
+      _logger.info('updateEpisode: $episodeId fields=${changes.keys.join(',')} '
+          'source=$sourceKind');
+      final updated = await (_db.select(_db.memoryEpisodes)
+            ..where((t) => t.id.equals(episodeId)))
+          .getSingle();
+      return updated;
+    });
   }
 
   /// Rebuild the episode FTS index from all non-deleted rows. Idempotent and

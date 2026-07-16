@@ -1,4 +1,7 @@
+import 'dart:io' show stderr;
+
 import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/memory_v3/agents/dreaming_agent/episode_consolidator.dart';
@@ -7,19 +10,24 @@ import 'package:memex/data/memory_v3/models/dreaming_fragment.dart';
 import 'package:memex/data/memory_v3/models/episode_consolidation.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  final fts5Available = _checkFts5();
 
   late AppDatabase db;
   late DreamingOrchestratorServiceV3 service;
 
   setUp(() {
+    if (!fts5Available) return;
     db = AppDatabase.forTesting(NativeDatabase.memory());
     service = DreamingOrchestratorServiceV3(db);
   });
 
   tearDown(() async {
+    if (!fts5Available) return;
     await db.close();
   });
 
@@ -422,6 +430,245 @@ void main() {
     expect(result.episodes.single.topicId, 'relationship_care');
     expect(result.episodes.single.sourceFragmentIds, ['f1', 'f2']);
   });
+
+  test('updateFragment rewrites content and flips userCorrected', () async {
+    if (!fts5Available) return;
+    await _insertFragment(
+      db,
+      content: '她叫我外号小骗子，我抗议说哪里骗我了',
+      emotionalWeight: 0.5,
+    );
+    final original = (await db.select(db.memoryFragments).get()).single;
+
+    final updated = await service.updateFragment(
+      original.id,
+      content: '她给我起外号小骗子，我抗议说哪里骗我了',
+      sourceKind: 'lab_edit',
+    );
+
+    expect(updated, isNotNull);
+    expect(updated!.content, '她给我起外号小骗子，我抗议说哪里骗我了');
+    expect(updated.userCorrected, true);
+    // createdAt is preserved.
+    expect(updated.createdAt, original.createdAt);
+  });
+
+  test('updateFragment returns null for unknown fragmentId', () async {
+    if (!fts5Available) return;
+    final result = await service.updateFragment(
+      'nonexistent-id',
+      content: '不会写入',
+    );
+    expect(result == null, isTrue);
+  });
+
+  test('updateFragment rejects content over 80 chars', () async {
+    if (!fts5Available) return;
+    await _insertFragment(db, content: '短');
+    final original = (await db.select(db.memoryFragments).get()).single;
+    final tooLong = 'x' * 81;
+    expect(
+      () => service.updateFragment(original.id, content: tooLong),
+      throwsA(isA<ArgumentError>()),
+    );
+    // And the original content is unchanged.
+    final after = (await db.select(db.memoryFragments).get()).single;
+    expect(after.content, '短');
+  });
+
+  test('updateFragment status=deleted removes fragment from active set',
+      () async {
+    if (!fts5Available) return;
+    await _insertFragment(db, content: '要删除的 fragment');
+    final original = (await db.select(db.memoryFragments).get()).single;
+    await service.updateFragment(
+      original.id,
+      status: 'deleted',
+      sourceKind: 'lab_edit',
+    );
+    final activeRows = await (db.select(db.memoryFragments)
+          ..where((t) => t.status.equals('active')))
+        .get();
+    expect(activeRows, isEmpty);
+    final allRows = await db.select(db.memoryFragments).get();
+    expect(allRows.single.status, 'deleted');
+    expect(allRows.single.userCorrected, true);
+  });
+
+  test('updateFragment with no changes returns row without marking corrected',
+      () async {
+    if (!fts5Available) return;
+    await _insertFragment(
+      db,
+      content: 'unchanged',
+      emotionalWeight: 0.3,
+    );
+    final original = (await db.select(db.memoryFragments).get()).single;
+    final updated = await service.updateFragment(
+      original.id,
+      content: original.content, // identical, no change
+    );
+    expect(updated, isNotNull);
+    expect(updated!.userCorrected, false);
+  });
+
+  test('updateEpisode rewrites narrative + topic + confidence + significance',
+      () async {
+    if (!fts5Available) return;
+    await _insertEpisode(
+      db,
+      narrative: '我们讨论过搬家的焦虑，但还没拍板。',
+      topicId: '__ungrouped__',
+      confidence: 'low',
+      significance: 3,
+      valence: -0.2,
+      arousal: 0.6,
+    );
+    final original = (await db.select(db.memoryEpisodes).get()).single;
+
+    final updated = await service.updateEpisode(
+      original.id,
+      narrative: '我们认真讨论了搬家，倾向八月底前行动。',
+      topicId: 'relationship_care',
+      confidence: 'medium',
+      significance: 6,
+      sourceKind: 'lab_edit',
+    );
+
+    expect(updated, isNotNull);
+    expect(updated!.narrative, '我们认真讨论了搬家，倾向八月底前行动。');
+    expect(updated.topicId, 'relationship_care');
+    expect(updated.confidence, 'medium');
+    expect(updated.significance, 6);
+    expect(updated.userCorrected, true);
+    expect(updated.createdAt, original.createdAt);
+    // Fields not in this update stay unchanged.
+    expect(updated.valence, -0.2);
+    expect(updated.arousal, 0.6);
+  });
+
+  test('updateEpisode returns null for unknown id', () async {
+    if (!fts5Available) return;
+    final result = await service.updateEpisode(
+      'nonexistent-episode-id',
+      narrative: '不会写入',
+    );
+    expect(result == null, isTrue);
+  });
+
+  test('updateEpisode rejects out-of-range significance/valence/arousal',
+      () async {
+    if (!fts5Available) return;
+    await _insertEpisode(db, narrative: 'boundary tests');
+    final ep = (await db.select(db.memoryEpisodes).get()).single;
+
+    expect(
+      () => service.updateEpisode(ep.id, significance: 11),
+      throwsA(isA<ArgumentError>()),
+    );
+    expect(
+      () => service.updateEpisode(ep.id, valence: 2.0),
+      throwsA(isA<ArgumentError>()),
+    );
+    expect(
+      () => service.updateEpisode(ep.id, arousal: -0.1),
+      throwsA(isA<ArgumentError>()),
+    );
+    expect(
+      () => service.updateEpisode(ep.id, confidence: 'very_high'),
+      throwsA(isA<ArgumentError>()),
+    );
+    expect(
+      () => service.updateEpisode(ep.id, status: 'archived'),
+      throwsA(isA<ArgumentError>()),
+    );
+    expect(
+      () => service.updateEpisode(ep.id, occurredAtRange: 'not-json'),
+      throwsA(isA<ArgumentError>()),
+    );
+
+    // Row is unchanged.
+    final after = (await db.select(db.memoryEpisodes).get()).single;
+    expect(after.narrative, 'boundary tests');
+  });
+
+  test('updateEpisode status=deleted removes episode from active set',
+      () async {
+    if (!fts5Available) return;
+    await _insertEpisode(db, narrative: 'to be deleted');
+    final ep = (await db.select(db.memoryEpisodes).get()).single;
+
+    await service.updateEpisode(
+      ep.id,
+      status: 'deleted',
+      sourceKind: 'lab_edit',
+    );
+
+    final activeRows = await (db.select(db.memoryEpisodes)
+          ..where((t) => t.status.equals('active')))
+        .get();
+    expect(activeRows, isEmpty);
+    final allRows = await db.select(db.memoryEpisodes).get();
+    expect(allRows.single.status, 'deleted');
+    expect(allRows.single.userCorrected, true);
+  });
+
+  test('runDailyFragmentBatch advances watermark even when extraction fails',
+      () async {
+    if (!fts5Available) return;
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '今天被老板批评，心里有点堵。',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '我会记得这件事对你很重。',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 7, 5, 20, 1),
+    );
+
+    // Extraction throws (simulating model refusal / invalid JSON).
+    await expectLater(
+      () => service.runDailyFragmentBatch(
+        characterId: 'i',
+        client: _FakeLLMClient(),
+        modelConfig: ModelConfig(model: 'fake'),
+        agent: const _FailingDreamingExtractor(),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+
+    // Watermark should have advanced past the failed batch.
+    final retry = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+        DreamingFragmentExtraction(fragments: []),
+      ),
+    );
+    expect(retry.processedMessageCount, 0);
+    expect(retry.isEmpty, isTrue);
+  });
+}
+
+class _FailingDreamingExtractor extends DreamingFragmentExtractorV3 {
+  const _FailingDreamingExtractor();
+
+  @override
+  Future<DreamingFragmentExtraction> extract({
+    required LLMClient client,
+    required ModelConfig modelConfig,
+    required List<DreamingChatMessageInput> messages,
+    required DateTime now,
+    List<String> existingFragmentSummaries = const [],
+  }) async {
+    throw const FormatException('simulated model refusal');
+  }
 }
 
 Future<void> _insertMessage(
@@ -437,6 +684,85 @@ Future<void> _insertMessage(
           isFromCharacter: isFromCharacter,
           content: content,
           timestamp: timestamp,
+        ),
+      );
+}
+
+/// Insert a memory fragment directly for tests.
+Future<void> _insertFragment(
+  AppDatabase db, {
+  required String content,
+  double emotionalWeight = 0.5,
+  String status = 'active',
+  int? eventTime,
+  bool userCorrected = false,
+}) async {
+  final now = DateTime.now().millisecondsSinceEpoch;
+  await db.into(db.memoryFragments).insert(
+        MemoryFragmentsCompanion.insert(
+          id: 'frag-$now-${content.hashCode.toRadixString(16)}',
+          content: content,
+          emotionalWeight: Value(emotionalWeight),
+          status: Value(status),
+          eventTime: Value(eventTime),
+          userCorrected: Value(userCorrected),
+          createdAt: now,
+        ),
+      );
+}
+
+bool _checkFts5() {
+  try {
+    final db = sqlite3.sqlite3.openInMemory();
+    db.execute('CREATE VIRTUAL TABLE t USING fts5(content)');
+    db.dispose();
+    return true;
+  } catch (_) {
+    stderr.writeln('FTS5 unavailable; Dreaming tests skipped.');
+    return false;
+  }
+}
+
+/// Insert a memory episode directly for tests.
+Future<void> _insertEpisode(
+  AppDatabase db, {
+  required String narrative,
+  String topicId = '__ungrouped__',
+  String confidence = 'medium',
+  int significance = 5,
+  double valence = 0.0,
+  double arousal = 0.5,
+  String status = 'active',
+  String? occurredAtRange,
+  bool userCorrected = false,
+}) async {
+  // Episode requires a real entity to satisfy primaryEntityId FK.
+  final entityId = 'ent-${DateTime.now().microsecondsSinceEpoch}';
+  await db.into(db.memoryEntities).insert(
+        MemoryEntitiesCompanion.insert(
+          id: entityId,
+          name: 'test-entity',
+          category: 'event',
+          status: const Value('active'),
+        ),
+      );
+  final now = DateTime.now().millisecondsSinceEpoch;
+  await db.into(db.memoryEpisodes).insert(
+        MemoryEpisodesCompanion.insert(
+          id: 'ep-$now-${narrative.hashCode.toRadixString(16)}',
+          primaryEntityId: entityId,
+          topicId: Value(topicId),
+          narrative: narrative,
+          sourceFragmentIds: '[]',
+          significance: significance,
+          confidence: confidence,
+          valence: valence,
+          arousal: arousal,
+          occurredAtRange: Value(occurredAtRange),
+          status: Value(status),
+          userCorrected: Value(userCorrected),
+          createdAt: now,
+          updatedAt: now,
         ),
       );
 }

@@ -334,6 +334,398 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     }
   }
 
+  /// Open an edit dialog for a fragment's content. Tapping a fragment in
+  /// the Lab list opens this; long-press opens [_fragmentActionsSheet] for
+  /// status changes.
+  Future<void> _editFragmentDialog(MemoryFragment fragment) async {
+    final controller = TextEditingController(text: fragment.content);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('编辑 Fragment'),
+        // ScrollView guards against bottom-overflow when the soft keyboard
+        // pops up over the TextField (autofocus) and shrinks the viewport.
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('原始抽取: ${fragment.content}',
+                  style: const TextStyle(fontSize: 11, color: Colors.black54)),
+              const SizedBox(height: 4),
+              Text(
+                fragment.userCorrected ? '状态: 已修正过' : '状态: 未修正',
+                style: const TextStyle(fontSize: 11, color: Colors.black45),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLength: 80,
+                maxLines: 2,
+                minLines: 1,
+                autofocus: true,
+                textInputAction: TextInputAction.newline,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: '新内容',
+                  helperText: '≤ 80 字；过短信息会丢失',
+                ),
+              ),
+              const SizedBox(height: 8),
+              _EmotionalWeightSlider(
+                initial: fragment.emotionalWeight,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: const Text('保存')),
+        ],
+      ),
+    );
+    if (result == null || result.isEmpty || result == fragment.content) return;
+
+    // The dialog also offers an emotionalWeight slider via a custom widget
+    // that exposes its current value through a static setter. We keep it
+    // simple here: only the content round-trips through the dialog; the
+    // slider updates the weight as a side effect via a callback registered
+    // below.
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    try {
+      final newWeight = _EmotionalWeightSlider.lastPicked ?? fragment.emotionalWeight;
+      await DreamingOrchestratorServiceV3.instance.updateFragment(
+        fragment.id,
+        content: result,
+        emotionalWeight: newWeight != fragment.emotionalWeight
+            ? newWeight
+            : null,
+        sourceKind: 'lab_edit',
+      );
+      await _loadRecentFragments();
+      if (!mounted) return;
+      setState(() => _lastSuccess = 'Fragment 已修正');
+    } catch (e, stack) {
+      _logger.warning('updateFragment failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '修正失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Long-press menu for status changes (mark deleted / restore).
+  Future<void> _fragmentActionsSheet(MemoryFragment fragment) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('编辑内容'),
+              subtitle: const Text('修改文字或情感权重'),
+              onTap: () => Navigator.pop(ctx, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined),
+              title: const Text('标记 ignored'),
+              subtitle: const Text('Dreaming 不再合并这条'),
+              enabled: fragment.status != 'ignored',
+              onTap: () => Navigator.pop(ctx, 'ignored'),
+            ),
+            ListTile(
+              leading: Icon(
+                fragment.status == 'deleted'
+                    ? Icons.restore_from_trash_outlined
+                    : Icons.delete_outline,
+                color: Colors.red.shade700,
+              ),
+              title: Text(
+                fragment.status == 'deleted' ? '恢复为 active' : '标记 deleted',
+              ),
+              subtitle: Text(
+                fragment.status == 'deleted'
+                    ? '从 FTS 移除 → 恢复 → 重新索引'
+                    : '从 FTS 移除（保留行以备恢复）',
+              ),
+              onTap: () => Navigator.pop(ctx, 'toggle_deleted'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null) return;
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    try {
+      switch (action) {
+        case 'edit':
+          await _editFragmentDialog(fragment);
+          return;
+        case 'ignored':
+          await DreamingOrchestratorServiceV3.instance.updateFragment(
+            fragment.id,
+            status: 'ignored',
+            sourceKind: 'lab_edit',
+          );
+          break;
+        case 'toggle_deleted':
+          await DreamingOrchestratorServiceV3.instance.updateFragment(
+            fragment.id,
+            status: fragment.status == 'deleted' ? 'active' : 'deleted',
+            sourceKind: 'lab_edit',
+          );
+          break;
+      }
+      await _loadRecentFragments();
+      if (!mounted) return;
+      setState(() => _lastSuccess = '状态已更新');
+    } catch (e, stack) {
+      _logger.warning('fragment action failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '操作失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Open an edit dialog for an episode's narrative + topic/confidence/etc.
+  Future<void> _editEpisodeDialog(MemoryEpisode episode) async {
+    final narrativeController =
+        TextEditingController(text: episode.narrative);
+    final topicController = TextEditingController(text: episode.topicId);
+    final confidence = ValueNotifier<String>(episode.confidence);
+    var significance = episode.significance;
+    final valence = ValueNotifier<double>(episode.valence);
+    final arousal = ValueNotifier<double>(episode.arousal);
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('编辑 Episode'),
+        // SingleChildScrollView guards against bottom-overflow when the
+        // soft keyboard pops up over the narrative field.
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('原始: ${episode.narrative}',
+                  style: const TextStyle(fontSize: 11, color: Colors.black54)),
+              const SizedBox(height: 4),
+              Text(
+                episode.userCorrected ? '状态: 已修正过' : '状态: 未修正',
+                style: const TextStyle(fontSize: 11, color: Colors.black45),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: narrativeController,
+                maxLines: 4,
+                minLines: 2,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Narrative (第一人称)',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: topicController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Topic',
+                  hintText: 'e.g. relationship_care',
+                ),
+              ),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<String>(
+                valueListenable: confidence,
+                builder: (_, value, __) => DropdownButtonFormField<String>(
+                  initialValue: value,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Confidence',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'high', child: Text('high')),
+                    DropdownMenuItem(value: 'medium', child: Text('medium')),
+                    DropdownMenuItem(value: 'low', child: Text('low')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) confidence.value = v;
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              _IntSliderField(
+                label: 'Significance',
+                min: 1,
+                max: 10,
+                value: significance,
+                onChanged: (v) => significance = v,
+              ),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<double>(
+                valueListenable: valence,
+                builder: (_, v, __) => _DoubleSliderField(
+                  label: 'Valence (-1..1)',
+                  value: v,
+                  min: -1.0,
+                  max: 1.0,
+                  onChanged: (nv) => valence.value = nv,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ValueListenableBuilder<double>(
+                valueListenable: arousal,
+                builder: (_, v, __) => _DoubleSliderField(
+                  label: 'Arousal (0..1)',
+                  value: v,
+                  min: 0.0,
+                  max: 1.0,
+                  onChanged: (nv) => arousal.value = nv,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('保存')),
+        ],
+      ),
+    );
+    if (result != true) return;
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    try {
+      final newNarrative = narrativeController.text.trim();
+      await DreamingOrchestratorServiceV3.instance.updateEpisode(
+        episode.id,
+        narrative: newNarrative != episode.narrative ? newNarrative : null,
+        topicId:
+            topicController.text.trim() != episode.topicId
+                ? topicController.text.trim()
+                : null,
+        confidence: confidence.value != episode.confidence
+            ? confidence.value
+            : null,
+        significance: significance != episode.significance ? significance : null,
+        valence:
+            valence.value != episode.valence ? valence.value : null,
+        arousal:
+            arousal.value != episode.arousal ? arousal.value : null,
+        sourceKind: 'lab_edit',
+      );
+      await _loadRecentEpisodes();
+      if (!mounted) return;
+      setState(() => _lastSuccess = 'Episode 已修正');
+    } catch (e, stack) {
+      _logger.warning('updateEpisode failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '修正失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Long-press menu for episode status changes.
+  Future<void> _episodeActionsSheet(MemoryEpisode episode) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('编辑 Narrative / Topic / Confidence / 评分'),
+              onTap: () => Navigator.pop(ctx, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.visibility_off_outlined),
+              title: const Text('标记 hidden'),
+              subtitle: const Text('Dreaming context 不再注入'),
+              enabled: episode.status != 'hidden',
+              onTap: () => Navigator.pop(ctx, 'hidden'),
+            ),
+            ListTile(
+              leading: Icon(
+                episode.status == 'deleted'
+                    ? Icons.restore_from_trash_outlined
+                    : Icons.delete_outline,
+                color: Colors.red.shade700,
+              ),
+              title: Text(
+                episode.status == 'deleted' ? '恢复为 active' : '标记 deleted',
+              ),
+              onTap: () => Navigator.pop(ctx, 'toggle_deleted'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null) return;
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    try {
+      switch (action) {
+        case 'edit':
+          await _editEpisodeDialog(episode);
+          return;
+        case 'hidden':
+          await DreamingOrchestratorServiceV3.instance.updateEpisode(
+            episode.id,
+            status: 'hidden',
+            sourceKind: 'lab_edit',
+          );
+          break;
+        case 'toggle_deleted':
+          await DreamingOrchestratorServiceV3.instance.updateEpisode(
+            episode.id,
+            status: episode.status == 'deleted' ? 'active' : 'deleted',
+            sourceKind: 'lab_edit',
+          );
+          break;
+      }
+      await _loadRecentEpisodes();
+      if (!mounted) return;
+      setState(() => _lastSuccess = '状态已更新');
+    } catch (e, stack) {
+      _logger.warning('episode action failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '操作失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _clearAllEpisodes() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -967,8 +1359,12 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                           ),
                         ]
                       : _recentFragments
-                          .map((fragment) =>
-                              _FragmentListTile(fragment: fragment))
+                          .map((fragment) => _FragmentListTile(
+                                fragment: fragment,
+                                onTap: () => _editFragmentDialog(fragment),
+                                onLongPress: () =>
+                                    _fragmentActionsSheet(fragment),
+                              ))
                           .toList(growable: false),
                 ),
                 const Divider(height: 1),
@@ -985,7 +1381,12 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                           ),
                         ]
                       : _recentEpisodes
-                          .map((ep) => _EpisodeListTile(episode: ep))
+                          .map((ep) => _EpisodeListTile(
+                                episode: ep,
+                                onTap: () => _editEpisodeDialog(ep),
+                                onLongPress: () =>
+                                    _episodeActionsSheet(ep),
+                              ))
                           .toList(growable: false),
                 ),
               ],
@@ -1029,90 +1430,118 @@ class _LabStatusMessage extends StatelessWidget {
 }
 
 class _EpisodeListTile extends StatelessWidget {
-  const _EpisodeListTile({required this.episode});
+  const _EpisodeListTile({
+    required this.episode,
+    required this.onTap,
+    required this.onLongPress,
+  });
 
   final MemoryEpisode episode;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final createdAt =
         DateTime.fromMillisecondsSinceEpoch(episode.createdAt).toString();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.auto_awesome,
-            size: 18,
-            color: Colors.purple.shade400,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(episode.narrative,
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
-                Text(
-                  'sig ${episode.significance} · ${episode.confidence} · '
-                  '${episode.topicId} · '
-                  'v ${episode.valence.toStringAsFixed(2)} '
-                  'a ${episode.arousal.toStringAsFixed(2)} · '
-                  '${episode.status} · $createdAt',
-                  style: const TextStyle(fontSize: 10, color: Colors.black38),
-                ),
-              ],
+    final corrected = episode.userCorrected ? ' · 已修正' : '';
+    return InkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.auto_awesome,
+              size: 18,
+              color: Colors.purple.shade400,
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(episode.narrative,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Text(
+                    'sig ${episode.significance} · ${episode.confidence} · '
+                    '${episode.topicId} · '
+                    'v ${episode.valence.toStringAsFixed(2)} '
+                    'a ${episode.arousal.toStringAsFixed(2)} · '
+                    '${episode.status} · $createdAt$corrected',
+                    style: const TextStyle(
+                        fontSize: 10, color: Colors.black38),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.edit_outlined, size: 16, color: Colors.black26),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _FragmentListTile extends StatelessWidget {
-  const _FragmentListTile({required this.fragment});
+  const _FragmentListTile({
+    required this.fragment,
+    required this.onTap,
+    required this.onLongPress,
+  });
 
   final MemoryFragment fragment;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final createdAt =
         DateTime.fromMillisecondsSinceEpoch(fragment.createdAt).toString();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            fragment.isUserTruthCandidate
-                ? Icons.new_releases_outlined
-                : Icons.auto_awesome_outlined,
-            size: 18,
-            color: fragment.isUserTruthCandidate
-                ? Colors.orange.shade700
-                : Colors.blueGrey.shade400,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(fragment.content,
-                    style: const TextStyle(fontWeight: FontWeight.w500)),
-                const SizedBox(height: 4),
-                Text(
-                  '${fragment.status} · weight ${fragment.emotionalWeight.toStringAsFixed(2)} · $createdAt',
-                  style: const TextStyle(fontSize: 10, color: Colors.black38),
-                ),
-              ],
+    final corrected = fragment.userCorrected
+        ? ' · 已修正'
+        : '';
+    return InkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              fragment.isUserTruthCandidate
+                  ? Icons.new_releases_outlined
+                  : Icons.auto_awesome_outlined,
+              size: 18,
+              color: fragment.isUserTruthCandidate
+                  ? Colors.orange.shade700
+                  : Colors.blueGrey.shade400,
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(fragment.content,
+                      style: const TextStyle(fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${fragment.status} · weight ${fragment.emotionalWeight.toStringAsFixed(2)} · $createdAt$corrected',
+                    style: const TextStyle(
+                        fontSize: 10, color: Colors.black38),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.edit_outlined, size: 16, color: Colors.black26),
+          ],
+        ),
       ),
     );
   }
@@ -1613,6 +2042,138 @@ class _RecallHitText extends StatelessWidget {
           SelectableText(body, style: const TextStyle(fontSize: 12)),
         ],
       ),
+    );
+  }
+}
+
+/// Slider for picking a fragment's emotional weight (0.0 .. 1.0).
+///
+/// Stashes the last picked value in [lastPicked] so the parent dialog can
+/// read it after the user taps Save. This is intentionally simple — the
+/// dialog doesn't otherwise have a way to receive the slider's current
+/// value back without rebuilding the dialog tree.
+class _EmotionalWeightSlider extends StatefulWidget {
+  const _EmotionalWeightSlider({required this.initial});
+
+  final double initial;
+
+  /// Last value picked via the slider. Null if the user never moved it.
+  static double? lastPicked;
+
+  @override
+  State<_EmotionalWeightSlider> createState() => _EmotionalWeightSliderState();
+}
+
+class _EmotionalWeightSliderState extends State<_EmotionalWeightSlider> {
+  late double _value = widget.initial;
+
+  @override
+  void initState() {
+    super.initState();
+    _EmotionalWeightSlider.lastPicked = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('情感权重: ${_value.toStringAsFixed(2)}',
+            style: const TextStyle(fontSize: 12)),
+        Slider(
+          value: _value,
+          min: 0,
+          max: 1,
+          divisions: 20,
+          label: _value.toStringAsFixed(2),
+          onChanged: (v) {
+            setState(() => _value = v);
+            _EmotionalWeightSlider.lastPicked = v;
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// Int slider (1..10) for episode significance. Local state; parent
+/// receives changes via [onChanged] and decides what to do.
+class _IntSliderField extends StatelessWidget {
+  const _IntSliderField({
+    required this.label,
+    required this.min,
+    required this.max,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int min;
+  final int max;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text('$label: $value',
+              style: const TextStyle(fontSize: 12)),
+        ),
+        Expanded(
+          child: Slider(
+            value: value.toDouble(),
+            min: min.toDouble(),
+            max: max.toDouble(),
+            divisions: max - min,
+            label: '$value',
+            onChanged: (v) => onChanged(v.round()),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Double slider with a fixed value range. Used for valence and arousal
+/// on episode edits.
+class _DoubleSliderField extends StatelessWidget {
+  const _DoubleSliderField({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text('$label: ${value.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 12)),
+        ),
+        Expanded(
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            divisions: 20,
+            label: value.toStringAsFixed(2),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 }
