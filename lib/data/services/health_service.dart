@@ -15,6 +15,7 @@ import 'package:memex/data/services/background_task_drain_service.dart';
 import 'package:memex/data/services/background_task_foreground_service.dart';
 import 'package:memex/data/services/companion_foreground_task.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
+import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/utils/user_storage.dart';
 
 /// Configuration for handling a specific Health Data Type
@@ -385,6 +386,9 @@ void callbackDispatcher() {
         }
         if (!AppDatabase.isInitialized) {
           await AppDatabase.init(userId);
+        }
+        if (!DreamingOrchestratorServiceV3.isInitialized) {
+          DreamingOrchestratorServiceV3.init(AppDatabase.instance);
         }
         await UserStorage.initL10n();
         final charRow = await AppDatabase.instance
