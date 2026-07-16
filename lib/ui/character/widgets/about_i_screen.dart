@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -29,6 +30,9 @@ class _AboutIScreenState extends State<AboutIScreen> {
   String? _chatBackgroundPreview;
 
   final _ttsVoiceIdController = TextEditingController();
+  final _ttsVoiceIdFocusNode = FocusNode();
+  Timer? _ttsVoiceIdSaveDebounce;
+  String? _lastPersistedTtsVoiceId;
 
   @override
   void initState() {
@@ -51,6 +55,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
         _avatarPreview = primary?.avatar;
         _chatBackgroundPreview = primary?.chatBackground;
         _ttsVoiceIdController.text = primary?.ttsVoiceId ?? '';
+        _lastPersistedTtsVoiceId = primary?.ttsVoiceId;
         _isLoading = false;
       });
     } catch (e, s) {
@@ -61,8 +66,34 @@ class _AboutIScreenState extends State<AboutIScreen> {
 
   @override
   void dispose() {
+    _ttsVoiceIdSaveDebounce?.cancel();
+    if (_isTtsVoiceIdDirty()) {
+      _flushTtsVoiceIdSave();
+    }
     _ttsVoiceIdController.dispose();
+    _ttsVoiceIdFocusNode.dispose();
     super.dispose();
+  }
+
+  bool _isTtsVoiceIdDirty() {
+    final current = _ttsVoiceIdController.text.trim();
+    final saved = _lastPersistedTtsVoiceId ?? '';
+    return current != saved;
+  }
+
+  void _onTtsVoiceIdChanged(String _) {
+    _ttsVoiceIdSaveDebounce?.cancel();
+    _ttsVoiceIdSaveDebounce = Timer(
+      const Duration(milliseconds: 600),
+      _saveTtsVoiceId,
+    );
+  }
+
+  void _flushTtsVoiceIdSave() {
+    _ttsVoiceIdSaveDebounce?.cancel();
+    if (_isTtsVoiceIdDirty()) {
+      _saveTtsVoiceId();
+    }
   }
 
   Future<void> _pickAvatar() async {
@@ -142,7 +173,34 @@ class _AboutIScreenState extends State<AboutIScreen> {
 
   Future<void> _saveTtsVoiceId() async {
     final value = _ttsVoiceIdController.text.trim();
-    await _persistField('tts_voice_id', value.isEmpty ? null : value);
+    final next = value.isEmpty ? null : value;
+    if ((_lastPersistedTtsVoiceId ?? '') == (next ?? '')) return;
+    final character = _character;
+    if (character == null) return;
+    try {
+      final userId = await UserStorage.getUserId();
+      if (userId == null) return;
+      final updated = await CharacterService.instance.updateCharacter(
+        userId: userId,
+        characterId: character.id,
+        updates: {'tts_voice_id': next},
+      );
+      if (!mounted) return;
+      if (updated != null) {
+        setState(() {
+          _character = updated;
+          _lastPersistedTtsVoiceId = next;
+        });
+      }
+    } catch (e, s) {
+      _logger.warning('Failed to persist tts_voice_id', e, s);
+      if (mounted) {
+        ToastHelper.showError(
+          context,
+          UserStorage.l10n.saveFailed(e.toString()),
+        );
+      }
+    }
   }
 
   Future<void> _persistField(String key, dynamic value) async {
@@ -213,6 +271,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
                       const SizedBox(height: 8),
                       TextField(
                         controller: _ttsVoiceIdController,
+                        focusNode: _ttsVoiceIdFocusNode,
                         style: const TextStyle(fontSize: 16),
                         decoration: InputDecoration(
                           hintText: 'Voice ID',
@@ -245,7 +304,9 @@ class _AboutIScreenState extends State<AboutIScreen> {
                             ),
                           ),
                         ),
-                        onSubmitted: (_) => _saveTtsVoiceId(),
+                        onChanged: _onTtsVoiceIdChanged,
+                        onSubmitted: (_) => _flushTtsVoiceIdSave(),
+                        onTapOutside: (_) => _flushTtsVoiceIdSave(),
                       ),
                       const SizedBox(height: 32),
                       _sectionLabel('Dreaming'),
