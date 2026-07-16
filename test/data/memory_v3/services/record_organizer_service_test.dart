@@ -185,6 +185,258 @@ void main() {
     expect(entry.linkedFactId, cardId);
     expect(entry.characterId, 'system:card_bridge');
   });
+
+  test('updateCard changes only provided fields and writes an update audit',
+      () async {
+    if (!fts5Available) return;
+    final agent = _StaticCardAgent();
+    final result = await service.organizeAndPersist(
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: agent,
+      source: RecordSource(
+        sourceKind: 'record_button',
+        rawInput: '午饭吃了汉堡',
+      ),
+    );
+    expect(result.isEmpty, isFalse);
+    final cardId = result.cardIds.single;
+
+    final original = await (db.select(db.memoryCards)
+          ..where((t) => t.id.equals(cardId)))
+        .getSingle();
+    expect(original.title, '午饭吃了汉堡');
+
+    final updated = await service.updateCard(
+      cardId,
+      title: '午饭吃了麦辣鸡腿堡',
+      retrievalText: '中午吃了麦辣鸡腿堡，和室友 A 一起。',
+      dropletLabel: '鸡腿堡',
+    );
+    expect(updated, isA<MemoryCard>());
+    expect(updated!.title, '午饭吃了麦辣鸡腿堡');
+    expect(updated.retrievalText, '中午吃了麦辣鸡腿堡，和室友 A 一起。');
+    expect(updated.dropletLabel, '鸡腿堡');
+    expect(updated.type, original.type); // unchanged
+    expect(updated.updatedAt, greaterThan(original.updatedAt));
+
+    final ops = await (db.select(db.memoryCardOperations)
+          ..where((t) => t.cardId.equals(cardId)))
+        .get();
+    final updateOps = ops.where((o) => o.operationType == 'update').toList();
+    expect(updateOps, hasLength(1));
+    final payload = jsonDecode(updateOps.single.payload) as Map<String, dynamic>;
+    expect(payload.keys, containsAll(['title', 'retrievalText', 'dropletLabel']));
+  });
+
+  test('updateCard returns null for unknown cardId', () async {
+    if (!fts5Available) return;
+    final result = await service.updateCard(
+      'nonexistent-id',
+      title: '不会写入',
+    );
+    expect(result == null, isTrue);
+  });
+
+  test('updateCard patches structured fields, merges with existing, and marks userCorrected',
+      () async {
+    if (!fts5Available) return;
+    final agent = _StaticCardAgent();
+    final result = await service.organizeAndPersist(
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: agent,
+      source: RecordSource(
+        sourceKind: 'record_button',
+        rawInput: '午饭吃了汉堡',
+      ),
+    );
+    final cardId = result.cardIds.single;
+
+    // Insert initial structured fields with both content and time fields.
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await db.into(db.memoryCardStructuredFields).insert(
+          MemoryCardStructuredFieldsCompanion.insert(
+            cardId: cardId,
+            structuredFieldsType: 'general',
+            fieldsJson:
+                '{"foo":"bar","amount_cny":100,"merchant":"旧店","receivedAt":"2026-07-15T12:00:00"}',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    // Pass a "wrong" time field in structured_fields - it MUST be stripped.
+    // Other content fields should merge with existing.
+    await service.updateCard(
+      cardId,
+      structuredFields: {
+        'amount_cny': 128,
+        'merchant': '麦当劳',
+        'receivedAt': 'WRONG_TIME_SHOULD_BE_STRIPPED',
+      },
+      structuredFieldsType: 'expense_entry',
+    );
+
+    final sf = await (db.select(db.memoryCardStructuredFields)
+          ..where((t) => t.cardId.equals(cardId)))
+        .getSingle();
+    expect(sf.structuredFieldsType, 'expense_entry');
+    expect(sf.userCorrected, true);
+    final decoded = jsonDecode(sf.fieldsJson) as Map<String, dynamic>;
+    expect(decoded['amount_cny'], 128);
+    expect(decoded['merchant'], '麦当劳');
+    // Unspecified fields preserved.
+    expect(decoded['foo'], 'bar');
+    // Time field preserved from existing — NOT the wrong value from new.
+    expect(decoded['receivedAt'], '2026-07-15T12:00:00');
+  });
+
+  test('updateCard timeOverrides can explicitly change time fields', () async {
+    if (!fts5Available) return;
+    final agent = _StaticCardAgent();
+    final result = await service.organizeAndPersist(
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: agent,
+      source: RecordSource(sourceKind: 'record_button', rawInput: '午饭'),
+    );
+    final cardId = result.cardIds.single;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await db.into(db.memoryCardStructuredFields).insert(
+          MemoryCardStructuredFieldsCompanion.insert(
+            cardId: cardId,
+            structuredFieldsType: 'income_entry',
+            fieldsJson: '{"amount_cny":2690,"receivedAt":"2026-07-15T08:52:33"}',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    await service.updateCard(
+      cardId,
+      timeOverrides: {'receivedAt': '2026-07-15T09:30:00'},
+    );
+
+    final sf = await (db.select(db.memoryCardStructuredFields)
+          ..where((t) => t.cardId.equals(cardId)))
+        .getSingle();
+    final decoded = jsonDecode(sf.fieldsJson) as Map<String, dynamic>;
+    expect(decoded['amount_cny'], 2690); // preserved
+    expect(decoded['receivedAt'], '2026-07-15T09:30:00'); // changed via override
+  });
+
+  test('updateCard timeOverrides silently ignores non-time keys', () async {
+    if (!fts5Available) return;
+    final agent = _StaticCardAgent();
+    final result = await service.organizeAndPersist(
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: agent,
+      source: RecordSource(sourceKind: 'record_button', rawInput: '午饭'),
+    );
+    final cardId = result.cardIds.single;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await db.into(db.memoryCardStructuredFields).insert(
+          MemoryCardStructuredFieldsCompanion.insert(
+            cardId: cardId,
+            structuredFieldsType: 'general',
+            fieldsJson: '{"amount_cny":100,"merchant":"原店"}',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    await service.updateCard(
+      cardId,
+      timeOverrides: {'merchant': '新店', 'paidAt': '2026-07-15T14:00:00'},
+    );
+
+    final sf = await (db.select(db.memoryCardStructuredFields)
+          ..where((t) => t.cardId.equals(cardId)))
+        .getSingle();
+    final decoded = jsonDecode(sf.fieldsJson) as Map<String, dynamic>;
+    expect(decoded['merchant'], '原店'); // timeOverrides ignored non-time key
+    expect(decoded['amount_cny'], 100); // preserved
+    expect(decoded['paidAt'], '2026-07-15T14:00:00'); // time field added
+  });
+
+  test('updateCard does not refresh memory_cards.updatedAt', () async {
+    if (!fts5Available) return;
+    final agent = _StaticCardAgent();
+    final result = await service.organizeAndPersist(
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: agent,
+      source: RecordSource(sourceKind: 'record_button', rawInput: '午饭'),
+    );
+    final cardId = result.cardIds.single;
+
+    final original = await (db.select(db.memoryCards)
+          ..where((t) => t.id.equals(cardId)))
+        .getSingle();
+    // Wait so any new timestamp would be measurably different.
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    await service.updateCard(
+      cardId,
+      title: '午饭吃了麦辣鸡腿堡',
+      retrievalText: '中午吃了麦辣鸡腿堡，和同事一起。',
+    );
+    final after = await (db.select(db.memoryCards)
+          ..where((t) => t.id.equals(cardId)))
+        .getSingle();
+
+    expect(after.title, '午饭吃了麦辣鸡腿堡');
+    expect(after.retrievalText, '中午吃了麦辣鸡腿堡，和同事一起。');
+    expect(after.updatedAt, original.updatedAt); // unchanged on purpose
+  });
+
+  test('updateCard auto-syncs retrievalText into presentationModule text blocks',
+      () async {
+    if (!fts5Available) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cardId = 'sync-text-card-${DateTime.now().microsecondsSinceEpoch}';
+    await db.into(db.memoryCards).insert(
+          MemoryCardsCompanion.insert(
+            id: cardId,
+            memoryScope: const Value('user_truth'),
+            type: 'event',
+            title: '午饭',
+            dropletLabel: '午饭',
+            presentationModule: jsonEncode({
+              'title': '午饭',
+              'blocks': [
+                {'type': 'text', 'text': '旧的第一句。'},
+                {'type': 'text', 'text': '旧的第二句。'},
+                {'type': 'number', 'value': '88', 'unit': '元'},
+              ],
+            }),
+            retrievalText: '旧的第一句。旧的第二句。',
+            valence: 0.4,
+            arousal: 0.3,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    await service.updateCard(
+      cardId,
+      retrievalText: '新的第一句。新的第二句。',
+    );
+    final updated = await (db.select(db.memoryCards)
+          ..where((t) => t.id.equals(cardId)))
+        .getSingle();
+    final pm = jsonDecode(updated.presentationModule) as Map<String, dynamic>;
+    final blocks = pm['blocks'] as List;
+    expect((blocks[0] as Map)['text'], '新的第一句。');
+    expect((blocks[1] as Map)['text'], '新的第二句。');
+    // Non-text block preserved (number, media, table, quote, ...).
+    expect((blocks[2] as Map)['type'], 'number');
+    expect((blocks[2] as Map)['value'], '88');
+  });
 }
 
 /// Agent that skips the LLM and returns a fixed income_entry card.
@@ -257,6 +509,36 @@ class _IncomeSplitCardAgent extends RecordOrganizerAgentV3 {
           'ai_contribution': '脚本初稿',
           'my_contribution': '修改润色',
         },
+      ),
+    ]);
+  }
+}
+
+/// Agent that returns a simple event card without structured fields.
+class _StaticCardAgent extends RecordOrganizerAgentV3 {
+  @override
+  Future<OrganizedRecord> organize({
+    required LLMClient client,
+    required ModelConfig modelConfig,
+    required String rawInput,
+    required DateTime now,
+    List<String> relevantExistingCardSummaries = const [],
+    List<String> recentEntityNames = const [],
+    List<Map<String, String>>? inputMedia,
+  }) async {
+    return OrganizedRecord(cards: [
+      OrganizedCard(
+        type: 'event',
+        title: '午饭吃了汉堡',
+        dropletLabel: '汉堡',
+        presentationModule: {
+          'blocks': [
+            {'kind': 'text', 'text': '午饭吃了汉堡'},
+          ],
+        },
+        retrievalText: '午饭吃了汉堡',
+        valence: 0.4,
+        arousal: 0.3,
       ),
     ]);
   }

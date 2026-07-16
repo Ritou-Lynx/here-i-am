@@ -28,6 +28,111 @@ import '../models/organized_record.dart';
 
 final _logger = getLogger('memory_v3.RecordOrganizerService');
 
+/// Field names inside `structuredFields` that represent time anchors for the
+/// recorded event. These are intentionally NEVER writable through the
+/// companion-facing `memory_v3_update_card` tool's `structured_fields`
+/// parameter — the LLM can only change them via the explicit `time_overrides`
+/// parameter, and only when the user says the event time is wrong. This stops
+/// accidental time drift when the LLM regenerates a card's business fields.
+const Set<String> _timeFieldNames = {
+  'occurredAt',
+  'occurredEndAt',
+  'nextActionAt',
+  'dueAt',
+  'startAt',
+  'endAt',
+  'remindAt',
+  'paidAt',
+  'receivedAt',
+  'sleepStart',
+  'sleepEnd',
+  'wakeDate',
+};
+
+/// When the caller updates `retrievalText` without explicitly passing a new
+/// `presentationModule`, we try to keep the visible summary card in sync by
+/// rewriting the text inside text blocks. Non-text blocks are preserved so
+/// number/quote/table/media layouts stay intact.
+///
+/// Returns the updated JSON-decoded PresentationModule map, or null if there
+/// is nothing to change (e.g. no existing blocks, or no text blocks).
+Map<String, dynamic>? _syncRetrievalTextIntoBlocks(
+  String existingJson,
+  String newRetrievalText,
+) {
+  final parsed = _safeParseJson(existingJson);
+  if (parsed is! Map) return null;
+  final existing = Map<String, dynamic>.from(parsed);
+  final rawBlocks = existing['blocks'];
+  if (rawBlocks is! List || rawBlocks.isEmpty) return null;
+  final hasTextBlock = rawBlocks.any(
+    (b) => b is Map && (b['type'] ?? b['kind']) == 'text',
+  );
+  if (!hasTextBlock) return null;
+
+  // Split retrievalText into sentences by Chinese/English punctuation.
+  // We keep block order: each existing text block gets the next sentence,
+  // and any leftover sentences get appended as new text blocks at the end.
+  final sentences = _splitIntoSentences(newRetrievalText);
+  if (sentences.isEmpty) return null;
+
+  final newBlocks = <Map<String, dynamic>>[];
+  var nextSentenceIdx = 0;
+  for (final block in rawBlocks) {
+    if (block is! Map) {
+      newBlocks.add(Map<String, dynamic>.from(block));
+      continue;
+    }
+    final isText = (block['type'] ?? block['kind']) == 'text';
+    if (isText && nextSentenceIdx < sentences.length) {
+      newBlocks.add({
+        ...Map<String, dynamic>.from(block),
+        'text': sentences[nextSentenceIdx++],
+      });
+    } else {
+      newBlocks.add(Map<String, dynamic>.from(block));
+    }
+  }
+  while (nextSentenceIdx < sentences.length) {
+    newBlocks.add({'type': 'text', 'text': sentences[nextSentenceIdx++]});
+  }
+  return {...existing, 'blocks': newBlocks};
+}
+
+/// Split a paragraph into sentences by major punctuation. Conservative — keeps
+/// short sentences together to avoid breaking text that uses commas lightly.
+List<String> _splitIntoSentences(String text) {
+  final trimmed = text.trim();
+  if (trimmed.isEmpty) return const [];
+  final regex = RegExp(r'[^。！？!?\.]+[。！？!?\.]|[^。！？!?\.]+$');
+  final matches = regex.allMatches(trimmed).map((m) => m.group(0)!.trim()).where((s) => s.isNotEmpty);
+  final list = matches.toList();
+  if (list.isEmpty) return [trimmed];
+  return list;
+}
+
+/// Best-effort JSON parse that returns null instead of throwing.
+Object? _safeParseJson(String raw) {
+  try {
+    return jsonDecode(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Extract just the text content of text blocks for audit logging.
+List<String> _extractTextBlocks(String presentationJson) {
+  final parsed = _safeParseJson(presentationJson);
+  if (parsed is! Map) return const [];
+  final rawBlocks = parsed['blocks'];
+  if (rawBlocks is! List) return const [];
+  return rawBlocks
+      .where((b) => b is Map && (b['type'] ?? b['kind']) == 'text')
+      .map((b) => (b as Map)['text']?.toString() ?? '')
+      .where((s) => s.isNotEmpty)
+      .toList();
+}
+
 /// Result of a Record Organizer write.
 class RecordPersistResult {
   RecordPersistResult({
@@ -618,6 +723,254 @@ class RecordOrganizerServiceV3 {
       } catch (e, s) {
         _logger.warning('Failed to remove FTS index for $cardId', e, s);
       }
+    });
+  }
+
+  /// Update one or more fields of an existing memory card.
+  ///
+  /// Writes an `update` operation to the audit log, updates the projection
+  /// row(s), and rebuilds the FTS index. Only the fields you pass are changed;
+  /// null/absent parameters leave the existing value untouched.
+  ///
+  /// [structuredFields] and [structuredFieldsType] are updated together: if
+  /// you pass one you should pass the other. Passing a non-null [structuredFields]
+  /// with null [structuredFieldsType] clears the type.
+  ///
+  /// Returns the updated card row, or null if [cardId] was not found.
+  Future<MemoryCard?> updateCard(
+    String cardId, {
+    String? title,
+    String? retrievalText,
+    String? dropletLabel,
+    String? type,
+    String? status,
+    Map<String, dynamic>? structuredFields,
+    String? structuredFieldsType,
+    Map<String, dynamic>? timeOverrides,
+    Map<String, dynamic>? presentationModule,
+    String sourceKind = 'companion_edit',
+  }) async {
+    return _db.transaction(() async {
+      final card = await (_db.select(_db.memoryCards)
+            ..where((t) => t.id.equals(cardId)))
+          .getSingleOrNull();
+      if (card == null) {
+        _logger.warning('updateCard: $cardId not found, no-op');
+        return null;
+      }
+
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final changes = <String, dynamic>{};
+
+      String? newTitle;
+      String? newRetrievalText;
+      String? newDropletLabel;
+      String? newType;
+      Value<String?> newStatus = const Value.absent();
+      if (title != null && title != card.title) {
+        newTitle = title;
+        changes['title'] = {'old': card.title, 'new': title};
+      }
+      if (retrievalText != null && retrievalText != card.retrievalText) {
+        newRetrievalText = retrievalText;
+        changes['retrievalText'] = {'old': card.retrievalText, 'new': retrievalText};
+      }
+      if (dropletLabel != null && dropletLabel != card.dropletLabel) {
+        newDropletLabel = dropletLabel;
+        changes['dropletLabel'] = {'old': card.dropletLabel, 'new': dropletLabel};
+      }
+      if (type != null && type != card.type) {
+        newType = type;
+        changes['type'] = {'old': card.type, 'new': type};
+      }
+      if (status != null && status != card.status) {
+        newStatus = Value(status);
+        changes['status'] = {'old': card.status, 'new': status};
+      }
+
+      // Update structured fields if requested.
+      if (structuredFields != null || timeOverrides != null) {
+        final existing = await (_db.select(_db.memoryCardStructuredFields)
+              ..where((t) => t.cardId.equals(cardId)))
+            .getSingleOrNull();
+
+        // Merge with existing JSON. Time fields in [structuredFields] are
+        // stripped — only [timeOverrides] can change them. Unspecified fields
+        // are preserved from the original.
+        Map<String, dynamic> merged = <String, dynamic>{};
+        if (existing != null) {
+          final decoded = jsonDecode(existing.fieldsJson);
+          if (decoded is Map<String, dynamic>) {
+            merged.addAll(decoded);
+          }
+        }
+
+if (structuredFields != null) {
+          final filtered = Map<String, dynamic>.from(structuredFields);
+          for (final key in _timeFieldNames) {
+            filtered.remove(key);
+          }
+          for (final entry in filtered.entries) {
+            if (merged[entry.key] != entry.value) {
+              changes['structuredFields.${entry.key}'] = {
+                'old': merged[entry.key],
+                'new': entry.value,
+              };
+            }
+          }
+          merged.addAll(filtered);
+        }
+
+        if (timeOverrides != null) {
+          for (final entry in timeOverrides.entries) {
+            if (!_timeFieldNames.contains(entry.key)) {
+              _logger.warning(
+                'updateCard: timeOverrides ignored non-time field "${entry.key}" on $cardId',
+              );
+              continue;
+            }
+            if (merged[entry.key] != entry.value) {
+              changes['timeOverrides.${entry.key}'] = {
+                'old': merged[entry.key],
+                'new': entry.value,
+              };
+            }
+            merged[entry.key] = entry.value;
+          }
+        }
+
+        final mergedJson = jsonEncode(merged);
+        if (existing != null) {
+          await (_db.update(_db.memoryCardStructuredFields)
+                ..where((t) => t.cardId.equals(cardId)))
+              .write(MemoryCardStructuredFieldsCompanion(
+            structuredFieldsType: structuredFieldsType != null
+                ? Value(structuredFieldsType)
+                : const Value.absent(),
+            fieldsJson: Value(mergedJson),
+            userCorrected: const Value(true),
+            updatedAt: Value(now),
+          ));
+        } else {
+          await _db.into(_db.memoryCardStructuredFields).insert(
+                MemoryCardStructuredFieldsCompanion.insert(
+                  cardId: cardId,
+                  structuredFieldsType: structuredFieldsType ?? 'general',
+                  fieldsJson: mergedJson,
+                  userCorrected: const Value(true),
+                  createdAt: now,
+                  updatedAt: now,
+                ),
+              );
+        }
+        if (structuredFieldsType != null) {
+          changes['structuredFieldsType'] = structuredFieldsType;
+        }
+      } else if (structuredFieldsType != null) {
+        // Only updating the type without changing fields.
+        await (_db.update(_db.memoryCardStructuredFields)
+              ..where((t) => t.cardId.equals(cardId)))
+            .write(MemoryCardStructuredFieldsCompanion(
+          structuredFieldsType: Value(structuredFieldsType),
+          userCorrected: const Value(true),
+          updatedAt: Value(now),
+        ));
+        changes['structuredFieldsType'] = structuredFieldsType;
+      }
+
+      // Compute presentationModule update.
+      //
+      // Priority:
+      // 1. If caller passed `presentationModule` directly, use it verbatim.
+      // 2. Else if `retrievalText` is changing, auto-sync: update text blocks
+      //    in the existing presentationModule with the new retrievalText.
+      //    Non-text blocks (number/quote/table/media/...) are preserved.
+      // 3. Else no presentationModule change.
+      String? newPresentationModuleJson;
+      if (presentationModule != null) {
+        newPresentationModuleJson = jsonEncode(presentationModule);
+        if (newPresentationModuleJson != card.presentationModule) {
+          changes['presentationModule'] = {
+            'old': _safeParseJson(card.presentationModule),
+            'new': presentationModule,
+          };
+        } else {
+          newPresentationModuleJson = null;
+        }
+      } else if (newRetrievalText != null) {
+        final newText = newRetrievalText;
+        final synced = _syncRetrievalTextIntoBlocks(
+          card.presentationModule,
+          newText,
+        );
+        if (synced != null) {
+          final json = jsonEncode(synced);
+          newPresentationModuleJson = json;
+          changes['presentationModule.blocks.text'] = {
+            'old': _extractTextBlocks(card.presentationModule),
+            'new': _extractTextBlocks(json),
+          };
+        }
+      }
+
+      // Apply card row update if anything changed.
+      //
+      // NOTE: we deliberately do NOT refresh memory_cards.updatedAt here.
+      // That column is the card's "last-modified" time and is used by the
+      // Memory Review list as the display+sort key. Refreshing it on every
+      // edit would make the card jump to the top of the list and make its
+      // list timestamp show the edit time instead of the event time.
+      // Modifications are tracked in memory_card_operations (audit log).
+      if (changes.isNotEmpty) {
+        await (_db.update(_db.memoryCards)
+              ..where((t) => t.id.equals(cardId)))
+            .write(MemoryCardsCompanion(
+          title: newTitle != null ? Value(newTitle) : const Value.absent(),
+          retrievalText: newRetrievalText != null
+              ? Value(newRetrievalText)
+              : const Value.absent(),
+          dropletLabel: newDropletLabel != null
+              ? Value(newDropletLabel)
+              : const Value.absent(),
+          type: newType != null ? Value(newType) : const Value.absent(),
+          status: newStatus,
+          presentationModule: newPresentationModuleJson != null
+              ? Value(newPresentationModuleJson)
+              : const Value.absent(),
+        ));
+
+        // Audit log.
+        await _db.into(_db.memoryCardOperations).insert(
+              MemoryCardOperationsCompanion.insert(
+                id: _uuid.v4(),
+                cardId: cardId,
+                operationType: 'update',
+                payload: jsonEncode(changes),
+                sourceKind: sourceKind,
+                createdAt: now,
+              ),
+            );
+
+        // Rebuild FTS with potentially new title/retrievalText/dropletLabel.
+        final updatedCard = await (_db.select(_db.memoryCards)
+              ..where((t) => t.id.equals(cardId)))
+            .getSingle();
+        try {
+          await _db.searchDao.upsertMemoryV3Fts(
+            cardId: cardId,
+            dropletLabel: updatedCard.dropletLabel,
+            title: updatedCard.title,
+            retrievalText: updatedCard.retrievalText,
+          );
+        } catch (e, s) {
+          _logger.warning('updateCard: FTS re-index failed for $cardId', e, s);
+        }
+        _logger.info('updateCard: updated $cardId, fields: ${changes.keys.join(", ")}');
+        return updatedCard;
+      }
+
+      _logger.info('updateCard: no changes for $cardId');
+      return card;
     });
   }
 

@@ -18,7 +18,7 @@ Tool buildMemoryV3QueryTool() {
 Use this tool whenever the user asks a "do you remember" question, references a past event, or you need to recall something the user recorded. Results are ranked by a combination of keyword relevance, lightweight synonym expansion, recency, and intent match.
 
 Each result includes:
-- card_id: unique identifier
+- card_id: FULL UUID — pass this verbatim to `memory_v3_update_card` when the user wants to change a card.
 - type: fact / event / task / schedule / plan
 - dropletLabel: short essence label
 - snippet: relevant excerpt from the card
@@ -87,12 +87,11 @@ Tips:
         buf.writeln();
         for (var i = 0; i < rankable.length && i < 10; i++) {
           final h = rankable[i];
-          final id = h.cardId.substring(0, 8);
           final hitData = rawHits.firstWhere(
             (r) => r['card_id'] == h.cardId,
             orElse: () => <String, dynamic>{},
           );
-          buf.writeln('- [$id] ${h.cardType} · '
+          buf.writeln('- card_id: ${h.cardId} · ${h.cardType} · '
               '${hitData['label_snippet'] ?? ''}');
           final textSnippet = hitData['text_snippet'] as String?;
           if (textSnippet != null && textSnippet.isNotEmpty) {

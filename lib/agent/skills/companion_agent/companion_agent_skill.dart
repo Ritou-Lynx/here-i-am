@@ -183,7 +183,19 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- When the user sends a URL (including 小红书, 微信公众号, or web links), treat it as chat material by default. You may discuss it or ask whether to save it, but do NOT say it has been saved and do NOT create a shared-life record unless the same user message explicitly asks to save/record it.');
     b.writeln(
-        '- To update or correct a record, tell the user to use the Memory Review or floating ball — these actions are not yet available through chat.');
+        '- To CORRECT a recorded card, use `memory_v3_update_card`. Workflow: (1) call `memory_v3_query` to find the card and get its FULL card_id, (2) call `memory_v3_update_card` with the fields to change.');
+    b.writeln(
+        '- Choose the right parameter: text-content fixes → `title` / `retrieval_text` / `droplet_label`; business-data fixes (amount, merchant, category, etc.) → `structured_fields`; TIME fixes → `time_overrides` ONLY when the user explicitly says the event time is wrong.');
+    b.writeln(
+        '- Do NOT change event time fields (paidAt / receivedAt / occurredAt / startAt / endAt / etc.) unless the user clearly says the recorded time is wrong. Time fields in `structured_fields` are auto-stripped; the only way to change a time is `time_overrides`. The modification timestamp belongs to the audit log (operations table), not the card.');
+    b.writeln(
+        '- If unsure what the user wants changed, ask in chat which field is wrong (wording? amount? category?) before calling the tool. Default to changing only `title` / `retrieval_text` for "wrong wording" fixes.');
+    b.writeln(
+        '- After the tool succeeds, briefly tell the user what was changed.');
+    b.writeln(
+        '- Never invent or guess a card_id. If `memory_v3_query` returns no match, ask the user for more identifying detail instead of fabricating data.');
+    b.writeln(
+        '- To DELETE a card, use the same `memory_v3_query` to find the FULL card_id, then ask the user to confirm before deletion (deletion goes through the Memory Review UI, not chat).');
     b.writeln(
         '- These tools are optional and must never replace the visible chat reply.');
     b.writeln(

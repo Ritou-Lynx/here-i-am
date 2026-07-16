@@ -31,6 +31,8 @@ class MemoryCardViewData {
     this.recordedPlace,
     required this.createdAt,
     required this.updatedAt,
+    this.structuredFieldsType,
+    this.structuredFieldsJson,
   });
 
   final String id;
@@ -87,6 +89,32 @@ class MemoryCardViewData {
   /// Card last-update time (ms since epoch).
   final int updatedAt;
 
+  // ---- structured fields (for event-time resolution) ----
+
+  /// Business domain name from Record Organizer (e.g. expense_entry,
+  /// income_entry, sleep_record, general). Null if the card has no
+  /// structured fields. Populated by query service for cards that need
+  /// event-time resolution. Mutable because it's patched in after the
+  /// constructor for list queries that don't JOIN structured fields.
+  String? structuredFieldsType;
+
+  /// Raw JSON-encoded structured fields (decoded by [structuredFieldsMap]).
+  /// Mutable for the same reason as [structuredFieldsType].
+  String? structuredFieldsJson;
+
+  /// Lazily decoded structured fields map. Returns null if not populated
+  /// or if the JSON is malformed.
+  Map<String, dynamic>? get structuredFieldsMap {
+    if (structuredFieldsJson == null || structuredFieldsJson!.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(structuredFieldsJson!);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {}
+    return null;
+  }
+
   // ---- convenience ----
 
   bool get hasFollowUp =>
@@ -138,6 +166,83 @@ class MemoryCardViewData {
       return null;
     } catch (_) {
       return null;
+    }
+  }
+
+  // ---- event-time resolution ----
+
+  /// The business event time of this card, in ms since epoch.
+  ///
+  /// This is the anchor that the Memory Review list uses for sorting and
+  /// display, so a card about a 7/15 lunch stays on 7/15 even if the user
+  /// edits it on 7/16. Resolution order:
+  /// 1. [structuredFieldsMap] time anchor for the card's domain:
+  ///    - expense_entry → paidAt
+  ///    - income_entry → receivedAt
+  ///    - sleep_record → wakeDate or sleepEnd
+  ///    - task / schedule / plan → startAt or dueAt
+  ///    - general / other → occurredAt
+  /// 2. [recordedAt] (when the user pressed the record button).
+  /// 3. [createdAt] (card row creation).
+  ///
+  /// Returns null only if [createdAt] is missing, which should not happen
+  /// in practice.
+  int? get eventTimeMs {
+    final fields = structuredFieldsMap;
+    final type = structuredFieldsType;
+    if (fields != null && type != null) {
+      final anchor = _resolveEventAnchor(type, fields);
+      if (anchor != null) return anchor;
+    }
+    return recordedAt ?? createdAt;
+  }
+
+  /// Display-friendly label for the event-time anchor source. UI uses this
+  /// to optionally annotate that the timestamp comes from a business field
+  /// vs. a recording time vs. a creation time.
+  String get eventTimeSource {
+    final fields = structuredFieldsMap;
+    final type = structuredFieldsType;
+    if (fields != null && type != null && _resolveEventAnchor(type, fields) != null) {
+      return 'structured';
+    }
+    if (recordedAt != null) return 'recorded';
+    return 'created';
+  }
+
+  static int? _resolveEventAnchor(String type, Map<String, dynamic> fields) {
+    int? pick(List<String> candidates) {
+      for (final key in candidates) {
+        final v = fields[key];
+        if (v is String && v.isNotEmpty) {
+          final parsed = DateTime.tryParse(v);
+          if (parsed != null) return parsed.millisecondsSinceEpoch;
+        }
+      }
+      return null;
+    }
+
+    switch (type) {
+      case 'expense_entry':
+      case 'shopping_order':
+        return pick(const ['paidAt', 'occurredAt']);
+      case 'income_entry':
+        return pick(const ['receivedAt', 'occurredAt']);
+      case 'sleep_record':
+        return pick(const ['wakeDate', 'sleepEnd', 'sleepStart']);
+      case 'task':
+      case 'schedule':
+      case 'plan':
+        return pick(const ['startAt', 'dueAt', 'endAt', 'occurredAt']);
+      default:
+        return pick(const [
+          'occurredAt',
+          'paidAt',
+          'receivedAt',
+          'wakeDate',
+          'startAt',
+          'dueAt',
+        ]);
     }
   }
 

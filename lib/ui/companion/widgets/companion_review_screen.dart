@@ -160,7 +160,12 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
         itemCount: _cards.length,
         itemBuilder: (context, index) {
           final card = _cards[index];
-          final displayTime = _formatDisplayTime(card.updatedAt);
+          // Anchor the list timestamp on the card's EVENT time (from
+          // structuredFields), not updatedAt. A 7/15 lunch edited on 7/16
+          // should still show as 7/15 noon in the list — only the detail
+          // page's "修改时间" should reflect the edit.
+          final eventMs = card.eventTimeMs ?? card.createdAt;
+          final displayTime = _formatDisplayTime(eventMs);
           return Padding(
             padding: const EdgeInsets.only(bottom: 18),
             child: Column(

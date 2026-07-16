@@ -308,17 +308,34 @@ class MemoryCardQueryService {
     if (ids.isEmpty) return [];
     final rows =
         await (_db.select(_db.memoryCards)..where((t) => t.id.isIn(ids))).get();
-    return rows.map(_toViewData).toList();
+    final cards = rows.map(_toViewData).toList();
+    await _attachStructuredFields(cards);
+    return cards;
   }
 
-  /// List recent cards ordered by [updatedAt] descending.
+  /// List recent cards ordered by their EVENT TIME descending (not updatedAt).
+  ///
+  /// Event time is resolved per-card from [MemoryCardViewData.eventTimeMs]
+  /// using structured-fields time anchors (paidAt / receivedAt / occurredAt /
+  /// wakeDate / startAt / dueAt). Cards without structured-field anchors fall
+  /// back to source.recordedAt, then card.createdAt. Sorting is done in Dart
+  /// because the event time lives inside a JSON column.
   Future<List<MemoryCardViewData>> listRecentCards({int limit = 100}) async {
     final rows = await (_db.select(_db.memoryCards)
           ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
           ..limit(limit))
         .get();
 
-    return rows.map(_toViewData).toList();
+    final cards = rows.map(_toViewData).toList();
+    await _attachStructuredFields(cards);
+    await _attachSourceInfo(cards);
+
+    cards.sort((a, b) {
+      final aMs = a.eventTimeMs ?? a.createdAt;
+      final bMs = b.eventTimeMs ?? b.createdAt;
+      return bMs.compareTo(aMs);
+    });
+    return cards;
   }
 
   /// List cards whose structured fields belong to one of [types].
@@ -340,9 +357,16 @@ class MemoryCardQueryService {
           ..limit(limit))
         .get();
 
-    return rows
+    final cards = rows
         .map((row) => _toViewData(row.readTable(_db.memoryCards)))
         .toList();
+    await _attachStructuredFields(cards);
+    cards.sort((a, b) {
+      final aMs = a.eventTimeMs ?? a.createdAt;
+      final bMs = b.eventTimeMs ?? b.createdAt;
+      return bMs.compareTo(aMs);
+    });
+    return cards;
   }
 
   // ---------------------------------------------------------------------------
@@ -478,6 +502,45 @@ class MemoryCardQueryService {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     );
+  }
+
+  /// Patch structured-fields data onto a list of view data in a single
+  /// batched query. The constructor cannot join directly because callers
+  /// sometimes only select `memory_cards` (e.g. [listRecentCards]).
+  Future<void> _attachStructuredFields(List<MemoryCardViewData> cards) async {
+    if (cards.isEmpty) return;
+    final ids = cards.map((c) => c.id).toList();
+    final rows = await (_db.select(_db.memoryCardStructuredFields)
+          ..where((t) => t.cardId.isIn(ids)))
+        .get();
+    final byId = {for (final r in rows) r.cardId: r};
+    for (final card in cards) {
+      final sf = byId[card.id];
+      if (sf != null) {
+        card.structuredFieldsType = sf.structuredFieldsType;
+        card.structuredFieldsJson = sf.fieldsJson;
+      }
+    }
+  }
+
+  /// Patch source row data (recordedAt, recordedPlace, rawInput) onto a
+  /// list of view data in a single batched query. Same rationale as
+  /// [_attachStructuredFields].
+  Future<void> _attachSourceInfo(List<MemoryCardViewData> cards) async {
+    if (cards.isEmpty) return;
+    final ids = cards.map((c) => c.id).toList();
+    final rows = await (_db.select(_db.memoryCardSources)
+          ..where((t) => t.cardId.isIn(ids)))
+        .get();
+    final byId = {for (final r in rows) r.cardId: r};
+    for (final card in cards) {
+      final s = byId[card.id];
+      if (s != null) {
+        card.recordedAt = s.recordedAt;
+        card.recordedPlace = s.recordedPlace;
+        card.rawInput = s.rawInput;
+      }
+    }
   }
 
   static Map<String, dynamic> _decodeJson(String? json) {

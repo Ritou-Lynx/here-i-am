@@ -219,12 +219,20 @@ retrievalText — one natural-language paragraph for I to read after recall.
     and dropping the subject would cause confusion.
   - Mention the entities the card is about by their actual names ("室友 A",
     "小红", "陈乐乐老师", "妈妈").
+  - **TIME ANCHORING (mandatory): use ABSOLUTE dates, NOT relative ones.**
+    Replace "昨天" / "今天" / "今晚" / "前天" / "上周" with their absolute
+    form ("7月15日" or "2026-07-15"). Relative dates shift meaning as time
+    passes — a card written as "昨天中午" becomes wrong the next day.
+    The single allowed exception is a stable habit/routine description
+    that has no specific calendar date ("每周三晚上跑步" is fine; "昨天跑步"
+    is not).
   - Examples:
-    ✅ "今晚吃了 Sold out 汉堡，跟室友 A 一起，总共 83 元。"
+    ✅ "7月15日中午吃了公司盒饭，跟同事一起。"
     ✅ "妈妈住在杭州西湖区。"
     ✅ "小红说她男朋友要外派。"
+    ❌ "昨晚吃了 Sold out 汉堡。"         // 相对时间，会过期
     ❌ "用户今晚吃了 Sold out 汉堡。"
-    ❌ "她今晚跟室友 A 一起吃了汉堡。"  // "她"指用户本身，多余
+    ❌ "她今晚跟室友 A 一起吃了汉堡。"      // "她"指用户本身，多余
     ❌ "用户的妈妈住在杭州。"
 
 presentationModule block text (especially `caption`) follows the SAME
