@@ -74,7 +74,7 @@ class MemoryCardSources extends Table {
 class MemoryCardStructuredFields extends Table {
   TextColumn get cardId => text()(); // FK soft → memory_cards.id
   TextColumn get structuredFieldsType =>
-      text()(); // expense_entry / sleep_record / reading_item / ...
+      text()(); // expense_entry / income_entry / sleep_record / reading_item / ...
 
   /// JSON object。业务时间字段 (occurredAt / nextActionAt / dueAt / startAt /
   /// remindAt / paidAt / sleepStart 等) 都在这里。

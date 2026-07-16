@@ -468,14 +468,18 @@ class RecordOrganizerServiceV3 {
 
   /// Bridge financial memory cards to the shared AI finance ledger.
   ///
-  /// When a user records an expense or shopping order via any explicit write
-  /// path (floating ball, record button, natural command), this automatically
-  /// creates a corresponding ledger entry so the finance panel stays in sync
-  /// without requiring a separate manual "记一笔" step.
+  /// When a user records an expense, shopping order or income via any
+  /// explicit write path (floating ball, record button, natural command),
+  /// this automatically creates a corresponding ledger entry so the finance
+  /// panel stays in sync without requiring a separate manual "记一笔" step.
   ///
-  /// Only `expense_entry` and `shopping_order` structured field types are
-  /// bridged. The AI share defaults to 0 (pure user expense) — the companion
-  /// can later adjust via AiFinanceRecord if the expense is shared.
+  /// Only `expense_entry`, `shopping_order` and `income_entry` structured
+  /// field types are bridged. Expenses/shopping map to `cost`, income maps
+  /// to `income`. The AI share defaults to 0 (pure user money movement).
+  /// For income, if the Record Organizer extracted an `ai_share_ratio`
+  /// (only present when the user explicitly stated a split), the bridge
+  /// computes aiAmount = totalAmount × ratio and stores the contribution
+  /// descriptions. The companion can still adjust later via AiFinanceRecord.
   Future<void> _bridgeToLedger({
     required OrganizedRecord organized,
     required List<String> cardIds,
@@ -485,7 +489,11 @@ class RecordOrganizerServiceV3 {
     for (var i = 0; i < organized.cards.length; i++) {
       final card = organized.cards[i];
       final sfType = card.structuredFieldsType;
-      if (sfType != 'expense_entry' && sfType != 'shopping_order') continue;
+      if (sfType != 'expense_entry' &&
+          sfType != 'shopping_order' &&
+          sfType != 'income_entry') {
+        continue;
+      }
 
       final fields = card.structuredFields;
       if (fields == null) continue;
@@ -498,27 +506,58 @@ class RecordOrganizerServiceV3 {
       final cardId = i < cardIds.length ? cardIds[i] : null;
       final purpose = card.title;
 
-      // Parse occurredAt from structured fields
+      // Parse occurredAt from structured fields.
+      // expense_entry/shopping_order use `paidAt`; income_entry uses `receivedAt`.
       DateTime? occurredAt;
-      final paidAtRaw = fields['paidAt'] as String?;
-      if (paidAtRaw != null) {
-        occurredAt = DateTime.tryParse(paidAtRaw);
+      final timeRaw = fields['paidAt'] as String? ??
+          fields['receivedAt'] as String?;
+      if (timeRaw != null) {
+        occurredAt = DateTime.tryParse(timeRaw);
       }
       occurredAt ??= source.recordedAt;
+
+      final isIncome = sfType == 'income_entry';
+
+      // For income, check if the user explicitly stated a companion share.
+      // The Record Organizer extracts `ai_share_ratio` (0.0–1.0) only when
+      // the user mentions a split; absent means pure user income (aiAmount 0).
+      double aiAmount = 0;
+      double? contributionRatio;
+      String? myContributionDesc;
+      String? aiContributionDesc;
+      if (isIncome) {
+        final ratioRaw = fields['ai_share_ratio'];
+        if (ratioRaw != null) {
+          final ratio = (ratioRaw is num)
+              ? ratioRaw.toDouble()
+              : double.tryParse('$ratioRaw');
+          if (ratio != null && ratio > 0 && ratio <= 1) {
+            contributionRatio = ratio;
+            aiAmount = (amount * ratio).clamp(0.0, amount).toDouble();
+            myContributionDesc =
+                fields['my_contribution'] as String?;
+            aiContributionDesc =
+                fields['ai_contribution'] as String?;
+          }
+        }
+      }
 
       try {
         await financeService.recordEntry(
           characterId: 'system:card_bridge',
-          entryType: 'cost',
+          entryType: isIncome ? 'income' : 'cost',
           totalAmount: amount,
-          aiAmount: 0,
+          aiAmount: aiAmount,
+          contributionRatio: contributionRatio,
+          myContributionDesc: myContributionDesc,
+          aiContributionDesc: aiContributionDesc,
           purpose: purpose,
           linkedFactId: cardId,
           occurredAt: occurredAt,
         );
         _logger.info(
           '_bridgeToLedger: created ledger entry for card ${cardId ?? '?'} '
-          '($sfType, ¥$amount, "$purpose")',
+          '($sfType, ¥$amount, aiShare ¥$aiAmount, "$purpose")',
         );
       } catch (e) {
         _logger.warning('_bridgeToLedger: failed for card ${cardId ?? '?'}: $e');

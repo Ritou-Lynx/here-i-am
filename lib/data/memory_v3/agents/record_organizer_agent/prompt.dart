@@ -266,7 +266,7 @@ calculable shape. Drop if nothing fits.
 
 `structuredFieldsType` is a BUSINESS DOMAIN name, NOT the card.type.
   - Allowed values (extend only if a clear new domain appears):
-    expense_entry / sleep_record / reading_item / outfit_log /
+    expense_entry / income_entry / sleep_record / reading_item / outfit_log /
     shopping_order / route_plan / workout_record / meeting_record /
     health_observation / general
   - Do NOT use `schedule` / `task` / `event` / `fact` / `plan` here —
@@ -292,6 +292,9 @@ calculable shape. Drop if nothing fits.
 
 Examples by domain (all flat):
   - expense_entry:  {"amount_cny":128,"category":"餐饮","merchant":"...","companions":["小红"],"paidAt":"2026-06-28T19:30:00"}
+  - income_entry:   {"amount_cny":5000,"source":"工资","payer":"...公司","receivedAt":"2026-07-15T09:00:00"}
+    income_entry with AI share (only when the user explicitly states a split):
+                     {"amount_cny":2690,"source":"项目收入","payer":"...","receivedAt":"2026-07-15T10:00:00","ai_share_ratio":0.3,"ai_contribution":"脚本初稿","my_contribution":"修改润色"}
   - sleep_record:   {"sleep_start":"...","sleep_end":"...","duration_min":380,"deep_sleep_min":42,"rem_min":80,"wakeDate":"..."}
   - reading_item:   {"title":"...","author":"...","source":"小红书","url":"...","progress":0.4}
   - shopping_order: {"item":"薄外套","amount_cny":128,"platform":"淘宝","status":"placed","paidAt":"..."}
@@ -300,17 +303,33 @@ Examples by domain (all flat):
 
 Business time field names that appear at top level of structuredFields:
   occurredAt, occurredEndAt, nextActionAt, nextActionDescription,
-  dueAt, startAt, endAt, remindAt, paidAt, sleepStart, sleepEnd, wakeDate.
+  dueAt, startAt, endAt, remindAt, paidAt, receivedAt, sleepStart, sleepEnd,
+  wakeDate.
 ISO 8601 strings, year derived from `current_time`. If you set
 nextActionAt / dueAt / startAt etc., the card automatically also appears
 in the Schedule panel.
 
 TIME INFERENCE FOR ALL TYPES:
   - expense_entry MUST infer **paidAt** (this exact field name, NOT
-    occurredAt) from time cues ("今晚" → today evening; "昨天" → yesterday;
-    "下周五买" → next Friday). Do NOT leave it null. Do NOT use the
-    recording timestamp — infer the actual meal/purchase time from the
+    occurredAt) from time cues ("今晚" -> today evening; "昨天" -> yesterday;
+    "下周五买" -> next Friday). Do NOT leave it null. Do NOT use the
+    recording timestamp - infer the actual meal/purchase time from the
     user's words.
+  - income_entry MUST infer **receivedAt** (this exact field name, NOT
+    occurredAt) from time cues, the same way expense_entry infers paidAt.
+    Do NOT leave it null. Do NOT use the recording timestamp - infer the
+    actual receipt time from the user's words.
+  - income_entry SPLIT: only when the user EXPLICITLY states that i (the
+    companion) gets a share of this income, extract these fields:
+    * ai_share_ratio: 0.0–1.0 (the companion's share). If the user gives
+      a percentage ("分三成给 i" -> 0.3) or a fixed amount that you can
+      convert to a ratio ("给 i 807" with total 2690 -> 0.3), emit the
+      ratio, NOT the amount.
+    * ai_contribution: short Chinese description of what i contributed.
+    * my_contribution: short Chinese description of what the user contributed.
+    If the user does NOT mention a split, do NOT emit any of these fields.
+    Pure user income (no AI share) is the default - just amount_cny / source /
+    payer / receivedAt.
   - plan types (type="plan") with month/range signals (e.g. "想七月去青岛",
     "下周末可能去") MUST set startAt to denote the planned period.
     Use `structuredFieldsType: "general"` + `{"startAt": "2026-07-xx"}`.
