@@ -787,11 +787,13 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       var preProcessedMessageCount = 0;
       var preFragmentCount = 0;
       final characterId = await _latestChatCharacterId();
+      // Episode and fragment extraction share the same record_organizer_agent
+      // model config; load it once and reuse for both stages.
+      final fragmentResources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.recordOrganizerAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
       if (characterId != null) {
-        final fragmentResources = await UserStorage.getAgentLLMResources(
-          AgentDefinitions.recordOrganizerAgent,
-          defaultClientKey: LLMConfig.defaultClientKey,
-        );
         final fragmentResult =
             await DreamingOrchestratorServiceV3.instance.runDailyFragmentBatch(
           characterId: characterId,
@@ -802,11 +804,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         preFragmentCount = fragmentResult.fragmentIds.length;
       }
 
-      // Episode uses the MAIN model (companion agent config).
-      final resources = await UserStorage.getAgentLLMResources(
-        AgentDefinitions.companionAgent,
-        defaultClientKey: LLMConfig.defaultClientKey,
-      );
+      final resources = fragmentResources;
 
       final result =
           await DreamingOrchestratorServiceV3.instance.runEpisodeConsolidation(

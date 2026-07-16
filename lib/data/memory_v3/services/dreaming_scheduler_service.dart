@@ -238,15 +238,20 @@ class DreamingSchedulerService {
       return false;
     }
 
-    // 4. Load LLM resources (same pattern as the Lab screen).
+    // 4. Load LLM resources. Both fragment extraction and episode
+    //    consolidation are memory-organization tasks and share the same
+    //    record_organizer_agent model config. Episode consolidation used to
+    //    piggyback on companionAgent for historical reasons, but that model
+    //    is tuned for chat (with NSFW/TTS context) and may enforce different
+    //    content policies when run under the cold episode-consolidator prompt,
+    //    causing refusals on intimate relationship memories. Keeping both
+    //    stages under the same agent also means the user only has to verify
+    //    one model accepts sensitive content, not two.
     final fragResources = await UserStorage.getAgentLLMResources(
       AgentDefinitions.recordOrganizerAgent,
       defaultClientKey: LLMConfig.defaultClientKey,
     );
-    final epResources = await UserStorage.getAgentLLMResources(
-      AgentDefinitions.companionAgent,
-      defaultClientKey: LLMConfig.defaultClientKey,
-    );
+    final epResources = fragResources;
 
     // 5. Run fragment extraction.
     try {
@@ -280,8 +285,13 @@ class DreamingSchedulerService {
         'from ${fragResult.processedMessageCount} messages',
       );
     } catch (e, stack) {
+      // Fragment extraction failed, but runDailyFragmentBatch already advanced
+      // the watermark past this batch (see method doc). Mark the batch as
+      // complete so the next trigger respects the 60-min interval instead of
+      // immediately re-firing. Episode consolidation still runs, because
+      // previously-extracted active fragments may be waiting.
       _logger.warning('Daily batch: fragment extraction failed', e, stack);
-      return false; // will retry on next Workmanager tick
+      await orchestrator.markDailyBatchComplete(characterId);
     }
 
     // 6. Run episode consolidation.
