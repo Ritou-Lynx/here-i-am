@@ -371,6 +371,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   int? _highlightedMessageId;
   bool _isHeaderActionsOpen = false;
   bool _showJumpToLatest = false;
+  OverlayEntry? _bubblePopupOverlay;
+  String? _popupMessageId;
 
   ToyController? _toyControlService;
   bool _toyConnected = false;
@@ -1240,6 +1242,7 @@ only after you have written the goodbye you want the user to hear.''',
 
   @override
   void dispose() {
+    _dismissBubblePopup();
     // Auto-capture is gone; record button + floating ball are the only paths now.
     unawaited(
       ActivePersonaChatService.instance.clear(characterId: _currentCharacterId),
@@ -1276,6 +1279,7 @@ only after you have written the goodbye you want the user to hear.''',
   /// Triggered when user scrolls toward the top (older messages).
   /// Since the list is reversed, maxScrollExtent = oldest direction.
   void _onScroll() {
+    if (_popupMessageId != null) _dismissBubblePopup();
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
     final shouldShowJump = pos.pixels > 180;
@@ -4318,6 +4322,117 @@ only after you have written the goodbye you want the user to hear.''',
     }
   }
 
+  void _dismissBubblePopup() {
+    _bubblePopupOverlay?.remove();
+    _bubblePopupOverlay = null;
+    if (_popupMessageId != null && mounted) {
+      setState(() => _popupMessageId = null);
+    } else {
+      _popupMessageId = null;
+    }
+  }
+
+  void _showBubbleActionPopup({
+    required String messageId,
+    required String text,
+    required GlobalKey bubbleKey,
+  }) {
+    _dismissBubblePopup();
+    final key = bubbleKey;
+    final renderBox =
+        key.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final bubbleSize = renderBox.size;
+    final bubblePosition = renderBox.localToGlobal(Offset.zero);
+    final token = HereIamThemeRuntime.current;
+    final isPlaying = _playingMessageId == messageId;
+
+    _popupMessageId = messageId;
+    _bubblePopupOverlay = OverlayEntry(
+      builder: (_) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _dismissBubblePopup,
+            ),
+          ),
+          Positioned(
+            left: bubblePosition.dx,
+            top: bubblePosition.dy + bubbleSize.height + 6,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                decoration: BoxDecoration(
+                  color: token.surfaceSoft.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: token.accent.withValues(alpha: 0.15),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _BubblePopupAction(
+                      icon: isPlaying
+                          ? Icons.stop_rounded
+                          : Icons.volume_up_rounded,
+                      label: isPlaying ? '停止' : '朗读',
+                      accent: token.accent,
+                      onTap: () {
+                        _dismissBubblePopup();
+                        _handleTtsPlay(messageId, text);
+                      },
+                    ),
+                    _BubblePopupAction(
+                      icon: Icons.copy_rounded,
+                      label: '复制',
+                      onTap: () {
+                        _dismissBubblePopup();
+                        Clipboard.setData(ClipboardData(text: text));
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('已复制'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    _BubblePopupAction(
+                      icon: Icons.checklist_rounded,
+                      label: '多选',
+                      onTap: () {
+                        _dismissBubblePopup();
+                        final msgId = int.tryParse(
+                          messageId.split(':').first,
+                        );
+                        setState(() {
+                          _isSelecting = true;
+                          if (msgId != null) _selectedMessageIds.add(msgId);
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    Overlay.of(context).insert(_bubblePopupOverlay!);
+  }
+
   Widget _buildCharacterBubble({
     required String text,
     required bool isStreaming,
@@ -4328,6 +4443,7 @@ only after you have written the goodbye you want the user to hear.''',
     final hasActions = !isStreaming && messageId != null && !_isSelecting;
     final hasAddenda =
         attachmentsJson != null && attachmentsJson.trim().isNotEmpty;
+    final bubbleKey = GlobalKey();
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomSpacing),
@@ -4338,14 +4454,15 @@ only after you have written the goodbye you want the user to hear.''',
             child: Align(
               alignment: Alignment.topLeft,
               child: GestureDetector(
+                key: bubbleKey,
                 onLongPress: hasActions
                     ? () {
                         HapticFeedback.mediumImpact();
-                        final msgId = int.tryParse(messageId.split(':').first);
-                        setState(() {
-                          _isSelecting = true;
-                          if (msgId != null) _selectedMessageIds.add(msgId);
-                        });
+                        _showBubbleActionPopup(
+                          messageId: messageId,
+                          text: text,
+                          bubbleKey: bubbleKey,
+                        );
                       }
                     : null,
                 child: _CharacterMessageFrame(
@@ -5357,6 +5474,45 @@ class _CharacterMessageFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _FrostedChatBubbleSurface(isCharacter: true, child: child);
+  }
+}
+
+class _BubblePopupAction extends StatelessWidget {
+  const _BubblePopupAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.accent,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: accent ?? Colors.white70),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: accent ?? Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
