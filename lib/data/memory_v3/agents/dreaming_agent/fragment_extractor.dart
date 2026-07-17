@@ -11,6 +11,7 @@ import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/data/memory_v3/models/dreaming_fragment.dart';
 import 'package:memex/utils/logger.dart';
 
+import 'llm_json_repair.dart';
 import 'prompt.dart';
 
 final _logger = getLogger('memory_v3.DreamingFragmentExtractor');
@@ -93,8 +94,8 @@ class DreamingFragmentExtractorV3 {
       UserMessage([
         TextPart(jsonEncode(payload)),
         TextPart(
-          'STRICT: Reply with ONLY a single JSON object. '
-          'No markdown fences, no commentary, no trailing comma. '
+          "STRICT: Reply with ONLY a single JSON object. "
+          "No markdown fences, no commentary, no trailing comma. "
           'The first character must be "{".',
         ),
       ]),
@@ -123,8 +124,8 @@ class DreamingFragmentExtractorV3 {
 
   DreamingFragmentExtraction _parse(String raw) {
     var trimmed = raw.trim();
-    trimmed = trimmed.replaceAll(RegExp(r'<think>[\s\S]*?</think>'), '');
-    final unclosedThink = trimmed.indexOf('<think>');
+    trimmed = trimmed.replaceAll(RegExp(r'<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>'), '');
+    final unclosedThink = trimmed.indexOf(r'<\s*think\s*>');
     if (unclosedThink >= 0) {
       final braceAfter = trimmed.indexOf('{', unclosedThink);
       trimmed = braceAfter >= 0 ? trimmed.substring(braceAfter) : '';
@@ -148,7 +149,7 @@ class DreamingFragmentExtractorV3 {
       );
     }
     var jsonPart = trimmed.substring(start, end + 1);
-    jsonPart = _repairLLMJson(jsonPart);
+    jsonPart = repairLlmJson(jsonPart);
     final decoded = jsonDecode(jsonPart);
     if (decoded is! Map) {
       throw const FormatException(
@@ -158,43 +159,5 @@ class DreamingFragmentExtractorV3 {
     return DreamingFragmentExtraction.fromJson(
       decoded.cast<String, dynamic>(),
     );
-  }
-
-  static String _repairLLMJson(String json) {
-    var repaired = json.replaceAll(RegExp(r',(\s*[}\]])'), r'$1');
-    repaired = repaired.replaceAll(',,', ',');
-    repaired = _escapeRawCharsInStrings(repaired);
-    return repaired;
-  }
-
-  static String _escapeRawCharsInStrings(String input) {
-    final buf = StringBuffer();
-    var inString = false;
-    var prev = '';
-    for (var i = 0; i < input.length; i++) {
-      final ch = input[i];
-      if (ch == '"' && prev != '\\') {
-        inString = !inString;
-        buf.write(ch);
-      } else if (inString) {
-        switch (ch) {
-          case '\n':
-            buf.write(r'\n');
-            break;
-          case '\r':
-            buf.write(r'\r');
-            break;
-          case '\t':
-            buf.write(r'\t');
-            break;
-          default:
-            buf.write(ch);
-        }
-      } else {
-        buf.write(ch);
-      }
-      prev = ch;
-    }
-    return buf.toString();
   }
 }

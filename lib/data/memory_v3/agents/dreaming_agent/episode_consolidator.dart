@@ -14,6 +14,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 
 import 'episode_prompt.dart';
+import 'llm_json_repair.dart';
 
 final _logger = getLogger('memory_v3.EpisodeConsolidator');
 
@@ -246,8 +247,7 @@ class EpisodeConsolidatorV3 {
       );
     }
     var jsonPart = trimmed.substring(start, end + 1);
-    jsonPart = jsonPart.replaceAll(RegExp(r',(\s*[}\]])'), r'$1');
-    jsonPart = jsonPart.replaceAll(',,', ',');
+    jsonPart = repairLlmJson(jsonPart);
     final decoded = jsonDecode(jsonPart);
     if (decoded is! Map) {
       throw const FormatException(
