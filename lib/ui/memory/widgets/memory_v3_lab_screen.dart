@@ -403,8 +403,8 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('编辑 Fragment'),
-        // ScrollView guards against bottom-overflow when the soft keyboard
-        // pops up over the TextField (autofocus) and shrinks the viewport.
+        // ScrollView wraps content AND actions so the keyboard doesn't push
+        // the bottom buttons past the viewport edge.
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -435,17 +435,27 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
               _EmotionalWeightSlider(
                 initial: fragment.emotionalWeight,
               ),
+              const SizedBox(height: 20),
+              // Buttons inside scrollable content so keyboard doesn't push
+              // them past the viewport.
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () =>
+                        Navigator.pop(ctx, controller.text.trim()),
+                    child: const Text('保存'),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: const Text('保存')),
-        ],
       ),
     );
     if (result == null || result.isEmpty || result == fragment.content) return;
