@@ -394,69 +394,83 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     }
   }
 
-  /// Open an edit dialog for a fragment's content. Tapping a fragment in
+/// Open an edit dialog for a fragment's content. Tapping a fragment in
   /// the Lab list opens this; long-press opens [_fragmentActionsSheet] for
   /// status changes.
+  ///
+  /// Implemented as a `showModalBottomSheet` rather than `showDialog`
+  /// because the dialog's title + content padding + default insetPadding
+  /// overflow the viewport by ~36px when the soft keyboard is up. A bottom
+  /// sheet with `isScrollControlled: true` is pushed up by the keyboard
+  /// natively, so the form never overflows.
   Future<void> _editFragmentDialog(MemoryFragment fragment) async {
     final controller = TextEditingController(text: fragment.content);
-    final result = await showDialog<String>(
+    final result = await showModalBottomSheet<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('编辑 Fragment'),
-        // ScrollView wraps content AND actions so the keyboard doesn't push
-        // the bottom buttons past the viewport edge.
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('原始抽取: ${fragment.content}',
-                  style: const TextStyle(fontSize: 11, color: Colors.black54)),
-              const SizedBox(height: 4),
-              Text(
-                fragment.userCorrected ? '状态: 已修正过' : '状态: 未修正',
-                style: const TextStyle(fontSize: 11, color: Colors.black45),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                maxLength: 80,
-                maxLines: 2,
-                minLines: 1,
-                autofocus: true,
-                textInputAction: TextInputAction.newline,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: '新内容',
-                  helperText: '≤ 80 字；过短信息会丢失',
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        // viewInsets is the keyboard's height; padding the sheet by it
+        // ensures the action row stays visible above the keyboard even
+        // when the form scrolls.
+        final keyboardInset = MediaQuery.of(ctx).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + keyboardInset),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('编辑 Fragment',
+                    style: Theme.of(ctx).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text('原始抽取: ${fragment.content}',
+                    style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                const SizedBox(height: 4),
+                Text(
+                  fragment.userCorrected ? '状态: 已修正过' : '状态: 未修正',
+                  style: const TextStyle(fontSize: 11, color: Colors.black45),
                 ),
-              ),
-              const SizedBox(height: 8),
-              _EmotionalWeightSlider(
-                initial: fragment.emotionalWeight,
-              ),
-              const SizedBox(height: 20),
-              // Buttons inside scrollable content so keyboard doesn't push
-              // them past the viewport.
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('取消'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  maxLength: 80,
+                  maxLines: 2,
+                  minLines: 1,
+                  autofocus: true,
+                  textInputAction: TextInputAction.newline,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: '新内容',
+                    helperText: '≤ 80 字；过短信息会丢失',
                   ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: () =>
-                        Navigator.pop(ctx, controller.text.trim()),
-                    child: const Text('保存'),
-                  ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 8),
+                _EmotionalWeightSlider(
+                  initial: fragment.emotionalWeight,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () =>
+                          Navigator.pop(ctx, controller.text.trim()),
+                      child: const Text('保存'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
     if (result == null || result.isEmpty || result == fragment.content) return;
 
