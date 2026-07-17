@@ -293,8 +293,68 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     return int.tryParse(row?.value ?? '') ?? 0;
   }
 
-  Future<void> _clearAllFragments() async {
+  Future<void> _resetFragmentWatermark() async {
+    final characterId = await _latestChatCharacterId();
+    if (characterId == null) {
+      if (!mounted) return;
+      setState(() => _lastError = '未找到最近的 characterId');
+      return;
+    }
+    final pendingExpr = AppDatabase.instance.personaChatMessages.id.count();
+    final pendingRow = await (AppDatabase.instance.selectOnly(
+      AppDatabase.instance.personaChatMessages,
+    )..addColumns([pendingExpr])
+          ..where(AppDatabase.instance.personaChatMessages.messageType
+              .equals('chat')))
+        .getSingle();
+    final pending = pendingRow.read(pendingExpr) ?? 0;
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重置 Fragment 水位线？'),
+        content: Text(
+          '当前聊天累计 $pending 条 message。下一次 Fragment 抽取会从最早开始重新扫描 —— '
+          '已抽取的 fragment 因内容哈希去重不会被重复保存；之前被旧模型拒接 '
+          '(例如 NSFW 内容)而被跳过的批次会重新尝试。',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('重置', style: TextStyle(color: Colors.orange))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+
+    try {
+      final deleted = await DreamingOrchestratorServiceV3.instance
+          .resetFragmentWatermark(characterId);
+      if (!mounted) return;
+      setState(() {
+        _lastSuccess = deleted > 0
+            ? '水位线已重置（共 $pending 条待扫描）'
+            : '水位线本来就是空的，无需重置';
+      });
+    } catch (e, stack) {
+      _logger.warning('resetFragmentWatermark failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '重置失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _clearAllFragments() async {    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('清空所有 Dreaming fragments？'),
@@ -1255,6 +1315,13 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                                 color: Colors.red),
                             label: const Text('clear episodes',
                                 style: TextStyle(color: Colors.red)),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _resetFragmentWatermark,
+                            icon: const Icon(Icons.restart_alt,
+                                color: Colors.orange),
+                            label: const Text('reset watermark',
+                                style: TextStyle(color: Colors.orange)),
                           ),
                           OutlinedButton.icon(
                             onPressed: _busy ? null : _clearAllFragments,

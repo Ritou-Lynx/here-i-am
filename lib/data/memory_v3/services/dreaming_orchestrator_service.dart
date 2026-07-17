@@ -661,6 +661,30 @@ class DreamingOrchestratorServiceV3 {
   String _watermarkKey(String characterId) =>
       'dreaming.fragment.last_message_id.$characterId';
 
+  /// Reset the fragment-extraction watermark for [characterId] so the next
+  /// batch re-scans messages from id 0. Used when the user switches to a
+  /// model that previously failed (e.g. NSFW-tolerant) and wants to
+  /// retry processing of older messages that were skipped after the model
+  /// rejected them. The persistFragments dedupe logic uses content hashes
+  /// so already-stored fragments won't be duplicated.
+  ///
+  /// Returns the number of rows deleted (0 means there was no
+  /// watermark, 1 means we cleared the active one).
+  Future<int> resetFragmentWatermark(String characterId) async {
+    final deleted = await (_db.delete(_db.kvStore)
+          ..where((t) =>
+              t.key.equals(_watermarkKey(characterId)) &
+              t.bucket.equals(_bucket)))
+        .go();
+    if (deleted > 0) {
+      _logger.info(
+        'Reset fragment watermark for $characterId; next batch will '
+        're-scan from id 0',
+      );
+    }
+    return deleted;
+  }
+
   Future<List<String>> _recentFragmentSummaries({int limit = 120}) async {
     final rows = await (_db.select(_db.memoryFragments)
           ..where((t) => t.status.isNotIn(const ['deleted']))

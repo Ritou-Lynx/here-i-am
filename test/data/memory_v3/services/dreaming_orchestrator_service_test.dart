@@ -654,6 +654,59 @@ void main() {
     expect(retry.processedMessageCount, 0);
     expect(retry.isEmpty, isTrue);
   });
+
+  test('resetFragmentWatermark clears the watermark so the next batch re-scans',
+      () async {
+    if (!fts5Available) return;
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '今天被老板批评，心里有点堵。',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '我会记得这件事对你很重。',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 7, 5, 20, 1),
+    );
+
+    // First batch advances the watermark.
+    await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+        DreamingFragmentExtraction(fragments: const []),
+      ),
+    );
+    final empty = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+        DreamingFragmentExtraction(fragments: const []),
+      ),
+    );
+    expect(empty.processedMessageCount, 0);
+
+    // Reset the watermark — user switched to a NSFW-tolerant model and
+    // wants to retry the previously-skipped batch.
+    final deleted = await service.resetFragmentWatermark('i');
+    expect(deleted, greaterThan(0));
+
+    final replayed = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+        DreamingFragmentExtraction(fragments: const []),
+      ),
+    );
+    expect(replayed.processedMessageCount, 2);
+  });
 }
 
 class _FailingDreamingExtractor extends DreamingFragmentExtractorV3 {
