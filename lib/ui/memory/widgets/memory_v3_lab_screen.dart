@@ -597,105 +597,121 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     final valence = ValueNotifier<double>(episode.valence);
     final arousal = ValueNotifier<double>(episode.arousal);
 
-    final result = await showDialog<bool>(
+    final result = await showModalBottomSheet<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('编辑 Episode'),
-        // SingleChildScrollView guards against bottom-overflow when the
-        // soft keyboard pops up over the narrative field.
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('原始: ${episode.narrative}',
-                  style: const TextStyle(fontSize: 11, color: Colors.black54)),
-              const SizedBox(height: 4),
-              Text(
-                episode.userCorrected ? '状态: 已修正过' : '状态: 未修正',
-                style: const TextStyle(fontSize: 11, color: Colors.black45),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: narrativeController,
-                maxLines: 4,
-                minLines: 2,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Narrative (第一人称)',
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        final keyboardInset = MediaQuery.of(ctx).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + keyboardInset),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('编辑 Episode',
+                    style: Theme.of(ctx).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text('原始: ${episode.narrative}',
+                    style:
+                        const TextStyle(fontSize: 11, color: Colors.black54)),
+                const SizedBox(height: 4),
+                Text(
+                  episode.userCorrected ? '状态: 已修正过' : '状态: 未修正',
+                  style: const TextStyle(fontSize: 11, color: Colors.black45),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: topicController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Topic',
-                  hintText: 'e.g. relationship_care',
-                ),
-              ),
-              const SizedBox(height: 12),
-              ValueListenableBuilder<String>(
-                valueListenable: confidence,
-                builder: (_, value, __) => DropdownButtonFormField<String>(
-                  initialValue: value,
+                const SizedBox(height: 12),
+                TextField(
+                  controller: narrativeController,
+                  maxLines: 4,
+                  minLines: 2,
+                  autofocus: true,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
-                    labelText: 'Confidence',
+                    labelText: 'Narrative (第一人称)',
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'high', child: Text('high')),
-                    DropdownMenuItem(value: 'medium', child: Text('medium')),
-                    DropdownMenuItem(value: 'low', child: Text('low')),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: topicController,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Topic',
+                    hintText: 'e.g. relationship_care',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ValueListenableBuilder<String>(
+                  valueListenable: confidence,
+                  builder: (_, value, __) => DropdownButtonFormField<String>(
+                    initialValue: value,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Confidence',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'high', child: Text('high')),
+                      DropdownMenuItem(
+                          value: 'medium', child: Text('medium')),
+                      DropdownMenuItem(value: 'low', child: Text('low')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) confidence.value = v;
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _IntSliderField(
+                  label: 'Significance',
+                  min: 1,
+                  max: 10,
+                  value: significance,
+                  onChanged: (v) => significance = v,
+                ),
+                const SizedBox(height: 12),
+                ValueListenableBuilder<double>(
+                  valueListenable: valence,
+                  builder: (_, v, __) => _DoubleSliderField(
+                    label: 'Valence (-1..1)',
+                    value: v,
+                    min: -1.0,
+                    max: 1.0,
+                    onChanged: (nv) => valence.value = nv,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ValueListenableBuilder<double>(
+                  valueListenable: arousal,
+                  builder: (_, v, __) => _DoubleSliderField(
+                    label: 'Arousal (0..1)',
+                    value: v,
+                    min: 0.0,
+                    max: 1.0,
+                    onChanged: (nv) => arousal.value = nv,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('保存'),
+                    ),
                   ],
-                  onChanged: (v) {
-                    if (v != null) confidence.value = v;
-                  },
                 ),
-              ),
-              const SizedBox(height: 12),
-              _IntSliderField(
-                label: 'Significance',
-                min: 1,
-                max: 10,
-                value: significance,
-                onChanged: (v) => significance = v,
-              ),
-              const SizedBox(height: 12),
-              ValueListenableBuilder<double>(
-                valueListenable: valence,
-                builder: (_, v, __) => _DoubleSliderField(
-                  label: 'Valence (-1..1)',
-                  value: v,
-                  min: -1.0,
-                  max: 1.0,
-                  onChanged: (nv) => valence.value = nv,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ValueListenableBuilder<double>(
-                valueListenable: arousal,
-                builder: (_, v, __) => _DoubleSliderField(
-                  label: 'Arousal (0..1)',
-                  value: v,
-                  min: 0.0,
-                  max: 1.0,
-                  onChanged: (nv) => arousal.value = nv,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('保存')),
-        ],
-      ),
+        );
+      },
     );
     if (result != true) return;
 
