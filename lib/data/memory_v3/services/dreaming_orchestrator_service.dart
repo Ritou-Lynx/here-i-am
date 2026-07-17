@@ -259,6 +259,7 @@ class DreamingOrchestratorServiceV3 {
     return _db.transaction(() async {
       final now = DateTime.now().millisecondsSinceEpoch;
       final existingKeys = await _existingFragmentKeys();
+      final coveredSourceIds = await _coveredSourceMessageIds();
       final seenThisBatch = <String>{};
       final fragmentIds = <String>[];
       final entityIds = <String>[];
@@ -271,11 +272,33 @@ class DreamingOrchestratorServiceV3 {
             draft.sourceMessageIds.isEmpty) {
           continue;
         }
+        // Source-message dedupe: if every source message this draft
+        // references is already covered by an existing fragment, drop
+        // it. This prevents a watermark-reset batch from producing
+        // near-duplicates of fragments the previous model already
+        // extracted (LLMs re-extract with slightly different wording,
+        // so content-hash alone is not enough). Partial overlap is
+        // allowed, so the new batch can still produce complementary
+        // observations for messages it never got to before.
+        final uncoveredSources = draft.sourceMessageIds
+            .where((id) => !coveredSourceIds.contains(id))
+            .toList();
+        if (uncoveredSources.isEmpty) {
+          _logger.info(
+            'Drop fragment whose source messages are already covered: '
+            '${draft.content.substring(0, draft.content.length.clamp(0, 60))}',
+          );
+          continue;
+        }
         final sourceMessages = await _sourceMessagesFor(draft.sourceMessageIds);
         if (!_passesRelationshipEvidenceGuard(draft, sourceMessages)) {
           continue;
         }
         seenThisBatch.add(key);
+        // Mark these source ids as covered for subsequent drafts in
+        // the same batch, so a single model pass that emits the same
+        // set twice in one batch can't sneak both through.
+        coveredSourceIds.addAll(draft.sourceMessageIds);
 
         final fragmentId = _uuid.v4();
         fragmentIds.add(fragmentId);
@@ -701,6 +724,30 @@ class DreamingOrchestratorServiceV3 {
           ..where((t) => t.status.isNotIn(const ['deleted'])))
         .get();
     return rows.map((row) => _dedupeKey(row.content)).toSet();
+  }
+
+  /// Set of source-message ids already referenced by any non-deleted
+  /// fragment. Used to drop re-extracted near-duplicates after a
+  /// watermark reset (LLMs paraphrase instead of producing identical
+  /// text, so content-hash dedupe alone misses them). Partial overlap
+  /// is allowed; a draft is dropped only when every one of its source
+  /// ids is already covered.
+  Future<Set<int>> _coveredSourceMessageIds() async {
+    final rows = await (_db.select(_db.memoryFragments)
+          ..where((t) => t.status.isNotIn(const ['deleted'])))
+        .get();
+    final covered = <int>{};
+    for (final row in rows) {
+      final raw = row.sourceMessageIds;
+      if (raw == null || raw.isEmpty) continue;
+      try {
+        final ids = jsonDecode(raw).cast<int>();
+        covered.addAll(ids);
+      } catch (_) {
+        // ignore malformed rows
+      }
+    }
+    return covered;
   }
 
   String _dedupeKey(String content) =>

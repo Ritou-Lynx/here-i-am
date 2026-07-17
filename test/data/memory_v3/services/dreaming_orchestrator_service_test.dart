@@ -707,6 +707,81 @@ void main() {
     );
     expect(replayed.processedMessageCount, 2);
   });
+
+  test('source-message dedupe drops paraphrased duplicates from re-extracted batches',
+      () async {
+    if (!fts5Available) return;
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '今天她跟我讲了被老板骂的事，哭得很厉害。',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '我抱了她。',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 7, 5, 20, 1),
+    );
+
+    // First batch extracts two fragments covering two messages.
+    final first = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+        DreamingFragmentExtraction(fragments: [
+          DreamingFragmentDraft(
+            content: '她今天工作被骂哭了，跟我倾诉。',
+            sourceMessageIds: const [1, 2],
+            emotionalWeight: 0.7,
+            isUserTruthCandidate: false,
+          ),
+        ]),
+      ),
+    );
+    expect(first.fragmentIds, hasLength(1));
+    expect(first.fragmentIds.first.length, greaterThan(0));
+    final firstId = first.fragmentIds.first;
+
+    // Reset watermark so a new model can re-extract. New model paraphrases
+    // the SAME message but content-hash dedupe alone wouldn't catch it
+    // (the wording differs).
+    await service.resetFragmentWatermark('i');
+
+    final second = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+        DreamingFragmentExtraction(fragments: [
+          // Same source_messages, paraphrased content — must be dropped.
+          DreamingFragmentDraft(
+            content: '她今天在工作中挨批，难过得哭了，对我说了这事。',
+            sourceMessageIds: const [1, 2],
+            emotionalWeight: 0.6,
+            isUserTruthCandidate: false,
+          ),
+          // Genuinely new message that wasn't covered before — must be kept.
+          DreamingFragmentDraft(
+            content: '新消息的新片段',
+            sourceMessageIds: const [3],
+            emotionalWeight: 0.3,
+            isUserTruthCandidate: false,
+          ),
+        ]),
+      ),
+    );
+
+    // First fragment has no exact content match (paraphrased) but its
+    // source_messages are already fully covered — it should be dropped.
+    // The second fragment has a fresh source id — it must be saved.
+    expect(second.fragmentIds, hasLength(1));
+    final newId = second.fragmentIds.first;
+    expect(newId, isNot(firstId));
+  });
 }
 
 class _FailingDreamingExtractor extends DreamingFragmentExtractorV3 {
