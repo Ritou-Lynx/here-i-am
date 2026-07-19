@@ -10,6 +10,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:go_router/go_router.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
@@ -292,6 +293,39 @@ class _PendingPersonaChatMessage {
   final List<XFile> images;
 }
 
+/// A single staged message in compose mode (multi-message batch send).
+class _ComposeDraft {
+  const _ComposeDraft({
+    required this.text,
+    required this.images,
+    required this.timestamp,
+  });
+
+  final String text;
+  final List<XFile> images;
+  final DateTime timestamp;
+}
+
+/// A batch of drafts that will be sent to the LLM as a single turn.
+///
+/// Single-message sends wrap one draft in a batch so the queue and cancel
+/// logic stays uniform. When [persistedMessageIds] is non-empty, the drafts
+/// were already persisted as visible user messages (queue-while-streaming path)
+/// and the send path must reuse those ids instead of re-persisting.
+class _PendingBatch {
+  _PendingBatch({
+    required this.characterId,
+    required this.character,
+    required this.drafts,
+    this.persistedMessageIds = const [],
+  });
+
+  final String characterId;
+  final CharacterModel? character;
+  final List<_ComposeDraft> drafts;
+  final List<int> persistedMessageIds;
+}
+
 class _VoiceModeOpening {
   const _VoiceModeOpening({required this.text, required this.playbackId});
 
@@ -325,9 +359,16 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   final Set<int> _retractedUserMessageIds = {};
   final Set<int> _recordingMessageIds = {};
 
-  // Pending message queue: user can compose the next message while the
-  // character is still generating a response. It auto-sends when streaming ends.
-  final List<_PendingPersonaChatMessage> _pendingMessages = [];
+  // Pending batch queue: user can compose the next message(s) while the
+  // character is still generating a response. It auto-sends when streaming
+  // ends. Single-message sends also use this queue (one draft per batch) so
+  // the cancel/retract logic stays uniform.
+  final List<_PendingBatch> _pendingBatches = [];
+
+  // Compose mode: user has long-pressed the send button and subsequent taps
+  // stage drafts instead of sending immediately. Exits after a batch send.
+  bool _isComposeMode = false;
+  final List<_ComposeDraft> _composeBuffer = [];
 
   bool _isMediaTrayOpen = false;
 
@@ -381,6 +422,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   // Pagination state: WeChat/WhatsApp style, load older messages on scroll-up.
   static const int _pageSize = 30;
   static const Duration _recallGracePeriod = Duration(milliseconds: 900);
+  static const Duration _batchRecallGracePeriod = Duration(milliseconds: 1200);
   bool _hasMoreHistory = true;
   bool _isLoadingMore = false;
   // True while showing a history window jumped-to from search. Suppresses the
@@ -4479,6 +4521,17 @@ only after you have written the goodbye you want the user to hear.''',
                               data: text,
                               softLineBreak: true,
                               styleSheet: _messageMarkdownStyle,
+                              onTapLink: (text, href, title) {
+                                if (href == null) return;
+                                final uri = Uri.tryParse(href);
+                                if (uri == null ||
+                                    (!uri.isScheme('http') &&
+                                        !uri.isScheme('https'))) {
+                                  return;
+                                }
+                                unawaited(launchUrl(uri,
+                                    mode: LaunchMode.externalApplication));
+                              },
                             ),
                           ),
                           if (isStreaming) ...[

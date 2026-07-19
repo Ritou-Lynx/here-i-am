@@ -63,7 +63,17 @@ Tips:
 - Be specific: "无糖燕麦片 独立小包装 500g" beats "零食"
 - Chinese terms work better than English on Taobao
 - After searching, pick the most appropriate item and call shopping_place_order
-- If the user gave you a specific product URL, you can skip search and go directly to shopping_place_order''',
+- If the user gave you a specific product URL, you can skip search and go directly to shopping_place_order
+
+⚠️ URL rules (very important):
+- The suggestions returned here are autocomplete TITLES ONLY, they do NOT contain
+  product IDs or product page URLs. Do not invent or guess any
+  `item.taobao.com/item.htm?id=...` URL — such URLs will 404.
+- If the user did not give you a specific product URL, you MUST pass
+  the `search_url` from this response as `product_url` to shopping_place_order.
+  Hermes will browse that search page and pick a real product to buy.
+- Never fabricate URLs. Only ever pass through either the user-provided
+  product URL or the `search_url` returned here.''',
     parameters: {
       'type': 'object',
       'properties': {
@@ -146,7 +156,13 @@ Tool buildShoppingPlaceOrderTool({
         'product_url': {
           'type': 'string',
           'description':
-              'Taobao product page URL or search URL for this product',
+              'Taobao product page URL or search URL for this product. '
+              'CRITICAL: only ever pass through a URL the user gave you or the '
+              '`search_url` returned by shopping_search. NEVER fabricate or guess '
+              'an `item.taobao.com/item.htm?id=...` URL — the suggest API does not '
+              'return product IDs and any such URL will be a 404. If in doubt, '
+              'pass the search URL (https://s.taobao.com/search?q=...) so Hermes '
+              'can browse the search results and pick a real item.',
         },
         'estimated_price_cny': {
           'type': 'number',

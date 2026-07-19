@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/model/chat_events.dart';
 import 'package:memex/utils/toast_helper.dart';
@@ -777,6 +778,15 @@ class _AgentChatDialogState extends State<AgentChatDialog>
                 data: item.text,
                 selectable: true,
                 softLineBreak: true,
+                onTapLink: (text, href, title) {
+                  if (href == null) return;
+                  final uri = Uri.tryParse(href);
+                  if (uri == null ||
+                      (!uri.isScheme('http') && !uri.isScheme('https'))) {
+                    return;
+                  }
+                  launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
                 styleSheet: MarkdownStyleSheet(
                   p: const TextStyle(
                     fontSize: 14,

@@ -442,6 +442,12 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '2. `shopping_search` — find the right product (skip if user gave a specific URL).');
     b.writeln(
+        '   ⚠️ The suggest API returns autocomplete TITLES ONLY — no product IDs, '
+        'no item URLs. NEVER fabricate `item.taobao.com/item.htm?id=...`. If the '
+        'user did not give you a specific product URL, pass the `search_url` from '
+        'shopping_search as `product_url` to shopping_place_order; Hermes will '
+        'browse the search page and pick a real item.');
+    b.writeln(
         '3. Tell the user WHAT you plan to buy and the estimated price — wait for their go-ahead or act on explicit instruction.');
     b.writeln(
         '4. `shopping_place_order` — this enforces all safety limits in code; if it aborts, stop and explain why.');
