@@ -94,6 +94,18 @@ Tool buildDevSessionStartOrContinueTool({
               'Requested mode for the session record. Actual permissions are '
                   'still limited by the Dev Project permission tier.',
         },
+        'model': {
+          'type': 'string',
+          'description':
+              'Optional model override in provider/model format, e.g. '
+                  '`opencode-go/glm-5.2`, `opencode-go/qwen3.7-max`, '
+                  '`ollama-cloud/minimax-m3`. Only honored for OpenCode '
+                  'runs. When omitted, the Dev Project\'s default OpenCode '
+                  'model is used (falling back to opencode.jsonc). The user '
+                  'can switch models any time by asking the character to '
+                  '`use <model> for this` or by editing the project default '
+                  'in Dev Room.',
+        },
       },
       'required': ['message'],
     },
@@ -113,6 +125,7 @@ Tool buildDevSessionStartOrContinueTool({
           final runId = await bridgeService.continueSession(
             sessionId: sessionId,
             message: message,
+            model: _normalizeModel(args['model']),
           );
           return jsonEncode({
             'success': true,
@@ -152,6 +165,7 @@ Tool buildDevSessionStartOrContinueTool({
             final runId = await bridgeService.continueSession(
               sessionId: session.id,
               message: message,
+              model: _normalizeModel(args['model']),
             );
             return jsonEncode({
               'success': true,
@@ -199,11 +213,13 @@ Tool buildDevSessionStartOrContinueTool({
           message: message,
           characterId: characterId,
           mode: (args['mode'] as String?)?.trim(),
+          model: _normalizeModel(args['model']),
         );
 
         final runId = await bridgeService.continueSession(
           sessionId: session.id,
           message: message,
+          model: _normalizeModel(args['model']),
         );
         return jsonEncode({
           'success': true,
@@ -342,6 +358,7 @@ Future<DevAgentSession> _createSession({
   String? title,
   String? goal,
   String? mode,
+  String? model,
 }) async {
   final sessionId = await service.createSession(
     projectId: project.id,
@@ -354,6 +371,7 @@ Future<DevAgentSession> _createSession({
         : project.permissionTier == 'read_only'
             ? 'read_only'
             : 'workspace_write',
+    defaultModel: model,
   );
   final session = await service.getSession(sessionId);
   if (session == null) {
@@ -372,4 +390,25 @@ String _deriveTitle(String? title, String? goal, String message) {
   return normalized.length > 36
       ? '${normalized.substring(0, 36)}...'
       : normalized;
+}
+
+/// Trim a user-supplied model id and reject obvious garbage so the tool
+/// doesn't accidentally feed raw chat prose into the Bridge as `-m`.
+/// Returns null when the value is missing or empty.
+String? _normalizeModel(Object? raw) {
+  if (raw == null) return null;
+  final value = raw.toString().trim();
+  if (value.isEmpty) return null;
+  // provider/model — the part before the slash must be a valid identifier;
+  // the part after must not be empty or contain whitespace.
+  if (!value.contains('/')) return null;
+  final parts = value.split('/');
+  if (parts.length < 2) return null;
+  final provider = parts.first.trim();
+  final model = parts.skip(1).join('/').trim();
+  if (provider.isEmpty || model.isEmpty) return null;
+  if (RegExp(r'\s').hasMatch(provider) || RegExp(r'\s').hasMatch(model)) {
+    return null;
+  }
+  return '$provider/$model';
 }

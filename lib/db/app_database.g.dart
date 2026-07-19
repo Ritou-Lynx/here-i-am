@@ -10021,6 +10021,12 @@ class $DevProjectsTable extends DevProjects
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant('read_only'));
+  static const VerificationMeta _defaultOpencodeModelMeta =
+      const VerificationMeta('defaultOpencodeModel');
+  @override
+  late final GeneratedColumn<String> defaultOpencodeModel =
+      GeneratedColumn<String>('default_opencode_model', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -10028,8 +10034,16 @@ class $DevProjectsTable extends DevProjects
       'created_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, name, rootPath, defaultBranch, bridgeUrl, permissionTier, createdAt];
+  List<GeneratedColumn> get $columns => [
+        id,
+        name,
+        rootPath,
+        defaultBranch,
+        bridgeUrl,
+        permissionTier,
+        defaultOpencodeModel,
+        createdAt
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -10075,6 +10089,12 @@ class $DevProjectsTable extends DevProjects
           permissionTier.isAcceptableOrUnknown(
               data['permission_tier']!, _permissionTierMeta));
     }
+    if (data.containsKey('default_opencode_model')) {
+      context.handle(
+          _defaultOpencodeModelMeta,
+          defaultOpencodeModel.isAcceptableOrUnknown(
+              data['default_opencode_model']!, _defaultOpencodeModelMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -10102,6 +10122,9 @@ class $DevProjectsTable extends DevProjects
           .read(DriftSqlType.string, data['${effectivePrefix}bridge_url'])!,
       permissionTier: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}permission_tier'])!,
+      defaultOpencodeModel: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}default_opencode_model']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
     );
@@ -10120,6 +10143,14 @@ class DevProject extends DataClass implements Insertable<DevProject> {
   final String defaultBranch;
   final String bridgeUrl;
   final String permissionTier;
+
+  /// Default OpenCode `provider/model` used when the user does not specify
+  /// one in chat and the active session has no override. NULL = fall back
+  /// to opencode.jsonc / DEV_AGENT_OPENCODE_MODEL. The companion UI in
+  /// Dev Room exposes this as a dropdown so users can switch between their
+  /// ollama-cloud / opencode-go / minimax-cn-coding-plan quotas without
+  /// restarting the bridge.
+  final String? defaultOpencodeModel;
   final int createdAt;
   const DevProject(
       {required this.id,
@@ -10128,6 +10159,7 @@ class DevProject extends DataClass implements Insertable<DevProject> {
       required this.defaultBranch,
       required this.bridgeUrl,
       required this.permissionTier,
+      this.defaultOpencodeModel,
       required this.createdAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -10138,6 +10170,9 @@ class DevProject extends DataClass implements Insertable<DevProject> {
     map['default_branch'] = Variable<String>(defaultBranch);
     map['bridge_url'] = Variable<String>(bridgeUrl);
     map['permission_tier'] = Variable<String>(permissionTier);
+    if (!nullToAbsent || defaultOpencodeModel != null) {
+      map['default_opencode_model'] = Variable<String>(defaultOpencodeModel);
+    }
     map['created_at'] = Variable<int>(createdAt);
     return map;
   }
@@ -10150,6 +10185,9 @@ class DevProject extends DataClass implements Insertable<DevProject> {
       defaultBranch: Value(defaultBranch),
       bridgeUrl: Value(bridgeUrl),
       permissionTier: Value(permissionTier),
+      defaultOpencodeModel: defaultOpencodeModel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(defaultOpencodeModel),
       createdAt: Value(createdAt),
     );
   }
@@ -10164,6 +10202,8 @@ class DevProject extends DataClass implements Insertable<DevProject> {
       defaultBranch: serializer.fromJson<String>(json['defaultBranch']),
       bridgeUrl: serializer.fromJson<String>(json['bridgeUrl']),
       permissionTier: serializer.fromJson<String>(json['permissionTier']),
+      defaultOpencodeModel:
+          serializer.fromJson<String?>(json['defaultOpencodeModel']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
     );
   }
@@ -10177,6 +10217,7 @@ class DevProject extends DataClass implements Insertable<DevProject> {
       'defaultBranch': serializer.toJson<String>(defaultBranch),
       'bridgeUrl': serializer.toJson<String>(bridgeUrl),
       'permissionTier': serializer.toJson<String>(permissionTier),
+      'defaultOpencodeModel': serializer.toJson<String?>(defaultOpencodeModel),
       'createdAt': serializer.toJson<int>(createdAt),
     };
   }
@@ -10188,6 +10229,7 @@ class DevProject extends DataClass implements Insertable<DevProject> {
           String? defaultBranch,
           String? bridgeUrl,
           String? permissionTier,
+          Value<String?> defaultOpencodeModel = const Value.absent(),
           int? createdAt}) =>
       DevProject(
         id: id ?? this.id,
@@ -10196,6 +10238,9 @@ class DevProject extends DataClass implements Insertable<DevProject> {
         defaultBranch: defaultBranch ?? this.defaultBranch,
         bridgeUrl: bridgeUrl ?? this.bridgeUrl,
         permissionTier: permissionTier ?? this.permissionTier,
+        defaultOpencodeModel: defaultOpencodeModel.present
+            ? defaultOpencodeModel.value
+            : this.defaultOpencodeModel,
         createdAt: createdAt ?? this.createdAt,
       );
   DevProject copyWithCompanion(DevProjectsCompanion data) {
@@ -10210,6 +10255,9 @@ class DevProject extends DataClass implements Insertable<DevProject> {
       permissionTier: data.permissionTier.present
           ? data.permissionTier.value
           : this.permissionTier,
+      defaultOpencodeModel: data.defaultOpencodeModel.present
+          ? data.defaultOpencodeModel.value
+          : this.defaultOpencodeModel,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -10223,14 +10271,15 @@ class DevProject extends DataClass implements Insertable<DevProject> {
           ..write('defaultBranch: $defaultBranch, ')
           ..write('bridgeUrl: $bridgeUrl, ')
           ..write('permissionTier: $permissionTier, ')
+          ..write('defaultOpencodeModel: $defaultOpencodeModel, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, name, rootPath, defaultBranch, bridgeUrl, permissionTier, createdAt);
+  int get hashCode => Object.hash(id, name, rootPath, defaultBranch, bridgeUrl,
+      permissionTier, defaultOpencodeModel, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -10241,6 +10290,7 @@ class DevProject extends DataClass implements Insertable<DevProject> {
           other.defaultBranch == this.defaultBranch &&
           other.bridgeUrl == this.bridgeUrl &&
           other.permissionTier == this.permissionTier &&
+          other.defaultOpencodeModel == this.defaultOpencodeModel &&
           other.createdAt == this.createdAt);
 }
 
@@ -10251,6 +10301,7 @@ class DevProjectsCompanion extends UpdateCompanion<DevProject> {
   final Value<String> defaultBranch;
   final Value<String> bridgeUrl;
   final Value<String> permissionTier;
+  final Value<String?> defaultOpencodeModel;
   final Value<int> createdAt;
   final Value<int> rowid;
   const DevProjectsCompanion({
@@ -10260,6 +10311,7 @@ class DevProjectsCompanion extends UpdateCompanion<DevProject> {
     this.defaultBranch = const Value.absent(),
     this.bridgeUrl = const Value.absent(),
     this.permissionTier = const Value.absent(),
+    this.defaultOpencodeModel = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -10270,6 +10322,7 @@ class DevProjectsCompanion extends UpdateCompanion<DevProject> {
     this.defaultBranch = const Value.absent(),
     required String bridgeUrl,
     this.permissionTier = const Value.absent(),
+    this.defaultOpencodeModel = const Value.absent(),
     required int createdAt,
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -10284,6 +10337,7 @@ class DevProjectsCompanion extends UpdateCompanion<DevProject> {
     Expression<String>? defaultBranch,
     Expression<String>? bridgeUrl,
     Expression<String>? permissionTier,
+    Expression<String>? defaultOpencodeModel,
     Expression<int>? createdAt,
     Expression<int>? rowid,
   }) {
@@ -10294,6 +10348,8 @@ class DevProjectsCompanion extends UpdateCompanion<DevProject> {
       if (defaultBranch != null) 'default_branch': defaultBranch,
       if (bridgeUrl != null) 'bridge_url': bridgeUrl,
       if (permissionTier != null) 'permission_tier': permissionTier,
+      if (defaultOpencodeModel != null)
+        'default_opencode_model': defaultOpencodeModel,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -10306,6 +10362,7 @@ class DevProjectsCompanion extends UpdateCompanion<DevProject> {
       Value<String>? defaultBranch,
       Value<String>? bridgeUrl,
       Value<String>? permissionTier,
+      Value<String?>? defaultOpencodeModel,
       Value<int>? createdAt,
       Value<int>? rowid}) {
     return DevProjectsCompanion(
@@ -10315,6 +10372,7 @@ class DevProjectsCompanion extends UpdateCompanion<DevProject> {
       defaultBranch: defaultBranch ?? this.defaultBranch,
       bridgeUrl: bridgeUrl ?? this.bridgeUrl,
       permissionTier: permissionTier ?? this.permissionTier,
+      defaultOpencodeModel: defaultOpencodeModel ?? this.defaultOpencodeModel,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
@@ -10341,6 +10399,10 @@ class DevProjectsCompanion extends UpdateCompanion<DevProject> {
     if (permissionTier.present) {
       map['permission_tier'] = Variable<String>(permissionTier.value);
     }
+    if (defaultOpencodeModel.present) {
+      map['default_opencode_model'] =
+          Variable<String>(defaultOpencodeModel.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -10359,6 +10421,7 @@ class DevProjectsCompanion extends UpdateCompanion<DevProject> {
           ..write('defaultBranch: $defaultBranch, ')
           ..write('bridgeUrl: $bridgeUrl, ')
           ..write('permissionTier: $permissionTier, ')
+          ..write('defaultOpencodeModel: $defaultOpencodeModel, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -10426,6 +10489,11 @@ class $DevAgentRunsTable extends DevAgentRuns
   late final GeneratedColumn<String> worktreePath = GeneratedColumn<String>(
       'worktree_path', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+      'model', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _startedAtMeta =
       const VerificationMeta('startedAt');
   @override
@@ -10455,6 +10523,7 @@ class $DevAgentRunsTable extends DevAgentRuns
         status,
         branch,
         worktreePath,
+        model,
         startedAt,
         endedAt,
         summary
@@ -10520,6 +10589,10 @@ class $DevAgentRunsTable extends DevAgentRuns
           worktreePath.isAcceptableOrUnknown(
               data['worktree_path']!, _worktreePathMeta));
     }
+    if (data.containsKey('model')) {
+      context.handle(
+          _modelMeta, model.isAcceptableOrUnknown(data['model']!, _modelMeta));
+    }
     if (data.containsKey('started_at')) {
       context.handle(_startedAtMeta,
           startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta));
@@ -10561,6 +10634,8 @@ class $DevAgentRunsTable extends DevAgentRuns
           .read(DriftSqlType.string, data['${effectivePrefix}branch']),
       worktreePath: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}worktree_path']),
+      model: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}model']),
       startedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}started_at'])!,
       endedAt: attachedDatabase.typeMapping
@@ -10586,6 +10661,12 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
   final String status;
   final String? branch;
   final String? worktreePath;
+
+  /// `provider/model` that was actually used for this run (resolved from
+  /// session override / project default / opencode.jsonc at spawn time).
+  /// Lets the App show "OpenCode / qwen3.7-max" without re-querying the
+  /// bridge, and helps debugging when a user complains a run was slow.
+  final String? model;
   final int startedAt;
   final int? endedAt;
   final String? summary;
@@ -10599,6 +10680,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       required this.status,
       this.branch,
       this.worktreePath,
+      this.model,
       required this.startedAt,
       this.endedAt,
       this.summary});
@@ -10621,6 +10703,9 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
     }
     if (!nullToAbsent || worktreePath != null) {
       map['worktree_path'] = Variable<String>(worktreePath);
+    }
+    if (!nullToAbsent || model != null) {
+      map['model'] = Variable<String>(model);
     }
     map['started_at'] = Variable<int>(startedAt);
     if (!nullToAbsent || endedAt != null) {
@@ -10650,6 +10735,8 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       worktreePath: worktreePath == null && nullToAbsent
           ? const Value.absent()
           : Value(worktreePath),
+      model:
+          model == null && nullToAbsent ? const Value.absent() : Value(model),
       startedAt: Value(startedAt),
       endedAt: endedAt == null && nullToAbsent
           ? const Value.absent()
@@ -10673,6 +10760,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       status: serializer.fromJson<String>(json['status']),
       branch: serializer.fromJson<String?>(json['branch']),
       worktreePath: serializer.fromJson<String?>(json['worktreePath']),
+      model: serializer.fromJson<String?>(json['model']),
       startedAt: serializer.fromJson<int>(json['startedAt']),
       endedAt: serializer.fromJson<int?>(json['endedAt']),
       summary: serializer.fromJson<String?>(json['summary']),
@@ -10691,6 +10779,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       'status': serializer.toJson<String>(status),
       'branch': serializer.toJson<String?>(branch),
       'worktreePath': serializer.toJson<String?>(worktreePath),
+      'model': serializer.toJson<String?>(model),
       'startedAt': serializer.toJson<int>(startedAt),
       'endedAt': serializer.toJson<int?>(endedAt),
       'summary': serializer.toJson<String?>(summary),
@@ -10707,6 +10796,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
           String? status,
           Value<String?> branch = const Value.absent(),
           Value<String?> worktreePath = const Value.absent(),
+          Value<String?> model = const Value.absent(),
           int? startedAt,
           Value<int?> endedAt = const Value.absent(),
           Value<String?> summary = const Value.absent()}) =>
@@ -10722,6 +10812,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
         branch: branch.present ? branch.value : this.branch,
         worktreePath:
             worktreePath.present ? worktreePath.value : this.worktreePath,
+        model: model.present ? model.value : this.model,
         startedAt: startedAt ?? this.startedAt,
         endedAt: endedAt.present ? endedAt.value : this.endedAt,
         summary: summary.present ? summary.value : this.summary,
@@ -10743,6 +10834,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       worktreePath: data.worktreePath.present
           ? data.worktreePath.value
           : this.worktreePath,
+      model: data.model.present ? data.model.value : this.model,
       startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
       endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
       summary: data.summary.present ? data.summary.value : this.summary,
@@ -10761,6 +10853,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
           ..write('status: $status, ')
           ..write('branch: $branch, ')
           ..write('worktreePath: $worktreePath, ')
+          ..write('model: $model, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('summary: $summary')
@@ -10779,6 +10872,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
       status,
       branch,
       worktreePath,
+      model,
       startedAt,
       endedAt,
       summary);
@@ -10795,6 +10889,7 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
           other.status == this.status &&
           other.branch == this.branch &&
           other.worktreePath == this.worktreePath &&
+          other.model == this.model &&
           other.startedAt == this.startedAt &&
           other.endedAt == this.endedAt &&
           other.summary == this.summary);
@@ -10810,6 +10905,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
   final Value<String> status;
   final Value<String?> branch;
   final Value<String?> worktreePath;
+  final Value<String?> model;
   final Value<int> startedAt;
   final Value<int?> endedAt;
   final Value<String?> summary;
@@ -10824,6 +10920,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
     this.status = const Value.absent(),
     this.branch = const Value.absent(),
     this.worktreePath = const Value.absent(),
+    this.model = const Value.absent(),
     this.startedAt = const Value.absent(),
     this.endedAt = const Value.absent(),
     this.summary = const Value.absent(),
@@ -10839,6 +10936,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
     required String status,
     this.branch = const Value.absent(),
     this.worktreePath = const Value.absent(),
+    this.model = const Value.absent(),
     required int startedAt,
     this.endedAt = const Value.absent(),
     this.summary = const Value.absent(),
@@ -10859,6 +10957,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
     Expression<String>? status,
     Expression<String>? branch,
     Expression<String>? worktreePath,
+    Expression<String>? model,
     Expression<int>? startedAt,
     Expression<int>? endedAt,
     Expression<String>? summary,
@@ -10874,6 +10973,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
       if (status != null) 'status': status,
       if (branch != null) 'branch': branch,
       if (worktreePath != null) 'worktree_path': worktreePath,
+      if (model != null) 'model': model,
       if (startedAt != null) 'started_at': startedAt,
       if (endedAt != null) 'ended_at': endedAt,
       if (summary != null) 'summary': summary,
@@ -10891,6 +10991,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
       Value<String>? status,
       Value<String?>? branch,
       Value<String?>? worktreePath,
+      Value<String?>? model,
       Value<int>? startedAt,
       Value<int?>? endedAt,
       Value<String?>? summary,
@@ -10905,6 +11006,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
       status: status ?? this.status,
       branch: branch ?? this.branch,
       worktreePath: worktreePath ?? this.worktreePath,
+      model: model ?? this.model,
       startedAt: startedAt ?? this.startedAt,
       endedAt: endedAt ?? this.endedAt,
       summary: summary ?? this.summary,
@@ -10942,6 +11044,9 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
     if (worktreePath.present) {
       map['worktree_path'] = Variable<String>(worktreePath.value);
     }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
     if (startedAt.present) {
       map['started_at'] = Variable<int>(startedAt.value);
     }
@@ -10969,6 +11074,7 @@ class DevAgentRunsCompanion extends UpdateCompanion<DevAgentRun> {
           ..write('status: $status, ')
           ..write('branch: $branch, ')
           ..write('worktreePath: $worktreePath, ')
+          ..write('model: $model, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('summary: $summary, ')
@@ -11033,6 +11139,12 @@ class $DevAgentSessionsTable extends DevAgentSessions
   late final GeneratedColumn<String> providerSessionId =
       GeneratedColumn<String>('provider_session_id', aliasedName, true,
           type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _defaultModelMeta =
+      const VerificationMeta('defaultModel');
+  @override
+  late final GeneratedColumn<String> defaultModel = GeneratedColumn<String>(
+      'default_model', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -11062,6 +11174,7 @@ class $DevAgentSessionsTable extends DevAgentSessions
         mode,
         ownerCharacterId,
         providerSessionId,
+        defaultModel,
         status,
         createdAt,
         updatedAt
@@ -11119,6 +11232,12 @@ class $DevAgentSessionsTable extends DevAgentSessions
           providerSessionId.isAcceptableOrUnknown(
               data['provider_session_id']!, _providerSessionIdMeta));
     }
+    if (data.containsKey('default_model')) {
+      context.handle(
+          _defaultModelMeta,
+          defaultModel.isAcceptableOrUnknown(
+              data['default_model']!, _defaultModelMeta));
+    }
     if (data.containsKey('status')) {
       context.handle(_statusMeta,
           status.isAcceptableOrUnknown(data['status']!, _statusMeta));
@@ -11160,6 +11279,8 @@ class $DevAgentSessionsTable extends DevAgentSessions
           DriftSqlType.string, data['${effectivePrefix}owner_character_id']),
       providerSessionId: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}provider_session_id']),
+      defaultModel: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}default_model']),
       status: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
       createdAt: attachedDatabase.typeMapping
@@ -11184,6 +11305,12 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
   final String mode;
   final String? ownerCharacterId;
   final String? providerSessionId;
+
+  /// Session-level model override (e.g. set by `use ollama-cloud/... for
+  /// this run` in chat). Wins over the project's default and persists
+  /// across every run started from this session, so a user saying
+  /// "继续刚才那个" doesn't have to repeat the model every turn.
+  final String? defaultModel;
   final String status;
   final int createdAt;
   final int updatedAt;
@@ -11196,6 +11323,7 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
       required this.mode,
       this.ownerCharacterId,
       this.providerSessionId,
+      this.defaultModel,
       required this.status,
       required this.createdAt,
       required this.updatedAt});
@@ -11215,6 +11343,9 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
     }
     if (!nullToAbsent || providerSessionId != null) {
       map['provider_session_id'] = Variable<String>(providerSessionId);
+    }
+    if (!nullToAbsent || defaultModel != null) {
+      map['default_model'] = Variable<String>(defaultModel);
     }
     map['status'] = Variable<String>(status);
     map['created_at'] = Variable<int>(createdAt);
@@ -11236,6 +11367,9 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
       providerSessionId: providerSessionId == null && nullToAbsent
           ? const Value.absent()
           : Value(providerSessionId),
+      defaultModel: defaultModel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(defaultModel),
       status: Value(status),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -11255,6 +11389,7 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
       ownerCharacterId: serializer.fromJson<String?>(json['ownerCharacterId']),
       providerSessionId:
           serializer.fromJson<String?>(json['providerSessionId']),
+      defaultModel: serializer.fromJson<String?>(json['defaultModel']),
       status: serializer.fromJson<String>(json['status']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
@@ -11272,6 +11407,7 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
       'mode': serializer.toJson<String>(mode),
       'ownerCharacterId': serializer.toJson<String?>(ownerCharacterId),
       'providerSessionId': serializer.toJson<String?>(providerSessionId),
+      'defaultModel': serializer.toJson<String?>(defaultModel),
       'status': serializer.toJson<String>(status),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -11287,6 +11423,7 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
           String? mode,
           Value<String?> ownerCharacterId = const Value.absent(),
           Value<String?> providerSessionId = const Value.absent(),
+          Value<String?> defaultModel = const Value.absent(),
           String? status,
           int? createdAt,
           int? updatedAt}) =>
@@ -11303,6 +11440,8 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
         providerSessionId: providerSessionId.present
             ? providerSessionId.value
             : this.providerSessionId,
+        defaultModel:
+            defaultModel.present ? defaultModel.value : this.defaultModel,
         status: status ?? this.status,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
@@ -11321,6 +11460,9 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
       providerSessionId: data.providerSessionId.present
           ? data.providerSessionId.value
           : this.providerSessionId,
+      defaultModel: data.defaultModel.present
+          ? data.defaultModel.value
+          : this.defaultModel,
       status: data.status.present ? data.status.value : this.status,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -11338,6 +11480,7 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
           ..write('mode: $mode, ')
           ..write('ownerCharacterId: $ownerCharacterId, ')
           ..write('providerSessionId: $providerSessionId, ')
+          ..write('defaultModel: $defaultModel, ')
           ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -11346,8 +11489,19 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
   }
 
   @override
-  int get hashCode => Object.hash(id, projectId, agentType, title, goal, mode,
-      ownerCharacterId, providerSessionId, status, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+      id,
+      projectId,
+      agentType,
+      title,
+      goal,
+      mode,
+      ownerCharacterId,
+      providerSessionId,
+      defaultModel,
+      status,
+      createdAt,
+      updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -11360,6 +11514,7 @@ class DevAgentSession extends DataClass implements Insertable<DevAgentSession> {
           other.mode == this.mode &&
           other.ownerCharacterId == this.ownerCharacterId &&
           other.providerSessionId == this.providerSessionId &&
+          other.defaultModel == this.defaultModel &&
           other.status == this.status &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -11374,6 +11529,7 @@ class DevAgentSessionsCompanion extends UpdateCompanion<DevAgentSession> {
   final Value<String> mode;
   final Value<String?> ownerCharacterId;
   final Value<String?> providerSessionId;
+  final Value<String?> defaultModel;
   final Value<String> status;
   final Value<int> createdAt;
   final Value<int> updatedAt;
@@ -11387,6 +11543,7 @@ class DevAgentSessionsCompanion extends UpdateCompanion<DevAgentSession> {
     this.mode = const Value.absent(),
     this.ownerCharacterId = const Value.absent(),
     this.providerSessionId = const Value.absent(),
+    this.defaultModel = const Value.absent(),
     this.status = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -11401,6 +11558,7 @@ class DevAgentSessionsCompanion extends UpdateCompanion<DevAgentSession> {
     this.mode = const Value.absent(),
     this.ownerCharacterId = const Value.absent(),
     this.providerSessionId = const Value.absent(),
+    this.defaultModel = const Value.absent(),
     this.status = const Value.absent(),
     required int createdAt,
     required int updatedAt,
@@ -11420,6 +11578,7 @@ class DevAgentSessionsCompanion extends UpdateCompanion<DevAgentSession> {
     Expression<String>? mode,
     Expression<String>? ownerCharacterId,
     Expression<String>? providerSessionId,
+    Expression<String>? defaultModel,
     Expression<String>? status,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
@@ -11434,6 +11593,7 @@ class DevAgentSessionsCompanion extends UpdateCompanion<DevAgentSession> {
       if (mode != null) 'mode': mode,
       if (ownerCharacterId != null) 'owner_character_id': ownerCharacterId,
       if (providerSessionId != null) 'provider_session_id': providerSessionId,
+      if (defaultModel != null) 'default_model': defaultModel,
       if (status != null) 'status': status,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -11450,6 +11610,7 @@ class DevAgentSessionsCompanion extends UpdateCompanion<DevAgentSession> {
       Value<String>? mode,
       Value<String?>? ownerCharacterId,
       Value<String?>? providerSessionId,
+      Value<String?>? defaultModel,
       Value<String>? status,
       Value<int>? createdAt,
       Value<int>? updatedAt,
@@ -11463,6 +11624,7 @@ class DevAgentSessionsCompanion extends UpdateCompanion<DevAgentSession> {
       mode: mode ?? this.mode,
       ownerCharacterId: ownerCharacterId ?? this.ownerCharacterId,
       providerSessionId: providerSessionId ?? this.providerSessionId,
+      defaultModel: defaultModel ?? this.defaultModel,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -11497,6 +11659,9 @@ class DevAgentSessionsCompanion extends UpdateCompanion<DevAgentSession> {
     if (providerSessionId.present) {
       map['provider_session_id'] = Variable<String>(providerSessionId.value);
     }
+    if (defaultModel.present) {
+      map['default_model'] = Variable<String>(defaultModel.value);
+    }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
@@ -11523,6 +11688,7 @@ class DevAgentSessionsCompanion extends UpdateCompanion<DevAgentSession> {
           ..write('mode: $mode, ')
           ..write('ownerCharacterId: $ownerCharacterId, ')
           ..write('providerSessionId: $providerSessionId, ')
+          ..write('defaultModel: $defaultModel, ')
           ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -27887,6 +28053,7 @@ typedef $$DevProjectsTableCreateCompanionBuilder = DevProjectsCompanion
   Value<String> defaultBranch,
   required String bridgeUrl,
   Value<String> permissionTier,
+  Value<String?> defaultOpencodeModel,
   required int createdAt,
   Value<int> rowid,
 });
@@ -27898,6 +28065,7 @@ typedef $$DevProjectsTableUpdateCompanionBuilder = DevProjectsCompanion
   Value<String> defaultBranch,
   Value<String> bridgeUrl,
   Value<String> permissionTier,
+  Value<String?> defaultOpencodeModel,
   Value<int> createdAt,
   Value<int> rowid,
 });
@@ -27984,6 +28152,10 @@ class $$DevProjectsTableFilterComposer
 
   ColumnFilters<String> get permissionTier => $composableBuilder(
       column: $table.permissionTier,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get defaultOpencodeModel => $composableBuilder(
+      column: $table.defaultOpencodeModel,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get createdAt => $composableBuilder(
@@ -28083,6 +28255,10 @@ class $$DevProjectsTableOrderingComposer
       column: $table.permissionTier,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get defaultOpencodeModel => $composableBuilder(
+      column: $table.defaultOpencodeModel,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 }
@@ -28113,6 +28289,9 @@ class $$DevProjectsTableAnnotationComposer
 
   GeneratedColumn<String> get permissionTier => $composableBuilder(
       column: $table.permissionTier, builder: (column) => column);
+
+  GeneratedColumn<String> get defaultOpencodeModel => $composableBuilder(
+      column: $table.defaultOpencodeModel, builder: (column) => column);
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -28215,6 +28394,7 @@ class $$DevProjectsTableTableManager extends RootTableManager<
             Value<String> defaultBranch = const Value.absent(),
             Value<String> bridgeUrl = const Value.absent(),
             Value<String> permissionTier = const Value.absent(),
+            Value<String?> defaultOpencodeModel = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -28225,6 +28405,7 @@ class $$DevProjectsTableTableManager extends RootTableManager<
             defaultBranch: defaultBranch,
             bridgeUrl: bridgeUrl,
             permissionTier: permissionTier,
+            defaultOpencodeModel: defaultOpencodeModel,
             createdAt: createdAt,
             rowid: rowid,
           ),
@@ -28235,6 +28416,7 @@ class $$DevProjectsTableTableManager extends RootTableManager<
             Value<String> defaultBranch = const Value.absent(),
             required String bridgeUrl,
             Value<String> permissionTier = const Value.absent(),
+            Value<String?> defaultOpencodeModel = const Value.absent(),
             required int createdAt,
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -28245,6 +28427,7 @@ class $$DevProjectsTableTableManager extends RootTableManager<
             defaultBranch: defaultBranch,
             bridgeUrl: bridgeUrl,
             permissionTier: permissionTier,
+            defaultOpencodeModel: defaultOpencodeModel,
             createdAt: createdAt,
             rowid: rowid,
           ),
@@ -28340,6 +28523,7 @@ typedef $$DevAgentRunsTableCreateCompanionBuilder = DevAgentRunsCompanion
   required String status,
   Value<String?> branch,
   Value<String?> worktreePath,
+  Value<String?> model,
   required int startedAt,
   Value<int?> endedAt,
   Value<String?> summary,
@@ -28356,6 +28540,7 @@ typedef $$DevAgentRunsTableUpdateCompanionBuilder = DevAgentRunsCompanion
   Value<String> status,
   Value<String?> branch,
   Value<String?> worktreePath,
+  Value<String?> model,
   Value<int> startedAt,
   Value<int?> endedAt,
   Value<String?> summary,
@@ -28463,6 +28648,9 @@ class $$DevAgentRunsTableFilterComposer
 
   ColumnFilters<String> get worktreePath => $composableBuilder(
       column: $table.worktreePath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get model => $composableBuilder(
+      column: $table.model, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get startedAt => $composableBuilder(
       column: $table.startedAt, builder: (column) => ColumnFilters(column));
@@ -28593,6 +28781,9 @@ class $$DevAgentRunsTableOrderingComposer
       column: $table.worktreePath,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get model => $composableBuilder(
+      column: $table.model, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get startedAt => $composableBuilder(
       column: $table.startedAt, builder: (column) => ColumnOrderings(column));
 
@@ -28655,6 +28846,9 @@ class $$DevAgentRunsTableAnnotationComposer
 
   GeneratedColumn<String> get worktreePath => $composableBuilder(
       column: $table.worktreePath, builder: (column) => column);
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
 
   GeneratedColumn<int> get startedAt =>
       $composableBuilder(column: $table.startedAt, builder: (column) => column);
@@ -28787,6 +28981,7 @@ class $$DevAgentRunsTableTableManager extends RootTableManager<
             Value<String> status = const Value.absent(),
             Value<String?> branch = const Value.absent(),
             Value<String?> worktreePath = const Value.absent(),
+            Value<String?> model = const Value.absent(),
             Value<int> startedAt = const Value.absent(),
             Value<int?> endedAt = const Value.absent(),
             Value<String?> summary = const Value.absent(),
@@ -28802,6 +28997,7 @@ class $$DevAgentRunsTableTableManager extends RootTableManager<
             status: status,
             branch: branch,
             worktreePath: worktreePath,
+            model: model,
             startedAt: startedAt,
             endedAt: endedAt,
             summary: summary,
@@ -28817,6 +29013,7 @@ class $$DevAgentRunsTableTableManager extends RootTableManager<
             required String status,
             Value<String?> branch = const Value.absent(),
             Value<String?> worktreePath = const Value.absent(),
+            Value<String?> model = const Value.absent(),
             required int startedAt,
             Value<int?> endedAt = const Value.absent(),
             Value<String?> summary = const Value.absent(),
@@ -28832,6 +29029,7 @@ class $$DevAgentRunsTableTableManager extends RootTableManager<
             status: status,
             branch: branch,
             worktreePath: worktreePath,
+            model: model,
             startedAt: startedAt,
             endedAt: endedAt,
             summary: summary,
@@ -28953,6 +29151,7 @@ typedef $$DevAgentSessionsTableCreateCompanionBuilder
   Value<String> mode,
   Value<String?> ownerCharacterId,
   Value<String?> providerSessionId,
+  Value<String?> defaultModel,
   Value<String> status,
   required int createdAt,
   required int updatedAt,
@@ -28968,6 +29167,7 @@ typedef $$DevAgentSessionsTableUpdateCompanionBuilder
   Value<String> mode,
   Value<String?> ownerCharacterId,
   Value<String?> providerSessionId,
+  Value<String?> defaultModel,
   Value<String> status,
   Value<int> createdAt,
   Value<int> updatedAt,
@@ -29045,6 +29245,9 @@ class $$DevAgentSessionsTableFilterComposer
   ColumnFilters<String> get providerSessionId => $composableBuilder(
       column: $table.providerSessionId,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get defaultModel => $composableBuilder(
+      column: $table.defaultModel, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get status => $composableBuilder(
       column: $table.status, builder: (column) => ColumnFilters(column));
@@ -29131,6 +29334,10 @@ class $$DevAgentSessionsTableOrderingComposer
       column: $table.providerSessionId,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get defaultModel => $composableBuilder(
+      column: $table.defaultModel,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get status => $composableBuilder(
       column: $table.status, builder: (column) => ColumnOrderings(column));
 
@@ -29190,6 +29397,9 @@ class $$DevAgentSessionsTableAnnotationComposer
 
   GeneratedColumn<String> get providerSessionId => $composableBuilder(
       column: $table.providerSessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get defaultModel => $composableBuilder(
+      column: $table.defaultModel, builder: (column) => column);
 
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
@@ -29277,6 +29487,7 @@ class $$DevAgentSessionsTableTableManager extends RootTableManager<
             Value<String> mode = const Value.absent(),
             Value<String?> ownerCharacterId = const Value.absent(),
             Value<String?> providerSessionId = const Value.absent(),
+            Value<String?> defaultModel = const Value.absent(),
             Value<String> status = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<int> updatedAt = const Value.absent(),
@@ -29291,6 +29502,7 @@ class $$DevAgentSessionsTableTableManager extends RootTableManager<
             mode: mode,
             ownerCharacterId: ownerCharacterId,
             providerSessionId: providerSessionId,
+            defaultModel: defaultModel,
             status: status,
             createdAt: createdAt,
             updatedAt: updatedAt,
@@ -29305,6 +29517,7 @@ class $$DevAgentSessionsTableTableManager extends RootTableManager<
             Value<String> mode = const Value.absent(),
             Value<String?> ownerCharacterId = const Value.absent(),
             Value<String?> providerSessionId = const Value.absent(),
+            Value<String?> defaultModel = const Value.absent(),
             Value<String> status = const Value.absent(),
             required int createdAt,
             required int updatedAt,
@@ -29319,6 +29532,7 @@ class $$DevAgentSessionsTableTableManager extends RootTableManager<
             mode: mode,
             ownerCharacterId: ownerCharacterId,
             providerSessionId: providerSessionId,
+            defaultModel: defaultModel,
             status: status,
             createdAt: createdAt,
             updatedAt: updatedAt,

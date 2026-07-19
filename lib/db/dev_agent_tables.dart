@@ -12,6 +12,13 @@ class DevProjects extends Table {
   TextColumn get bridgeUrl => text()();
   TextColumn get permissionTier =>
       text().withDefault(const Constant('read_only'))();
+  /// Default OpenCode `provider/model` used when the user does not specify
+  /// one in chat and the active session has no override. NULL = fall back
+  /// to opencode.jsonc / DEV_AGENT_OPENCODE_MODEL. The companion UI in
+  /// Dev Room exposes this as a dropdown so users can switch between their
+  /// ollama-cloud / opencode-go / minimax-cn-coding-plan quotas without
+  /// restarting the bridge.
+  TextColumn get defaultOpencodeModel => text().nullable()();
   IntColumn get createdAt => integer()();
 
   @override
@@ -29,6 +36,11 @@ class DevAgentRuns extends Table {
   TextColumn get status => text()();
   TextColumn get branch => text().nullable()();
   TextColumn get worktreePath => text().nullable()();
+  /// `provider/model` that was actually used for this run (resolved from
+  /// session override / project default / opencode.jsonc at spawn time).
+  /// Lets the App show "OpenCode / qwen3.7-max" without re-querying the
+  /// bridge, and helps debugging when a user complains a run was slow.
+  TextColumn get model => text().nullable()();
   IntColumn get startedAt => integer()();
   IntColumn get endedAt => integer().nullable()();
   TextColumn get summary => text().nullable()();
@@ -51,6 +63,11 @@ class DevAgentSessions extends Table {
   TextColumn get mode => text().withDefault(const Constant('read_only'))();
   TextColumn get ownerCharacterId => text().nullable()();
   TextColumn get providerSessionId => text().nullable()();
+  /// Session-level model override (e.g. set by `use ollama-cloud/... for
+  /// this run` in chat). Wins over the project's default and persists
+  /// across every run started from this session, so a user saying
+  /// "继续刚才那个" doesn't have to repeat the model every turn.
+  TextColumn get defaultModel => text().nullable()();
   TextColumn get status => text().withDefault(const Constant('active'))();
   IntColumn get createdAt => integer()();
   IntColumn get updatedAt => integer()();

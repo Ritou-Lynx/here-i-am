@@ -57,6 +57,23 @@ class DevAgentBridgeException implements Exception {
   String toString() => message;
 }
 
+/// Result of [DevAgentBridgeService.listOpencodeModels]. `models` is the
+/// `provider/model` strings OpenCode knows about; `warning` carries any
+/// non-fatal stderr the Bridge surfaced so the UI can show "OpenCode
+/// isn't in PATH" / "opencode models returned empty" hints without the
+/// caller having to know the failure modes.
+class DevAgentOpencodeModels {
+  const DevAgentOpencodeModels({
+    this.models = const [],
+    this.warning,
+  });
+
+  final List<String> models;
+  final String? warning;
+
+  bool get isEmpty => models.isEmpty;
+}
+
 class DevAgentDecisionResult {
   const DevAgentDecisionResult({
     required this.accepted,
@@ -227,10 +244,13 @@ class DevAgentBridgeService {
     required String defaultBranch,
     required String bridgeUrl,
     String permissionTier = 'read_only',
+    String? defaultOpencodeModel,
   }) async {
     final projectId = id ?? _uuid.v4();
     _validateBridgeUrl(bridgeUrl);
     _validatePermissionTier(permissionTier);
+
+    final trimmedModel = defaultOpencodeModel?.trim();
 
     await _db.into(_db.devProjects).insertOnConflictUpdate(
           DevProjectsCompanion.insert(
@@ -242,6 +262,11 @@ class DevAgentBridgeService {
             ),
             bridgeUrl: bridgeUrl.trim(),
             permissionTier: Value(permissionTier),
+            defaultOpencodeModel: Value(
+              trimmedModel != null && trimmedModel.isNotEmpty
+                  ? trimmedModel
+                  : null,
+            ),
             createdAt: DateTime.now().millisecondsSinceEpoch ~/ 1000,
           ),
         );
@@ -462,12 +487,14 @@ class DevAgentBridgeService {
     String? goal,
     String? ownerCharacterId,
     String mode = 'read_only',
+    String? defaultModel,
   }) async {
     final project = await getProject(projectId);
     if (project == null) {
       throw const DevAgentBridgeException('Dev project not found.');
     }
     final trimmedTitle = title.trim().isEmpty ? 'Dev Session' : title.trim();
+    final trimmedModel = defaultModel?.trim();
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final sessionId = _uuid.v4();
     await _db.into(_db.devAgentSessions).insert(
@@ -479,6 +506,14 @@ class DevAgentBridgeService {
             goal: Value(goal?.trim().isEmpty == true ? null : goal?.trim()),
             mode: Value(mode),
             ownerCharacterId: Value(ownerCharacterId),
+            // A session-level override (e.g. set from chat "use <model> for
+            // this run") wins over the project's default. We store it on the
+            // session so every run started from this session reuses it.
+            defaultModel: Value(
+              trimmedModel != null && trimmedModel.isNotEmpty
+                  ? trimmedModel
+                  : project.defaultOpencodeModel,
+            ),
             status: const Value('active'),
             createdAt: now,
             updatedAt: now,
@@ -490,6 +525,7 @@ class DevAgentBridgeService {
   Future<String> continueSession({
     required String sessionId,
     required String message,
+    String? model,
   }) async {
     final session = await getSession(sessionId);
     if (session == null) {
@@ -514,7 +550,21 @@ class DevAgentBridgeService {
         orElse: () => DevAgentType.codex,
       ),
       devSessionId: sessionId,
+      model: model,
     );
+    // If the user explicitly chose a model mid-session, persist it on the
+    // session so the next continue without args reuses the same one.
+    final trimmedModel = model?.trim();
+    if (trimmedModel != null && trimmedModel.isNotEmpty) {
+      await (_db.update(_db.devAgentSessions)
+            ..where((t) => t.id.equals(sessionId)))
+          .write(
+        DevAgentSessionsCompanion(
+          defaultModel: Value(trimmedModel),
+          updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+        ),
+      );
+    }
     await _insertSessionMessage(
       sessionId: sessionId,
       role: 'system',
@@ -565,7 +615,7 @@ class DevAgentBridgeService {
     return query.get();
   }
 
-  Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
+Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
     _validateBridgeUrl(bridgeUrl);
     final Map<String, dynamic> data;
     try {
@@ -599,6 +649,32 @@ class DevAgentBridgeService {
       }));
     }
     return health;
+  }
+
+  /// Lists every `provider/model` OpenCode currently exposes. Used by the
+  /// DevRoom project-settings dropdown. Returns an empty list (with a
+  /// warning message, if any) when the Bridge can't enumerate models —
+  /// callers should fall back to letting the user type the model id by
+  /// hand in that case.
+  Future<DevAgentOpencodeModels> listOpencodeModels(String bridgeUrl) async {
+    _validateBridgeUrl(bridgeUrl);
+    try {
+      final response = await _dio.getUri<Map<String, dynamic>>(
+        _bridgeUri(bridgeUrl, '/v1/opencode-models'),
+      );
+      final data = response.data ?? const <String, dynamic>{};
+      final raw = data['models'];
+      final models = raw is List
+          ? raw.map((e) => e.toString()).where((s) => s.contains('/')).toList()
+          : const <String>[];
+      return DevAgentOpencodeModels(
+        models: models,
+        warning: data['warning']?.toString(),
+      );
+    } on DioException catch (e) {
+      _logger.fine('opencode-models probe failed: ${e.message}');
+      return const DevAgentOpencodeModels();
+    }
   }
 
   /// Best-effort startup refresh for every configured Bridge endpoint.
@@ -723,6 +799,7 @@ class DevAgentBridgeService {
     required DevAgentType agentType,
     String? bridgePrompt,
     String? devSessionId,
+    String? model,
   }) async {
     final project = await getProject(projectId);
     if (project == null) {
@@ -738,6 +815,17 @@ class DevAgentBridgeService {
         ? bridgePrompt!.trim()
         : trimmedPrompt;
 
+    // Resolve model in priority order: explicit `model` arg > project
+    // default. For OpenCode runs the Bridge will further fall back to
+    // DEV_AGENT_OPENCODE_MODEL / opencode.jsonc default when we don't
+    // send anything. We always persist the resolved model on the run row
+    // so the App can show "OpenCode / qwen3.7-max" without re-querying
+    // the bridge.
+    final resolvedModel = _resolveModel(
+      explicitModel: model,
+      projectDefault: project.defaultOpencodeModel,
+    );
+
     final runId = _uuid.v4();
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     await _db.into(_db.devAgentRuns).insert(
@@ -748,6 +836,7 @@ class DevAgentBridgeService {
             devSessionId: Value(devSessionId),
             initialPrompt: trimmedPrompt,
             status: 'pending',
+            model: Value(resolvedModel),
             startedAt: now,
           ),
         );
@@ -771,6 +860,7 @@ class DevAgentBridgeService {
           'mode': project.permissionTier == 'read_only'
               ? 'read_only'
               : 'workspace_write',
+          if (resolvedModel != null) 'model': resolvedModel,
         },
       );
       final data = response.data ?? {};
@@ -1380,6 +1470,22 @@ class DevAgentBridgeService {
       'opencode' => 'OpenCode',
       _ => 'Codex',
     };
+  }
+
+  /// Pick the model id for a new run. Explicit overrides (per-call or
+  /// session-level) win; project default is the next fall-through; null
+  /// here means "let the Bridge pick" (DEV_AGENT_OPENCODE_MODEL /
+  /// opencode.jsonc default).
+  static String? _resolveModel({
+    String? explicitModel,
+    String? projectDefault,
+  }) {
+    String? chosen = explicitModel?.trim();
+    if (chosen == null || chosen.isEmpty) {
+      chosen = projectDefault?.trim();
+    }
+    if (chosen == null || chosen.isEmpty) return null;
+    return chosen;
   }
 
   Future<void> _markRunFailed(String runId, String message) async {

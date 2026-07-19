@@ -121,7 +121,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 42;
+  int get schemaVersion => 43;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -544,6 +544,20 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(projectMemorySources);
             await _createProjectMemoryIndices();
             await searchDao.createFtsTables();
+          }
+          if (from < 43) {
+            // Dev Room model switch: project default + session override + run
+            // resolved model. All three columns are nullable; existing rows
+            // keep NULL and the app falls back to opencode.jsonc / env.
+            await _addColumnIfMissing(
+              'dev_projects ADD COLUMN default_opencode_model TEXT',
+            );
+            await _addColumnIfMissing(
+              'dev_agent_sessions ADD COLUMN default_model TEXT',
+            );
+            await _addColumnIfMissing(
+              'dev_agent_runs ADD COLUMN model TEXT',
+            );
           }
           if (from < 39) {
             await _addColumnIfMissing(

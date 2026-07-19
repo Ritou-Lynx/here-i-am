@@ -437,7 +437,7 @@ function _riskForOpencodeTool(name) {
   }
 }
 
-function commandFor(agentType, project, prompt, mode, cwd) {
+function commandFor(agentType, project, prompt, mode, cwd, modelOverride) {
   const isWrite = mode === 'workspace_write';
 
   if (agentType === 'codex') {
@@ -496,7 +496,15 @@ function commandFor(agentType, project, prompt, mode, cwd) {
     // 'allow'` for workspace_write. For now we use --auto for both
     // modes; the App's Accept/Discard flow operates at the git-worktree
     // level post-run, not at the OpenCode tool level.
-    const ocModel = process.env.DEV_AGENT_OPENCODE_MODEL;
+    //
+    // Model selection priority (matches Dart-side _resolveModel):
+    //   1. per-call modelOverride (chat "use <model> for this")
+    //   2. DEV_AGENT_OPENCODE_MODEL env var (bridge-level fallback)
+    //   3. opencode.jsonc default (`provider` field)
+    const ocModel =
+      typeof modelOverride === 'string' && modelOverride.trim()
+        ? modelOverride.trim()
+        : (process.env.DEV_AGENT_OPENCODE_MODEL || '');
     const args = [
       'run',
       '--format',
@@ -727,7 +735,7 @@ function commandSpec(name, args, displayName) {
   return { command: name, args, displayName };
 }
 
-function startProcess(run, agentType, project, prompt, mode) {
+function startProcess(run, agentType, project, prompt, mode, modelOverride) {
   // For write mode we need a worktree before launching the agent so any file
   // changes are isolated. Read-only runs execute directly in the project root.
   let cwd = project.rootPath;
@@ -750,7 +758,7 @@ function startProcess(run, agentType, project, prompt, mode) {
 
   let spec;
   try {
-    spec = commandFor(agentType, project, prompt, mode, cwd);
+    spec = commandFor(agentType, project, prompt, mode, cwd, modelOverride);
   } catch (error) {
     setStatus(run, 'failed', error.message);
     return;
@@ -842,7 +850,7 @@ async function handle(req, res) {
   const path = url.pathname;
 
   try {
-    if (req.method === 'GET' && path === '/v1/health') {
+if (req.method === 'GET' && path === '/v1/health') {
       json(res, 200, {
         ok: true,
         bridge_id: 'local-dev-agent-bridge',
@@ -851,6 +859,34 @@ async function handle(req, res) {
         features: ['git_status', 'git_pull', 'git_push', 'project_memory_projection', 'project_memory_auto_closeout'],
         transport: certPath && keyPath ? 'https' : 'http-local',
       });
+      return;
+    }
+
+    if (req.method === 'GET' && path === '/v1/opencode-models') {
+      // Lists every `provider/model` OpenCode currently exposes, so the
+      // App's DevRoom project-settings dropdown can present the full
+      // menu (without dragging each model out of `opencode models` by
+      // hand). Returns an empty list on any failure (opencode not in
+      // PATH, fresh install, etc.) — the dropdown will then just show
+      // the manual text-entry field.
+      try {
+        const result = spawnSync('opencode', ['models'], {
+          encoding: 'utf8',
+          windowsHide: true,
+        });
+        if (result.status === 0 && typeof result.stdout === 'string') {
+          const models = result.stdout
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line && line.includes('/'));
+          json(res, 200, { models });
+          return;
+        }
+        const stderr = (result.stderr || '').trim();
+        json(res, 200, { models: [], warning: stderr || 'opencode models exited non-zero' });
+      } catch (err) {
+        json(res, 200, { models: [], warning: err.message });
+      }
       return;
     }
 
@@ -869,12 +905,20 @@ async function handle(req, res) {
       }
 
       const runId = String(body.client_run_id || randomUUID());
+      // Per-call model override. The Dart side resolves in priority order:
+      // explicit arg > session override > project default. Empty / null here
+      // means "let the Bridge pick" (DEV_AGENT_OPENCODE_MODEL / opencode.jsonc).
+      const bodyModel = typeof body.model === 'string'
+        ? body.model.trim()
+        : '';
+      const runModel = bodyModel || null;
       const run = {
         id: runId,
         sessionId: runId,
         agentType: String(body.agent_type || ''),
         project,
         mode,
+        model: runModel,
         status: 'pending',
         summary: null,
         startedAt: nowSeconds(),
@@ -891,9 +935,9 @@ async function handle(req, res) {
       persistState();
       addEvent(run, 'status', { status: 'pending', message: 'Run accepted by bridge.' });
       console.log(
-        `[runs] new run ${runId.slice(0, 8)} agent=${run.agentType} mode=${mode} tier=${project.permissionTier} project="${project.name}" id=${project.id.slice(0, 8)}`,
+        `[runs] new run ${runId.slice(0, 8)} agent=${run.agentType} mode=${mode} tier=${project.permissionTier} model=${runModel || '(default)'} project="${project.name}" id=${project.id.slice(0, 8)}`,
       );
-      startProcess(run, run.agentType, project, prompt, mode);
+      startProcess(run, run.agentType, project, prompt, mode, runModel);
       json(res, 200, {
         run_id: runId,
         session_id: runId,
