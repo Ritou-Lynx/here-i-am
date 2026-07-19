@@ -40,6 +40,7 @@ import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/reading/reading_share_parser.dart';
+import 'package:memex/data/services/reading/transient_fetch_cache.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
 import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
@@ -1885,7 +1886,7 @@ only after you have written the goodbye you want the user to hear.''',
       perDraftAnalysis: perDraftAnalysis,
     );
     final combinedText = drafts.map((d) => d.text).join('\n');
-    final linkContext = _buildLinkConversationContext(combinedText);
+      final linkContext = await _buildLinkConversationContext(combinedText);
     final chatMessageWithContext =
         linkContext == null ? chatMessage : '$linkContext\n\n$chatMessage';
 
@@ -2801,6 +2802,44 @@ only after you have written the goodbye you want the user to hear.''',
         'mediaCount=${media.where((m) => m.isUsable).length}',
       );
 
+      // ── Reading link: inject fetched body so Record Organizer can
+      //    produce a reading_item card without re-hitting the source.
+      //    Mirrors how image analyses are pre-extracted above: we feed
+      //    the organizer already-analysed content instead of asking it
+      //    to fetch. The transient cache entry was warmed when the link
+      //    was first sent; we just await it here. If the cache has
+      //    expired or was never warmed, fall back to a fresh fetch.
+      var recordInput = cleanedContent;
+      final linkParse = parseReadingShare(cleanedContent);
+      if (linkParse != null && TransientFetchCache.isInitialized) {
+        try {
+          final cache = TransientFetchCache.instance;
+          final entry = await cache.fetch(
+            platform: linkParse.platform,
+            url: linkParse.url,
+          );
+          final body = entry.buildAgentContext();
+          if (body != null && body.trim().isNotEmpty) {
+            final buf = StringBuffer()
+              ..writeln(cleanedContent)
+              ..writeln()
+              ..writeln('[Link content]')
+              ..writeln(body.trim())
+              ..writeln()
+              ..writeln(
+                'The user asked to save this link. Create a reading_item '
+                'memory card for it. The body above has already been '
+                'fetched — do NOT attempt to fetch the URL again.',
+              );
+            recordInput = buf.toString();
+          }
+        } catch (e) {
+          debugPrint(
+            '[Record] msg#${message.id} link body enrichment failed: $e',
+          );
+        }
+      }
+
       // Restore progress toast before the LLM call.
       try {
         progress.close();
@@ -2830,8 +2869,7 @@ only after you have written the goodbye you want the user to hear.''',
         modelConfig: resources.modelConfig,
         source: RecordSource(
           sourceKind: 'record_button',
-          rawInput:
-              cleanedContent.isNotEmpty ? cleanedContent : message.content,
+          rawInput: recordInput.isNotEmpty ? recordInput : message.content,
         ),
         inputMedia: inputMedia,
       );
@@ -3027,7 +3065,7 @@ only after you have written the goodbye you want the user to hear.''',
         .toList();
   }
 
-  String? _buildLinkConversationContext(String text) {
+  Future<String?> _buildLinkConversationContext(String text) async {
     final parsed = parseReadingShare(text, extractCapturedNote: true);
     if (parsed == null) return null;
 
@@ -3048,6 +3086,38 @@ only after you have written the goodbye you want the user to hear.''',
     if (note != null && note.isNotEmpty) {
       buffer.writeln('User note around the link: $note.');
     }
+
+    // Kick off a transient fetch (no entity, no card) so the companion can
+    // discuss the actual article body — same pattern as image-analysis
+    // injection for image attachments. We await up to a short grace window
+    // so the first reply can use the body when the fetch is fast; if the
+    // fetch is slow, we proceed with metadata only and let later turns
+    // pick up the cached body via the in-memory entry.
+    String? articleBody;
+    if (TransientFetchCache.isInitialized) {
+      try {
+        final cache = TransientFetchCache.instance;
+        final future = cache.fetch(
+          platform: parsed.platform,
+          url: parsed.url,
+        );
+        articleBody = await future
+            .timeout(const Duration(seconds: 3))
+            .then((entry) => entry.buildAgentContext())
+            .catchError((Object _) => null) as String?;
+      } catch (_) {
+        // Transient fetch is best-effort; never block the chat send.
+      }
+    }
+
+    if (articleBody != null && articleBody.trim().isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('[Link content]')
+        ..writeln(articleBody.trim())
+        ..writeln();
+    }
+
     buffer
       ..writeln('Treat this as chat material, not as a save request.')
       ..writeln('Do not say it has been saved or recorded.')

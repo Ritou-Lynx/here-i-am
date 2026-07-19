@@ -18,9 +18,11 @@ import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/data/services/reading/fetchers/web_fetcher.dart';
 import 'package:memex/data/services/reading/fetchers/xiaohongshu_fetcher.dart';
 import 'package:memex/data/services/reading/reading_capture_service.dart';
 import 'package:memex/data/services/reading/reading_fetch_coordinator.dart';
+import 'package:memex/data/services/reading/transient_fetch_cache.dart';
 import 'package:memex/data/services/reading/xhs/xhs_cookie_repository.dart';
 import 'package:memex/data/services/app_update_service.dart';
 import 'package:memex/data/services/user_notification_service.dart';
@@ -136,6 +138,14 @@ class MemexRouter {
           sharedLifeMemory: sharedLifeMemory,
         );
         ReadingFetchCoordinator.instance.registerFetcher(XiaohongshuFetcher());
+        ReadingFetchCoordinator.instance.registerFetcher(WebFetcher());
+        // Transient fetch cache: lets the companion read article bodies from
+        // chat-sent / share-intent links WITHOUT creating a reading_item
+        // entity. Shares the same fetcher instances as the coordinator.
+        TransientFetchCache.init(
+          fetchersByPlatform:
+              ReadingFetchCoordinator.instance.fetchersByPlatform,
+        );
         // Restore the persisted "user marked connected" bit for 小红书 so
         // a previously-confirmed session survives app restarts. (The
         // system WebView keeps the cookie itself; this restores OUR flag.)

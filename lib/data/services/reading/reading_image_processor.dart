@@ -70,9 +70,15 @@ class ReadingImageProcessor {
 
   /// Process every image: download → OCR. Returns one result per image
   /// in the same order, regardless of whether individual ones succeeded.
+  ///
+  /// [workspaceSubdir] controls where image bytes land on disk. Defaults to
+  /// `reading` (persistent entity bodies). Transient fetches that may never
+  /// be promoted to an entity should pass `reading_transient` so the files
+  /// stay isolated and can be cleaned up when the cache entry expires.
   Future<List<ImageOcrResult>> processAll({
     required String entityId,
     required List<String> imageUrls,
+    String workspaceSubdir = 'reading',
   }) async {
     if (imageUrls.isEmpty) return const [];
     final userId = await UserStorage.getUserId();
@@ -81,7 +87,9 @@ class ReadingImageProcessor {
       return const [];
     }
     final workspaceRoot = FileSystemService.instance.getWorkspacePath(userId);
-    final imagesDir = Directory(p.join(workspaceRoot, 'reading', entityId, 'images'));
+    final imagesDir = Directory(
+      p.join(workspaceRoot, workspaceSubdir, entityId, 'images'),
+    );
     await imagesDir.create(recursive: true);
 
     final results = List<ImageOcrResult?>.filled(imageUrls.length, null);

@@ -91,6 +91,12 @@ class ReadingFetchCoordinator {
   /// placeholder state".
   ReadingFetcher? fetcherFor(String platform) => _fetchersByPlatform[platform];
 
+  /// Read-only view of all registered fetchers, keyed by platform id. Used
+  /// by [TransientFetchCache] to share the same fetcher instances without
+  /// re-wiring them independently.
+  Map<String, ReadingFetcher> get fetchersByPlatform =>
+      Map<String, ReadingFetcher>.unmodifiable(_fetchersByPlatform);
+
   /// Main entry point. Look up the entity, run its platform's fetcher,
   /// persist the result. Idempotent: re-running for an already-fetched
   /// entity overwrites with the latest fetch (useful for the future
