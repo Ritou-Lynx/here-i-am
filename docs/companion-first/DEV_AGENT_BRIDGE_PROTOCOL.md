@@ -19,6 +19,29 @@ Codex events.
 - Bridge URLs must be HTTPS or a Tailscale HTTPS endpoint for daily use.
   Debug/dev app builds may also accept loopback HTTP for USB-only testing.
 
+## Supported Agents
+
+The Bridge normalizes three coding-agent CLIs into one event stream:
+
+- **OpenCode** (`opencode run --format json --auto --dir <cwd> <prompt>`):
+  newline-delimited JSON events with namespaced `type` (e.g.
+  `message.part.updated`, `file.edited`, `permission.updated`,
+  `session.status`). Shares `~/.config/opencode` and
+  `~/.local/share/opencode` with the Desktop app, so provider credentials
+  configured there are reused. Optional `DEV_AGENT_OPENCODE_MODEL` env var
+  selects a specific `provider/model`; otherwise the opencode.jsonc default
+  is used. No CLI-level approval gate; `--auto` auto-approves non-denied
+  tool permissions. Workspace-write review happens at the git-worktree
+  level post-run via the existing Accept/Discard flow.
+- **Codex** (`codex exec --json --sandbox ... --cd <cwd> <prompt>`):
+  OpenAI Codex CLI. `approval_policy="never"` override for workspace-write
+  so JSON (non-interactive) mode doesn't auto-reject. Optional
+  `DEV_AGENT_CODEX_MODEL` env var selects a specific model.
+- **Claude Code** (`claude -p <prompt> --output-format stream-json
+  --verbose --permission-mode plan|acceptEdits --tools ...`): Anthropic
+  Claude Code CLI. Tool whitelist matches the run mode (read-only gets
+  Read/Grep/Glob/LS; workspace-write adds Edit/Write/MultiEdit).
+
 ## Current Local Prototype
 
 `tools/dev_agent_bridge/dev_agent_bridge.mjs` implements the Phase 0–2 contract
@@ -70,7 +93,7 @@ Response:
   "ok": true,
   "bridge_id": "devbox-main",
   "version": "0.1.0",
-  "agents": ["claude_code", "codex"]
+  "agents": ["claude_code", "codex", "opencode"]
 }
 ```
 
@@ -90,7 +113,7 @@ Request:
     "default_branch": "v3-lab",
     "permission_tier": "read_only"
   },
-  "agent_type": "codex",
+  "agent_type": "opencode",
   "prompt": "Read the project and summarize current risks.",
   "mode": "read_only"
 }

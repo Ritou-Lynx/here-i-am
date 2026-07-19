@@ -148,7 +148,11 @@ class _DevSessionScreenState extends State<DevSessionScreen> {
   }
 
   String _agentLabel(String agentType) {
-    return agentType == DevAgentType.claudeCode.value ? 'Claude Code' : 'Codex';
+    return switch (agentType) {
+      'claude_code' => 'Claude Code',
+      'opencode' => 'OpenCode',
+      _ => 'Codex',
+    };
   }
 }
 

@@ -64,9 +64,10 @@ Write ONE visible chat message to the user in your own character voice.
 Rules:
 - Explain what came back from $agentName, naturally and concretely.
 - If status is done, summarize the useful result and suggest one natural next step or question.
-- If status is failed/aborted, be honest and tell the user they can open the Dev Session card to inspect details.
-- Mention that the card below can open the Dev Session if useful.
-- Do NOT claim you personally edited files; say $agentName/Codex/Claude Code did the run.
+- If status is failed/aborted, be honest and tell the user the Dev Session card below shows the details.
+- For write-mode runs, the card below also has Accept / Discard buttons so the user can decide whether to merge the changes.
+- Do NOT claim you personally edited files; say $agentName/OpenCode/Codex/Claude Code did the run.
+- Do NOT tell the user to "open Dev Room" — the result is right here in chat.
 - Do NOT call tools. Do NOT create records. Do NOT schedule reminders.
 - Keep it compact: 1-3 short paragraphs, Chinese.
 ''';
@@ -225,13 +226,20 @@ String _fallbackMessage({
   required String summary,
 }) {
   final agentName = _agentLabel(agentType);
-  final body = summary.trim().isEmpty ? '这轮没有返回摘要。' : summary.trim();
+  final body = summary.trim().isEmpty ? '这轮没有返回内容。' : summary.trim();
   if (status == 'done') {
-    return '我让 $agentName 跑完了，结果回来了：\n\n$body\n\n详情我放在下面这张 Dev Session 卡片里了，你可以点进去继续追问。';
+    return '$agentName 跑完了：\n\n$body';
   }
-  return '$agentName 这轮没有顺利完成：\n\n$body\n\n我把详情放在 Dev Room 里了，我们可以点进去看哪里卡住。';
+  if (status == 'aborted') {
+    return '$agentName 这轮被停了：\n\n$body';
+  }
+  return '$agentName 这轮没成功：\n\n$body';
 }
 
 String _agentLabel(String agentType) {
-  return agentType == 'claude_code' ? 'Claude Code' : 'Codex';
+  return switch (agentType) {
+    'claude_code' => 'Claude Code',
+    'opencode' => 'OpenCode',
+    _ => 'Codex',
+  };
 }

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_session_screen.dart';
 
-class DevSessionAddendumWidget extends StatelessWidget {
+class DevSessionAddendumWidget extends StatefulWidget {
   const DevSessionAddendumWidget({
     super.key,
     required this.data,
@@ -13,15 +16,91 @@ class DevSessionAddendumWidget extends StatelessWidget {
   final bool isCharacterBubble;
 
   @override
+  State<DevSessionAddendumWidget> createState() =>
+      _DevSessionAddendumWidgetState();
+}
+
+class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
+  bool _deciding = false;
+  String? _decisionResult;
+  bool? _decisionAccepted;
+
+  /// Write-mode runs offer Accept (merge worktree into default branch) /
+  /// Discard (remove worktree). Read-only runs never have a worktree and
+  /// the Bridge rejects those decisions with `no_worktree`.
+  bool get _isWriteModeCandidate {
+    final worktree = (widget.data['worktreePath'] as String?)?.trim();
+    return worktree != null && worktree.isNotEmpty;
+  }
+
+  Future<void> _decide(String decision) async {
+    final runId = (widget.data['runId'] as String?) ?? '';
+    if (runId.isEmpty) return;
+    if (!DevAgentBridgeService.isInitialized) return;
+    setState(() {
+      _deciding = true;
+      _decisionResult = null;
+      _decisionAccepted = null;
+    });
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final result = await DevAgentBridgeService.instance.decideRun(
+        runId,
+        decision,
+      );
+      if (!mounted) return;
+      setState(() {
+        _decisionAccepted = result.accepted;
+        _decisionResult = result.message ?? result.reason ?? '';
+      });
+      if (messenger != null) {
+        final ok = result.accepted;
+        final label = switch (decision) {
+          'apply' => ok ? '已合入默认分支' : '合入失败',
+          'discard' => ok ? '已丢弃工作区' : '丢弃失败',
+          'leave' => '已保留工作区',
+          _ => decision,
+        };
+        messenger.showSnackBar(
+          SnackBar(content: Text(label), duration: const Duration(seconds: 2)),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _decisionAccepted = false;
+        _decisionResult = e.toString();
+      });
+      if (messenger != null) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('决定提交失败：$e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deciding = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final sessionId = (data['sessionId'] as String?) ?? '';
+    final sessionId = (widget.data['sessionId'] as String?) ?? '';
     if (sessionId.isEmpty) return const SizedBox.shrink();
 
-    final title = (data['title'] as String?)?.trim();
-    final agentType = (data['agentType'] as String?) ?? 'codex';
-    final status = (data['status'] as String?) ?? 'done';
-    final branch = (data['branch'] as String?)?.trim();
+    final title = (widget.data['title'] as String?)?.trim();
+    final agentType = (widget.data['agentType'] as String?) ?? 'codex';
+    final status = (widget.data['status'] as String?) ?? 'done';
+    final branch = (widget.data['branch'] as String?)?.trim();
     final color = _statusColor(status);
+
+    // Accept / Discard only make sense for terminal, write-mode runs that
+    // still have a worktree. Read-only runs and in-progress runs skip the
+    // action row entirely.
+    final isTerminal = const {'done', 'failed', 'aborted'}.contains(status);
+    final showDecisionRow =
+        _isWriteModeCandidate && isTerminal && _decisionAccepted == null;
 
     return Container(
       width: double.infinity,
@@ -64,22 +143,55 @@ class DevSessionAddendumWidget extends StatelessWidget {
               fontSize: 12,
             ),
           ),
+          if (_decisionResult != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _decisionResult!,
+              style: TextStyle(
+                color: _decisionAccepted == true
+                    ? const Color(0xFF10B981)
+                    : AppColors.textTertiary,
+                fontSize: 12,
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
-          Align(
-            alignment: isCharacterBubble
-                ? Alignment.centerLeft
-                : Alignment.centerRight,
-            child: OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DevSessionScreen(sessionId: sessionId),
+          if (showDecisionRow)
+            Row(
+              children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _deciding ? null : () => _decide('apply'),
+                  icon: const Icon(Icons.check, size: 16),
+                  label: const Text('Accept'),
                 ),
               ),
-              icon: const Icon(Icons.open_in_new, size: 16),
-              label: const Text('打开 Dev Session'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _deciding ? null : () => _decide('discard'),
+                  icon: const Icon(Icons.delete_outline, size: 16),
+                  label: const Text('Discard'),
+                ),
+              ),
+              ],
+            )
+          else
+            Align(
+              alignment: widget.isCharacterBubble
+                  ? Alignment.centerLeft
+                  : Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DevSessionScreen(sessionId: sessionId),
+                  ),
+                ),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('查看 Dev Room'),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -104,6 +216,10 @@ class DevSessionAddendumWidget extends StatelessWidget {
   }
 
   String _agentLabel(String agentType) {
-    return agentType == 'claude_code' ? 'Claude Code' : 'Codex';
+    return switch (agentType) {
+      'claude_code' => 'Claude Code',
+      'opencode' => 'OpenCode',
+      _ => 'Codex',
+    };
   }
 }

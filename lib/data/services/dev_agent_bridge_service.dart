@@ -7,17 +7,16 @@ import 'package:dio/io.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
-import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/memory_v3/services/project_memory_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
-import 'package:memex/utils/user_storage.dart';
 import 'package:uuid/uuid.dart';
 
 enum DevAgentType {
   claudeCode('claude_code'),
-  codex('codex');
+  codex('codex'),
+  opencode('opencode');
 
   const DevAgentType(this.value);
   final String value;
@@ -146,6 +145,7 @@ class DevAgentBridgeService {
         _dbOverride = db;
 
   static DevAgentBridgeService? _instance;
+  static bool get isInitialized => _instance != null;
   static DevAgentBridgeService get instance {
     _instance ??= DevAgentBridgeService._();
     return _instance!;
@@ -1279,63 +1279,21 @@ class DevAgentBridgeService {
       return;
     }
     final run = await getRun(runId);
-    final userId = await UserStorage.getUserId();
-    if (userId == null || userId.isEmpty) {
-      await _postTemplateRunSummaryToOwnerChat(
-        characterId: characterId,
-        session: session,
-        run: run,
-        runId: runId,
-        status: status,
-        summary: summary,
-      );
-      return;
-    }
-    try {
-      await LocalTaskExecutor.instance.enqueueTask(
-        userId: userId,
-        taskType: 'dev_session_followup',
-        payload: {
-          'character_id': characterId,
-          'session_id': session.id,
-          'run_id': runId,
-          'session_title': session.title,
-          'agent_type': session.agentType,
-          'status': status,
-          'summary': summary,
-          if (run?.branch != null) 'branch': run!.branch,
-          if (run?.worktreePath != null) 'worktree_path': run!.worktreePath,
-        },
-        priority: 1,
-        maxRetries: 2,
-        bizId: 'dev_session_followup:$runId',
-      );
-    } catch (e, stack) {
-      _logger.warning('Failed to enqueue dev session follow-up', e, stack);
-      await _postTemplateRunSummaryToOwnerChat(
-        characterId: characterId,
-        session: session,
-        run: run,
-        runId: runId,
-        status: status,
-        summary: summary,
-      );
-    }
-  }
 
-  Future<void> _postTemplateRunSummaryToOwnerChat({
-    required String characterId,
-    required DevAgentSession session,
-    required DevAgentRun? run,
-    required String runId,
-    required String status,
-    required String summary,
-  }) async {
+    // B-path: assemble the run's text events into a single chat message,
+    // authored by the character but written in the coding agent's own
+    // voice. No LLM second-narration — engineering results flow through
+    // verbatim, which is what the user explicitly asked for.
+    final textEvents = await _loadRunTextEvents(runId);
+    final body = textEvents.isNotEmpty
+        ? textEvents.join('\n\n').trim()
+        : (summary.trim().isEmpty ? '这轮没有返回内容。' : summary.trim());
     final content = _buildOwnerChatMessage(
       agentType: session.agentType,
       status: status,
-      summary: summary,
+      summary: body,
     );
+
     await PersonaChatService.instance.addCharacterMessage(
       characterId,
       content,
@@ -1354,6 +1312,8 @@ class DevAgentBridgeService {
         },
       ],
     );
+    // Also keep the dev session message record in sync (used by Dev Room
+    // screen to show what was said about each run).
     await _insertSessionMessage(
       sessionId: session.id,
       role: 'character',
@@ -1362,22 +1322,64 @@ class DevAgentBridgeService {
     );
   }
 
+  /// Loads all `text`-kind events for [runId] in chronological order and
+  /// returns their payloads as plain strings. The result is concatenated
+  /// by the caller to form the chat message body.
+  Future<List<String>> _loadRunTextEvents(String runId) async {
+    final rows = await (_db.select(_db.devAgentEvents)
+          ..where((t) => t.runId.equals(runId) & t.kind.equals('text'))
+          ..orderBy([(t) => OrderingTerm.asc(t.ts)]))
+        .get();
+    final out = <String>[];
+    for (final row in rows) {
+      try {
+        final payload = jsonDecode(row.payloadJson);
+        if (payload is Map) {
+          final text = payload['text']?.toString();
+          if (text != null && text.trim().isNotEmpty) out.add(text.trim());
+        }
+      } catch (_) {
+        // ignore un-parseable rows
+      }
+    }
+    return out;
+  }
+
+  // Note: _postTemplateRunSummaryToOwnerChat was removed when we switched
+  // the run-completion flow to the B-path (direct text-event passthrough
+  // instead of an LLM-driven follow-up task). If you ever need the old
+  // template-driven fallback again, see git history for restore.
+
   String _buildOwnerChatMessage({
     required String agentType,
     required String status,
     required String summary,
   }) {
-    final agentName =
-        agentType == DevAgentType.claudeCode.value ? 'Claude Code' : 'Codex';
+    final agentName = _agentDisplayName(agentType);
     final trimmed = summary.trim();
-    final body = trimmed.isEmpty ? '这轮没有返回摘要。' : trimmed;
+    final body = trimmed.isEmpty ? '这轮没有返回内容。' : trimmed;
+    // B-path messaging: engineering results flow through verbatim. The
+    // character introduces the run result with the agent's name so the
+    // chat shows it as a delivered work item, not as 林埃's own narration.
+    // Worktree state (branch / accept / discard) lives in the addendum
+    // card below the message — no need to verbally send users to Dev
+    // Room anymore.
     if (status == 'done') {
-      return '我让 $agentName 跑完了，结果回来了：\n\n$body\n\n详情我放在下面这张 Dev Session 卡片里了，你可以点进去继续追问。';
+      return '$agentName 跑完了：\n\n$body';
     }
     if (status == 'aborted') {
-      return '$agentName 这轮已经停止了：\n\n$body\n\n我把现场留在 Dev Room 里了。';
+      return '$agentName 这轮被停了：\n\n$body';
     }
-    return '$agentName 这轮没有顺利完成：\n\n$body\n\n我把详情放在 Dev Room 里了，我们可以点进去看哪里卡住。';
+    return '$agentName 这轮没成功：\n\n$body';
+  }
+
+  /// Human-readable agent name for chat messages and UI labels.
+  static String _agentDisplayName(String agentType) {
+    return switch (agentType) {
+      'claude_code' => 'Claude Code',
+      'opencode' => 'OpenCode',
+      _ => 'Codex',
+    };
   }
 
   Future<void> _markRunFailed(String runId, String message) async {

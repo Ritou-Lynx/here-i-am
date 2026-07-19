@@ -16,36 +16,38 @@ Tool buildDevSessionStartOrContinueTool({
   return Tool(
     name: 'dev_session_start_or_continue',
     description:
-        'Summon Claude Code or Codex through Dev Room to read project files, '
-        'review code, modify code, inspect a local archive, or continue a '
-        'multi-turn development/research task. Use this when the user asks '
-        'you to make Codex/Claude Code do project work, read a folder of '
-        'articles, review a repo, or continue a prior Dev Session. The tool '
-        'starts work asynchronously; you must still reply in your own '
-        'character voice and tell the user that the Dev Session has started. '
-        'If the user says things like "continue", "next one", "read the next '
-        'article", "接着", "下一篇", "继续刚才那个", or otherwise refers to prior '
-        'Dev Room work, reuse the latest active Dev Session for this character '
-        'unless the user clearly asks to start a new task. '
-        'Do not use it for ordinary emotional chat, memory writes, reminders, '
-        'shopping, or questions you can answer directly.',
+        'Summon OpenCode, Codex, or Claude Code through Dev Room to read '
+        'project files, review code, modify code, inspect a local archive, '
+        'or continue a multi-turn development/research task. Use this when '
+        'the user asks you to make a coding agent do project work, read a '
+        'folder of articles, review a repo, or continue a prior Dev Session. '
+        'The tool starts work asynchronously; you must still reply in your '
+        'own character voice and tell the user that the Dev Session has '
+        'started. If the user says things like "continue", "next one", "read '
+        'the next article", "接着", "下一篇", "继续刚才那个", or otherwise '
+        'refers to prior Dev Room work, reuse the latest active Dev Session '
+        'for this character unless the user clearly asks to start a new '
+        'task. Do not use it for ordinary emotional chat, memory writes, '
+        'reminders, shopping, or questions you can answer directly.',
     parameters: {
       'type': 'object',
       'properties': {
         'message': {
           'type': 'string',
           'description':
-              'The concrete instruction for Claude Code/Codex. Include the '
+              'The concrete instruction for the coding agent. Include the '
                   'user goal, relevant file/folder names, and what output is '
                   'expected.',
         },
         'agent_type': {
           'type': 'string',
-          'enum': ['codex', 'claude_code'],
+          'enum': ['opencode', 'codex', 'claude_code'],
           'description':
-              'Which coding agent to use. Prefer codex for reading, review, '
-                  'analysis, and cautious implementation; use claude_code '
-                  'when the user explicitly asks for Claude Code or when a '
+              'Which coding agent to use. Prefer opencode (the user\'s '
+                  'current primary coding tool) for reading, review, '
+                  'analysis, and implementation; use codex only when the '
+                  'user explicitly asks for Codex; use claude_code only '
+                  'when the user explicitly asks for Claude Code or a '
                   'known existing Claude Code session should continue.',
         },
         'project_id': {
@@ -126,7 +128,7 @@ Tool buildDevSessionStartOrContinueTool({
         final requestedProjectId = (args['project_id'] as String?)?.trim();
         final requestedProjectName = (args['project_name'] as String?)?.trim();
         final explicitAgentType = _tryParseAgentType(args['agent_type']);
-        final requestedAgentType = explicitAgentType ?? DevAgentType.codex;
+        final requestedAgentType = explicitAgentType ?? DevAgentType.opencode;
         final reuseLatest = args['reuse_latest'] == true ||
             _looksLikeSessionContinuation(message);
 
@@ -213,8 +215,8 @@ Tool buildDevSessionStartOrContinueTool({
           'project_name': project.name,
           'agent_type': requestedAgentType.value,
           'project_permission_tier': project.permissionTier,
-          'message':
-              '$characterName started a Dev Session. Tell the user it is underway and they can inspect it in Dev Room.',
+'message':
+                '$characterName started a Dev Session. Tell the user the run is underway and the result will show up here in chat when it finishes.',
         });
       } catch (e, stack) {
         logger.warning('dev_session_start_or_continue failed', e, stack);

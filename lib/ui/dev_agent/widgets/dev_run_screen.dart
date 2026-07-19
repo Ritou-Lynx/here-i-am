@@ -594,6 +594,7 @@ IconData _iconFor(String kind) {
 String _agentLabel(String agentType) {
   return switch (agentType) {
     'claude_code' => 'Claude Code',
+    'opencode' => 'OpenCode',
     'codex' => 'Codex',
     _ => agentType,
   };

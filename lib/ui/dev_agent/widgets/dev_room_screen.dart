@@ -176,6 +176,8 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
               return _ProjectCard(
                 project: project,
                 onEdit: () => _openProjectSettings(context, project: project),
+                onSessionOpencode: () =>
+                    _startSession(context, project, DevAgentType.opencode),
                 onSessionClaude: () =>
                     _startSession(context, project, DevAgentType.claudeCode),
                 onSessionCodex: () =>
@@ -194,6 +196,7 @@ class _ProjectCard extends StatelessWidget {
   const _ProjectCard({
     required this.project,
     required this.onEdit,
+    required this.onSessionOpencode,
     required this.onSessionClaude,
     required this.onSessionCodex,
     required this.onCleanup,
@@ -201,6 +204,7 @@ class _ProjectCard extends StatelessWidget {
 
   final DevProject project;
   final VoidCallback onEdit;
+  final VoidCallback onSessionOpencode;
   final VoidCallback onSessionClaude;
   final VoidCallback onSessionCodex;
   final VoidCallback onCleanup;
@@ -276,6 +280,14 @@ class _ProjectCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
+                child: FilledButton.icon(
+                  onPressed: onSessionOpencode,
+                  icon: const Icon(Icons.forum_outlined, size: 18),
+                  label: const Text('OpenCode'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
                 child: OutlinedButton.icon(
                   onPressed: onSessionClaude,
                   icon: const Icon(Icons.forum_outlined, size: 18),
@@ -284,7 +296,7 @@ class _ProjectCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: FilledButton.icon(
+                child: OutlinedButton.icon(
                   onPressed: onSessionCodex,
                   icon: const Icon(Icons.forum_outlined, size: 18),
                   label: const Text('Codex'),
@@ -816,7 +828,7 @@ class _EmptyState extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(32),
         child: Text(
-          '先添加一个开发项目。Dev Room 只保存控制数据，真正的 Claude Code / Codex 进程会跑在 Bridge 电脑上。',
+          '先添加一个开发项目。Dev Room 只保存控制数据，真正的 OpenCode / Claude Code / Codex 进程会跑在 Bridge 电脑上。',
           textAlign: TextAlign.center,
           style: TextStyle(
             height: 1.5,
@@ -858,8 +870,11 @@ class _PromptDialogState extends State<_PromptDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final agentName =
-        widget.agentType == DevAgentType.codex ? 'Codex' : 'Claude Code';
+    final agentName = switch (widget.agentType) {
+      DevAgentType.codex => 'Codex',
+      DevAgentType.opencode => 'OpenCode',
+      _ => 'Claude Code',
+    };
     return AlertDialog(
       title: Text('交给 $agentName'),
       content: TextField(
