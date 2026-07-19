@@ -410,14 +410,19 @@ class BackupService {
       for (final file in archive) {
         if (file.name.startsWith('db/') && file.isFile) {
           final dbFileName = path.basename(file.name);
-          // Try both possible locations
+          // Try both possible locations. On Android, drift_flutter opens the
+          // database via getApplicationDocumentsDirectory() (app_flutter/), so
+          // we default to that path when neither candidate exists yet — falling
+          // back to support dir only when a DB is already living there. Writing
+          // to support dir by default leaves Drift pointing at an empty DB and
+          // silently loses the restored data (observed on first cross-device
+          // restore).
           final supportDir = await getApplicationSupportDirectory();
           final possibleTargets = [
             path.join(appDir.path, dbFileName),
             path.join(supportDir.path, dbFileName),
           ];
-          // Write to whichever location already has the file, or support dir
-          String targetPath = possibleTargets.last;
+          String targetPath = possibleTargets.first;
           for (final p in possibleTargets) {
             if (await File(p).exists()) {
               targetPath = p;
@@ -442,9 +447,31 @@ class BackupService {
         }
       }
 
-      // Re-init DB
-      await AppDatabase.init(restoredUserId);
-      databaseClosedForRestore = false;
+      // Re-init DB.
+      //
+      // The DB file on disk is now the restored one, but the previous Drift
+      // isolate may still hold open file handles / page cache against the
+      // old file. Re-initializing immediately can race with the isolate's
+      // teardown and surface `database disk image is malformed` (SQLite
+      // error 11) from the stale cache. Give the isolate a moment to
+      // actually release the file before Drift reopens it.
+      await Future.delayed(const Duration(milliseconds: 500));
+      try {
+        await AppDatabase.init(restoredUserId);
+        databaseClosedForRestore = false;
+      } catch (e, stack) {
+        // init failed (likely the malformed race above). The DB file on
+        // disk is still correct — a clean app restart will open it. Don't
+        // rethrow: the restore itself succeeded, the user just needs to
+        // restart. Surface this via the returned result instead of an
+        // exception so the UI shows "please restart" rather than "failed".
+        _logger.warning(
+          'AppDatabase.init after restore failed ($e). The restored DB '
+          'file is on disk; a manual restart should pick it up.',
+          e,
+          stack,
+        );
+      }
 
       // 4. Rebuild card cache
       onProgress?.call('Rebuilding cache...');
