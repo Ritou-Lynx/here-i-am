@@ -50,6 +50,7 @@ import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/widgets/here_iam_glass_surface.dart';
 import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
 import 'package:memex/utils/tavern_macro.dart';
+import 'package:memex/utils/time_context.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/data/services/notification_service.dart';
@@ -317,8 +318,8 @@ class _PendingBatch {
     required this.characterId,
     required this.character,
     required this.drafts,
-    this.persistedMessageIds = const [],
-  });
+    List<int>? persistedMessageIds,
+  }) : persistedMessageIds = persistedMessageIds ?? <int>[];
 
   final String characterId;
   final CharacterModel? character;
@@ -353,7 +354,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   String _streamingText = '';
   int _sendSerial = 0;
   int? _activeSendSerial;
-  int? _activeUserMessageId;
+  // All user message ids belonging to the active streaming batch. Single
+  // message sends populate this with one id. Retracting any one cancels the
+  // whole batch.
+  final Set<int> _activeUserMessageIds = {};
   String? _activeStreamingCharacterId;
   final Set<int> _canceledSendSerials = {};
   final Set<int> _retractedUserMessageIds = {};
@@ -369,6 +373,123 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   // stage drafts instead of sending immediately. Exits after a batch send.
   bool _isComposeMode = false;
   final List<_ComposeDraft> _composeBuffer = [];
+
+  /// Long-press handler on the send button: toggles Compose mode. When active,
+  /// subsequent taps stage the current input as a draft instead of sending.
+  void _onSendLongPress() {
+    if (_isStreaming) return;
+    setState(() {
+      _isComposeMode = !_isComposeMode;
+      // Toggling off discards any staged drafts.
+      if (!_isComposeMode) _composeBuffer.clear();
+    });
+  }
+
+  /// Compose-mode send: stage the current input as a draft and clear the
+  /// composer. No-ops when the input is empty.
+  void _stageComposeDraft() {
+    final text = _textController.text.trim();
+    final images = List<XFile>.from(_selectedImages);
+    if (text.isEmpty && images.isEmpty) return;
+    setState(() {
+      _composeBuffer.add(
+        _ComposeDraft(text: text, images: images, timestamp: DateTime.now()),
+      );
+      _clearComposerText(staleText: text);
+      _clearImages();
+    });
+  }
+
+  /// Removes a staged draft by index and returns its text to the composer so
+  /// the user can edit and re-stage it.
+  void _editComposeDraft(int index) {
+    if (index < 0 || index >= _composeBuffer.length) return;
+    final draft = _composeBuffer.removeAt(index);
+    setState(() {
+      _textController.text = draft.text;
+      _selectedImages
+        ..clear()
+        ..addAll(draft.images);
+    });
+  }
+
+  void _removeComposeDraft(int index) {
+    if (index < 0 || index >= _composeBuffer.length) return;
+    setState(() => _composeBuffer.removeAt(index));
+  }
+
+  /// Sends the staged compose buffer as a single batch. Each draft is
+  /// persisted as its own user message, then all drafts are merged into one
+  /// LLM call so the character replies once to the whole batch.
+  Future<void> _sendComposeBuffer() async {
+    if (_composeBuffer.isEmpty) {
+      // Empty buffer: exit compose mode without sending.
+      setState(() => _isComposeMode = false);
+      return;
+    }
+
+    final drafts = List<_ComposeDraft>.from(_composeBuffer);
+    _composeBuffer.clear();
+    setState(() => _isComposeMode = false);
+
+    final sendCharacterId = _currentCharacterId;
+    final sendCharacter = _character;
+
+    // While the character is still streaming, queue the batch; it will be sent
+    // automatically when the current response finishes. The drafts are staged
+    // but not yet persisted — persistence happens when the batch actually
+    // fires, so a retracted batch leaves no orphan user messages.
+    if (_isStreaming) {
+      _pendingBatches.add(
+        _PendingBatch(
+          characterId: sendCharacterId,
+          character: sendCharacter,
+          drafts: drafts,
+        ),
+      );
+      return;
+    }
+
+    // If a draft has images, compress them before persisting so chat bubbles
+    // and DB store the compressed form. Group drafts that need compression.
+    final compressedPerDraft = <int, List<Map<String, String>>>{};
+    setState(() => _isCompressingImages = true);
+    for (var i = 0; i < drafts.length; i++) {
+      final draft = drafts[i];
+      if (draft.images.isEmpty) continue;
+      final compressed = <Map<String, String>>[];
+      for (final image in draft.images) {
+        compressed.add(await _compressImageForChat(image));
+      }
+      compressedPerDraft[i] = compressed;
+    }
+    if (mounted) setState(() => _isCompressingImages = false);
+
+    // Persist each draft as its own visible user message.
+    final persistedIds = <int>[];
+    for (var i = 0; i < drafts.length; i++) {
+      final draft = drafts[i];
+      final id = await _chatService.addUserMessage(
+        sendCharacterId,
+        draft.text,
+        timestamp: draft.timestamp,
+        attachments: compressedPerDraft[i],
+        appendTimeline: false,
+      );
+      persistedIds.add(id);
+    }
+
+    final batch = _PendingBatch(
+      characterId: sendCharacterId,
+      character: sendCharacter,
+      drafts: drafts,
+      persistedMessageIds: persistedIds,
+    );
+    final primaryMessageId = persistedIds.isNotEmpty
+        ? persistedIds.first
+        : -(DateTime.now().millisecondsSinceEpoch);
+    await _runBatchSend(batch, primaryMessageId: primaryMessageId);
+  }
 
   bool _isMediaTrayOpen = false;
 
@@ -1552,7 +1673,20 @@ only after you have written the goodbye you want the user to hear.''',
         images: imagesToQueue,
       );
       if (queued != null) {
-        _pendingMessages.add(queued);
+        _pendingBatches.add(
+          _PendingBatch(
+            characterId: sendCharacterId,
+            character: sendCharacter,
+            drafts: [
+              _ComposeDraft(
+                text: queued.text,
+                images: List<XFile>.from(queued.images),
+                timestamp: queued.timestamp,
+              ),
+            ],
+            persistedMessageIds: [queued.messageId],
+          ),
+        );
       }
       return;
     }
@@ -1596,16 +1730,55 @@ only after you have written the goodbye you want the user to hear.''',
               attachments: compressedAttachments,
               appendTimeline: false,
             ));
+    final batch = _PendingBatch(
+      characterId: sendCharacterId,
+      character: sendCharacter,
+      drafts: [
+        _ComposeDraft(
+          text: textToSend,
+          images: imagesToSend,
+          timestamp: userMessageTime,
+        ),
+      ],
+      persistedMessageIds: isSynthetic ? const [] : [userMessageId],
+    );
+
+    await _runBatchSend(batch, primaryMessageId: userMessageId);
+  }
+
+  /// Executes a [batch] as a single LLM turn. When the batch has more than one
+  /// draft, the drafts are concatenated with per-message time prefixes and
+  /// sent as one user message so the character replies once to the whole batch.
+  ///
+  /// [primaryMessageId] is the id used for cancel tracking. For multi-draft
+  /// batches the full set is tracked in [_activeUserMessageIds] so retracting
+  /// any of them cancels the whole batch.
+  Future<void> _runBatchSend(
+    _PendingBatch batch, {
+    required int primaryMessageId,
+  }) async {
+    final sendCharacterId = batch.characterId;
+    final sendCharacter = batch.character;
+    final drafts = batch.drafts;
+    final isMulti = drafts.length > 1;
+
     final sendSerial = ++_sendSerial;
     _activeSendSerial = sendSerial;
-    _activeUserMessageId = userMessageId;
+    _activeUserMessageIds
+      ..clear()
+      ..addAll(batch.persistedMessageIds);
+    if (_activeUserMessageIds.isEmpty) {
+      _activeUserMessageIds.add(primaryMessageId);
+    }
     _activeStreamingCharacterId = sendCharacterId;
 
-    // Reload messages to show user's message (preserve loaded history depth).
-    // Synthetic inputs don't add a visible user message, so don't increase limit.
+    final addedCount = batch.persistedMessageIds.isNotEmpty
+        ? batch.persistedMessageIds.length
+        : 1;
+
     final messages = await _chatService.getMessages(
       sendCharacterId,
-      limit: isSynthetic ? _messages.length : _messages.length + 1,
+      limit: _messages.length + addedCount,
     );
     final isStillViewingSendCharacter = _currentCharacterId == sendCharacterId;
     setState(() {
@@ -1619,76 +1792,83 @@ only after you have written the goodbye you want the user to hear.''',
       _scrollToBottom();
     }
 
-    await Future<void>.delayed(_recallGracePeriod);
-    if (_isSendCanceled(sendSerial, userMessageId)) {
+    final gracePeriod = isMulti ? _batchRecallGracePeriod : _recallGracePeriod;
+    await Future<void>.delayed(gracePeriod);
+    if (_isSendCanceled(sendSerial, primaryMessageId)) {
       _finishCanceledSend(sendSerial);
       return;
     }
-    await _chatService.appendUserMessageTimeline(
-      sendCharacterId,
-      userMessageId,
-    );
-    if (_isSendCanceled(sendSerial, userMessageId)) {
+    for (final id in batch.persistedMessageIds) {
+      await _chatService.appendUserMessageTimeline(sendCharacterId, id);
+    }
+    if (_isSendCanceled(sendSerial, primaryMessageId)) {
       _finishCanceledSend(sendSerial);
       return;
     }
 
-    // 鈹€鈹€ Image analysis via vision model 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-    // Uses the analyze_assets agent's separately-configured model so
-    // the character (e.g. text-only DeepSeek) can understand images.
-    // Analysis runs once and feeds the chat context. Explicit recording uses
-    // RecordOrganizerService so media lands in the SharedLife card system.
-    String? imageAnalysisText;
-    if (hasImages && imagesToSend.isNotEmpty) {
-      try {
-        final analysisResources = await UserStorage.getAgentLLMResources(
-          AgentDefinitions.analyzeAssets,
-          defaultClientKey: LLMConfig.defaultClientKey,
-        );
-        if (_isSendCanceled(sendSerial, userMessageId)) {
-          _finishCanceledSend(sendSerial);
-          return;
-        }
-        final analysisTool = AssetAnalysisTool(
-          client: analysisResources.client,
-          modelConfig: analysisResources.modelConfig,
-        );
-        final analyses = <String>[];
-        for (final image in imagesToSend) {
-          if (_isSendCanceled(sendSerial, userMessageId)) {
+    // Image analysis per draft via the analyze_assets agent's separately
+    // configured model. Each draft's analysis is both injected into the merged
+    // LLM input and persisted back to that draft's attachments so Record
+    // Organizer can reuse it without re-running the vision model.
+    final perDraftAnalysis = <String?>[];
+    for (var i = 0; i < drafts.length; i++) {
+      final draft = drafts[i];
+      String? analysisText;
+      if (draft.images.isNotEmpty) {
+        try {
+          final analysisResources = await UserStorage.getAgentLLMResources(
+            AgentDefinitions.analyzeAssets,
+            defaultClientKey: LLMConfig.defaultClientKey,
+          );
+          if (_isSendCanceled(sendSerial, primaryMessageId)) {
             _finishCanceledSend(sendSerial);
             return;
           }
-          final result = await analysisTool.tool(
-            assetPath: image.path,
-            prompt: '用1-2句中文简要描述这张图片的内容。'
-                '关注画面中可见的人、物体、文字、场景。'
-                '简洁客观。',
+          final analysisTool = AssetAnalysisTool(
+            client: analysisResources.client,
+            modelConfig: analysisResources.modelConfig,
           );
-          // Strip the "#Asset ... analysis result\n:" prefix.
-          final cleaned = result
-              .replaceFirst(RegExp(r'^#Asset .+ analysis result\n:'), '')
-              .trim();
-          if (cleaned.isNotEmpty) analyses.add(cleaned);
-        }
-        if (analyses.isNotEmpty) {
-          imageAnalysisText = analyses.join(' | ');
-          // Persist each analysis into the attachments so Record Organizer
-          // can reuse them later instead of re-running the vision model.
-          try {
-            await _chatService.enrichAttachmentsWithAnalysis(
-              userMessageId,
-              analyses,
+          final analyses = <String>[];
+          for (final image in draft.images) {
+            if (_isSendCanceled(sendSerial, primaryMessageId)) {
+              _finishCanceledSend(sendSerial);
+              return;
+            }
+            final result = await analysisTool.tool(
+              assetPath: image.path,
+              prompt: '用1-2句中文简要描述这张图片的内容。'
+                  '关注画面中可见的人、物体、文字、场景。'
+                  '简洁客观。',
             );
-          } catch (e) {
-            debugPrint('Failed to persist image analyses to attachments: $e');
+            final cleaned = result
+                .replaceFirst(RegExp(r'^#Asset .+ analysis result\n:'), '')
+                .trim();
+            if (cleaned.isNotEmpty) analyses.add(cleaned);
           }
+          if (analyses.isNotEmpty) {
+            analysisText = analyses.join(' | ');
+            final draftMessageId = i < batch.persistedMessageIds.length
+                ? batch.persistedMessageIds[i]
+                : null;
+            if (draftMessageId != null) {
+              try {
+                await _chatService.enrichAttachmentsWithAnalysis(
+                  draftMessageId,
+                  analyses,
+                );
+              } catch (e) {
+                debugPrint(
+                    'Failed to persist image analyses to attachments: $e');
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Image analysis failed, falling back to hint: $e');
         }
-      } catch (e) {
-        debugPrint('Image analysis failed, falling back to hint: $e');
       }
+      perDraftAnalysis.add(analysisText);
     }
-    if (_isSendCanceled(sendSerial, userMessageId)) {
+    if (_isSendCanceled(sendSerial, primaryMessageId)) {
       _finishCanceledSend(sendSerial);
       return;
     }
@@ -1700,6 +1880,15 @@ only after you have written the goodbye you want the user to hear.''',
       return;
     }
 
+    final String chatMessage = _composeBatchUserMessage(
+      drafts: drafts,
+      perDraftAnalysis: perDraftAnalysis,
+    );
+    final combinedText = drafts.map((d) => d.text).join('\n');
+    final linkContext = _buildLinkConversationContext(combinedText);
+    final chatMessageWithContext =
+        linkContext == null ? chatMessage : '$linkContext\n\n$chatMessage';
+
     String lastChunk = '';
     var responsePersisted = false;
 
@@ -1708,28 +1897,10 @@ only after you have written the goodbye you want the user to hear.''',
         AgentDefinitions.companionAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
-      if (_isSendCanceled(sendSerial, userMessageId)) {
+      if (_isSendCanceled(sendSerial, primaryMessageId)) {
         _finishCanceledSend(sendSerial);
         return;
       }
-
-      // Build user message; inject image analysis when available.
-      final imageCount = imagesToSend.length;
-      final String chatMessage;
-      if (imageAnalysisText != null && imageAnalysisText.isNotEmpty) {
-        chatMessage = textToSend.isNotEmpty
-            ? '[Image analysis: $imageAnalysisText]\n\n$textToSend'
-            : '[Image analysis: $imageAnalysisText]';
-      } else if (hasImages && imageCount > 0) {
-        chatMessage = textToSend.isNotEmpty
-            ? '[The user attached $imageCount image(s) to this message.]\n\n$textToSend'
-            : '[The user sent $imageCount image(s) without text.]';
-      } else {
-        chatMessage = textToSend;
-      }
-      final linkContext = _buildLinkConversationContext(textToSend);
-      final chatMessageWithContext =
-          linkContext == null ? chatMessage : '$linkContext\n\n$chatMessage';
 
       final toyControlService = _readyToyControlService();
       if (toyControlService == null) {
@@ -1742,18 +1913,18 @@ only after you have written the goodbye you want the user to hear.''',
         userId: userId,
         characterId: sendCharacterId,
         userMessage: chatMessageWithContext,
-        // Images are only passed to the LLM when it supports vision.
-        // For text-only models, the image hint above lets the character
-        // acknowledge the images without seeing their contents.
+        // Images are only passed to the LLM when it supports vision. For
+        // text-only models, the image hint above lets the character acknowledge
+        // the images without seeing their contents.
         images: null,
-        userMessageId: userMessageId,
-        userMessageTime: userMessageTime,
+        userMessageId: primaryMessageId,
+        userMessageTime: drafts.first.timestamp,
         debugErrorOutput: true,
         voiceMode: _isInlineVoiceMode,
         toyControlService: toyControlService,
         extraTools: _isInlineVoiceMode ? [_buildEndVoiceModeTool()] : const [],
       )) {
-        if (_isSendCanceled(sendSerial, userMessageId)) {
+        if (_isSendCanceled(sendSerial, primaryMessageId)) {
           break;
         }
         lastChunk = chunk;
@@ -1767,7 +1938,7 @@ only after you have written the goodbye you want the user to hear.''',
       if (mounted && toyControlService != null) {
         setState(() => _toyConnected = toyControlService.isReady);
       }
-      if (_isSendCanceled(sendSerial, userMessageId)) {
+      if (_isSendCanceled(sendSerial, primaryMessageId)) {
         _finishCanceledSend(sendSerial);
         return;
       }
@@ -1775,7 +1946,7 @@ only after you have written the goodbye you want the user to hear.''',
       // Persist character response
       final fullResponse = lastChunk.trim();
       if (fullResponse.isNotEmpty) {
-        if (_isSendCanceled(sendSerial, userMessageId)) {
+        if (_isSendCanceled(sendSerial, primaryMessageId)) {
           _finishCanceledSend(sendSerial);
           return;
         }
@@ -1803,8 +1974,7 @@ only after you have written the goodbye you want the user to hear.''',
         }
       }
 
-      // Reload messages
-      if (_isSendCanceled(sendSerial, userMessageId)) {
+      if (_isSendCanceled(sendSerial, primaryMessageId)) {
         _finishCanceledSend(sendSerial);
         return;
       }
@@ -1858,7 +2028,7 @@ only after you have written the goodbye you want the user to hear.''',
       // and pollute Dreaming extraction). Full detail goes to logs only; the
       // user sees a transient toast with a Retry action.
       debugPrint('CompanionApiException during send: ${e.cause}');
-      if (_isSendCanceled(sendSerial, userMessageId)) {
+      if (_isSendCanceled(sendSerial, primaryMessageId)) {
         _finishCanceledSend(sendSerial);
         return;
       }
@@ -1871,7 +2041,7 @@ only after you have written the goodbye you want the user to hear.''',
         final isViewingSendCharacter = _currentCharacterId == sendCharacterId;
         // Only offer retry for a real persisted user message (id > 0). Synthetic
         // turns (negative id) have no stored message to regenerate from.
-        final canRetry = isViewingSendCharacter && userMessageId > 0;
+        final canRetry = isViewingSendCharacter && primaryMessageId > 0;
         ScaffoldMessenger.of(context).showToast(
           _chatUiText(
             zh: '连接不太稳，消息没发出去',
@@ -1883,22 +2053,22 @@ only after you have written the goodbye you want the user to hear.''',
               ? () => _retryLastSend(
                     characterId: sendCharacterId,
                     character: sendCharacter,
-                    userMessageId: userMessageId,
-                    text: textToSend,
-                    timestamp: userMessageTime,
+                    userMessageId: primaryMessageId,
+                    text: drafts.first.text,
+                    timestamp: drafts.first.timestamp,
                   )
               : null,
         );
         _sendPendingMessage();
       }
     } catch (e) {
-      if (_isSendCanceled(sendSerial, userMessageId)) {
+      if (_isSendCanceled(sendSerial, primaryMessageId)) {
         _finishCanceledSend(sendSerial);
         return;
       }
       final partialResponse = lastChunk.trim();
       if (partialResponse.isNotEmpty && !responsePersisted) {
-        if (_isSendCanceled(sendSerial, userMessageId)) {
+        if (_isSendCanceled(sendSerial, primaryMessageId)) {
           _finishCanceledSend(sendSerial);
           return;
         }
@@ -1949,6 +2119,94 @@ only after you have written the goodbye you want the user to hear.''',
         _sendPendingMessage();
       }
     }
+  }
+
+  /// Composes the user-facing message string sent to the LLM for a batch.
+  ///
+  /// Single-draft batches mirror the legacy formatting (image analysis prefix,
+  /// fallback image hint, or raw text). Multi-draft batches join each draft
+  /// with its own time-prefixed block separated by a delimiter, signaling to
+  /// the character that the user sent several distinct messages in one turn.
+  String _composeBatchUserMessage({
+    required List<_ComposeDraft> drafts,
+    required List<String?> perDraftAnalysis,
+  }) {
+    if (drafts.length == 1) {
+      final draft = drafts.first;
+      final analysis = perDraftAnalysis.first;
+      final imageCount = draft.images.length;
+      if (analysis != null && analysis.isNotEmpty) {
+        return draft.text.isNotEmpty
+            ? '[Image analysis: $analysis]\n\n${draft.text}'
+            : '[Image analysis: $analysis]';
+      } else if (imageCount > 0) {
+        return draft.text.isNotEmpty
+            ? '[The user attached $imageCount image(s) to this message.]\n\n${draft.text}'
+            : '[The user sent $imageCount image(s) without text.]';
+      }
+      return draft.text;
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('The user sent ${drafts.length} messages in one turn. '
+        'Please read them as a whole and reply once, addressing each as needed.');
+    buffer.writeln();
+    for (var i = 0; i < drafts.length; i++) {
+      final draft = drafts[i];
+      final analysis = perDraftAnalysis[i];
+      final timePrefix = buildMessageTimePrefix(draft.timestamp);
+      buffer.writeln('--- message ${i + 1} ---');
+      buffer.write(timePrefix);
+      if (analysis != null && analysis.isNotEmpty) {
+        buffer.writeln('[Image analysis: $analysis]');
+      } else if (draft.images.isNotEmpty) {
+        buffer.writeln(
+            '[The user attached ${draft.images.length} image(s) to this message.]');
+      }
+      buffer.writeln(draft.text);
+      buffer.writeln();
+    }
+    buffer.writeln('--- end of batch ---');
+    return buffer.toString().trimRight();
+  }
+
+  /// Executes a queued [_PendingBatch] (called when streaming finishes and the
+  /// next queued batch auto-sends). Multi-draft batches merge into one LLM
+  /// call; the persisted user messages from the queue-while-streaming path are
+  /// reused without re-persisting.
+  Future<void> _sendBatch(_PendingBatch batch) async {
+    // If the batch was queued while streaming (e.g. from Compose mode), its
+    // drafts aren't persisted yet. Persist them now so they appear as visible
+    // user messages before the character reply streams in.
+    if (batch.persistedMessageIds.isEmpty && batch.drafts.isNotEmpty) {
+      final persistedIds = <int>[];
+      for (var i = 0; i < batch.drafts.length; i++) {
+        final draft = batch.drafts[i];
+        // Compress images for drafts that still have raw XFiles.
+        List<Map<String, String>>? attachments;
+        if (draft.images.isNotEmpty) {
+          attachments = <Map<String, String>>[];
+          setState(() => _isCompressingImages = true);
+          for (final image in draft.images) {
+            attachments.add(await _compressImageForChat(image));
+          }
+          if (mounted) setState(() => _isCompressingImages = false);
+        }
+        final id = await _chatService.addUserMessage(
+          batch.characterId,
+          draft.text,
+          timestamp: draft.timestamp,
+          attachments: attachments,
+          appendTimeline: false,
+        );
+        persistedIds.add(id);
+      }
+      batch.persistedMessageIds.addAll(persistedIds);
+    }
+    final primaryMessageId = batch.persistedMessageIds.isNotEmpty
+        ? batch.persistedMessageIds.first
+        : -(DateTime.now().millisecondsSinceEpoch);
+    await _runBatchSend(batch, primaryMessageId: primaryMessageId);
   }
 
   /// Regenerates a character reply for an already-persisted user message after
@@ -2083,15 +2341,9 @@ only after you have written the goodbye you want the user to hear.''',
   /// If the user queued a message while the character was streaming, send it
   /// now that the response has finished.
   void _sendPendingMessage() {
-    if (_pendingMessages.isEmpty) return;
-    final pending = _pendingMessages.removeAt(0);
-    unawaited(
-      _sendMessage(
-        forcedCharacterId: pending.characterId,
-        forcedCharacter: pending.character,
-        queuedMessage: pending,
-      ),
-    );
+    if (_pendingBatches.isEmpty) return;
+    final batch = _pendingBatches.removeAt(0);
+    unawaited(_sendBatch(batch));
   }
 
   // 鈹€鈹€ Image selection management 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
@@ -2813,7 +3065,7 @@ only after you have written the goodbye you want the user to hear.''',
   void _finishActiveSend(int sendSerial) {
     if (_activeSendSerial == sendSerial) {
       _activeSendSerial = null;
-      _activeUserMessageId = null;
+      _activeUserMessageIds.clear();
       _activeStreamingCharacterId = null;
     }
     _canceledSendSerials.remove(sendSerial);
@@ -2831,38 +3083,69 @@ only after you have written the goodbye you want the user to hear.''',
     }
   }
 
-  void _cancelSendForRetractedMessage(int messageId) {
-    _retractedUserMessageIds.add(messageId);
-    _pendingMessages.removeWhere((message) => message.messageId == messageId);
-    if (_activeUserMessageId != messageId) return;
+  /// Returns the user message ids that should be deleted from the DB as part
+  /// of this retract: at minimum [triggerId], plus any siblings from the
+  /// same batch (when the LLM saw them as one merged turn, retracting one
+  /// cancels the whole batch and all its persisted messages are deleted).
+  List<int> _cancelSendForRetractedMessage(int triggerId) {
+    final toRetract = <int>[triggerId];
+    _retractedUserMessageIds.add(triggerId);
 
-    final sendSerial = _activeSendSerial;
-    if (sendSerial != null) {
-      _canceledSendSerials.add(sendSerial);
+    // Queued batch: drop the whole batch and flag its persisted ids.
+    for (final batch in _pendingBatches) {
+      if (batch.persistedMessageIds.contains(triggerId)) {
+        for (final id in batch.persistedMessageIds) {
+          _retractedUserMessageIds.add(id);
+          if (!toRetract.contains(id)) toRetract.add(id);
+        }
+        _pendingBatches.remove(batch);
+        return toRetract;
+      }
     }
-    _activeSendSerial = null;
-    _activeUserMessageId = null;
-    _activeStreamingCharacterId = null;
-    if (!mounted) return;
-    setState(() {
-      _isStreaming = false;
-      _streamingText = '';
-    });
-    _sendPendingMessage();
+
+    // Active streaming send: cancel the whole active batch.
+    if (_activeUserMessageIds.contains(triggerId)) {
+      final sendSerial = _activeSendSerial;
+      if (sendSerial != null) {
+        _canceledSendSerials.add(sendSerial);
+      }
+      for (final id in _activeUserMessageIds) {
+        _retractedUserMessageIds.add(id);
+        if (!toRetract.contains(id)) toRetract.add(id);
+      }
+      _activeSendSerial = null;
+      _activeUserMessageIds.clear();
+      _activeStreamingCharacterId = null;
+      if (!mounted) return toRetract;
+      setState(() {
+        _isStreaming = false;
+        _streamingText = '';
+      });
+      _sendPendingMessage();
+    }
+    return toRetract;
   }
 
   Future<void> _confirmRetractUserMessage(PersonaChatMessage message) async {
     if (message.isFromCharacter) return;
     if (!mounted) return;
 
-    _cancelSendForRetractedMessage(message.id);
-    final deleted = await _chatService.retractUserMessage(
-      _currentCharacterId,
-      message.id,
-    );
+    final toRetract = _cancelSendForRetractedMessage(message.id);
+
+    // Delete every id flagged for retract. The user-tapped message reports its
+    // delete result back; siblings are deleted silently as part of the batch.
+    var primaryDeleted = 0;
+    for (final id in toRetract) {
+      final deleted = await _chatService.retractUserMessage(
+        _currentCharacterId,
+        id,
+      );
+      if (id == message.id) primaryDeleted = deleted;
+      _messageKeys.remove(id);
+    }
     if (!mounted) return;
 
-    if (deleted == 0) {
+    if (primaryDeleted == 0 && toRetract.length == 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -2876,12 +3159,16 @@ only after you have written the goodbye you want the user to hear.''',
       return;
     }
 
-    _messageKeys.remove(message.id);
     await _refreshMessagesFromStore(autoRead: false, scrollToBottom: false);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(_chatUiText(zh: '已撤回', en: 'Message recalled')),
+        content: Text(_chatUiText(
+          zh: toRetract.length > 1 ? '已撤回 ${toRetract.length} 条' : '已撤回',
+          en: toRetract.length > 1
+              ? '${toRetract.length} messages recalled'
+              : 'Message recalled',
+        )),
         duration: const Duration(seconds: 1),
       ),
     );
@@ -4599,7 +4886,9 @@ only after you have written the goodbye you want the user to hear.''',
       controller: _textController,
       isStreaming: _isStreaming,
       onSend: _sendMessage,
-      hintText: UserStorage.l10n.personaChatInputHint,
+      hintText: _isComposeMode
+          ? '继续输入，暂存到连发队列'
+          : UserStorage.l10n.personaChatInputHint,
       voiceController: _voiceController,
       onVoiceTap: _onVoiceToggle,
       isVoiceInputEnabled:
@@ -4613,6 +4902,17 @@ only after you have written the goodbye you want the user to hear.''',
       selectedImages: _selectedImages,
       onRemoveImage: _removeImage,
       isCompressing: _isCompressingImages,
+      isComposeMode: _isComposeMode,
+      composeDrafts: _composeBuffer,
+      onStageDraft: _stageComposeDraft,
+      onEditDraft: _editComposeDraft,
+      onRemoveDraft: _removeComposeDraft,
+      onSendBatch: _sendComposeBuffer,
+      onExitComposeMode: () => setState(() {
+        _isComposeMode = false;
+        _composeBuffer.clear();
+      }),
+      onSendLongPress: _onSendLongPress,
     );
   }
 
@@ -5898,6 +6198,14 @@ class PersonaChatInputBar extends StatelessWidget {
     this.selectedImages = const [],
     this.onRemoveImage,
     this.isCompressing = false,
+    this.isComposeMode = false,
+    this.composeDrafts = const [],
+    this.onStageDraft,
+    this.onEditDraft,
+    this.onRemoveDraft,
+    this.onSendBatch,
+    this.onExitComposeMode,
+    this.onSendLongPress,
   });
 
   final TextEditingController controller;
@@ -5920,6 +6228,16 @@ class PersonaChatInputBar extends StatelessWidget {
   final void Function(int index)? onRemoveImage;
   final bool isCompressing;
 
+  // Compose mode (long-press send button to enter).
+  final bool isComposeMode;
+  final List<_ComposeDraft> composeDrafts;
+  final VoidCallback? onStageDraft;
+  final void Function(int index)? onEditDraft;
+  final void Function(int index)? onRemoveDraft;
+  final VoidCallback? onSendBatch;
+  final VoidCallback? onExitComposeMode;
+  final VoidCallback? onSendLongPress;
+
   bool _canSend(String value, bool hasImages) =>
       value.trim().isNotEmpty || hasImages;
 
@@ -5939,6 +6257,63 @@ class PersonaChatInputBar extends StatelessWidget {
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (isComposeMode && composeDrafts.isNotEmpty) ...[
+                _ComposeDraftTray(
+                  drafts: composeDrafts,
+                  onEdit: onEditDraft,
+                  onRemove: onRemoveDraft,
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (isComposeMode) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    GestureDetector(
+                      onTap: onExitComposeMode,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
+                      ),
+                        child: Text(
+                          '退出连发',
+                          style: TextStyle(
+                            color: _personaTextMuted,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (composeDrafts.isNotEmpty)
+                      GestureDetector(
+                        onTap: isStreaming ? null : onSendBatch,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _personaAccent.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _personaAccent.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Text(
+                            '一起发送 ${composeDrafts.length} 条',
+                            style: TextStyle(
+                              color: _personaAccent,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
               if (hasImages) ...[
                 SizedBox(
                   height: 64,
@@ -6082,11 +6457,32 @@ class PersonaChatInputBar extends StatelessWidget {
                                       key: ValueKey(
                                         isVoiceModeActive
                                             ? 'send-with-voice-end'
-                                            : 'send',
+                                            : (isComposeMode
+                                                ? 'send-compose'
+                                                : 'send'),
                                       ),
-                                      onSend: onSend,
+                                      onSend: isComposeMode
+                                          ? (onStageDraft ?? onSend)
+                                          : onSend,
                                       onVoiceModeTap: onVoiceModeTap,
                                       showVoiceModeEnd: isVoiceModeActive,
+                                      isComposeMode: isComposeMode,
+                                      onLongPress: isStreaming
+                                          ? null
+                                          : () {
+                                              // Long-press toggles compose mode
+                                              // when not currently composing, or
+                                              // stages the current input as a
+                                              // draft and stays in compose mode
+                                              // when already composing.
+                                              if (isComposeMode) {
+                                                if (canSend) {
+                                                  onStageDraft?.call();
+                                                }
+                                              } else {
+                                                onSendLongPress?.call();
+                                              }
+                                            },
                                     )
                                   : voiceController != null
                                       ? _ChatVoiceActions(
@@ -6265,22 +6661,36 @@ class _SendAndMaybeEndVoiceMode extends StatelessWidget {
     required this.onSend,
     required this.onVoiceModeTap,
     required this.showVoiceModeEnd,
+    this.isComposeMode = false,
+    this.onLongPress,
   });
 
   final VoidCallback onSend;
   final VoidCallback? onVoiceModeTap;
   final bool showVoiceModeEnd;
+  final bool isComposeMode;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     if (!showVoiceModeEnd || onVoiceModeTap == null) {
-      return _SendButton(enabled: true, onTap: onSend);
+      return _SendButton(
+        enabled: true,
+        onTap: onSend,
+        isComposeMode: isComposeMode,
+        onLongPress: onLongPress,
+      );
     }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _SendButton(enabled: true, onTap: onSend),
+        _SendButton(
+          enabled: true,
+          onTap: onSend,
+          isComposeMode: isComposeMode,
+          onLongPress: onLongPress,
+        ),
         const SizedBox(width: 8),
         _VoiceModeButton(enabled: true, active: true, onTap: onVoiceModeTap!),
       ],
@@ -6405,20 +6815,122 @@ class _VoiceBarsIcon extends StatelessWidget {
   }
 }
 
+/// Horizontal scrollable tray showing staged compose-mode drafts. Each draft
+/// is a compact chip with edit (tap) and remove (long-press or the trailing
+/// close icon) actions.
+class _ComposeDraftTray extends StatelessWidget {
+  const _ComposeDraftTray({
+    required this.drafts,
+    required this.onEdit,
+    required this.onRemove,
+  });
+
+  final List<_ComposeDraft> drafts;
+  final void Function(int index)? onEdit;
+  final void Function(int index)? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 96),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: drafts.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final draft = drafts[index];
+          final preview = draft.text.isEmpty
+              ? (draft.images.isNotEmpty ? '[图片 ${draft.images.length}]' : '')
+              : draft.text;
+          return GestureDetector(
+            onTap: onEdit == null ? null : () => onEdit!(index),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 220),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _personaAccent.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _personaAccent.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _personaAccent.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        color: _personaAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: Text(
+                      preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _personaText,
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: onRemove == null ? null : () => onRemove!(index),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: _personaTextMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _SendButton extends StatelessWidget {
-  const _SendButton({required this.enabled, required this.onTap});
+  const _SendButton({
+    required this.enabled,
+    required this.onTap,
+    this.isComposeMode = false,
+    this.onLongPress,
+  });
 
   final bool enabled;
   final VoidCallback onTap;
+  final bool isComposeMode;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
       enabled: enabled,
-      label: 'Send message',
+      label: isComposeMode ? 'Stage message' : 'Send message',
       child: GestureDetector(
         onTap: enabled ? onTap : null,
+        onLongPress: enabled ? onLongPress : null,
         child: ClipOval(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
@@ -6434,11 +6946,17 @@ class _SendButton extends StatelessWidget {
                   center: const Alignment(-0.36, -0.44),
                   radius: 1.12,
                   colors: enabled
-                      ? [
-                          const Color(0xFFFFECDD).withValues(alpha: 0.13),
-                          const Color(0xFFC0646E).withValues(alpha: 0.48),
-                          const Color(0xFF4D222B).withValues(alpha: 0.66),
-                        ]
+                      ? (isComposeMode
+                          ? [
+                              const Color(0xFFFFECDD).withValues(alpha: 0.16),
+                              const Color(0xFFB5838E).withValues(alpha: 0.55),
+                              const Color(0xFF4D222B).withValues(alpha: 0.66),
+                            ]
+                          : [
+                              const Color(0xFFFFECDD).withValues(alpha: 0.13),
+                              const Color(0xFFC0646E).withValues(alpha: 0.48),
+                              const Color(0xFF4D222B).withValues(alpha: 0.66),
+                            ])
                       : [
                           const Color(0xFFFFECDD).withValues(alpha: 0.06),
                           const Color(0xFF3A2123).withValues(alpha: 0.32),
@@ -6448,7 +6966,9 @@ class _SendButton extends StatelessWidget {
                 ),
                 border: Border.all(
                   color: enabled
-                      ? const Color(0xFFFFC6B5).withValues(alpha: 0.10)
+                      ? (isComposeMode
+                          ? const Color(0xFFFFD9B0).withValues(alpha: 0.20)
+                          : const Color(0xFFFFC6B5).withValues(alpha: 0.10))
                       : Colors.white.withValues(alpha: 0.035),
                 ),
                 boxShadow: [
@@ -6459,18 +6979,29 @@ class _SendButton extends StatelessWidget {
                   ),
                   if (enabled)
                     BoxShadow(
-                      color: const Color(0xFFC0646E).withValues(alpha: 0.18),
+                      color: (isComposeMode
+                              ? const Color(0xFFB5838E)
+                              : const Color(0xFFC0646E))
+                          .withValues(alpha: 0.18),
                       blurRadius: 18,
                       offset: Offset.zero,
                     ),
                 ],
               ),
               child: Center(
-                child: _PaperPlaneIcon(
-                  color: enabled
-                      ? const Color(0xFFF6F0EF).withValues(alpha: 0.92)
-                      : _personaTextMuted,
-                ),
+                child: isComposeMode
+                    ? Icon(
+                        Icons.add_rounded,
+                        color: enabled
+                            ? const Color(0xFFF6F0EF).withValues(alpha: 0.92)
+                            : _personaTextMuted,
+                        size: 22,
+                      )
+                    : _PaperPlaneIcon(
+                        color: enabled
+                            ? const Color(0xFFF6F0EF).withValues(alpha: 0.92)
+                            : _personaTextMuted,
+                      ),
               ),
             ),
           ),
