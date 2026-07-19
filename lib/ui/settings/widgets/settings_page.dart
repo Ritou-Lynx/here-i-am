@@ -7,6 +7,7 @@ import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_controller.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:memex/ui/settings/widgets/asr_config_page.dart';
 import 'package:memex/ui/settings/widgets/shopping_config_page.dart';
 import 'package:memex/ui/settings/widgets/toy_config_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
@@ -325,6 +326,68 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ],
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Voice input (ASR) config
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AsrConfigPage(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.mic_outlined, color: AppColors.primary, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '语音输入（ASR）',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '配置阿里 NLS 凭证，在 companion 聊天中按麦克风/翻页器说话',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[500],
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 16),
