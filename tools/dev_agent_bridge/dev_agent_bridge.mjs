@@ -201,14 +201,12 @@ function normalizeJsonLine(run, rawLine) {
     return;
   }
 
-  // OpenCode emits structured events with a `type` namespace and a
-  // `properties` payload (see SDK types.gen.ts). Route those through a
-  // dedicated normalizer before falling back to the generic Claude/Codex
-  // shape, otherwise e.g. `message.part.updated` would be misread as a
-  // tool_call because the type contains no "tool" substring.
-  const ocType = String(parsed.type || '');
-  if (ocType.includes('.') && parsed.properties) {
-    normalizeOpencodeEvent(run, ocType, parsed.properties, parsed);
+  // OpenCode emits flat top-level events (text/tool_use/step_start/...) with
+  // a `part` payload hanging off the event root. The Claude/Codex stream
+  // shapes are different enough that sharing one parser mangles both. Route
+  // OpenCode runs through a dedicated normalizer.
+  if (run.agentType === 'opencode') {
+    normalizeOpencodeEvent(run, parsed);
     return;
   }
 
@@ -256,134 +254,147 @@ function normalizeJsonLine(run, rawLine) {
 // OpenCode event normalization
 // ---------------------------------------------------------------------------
 //
-// OpenCode emits newline-delleted JSON events with a namespaced `type` and a
-// `properties` payload. We translate each into the Bridge's normalized event
-// kinds (text / tool_call / tool_result / file_change / approval_request /
-// status / error) so the App-side rendering and the chat-native progress
-// stream stay agent-agnostic.
+// OpenCode's CLI emits newline-delimited JSON where the top-level `type` is
+// the semantic event kind (step_start / text / tool_use / step_finish /
+// permission / session.* / file.edited / error). The payload lives in a
+// top-level `part` object (NOT under `properties` — the SDK spec wraps it,
+// but the CLI stream is flat). See sample-runs saved in the tools/dev_agent_bridge
+// directory; schema reference: https://github.com/anomalyco/opencode/blob/dev/
+// packages/sdk/js/src/gen/types.gen.ts.
 //
-// Event reference:
-// https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts
+// We translate into the Bridge's normalized event kinds:
+//
+//   text          -> text        (assistant output the chat-native flow
+//                                concatenates into the user-visible reply)
+//   tool_use      -> tool_call + tool_result (OpenCode's tool events always
+//                                arrive `status=completed` so we collapse
+//                                pending/running/completed into one event)
+//   tool_use(edit) + metadata.filediff -> file_change (per edited file)
+//   step_start    -> status      (activity indicator; no UI payload)
+//   step_finish    -> (ignored)   (internal model-loop bookkeeping)
+//   permission    -> approval_request (mobile-side Approve/Deny flow)
+//   file.edited   -> file_change
+//   session.error -> error
+//
+// Reasoning, snapshot, subtask, retry, compaction, pty.*, lsp.*,
+// installation.*, tui.*, server.* events are not user-visible progress; we
+// ignore them.
 
-function normalizeOpencodeEvent(run, type, props, raw) {
-  // message.part.updated — the core streaming event. `properties.part` is
-  // a discriminated union on `part.type`:
-  //   text | reasoning | tool | step-start | step-finish | patch | subtask | ...
-  if (type === 'message.part.updated') {
-    const part = props.part;
-    if (!part || typeof part !== 'object') return;
-    switch (part.type) {
-      case 'text': {
-        // `delta` is the streaming chunk; `part.text` is the cumulative
-        // text so far. Prefer delta so the chat sees token-by-token progress
-        // and the transcript doesn't double-count.
-        const text = typeof props.delta === 'string' && props.delta.length > 0
-          ? props.delta
-          : String(part.text || '');
-        if (!text) return;
-        // Avoid duplicating the cumulative text when only delta arrives.
-        if (run.transcript[run.transcript.length - 1] === text) return;
-        addEvent(run, 'text', { text, role: 'assistant' });
-        run.transcript.push(text);
-        // Keep summary as the latest cumulative assistant text — overwrite
-        // any prior delta-only chunk so the App header shows the full body
-        // once the message finishes.
-        if (typeof part.text === 'string' && part.text.length > 0) {
-          run.summary = String(part.text);
-        }
-        return;
-      }
-      case 'tool': {
-        const state = part.state;
-        if (!state || typeof state !== 'object') return;
-        const toolName = String(part.tool || 'tool');
-        if (state.status === 'running') {
-          addEvent(run, 'tool_call', {
-            name: toolName,
-            description: String(state.title || toolName),
-            risk: 'low',
-            raw: part,
-          });
-          return;
-        }
-        if (state.status === 'completed') {
-          addEvent(run, 'tool_result', {
-            name: toolName,
-            ok: true,
-            summary: String(state.title || toolName),
-            raw: part,
-          });
-          return;
-        }
-        if (state.status === 'error') {
-          addEvent(run, 'tool_result', {
-            name: toolName,
-            ok: false,
-            summary: String(state.error || 'tool error'),
-            raw: part,
-          });
-          return;
-        }
-        // pending — no event yet, the tool hasn't started.
-        return;
-      }
-      case 'patch': {
-        // A patch part lists files changed by this message. Emit one
-        // file_change event per file so the App can render per-file chips.
-        const files = Array.isArray(part.files) ? part.files : [];
-        for (const file of files) {
-          addEvent(run, 'file_change', {
-            path: String(file),
-            change: 'modified',
-            raw: part,
-          });
-        }
-        return;
-      }
-      case 'reasoning':
-      case 'step-start':
-      case 'step-finish':
-      case 'snapshot':
-      case 'subtask':
-      case 'agent':
-      case 'retry':
-      case 'compaction':
-        // Internal model-loop bookkeeping. Not user-visible; ignore.
-        return;
-      default:
-        return;
-    }
-  }
+function normalizeOpencodeEvent(run, raw) {
+  const type = String(raw.type || '');
+  const part = raw.part && typeof raw.part === 'object' ? raw.part : null;
 
-  if (type === 'message.updated') {
-    // AssistantMessage / UserMessage metadata refresh. When `info.error`
-    // is present the message failed; surface it so the App can show a
-    // precise reason instead of waiting for the process to exit.
-    const info = props.info;
-    if (info && info.error) {
-      const message = findText(info.error) || 'message error';
-      addEvent(run, 'error', { message, raw: info });
-      return;
-    }
+  // Assistant text output. The CLI delivers one `text` event per turn
+  // (already the full snippet, not a streaming delta), so we just push it.
+  if (type === 'text') {
+    const text = String(part?.text || '');
+    if (!text) return;
+    if (run.transcript[run.transcript.length - 1] === text) return;
+    addEvent(run, 'text', { text, role: 'assistant' });
+    run.transcript.push(text);
+    run.summary = text;
     return;
   }
 
-  if (type === 'file.edited') {
-    addEvent(run, 'file_change', {
-      path: String(props.file || ''),
-      change: 'modified',
-      raw,
+  // Tool invocation. OpenCode's `tool_use` event always arrives with
+  // `state.status === 'completed'` (no separate pending/running stream),
+  // so we emit a tool_call followed by tool_result on the same event.
+  // For `edit` tool calls we also emit a file_change per file diff in
+  // `state.metadata.filediff`.
+  if (type === 'tool_use' && part) {
+    const state = part.state && typeof part.state === 'object' ? part.state : null;
+    const toolName = String(part.tool || 'tool');
+    const title = String(state?.title || toolName);
+    const status = String(state?.status || 'completed');
+    const input = state && state.input && typeof state.input === 'object'
+      ? state.input
+      : null;
+    const filePathFromInput = typeof input?.filePath === 'string'
+      ? input.filePath
+      : null;
+
+    // tool_call marks that a tool started — the chat-native card shows
+    // a per-tool chip and keeps the spinner going.
+    addEvent(run, 'tool_call', {
+      name: toolName,
+      description: title,
+      target: filePathFromInput,
+      risk: _riskForOpencodeTool(toolName),
+      raw: part,
+    });
+
+    // tool_result: status=completed → success, status=error → failure.
+    // OpenCode collapses pending/running into the completed event, so we
+    // always emit tool_result in the same line.
+    if (status === 'completed') {
+      const outputSummary =
+        typeof state?.output === 'string' && state.output.length > 0
+          ? state.output.split('\n').first.slice(0, 240)
+          : title;
+      addEvent(run, 'tool_result', {
+        name: toolName,
+        ok: true,
+        summary: outputSummary,
+        target: filePathFromInput,
+        raw: part,
+      });
+      // Edit invocations may carry a per-file diff in state.metadata.
+      // Emit a file_change event per entry so the chat-native card can
+      // render per-file chips.
+      const filediff =
+        state?.metadata?.filediff && typeof state.metadata.filediff === 'object'
+          ? state.metadata.filediff
+          : null;
+      if (filediff && typeof filediff.file === 'string') {
+        addEvent(run, 'file_change', {
+          path: String(filediff.file),
+          change: 'modified',
+          lines_added: Number(filediff.additions || 0),
+          lines_removed: Number(filediff.deletions || 0),
+          raw: filediff,
+        });
+      }
+      return;
+    }
+
+    if (status === 'error') {
+      addEvent(run, 'tool_result', {
+        name: toolName,
+        ok: false,
+        summary: String(state?.error || 'tool error'),
+        target: filePathFromInput,
+        raw: part,
+      });
+      return;
+    }
+
+    // pending / running — RC for future OpenCode builds; emit a tool_call
+    // and let the follow-up completion event close the loop.
+    return;
+  }
+
+  // step boundaries. step_start is a useful "I'm working" heartbeat for
+  // the chat-native card; step_finish is internal model-loop telemetry
+  // (token counts, reason="tool-calls"/"stop") so we ignore it.
+  if (type === 'step_start') {
+    addEvent(run, 'status', {
+      status: run.status,
+      message: 'opencode.step.start',
     });
     return;
   }
 
-  if (type === 'permission.updated') {
-    // OpenCode permission prompts. The App can respond via the bridge's
-    // approval endpoint; map to approval_request so the existing UI works.
-    const title = String(props.title || 'Permission requested');
+  if (type === 'step_finish') {
+    return;
+  }
+
+  if (type === 'permission') {
+    const id = String(part?.id || raw.id || '');
+    const title = String(part?.title || 'Permission requested');
+    const kind = String(part?.type || part?.metadata?.type || 'command');
     addEvent(run, 'approval_request', {
-      approval_id: String(props.id || ''),
-      kind: String(props.type || 'command'),
+      approval_id: id,
+      kind,
       title,
       reason: '',
       risk: 'medium',
@@ -392,61 +403,38 @@ function normalizeOpencodeEvent(run, type, props, raw) {
     return;
   }
 
-  if (type === 'session.status') {
-    const status = props.status;
-    if (status && typeof status === 'object') {
-      if (status.type === 'idle') {
-        // Idle = current message finished. Don't flip run status here —
-        // the process exit handler will mark the run done. Just emit a
-        // progress status so the App can update its spinner.
-        addEvent(run, 'status', { status: run.status, message: 'session.idle' });
-        return;
-      }
-      if (status.type === 'busy') {
-        addEvent(run, 'status', { status: 'running', message: 'session.busy' });
-        return;
-      }
-      if (status.type === 'retry') {
-        addEvent(run, 'status', {
-          status: run.status,
-          message: `retry attempt ${status.attempt || 1}: ${status.message || ''}`,
-        });
-        return;
-      }
-    }
+  if (type === 'file.edited') {
+    addEvent(run, 'file_change', {
+      path: String(part?.file || raw.file || ''),
+      change: 'modified',
+      raw,
+    });
     return;
   }
 
-  if (type === 'session.error') {
-    const message = findText(props.error) || 'session error';
+  if (type === 'session.error' || type === 'error') {
+    const message =
+      findText(raw.error || part?.error || raw) || 'session error';
     addEvent(run, 'error', { message, raw });
     run.transcript.push(message);
     return;
   }
 
-  if (type === 'session.diff') {
-    // Final per-file diff list. Surface as file_change events so the App
-    // shows per-file chips; the diff artifact itself is generated by the
-    // run-finalize handler (autoCommitWorktree + generateDiffArtifact).
-    const diffs = Array.isArray(props.diff) ? props.diff : [];
-    for (const d of diffs) {
-      if (!d || typeof d !== 'object') continue;
-      addEvent(run, 'file_change', {
-        path: String(d.file || ''),
-        change: 'modified',
-        lines_added: Number(d.additions || 0),
-        lines_removed: Number(d.deletions || 0),
-        raw: d,
-      });
-    }
-    return;
-  }
+  // Everything else (session.created / session.idle / session.status /
+  // message.updated / etc.) is not user-visible progress; ignore so we
+  // don't spam the chat-native card with no-op events.
+}
 
-  // session.created / session.updated / session.deleted / session.idle /
-  // session.compacted / message.removed / message.part.removed /
-  // permission.replied / file.watcher.updated / vcs.branch.updated /
-  // lsp.* / installation.* / pty.* / tui.* / server.* — not user-visible
-  // progress; ignore.
+function _riskForOpencodeTool(name) {
+  switch (name) {
+    case 'edit':
+    case 'write':
+    case 'rm':
+    case 'bash':
+      return 'medium';
+    default:
+      return 'low';
+  }
 }
 
 function commandFor(agentType, project, prompt, mode, cwd) {
