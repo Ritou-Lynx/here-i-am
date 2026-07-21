@@ -329,7 +329,7 @@ function normalizeOpencodeEvent(run, raw) {
     if (status === 'completed') {
       const outputSummary =
         typeof state?.output === 'string' && state.output.length > 0
-          ? state.output.split('\n').first.slice(0, 240)
+          ? state.output.split('\n')[0].slice(0, 240)
           : title;
       addEvent(run, 'tool_result', {
         name: toolName,
