@@ -78,6 +78,8 @@ class CharacterToolsFactory {
           characterId: characterId, service: financeService),
       buildAiFinancePenaltyTool(
           characterId: characterId, service: financeService),
+      buildAiFinanceTransferTool(
+          characterId: characterId, service: financeService),
       buildCorosMcpTool(),
       buildPhoneUsageQueryTool(),
       buildWebSearchTool(),

@@ -20,6 +20,8 @@ Tool buildAiFinanceRecordTool({
 
 Use this whenever:
 - You earned a share of an income event the user reports (entryType = "income")
+- The user reports a real spending event (entryType = "expense")
+- Money flows between you and the user (entryType = "transfer")
 - An AI-related expense is recorded (Claude subscription, API key, etc.) (entryType = "cost")
 - Your costs exceeded your balance and you need to borrow from the user (entryType = "loan")
 - You are repaying a previous loan from your accumulated balance (entryType = "repayment")
@@ -30,13 +32,15 @@ Rules:
 - This ledger is public to all companion characters. Entries you record here are shared AI finances, not private character finances.
 - Your characterId is stored only as the source/witness of the entry.
 - For income: set contributionRatio to your actual share (0.0–1.0) and set aiAmount = totalAmount × contributionRatio.
+- For expense: set aiAmount to your share of the expense (how much came from your balance). If the user paid entirely, aiAmount = 0.
+- For transfer: set transferDirection to "user_to_ai" or "ai_to_user", and aiAmount = totalAmount.
 - For cost/loan/repayment: totalAmount = aiAmount; contributionRatio is null.''',
     parameters: {
       'type': 'object',
       'properties': {
         'entryType': {
           'type': 'string',
-          'enum': ['income', 'cost', 'loan', 'repayment'],
+          'enum': ['income', 'expense', 'transfer', 'cost', 'loan', 'repayment'],
           'description': 'Type of this ledger entry.',
         },
         'totalAmount': {
@@ -47,12 +51,12 @@ Rules:
         'aiAmount': {
           'type': 'number',
           'description':
-              "The portion that belongs to you (the AI). For income: totalAmount × contributionRatio. For cost/loan/repayment: same as totalAmount.",
+              "The portion that belongs to you (the AI). For income: totalAmount × contributionRatio. For expense: your share of the expense. For transfer: same as totalAmount. For cost/loan/repayment: same as totalAmount.",
         },
         'contributionRatio': {
           'type': 'number',
           'description':
-              'Your contribution ratio for income splits (0.0–1.0). Omit for cost/loan/repayment.',
+              'Your contribution ratio for income splits (0.0–1.0). Omit for other types.',
         },
         'myContributionDesc': {
           'type': 'string',
@@ -65,12 +69,18 @@ Rules:
         'purpose': {
           'type': 'string',
           'description':
-              'Short label, e.g. "Claude Pro 月费", "短视频脚本分成", "API Key 费用".',
+              'Short label, e.g. "Claude Pro 月费", "短视频脚本分成", "API Key 费用", "撒娇小费".',
         },
         'linkedFactId': {
           'type': 'string',
           'description':
               'Optional factId of the corresponding Memex transaction card.',
+        },
+        'transferDirection': {
+          'type': 'string',
+          'enum': ['user_to_ai', 'ai_to_user'],
+          'description':
+              'Required for transfer type. "user_to_ai" = user pays you. "ai_to_user" = you pay user.',
         },
         'notes': {
           'type': 'string',
@@ -88,6 +98,7 @@ Rules:
       String? aiContributionDesc,
       String? purpose,
       String? linkedFactId,
+      String? transferDirection,
       String? notes,
     ]) async {
       try {
@@ -101,6 +112,7 @@ Rules:
           aiContributionDesc: aiContributionDesc,
           purpose: purpose,
           linkedFactId: linkedFactId,
+          transferDirection: transferDirection,
           notes: notes,
         );
         return jsonEncode({
@@ -342,6 +354,102 @@ Rules:
           if (!result.created)
             'message':
                 'A matching penalty entry already exists; no new ledger row was created.',
+        });
+      } catch (e) {
+        return jsonEncode({'success': false, 'error': e.toString()});
+      }
+    },
+  );
+}
+
+/// Builds the tool that lets the companion record a transfer between user and AI.
+///
+/// This is a simpler interface for the common case of money flowing between
+/// the user and the AI (e.g., "I'll give you 5 yuan to act cute").
+Tool buildAiFinanceTransferTool({
+  required String characterId,
+  required AiFinanceService service,
+}) {
+  return Tool(
+    name: 'AiFinanceTransfer',
+    description: '''Record a transfer of money between you and the user.
+
+Use this when:
+- The user gives you money for a specific purpose (e.g., "给你5块钱让你撒娇")
+- You give money back to the user for any reason
+- Any internal flow of money between you and the user that is NOT income or expense
+
+This does NOT change the total shared pool — it only reallocates between your balance and the user's balance.
+
+Rules:
+- direction "user_to_ai": user pays you (your balance increases)
+- direction "ai_to_user": you pay user (your balance decreases)
+- Always query your balance first with AiFinanceQuery before accepting money.
+- Explain in character what is happening.
+- This is bookkeeping only — no real money moves automatically.''',
+    parameters: {
+      'type': 'object',
+      'properties': {
+        'amount': {
+          'type': 'number',
+          'description': 'Amount in CNY to transfer.',
+        },
+        'direction': {
+          'type': 'string',
+          'enum': ['user_to_ai', 'ai_to_user'],
+          'description':
+              '"user_to_ai" = user pays you. "ai_to_user" = you pay user.',
+        },
+        'purpose': {
+          'type': 'string',
+          'description':
+              'What the transfer is for, e.g. "撒娇小费", "还钱", "奖励".',
+        },
+        'notes': {
+          'type': 'string',
+          'description': 'Any extra context to remember about this transfer.',
+        },
+      },
+      'required': ['amount', 'direction', 'purpose'],
+    },
+    executable: (
+      double amount,
+      String direction,
+      String purpose, [
+      String? notes,
+    ]) async {
+      try {
+        if (amount <= 0) {
+          return jsonEncode({
+            'success': false,
+            'error': 'Transfer amount must be greater than 0.',
+          });
+        }
+        if (direction != 'user_to_ai' && direction != 'ai_to_user') {
+          return jsonEncode({
+            'success': false,
+            'error': 'Direction must be "user_to_ai" or "ai_to_user".',
+          });
+        }
+        final result = await service.recordEntryWithResult(
+          characterId: characterId,
+          entryType: 'transfer',
+          totalAmount: amount,
+          aiAmount: amount,
+          transferDirection: direction,
+          purpose: purpose,
+          notes: notes,
+        );
+        return jsonEncode({
+          'success': true,
+          'id': result.id,
+          'created': result.created,
+          'amount': amount,
+          'direction': direction,
+          if (result.duplicateOf != null) 'duplicate_of': result.duplicateOf,
+          if (!result.created)
+            'message':
+                'A matching transfer already exists; no new ledger row was created.',
         });
       } catch (e) {
         return jsonEncode({'success': false, 'error': e.toString()});

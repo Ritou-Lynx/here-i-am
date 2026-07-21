@@ -579,7 +579,7 @@ class RecordOrganizerServiceV3 {
   /// panel stays in sync without requiring a separate manual "记一笔" step.
   ///
   /// Only `expense_entry`, `shopping_order` and `income_entry` structured
-  /// field types are bridged. Expenses/shopping map to `cost`, income maps
+  /// field types are bridged. Expenses/shopping map to `expense`, income maps
   /// to `income`. The AI share defaults to 0 (pure user money movement).
   /// For income, if the Record Organizer extracted an `ai_share_ratio`
   /// (only present when the user explicitly stated a split), the bridge
@@ -650,7 +650,7 @@ class RecordOrganizerServiceV3 {
       try {
         await financeService.recordEntry(
           characterId: 'system:card_bridge',
-          entryType: isIncome ? 'income' : 'cost',
+          entryType: isIncome ? 'income' : 'expense',
           totalAmount: amount,
           aiAmount: aiAmount,
           contributionRatio: contributionRatio,

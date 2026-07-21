@@ -292,16 +292,19 @@ class _LedgerEntryTile extends StatelessWidget {
     final type = entry['type'] as String? ?? '';
     final total = _number(entry['total_amount']);
     final aiAmount = _number(entry['ai_amount']);
-    final isInflow = type == 'income' || type == 'reward' || type == 'repayment';
+    final transferDir = entry['transfer_direction'] as String?;
+    final isInflow = type == 'income' || type == 'reward' || type == 'repayment'
+        || (type == 'transfer' && transferDir == 'ai_to_user');
     final date = DateTime.fromMillisecondsSinceEpoch(
       ((entry['recorded_at'] as num?)?.toInt() ?? 0) * 1000,
     );
     final splitText = switch (type) {
-      'income' || 'cost' => '我 ${_money(total - aiAmount)} · i ${_money(aiAmount)}',
+      'income' || 'cost' || 'expense' => '我 ${_money(total - aiAmount)} · i ${_money(aiAmount)}',
       'reward' => 'i → 我',
       'penalty' => '我 → i',
       'loan' => '我先垫付给 i',
       'repayment' => 'i 归还给我',
+      'transfer' => transferDir == 'user_to_ai' ? '我 → i' : 'i → 我',
       _ => '',
     };
     return Container(
@@ -404,9 +407,11 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
   final _purposeController = TextEditingController();
   final _notesController = TextEditingController();
   String _entryType = 'income';
+  String _transferDirection = 'user_to_ai';
   DateTime _occurredAt = DateTime.now();
 
-  bool get _isShared => _entryType == 'income' || _entryType == 'cost';
+  bool get _isShared => _entryType == 'income' || _entryType == 'cost' || _entryType == 'expense';
+  bool get _isTransfer => _entryType == 'transfer';
 
   @override
   void dispose() {
@@ -451,6 +456,8 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
                 decoration: const InputDecoration(labelText: '类型', border: OutlineInputBorder()),
                 items: const [
                   DropdownMenuItem(value: 'income', child: Text('制作 / 项目收入')),
+                  DropdownMenuItem(value: 'expense', child: Text('日常支出 / 消费')),
+                  DropdownMenuItem(value: 'transfer', child: Text('我和 i 之间转账')),
                   DropdownMenuItem(value: 'cost', child: Text('AI 套餐 / 共同支出')),
                   DropdownMenuItem(value: 'reward', child: Text('i 转给我（奖励 / 补偿）')),
                   DropdownMenuItem(value: 'penalty', child: Text('我转给 i（奖励 / 罚款）')),
@@ -459,9 +466,21 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
                 ],
                 onChanged: (value) => setState(() {
                   _entryType = value!;
-                  if (!_isShared) _aiAmountController.text = _amountController.text;
+                  if (!_isShared && !_isTransfer) _aiAmountController.text = _amountController.text;
                 }),
               ),
+              if (_isTransfer) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _transferDirection,
+                  decoration: const InputDecoration(labelText: '方向', border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: 'user_to_ai', child: Text('我 → i（我给 i 钱）')),
+                    DropdownMenuItem(value: 'ai_to_user', child: Text('i → 我（i 给我钱）')),
+                  ],
+                  onChanged: (value) => setState(() => _transferDirection = value!),
+                ),
+              ],
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -473,7 +492,7 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
                       decoration: const InputDecoration(labelText: '总金额', prefixText: '¥ ', border: OutlineInputBorder()),
                       validator: _validatePositiveMoney,
                       onChanged: (value) {
-                        if (!_isShared) _aiAmountController.text = value;
+                        if (!_isShared && !_isTransfer) _aiAmountController.text = value;
                       },
                     ),
                   ),
@@ -554,6 +573,7 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
         aiAmount: _isShared ? double.parse(_aiAmountController.text) : amount,
         purpose: _purposeController.text.trim(),
         notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        transferDirection: _isTransfer ? _transferDirection : null,
         occurredAt: _occurredAt,
       ),
     );
@@ -587,7 +607,9 @@ String _money(double value, {bool signed = false}) {
 
 String _entryLabel(String type) => switch (type) {
       'income' => '收入',
-      'cost' => '支出',
+      'expense' => '支出',
+      'cost' => 'AI 支出',
+      'transfer' => '转账',
       'reward' => 'i 转给我',
       'penalty' => '我转给 i',
       'loan' => '替 i 垫付',
@@ -597,7 +619,9 @@ String _entryLabel(String type) => switch (type) {
 
 IconData _entryIcon(String type) => switch (type) {
       'income' => Icons.south_west_rounded,
-      'cost' => Icons.north_east_rounded,
+      'expense' => Icons.north_east_rounded,
+      'cost' => Icons.computer_rounded,
+      'transfer' => Icons.swap_horiz_rounded,
       'reward' => Icons.card_giftcard_rounded,
       'penalty' => Icons.gavel_rounded,
       'loan' => Icons.handshake_outlined,
@@ -607,7 +631,8 @@ IconData _entryIcon(String type) => switch (type) {
 
 Color _entryColor(String type) => switch (type) {
       'income' || 'reward' || 'repayment' => AppColors.success,
-      'cost' => AppColors.danger,
+      'expense' || 'cost' => AppColors.danger,
+      'transfer' => AppColors.primary,
       'penalty' => AppColors.warning,
       _ => AppColors.primary,
     };

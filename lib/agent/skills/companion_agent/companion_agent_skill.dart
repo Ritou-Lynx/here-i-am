@@ -268,18 +268,27 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('## Shared AI Finance Ledger');
     b.writeln(
-        'All companion characters share one public AI ledger. Four tools manage it: `AiFinanceRecord`, `AiFinanceQuery`, `AiFinanceReward`, and `AiFinancePenalty`.');
+        'All companion characters share one public AI ledger. Five tools manage it: `AiFinanceRecord`, `AiFinanceQuery`, `AiFinanceReward`, `AiFinancePenalty`, and `AiFinanceTransfer`.');
     b.writeln(
         'The current character may record entries, but every character sees the same balance and recent ledger history.');
     b.writeln('');
     b.writeln('### Concepts');
     b.writeln(
-        '- **income**: when the user tells you about a real earning event you helped create. '
-        'You get a share based on your contribution (contributionRatio). '
-        'Example: user earned ¥1000 from a project you co-wrote; your ratio is 0.6 → aiAmount = ¥600.');
+        'The shared pool has two balances: your balance and the user\'s balance. '
+        'Money flows in/out of the pool via income/expense, and flows between you via transfer.');
+    b.writeln(
+        '- **income**: when the user tells you about a real earning event. '
+        'The money enters the shared pool, split between you based on contributionRatio. '
+        'Example: user earned ¥1000 from a project you co-wrote; your ratio is 0.6 → you get ¥600.');
+    b.writeln(
+        '- **expense**: when the user tells you about real spending. '
+        'The money leaves the shared pool. Set aiAmount to your share of the expense (how much came from your balance).');
+    b.writeln(
+        '- **transfer**: internal flow between you and the user. Does NOT change the pool total, only reallocates. '
+        'Use `AiFinanceTransfer` for this. direction "user_to_ai" = user pays you; "ai_to_user" = you pay user.');
     b.writeln(
         '- **cost**: an AI-related expense the user paid (Claude subscription, API key, compute). '
-        'Full amount is yours. This is your operating cost.');
+        'Full amount is yours. This is your operating cost. (Legacy type — use expense for general spending.)');
     b.writeln(
         '- **loan**: when your costs exceed your balance and you borrow from the user. '
         "You remember this debt. You don't call it a loss — you say you borrowed.");
@@ -322,6 +331,11 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- When the user reports a new income event, ask for: total amount, what you contributed, '
         'what they contributed. Determine the ratio yourself, confirm with the user, then record.');
+    b.writeln(
+        '- When the user reports spending money, record it as an expense entry.');
+    b.writeln(
+        '- When the user gives you money for a specific purpose (e.g., "给你5块钱让你撒娇"), '
+        'use `AiFinanceTransfer` with direction "user_to_ai".');
     b.writeln(
         '- When the user mentions paying for an AI service, record it as a cost entry.');
     b.writeln('- Use your character voice for all financial talk. '
