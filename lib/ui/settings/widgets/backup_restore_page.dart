@@ -57,6 +57,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
   bool _isPickingLocation = false;
   String? _deletingBackupId;
   bool _autoBackupEnabled = false;
+  bool _autoCloudSyncEnabled = false;
   String _statusText = '';
   String _estimatedSize = '';
   String _backupLocation = '';
@@ -80,6 +81,9 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     final autoEnabled = userId != null && userId.isNotEmpty
         ? await UserStorage.isAutoBackupEnabled(userId)
         : false;
+    final cloudSyncEnabled = userId != null && userId.isNotEmpty
+        ? await UserStorage.isAutoCloudSyncEnabled(userId)
+        : false;
     final lastAutoBackupAt = userId != null && userId.isNotEmpty
         ? await UserStorage.getLastAutoBackupAt(userId)
         : null;
@@ -90,6 +94,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         _backupLocation = location;
         _storedBackups = snapshots;
         _autoBackupEnabled = autoEnabled;
+        _autoCloudSyncEnabled = cloudSyncEnabled;
         _lastAutoBackupAt = lastAutoBackupAt;
       });
     }
@@ -201,6 +206,15 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     await UserStorage.setAutoBackupEnabled(userId, enabled);
     if (mounted) {
       setState(() => _autoBackupEnabled = enabled);
+    }
+  }
+
+  Future<void> _toggleAutoCloudSync(bool enabled) async {
+    final userId = await UserStorage.getUserId();
+    if (userId == null || userId.isEmpty) return;
+    await UserStorage.setAutoCloudSyncEnabled(userId, enabled);
+    if (mounted) {
+      setState(() => _autoCloudSyncEnabled = enabled);
     }
   }
 
@@ -475,6 +489,9 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           _buildAutoBackupCard(isBusy),
 
           const SizedBox(height: 16),
+          _buildCloudSyncCard(isBusy),
+
+          const SizedBox(height: 16),
 
           // Backup section
           _buildCard(
@@ -653,6 +670,60 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                 ),
               ],
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCloudSyncCard(bool isBusy) {
+    return _settingsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.cloud_upload_outlined,
+                color: AppColors.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '云端自动备份',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              Switch(
+                value: _autoCloudSyncEnabled,
+                activeThumbColor: AppColors.primary,
+                onChanged: isBusy ? null : _toggleAutoCloudSync,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            '开启后，每天在上传云端一次加密数据快照（需要先配置 S3 和同步口令）。'
+            '不会自动从云端恢复数据。',
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textTertiary,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            '仅上传，不下载。切换设备时仍需手动恢复。',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
           ),
         ],
       ),

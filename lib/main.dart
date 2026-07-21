@@ -510,6 +510,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
       _lastPausedTime = DateTime.now();
       _checkLockSettingsBeforeLocking();
       _stopForegroundHeartbeat();
+      MemexRouter().scheduleAutoCloudSyncCheck();
     } else if (state == AppLifecycleState.resumed) {
       unawaited(LocalTaskExecutor.instance.clearGracefulShutdownMarker());
       MemexRouter().scheduleAutoBackupCheck(trigger: 'foreground');

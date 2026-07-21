@@ -15,6 +15,7 @@ import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/data/services/record_organizer_service.dart';
+import 'package:memex/data/services/sync/memory_data_sync_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
@@ -492,6 +493,15 @@ class MemexRouter {
           .catchError((Object e, StackTrace st) {
         _logger.warning('Automatic backup check failed: $e', e, st);
         return null;
+      }),
+    );
+  }
+
+  void scheduleAutoCloudSyncCheck() {
+    unawaited(
+      MemoryDataSyncService.maybeAutoUploadToCloud()
+          .catchError((Object e, StackTrace st) {
+        _logger.warning('Automatic cloud sync check failed: $e', e, st);
       }),
     );
   }

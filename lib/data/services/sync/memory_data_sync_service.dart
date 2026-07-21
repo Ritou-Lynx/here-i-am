@@ -7,7 +7,11 @@ import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/data/services/backup_service.dart';
 import 'package:memex/data/services/sync/config_sync_crypto.dart';
+import 'package:memex/data/services/sync/config_sync_passphrase_store.dart';
+import 'package:memex/data/services/sync/config_sync_s3.dart';
+import 'package:memex/data/services/sync/config_sync_s3_credentials.dart';
 import 'package:memex/utils/logger.dart';
+import 'package:memex/utils/user_storage.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
@@ -222,6 +226,74 @@ class MemoryDataSyncService {
   static Uint8List _uint32(int value) {
     final bytes = ByteData(4)..setUint32(0, value, Endian.big);
     return bytes.buffer.asUint8List();
+  }
+
+  static const _autoCloudSyncInterval = Duration(hours: 24);
+
+  /// Upload an encrypted data snapshot to S3 when conditions are met:
+  /// cloud sync is enabled, ≥24 h since last upload, passphrase and S3
+  /// credentials are present, and the source data fingerprint changed.
+  ///
+  /// Fire-and-forget safe: exceptions are logged, not rethrown.
+  static Future<void> maybeAutoUploadToCloud() async {
+    try {
+      final userId = await UserStorage.getUserId();
+      if (userId == null || userId.isEmpty) return;
+
+      final enabled = await UserStorage.isAutoCloudSyncEnabled(userId);
+      if (!enabled) return;
+
+      final lastUploadAt = await UserStorage.getLastCloudSyncAt(userId);
+      final now = DateTime.now();
+      if (lastUploadAt != null &&
+          now.difference(lastUploadAt) < _autoCloudSyncInterval) {
+        return;
+      }
+
+      final fingerprint = await _cloudFingerprint(userId);
+      final lastFingerprint =
+          await UserStorage.getLastCloudSyncFingerprint(userId);
+      if (lastFingerprint == fingerprint) return;
+
+      if (!await ConfigSyncS3Credentials.instance.hasCredentials()) return;
+
+      final passphrase = await ConfigSyncPassphraseStore.instance.read();
+      if (passphrase == null) return;
+
+      _logger.info('Auto cloud sync: uploading ($userId) ...');
+      final envelope = await collectEncryptedEnvelope(
+        passphrase: passphrase,
+        onProgress: (s) => _logger.info('Auto cloud sync: $s'),
+      );
+      final s3Config = await ConfigSyncS3Credentials.instance.read();
+      if (s3Config == null) return;
+
+      await ConfigSyncS3.upload(
+        s3Config,
+        envelope,
+        targetObjectKey: ConfigSyncS3.dataObjectKey,
+      );
+      await UserStorage.setLastCloudSyncMetadata(
+        userId,
+        fingerprint: fingerprint,
+        createdAt: now,
+      );
+      _logger.info(
+        'Auto cloud sync: uploaded (${(envelope['ciphertext'] as String? ?? '').length} B ciphertext)',
+      );
+    } catch (e, stack) {
+      _logger.warning('Auto cloud sync failed', e, stack);
+      // Fire-and-forget: don't rethrow, don't block the app.
+    }
+  }
+
+  static Future<String> _cloudFingerprint(String userId) async {
+    final dbName = 'memex_local_$userId.sqlite';
+    final appDir = await getApplicationDocumentsDirectory();
+    final dbFile = File(path.join(appDir.path, dbName));
+    if (!await dbFile.exists()) return 'no-db-$userId';
+    final stat = await dbFile.stat();
+    return '${stat.size}:${stat.modified.millisecondsSinceEpoch}';
   }
 }
 

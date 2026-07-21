@@ -80,6 +80,12 @@ class UserStorage {
   static const String _keyLastAutoBackupAtPrefix = 'memex_last_auto_backup_at_';
   static const String _keyLastAutoBackupFingerprintPrefix =
       'memex_last_auto_backup_fingerprint_';
+  static const String _keyAutoCloudSyncEnabledPrefix =
+      'memex_auto_cloud_sync_enabled_';
+  static const String _keyLastCloudSyncAtPrefix =
+      'memex_last_cloud_sync_at_';
+  static const String _keyLastCloudSyncFingerprintPrefix =
+      'memex_last_cloud_sync_fingerprint_';
   static const String _keyAndroidBackupTreeUriPrefix =
       'memex_android_backup_tree_uri_';
   static const String _keyAndroidBackupTreeNamePrefix =
@@ -1104,6 +1110,43 @@ class UserStorage {
         _keyLastAutoBackupAtPrefix + userId, createdAt.toIso8601String());
     await prefs.setString(
         _keyLastAutoBackupFingerprintPrefix + userId, fingerprint);
+  }
+
+  static Future<bool> isAutoCloudSyncEnabled(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyAutoCloudSyncEnabledPrefix + userId) ?? false;
+  }
+
+  static Future<void> setAutoCloudSyncEnabled(
+    String userId,
+    bool enabled,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyAutoCloudSyncEnabledPrefix + userId, enabled);
+  }
+
+  static Future<DateTime?> getLastCloudSyncAt(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString(_keyLastCloudSyncAtPrefix + userId);
+    if (value == null || value.isEmpty) return null;
+    return DateTime.tryParse(value);
+  }
+
+  static Future<String?> getLastCloudSyncFingerprint(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyLastCloudSyncFingerprintPrefix + userId);
+  }
+
+  static Future<void> setLastCloudSyncMetadata(
+    String userId, {
+    required DateTime createdAt,
+    required String fingerprint,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        _keyLastCloudSyncAtPrefix + userId, createdAt.toIso8601String());
+    await prefs.setString(
+        _keyLastCloudSyncFingerprintPrefix + userId, fingerprint);
   }
 
   static Future<String?> getAndroidBackupTreeUri(String userId) async {
