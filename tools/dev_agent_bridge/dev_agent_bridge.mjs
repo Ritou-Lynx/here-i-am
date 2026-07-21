@@ -732,6 +732,17 @@ function commandSpec(name, args, displayName) {
       return { command: 'node', args: [codexJs, ...args], displayName };
     }
   }
+  if (name === 'opencode' && npmRoot) {
+    // `npm i -g opencode-ai` drops the launcher under
+    // %APPDATA%\npm. The .cmd shim is what PATH-resolved spawn would
+    // find, but a non-interactive node spawned by Start-Process doesn't
+    // have HKCU PATH and would ENOENT here. Resolve to the .cmd shim
+    // directly so spawn works regardless of process PATH.
+    const ocCmd = `${process.env.APPDATA}\\npm\\opencode.cmd`;
+    if (existsSync(ocCmd)) return { command: ocCmd, args, displayName };
+    const ocBin = `${npmRoot}\\opencode-ai\\bin\\opencode`;
+    if (existsSync(ocBin)) return { command: ocBin, args, displayName };
+  }
   return { command: name, args, displayName };
 }
 
@@ -869,9 +880,16 @@ if (req.method === 'GET' && path === '/v1/health') {
       // hand). Returns an empty list on any failure (opencode not in
       // PATH, fresh install, etc.) — the dropdown will then just show
       // the manual text-entry field.
+      //
+      // We use `shell: true` so node delegates to cmd.exe, which on
+      // Windows expands HKCU PATH (where npm-global tools live) and
+      // resolves `.cmd` shims — bare spawn() on node 18+ does NOT, and
+      // a non-interactive node spawned by Start-Process starts with a
+      // stripped PATH that misses %APPDATA%\npm entirely.
       try {
-        const result = spawnSync('opencode', ['models'], {
+        const result = spawnSync('opencode models', {
           encoding: 'utf8',
+          shell: true,
           windowsHide: true,
         });
         if (result.status === 0 && typeof result.stdout === 'string') {
@@ -883,7 +901,11 @@ if (req.method === 'GET' && path === '/v1/health') {
           return;
         }
         const stderr = (result.stderr || '').trim();
-        json(res, 200, { models: [], warning: stderr || 'opencode models exited non-zero' });
+        const errMsg = result.error ? result.error.message : '';
+        json(res, 200, {
+          models: [],
+          warning: stderr || errMsg || 'opencode models exited non-zero',
+        });
       } catch (err) {
         json(res, 200, { models: [], warning: err.message });
       }
