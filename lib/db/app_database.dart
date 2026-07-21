@@ -121,7 +121,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 42;
+  int get schemaVersion => 43;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -544,6 +544,11 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(projectMemorySources);
             await _createProjectMemoryIndices();
             await searchDao.createFtsTables();
+          }
+          if (from < 43) {
+            await _addColumnIfMissing(
+              "ai_finance_ledger ADD COLUMN transfer_direction TEXT",
+            );
           }
           if (from < 39) {
             await _addColumnIfMissing(

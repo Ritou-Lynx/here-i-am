@@ -348,33 +348,42 @@ class SharedLifeSummaries extends Table {
 }
 
 /// AI Finance Ledger Table
-/// Records every income/cost/loan/repayment event that belongs to the AI companion.
+/// Records every income/expense/transfer event in the shared pool between user and AI.
 /// This is a derived view of the user's finances — each entry is either linked to
 /// a real transaction card (via soft nullable factId) or entered manually via chat.
 /// The user's primary account is never modified; this table is additive only.
+///
+/// Three primitives:
+/// - income: external money flows into the shared pool, split between user and AI
+/// - expense: external money flows out of the shared pool (real spending)
+/// - transfer: internal reallocation between user and AI (pool total unchanged)
+///
+/// Legacy types (cost/loan/repayment/reward/penalty) are still valid and treated
+/// as transfers in balance calculations for backward compatibility.
 class AiFinanceLedger extends Table {
   TextColumn get id => text()(); // UUID v4
 
   /// The character that recorded or witnessed this shared ledger entry.
   TextColumn get characterId => text()();
 
-  /// Entry type: 'income' | 'cost' | 'loan' | 'repayment' | 'reward' | 'penalty'
-  /// - income: AI earned a share of a real income event
-  /// - cost: an expense tagged as AI-related (e.g. Claude subscription)
-  /// - loan: AI's costs exceeded its balance; user covered the gap
-  /// - repayment: AI repaid a previous loan from its balance
-  /// - reward: AI rewards the user out of its own balance (AI expense)
-  /// - penalty: AI penalizes the user; user pays AI (AI income)
+  /// Entry type: 'income' | 'expense' | 'transfer' | 'cost' | 'loan' | 'repayment' | 'reward' | 'penalty'
+  /// - income: external income event, split between user and AI via contributionRatio
+  /// - expense: external spending event, reduces shared pool total
+  /// - transfer: internal flow between user and AI (direction in transferDirection)
+  /// - cost/loan/penalty: legacy user→AI transfers (backward compat)
+  /// - repayment/reward: legacy AI→user transfers (backward compat)
   TextColumn get entryType => text()();
 
   /// Full amount of the original event (e.g. total income before split).
-  /// For cost/loan/repayment entries this equals aiAmount.
+  /// For transfers and legacy types this equals aiAmount.
   RealColumn get totalAmount => real()();
 
   /// The portion that belongs to the AI (after contribution split, if applicable).
+  /// For expense: how much of the expense came from AI's share.
+  /// For transfer: the full amount being transferred.
   RealColumn get aiAmount => real()();
 
-  /// AI's contribution ratio for income splits (0.0–1.0). Null for cost/loan/repayment.
+  /// AI's contribution ratio for income splits (0.0–1.0). Null for other types.
   RealColumn get contributionRatio => real().nullable()();
 
   /// Free-text description of what the user contributed.
@@ -383,12 +392,16 @@ class AiFinanceLedger extends Table {
   /// Free-text description of what the AI contributed.
   TextColumn get aiContributionDesc => text().nullable()();
 
-  /// Purpose or label (e.g. "Claude Pro 月费", "写作项目分成").
+  /// Purpose or label (e.g. "Claude Pro 月费", "写作项目分成", "撒娇小费").
   TextColumn get purpose => text().nullable()();
 
   /// Soft reference to the corresponding transaction card's factId.
   /// Nullable — manual entries may not have a linked card.
   TextColumn get linkedFactId => text().nullable()();
+
+  /// Transfer direction: 'user_to_ai' | 'ai_to_user'. Only meaningful for transfer type.
+  /// Null for income/expense/legacy types.
+  TextColumn get transferDirection => text().nullable()();
 
   /// Seconds since epoch when this entry was recorded.
   IntColumn get recordedAt => integer()();
