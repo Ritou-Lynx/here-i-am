@@ -7958,6 +7958,12 @@ class $AiFinanceLedgerTable extends AiFinanceLedger
   late final GeneratedColumn<String> linkedFactId = GeneratedColumn<String>(
       'linked_fact_id', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _transferDirectionMeta =
+      const VerificationMeta('transferDirection');
+  @override
+  late final GeneratedColumn<String> transferDirection =
+      GeneratedColumn<String>('transfer_direction', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _recordedAtMeta =
       const VerificationMeta('recordedAt');
   @override
@@ -7981,6 +7987,7 @@ class $AiFinanceLedgerTable extends AiFinanceLedger
         aiContributionDesc,
         purpose,
         linkedFactId,
+        transferDirection,
         recordedAt,
         notes
       ];
@@ -8056,6 +8063,12 @@ class $AiFinanceLedgerTable extends AiFinanceLedger
           linkedFactId.isAcceptableOrUnknown(
               data['linked_fact_id']!, _linkedFactIdMeta));
     }
+    if (data.containsKey('transfer_direction')) {
+      context.handle(
+          _transferDirectionMeta,
+          transferDirection.isAcceptableOrUnknown(
+              data['transfer_direction']!, _transferDirectionMeta));
+    }
     if (data.containsKey('recorded_at')) {
       context.handle(
           _recordedAtMeta,
@@ -8097,6 +8110,8 @@ class $AiFinanceLedgerTable extends AiFinanceLedger
           .read(DriftSqlType.string, data['${effectivePrefix}purpose']),
       linkedFactId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}linked_fact_id']),
+      transferDirection: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}transfer_direction']),
       recordedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}recorded_at'])!,
       notes: attachedDatabase.typeMapping
@@ -8117,23 +8132,24 @@ class AiFinanceLedgerData extends DataClass
   /// The character that recorded or witnessed this shared ledger entry.
   final String characterId;
 
-  /// Entry type: 'income' | 'cost' | 'loan' | 'repayment' | 'reward' | 'penalty'
-  /// - income: AI earned a share of a real income event
-  /// - cost: an expense tagged as AI-related (e.g. Claude subscription)
-  /// - loan: AI's costs exceeded its balance; user covered the gap
-  /// - repayment: AI repaid a previous loan from its balance
-  /// - reward: AI rewards the user out of its own balance (AI expense)
-  /// - penalty: AI penalizes the user; user pays AI (AI income)
+  /// Entry type: 'income' | 'expense' | 'transfer' | 'cost' | 'loan' | 'repayment' | 'reward' | 'penalty'
+  /// - income: external income event, split between user and AI via contributionRatio
+  /// - expense: external spending event, reduces shared pool total
+  /// - transfer: internal flow between user and AI (direction in transferDirection)
+  /// - cost/loan/penalty: legacy user→AI transfers (backward compat)
+  /// - repayment/reward: legacy AI→user transfers (backward compat)
   final String entryType;
 
   /// Full amount of the original event (e.g. total income before split).
-  /// For cost/loan/repayment entries this equals aiAmount.
+  /// For transfers and legacy types this equals aiAmount.
   final double totalAmount;
 
   /// The portion that belongs to the AI (after contribution split, if applicable).
+  /// For expense: how much of the expense came from AI's share.
+  /// For transfer: the full amount being transferred.
   final double aiAmount;
 
-  /// AI's contribution ratio for income splits (0.0–1.0). Null for cost/loan/repayment.
+  /// AI's contribution ratio for income splits (0.0–1.0). Null for other types.
   final double? contributionRatio;
 
   /// Free-text description of what the user contributed.
@@ -8142,12 +8158,16 @@ class AiFinanceLedgerData extends DataClass
   /// Free-text description of what the AI contributed.
   final String? aiContributionDesc;
 
-  /// Purpose or label (e.g. "Claude Pro 月费", "写作项目分成").
+  /// Purpose or label (e.g. "Claude Pro 月费", "写作项目分成", "撒娇小费").
   final String? purpose;
 
   /// Soft reference to the corresponding transaction card's factId.
   /// Nullable — manual entries may not have a linked card.
   final String? linkedFactId;
+
+  /// Transfer direction: 'user_to_ai' | 'ai_to_user'. Only meaningful for transfer type.
+  /// Null for income/expense/legacy types.
+  final String? transferDirection;
 
   /// Seconds since epoch when this entry was recorded.
   final int recordedAt;
@@ -8165,6 +8185,7 @@ class AiFinanceLedgerData extends DataClass
       this.aiContributionDesc,
       this.purpose,
       this.linkedFactId,
+      this.transferDirection,
       required this.recordedAt,
       this.notes});
   @override
@@ -8189,6 +8210,9 @@ class AiFinanceLedgerData extends DataClass
     }
     if (!nullToAbsent || linkedFactId != null) {
       map['linked_fact_id'] = Variable<String>(linkedFactId);
+    }
+    if (!nullToAbsent || transferDirection != null) {
+      map['transfer_direction'] = Variable<String>(transferDirection);
     }
     map['recorded_at'] = Variable<int>(recordedAt);
     if (!nullToAbsent || notes != null) {
@@ -8219,6 +8243,9 @@ class AiFinanceLedgerData extends DataClass
       linkedFactId: linkedFactId == null && nullToAbsent
           ? const Value.absent()
           : Value(linkedFactId),
+      transferDirection: transferDirection == null && nullToAbsent
+          ? const Value.absent()
+          : Value(transferDirection),
       recordedAt: Value(recordedAt),
       notes:
           notes == null && nullToAbsent ? const Value.absent() : Value(notes),
@@ -8242,6 +8269,8 @@ class AiFinanceLedgerData extends DataClass
           serializer.fromJson<String?>(json['aiContributionDesc']),
       purpose: serializer.fromJson<String?>(json['purpose']),
       linkedFactId: serializer.fromJson<String?>(json['linkedFactId']),
+      transferDirection:
+          serializer.fromJson<String?>(json['transferDirection']),
       recordedAt: serializer.fromJson<int>(json['recordedAt']),
       notes: serializer.fromJson<String?>(json['notes']),
     );
@@ -8260,6 +8289,7 @@ class AiFinanceLedgerData extends DataClass
       'aiContributionDesc': serializer.toJson<String?>(aiContributionDesc),
       'purpose': serializer.toJson<String?>(purpose),
       'linkedFactId': serializer.toJson<String?>(linkedFactId),
+      'transferDirection': serializer.toJson<String?>(transferDirection),
       'recordedAt': serializer.toJson<int>(recordedAt),
       'notes': serializer.toJson<String?>(notes),
     };
@@ -8276,6 +8306,7 @@ class AiFinanceLedgerData extends DataClass
           Value<String?> aiContributionDesc = const Value.absent(),
           Value<String?> purpose = const Value.absent(),
           Value<String?> linkedFactId = const Value.absent(),
+          Value<String?> transferDirection = const Value.absent(),
           int? recordedAt,
           Value<String?> notes = const Value.absent()}) =>
       AiFinanceLedgerData(
@@ -8296,6 +8327,9 @@ class AiFinanceLedgerData extends DataClass
         purpose: purpose.present ? purpose.value : this.purpose,
         linkedFactId:
             linkedFactId.present ? linkedFactId.value : this.linkedFactId,
+        transferDirection: transferDirection.present
+            ? transferDirection.value
+            : this.transferDirection,
         recordedAt: recordedAt ?? this.recordedAt,
         notes: notes.present ? notes.value : this.notes,
       );
@@ -8321,6 +8355,9 @@ class AiFinanceLedgerData extends DataClass
       linkedFactId: data.linkedFactId.present
           ? data.linkedFactId.value
           : this.linkedFactId,
+      transferDirection: data.transferDirection.present
+          ? data.transferDirection.value
+          : this.transferDirection,
       recordedAt:
           data.recordedAt.present ? data.recordedAt.value : this.recordedAt,
       notes: data.notes.present ? data.notes.value : this.notes,
@@ -8340,6 +8377,7 @@ class AiFinanceLedgerData extends DataClass
           ..write('aiContributionDesc: $aiContributionDesc, ')
           ..write('purpose: $purpose, ')
           ..write('linkedFactId: $linkedFactId, ')
+          ..write('transferDirection: $transferDirection, ')
           ..write('recordedAt: $recordedAt, ')
           ..write('notes: $notes')
           ..write(')'))
@@ -8358,6 +8396,7 @@ class AiFinanceLedgerData extends DataClass
       aiContributionDesc,
       purpose,
       linkedFactId,
+      transferDirection,
       recordedAt,
       notes);
   @override
@@ -8374,6 +8413,7 @@ class AiFinanceLedgerData extends DataClass
           other.aiContributionDesc == this.aiContributionDesc &&
           other.purpose == this.purpose &&
           other.linkedFactId == this.linkedFactId &&
+          other.transferDirection == this.transferDirection &&
           other.recordedAt == this.recordedAt &&
           other.notes == this.notes);
 }
@@ -8389,6 +8429,7 @@ class AiFinanceLedgerCompanion extends UpdateCompanion<AiFinanceLedgerData> {
   final Value<String?> aiContributionDesc;
   final Value<String?> purpose;
   final Value<String?> linkedFactId;
+  final Value<String?> transferDirection;
   final Value<int> recordedAt;
   final Value<String?> notes;
   final Value<int> rowid;
@@ -8403,6 +8444,7 @@ class AiFinanceLedgerCompanion extends UpdateCompanion<AiFinanceLedgerData> {
     this.aiContributionDesc = const Value.absent(),
     this.purpose = const Value.absent(),
     this.linkedFactId = const Value.absent(),
+    this.transferDirection = const Value.absent(),
     this.recordedAt = const Value.absent(),
     this.notes = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -8418,6 +8460,7 @@ class AiFinanceLedgerCompanion extends UpdateCompanion<AiFinanceLedgerData> {
     this.aiContributionDesc = const Value.absent(),
     this.purpose = const Value.absent(),
     this.linkedFactId = const Value.absent(),
+    this.transferDirection = const Value.absent(),
     required int recordedAt,
     this.notes = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -8438,6 +8481,7 @@ class AiFinanceLedgerCompanion extends UpdateCompanion<AiFinanceLedgerData> {
     Expression<String>? aiContributionDesc,
     Expression<String>? purpose,
     Expression<String>? linkedFactId,
+    Expression<String>? transferDirection,
     Expression<int>? recordedAt,
     Expression<String>? notes,
     Expression<int>? rowid,
@@ -8455,6 +8499,7 @@ class AiFinanceLedgerCompanion extends UpdateCompanion<AiFinanceLedgerData> {
         'ai_contribution_desc': aiContributionDesc,
       if (purpose != null) 'purpose': purpose,
       if (linkedFactId != null) 'linked_fact_id': linkedFactId,
+      if (transferDirection != null) 'transfer_direction': transferDirection,
       if (recordedAt != null) 'recorded_at': recordedAt,
       if (notes != null) 'notes': notes,
       if (rowid != null) 'rowid': rowid,
@@ -8472,6 +8517,7 @@ class AiFinanceLedgerCompanion extends UpdateCompanion<AiFinanceLedgerData> {
       Value<String?>? aiContributionDesc,
       Value<String?>? purpose,
       Value<String?>? linkedFactId,
+      Value<String?>? transferDirection,
       Value<int>? recordedAt,
       Value<String?>? notes,
       Value<int>? rowid}) {
@@ -8486,6 +8532,7 @@ class AiFinanceLedgerCompanion extends UpdateCompanion<AiFinanceLedgerData> {
       aiContributionDesc: aiContributionDesc ?? this.aiContributionDesc,
       purpose: purpose ?? this.purpose,
       linkedFactId: linkedFactId ?? this.linkedFactId,
+      transferDirection: transferDirection ?? this.transferDirection,
       recordedAt: recordedAt ?? this.recordedAt,
       notes: notes ?? this.notes,
       rowid: rowid ?? this.rowid,
@@ -8525,6 +8572,9 @@ class AiFinanceLedgerCompanion extends UpdateCompanion<AiFinanceLedgerData> {
     if (linkedFactId.present) {
       map['linked_fact_id'] = Variable<String>(linkedFactId.value);
     }
+    if (transferDirection.present) {
+      map['transfer_direction'] = Variable<String>(transferDirection.value);
+    }
     if (recordedAt.present) {
       map['recorded_at'] = Variable<int>(recordedAt.value);
     }
@@ -8550,6 +8600,7 @@ class AiFinanceLedgerCompanion extends UpdateCompanion<AiFinanceLedgerData> {
           ..write('aiContributionDesc: $aiContributionDesc, ')
           ..write('purpose: $purpose, ')
           ..write('linkedFactId: $linkedFactId, ')
+          ..write('transferDirection: $transferDirection, ')
           ..write('recordedAt: $recordedAt, ')
           ..write('notes: $notes, ')
           ..write('rowid: $rowid')
@@ -27081,6 +27132,7 @@ typedef $$AiFinanceLedgerTableCreateCompanionBuilder = AiFinanceLedgerCompanion
   Value<String?> aiContributionDesc,
   Value<String?> purpose,
   Value<String?> linkedFactId,
+  Value<String?> transferDirection,
   required int recordedAt,
   Value<String?> notes,
   Value<int> rowid,
@@ -27097,6 +27149,7 @@ typedef $$AiFinanceLedgerTableUpdateCompanionBuilder = AiFinanceLedgerCompanion
   Value<String?> aiContributionDesc,
   Value<String?> purpose,
   Value<String?> linkedFactId,
+  Value<String?> transferDirection,
   Value<int> recordedAt,
   Value<String?> notes,
   Value<int> rowid,
@@ -27143,6 +27196,10 @@ class $$AiFinanceLedgerTableFilterComposer
 
   ColumnFilters<String> get linkedFactId => $composableBuilder(
       column: $table.linkedFactId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get transferDirection => $composableBuilder(
+      column: $table.transferDirection,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get recordedAt => $composableBuilder(
       column: $table.recordedAt, builder: (column) => ColumnFilters(column));
@@ -27194,6 +27251,10 @@ class $$AiFinanceLedgerTableOrderingComposer
       column: $table.linkedFactId,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get transferDirection => $composableBuilder(
+      column: $table.transferDirection,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get recordedAt => $composableBuilder(
       column: $table.recordedAt, builder: (column) => ColumnOrderings(column));
 
@@ -27240,6 +27301,9 @@ class $$AiFinanceLedgerTableAnnotationComposer
   GeneratedColumn<String> get linkedFactId => $composableBuilder(
       column: $table.linkedFactId, builder: (column) => column);
 
+  GeneratedColumn<String> get transferDirection => $composableBuilder(
+      column: $table.transferDirection, builder: (column) => column);
+
   GeneratedColumn<int> get recordedAt => $composableBuilder(
       column: $table.recordedAt, builder: (column) => column);
 
@@ -27284,6 +27348,7 @@ class $$AiFinanceLedgerTableTableManager extends RootTableManager<
             Value<String?> aiContributionDesc = const Value.absent(),
             Value<String?> purpose = const Value.absent(),
             Value<String?> linkedFactId = const Value.absent(),
+            Value<String?> transferDirection = const Value.absent(),
             Value<int> recordedAt = const Value.absent(),
             Value<String?> notes = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -27299,6 +27364,7 @@ class $$AiFinanceLedgerTableTableManager extends RootTableManager<
             aiContributionDesc: aiContributionDesc,
             purpose: purpose,
             linkedFactId: linkedFactId,
+            transferDirection: transferDirection,
             recordedAt: recordedAt,
             notes: notes,
             rowid: rowid,
@@ -27314,6 +27380,7 @@ class $$AiFinanceLedgerTableTableManager extends RootTableManager<
             Value<String?> aiContributionDesc = const Value.absent(),
             Value<String?> purpose = const Value.absent(),
             Value<String?> linkedFactId = const Value.absent(),
+            Value<String?> transferDirection = const Value.absent(),
             required int recordedAt,
             Value<String?> notes = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -27329,6 +27396,7 @@ class $$AiFinanceLedgerTableTableManager extends RootTableManager<
             aiContributionDesc: aiContributionDesc,
             purpose: purpose,
             linkedFactId: linkedFactId,
+            transferDirection: transferDirection,
             recordedAt: recordedAt,
             notes: notes,
             rowid: rowid,

@@ -38,6 +38,7 @@ class AiFinanceService {
     String? purpose,
     String? linkedFactId,
     String? notes,
+    String? transferDirection,
     DateTime? occurredAt,
   }) async {
     final result = await recordEntryWithResult(
@@ -51,6 +52,7 @@ class AiFinanceService {
       purpose: purpose,
       linkedFactId: linkedFactId,
       notes: notes,
+      transferDirection: transferDirection,
       occurredAt: occurredAt,
     );
     return result.id;
@@ -67,12 +69,14 @@ class AiFinanceService {
     String? purpose,
     String? linkedFactId,
     String? notes,
+    String? transferDirection,
     DateTime? occurredAt,
   }) async {
     return _recordLock.synchronized(() async {
       final id = _uuid.v4();
       final now = (occurredAt ?? DateTime.now()).millisecondsSinceEpoch ~/ 1000;
       final normalizedEntryType = entryType.trim().toLowerCase();
+      final normalizedDirection = transferDirection?.trim().toLowerCase();
       final duplicate = await _findDuplicateEntry(
         entryType: normalizedEntryType,
         totalAmount: totalAmount,
@@ -83,6 +87,7 @@ class AiFinanceService {
         purpose: purpose,
         linkedFactId: linkedFactId,
         notes: notes,
+        transferDirection: normalizedDirection,
         nowEpoch: now,
       );
       if (duplicate != null) {
@@ -104,6 +109,7 @@ class AiFinanceService {
         aiContributionDesc: Value(_cleanNullableText(aiContributionDesc)),
         purpose: Value(_cleanNullableText(purpose)),
         linkedFactId: Value(_cleanNullableText(linkedFactId)),
+        transferDirection: Value(normalizedDirection),
         recordedAt: now,
         notes: Value(_cleanNullableText(notes)),
       ));
@@ -154,17 +160,29 @@ class AiFinanceService {
           case 'income':
             externalIncome += row.totalAmount;
             myIncomeShare += row.totalAmount - aiShare;
+          case 'expense':
+            externalExpense += row.totalAmount;
+            myExpenseShare += row.totalAmount - aiShare;
+          case 'transfer':
+            if (row.transferDirection == 'user_to_ai') {
+              paidToAi += row.aiAmount;
+            } else if (row.transferDirection == 'ai_to_user') {
+              receivedFromAi += row.aiAmount;
+            }
           case 'cost':
             externalExpense += row.totalAmount;
             myExpenseShare += row.totalAmount - aiShare;
+            paidToAi += row.aiAmount;
+          case 'loan':
+            loanedToAi += row.aiAmount;
+            paidToAi += row.aiAmount;
           case 'reward':
             receivedFromAi += row.aiAmount;
           case 'penalty':
             paidToAi += row.aiAmount;
-          case 'loan':
-            loanedToAi += row.aiAmount;
           case 'repayment':
             repaidByAi += row.aiAmount;
+            receivedFromAi += row.aiAmount;
         }
       }
 
@@ -227,14 +245,19 @@ class AiFinanceService {
     final sums = _sumRowsByType(periodRows);
 
     final income = sums['income'] ?? 0.0;
+    final expense = sums['expense'] ?? 0.0;
     final cost = sums['cost'] ?? 0.0;
     final loan = sums['loan'] ?? 0.0;
     final repayment = sums['repayment'] ?? 0.0;
     final reward = sums['reward'] ?? 0.0;
     final penalty = sums['penalty'] ?? 0.0;
+    final transferToAi = _sumTransferByDirection(periodRows, 'user_to_ai');
+    final transferFromAi = _sumTransferByDirection(periodRows, 'ai_to_user');
 
-    // balance = income + repayment + penalty - cost - loan - reward
-    final balance = income + repayment + penalty - cost - loan - reward;
+    // balance = income + repayment + penalty + transferToAi
+    //         - expense - cost - loan - reward - transferFromAi
+    final balance = income + repayment + penalty + transferToAi
+        - expense - cost - loan - reward - transferFromAi;
 
     // all-time totals for debt calculation
     final allSums = month != null
@@ -243,22 +266,32 @@ class AiFinanceService {
           )
         : sums;
     final allIncome = allSums['income'] ?? 0.0;
+    final allExpense = allSums['expense'] ?? 0.0;
     final allCost = allSums['cost'] ?? 0.0;
     final allLoan = allSums['loan'] ?? 0.0;
     final allRepayment = allSums['repayment'] ?? 0.0;
     final allReward = allSums['reward'] ?? 0.0;
     final allPenalty = allSums['penalty'] ?? 0.0;
-    final allBalance = allIncome + allRepayment + allPenalty - allCost - allLoan - allReward;
+    final allRows = month != null
+        ? _dedupeLedgerRows(await _dao.getSharedEntriesForPeriod())
+        : periodRows;
+    final allTransferToAi = _sumTransferByDirection(allRows, 'user_to_ai');
+    final allTransferFromAi = _sumTransferByDirection(allRows, 'ai_to_user');
+    final allBalance = allIncome + allRepayment + allPenalty + allTransferToAi
+        - allExpense - allCost - allLoan - allReward - allTransferFromAi;
 
     return {
       'ledger_scope': 'shared_ai',
       'period': month ?? 'all_time',
       'income': income,
+      'expense': expense,
       'cost': cost,
       'loan': loan,
       'repayment': repayment,
       'reward': reward,
       'penalty': penalty,
+      'transfer_to_ai': transferToAi,
+      'transfer_from_ai': transferFromAi,
       'period_net': balance,
       'all_time_balance': allBalance,
       // Positive all_time_balance = savings; negative = still owes user
@@ -286,6 +319,7 @@ class AiFinanceService {
               'ai_contribution': r.aiContributionDesc,
               'purpose': r.purpose,
               'linked_fact_id': r.linkedFactId,
+              'transfer_direction': r.transferDirection,
               'recorded_at': r.recordedAt,
               'notes': r.notes,
             })
@@ -302,6 +336,7 @@ class AiFinanceService {
     required String? purpose,
     required String? linkedFactId,
     required String? notes,
+    required String? transferDirection,
     required int nowEpoch,
   }) async {
     final normalizedFactId = _normalizeText(linkedFactId);
@@ -360,6 +395,11 @@ class AiFinanceService {
 double _sumAiAmount(List<AiFinanceLedgerData> rows, String entryType) => rows
     .where((row) => row.entryType == entryType)
     .fold(0.0, (sum, row) => sum + row.aiAmount);
+
+double _sumTransferByDirection(List<AiFinanceLedgerData> rows, String direction) =>
+    rows
+        .where((row) => row.entryType == 'transfer' && row.transferDirection == direction)
+        .fold(0.0, (sum, row) => sum + row.aiAmount);
 
 bool _sameMoney(double a, double b) => (a - b).abs() < 0.005;
 
@@ -423,6 +463,7 @@ bool _isDuplicateLedgerRow(
   AiFinanceLedgerData candidate,
 ) {
   if (existing.entryType != candidate.entryType) return false;
+  if (existing.transferDirection != candidate.transferDirection) return false;
 
   final existingFactId = _normalizeText(existing.linkedFactId);
   final candidateFactId = _normalizeText(candidate.linkedFactId);

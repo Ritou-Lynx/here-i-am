@@ -434,7 +434,7 @@ void main() {
     expect(ordered.map((message) => message.id), [3, 4]);
   });
 
-  test('split character messages use message id for TTS playback', () {
+  test('split character messages share base playback id for TTS cache reuse', () {
     final message = _chatMessage(
       id: 7,
       content: '*she nods* I am here.\n*she smiles* Still here.',

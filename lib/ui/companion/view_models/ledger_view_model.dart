@@ -11,6 +11,7 @@ class LedgerEntryDraft {
     required this.purpose,
     required this.occurredAt,
     this.notes,
+    this.transferDirection,
   });
 
   final String entryType;
@@ -19,6 +20,7 @@ class LedgerEntryDraft {
   final String purpose;
   final DateTime occurredAt;
   final String? notes;
+  final String? transferDirection;
 }
 
 class LedgerViewModel extends ChangeNotifier {
@@ -49,6 +51,7 @@ class LedgerViewModel extends ChangeNotifier {
         contributionRatio: ratio,
         purpose: draft.purpose,
         notes: draft.notes,
+        transferDirection: draft.transferDirection,
         occurredAt: draft.occurredAt,
       );
       await _refresh();

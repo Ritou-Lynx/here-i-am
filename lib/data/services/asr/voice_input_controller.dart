@@ -38,6 +38,7 @@ class VoiceInputController extends ChangeNotifier {
   AsrClient? _asrClient;
   StreamSubscription<Amplitude>? _amplitudeSub;
   Timer? _endpointPollTimer;
+  Timer? _watchdogTimer;
   DateTime? _recordingStartedAt;
   DateTime? _lastSpeechAt;
   Duration _autoStopInitialSilenceTimeout = _voiceEndpointInitialSilenceTimeout;
@@ -241,6 +242,8 @@ class VoiceInputController extends ChangeNotifier {
   void _startEndpointDetection() {
     _endpointPollTimer?.cancel();
     _endpointPollTimer = null;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
     unawaited(_amplitudeSub?.cancel());
     _amplitudeSub = null;
     _amplitudePollInProgress = false;
@@ -260,6 +263,29 @@ class VoiceInputController extends ChangeNotifier {
       _voiceEndpointPollInterval,
       (_) => unawaited(_pollEndpointAmplitude()),
     );
+    _watchdogTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _watchdogCheck(),
+    );
+  }
+
+  void _watchdogCheck() {
+    if (!_autoStopEnabled ||
+        _state != VoiceInputState.recording ||
+        _autoStopInProgress) {
+      return;
+    }
+    final startedAt = _recordingStartedAt;
+    if (startedAt == null) return;
+    final elapsed = DateTime.now().difference(startedAt);
+    if (elapsed >= _autoStopMaxRecordingDuration) {
+      _logger.warning(
+        'Watchdog: max recording duration exceeded (${elapsed.inSeconds}s), '
+        'forcing auto-stop',
+      );
+      _autoStopInProgress = true;
+      unawaited(_autoStopAndRecognize());
+    }
   }
 
   Future<void> _pollEndpointAmplitude() async {
@@ -271,7 +297,13 @@ class VoiceInputController extends ChangeNotifier {
     }
     _amplitudePollInProgress = true;
     try {
-      _handleAmplitude(await _recorder.getAmplitude());
+      final amplitude = await _recorder
+          .getAmplitude()
+          .timeout(const Duration(seconds: 2), onTimeout: () {
+        _logger.warning('Amplitude poll timeout');
+        return Amplitude(current: -160.0, max: -160.0);
+      });
+      _handleAmplitude(amplitude);
     } catch (e) {
       _logger.warning('Amplitude poll error: $e');
     } finally {
@@ -290,10 +322,17 @@ class VoiceInputController extends ChangeNotifier {
     final startedAt = _recordingStartedAt;
     if (startedAt == null) return;
 
-    if (voiceInputAmplitudeIsSpeech(amplitude.current)) {
+    final isSpeech = voiceInputAmplitudeIsSpeech(amplitude.current);
+    if (isSpeech) {
       _heardSpeech = true;
       _lastSpeechAt = now;
     }
+
+    _logger.fine(
+      'Amplitude: current=${amplitude.current.toStringAsFixed(1)}dB '
+      'max=${amplitude.max.toStringAsFixed(1)}dB '
+      'speech=$isSpeech heardSpeech=$_heardSpeech',
+    );
 
     if (!voiceInputShouldAutoStop(
       now: now,
@@ -339,6 +378,8 @@ class VoiceInputController extends ChangeNotifier {
   Future<void> _stopEndpointDetection() async {
     _endpointPollTimer?.cancel();
     _endpointPollTimer = null;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
     final sub = _amplitudeSub;
     _amplitudeSub = null;
     if (sub != null) {

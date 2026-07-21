@@ -339,6 +339,7 @@ class _VoiceModeOpening {
 class _PersonaChatScreenState extends State<PersonaChatScreen>
     with WidgetsBindingObserver {
   final _textController = TextEditingController();
+  final _composerFocus = FocusNode();
   final _scrollController = ScrollController();
   final _chatService = PersonaChatService.instance;
   final _voiceController = VoiceInputController();
@@ -1432,6 +1433,7 @@ only after you have written the goodbye you want the user to hear.''',
     _scrollController.removeListener(_onScroll);
     _textController.removeListener(_onComposerTextChanged);
     _textController.dispose();
+    _composerFocus.dispose();
     _scrollController.dispose();
     _highlightTimer?.cancel();
     _audioCompleteSub?.cancel();
@@ -2946,25 +2948,12 @@ only after you have written the goodbye you want the user to hear.''',
     if (userId == null) return;
     if (!mounted) return;
 
-    // Build ordered list of selected messages
     final selected = _messages
         .where((m) => _selectedMessageIds.contains(m.id))
         .toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     if (selected.isEmpty) return;
-
-    // Build combined input
-    final buffer = StringBuffer();
-    for (final msg in selected) {
-      if (msg.isFromCharacter) {
-        buffer.writeln('林埃: ${msg.content}');
-      } else {
-        buffer.writeln('用户: ${msg.content}');
-      }
-    }
-    final combinedText = buffer.toString().trim();
-    if (combinedText.isEmpty) return;
 
     final messenger = ScaffoldMessenger.of(context);
     final progress = messenger.showToast(
@@ -2973,10 +2962,202 @@ only after you have written the goodbye you want the user to hear.''',
     );
 
     try {
+      final allMedia = <MediaInputAttachment>[];
+      final buffer = StringBuffer();
+      final fsService = FileSystemService.instance;
+
+      for (final msg in selected) {
+        final cleanedContent = msg.content
+            .replaceFirst(RegExp(r'^\[Image analysis:.*?\](\n\n?)?'), '')
+            .trim();
+        final existingAnalyses = _extractImageAnalyses(msg.content);
+
+        final attachmentsJson = msg.attachmentsJson;
+        if (attachmentsJson != null && attachmentsJson.trim().isNotEmpty) {
+          try {
+            final List<dynamic> attachments = jsonDecode(attachmentsJson);
+            for (var i = 0; i < attachments.length; i++) {
+              final att = attachments[i];
+              if (att is! Map) continue;
+              final attachment = Map<dynamic, dynamic>.from(att);
+              if (!_personaChatAttachmentLooksLikeImage(attachment)) continue;
+              final mimeType = _personaChatImageMimeTypeForAttachment(attachment);
+              final base64 = attachment['base64']?.toString();
+              final recoveryPath = personaChatRecoverableImageAttachmentPath(
+                attachment,
+              );
+              if (!personaChatImageAttachmentCanBeRecorded(attachment)) {
+                allMedia.add(
+                  const MediaInputAttachment(
+                    error: 'image attachment has neither bytes nor sourcePath',
+                  ),
+                );
+                continue;
+              }
+
+              try {
+                final ext = _imageExtForMime(mimeType);
+                File? tempFile;
+                late final String sourcePathForSave;
+                if (base64 != null && base64.isNotEmpty) {
+                  try {
+                    final bytes = base64Decode(base64);
+                    final tempDir = Directory.systemTemp;
+                    tempFile = File(
+                      '${tempDir.path}${Platform.pathSeparator}record_${msg.id}_$i.$ext',
+                    );
+                    await tempFile.writeAsBytes(bytes);
+                    sourcePathForSave = tempFile.path;
+                  } catch (e) {
+                    if (recoveryPath == null) rethrow;
+                    sourcePathForSave = recoveryPath;
+                  }
+                } else {
+                  sourcePathForSave = recoveryPath!;
+                }
+                final sourceFile = File(sourcePathForSave);
+                if (!await sourceFile.exists()) {
+                  throw FileSystemException(
+                    'Image source not found for record attachment',
+                    sourcePathForSave,
+                  );
+                }
+
+                final now = DateTime.now();
+                final factId =
+                    '${now.year}/${now.month.toString().padLeft(2, '0')}/${now.day.toString().padLeft(2, '0')}.md'
+                    '#ts_${now.microsecondsSinceEpoch}';
+                late final String relativePath;
+                try {
+                  final (_, savedRelativePath) =
+                      await fsService.saveAssetFromFile(
+                    userId: userId,
+                    sourcePath: sourcePathForSave,
+                    assetType: 'img',
+                    index: allMedia.length + 1,
+                    format: ext,
+                    factId: factId,
+                  );
+                  relativePath = savedRelativePath;
+                } finally {
+                  if (tempFile != null) {
+                    try {
+                      await tempFile.delete();
+                    } catch (_) {}
+                  }
+                }
+
+                String? analysisText;
+                if (i < existingAnalyses.length) {
+                  analysisText = existingAnalyses[i];
+                }
+                if (analysisText == null || analysisText.trim().isEmpty) {
+                  final storedAnalysis = attachment['analysis']?.toString();
+                  if (storedAnalysis != null &&
+                      storedAnalysis.trim().isNotEmpty) {
+                    analysisText = storedAnalysis.trim();
+                  }
+                }
+                if (analysisText == null || analysisText.trim().isEmpty) {
+                  try {
+                    final analysisResources =
+                        await UserStorage.getAgentLLMResources(
+                      AgentDefinitions.analyzeAssets,
+                      defaultClientKey: LLMConfig.defaultClientKey,
+                    );
+                    final analysisTool = AssetAnalysisTool(
+                      client: analysisResources.client,
+                      modelConfig: analysisResources.modelConfig,
+                    );
+                    final absPath = fsService.toAbsolutePath(relativePath);
+                    final result = await analysisTool.tool(
+                      assetPath: absPath,
+                      prompt: '用1-2句中文简要描述这张图片的内容。'
+                          '关注画面中可见的人、物体、文字、场景。'
+                          '简洁客观。',
+                    );
+                    analysisText = result
+                        .replaceFirst(
+                          RegExp(r'^#Asset .+ analysis result\n:'),
+                          '',
+                        )
+                        .trim();
+                  } catch (e) {
+                    debugPrint(
+                      '[BatchRecord] msg#${msg.id} image#$i inline analysis FAILED: $e',
+                    );
+                  }
+                }
+
+                allMedia.add(
+                  MediaInputAttachment(
+                    savedRelativePath: relativePath,
+                    analysisText: analysisText,
+                    kind: 'image',
+                  ),
+                );
+              } catch (e) {
+                debugPrint(
+                  '[BatchRecord] msg#${msg.id} image#$i PROCESSING FAILED: $e',
+                );
+                allMedia.add(MediaInputAttachment(error: e.toString()));
+              }
+            }
+          } catch (e) {
+            debugPrint(
+              '[BatchRecord] msg#${msg.id} parse attachmentsJson FAILED: $e',
+            );
+          }
+        }
+
+        final label = msg.isFromCharacter ? '林埃' : '用户';
+        if (cleanedContent.isNotEmpty) {
+          buffer.writeln('$label: $cleanedContent');
+        } else {
+          final usableMediaForMsg = allMedia
+              .where((m) => m.isUsable)
+              .toList();
+          if (usableMediaForMsg.isNotEmpty) {
+            final lastAnalysis = usableMediaForMsg.last.analysisText;
+            if (lastAnalysis != null && lastAnalysis.isNotEmpty) {
+              buffer.writeln('$label: [图片] $lastAnalysis');
+            } else {
+              buffer.writeln('$label: [图片]');
+            }
+          }
+        }
+      }
+
+      final combinedText = buffer.toString().trim();
+      if (combinedText.isEmpty && allMedia.isEmpty) {
+        progress.close();
+        _exitSelectMode();
+        return;
+      }
+
+      try {
+        progress.close();
+      } catch (_) {}
+      final recordProgress = messenger.showToast(
+        _chatUiText(zh: '正在记录…', en: 'Recording…'),
+        duration: const Duration(seconds: 30),
+      );
+
       final resources = await UserStorage.getAgentLLMResources(
         AgentDefinitions.recordOrganizerAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
+      final inputMedia = allMedia.isNotEmpty
+          ? allMedia
+              .map(
+                (m) => {
+                  'kind': m.kind,
+                  if (m.savedRelativePath != null) 'path': m.savedRelativePath!,
+                  if (m.analysisText != null) 'analysis': m.analysisText!,
+                },
+              )
+              .toList()
+          : null;
 
       final result = await RecordOrganizerServiceV3.instance.organizeAndPersist(
         client: resources.client,
@@ -2985,9 +3166,10 @@ only after you have written the goodbye you want the user to hear.''',
           sourceKind: 'record_button',
           rawInput: combinedText,
         ),
+        inputMedia: inputMedia,
       );
 
-      progress.close();
+      recordProgress.close();
       if (!mounted) return;
       if (result.isEmpty) {
         messenger.showToast(
@@ -3268,7 +3450,14 @@ only after you have written the goodbye you want the user to hear.''',
               ? '${toRetract.length} messages recalled'
               : 'Message recalled',
         )),
-        duration: const Duration(seconds: 1),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: _chatUiText(zh: '重新编辑', en: 'Edit'),
+          onPressed: () {
+            _textController.text = message.content;
+            _composerFocus.requestFocus();
+          },
+        ),
       ),
     );
   }
@@ -4441,6 +4630,7 @@ only after you have written the goodbye you want the user to hear.''',
     String? messageId,
     String? attachmentsJson,
     double characterBottomSpacing = 22,
+    String? fullMessageText,
   }) {
     if (isCharacter) {
       return _buildCharacterBubble(
@@ -4449,6 +4639,7 @@ only after you have written the goodbye you want the user to hear.''',
         messageId: messageId,
         attachmentsJson: attachmentsJson,
         bottomSpacing: characterBottomSpacing,
+        fullMessageText: fullMessageText,
       );
     }
 
@@ -4464,6 +4655,9 @@ only after you have written the goodbye you want the user to hear.''',
               )
             : <Widget>[];
 
+    final userBubbleKey = GlobalKey();
+    final hasActions = userMessage != null && !_isSelecting;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
       child: Row(
@@ -4475,18 +4669,17 @@ only after you have written the goodbye you want the user to hear.''',
             child: Align(
               alignment: Alignment.topRight,
               child: GestureDetector(
-                // translucent: participate in the gesture arena even when
-                // children like SelectionArea or inner GestureDetectors
-                // also try to claim the event.  _recordingMessageIds guard
-                // prevents double-processing if both inner and outer fire.
+                key: userBubbleKey,
                 behavior: HitTestBehavior.translucent,
-                onLongPress: userMessage != null && !_isSelecting
+                onLongPress: hasActions
                     ? () {
                         HapticFeedback.mediumImpact();
-                        setState(() {
-                          _isSelecting = true;
-                          _selectedMessageIds.add(userMessage.id);
-                        });
+                        _showUserBubbleActionPopup(
+                          messageId: messageId ?? '',
+                          text: text,
+                          bubbleKey: userBubbleKey,
+                          userMessage: userMessage,
+                        );
                       }
                     : null,
                 onDoubleTap: userMessage != null && !_isSelecting
@@ -4512,38 +4705,6 @@ only after you have written the goodbye you want the user to hear.''',
                         if (text.isNotEmpty) const SizedBox(height: 8),
                         ...attachmentWidgets,
                       ],
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              Clipboard.setData(ClipboardData(text: text));
-                            },
-                            child: Icon(
-                              Icons.copy_rounded,
-                              size: 12,
-                              color: _personaTextMuted,
-                            ),
-                          ),
-                          if (userMessage != null) ...[
-                            const SizedBox(width: 8),
-                            Semantics(
-                              button: true,
-                              label: 'Recall message',
-                              child: GestureDetector(
-                                onTap: () =>
-                                    _confirmRetractUserMessage(userMessage),
-                                child: Icon(
-                                  Icons.undo_rounded,
-                                  size: 12,
-                                  color: _personaTextMuted,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
                     ],
                   ),
                 ),
@@ -4609,6 +4770,7 @@ only after you have written the goodbye you want the user to hear.''',
         isStreaming: isStreaming,
         messageId: messageId,
         attachmentsJson: attachmentsJson,
+        fullMessageText: text,
       );
     }
 
@@ -4640,6 +4802,7 @@ only after you have written the goodbye you want the user to hear.''',
             messageId: nextChatMessageId(),
             attachmentsJson: isLastBubbleInBlock ? blockAttachmentsJson : null,
             characterBottomSpacing: isLastVisibleBubble ? 22 : 8,
+            fullMessageText: text,
           ),
         );
       }
@@ -4667,6 +4830,7 @@ only after you have written the goodbye you want the user to hear.''',
         isStreaming: isStreaming,
         messageId: messageId,
         attachmentsJson: attachmentsJson,
+        fullMessageText: text,
       );
     }
 
@@ -4760,6 +4924,101 @@ only after you have written the goodbye you want the user to hear.''',
     }
   }
 
+  void _showUserBubbleActionPopup({
+    required String messageId,
+    required String text,
+    required GlobalKey bubbleKey,
+    required PersonaChatMessage userMessage,
+  }) {
+    _dismissBubblePopup();
+    final key = bubbleKey;
+    final renderBox =
+        key.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final bubbleSize = renderBox.size;
+    final bubblePosition = renderBox.localToGlobal(Offset.zero);
+    final token = HereIamThemeRuntime.current;
+
+    _popupMessageId = messageId;
+    _bubblePopupOverlay = OverlayEntry(
+      builder: (_) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _dismissBubblePopup,
+            ),
+          ),
+          Positioned(
+            left: bubblePosition.dx,
+            top: bubblePosition.dy + bubbleSize.height + 6,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                decoration: BoxDecoration(
+                  color: token.surfaceSoft.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: token.accent.withValues(alpha: 0.15),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _BubblePopupAction(
+                      icon: Icons.copy_rounded,
+                      label: '复制',
+                      onTap: () {
+                        _dismissBubblePopup();
+                        Clipboard.setData(ClipboardData(text: text));
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('已复制'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    _BubblePopupAction(
+                      icon: Icons.undo_rounded,
+                      label: '撤回',
+                      onTap: () {
+                        _dismissBubblePopup();
+                        _confirmRetractUserMessage(userMessage);
+                      },
+                    ),
+                    _BubblePopupAction(
+                      icon: Icons.checklist_rounded,
+                      label: '多选',
+                      onTap: () {
+                        _dismissBubblePopup();
+                        setState(() {
+                          _isSelecting = true;
+                          _selectedMessageIds.add(userMessage.id);
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    Overlay.of(context).insert(_bubblePopupOverlay!);
+  }
+
   void _showBubbleActionPopup({
     required String messageId,
     required String text,
@@ -4773,7 +5032,8 @@ only after you have written the goodbye you want the user to hear.''',
     final bubbleSize = renderBox.size;
     final bubblePosition = renderBox.localToGlobal(Offset.zero);
     final token = HereIamThemeRuntime.current;
-    final isPlaying = _playingMessageId == messageId;
+    final ttsMessageId = messageId.split(':').first;
+    final isPlaying = _playingMessageId == ttsMessageId;
 
     _popupMessageId = messageId;
     _bubblePopupOverlay = OverlayEntry(
@@ -4817,7 +5077,7 @@ only after you have written the goodbye you want the user to hear.''',
                       accent: token.accent,
                       onTap: () {
                         _dismissBubblePopup();
-                        _handleTtsPlay(messageId, text);
+                        _handleTtsPlay(ttsMessageId, text);
                       },
                     ),
                     _BubblePopupAction(
@@ -4867,6 +5127,7 @@ only after you have written the goodbye you want the user to hear.''',
     String? messageId,
     String? attachmentsJson,
     double bottomSpacing = 22,
+    String? fullMessageText,
   }) {
     final hasActions = !isStreaming && messageId != null && !_isSelecting;
     final hasAddenda =
@@ -4888,7 +5149,7 @@ only after you have written the goodbye you want the user to hear.''',
                         HapticFeedback.mediumImpact();
                         _showBubbleActionPopup(
                           messageId: messageId,
-                          text: text,
+                          text: fullMessageText ?? text,
                           bubbleKey: bubbleKey,
                         );
                       }
@@ -4983,6 +5244,7 @@ only after you have written the goodbye you want the user to hear.''',
   Widget _buildInputBar() {
     return PersonaChatInputBar(
       controller: _textController,
+      focusNode: _composerFocus,
       isStreaming: _isStreaming,
       onSend: _sendMessage,
       hintText: _isComposeMode
@@ -5091,17 +5353,7 @@ List<PersonaChatMessage> personaChatGeneratedReadableMessagesInOrder({
 
 @visibleForTesting
 String personaChatTtsPlaybackIdForMessage(PersonaChatMessage message) {
-  final segments = PersonaReplySanitizer.splitVisibleReply(
-    message.content,
-    stripTtsTags: true,
-  );
-  final hasSplitSpeech = segments.length > 1 &&
-      segments.any((segment) => segment.type == PersonaReplySegmentType.chat);
-  final hasSplitBubbles =
-      _personaChatVisibleChatBubbleCountForSegments(segments) > 1;
-  return hasSplitSpeech || hasSplitBubbles
-      ? '${message.id}:0'
-      : message.id.toString();
+  return message.id.toString();
 }
 
 @visibleForTesting
@@ -6287,6 +6539,7 @@ class PersonaChatInputBar extends StatelessWidget {
     required this.isStreaming,
     required this.onSend,
     required this.hintText,
+    this.focusNode,
     this.voiceController,
     this.onVoiceTap,
     this.isVoiceInputEnabled = true,
@@ -6308,6 +6561,7 @@ class PersonaChatInputBar extends StatelessWidget {
   });
 
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final bool isStreaming;
   final VoidCallback onSend;
   final String hintText;
@@ -6509,6 +6763,7 @@ class PersonaChatInputBar extends StatelessWidget {
                           Expanded(
                             child: TextField(
                               controller: controller,
+                              focusNode: focusNode,
                               minLines: 1,
                               maxLines: 5,
                               decoration: InputDecoration(

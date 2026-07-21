@@ -558,6 +558,10 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnIfMissing(
               'dev_agent_runs ADD COLUMN model TEXT',
             );
+            // AiFinance transfer support: direction on transfer rows.
+            await _addColumnIfMissing(
+              "ai_finance_ledger ADD COLUMN transfer_direction TEXT",
+            );
           }
           if (from < 39) {
             await _addColumnIfMissing(
