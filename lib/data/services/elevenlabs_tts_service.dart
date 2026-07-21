@@ -82,10 +82,16 @@ class ElevenLabsTtsService {
     // Eleven v3 understands pause audio tags rather than SSML <break>. A small
     // lead-in and sentence pause prevents Chinese onsets from being swallowed
     // at generation/playback boundaries.
-    final withSentencePauses = normalized.replaceAllMapped(
+    var withSentencePauses = normalized.replaceAllMapped(
       RegExp(r'([。！？!?；;])\s*'),
       (match) => '${match.group(1)} [short pause] ',
     );
+
+    // Strip a trailing [short pause] so ElevenLabs does not synthesize an
+    // extra trailing breath/gasp after the final sentence. The audio ends
+    // naturally at the last punctuation mark.
+    withSentencePauses =
+        withSentencePauses.replaceAll(RegExp(r'\s*\[short pause\]\s*$'), '');
 
     // If the text already opens with a TTS audio tag (e.g. [softly]),
     // prepending [short pause] would stack two tags and dilute the opening
