@@ -434,14 +434,14 @@ void main() {
     expect(ordered.map((message) => message.id), [3, 4]);
   });
 
-  test('split character messages use first segment playback id', () {
+  test('split character messages share base playback id for TTS cache reuse', () {
     final message = _chatMessage(
       id: 7,
       content: '*she nods* I am here.\n*she smiles* Still here.',
       timestamp: DateTime(2026, 6, 17, 9),
     );
 
-    expect(personaChatTtsPlaybackIdForMessage(message), '7:0');
+    expect(personaChatTtsPlaybackIdForMessage(message), '7');
   });
 
   test('voice endpoint treats quiet input as silence', () {
