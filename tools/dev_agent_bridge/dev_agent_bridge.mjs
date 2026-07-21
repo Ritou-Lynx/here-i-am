@@ -719,31 +719,53 @@ function commandSpec(name, args, displayName) {
     return { command: name, args, displayName };
   }
 
+  // On Windows, `spawn()` without `shell: true` throws EINVAL for `.cmd` /
+  // `.bat` shims (npm-global tools). Using `shell: true` would let cmd.exe
+  // metacharacters in the prompt (| & ^ % etc.) mangle the message, so we
+  // instead wrap .cmd/.bat launchers in `cmd.exe /c` and pass the shim and
+  // args explicitly. node + .js entrypoints spawn fine without a shell.
+  const wrapForWindows = (command, args) => {
+    const lower = String(command).toLowerCase();
+    if (lower.endsWith('.cmd') || lower.endsWith('.bat')) {
+      return { command: 'cmd.exe', args: ['/d', '/s', '/c', command, ...args] };
+    }
+    return { command, args };
+  };
+
   const npmRoot = process.env.APPDATA
     ? `${process.env.APPDATA}\\npm\\node_modules`
     : null;
   if (name === 'claude' && npmRoot) {
     const claudeExe = `${npmRoot}\\@anthropic-ai\\claude-code\\bin\\claude.exe`;
-    if (existsSync(claudeExe)) return { command: claudeExe, args, displayName };
+    if (existsSync(claudeExe)) {
+      return wrapForWindows(claudeExe, args);
+    }
   }
   if (name === 'codex' && npmRoot) {
     const codexJs = `${npmRoot}\\@openai\\codex\\bin\\codex.js`;
     if (existsSync(codexJs)) {
-      return { command: 'node', args: [codexJs, ...args], displayName };
+      return wrapForWindows('node', [codexJs, ...args]);
     }
   }
   if (name === 'opencode' && npmRoot) {
-    // `npm i -g opencode-ai` drops the launcher under
-    // %APPDATA%\npm. The .cmd shim is what PATH-resolved spawn would
-    // find, but a non-interactive node spawned by Start-Process doesn't
-    // have HKCU PATH and would ENOENT here. Resolve to the .cmd shim
-    // directly so spawn works regardless of process PATH.
+    // `npm i -g opencode-ai` ships a native `opencode.exe` launcher under
+    // %APPDATA%\npm\node_modules\opencode-ai\bin. A .exe entrypoint can be
+    // spawned directly on Windows without the cmd.exe / shell: true dance
+    // that .cmd shims require — and direct spawn avoids cmd.exe
+    // metacharacter interpretation of the prompt. Prefer .exe; fall back to
+    // the .cmd shim only if the .exe is missing (older opencode-ai versions).
+    const ocExe = `${npmRoot}\\opencode-ai\\bin\\opencode.exe`;
+    if (existsSync(ocExe)) {
+      return wrapForWindows(ocExe, args);
+    }
     const ocCmd = `${process.env.APPDATA}\\npm\\opencode.cmd`;
-    if (existsSync(ocCmd)) return { command: ocCmd, args, displayName };
+    if (existsSync(ocCmd)) return wrapForWindows(ocCmd, args);
     const ocBin = `${npmRoot}\\opencode-ai\\bin\\opencode`;
-    if (existsSync(ocBin)) return { command: ocBin, args, displayName };
+    if (existsSync(ocBin)) {
+      return wrapForWindows(ocBin, args);
+    }
   }
-  return { command: name, args, displayName };
+  return wrapForWindows(name, args);
 }
 
 function startProcess(run, agentType, project, prompt, mode, modelOverride) {
