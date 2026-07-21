@@ -434,14 +434,16 @@ void main() {
     expect(ordered.map((message) => message.id), [3, 4]);
   });
 
-  test('split character messages use first segment playback id', () {
+  test('split character messages use message id for TTS playback', () {
     final message = _chatMessage(
       id: 7,
       content: '*she nods* I am here.\n*she smiles* Still here.',
       timestamp: DateTime(2026, 6, 17, 9),
     );
 
-    expect(personaChatTtsPlaybackIdForMessage(message), '7:0');
+    // TTS plays the entire content as one clip; bubble split is UI-only, so
+    // every bubble in a split message shares the message id as playback key.
+    expect(personaChatTtsPlaybackIdForMessage(message), '7');
   });
 
   test('voice endpoint treats quiet input as silence', () {
