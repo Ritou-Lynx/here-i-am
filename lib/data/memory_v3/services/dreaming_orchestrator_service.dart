@@ -12,6 +12,7 @@ import 'package:memex/data/memory_v3/agents/dreaming_agent/episode_consolidator.
 import 'package:memex/data/memory_v3/agents/dreaming_agent/fragment_extractor.dart';
 import 'package:memex/data/memory_v3/models/dreaming_fragment.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/data/memory_v3/services/embedding_service.dart';
 import 'package:memex/data/services/search/query_matcher.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:uuid/uuid.dart';
@@ -21,6 +22,7 @@ final _logger = getLogger('memory_v3.DreamingOrchestratorService');
 class DreamingFragmentPersistResult {
   DreamingFragmentPersistResult({
     required this.fragmentIds,
+    this.fragmentContents = const {},
     required this.entityIds,
     required this.processedMessageCount,
     required this.lastProcessedMessageId,
@@ -28,6 +30,7 @@ class DreamingFragmentPersistResult {
   });
 
   final List<String> fragmentIds;
+  final Map<String, String> fragmentContents;
   final List<String> entityIds;
   final int processedMessageCount;
   final int lastProcessedMessageId;
@@ -256,12 +259,13 @@ class DreamingOrchestratorServiceV3 {
       );
     }
 
-    return _db.transaction(() async {
+    final result = await _db.transaction(() async {
       final now = DateTime.now().millisecondsSinceEpoch;
       final existingKeys = await _existingFragmentKeys();
       final coveredSourceIds = await _coveredSourceMessageIds();
       final seenThisBatch = <String>{};
       final fragmentIds = <String>[];
+      final fragmentContents = <String, String>{}; // id → content
       final entityIds = <String>[];
 
       for (final draft in extraction.fragments) {
@@ -302,6 +306,7 @@ class DreamingOrchestratorServiceV3 {
 
         final fragmentId = _uuid.v4();
         fragmentIds.add(fragmentId);
+        fragmentContents[fragmentId] = draft.content;
 
         final eventTime = _computeEventTime(sourceMessages);
         await _db.into(_db.memoryFragments).insert(
@@ -353,11 +358,41 @@ class DreamingOrchestratorServiceV3 {
 
       return DreamingFragmentPersistResult(
         fragmentIds: fragmentIds,
+        fragmentContents: fragmentContents,
         entityIds: entityIds.toSet().toList(),
         processedMessageCount: processedMessageCount,
         lastProcessedMessageId: lastProcessedMessageId,
         isEmpty: fragmentIds.isEmpty,
       );
+    });
+
+    // Fire-and-forget: generate embeddings for new fragments.
+    if (result.fragmentIds.isNotEmpty) {
+      _generateFragmentEmbeddings(result.fragmentContents);
+    }
+    return result;
+  }
+
+  /// Async embedding generation — runs outside the DB transaction.
+  void _generateFragmentEmbeddings(Map<String, String> fragmentContents) {
+    EmbeddingService.instance.init().then((_) async {
+      if (!EmbeddingService.instance.isAvailable) return;
+      final ids = fragmentContents.keys.toList();
+      final texts = fragmentContents.values.toList();
+      final vectors = await EmbeddingService.instance.embedBatch(texts);
+      for (var i = 0; i < vectors.length && i < ids.length; i++) {
+        await EmbeddingService.instance.storeEmbedding(
+          targetTable: 'memory_fragments',
+          targetId: ids[i],
+          vector: vectors[i],
+          contentHash: texts[i].hashCode.toRadixString(16),
+        );
+      }
+      _logger.info(
+        'Generated ${vectors.length} embedding(s) for new fragments',
+      );
+    }).catchError((e, s) {
+      _logger.warning('Fragment embedding generation failed', e, s);
     });
   }
 
@@ -1235,7 +1270,7 @@ class DreamingOrchestratorServiceV3 {
   Future<DreamingContextQueryResult> queryRecentDreamingContext({
     String queryHint = '',
     int episodeLimit = 8,
-    int recentFragmentLimit = 6,
+    int recentFragmentLimit = 12,
   }) async {
     final trimmedHint = queryHint.trim();
 
@@ -1356,89 +1391,129 @@ class DreamingOrchestratorServiceV3 {
     required String queryHint,
     required int limit,
   }) async {
-    final ftsHits = <DreamingFragmentContextHit>[];
+    final allHits = <DreamingFragmentContextHit>[];
     final seenIds = <String>{};
 
     if (queryHint.isNotEmpty) {
+      // ── Primary: embedding semantic search ──────────────────────────
       try {
-        final rows = await _db.searchDao.searchMemoryFragments(
-          queryHint,
-          limit: limit * 4,
-        );
-        if (rows.isNotEmpty) {
-          final ranks = <String, double>{
-            for (final row in rows)
-              row['fragment_id'] as String: (row['rank'] as num).toDouble(),
-          };
-          final activeRows = await (_db.select(_db.memoryFragments)
-                ..where((t) =>
-                    t.id.isIn(ranks.keys.toList(growable: false)) &
-                    t.status.isIn(const ['active', 'consolidated'])))
-              .get();
-          activeRows.sort(
-              (a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
-          for (final fr in activeRows) {
-            if (ftsHits.length >= limit) break;
-            if (seenIds.add(fr.id)) {
-              ftsHits.add(DreamingFragmentContextHit(
-                fragment: fr,
-                score: _bm25ToScore(ranks[fr.id]),
-              ));
+        await EmbeddingService.instance.init();
+        if (EmbeddingService.instance.isAvailable) {
+          final similar = await EmbeddingService.instance.searchSimilar(
+            query: queryHint,
+            targetTable: 'memory_fragments',
+            limit: limit * 3,
+            minScore: 0.3,
+          );
+          if (similar.isNotEmpty) {
+            final idToScore = {
+              for (final s in similar) s.targetId: s.score,
+            };
+            final embRows = await (_db.select(_db.memoryFragments)
+                  ..where((t) =>
+                      t.id.isIn(idToScore.keys.toList(growable: false)) &
+                      t.status.isIn(const ['active', 'consolidated'])))
+                .get();
+            embRows.sort((a, b) =>
+                (idToScore[b.id] ?? 0).compareTo(idToScore[a.id] ?? 0));
+            for (final fr in embRows) {
+              if (allHits.length >= limit) break;
+              if (seenIds.add(fr.id)) {
+                allHits.add(DreamingFragmentContextHit(
+                  fragment: fr,
+                  // Cosine sim 0..1 → score 0..100
+                  score: ((idToScore[fr.id] ?? 0) * 100).round(),
+                ));
+              }
             }
+            _logger.info(
+              'Embedding recall: ${embRows.length} hits for "$queryHint"',
+            );
           }
         }
       } catch (e, s) {
-        _logger.warning(
-            'Fragment FTS search failed; falling back to recency', e, s);
+        _logger.warning('Fragment embedding search failed', e, s);
       }
-    }
 
-    if (ftsHits.isEmpty && queryHint.isNotEmpty) {
-      try {
-        final keywords = await QueryMatcher.contentKeywords(queryHint);
-        if (keywords.isNotEmpty) {
-          final pool = await (_db.select(_db.memoryFragments)
-                ..where((t) => t.status.isIn(const ['active', 'consolidated']))
-                ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
-                ..limit(limit * 6))
-              .get();
-          for (final fr in pool) {
-            if (ftsHits.length >= limit) break;
-            final content = fr.content.toLowerCase();
-            final hits =
-                keywords.where((kw) => content.contains(kw)).length;
-            if (hits > 0 && seenIds.add(fr.id)) {
-              ftsHits.add(DreamingFragmentContextHit(
-                fragment: fr,
-                score: hits * 5,
-              ));
+      // ── Supplementary: FTS keyword search (fills gaps) ─────────────
+      if (allHits.length < limit) {
+        try {
+          final rows = await _db.searchDao.searchMemoryFragments(
+            queryHint,
+            limit: limit * 4,
+          );
+          if (rows.isNotEmpty) {
+            final ranks = <String, double>{
+              for (final row in rows)
+                row['fragment_id'] as String: (row['rank'] as num).toDouble(),
+            };
+            final activeRows = await (_db.select(_db.memoryFragments)
+                  ..where((t) =>
+                      t.id.isIn(ranks.keys.toList(growable: false)) &
+                      t.status.isIn(const ['active', 'consolidated'])))
+                .get();
+            activeRows.sort(
+                (a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
+            for (final fr in activeRows) {
+              if (allHits.length >= limit) break;
+              if (seenIds.add(fr.id)) {
+                allHits.add(DreamingFragmentContextHit(
+                  fragment: fr,
+                  score: _bm25ToScore(ranks[fr.id]),
+                ));
+              }
             }
           }
+        } catch (e, s) {
+          _logger.warning('Fragment FTS search failed', e, s);
         }
-      } catch (e, s) {
-        _logger.warning('Fragment substring fallback failed', e, s);
+      }
+
+      // ── Safety net: keyword substring scan ─────────────────────────
+      if (allHits.length < limit) {
+        try {
+          final keywords = await QueryMatcher.contentKeywords(queryHint);
+          if (keywords.isNotEmpty) {
+            final pool = await (_db.select(_db.memoryFragments)
+                  ..where((t) => t.status.isIn(const ['active', 'consolidated']))
+                  ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+                  ..limit(limit * 6))
+                .get();
+            for (final fr in pool) {
+              if (allHits.length >= limit) break;
+              final content = fr.content.toLowerCase();
+              final hits =
+                  keywords.where((kw) => content.contains(kw)).length;
+              if (hits > 0 && seenIds.add(fr.id)) {
+                allHits.add(DreamingFragmentContextHit(
+                  fragment: fr,
+                  score: hits * 5,
+                ));
+              }
+            }
+          }
+        } catch (e, s) {
+          _logger.warning('Fragment substring fallback failed', e, s);
+        }
       }
     }
 
-    if (ftsHits.length >= limit) {
-      return List.unmodifiable(ftsHits);
+    // ── Recency fill ───────────────────────────────────────────────────
+    if (allHits.length < limit) {
+      final fillQuery = _db.select(_db.memoryFragments)
+        ..where((t) => t.status.isIn(const ['active', 'consolidated']))
+        ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+        ..limit(limit + seenIds.length);
+      if (seenIds.isNotEmpty) {
+        fillQuery.where((t) => t.id.isNotIn(seenIds.toList(growable: false)));
+      }
+      final fillRows = await fillQuery.get();
+      for (final fr in fillRows) {
+        if (allHits.length >= limit) break;
+        allHits.add(DreamingFragmentContextHit(fragment: fr, score: 0));
+      }
     }
-
-    final fillQuery = _db.select(_db.memoryFragments)
-      ..where((t) => t.status.isIn(const ['active', 'consolidated']))
-      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
-      ..limit(limit + seenIds.length);
-    if (seenIds.isNotEmpty) {
-      fillQuery.where((t) => t.id.isNotIn(seenIds.toList(growable: false)));
-    }
-    final fillRows = await fillQuery.get();
-
-    final result = List<DreamingFragmentContextHit>.of(ftsHits);
-    for (final fr in fillRows) {
-      if (result.length >= limit) break;
-      result.add(DreamingFragmentContextHit(fragment: fr, score: 0));
-    }
-    return List.unmodifiable(result);
+    return List.unmodifiable(allHits);
   }
 
   /// Convert an FTS5 bm25 rank (negative float, more-negative = better match)

@@ -121,7 +121,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 43;
+  int get schemaVersion => 44;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -558,7 +558,21 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnIfMissing(
               'dev_agent_runs ADD COLUMN model TEXT',
             );
+          }
+          if (from < 44) {
             // AiFinance transfer support: direction on transfer rows.
+            //
+            // This ALTER was originally appended to the v43 migration block in
+            // commit 89b02d84 (2026-07-21), but v43 was already published and
+            // applied to devices by commit 73041e19 (2026-07-20) — which only
+            // added the dev-room model columns. Devices that had already
+            // upgraded to v43 therefore never re-ran `if (from < 43)` and the
+            // transfer_direction column was never created, causing every
+            // card→ledger bridge INSERT to throw "no column named
+            // transfer_direction". Bumping to v44 and moving the ALTER here
+            // forces the column onto all upgraded devices. A defensive
+            // `beforeOpen` check also backfills the column if it is still
+            // missing for any reason (see the beforeOpen hook below).
             await _addColumnIfMissing(
               "ai_finance_ledger ADD COLUMN transfer_direction TEXT",
             );
@@ -589,6 +603,36 @@ class AppDatabase extends _$AppDatabase {
               "SELECT id FROM memory_entities"
               ")",
             );
+          }
+        },
+        beforeOpen: (OpeningDetails details) async {
+          // Defensive backfill: some devices upgraded to v43 via the earlier
+          // commit 73041e19 (which only added dev-room model columns) and
+          // therefore never received the transfer_direction column that was
+          // later appended to the same `if (from < 43)` block by 89b02d84.
+          // The v44 migration should fix new upgrades, but this hook also
+          // repairs already-broken databases on the next open — regardless
+          // of their user_version — so existing installs self-heal without
+          // needing a wipe/reinstall.
+          try {
+            final cols = await customSelect(
+              'PRAGMA table_info(ai_finance_ledger)',
+            ).get();
+            final hasCol = cols.any((row) {
+              final name = row.read<String>('name');
+              return name == 'transfer_direction';
+            });
+            if (!hasCol) {
+              await customStatement(
+                'ALTER TABLE ai_finance_ledger ADD COLUMN transfer_direction TEXT',
+              );
+              _logger.info(
+                  'beforeOpen: backfilled missing ai_finance_ledger.transfer_direction column');
+            }
+          } catch (e) {
+            // Table may not exist on very old schemas; ignore — the v44
+            // migration / createAll handles fresh table creation.
+            _logger.warning('beforeOpen: transfer_direction backfill skipped: $e');
           }
         },
       );
