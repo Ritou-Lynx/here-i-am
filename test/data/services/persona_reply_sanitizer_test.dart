@@ -31,6 +31,58 @@ void main() {
       expect(segments.single.text, source);
     });
 
+    test('peels short stage directions out of chat text', () {
+      const source = '*\u8d70\u8fc7\u53bb*  '
+          '\u77e5\u9053\u53c8\u600e\u4e48\u4e86'
+          '\uff0c\u6211\u4e5f\u53ef\u4ee5\u77e5\u9053\u4e86\u8fd8\u5634\u554a'
+          '\u3002\u6765\uff0c\u6253\u54ea\u3002';
+
+      final segments = PersonaReplySanitizer.splitVisibleReply(source);
+
+      expect(segments, hasLength(2));
+      expect(segments[0].type, PersonaReplySegmentType.action);
+      expect(segments[0].text, '*\u8d70\u8fc7\u53bb*');
+      expect(segments[1].type, PersonaReplySegmentType.chat);
+      expect(
+        segments[1].text,
+        '\u77e5\u9053\u53c8\u600e\u4e48\u4e86'
+        '\uff0c\u6211\u4e5f\u53ef\u4ee5\u77e5\u9053\u4e86\u8fd8\u5634\u554a'
+        '\u3002\u6765\uff0c\u6253\u54ea\u3002',
+      );
+    });
+
+    test('peels trailing short stage direction out of chat text', () {
+      const source = 'ok, give me one second. *\u62ac\u4e86\u62ac\u7709\u6bdb*';
+
+      final segments = PersonaReplySanitizer.splitVisibleReply(source);
+
+      expect(segments, hasLength(2));
+      expect(segments[0].type, PersonaReplySegmentType.chat);
+      expect(segments[0].text, 'ok, give me one second.');
+      expect(segments[1].type, PersonaReplySegmentType.action);
+      expect(segments[1].text, '*\u62ac\u4e86\u62ac\u7709\u6bdb*');
+    });
+
+    test('keeps long natural-language emphasis untouched', () {
+      const source = '*I really mean it, this time.*';
+
+      final segments = PersonaReplySanitizer.splitVisibleReply(source);
+
+      expect(segments, hasLength(1));
+      expect(segments.single.type, PersonaReplySegmentType.chat);
+      expect(segments.single.text, source);
+    });
+
+    test('peels full-line short stage direction ending with 。', () {
+      const source = '*\u60f3\u4e86\u4e00\u4e0b\u3002*';
+
+      final segments = PersonaReplySanitizer.splitVisibleReply(source);
+
+      expect(segments, hasLength(1));
+      expect(segments.single.type, PersonaReplySegmentType.action);
+      expect(segments.single.text, '*\u60f3\u4e86\u4e00\u4e0b\u3002*');
+    });
+
     test('splits action and speech without whitespace between them', () {
       const source = '*she smiles softly*I am here.';
 

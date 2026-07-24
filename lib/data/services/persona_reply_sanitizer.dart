@@ -266,13 +266,24 @@ class PersonaReplySanitizer {
     final fullItalic = _fullItalicLine.firstMatch(line);
     if (fullItalic != null) {
       final action = fullItalic.group(2)!.trim();
-      // Any line entirely wrapped in *...* is an action — no keyword whitelist.
-      // The user and I share a convention: standalone italic lines are stage
-      // direction / inner monologue, not chat text.
+      // Standalone italic lines are usually stage direction / inner
+      // monologue, but a long natural-language line is more likely ordinary
+      // Markdown emphasis (e.g. `*I really mean it.*`) and must stay in the
+      // chat bubble. Fall back to chat (keeping the markers so Markdown still
+      // renders emphasis) when the wrapped text does not look like a stage
+      // direction.
+      if (_looksLikeStageDirection(action)) {
+        return [
+          PersonaReplySegment(
+            type: PersonaReplySegmentType.action,
+            text: _normalizeActionText(_wrapAction(action), characterName),
+          ),
+        ];
+      }
       return [
         PersonaReplySegment(
-          type: PersonaReplySegmentType.action,
-          text: _normalizeActionText(_wrapAction(action), characterName),
+          type: PersonaReplySegmentType.chat,
+          text: line,
         ),
       ];
     }
@@ -281,7 +292,7 @@ class PersonaReplySanitizer {
     if (leadingItalic != null) {
       final action = leadingItalic.group(2)!.trim();
       final chat = leadingItalic.group(3)!.trim();
-      if (_looksLikeAction(action)) {
+      if (_looksLikeStageDirection(action)) {
         return [
           PersonaReplySegment(
             type: PersonaReplySegmentType.action,
@@ -299,7 +310,7 @@ class PersonaReplySanitizer {
     if (trailingItalic != null) {
       final chat = trailingItalic.group(1)!.trim();
       final action = trailingItalic.group(3)!.trim();
-      if (_looksLikeAction(action)) {
+      if (_looksLikeStageDirection(action)) {
         return [
           PersonaReplySegment(
             type: PersonaReplySegmentType.chat,
@@ -344,7 +355,7 @@ class PersonaReplySanitizer {
       chatBuffer.write(line.substring(cursor, match.start));
       final raw = match.group(0)!;
       final candidate = match.group(2)!.trim();
-      if (_looksLikeAction(candidate)) {
+      if (_looksLikeStageDirection(candidate)) {
         flushChat();
         segments.add(PersonaReplySegment(
           type: PersonaReplySegmentType.action,
@@ -537,6 +548,57 @@ class PersonaReplySanitizer {
       '\\u8d70\\u8fd1|\\u6c89\\u9ed8|\\u505c\\u987f|'
       '\\u547c\\u5438|\\u76b1\\u7709)',
     ).hasMatch(normalized);
+  }
+
+  /// Decide whether an italic phrase is a roleplay stage direction
+  /// (action description / inner monologue) and should be peeled out of the
+  /// chat bubble into the dedicated action row.
+  ///
+  /// Combines the existing keyword/subject heuristic with a short-action
+  /// heuristic that catches common action phrases the keyword list misses
+  /// (e.g. `*走过去*`, `*抬了抬眉毛*`, `*leans closer*`) so they don't render
+  /// as plain italic emphasis inside the chat bubble.
+  static bool _looksLikeStageDirection(String text) {
+    final normalized = text.trim();
+    if (normalized.isEmpty) return false;
+    if (_looksLikeAction(normalized)) return true;
+    return _looksLikeShortStageDirection(normalized);
+  }
+
+  /// Lightweight short-stage-direction heuristic.
+  ///
+  /// Hard rules (any failure short-circuits to false):
+  /// * ≤ 24 runes - too long likely means natural-language emphasis, not a
+  ///   beat-length stage direction.
+  /// * No strong sentence-ending punctuation (！？!?…) - `。` is allowed
+  ///   because stage directions commonly end with it (e.g. `想了一下。`).
+  /// * No quotes (straight / curly / Chinese) - quoted spans are speech.
+  ///
+  /// Triggers when either:
+  /// * The text ends with a typical action suffix (了/着/一下/起/过去/过来/
+  ///   回去/上来/下来/起来), optionally followed by `。`/`,`.
+  /// * It contains a stage-direction verb seed the keyword table doesn't
+  ///   cover (走过去, 抬眼, 想了一下, 凑近, turns, leans, etc.).
+  static bool _looksLikeShortStageDirection(String text) {
+    if (text.runes.length > 24) return false;
+    if (RegExp(r'[\uff01\uff1f!?\u2026]').hasMatch(text)) return false;
+    if (RegExp(r'["\u201c\u201d\u300c\u300d]').hasMatch(text)) return false;
+
+    final stageVerbs = RegExp(
+      '(\u8d70|\u8df3|\u9760|\u62ac|\u4f4e|\u4f38|\u63e1|\u62b1|'
+      '\u62cd|\u6478|\u62c9|\u5750|\u7ad9|\u8f6c|\u7ffb|\u62a1|'
+      '\u542c|\u5012|\u53f9|\u4f4f|\u5f00\u53e3|\u60f3|'
+      '\u54bd|\u54bd\u4e86|\u6293|\u6293\u4e86|\u63a8|'
+      '\u8e6f|\u8e0f|\u8e29|\u51d1|\u62ce|\u635f|'
+      'leads?|closes?|opens?|turns?|pushes?|pulls?|gives?|takes?|'
+      r'hands?|picks?|drops?|throws?|slides?|shifts?|exhales?|inhales?)',
+    );
+    if (stageVerbs.hasMatch(text)) return true;
+
+    final actionEnding = RegExp(
+      r'(?:了|着|一下|起|过去|过来|回去|上来|下来|起来)[。，,]?$',
+    );
+    return actionEnding.hasMatch(text);
   }
 
   /// Strip self-referential subjects from action text.
