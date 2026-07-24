@@ -1388,7 +1388,31 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                 ),
                 const SizedBox(height: 16),
               ] else if (_selectedType == LLMConfig.typeOllama) ...[
-                // Ollama doesn't need an API key — skip
+                // Ollama: optional API key (local doesn't need one, cloud may)
+                TextFormField(
+                  controller: _apiKeyController,
+                  decoration: InputDecoration(
+                    labelText: 'API Key (optional)',
+                    helperText:
+                        'Leave empty for local Ollama; fill in for cloud endpoints',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isObscureApiKey
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed: () =>
+                          setState(() => _isObscureApiKey = !_isObscureApiKey),
+                    ),
+                  ),
+                  obscureText: _isObscureApiKey,
+                  onChanged: (_) {
+                    _checkChanges();
+                    setState(() {});
+                  },
+                ),
+                const SizedBox(height: 16),
               ] else ...[
                 TextFormField(
                   controller: _apiKeyController,

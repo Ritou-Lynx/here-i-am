@@ -750,7 +750,8 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
                   _buildBedrockFields(),
                   const SizedBox(height: 20),
                 ] else if (_selectedType == LLMConfig.typeOllama) ...[
-                  // Ollama doesn't need an API key
+                  _buildOptionalApiKeyField(),
+                  const SizedBox(height: 20),
                 ] else ...[
                   _buildApiKeyField(),
                   const SizedBox(height: 20),
@@ -1243,6 +1244,42 @@ class _SetupModelConfigPageState extends State<SetupModelConfigPage>
       controller: _apiKeyController,
       decoration: InputDecoration(
         labelText: UserStorage.l10n.apiKeyLabel,
+        prefixIcon: const Icon(Icons.key),
+        suffixIcon: IconButton(
+          icon: Icon(
+            _isObscureApiKey ? Icons.visibility : Icons.visibility_off,
+            color: Colors.grey[600],
+          ),
+          onPressed: () => setState(() => _isObscureApiKey = !_isObscureApiKey),
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.grey[50],
+      ),
+      obscureText: _isObscureApiKey,
+      onChanged: (_) => setState(() {}),
+    );
+  }
+
+  /// Optional API key field for Ollama (local Ollama doesn't need one,
+  /// but cloud-hosted Ollama endpoints may require it).
+  Widget _buildOptionalApiKeyField() {
+    return TextFormField(
+      controller: _apiKeyController,
+      decoration: InputDecoration(
+        labelText: 'API Key (optional)',
+        helperText: 'Leave empty for local Ollama; fill in for cloud endpoints',
         prefixIcon: const Icon(Icons.key),
         suffixIcon: IconButton(
           icon: Icon(
