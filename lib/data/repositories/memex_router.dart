@@ -113,6 +113,19 @@ class MemexRouter {
         // Record Organizer V3 — new memory_v3 write path. Runs alongside V2
         // until UI切换 (Phase 1.6 of MEMORY_V3_ROADMAP.md) is complete.
         RecordOrganizerServiceV3.init(AppDatabase.instance);
+        // One-time backfill: re-bridge finance memory cards to the shared
+        // ledger for devices that recorded them while the transfer_direction
+        // column was missing (see app_database.dart v44 migration). Idempotent
+        // via a kv_store marker; safe to run on every startup.
+        unawaited(
+          RecordOrganizerServiceV3.instance
+              .backfillMissingLedgerEntries()
+              .catchError((error) {
+            _logger.warning(
+                'MemexRouter: ledger backfill failed (non-fatal): $error');
+            return 0;
+          }),
+        );
         DreamingOrchestratorServiceV3.init(AppDatabase.instance);
         unawaited(
           DreamingSchedulerService.scheduleExistingBacklog(

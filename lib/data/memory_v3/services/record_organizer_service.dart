@@ -670,6 +670,172 @@ class RecordOrganizerServiceV3 {
     }
   }
 
+  /// One-time backfill of ledger entries for finance memory cards that were
+  /// recorded while the card→ledger bridge was broken.
+  ///
+  /// Root cause (2026-07-24): the `transfer_direction` column of
+  /// `ai_finance_ledger` was never created on some devices due to a Drift
+  /// schema-version reuse bug (see `app_database.dart` v44 migration). While
+  /// the column was missing, every `_bridgeToLedger` INSERT threw "no column
+  /// named transfer_direction", so `expense_entry` / `shopping_order` /
+  /// `income_entry` cards recorded in that window never produced a ledger
+  /// row. This method scans the surviving `memory_card_structured_fields`
+  /// rows (deleted cards have their structured-fields row removed, so they
+  /// are naturally excluded), finds finance cards whose `cardId` is NOT
+  /// already referenced by an `ai_finance_ledger.linked_fact_id`, and
+  /// re-runs the bridge for each one.
+  ///
+  /// Idempotency: a `kv_store` marker (`ledger_backfill_v44_done`, bucket
+  /// `migration`) is written after a successful run so this never re-runs
+  /// on the same database. Safe to call on every startup — the marker check
+  /// is the first thing it does.
+  Future<int> backfillMissingLedgerEntries() async {
+    const markerKey = 'ledger_backfill_v44_done';
+    final db = _db;
+    final existing = await (db.select(db.kvStore)
+          ..where((t) => t.key.equals(markerKey)))
+        .getSingleOrNull();
+    if (existing != null) {
+      _logger.info('backfillMissingLedgerEntries: marker present, skipping');
+      return 0;
+    }
+
+    const financeTypes = {
+      'expense_entry',
+      'shopping_order',
+      'income_entry',
+    };
+    final sfRows = await (db.select(db.memoryCardStructuredFields)
+          ..where((t) => t.structuredFieldsType.isIn(financeTypes.toList())))
+        .get();
+    _logger.info(
+        'backfillMissingLedgerEntries: ${sfRows.length} finance structured-field row(s) found');
+
+    if (sfRows.isEmpty) {
+      await _writeBackfillMarker(db, markerKey);
+      return 0;
+    }
+
+    // Collect cardIds that already have a ledger row linked to them.
+    final ledgerRows = await db.select(db.aiFinanceLedger).get();
+    final linkedIds = ledgerRows
+        .map((r) => r.linkedFactId)
+        .whereType<String>()
+        .where((s) => s.trim().isNotEmpty)
+        .toSet();
+
+    var created = 0;
+    var skipped = 0;
+    for (final sf in sfRows) {
+      final cardId = sf.cardId;
+      if (linkedIds.contains(cardId)) {
+        skipped++;
+        continue;
+      }
+      // Fetch the card row to get the title + scope (skip deleted/missing).
+      final card = await (db.select(db.memoryCards)
+            ..where((t) => t.id.equals(cardId)))
+          .getSingleOrNull();
+      if (card == null) {
+        // Structured-field row exists but card row is gone (shouldn't happen
+        // since deleteCard removes both, but be defensive) — skip.
+        skipped++;
+        continue;
+      }
+
+      final fields = _safeParseJson(sf.fieldsJson);
+      if (fields is! Map) {
+        skipped++;
+        continue;
+      }
+      final fieldsMap = Map<String, dynamic>.from(fields);
+
+      final sfType = sf.structuredFieldsType;
+      final amountRaw = fieldsMap['amount_cny'];
+      if (amountRaw == null) {
+        skipped++;
+        continue;
+      }
+      final amount = (amountRaw is num)
+          ? amountRaw.toDouble()
+          : double.tryParse('$amountRaw');
+      if (amount == null || amount <= 0) {
+        skipped++;
+        continue;
+      }
+
+      final isIncome = sfType == 'income_entry';
+      final purpose = card.title;
+
+      DateTime? occurredAt;
+      final timeRaw = fieldsMap['paidAt'] as String? ??
+          fieldsMap['receivedAt'] as String?;
+      if (timeRaw != null) {
+        occurredAt = DateTime.tryParse(timeRaw);
+      }
+      occurredAt ??= DateTime.fromMillisecondsSinceEpoch(card.createdAt);
+
+      double aiAmount = 0;
+      double? contributionRatio;
+      String? myContributionDesc;
+      String? aiContributionDesc;
+      if (isIncome) {
+        final ratioRaw = fieldsMap['ai_share_ratio'];
+        if (ratioRaw != null) {
+          final ratio = (ratioRaw is num)
+              ? ratioRaw.toDouble()
+              : double.tryParse('$ratioRaw');
+          if (ratio != null && ratio > 0 && ratio <= 1) {
+            contributionRatio = ratio;
+            aiAmount = (amount * ratio).clamp(0.0, amount).toDouble();
+            myContributionDesc = fieldsMap['my_contribution'] as String?;
+            aiContributionDesc = fieldsMap['ai_contribution'] as String?;
+          }
+        }
+      }
+
+      final financeService = AiFinanceService(db: db);
+      try {
+        await financeService.recordEntry(
+          characterId: 'system:card_bridge',
+          entryType: isIncome ? 'income' : 'expense',
+          totalAmount: amount,
+          aiAmount: aiAmount,
+          contributionRatio: contributionRatio,
+          myContributionDesc: myContributionDesc,
+          aiContributionDesc: aiContributionDesc,
+          purpose: purpose,
+          linkedFactId: cardId,
+          occurredAt: occurredAt,
+        );
+        created++;
+        _logger.info(
+            'backfillMissingLedgerEntries: created ledger entry for card $cardId '
+            '($sfType, ¥$amount, aiShare ¥$aiAmount, "$purpose")');
+      } catch (e) {
+        _logger.warning(
+            'backfillMissingLedgerEntries: failed for card $cardId: $e');
+      }
+    }
+
+    await _writeBackfillMarker(db, markerKey);
+    _logger.info(
+        'backfillMissingLedgerEntries: done — created $created, skipped $skipped');
+    return created;
+  }
+
+  Future<void> _writeBackfillMarker(AppDatabase db, String key) async {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    await db.into(db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: key,
+            value: const Value('done'),
+            bucket: const Value('migration'),
+            updatedAt: Value(now),
+          ),
+        );
+  }
+
   /// Soft-delete a memory card. Per V3 § 8 contract, this writes a `delete`
   /// audit row and clears the projection. The I-facing query layer must
   /// filter by row existence (no row = deleted = invisible).
