@@ -25341,6 +25341,1624 @@ class ComicSyncCursorCompanion extends UpdateCompanion<ComicSyncCursorData> {
   }
 }
 
+class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BooksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _characterIdMeta =
+      const VerificationMeta('characterId');
+  @override
+  late final GeneratedColumn<String> characterId = GeneratedColumn<String>(
+      'character_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _authorMeta = const VerificationMeta('author');
+  @override
+  late final GeneratedColumn<String> author = GeneratedColumn<String>(
+      'author', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _coverUrlMeta =
+      const VerificationMeta('coverUrl');
+  @override
+  late final GeneratedColumn<String> coverUrl = GeneratedColumn<String>(
+      'cover_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _formatMeta = const VerificationMeta('format');
+  @override
+  late final GeneratedColumn<String> format = GeneratedColumn<String>(
+      'format', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('txt'));
+  static const VerificationMeta _chapterCountMeta =
+      const VerificationMeta('chapterCount');
+  @override
+  late final GeneratedColumn<int> chapterCount = GeneratedColumn<int>(
+      'chapter_count', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _totalCharsMeta =
+      const VerificationMeta('totalChars');
+  @override
+  late final GeneratedColumn<int> totalChars = GeneratedColumn<int>(
+      'total_chars', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _splitMethodMeta =
+      const VerificationMeta('splitMethod');
+  @override
+  late final GeneratedColumn<String> splitMethod = GeneratedColumn<String>(
+      'split_method', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _splitPatternMeta =
+      const VerificationMeta('splitPattern');
+  @override
+  late final GeneratedColumn<String> splitPattern = GeneratedColumn<String>(
+      'split_pattern', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        characterId,
+        title,
+        author,
+        coverUrl,
+        format,
+        chapterCount,
+        totalChars,
+        splitMethod,
+        splitPattern,
+        status,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'books';
+  @override
+  VerificationContext validateIntegrity(Insertable<Book> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('character_id')) {
+      context.handle(
+          _characterIdMeta,
+          characterId.isAcceptableOrUnknown(
+              data['character_id']!, _characterIdMeta));
+    } else if (isInserting) {
+      context.missing(_characterIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('author')) {
+      context.handle(_authorMeta,
+          author.isAcceptableOrUnknown(data['author']!, _authorMeta));
+    }
+    if (data.containsKey('cover_url')) {
+      context.handle(_coverUrlMeta,
+          coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta));
+    }
+    if (data.containsKey('format')) {
+      context.handle(_formatMeta,
+          format.isAcceptableOrUnknown(data['format']!, _formatMeta));
+    }
+    if (data.containsKey('chapter_count')) {
+      context.handle(
+          _chapterCountMeta,
+          chapterCount.isAcceptableOrUnknown(
+              data['chapter_count']!, _chapterCountMeta));
+    }
+    if (data.containsKey('total_chars')) {
+      context.handle(
+          _totalCharsMeta,
+          totalChars.isAcceptableOrUnknown(
+              data['total_chars']!, _totalCharsMeta));
+    }
+    if (data.containsKey('split_method')) {
+      context.handle(
+          _splitMethodMeta,
+          splitMethod.isAcceptableOrUnknown(
+              data['split_method']!, _splitMethodMeta));
+    }
+    if (data.containsKey('split_pattern')) {
+      context.handle(
+          _splitPatternMeta,
+          splitPattern.isAcceptableOrUnknown(
+              data['split_pattern']!, _splitPatternMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Book map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Book(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      characterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      author: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}author'])!,
+      coverUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}cover_url']),
+      format: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}format'])!,
+      chapterCount: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}chapter_count'])!,
+      totalChars: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}total_chars'])!,
+      splitMethod: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}split_method']),
+      splitPattern: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}split_pattern']),
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $BooksTable createAlias(String alias) {
+    return $BooksTable(attachedDatabase, alias);
+  }
+}
+
+class Book extends DataClass implements Insertable<Book> {
+  final String id;
+  final String characterId;
+  final String title;
+  final String author;
+  final String? coverUrl;
+  final String format;
+  final int chapterCount;
+  final int totalChars;
+  final String? splitMethod;
+  final String? splitPattern;
+  final String status;
+  final int createdAt;
+  final int updatedAt;
+  const Book(
+      {required this.id,
+      required this.characterId,
+      required this.title,
+      required this.author,
+      this.coverUrl,
+      required this.format,
+      required this.chapterCount,
+      required this.totalChars,
+      this.splitMethod,
+      this.splitPattern,
+      required this.status,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['character_id'] = Variable<String>(characterId);
+    map['title'] = Variable<String>(title);
+    map['author'] = Variable<String>(author);
+    if (!nullToAbsent || coverUrl != null) {
+      map['cover_url'] = Variable<String>(coverUrl);
+    }
+    map['format'] = Variable<String>(format);
+    map['chapter_count'] = Variable<int>(chapterCount);
+    map['total_chars'] = Variable<int>(totalChars);
+    if (!nullToAbsent || splitMethod != null) {
+      map['split_method'] = Variable<String>(splitMethod);
+    }
+    if (!nullToAbsent || splitPattern != null) {
+      map['split_pattern'] = Variable<String>(splitPattern);
+    }
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  BooksCompanion toCompanion(bool nullToAbsent) {
+    return BooksCompanion(
+      id: Value(id),
+      characterId: Value(characterId),
+      title: Value(title),
+      author: Value(author),
+      coverUrl: coverUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverUrl),
+      format: Value(format),
+      chapterCount: Value(chapterCount),
+      totalChars: Value(totalChars),
+      splitMethod: splitMethod == null && nullToAbsent
+          ? const Value.absent()
+          : Value(splitMethod),
+      splitPattern: splitPattern == null && nullToAbsent
+          ? const Value.absent()
+          : Value(splitPattern),
+      status: Value(status),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory Book.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Book(
+      id: serializer.fromJson<String>(json['id']),
+      characterId: serializer.fromJson<String>(json['characterId']),
+      title: serializer.fromJson<String>(json['title']),
+      author: serializer.fromJson<String>(json['author']),
+      coverUrl: serializer.fromJson<String?>(json['coverUrl']),
+      format: serializer.fromJson<String>(json['format']),
+      chapterCount: serializer.fromJson<int>(json['chapterCount']),
+      totalChars: serializer.fromJson<int>(json['totalChars']),
+      splitMethod: serializer.fromJson<String?>(json['splitMethod']),
+      splitPattern: serializer.fromJson<String?>(json['splitPattern']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'characterId': serializer.toJson<String>(characterId),
+      'title': serializer.toJson<String>(title),
+      'author': serializer.toJson<String>(author),
+      'coverUrl': serializer.toJson<String?>(coverUrl),
+      'format': serializer.toJson<String>(format),
+      'chapterCount': serializer.toJson<int>(chapterCount),
+      'totalChars': serializer.toJson<int>(totalChars),
+      'splitMethod': serializer.toJson<String?>(splitMethod),
+      'splitPattern': serializer.toJson<String?>(splitPattern),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  Book copyWith(
+          {String? id,
+          String? characterId,
+          String? title,
+          String? author,
+          Value<String?> coverUrl = const Value.absent(),
+          String? format,
+          int? chapterCount,
+          int? totalChars,
+          Value<String?> splitMethod = const Value.absent(),
+          Value<String?> splitPattern = const Value.absent(),
+          String? status,
+          int? createdAt,
+          int? updatedAt}) =>
+      Book(
+        id: id ?? this.id,
+        characterId: characterId ?? this.characterId,
+        title: title ?? this.title,
+        author: author ?? this.author,
+        coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
+        format: format ?? this.format,
+        chapterCount: chapterCount ?? this.chapterCount,
+        totalChars: totalChars ?? this.totalChars,
+        splitMethod: splitMethod.present ? splitMethod.value : this.splitMethod,
+        splitPattern:
+            splitPattern.present ? splitPattern.value : this.splitPattern,
+        status: status ?? this.status,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  Book copyWithCompanion(BooksCompanion data) {
+    return Book(
+      id: data.id.present ? data.id.value : this.id,
+      characterId:
+          data.characterId.present ? data.characterId.value : this.characterId,
+      title: data.title.present ? data.title.value : this.title,
+      author: data.author.present ? data.author.value : this.author,
+      coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
+      format: data.format.present ? data.format.value : this.format,
+      chapterCount: data.chapterCount.present
+          ? data.chapterCount.value
+          : this.chapterCount,
+      totalChars:
+          data.totalChars.present ? data.totalChars.value : this.totalChars,
+      splitMethod:
+          data.splitMethod.present ? data.splitMethod.value : this.splitMethod,
+      splitPattern: data.splitPattern.present
+          ? data.splitPattern.value
+          : this.splitPattern,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Book(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('title: $title, ')
+          ..write('author: $author, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('format: $format, ')
+          ..write('chapterCount: $chapterCount, ')
+          ..write('totalChars: $totalChars, ')
+          ..write('splitMethod: $splitMethod, ')
+          ..write('splitPattern: $splitPattern, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      characterId,
+      title,
+      author,
+      coverUrl,
+      format,
+      chapterCount,
+      totalChars,
+      splitMethod,
+      splitPattern,
+      status,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Book &&
+          other.id == this.id &&
+          other.characterId == this.characterId &&
+          other.title == this.title &&
+          other.author == this.author &&
+          other.coverUrl == this.coverUrl &&
+          other.format == this.format &&
+          other.chapterCount == this.chapterCount &&
+          other.totalChars == this.totalChars &&
+          other.splitMethod == this.splitMethod &&
+          other.splitPattern == this.splitPattern &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class BooksCompanion extends UpdateCompanion<Book> {
+  final Value<String> id;
+  final Value<String> characterId;
+  final Value<String> title;
+  final Value<String> author;
+  final Value<String?> coverUrl;
+  final Value<String> format;
+  final Value<int> chapterCount;
+  final Value<int> totalChars;
+  final Value<String?> splitMethod;
+  final Value<String?> splitPattern;
+  final Value<String> status;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const BooksCompanion({
+    this.id = const Value.absent(),
+    this.characterId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.author = const Value.absent(),
+    this.coverUrl = const Value.absent(),
+    this.format = const Value.absent(),
+    this.chapterCount = const Value.absent(),
+    this.totalChars = const Value.absent(),
+    this.splitMethod = const Value.absent(),
+    this.splitPattern = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BooksCompanion.insert({
+    required String id,
+    required String characterId,
+    required String title,
+    this.author = const Value.absent(),
+    this.coverUrl = const Value.absent(),
+    this.format = const Value.absent(),
+    this.chapterCount = const Value.absent(),
+    this.totalChars = const Value.absent(),
+    this.splitMethod = const Value.absent(),
+    this.splitPattern = const Value.absent(),
+    this.status = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        characterId = Value(characterId),
+        title = Value(title),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<Book> custom({
+    Expression<String>? id,
+    Expression<String>? characterId,
+    Expression<String>? title,
+    Expression<String>? author,
+    Expression<String>? coverUrl,
+    Expression<String>? format,
+    Expression<int>? chapterCount,
+    Expression<int>? totalChars,
+    Expression<String>? splitMethod,
+    Expression<String>? splitPattern,
+    Expression<String>? status,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (characterId != null) 'character_id': characterId,
+      if (title != null) 'title': title,
+      if (author != null) 'author': author,
+      if (coverUrl != null) 'cover_url': coverUrl,
+      if (format != null) 'format': format,
+      if (chapterCount != null) 'chapter_count': chapterCount,
+      if (totalChars != null) 'total_chars': totalChars,
+      if (splitMethod != null) 'split_method': splitMethod,
+      if (splitPattern != null) 'split_pattern': splitPattern,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BooksCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? characterId,
+      Value<String>? title,
+      Value<String>? author,
+      Value<String?>? coverUrl,
+      Value<String>? format,
+      Value<int>? chapterCount,
+      Value<int>? totalChars,
+      Value<String?>? splitMethod,
+      Value<String?>? splitPattern,
+      Value<String>? status,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return BooksCompanion(
+      id: id ?? this.id,
+      characterId: characterId ?? this.characterId,
+      title: title ?? this.title,
+      author: author ?? this.author,
+      coverUrl: coverUrl ?? this.coverUrl,
+      format: format ?? this.format,
+      chapterCount: chapterCount ?? this.chapterCount,
+      totalChars: totalChars ?? this.totalChars,
+      splitMethod: splitMethod ?? this.splitMethod,
+      splitPattern: splitPattern ?? this.splitPattern,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (characterId.present) {
+      map['character_id'] = Variable<String>(characterId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (author.present) {
+      map['author'] = Variable<String>(author.value);
+    }
+    if (coverUrl.present) {
+      map['cover_url'] = Variable<String>(coverUrl.value);
+    }
+    if (format.present) {
+      map['format'] = Variable<String>(format.value);
+    }
+    if (chapterCount.present) {
+      map['chapter_count'] = Variable<int>(chapterCount.value);
+    }
+    if (totalChars.present) {
+      map['total_chars'] = Variable<int>(totalChars.value);
+    }
+    if (splitMethod.present) {
+      map['split_method'] = Variable<String>(splitMethod.value);
+    }
+    if (splitPattern.present) {
+      map['split_pattern'] = Variable<String>(splitPattern.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BooksCompanion(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('title: $title, ')
+          ..write('author: $author, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('format: $format, ')
+          ..write('chapterCount: $chapterCount, ')
+          ..write('totalChars: $totalChars, ')
+          ..write('splitMethod: $splitMethod, ')
+          ..write('splitPattern: $splitPattern, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BookChaptersTable extends BookChapters
+    with TableInfo<$BookChaptersTable, BookChapter> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BookChaptersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+      'book_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _numberMeta = const VerificationMeta('number');
+  @override
+  late final GeneratedColumn<int> number = GeneratedColumn<int>(
+      'number', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _charsMeta = const VerificationMeta('chars');
+  @override
+  late final GeneratedColumn<int> chars = GeneratedColumn<int>(
+      'chars', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, bookId, number, title, chars, content, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'book_chapters';
+  @override
+  VerificationContext validateIntegrity(Insertable<BookChapter> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(_bookIdMeta,
+          bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta));
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('number')) {
+      context.handle(_numberMeta,
+          number.isAcceptableOrUnknown(data['number']!, _numberMeta));
+    } else if (isInserting) {
+      context.missing(_numberMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('chars')) {
+      context.handle(
+          _charsMeta, chars.isAcceptableOrUnknown(data['chars']!, _charsMeta));
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BookChapter map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BookChapter(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      bookId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}book_id'])!,
+      number: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}number'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      chars: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}chars'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $BookChaptersTable createAlias(String alias) {
+    return $BookChaptersTable(attachedDatabase, alias);
+  }
+}
+
+class BookChapter extends DataClass implements Insertable<BookChapter> {
+  final String id;
+  final String bookId;
+  final int number;
+  final String title;
+  final int chars;
+
+  /// Cached chapter content (nullable — fetched lazily from server).
+  final String? content;
+  final int createdAt;
+  const BookChapter(
+      {required this.id,
+      required this.bookId,
+      required this.number,
+      required this.title,
+      required this.chars,
+      this.content,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['book_id'] = Variable<String>(bookId);
+    map['number'] = Variable<int>(number);
+    map['title'] = Variable<String>(title);
+    map['chars'] = Variable<int>(chars);
+    if (!nullToAbsent || content != null) {
+      map['content'] = Variable<String>(content);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  BookChaptersCompanion toCompanion(bool nullToAbsent) {
+    return BookChaptersCompanion(
+      id: Value(id),
+      bookId: Value(bookId),
+      number: Value(number),
+      title: Value(title),
+      chars: Value(chars),
+      content: content == null && nullToAbsent
+          ? const Value.absent()
+          : Value(content),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory BookChapter.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BookChapter(
+      id: serializer.fromJson<String>(json['id']),
+      bookId: serializer.fromJson<String>(json['bookId']),
+      number: serializer.fromJson<int>(json['number']),
+      title: serializer.fromJson<String>(json['title']),
+      chars: serializer.fromJson<int>(json['chars']),
+      content: serializer.fromJson<String?>(json['content']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'bookId': serializer.toJson<String>(bookId),
+      'number': serializer.toJson<int>(number),
+      'title': serializer.toJson<String>(title),
+      'chars': serializer.toJson<int>(chars),
+      'content': serializer.toJson<String?>(content),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  BookChapter copyWith(
+          {String? id,
+          String? bookId,
+          int? number,
+          String? title,
+          int? chars,
+          Value<String?> content = const Value.absent(),
+          int? createdAt}) =>
+      BookChapter(
+        id: id ?? this.id,
+        bookId: bookId ?? this.bookId,
+        number: number ?? this.number,
+        title: title ?? this.title,
+        chars: chars ?? this.chars,
+        content: content.present ? content.value : this.content,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  BookChapter copyWithCompanion(BookChaptersCompanion data) {
+    return BookChapter(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      number: data.number.present ? data.number.value : this.number,
+      title: data.title.present ? data.title.value : this.title,
+      chars: data.chars.present ? data.chars.value : this.chars,
+      content: data.content.present ? data.content.value : this.content,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookChapter(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('number: $number, ')
+          ..write('title: $title, ')
+          ..write('chars: $chars, ')
+          ..write('content: $content, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, bookId, number, title, chars, content, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BookChapter &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.number == this.number &&
+          other.title == this.title &&
+          other.chars == this.chars &&
+          other.content == this.content &&
+          other.createdAt == this.createdAt);
+}
+
+class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
+  final Value<String> id;
+  final Value<String> bookId;
+  final Value<int> number;
+  final Value<String> title;
+  final Value<int> chars;
+  final Value<String?> content;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const BookChaptersCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.number = const Value.absent(),
+    this.title = const Value.absent(),
+    this.chars = const Value.absent(),
+    this.content = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BookChaptersCompanion.insert({
+    required String id,
+    required String bookId,
+    required int number,
+    required String title,
+    this.chars = const Value.absent(),
+    this.content = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        bookId = Value(bookId),
+        number = Value(number),
+        title = Value(title),
+        createdAt = Value(createdAt);
+  static Insertable<BookChapter> custom({
+    Expression<String>? id,
+    Expression<String>? bookId,
+    Expression<int>? number,
+    Expression<String>? title,
+    Expression<int>? chars,
+    Expression<String>? content,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (number != null) 'number': number,
+      if (title != null) 'title': title,
+      if (chars != null) 'chars': chars,
+      if (content != null) 'content': content,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BookChaptersCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? bookId,
+      Value<int>? number,
+      Value<String>? title,
+      Value<int>? chars,
+      Value<String?>? content,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return BookChaptersCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      number: number ?? this.number,
+      title: title ?? this.title,
+      chars: chars ?? this.chars,
+      content: content ?? this.content,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (number.present) {
+      map['number'] = Variable<int>(number.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (chars.present) {
+      map['chars'] = Variable<int>(chars.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookChaptersCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('number: $number, ')
+          ..write('title: $title, ')
+          ..write('chars: $chars, ')
+          ..write('content: $content, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BookReadingProgressTable extends BookReadingProgress
+    with TableInfo<$BookReadingProgressTable, BookReadingProgressData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BookReadingProgressTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+      'book_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _chapterNumberMeta =
+      const VerificationMeta('chapterNumber');
+  @override
+  late final GeneratedColumn<int> chapterNumber = GeneratedColumn<int>(
+      'chapter_number', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _scrollRatioMeta =
+      const VerificationMeta('scrollRatio');
+  @override
+  late final GeneratedColumn<double> scrollRatio = GeneratedColumn<double>(
+      'scroll_ratio', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _readAtMeta = const VerificationMeta('readAt');
+  @override
+  late final GeneratedColumn<int> readAt = GeneratedColumn<int>(
+      'read_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [bookId, chapterNumber, scrollRatio, readAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'book_reading_progress';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<BookReadingProgressData> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('book_id')) {
+      context.handle(_bookIdMeta,
+          bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta));
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('chapter_number')) {
+      context.handle(
+          _chapterNumberMeta,
+          chapterNumber.isAcceptableOrUnknown(
+              data['chapter_number']!, _chapterNumberMeta));
+    }
+    if (data.containsKey('scroll_ratio')) {
+      context.handle(
+          _scrollRatioMeta,
+          scrollRatio.isAcceptableOrUnknown(
+              data['scroll_ratio']!, _scrollRatioMeta));
+    }
+    if (data.containsKey('read_at')) {
+      context.handle(_readAtMeta,
+          readAt.isAcceptableOrUnknown(data['read_at']!, _readAtMeta));
+    } else if (isInserting) {
+      context.missing(_readAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {bookId};
+  @override
+  BookReadingProgressData map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BookReadingProgressData(
+      bookId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}book_id'])!,
+      chapterNumber: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}chapter_number'])!,
+      scrollRatio: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}scroll_ratio'])!,
+      readAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}read_at'])!,
+    );
+  }
+
+  @override
+  $BookReadingProgressTable createAlias(String alias) {
+    return $BookReadingProgressTable(attachedDatabase, alias);
+  }
+}
+
+class BookReadingProgressData extends DataClass
+    implements Insertable<BookReadingProgressData> {
+  final String bookId;
+  final int chapterNumber;
+
+  /// Scroll offset ratio within the chapter (0.0 – 1.0) for precise resume.
+  final double scrollRatio;
+  final int readAt;
+  const BookReadingProgressData(
+      {required this.bookId,
+      required this.chapterNumber,
+      required this.scrollRatio,
+      required this.readAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['book_id'] = Variable<String>(bookId);
+    map['chapter_number'] = Variable<int>(chapterNumber);
+    map['scroll_ratio'] = Variable<double>(scrollRatio);
+    map['read_at'] = Variable<int>(readAt);
+    return map;
+  }
+
+  BookReadingProgressCompanion toCompanion(bool nullToAbsent) {
+    return BookReadingProgressCompanion(
+      bookId: Value(bookId),
+      chapterNumber: Value(chapterNumber),
+      scrollRatio: Value(scrollRatio),
+      readAt: Value(readAt),
+    );
+  }
+
+  factory BookReadingProgressData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BookReadingProgressData(
+      bookId: serializer.fromJson<String>(json['bookId']),
+      chapterNumber: serializer.fromJson<int>(json['chapterNumber']),
+      scrollRatio: serializer.fromJson<double>(json['scrollRatio']),
+      readAt: serializer.fromJson<int>(json['readAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'bookId': serializer.toJson<String>(bookId),
+      'chapterNumber': serializer.toJson<int>(chapterNumber),
+      'scrollRatio': serializer.toJson<double>(scrollRatio),
+      'readAt': serializer.toJson<int>(readAt),
+    };
+  }
+
+  BookReadingProgressData copyWith(
+          {String? bookId,
+          int? chapterNumber,
+          double? scrollRatio,
+          int? readAt}) =>
+      BookReadingProgressData(
+        bookId: bookId ?? this.bookId,
+        chapterNumber: chapterNumber ?? this.chapterNumber,
+        scrollRatio: scrollRatio ?? this.scrollRatio,
+        readAt: readAt ?? this.readAt,
+      );
+  BookReadingProgressData copyWithCompanion(BookReadingProgressCompanion data) {
+    return BookReadingProgressData(
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      chapterNumber: data.chapterNumber.present
+          ? data.chapterNumber.value
+          : this.chapterNumber,
+      scrollRatio:
+          data.scrollRatio.present ? data.scrollRatio.value : this.scrollRatio,
+      readAt: data.readAt.present ? data.readAt.value : this.readAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookReadingProgressData(')
+          ..write('bookId: $bookId, ')
+          ..write('chapterNumber: $chapterNumber, ')
+          ..write('scrollRatio: $scrollRatio, ')
+          ..write('readAt: $readAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(bookId, chapterNumber, scrollRatio, readAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BookReadingProgressData &&
+          other.bookId == this.bookId &&
+          other.chapterNumber == this.chapterNumber &&
+          other.scrollRatio == this.scrollRatio &&
+          other.readAt == this.readAt);
+}
+
+class BookReadingProgressCompanion
+    extends UpdateCompanion<BookReadingProgressData> {
+  final Value<String> bookId;
+  final Value<int> chapterNumber;
+  final Value<double> scrollRatio;
+  final Value<int> readAt;
+  final Value<int> rowid;
+  const BookReadingProgressCompanion({
+    this.bookId = const Value.absent(),
+    this.chapterNumber = const Value.absent(),
+    this.scrollRatio = const Value.absent(),
+    this.readAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BookReadingProgressCompanion.insert({
+    required String bookId,
+    this.chapterNumber = const Value.absent(),
+    this.scrollRatio = const Value.absent(),
+    required int readAt,
+    this.rowid = const Value.absent(),
+  })  : bookId = Value(bookId),
+        readAt = Value(readAt);
+  static Insertable<BookReadingProgressData> custom({
+    Expression<String>? bookId,
+    Expression<int>? chapterNumber,
+    Expression<double>? scrollRatio,
+    Expression<int>? readAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (bookId != null) 'book_id': bookId,
+      if (chapterNumber != null) 'chapter_number': chapterNumber,
+      if (scrollRatio != null) 'scroll_ratio': scrollRatio,
+      if (readAt != null) 'read_at': readAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BookReadingProgressCompanion copyWith(
+      {Value<String>? bookId,
+      Value<int>? chapterNumber,
+      Value<double>? scrollRatio,
+      Value<int>? readAt,
+      Value<int>? rowid}) {
+    return BookReadingProgressCompanion(
+      bookId: bookId ?? this.bookId,
+      chapterNumber: chapterNumber ?? this.chapterNumber,
+      scrollRatio: scrollRatio ?? this.scrollRatio,
+      readAt: readAt ?? this.readAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (chapterNumber.present) {
+      map['chapter_number'] = Variable<int>(chapterNumber.value);
+    }
+    if (scrollRatio.present) {
+      map['scroll_ratio'] = Variable<double>(scrollRatio.value);
+    }
+    if (readAt.present) {
+      map['read_at'] = Variable<int>(readAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookReadingProgressCompanion(')
+          ..write('bookId: $bookId, ')
+          ..write('chapterNumber: $chapterNumber, ')
+          ..write('scrollRatio: $scrollRatio, ')
+          ..write('readAt: $readAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BookChapterNotesTable extends BookChapterNotes
+    with TableInfo<$BookChapterNotesTable, BookChapterNote> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BookChapterNotesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+      'book_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _chapterNumberMeta =
+      const VerificationMeta('chapterNumber');
+  @override
+  late final GeneratedColumn<int> chapterNumber = GeneratedColumn<int>(
+      'chapter_number', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+      'note', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, bookId, chapterNumber, note, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'book_chapter_notes';
+  @override
+  VerificationContext validateIntegrity(Insertable<BookChapterNote> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(_bookIdMeta,
+          bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta));
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('chapter_number')) {
+      context.handle(
+          _chapterNumberMeta,
+          chapterNumber.isAcceptableOrUnknown(
+              data['chapter_number']!, _chapterNumberMeta));
+    } else if (isInserting) {
+      context.missing(_chapterNumberMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+          _noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
+    } else if (isInserting) {
+      context.missing(_noteMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BookChapterNote map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BookChapterNote(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      bookId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}book_id'])!,
+      chapterNumber: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}chapter_number'])!,
+      note: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}note'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $BookChapterNotesTable createAlias(String alias) {
+    return $BookChapterNotesTable(attachedDatabase, alias);
+  }
+}
+
+class BookChapterNote extends DataClass implements Insertable<BookChapterNote> {
+  final String id;
+  final String bookId;
+  final int chapterNumber;
+  final String note;
+  final int createdAt;
+  const BookChapterNote(
+      {required this.id,
+      required this.bookId,
+      required this.chapterNumber,
+      required this.note,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['book_id'] = Variable<String>(bookId);
+    map['chapter_number'] = Variable<int>(chapterNumber);
+    map['note'] = Variable<String>(note);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  BookChapterNotesCompanion toCompanion(bool nullToAbsent) {
+    return BookChapterNotesCompanion(
+      id: Value(id),
+      bookId: Value(bookId),
+      chapterNumber: Value(chapterNumber),
+      note: Value(note),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory BookChapterNote.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BookChapterNote(
+      id: serializer.fromJson<String>(json['id']),
+      bookId: serializer.fromJson<String>(json['bookId']),
+      chapterNumber: serializer.fromJson<int>(json['chapterNumber']),
+      note: serializer.fromJson<String>(json['note']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'bookId': serializer.toJson<String>(bookId),
+      'chapterNumber': serializer.toJson<int>(chapterNumber),
+      'note': serializer.toJson<String>(note),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  BookChapterNote copyWith(
+          {String? id,
+          String? bookId,
+          int? chapterNumber,
+          String? note,
+          int? createdAt}) =>
+      BookChapterNote(
+        id: id ?? this.id,
+        bookId: bookId ?? this.bookId,
+        chapterNumber: chapterNumber ?? this.chapterNumber,
+        note: note ?? this.note,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  BookChapterNote copyWithCompanion(BookChapterNotesCompanion data) {
+    return BookChapterNote(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      chapterNumber: data.chapterNumber.present
+          ? data.chapterNumber.value
+          : this.chapterNumber,
+      note: data.note.present ? data.note.value : this.note,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookChapterNote(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('chapterNumber: $chapterNumber, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, bookId, chapterNumber, note, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BookChapterNote &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.chapterNumber == this.chapterNumber &&
+          other.note == this.note &&
+          other.createdAt == this.createdAt);
+}
+
+class BookChapterNotesCompanion extends UpdateCompanion<BookChapterNote> {
+  final Value<String> id;
+  final Value<String> bookId;
+  final Value<int> chapterNumber;
+  final Value<String> note;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const BookChapterNotesCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.chapterNumber = const Value.absent(),
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BookChapterNotesCompanion.insert({
+    required String id,
+    required String bookId,
+    required int chapterNumber,
+    required String note,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        bookId = Value(bookId),
+        chapterNumber = Value(chapterNumber),
+        note = Value(note),
+        createdAt = Value(createdAt);
+  static Insertable<BookChapterNote> custom({
+    Expression<String>? id,
+    Expression<String>? bookId,
+    Expression<int>? chapterNumber,
+    Expression<String>? note,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (chapterNumber != null) 'chapter_number': chapterNumber,
+      if (note != null) 'note': note,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BookChapterNotesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? bookId,
+      Value<int>? chapterNumber,
+      Value<String>? note,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return BookChapterNotesCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      chapterNumber: chapterNumber ?? this.chapterNumber,
+      note: note ?? this.note,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (chapterNumber.present) {
+      map['chapter_number'] = Variable<int>(chapterNumber.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookChapterNotesCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('chapterNumber: $chapterNumber, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -25428,6 +27046,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ComicReadingProgressTable(this);
   late final $ComicSyncCursorTable comicSyncCursor =
       $ComicSyncCursorTable(this);
+  late final $BooksTable books = $BooksTable(this);
+  late final $BookChaptersTable bookChapters = $BookChaptersTable(this);
+  late final $BookReadingProgressTable bookReadingProgress =
+      $BookReadingProgressTable(this);
+  late final $BookChapterNotesTable bookChapterNotes =
+      $BookChapterNotesTable(this);
   late final CardDao cardDao = CardDao(this as AppDatabase);
   late final AiFinanceDao aiFinanceDao = AiFinanceDao(this as AppDatabase);
   late final AiPurchaseDao aiPurchaseDao = AiPurchaseDao(this as AppDatabase);
@@ -25486,7 +27110,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         comicChapters,
         comicPageScreenplays,
         comicReadingProgress,
-        comicSyncCursor
+        comicSyncCursor,
+        books,
+        bookChapters,
+        bookReadingProgress,
+        bookChapterNotes
       ];
 }
 
@@ -39015,6 +40643,834 @@ typedef $$ComicSyncCursorTableProcessedTableManager = ProcessedTableManager<
     ),
     ComicSyncCursorData,
     PrefetchHooks Function()>;
+typedef $$BooksTableCreateCompanionBuilder = BooksCompanion Function({
+  required String id,
+  required String characterId,
+  required String title,
+  Value<String> author,
+  Value<String?> coverUrl,
+  Value<String> format,
+  Value<int> chapterCount,
+  Value<int> totalChars,
+  Value<String?> splitMethod,
+  Value<String?> splitPattern,
+  Value<String> status,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$BooksTableUpdateCompanionBuilder = BooksCompanion Function({
+  Value<String> id,
+  Value<String> characterId,
+  Value<String> title,
+  Value<String> author,
+  Value<String?> coverUrl,
+  Value<String> format,
+  Value<int> chapterCount,
+  Value<int> totalChars,
+  Value<String?> splitMethod,
+  Value<String?> splitPattern,
+  Value<String> status,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
+  $$BooksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get author => $composableBuilder(
+      column: $table.author, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get coverUrl => $composableBuilder(
+      column: $table.coverUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get format => $composableBuilder(
+      column: $table.format, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get chapterCount => $composableBuilder(
+      column: $table.chapterCount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get totalChars => $composableBuilder(
+      column: $table.totalChars, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get splitMethod => $composableBuilder(
+      column: $table.splitMethod, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get splitPattern => $composableBuilder(
+      column: $table.splitPattern, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$BooksTableOrderingComposer
+    extends Composer<_$AppDatabase, $BooksTable> {
+  $$BooksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get author => $composableBuilder(
+      column: $table.author, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get coverUrl => $composableBuilder(
+      column: $table.coverUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get format => $composableBuilder(
+      column: $table.format, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get chapterCount => $composableBuilder(
+      column: $table.chapterCount,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get totalChars => $composableBuilder(
+      column: $table.totalChars, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get splitMethod => $composableBuilder(
+      column: $table.splitMethod, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get splitPattern => $composableBuilder(
+      column: $table.splitPattern,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$BooksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BooksTable> {
+  $$BooksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get author =>
+      $composableBuilder(column: $table.author, builder: (column) => column);
+
+  GeneratedColumn<String> get coverUrl =>
+      $composableBuilder(column: $table.coverUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get format =>
+      $composableBuilder(column: $table.format, builder: (column) => column);
+
+  GeneratedColumn<int> get chapterCount => $composableBuilder(
+      column: $table.chapterCount, builder: (column) => column);
+
+  GeneratedColumn<int> get totalChars => $composableBuilder(
+      column: $table.totalChars, builder: (column) => column);
+
+  GeneratedColumn<String> get splitMethod => $composableBuilder(
+      column: $table.splitMethod, builder: (column) => column);
+
+  GeneratedColumn<String> get splitPattern => $composableBuilder(
+      column: $table.splitPattern, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$BooksTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $BooksTable,
+    Book,
+    $$BooksTableFilterComposer,
+    $$BooksTableOrderingComposer,
+    $$BooksTableAnnotationComposer,
+    $$BooksTableCreateCompanionBuilder,
+    $$BooksTableUpdateCompanionBuilder,
+    (Book, BaseReferences<_$AppDatabase, $BooksTable, Book>),
+    Book,
+    PrefetchHooks Function()> {
+  $$BooksTableTableManager(_$AppDatabase db, $BooksTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BooksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BooksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BooksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> characterId = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> author = const Value.absent(),
+            Value<String?> coverUrl = const Value.absent(),
+            Value<String> format = const Value.absent(),
+            Value<int> chapterCount = const Value.absent(),
+            Value<int> totalChars = const Value.absent(),
+            Value<String?> splitMethod = const Value.absent(),
+            Value<String?> splitPattern = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              BooksCompanion(
+            id: id,
+            characterId: characterId,
+            title: title,
+            author: author,
+            coverUrl: coverUrl,
+            format: format,
+            chapterCount: chapterCount,
+            totalChars: totalChars,
+            splitMethod: splitMethod,
+            splitPattern: splitPattern,
+            status: status,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String characterId,
+            required String title,
+            Value<String> author = const Value.absent(),
+            Value<String?> coverUrl = const Value.absent(),
+            Value<String> format = const Value.absent(),
+            Value<int> chapterCount = const Value.absent(),
+            Value<int> totalChars = const Value.absent(),
+            Value<String?> splitMethod = const Value.absent(),
+            Value<String?> splitPattern = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              BooksCompanion.insert(
+            id: id,
+            characterId: characterId,
+            title: title,
+            author: author,
+            coverUrl: coverUrl,
+            format: format,
+            chapterCount: chapterCount,
+            totalChars: totalChars,
+            splitMethod: splitMethod,
+            splitPattern: splitPattern,
+            status: status,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$BooksTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $BooksTable,
+    Book,
+    $$BooksTableFilterComposer,
+    $$BooksTableOrderingComposer,
+    $$BooksTableAnnotationComposer,
+    $$BooksTableCreateCompanionBuilder,
+    $$BooksTableUpdateCompanionBuilder,
+    (Book, BaseReferences<_$AppDatabase, $BooksTable, Book>),
+    Book,
+    PrefetchHooks Function()>;
+typedef $$BookChaptersTableCreateCompanionBuilder = BookChaptersCompanion
+    Function({
+  required String id,
+  required String bookId,
+  required int number,
+  required String title,
+  Value<int> chars,
+  Value<String?> content,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$BookChaptersTableUpdateCompanionBuilder = BookChaptersCompanion
+    Function({
+  Value<String> id,
+  Value<String> bookId,
+  Value<int> number,
+  Value<String> title,
+  Value<int> chars,
+  Value<String?> content,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$BookChaptersTableFilterComposer
+    extends Composer<_$AppDatabase, $BookChaptersTable> {
+  $$BookChaptersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+      column: $table.bookId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get number => $composableBuilder(
+      column: $table.number, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get chars => $composableBuilder(
+      column: $table.chars, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$BookChaptersTableOrderingComposer
+    extends Composer<_$AppDatabase, $BookChaptersTable> {
+  $$BookChaptersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+      column: $table.bookId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get number => $composableBuilder(
+      column: $table.number, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get chars => $composableBuilder(
+      column: $table.chars, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$BookChaptersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BookChaptersTable> {
+  $$BookChaptersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<int> get number =>
+      $composableBuilder(column: $table.number, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<int> get chars =>
+      $composableBuilder(column: $table.chars, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$BookChaptersTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $BookChaptersTable,
+    BookChapter,
+    $$BookChaptersTableFilterComposer,
+    $$BookChaptersTableOrderingComposer,
+    $$BookChaptersTableAnnotationComposer,
+    $$BookChaptersTableCreateCompanionBuilder,
+    $$BookChaptersTableUpdateCompanionBuilder,
+    (
+      BookChapter,
+      BaseReferences<_$AppDatabase, $BookChaptersTable, BookChapter>
+    ),
+    BookChapter,
+    PrefetchHooks Function()> {
+  $$BookChaptersTableTableManager(_$AppDatabase db, $BookChaptersTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BookChaptersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BookChaptersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BookChaptersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> bookId = const Value.absent(),
+            Value<int> number = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<int> chars = const Value.absent(),
+            Value<String?> content = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              BookChaptersCompanion(
+            id: id,
+            bookId: bookId,
+            number: number,
+            title: title,
+            chars: chars,
+            content: content,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String bookId,
+            required int number,
+            required String title,
+            Value<int> chars = const Value.absent(),
+            Value<String?> content = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              BookChaptersCompanion.insert(
+            id: id,
+            bookId: bookId,
+            number: number,
+            title: title,
+            chars: chars,
+            content: content,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$BookChaptersTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $BookChaptersTable,
+    BookChapter,
+    $$BookChaptersTableFilterComposer,
+    $$BookChaptersTableOrderingComposer,
+    $$BookChaptersTableAnnotationComposer,
+    $$BookChaptersTableCreateCompanionBuilder,
+    $$BookChaptersTableUpdateCompanionBuilder,
+    (
+      BookChapter,
+      BaseReferences<_$AppDatabase, $BookChaptersTable, BookChapter>
+    ),
+    BookChapter,
+    PrefetchHooks Function()>;
+typedef $$BookReadingProgressTableCreateCompanionBuilder
+    = BookReadingProgressCompanion Function({
+  required String bookId,
+  Value<int> chapterNumber,
+  Value<double> scrollRatio,
+  required int readAt,
+  Value<int> rowid,
+});
+typedef $$BookReadingProgressTableUpdateCompanionBuilder
+    = BookReadingProgressCompanion Function({
+  Value<String> bookId,
+  Value<int> chapterNumber,
+  Value<double> scrollRatio,
+  Value<int> readAt,
+  Value<int> rowid,
+});
+
+class $$BookReadingProgressTableFilterComposer
+    extends Composer<_$AppDatabase, $BookReadingProgressTable> {
+  $$BookReadingProgressTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get bookId => $composableBuilder(
+      column: $table.bookId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get scrollRatio => $composableBuilder(
+      column: $table.scrollRatio, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get readAt => $composableBuilder(
+      column: $table.readAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$BookReadingProgressTableOrderingComposer
+    extends Composer<_$AppDatabase, $BookReadingProgressTable> {
+  $$BookReadingProgressTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get bookId => $composableBuilder(
+      column: $table.bookId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get scrollRatio => $composableBuilder(
+      column: $table.scrollRatio, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get readAt => $composableBuilder(
+      column: $table.readAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$BookReadingProgressTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BookReadingProgressTable> {
+  $$BookReadingProgressTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber, builder: (column) => column);
+
+  GeneratedColumn<double> get scrollRatio => $composableBuilder(
+      column: $table.scrollRatio, builder: (column) => column);
+
+  GeneratedColumn<int> get readAt =>
+      $composableBuilder(column: $table.readAt, builder: (column) => column);
+}
+
+class $$BookReadingProgressTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $BookReadingProgressTable,
+    BookReadingProgressData,
+    $$BookReadingProgressTableFilterComposer,
+    $$BookReadingProgressTableOrderingComposer,
+    $$BookReadingProgressTableAnnotationComposer,
+    $$BookReadingProgressTableCreateCompanionBuilder,
+    $$BookReadingProgressTableUpdateCompanionBuilder,
+    (
+      BookReadingProgressData,
+      BaseReferences<_$AppDatabase, $BookReadingProgressTable,
+          BookReadingProgressData>
+    ),
+    BookReadingProgressData,
+    PrefetchHooks Function()> {
+  $$BookReadingProgressTableTableManager(
+      _$AppDatabase db, $BookReadingProgressTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BookReadingProgressTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BookReadingProgressTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BookReadingProgressTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> bookId = const Value.absent(),
+            Value<int> chapterNumber = const Value.absent(),
+            Value<double> scrollRatio = const Value.absent(),
+            Value<int> readAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              BookReadingProgressCompanion(
+            bookId: bookId,
+            chapterNumber: chapterNumber,
+            scrollRatio: scrollRatio,
+            readAt: readAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String bookId,
+            Value<int> chapterNumber = const Value.absent(),
+            Value<double> scrollRatio = const Value.absent(),
+            required int readAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              BookReadingProgressCompanion.insert(
+            bookId: bookId,
+            chapterNumber: chapterNumber,
+            scrollRatio: scrollRatio,
+            readAt: readAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$BookReadingProgressTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $BookReadingProgressTable,
+    BookReadingProgressData,
+    $$BookReadingProgressTableFilterComposer,
+    $$BookReadingProgressTableOrderingComposer,
+    $$BookReadingProgressTableAnnotationComposer,
+    $$BookReadingProgressTableCreateCompanionBuilder,
+    $$BookReadingProgressTableUpdateCompanionBuilder,
+    (
+      BookReadingProgressData,
+      BaseReferences<_$AppDatabase, $BookReadingProgressTable,
+          BookReadingProgressData>
+    ),
+    BookReadingProgressData,
+    PrefetchHooks Function()>;
+typedef $$BookChapterNotesTableCreateCompanionBuilder
+    = BookChapterNotesCompanion Function({
+  required String id,
+  required String bookId,
+  required int chapterNumber,
+  required String note,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$BookChapterNotesTableUpdateCompanionBuilder
+    = BookChapterNotesCompanion Function({
+  Value<String> id,
+  Value<String> bookId,
+  Value<int> chapterNumber,
+  Value<String> note,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$BookChapterNotesTableFilterComposer
+    extends Composer<_$AppDatabase, $BookChapterNotesTable> {
+  $$BookChapterNotesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+      column: $table.bookId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get note => $composableBuilder(
+      column: $table.note, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$BookChapterNotesTableOrderingComposer
+    extends Composer<_$AppDatabase, $BookChapterNotesTable> {
+  $$BookChapterNotesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+      column: $table.bookId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get note => $composableBuilder(
+      column: $table.note, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$BookChapterNotesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BookChapterNotesTable> {
+  $$BookChapterNotesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$BookChapterNotesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $BookChapterNotesTable,
+    BookChapterNote,
+    $$BookChapterNotesTableFilterComposer,
+    $$BookChapterNotesTableOrderingComposer,
+    $$BookChapterNotesTableAnnotationComposer,
+    $$BookChapterNotesTableCreateCompanionBuilder,
+    $$BookChapterNotesTableUpdateCompanionBuilder,
+    (
+      BookChapterNote,
+      BaseReferences<_$AppDatabase, $BookChapterNotesTable, BookChapterNote>
+    ),
+    BookChapterNote,
+    PrefetchHooks Function()> {
+  $$BookChapterNotesTableTableManager(
+      _$AppDatabase db, $BookChapterNotesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BookChapterNotesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BookChapterNotesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BookChapterNotesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> bookId = const Value.absent(),
+            Value<int> chapterNumber = const Value.absent(),
+            Value<String> note = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              BookChapterNotesCompanion(
+            id: id,
+            bookId: bookId,
+            chapterNumber: chapterNumber,
+            note: note,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String bookId,
+            required int chapterNumber,
+            required String note,
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              BookChapterNotesCompanion.insert(
+            id: id,
+            bookId: bookId,
+            chapterNumber: chapterNumber,
+            note: note,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$BookChapterNotesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $BookChapterNotesTable,
+    BookChapterNote,
+    $$BookChapterNotesTableFilterComposer,
+    $$BookChapterNotesTableOrderingComposer,
+    $$BookChapterNotesTableAnnotationComposer,
+    $$BookChapterNotesTableCreateCompanionBuilder,
+    $$BookChapterNotesTableUpdateCompanionBuilder,
+    (
+      BookChapterNote,
+      BaseReferences<_$AppDatabase, $BookChapterNotesTable, BookChapterNote>
+    ),
+    BookChapterNote,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -39125,4 +41581,12 @@ class $AppDatabaseManager {
       $$ComicReadingProgressTableTableManager(_db, _db.comicReadingProgress);
   $$ComicSyncCursorTableTableManager get comicSyncCursor =>
       $$ComicSyncCursorTableTableManager(_db, _db.comicSyncCursor);
+  $$BooksTableTableManager get books =>
+      $$BooksTableTableManager(_db, _db.books);
+  $$BookChaptersTableTableManager get bookChapters =>
+      $$BookChaptersTableTableManager(_db, _db.bookChapters);
+  $$BookReadingProgressTableTableManager get bookReadingProgress =>
+      $$BookReadingProgressTableTableManager(_db, _db.bookReadingProgress);
+  $$BookChapterNotesTableTableManager get bookChapterNotes =>
+      $$BookChapterNotesTableTableManager(_db, _db.bookChapterNotes);
 }

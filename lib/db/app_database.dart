@@ -8,6 +8,7 @@ import 'tables.dart';
 import 'dev_agent_tables.dart';
 import 'dev_agent_artifact_tables.dart';
 import 'comic_tables.dart';
+import 'book_tables.dart';
 import '../data/memory_v3/db/tables.dart' as memory_v3;
 import 'daos/ai_finance_dao.dart';
 import 'daos/ai_purchase_dao.dart';
@@ -72,6 +73,11 @@ part 'app_database.g.dart';
     ComicPageScreenplays,
     ComicReadingProgress,
     ComicSyncCursor,
+    // Book co-reading tables
+    Books,
+    BookChapters,
+    BookReadingProgress,
+    BookChapterNotes,
   ],
   daos: [CardDao, AiFinanceDao, AiPurchaseDao, VoiceCallDao],
 )
@@ -128,7 +134,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 46;
+  int get schemaVersion => 47;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -600,6 +606,21 @@ class AppDatabase extends _$AppDatabase {
           if (from < 46) {
             // Add commentsJson column to comic_chapters for reader comments
             await m.addColumn(comicChapters, comicChapters.commentsJson);
+          }
+          if (from < 47) {
+            // Book co-reading: 4 new tables
+            await m.createTable(books);
+            await m.createTable(bookChapters);
+            await m.createTable(bookReadingProgress);
+            await m.createTable(bookChapterNotes);
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_book_chapters_book '
+              'ON book_chapters (book_id, number)',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_book_notes_book '
+              'ON book_chapter_notes (book_id, chapter_number)',
+            );
           }
           if (from < 39) {
             await _addColumnIfMissing(

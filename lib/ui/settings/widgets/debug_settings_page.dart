@@ -6,6 +6,7 @@ import 'package:memex/ui/settings/widgets/model_stats_page.dart';
 import 'package:memex/ui/insight/widgets/insight_template_gallery_page.dart';
 import 'package:memex/ui/memory/widgets/memory_v3_lab_screen.dart';
 import 'package:memex/ui/comic/comic_library_screen.dart';
+import 'package:memex/ui/book/book_library_screen.dart';
 import 'package:memex/ui/settings/widgets/log_viewer_page.dart';
 import 'package:memex/ui/settings/widgets/async_task_list_page.dart';
 import 'package:memex/ui/settings/widgets/custom_agent_config_page.dart';
@@ -193,6 +194,19 @@ class DebugSettingsPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const ComicLibraryScreen(),
+                ),
+              );
+            },
+          ),
+          _buildFunctionTab(
+            context: context,
+            icon: Icons.auto_stories_outlined,
+            title: '共读书架 (读书)',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const BookLibraryScreen(),
                 ),
               );
             },
