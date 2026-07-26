@@ -1,3 +1,10 @@
+> **[DEPRECATED / 已废弃 — 不要据此实现]**
+> 本文档（记忆云 / 圆柱大厅 / 坠落 / 暮雨玫瑰 / R0–R7 时辰皮肤）是 2026-06 的旧世界观，**已被废弃**。
+> Here I am 当前唯一主力 UI 方向是「春雨昼眠」，现行设计见 `docs/design/春雨昼眠主题UI设计原型.md` 与 `docs/design/春雨昼眠主题背景视觉规格.md`，目录索引见 `docs/design/README.md`。
+> 本文保留仅供追溯设计演进，**其中的色值、结构、交互一律不作现行依据**。
+
+---
+
 # Here I Am · UI 设计文档 — 记忆云与圆柱大厅
 
 **项目**：Here I Am · 故我在（https://github.com/Ritou-Lynx/here-i-am）

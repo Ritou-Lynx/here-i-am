@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Here I am · 组件规范</title>
+<link rel="stylesheet" href="components.css">
+</head>
+<body>
+<nav class="spec-nav" id="nav">
+  <div class="nav-brand">故我在 · 组件规范</div>
+  <a href="#tokens" class="nav-link active">Design Tokens</a>
+  <a href="#glass" class="nav-link">玻璃材质</a>
+  <a href="#buttons" class="nav-link">按钮</a>
+  <a href="#cards" class="nav-link">卡片</a>
+  <a href="#lists" class="nav-link">列表项</a>
+  <a href="#inputs" class="nav-link">输入控件</a>
+  <a href="#navigation" class="nav-link">导航</a>
+  <a href="#badges" class="nav-link">标签与状态</a>
+  <a href="#typography" class="nav-link">字体排版</a>
+  <a href="#screens" class="nav-link">界面原型</a>
+</nav>
+
+<main class="spec-main">
+
+<!-- ═══════════ DESIGN TOKENS ═══════════ -->
+<section id="tokens" class="spec-section">
+  <h1>Design Tokens</h1>
+  <p class="section-desc">基于「春雨昼眠」视觉体系的产品级令牌。暗绿灰底、暖象牙白、冷雾灰、金灰强调。所有组件从这些令牌派生。</p>
+
+  <h2>色彩</h2>
+  <div class="token-grid">
+    <div class="token-swatch" style="--c:#0c0f0d"><span>background</span><code>#0c0f0d</code></div>
+    <div class="token-swatch" style="--c:#080a09"><span>backgroundSoft</span><code>#080a09</code></div>
+    <div class="token-swatch" style="--c:#1a1f1b"><span>surface</span><code>#1a1f1b</code></div>
+    <div class="token-swatch" style="--c:#12160f"><span>surfaceSoft</span><code>#12160f</code></div>
+    <div class="token-swatch" style="--c:#2a3028"><span>surfaceDeep</span><code>#2a3028</code></div>
+    <div class="token-swatch" style="--c:#F5EEE0"><span>accent (i 色)</span><code>#F5EEE0</code></div>
+    <div class="token-swatch" style="--c:#C6B48E"><span>accentSoft (金灰)</span><code>#C6B48E</code></div>
+    <div class="token-swatch" style="--c:#F5EEE0"><span>textPrimary</span><code>#F5EEE0 96%</code></div>
+    <div class="token-swatch" style="--c:#DEE6EA"><span>textSecondary (用户)</span><code>#DEE6EA 78%</code></div>
+    <div class="token-swatch" style="--c:#D2D2CD"><span>textMuted</span><code>#D2D2CD 50%</code></div>
+  </div>
+
+  <h2>玻璃</h2>
+  <div class="token-grid">
+    <div class="token-swatch glass-demo" style="--c:rgba(255,255,255,0.08)"><span>glassFill</span><code>FFF 8%</code></div>
+    <div class="token-swatch glass-demo" style="--c:rgba(255,255,255,0.03)"><span>glassFillSoft</span><code>FFF 3%</code></div>
+    <div class="token-swatch glass-demo" style="--c:rgba(255,255,255,0.18)"><span>glassStroke</span><code>FFF 18%</code></div>
+    <div class="token-swatch glass-demo" style="--c:rgba(255,255,255,0.12)"><span>glassEdge</span><code>FFF 12%</code></div>
+  </div>
+
+  <h2>圆角</h2>
+  <div class="token-row">
+    <div class="token-radius" style="border-radius:26px"><span>cardRadius</span><code>26px</code></div>
+    <div class="token-radius" style="border-radius:19px"><span>innerRadius</span><code>19px</code></div>
+    <div class="token-radius" style="border-radius:12px"><span>controlRadius</span><code>12px</code></div>
+    <div class="token-radius" style="border-radius:999px"><span>pillRadius</span><code>full</code></div>
+  </div>
+
+  <h2>间距</h2>
+  <div class="token-row spacing-row">
+    <div class="token-space" style="--w:4px"><code>4</code></div>
+    <div class="token-space" style="--w:8px"><code>8</code></div>
+    <div class="token-space" style="--w:12px"><code>12</code></div>
+    <div class="token-space" style="--w:16px"><code>16</code></div>
+    <div class="token-space" style="--w:22px"><code>22</code></div>
+    <div class="token-space" style="--w:32px"><code>32</code></div>
+    <div class="token-space" style="--w:48px"><code>48</code></div>
+  </div>
+</section>
+
+<!-- ═══════════ GLASS MATERIAL ═══════════ -->
+<section id="glass" class="spec-section">
+  <h1>玻璃材质</h1>
+  <p class="section-desc">玻璃是 Here I am 的核心材质语言。所有容器、输入框、弹出层均使用玻璃。原则：轻、透、能看到背景色彩。</p>
+
+  <div class="demo-row">
+    <div class="demo-box">
+      <div class="glass-panel glass-panel--standard">标准玻璃面板</div>
+      <code class="demo-label">glassFill + blur(14px) + stroke</code>
+    </div>
+    <div class="demo-box">
+      <div class="glass-panel glass-panel--soft">柔和玻璃</div>
+      <code class="demo-label">glassFillSoft + blur(8px)</code>
+    </div>
+    <div class="demo-box">
+      <div class="glass-panel glass-panel--deep">深层玻璃</div>
+      <code class="demo-label">surfaceSoft + blur(20px) + edge highlight</code>
+    </div>
+  </div>
+
+  <h2>禁止</h2>
+  <ul class="forbid-list">
+    <li>厚重毛玻璃（blur > 24px 且 fill > 15%）</li>
+    <li>实心深色面板</li>
+    <li>明确粗边框（> 1.5px）</li>
+    <li>高亮白色描边</li>
+    <li>塑料感渐变</li>
+  </ul>
+</section>
+
+<!-- ═══════════ BUTTONS ═══════════ -->
+<section id="buttons" class="spec-section">
+  <h1>按钮</h1>
+  <p class="section-desc">按钮保持克制。主要操作使用玻璃填充，次要操作使用纯文字或极轻轮廓。</p>
+
+  <h2>层级</h2>
+  <div class="demo-row">
+    <button class="btn btn--primary">主要操作</button>
+    <button class="btn btn--secondary">次要操作</button>
+    <button class="btn btn--ghost">文字按钮</button>
+    <button class="btn btn--danger">危险操作</button>
+  </div>
+
+  <h2>尺寸</h2>
+  <div class="demo-row">
+    <button class="btn btn--primary btn--lg">大按钮 48px</button>
+    <button class="btn btn--primary">标准 40px</button>
+    <button class="btn btn--primary btn--sm">紧凑 32px</button>
+  </div>
+
+  <h2>图标按钮</h2>
+  <div class="demo-row">
+    <button class="icon-btn" aria-label="back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+    </button>
+    <button class="icon-btn" aria-label="settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <button class="icon-btn icon-btn--active" aria-label="record">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
+    </button>
+    <button class="icon-btn" disabled aria-label="disabled">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+</section>
+
+<!-- ═══════════ CARDS ═══════════ -->
+<section id="cards" class="spec-section">
+  <h1>卡片</h1>
+  <p class="section-desc">卡片是信息容器。统一使用玻璃材质 + cardRadius(26px)。内容区域使用 innerRadius(19px)。</p>
+
+  <h2>记忆摘要卡 Memory Summary Card</h2>
+  <div class="demo-row">
+    <div class="memory-card">
+      <div class="memory-card__header">
+        <span class="memory-card__type">事实</span>
+        <span class="memory-card__time">今天 14:32</span>
+      </div>
+      <div class="memory-card__title">下周三下午两点牙医复诊</div>
+      <div class="memory-card__body">带了上次的片子，需要拍新的全景片。医保卡记得带。</div>
+      <div class="memory-card__footer">
+        <span class="tag-chip">健康</span>
+        <span class="tag-chip">日程</span>
+        <span class="memory-card__source">来自聊天</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>日程卡 Schedule Card</h2>
+  <div class="demo-row">
+    <div class="schedule-card">
+      <div class="schedule-card__time-col">
+        <span class="schedule-card__time">14:00</span>
+        <span class="schedule-card__duration">1h</span>
+      </div>
+      <div class="schedule-card__content">
+        <div class="schedule-card__title">牙医复诊</div>
+        <div class="schedule-card__meta">周三 · 口腔中心 3F</div>
+      </div>
+      <div class="schedule-card__status schedule-card__status--upcoming">待完成</div>
+    </div>
+    <div class="schedule-card schedule-card--done">
+      <div class="schedule-card__time-col">
+        <span class="schedule-card__time">09:30</span>
+        <span class="schedule-card__duration">30m</span>
+      </div>
+      <div class="schedule-card__content">
+        <div class="schedule-card__title">晨间拉伸</div>
+        <div class="schedule-card__meta">已完成</div>
+      </div>
+      <div class="schedule-card__status schedule-card__status--done">✓</div>
+    </div>
+  </div>
+
+  <h2>健康数据卡 Health Stat Card</h2>
+  <div class="demo-row">
+    <div class="health-card">
+      <div class="health-card__icon">🌙</div>
+      <div class="health-card__info">
+        <span class="health-card__label">昨晚睡眠</span>
+        <span class="health-card__value">6h 42m</span>
+      </div>
+      <div class="health-card__trend health-card__trend--down">↓ 0.5h</div>
+    </div>
+    <div class="health-card">
+      <div class="health-card__icon">👟</div>
+      <div class="health-card__info">
+        <span class="health-card__label">今日步数</span>
+        <span class="health-card__value">8,241</span>
+      </div>
+      <div class="health-card__trend health-card__trend--up">↑ 1.2k</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ LISTS ═══════════ -->
+<section id="lists" class="spec-section">
+  <h1>列表项</h1>
+  <p class="section-desc">设置页、个人中心等使用统一列表项。玻璃底色，轻分隔线。</p>
+
+  <div class="demo-row demo-row--col">
+    <div class="list-group">
+      <div class="list-item">
+        <div class="list-item__icon">🔔</div>
+        <div class="list-item__content">
+          <span class="list-item__title">通知设置</span>
+          <span class="list-item__desc">管理推送和提醒方式</span>
+        </div>
+        <svg class="list-item__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="list-item">
+        <div class="list-item__icon">🎨</div>
+        <div class="list-item__content">
+          <span class="list-item__title">外观与皮肤</span>
+          <span class="list-item__desc">春雨昼眠</span>
+        </div>
+        <svg class="list-item__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="list-item">
+        <div class="list-item__icon">🗣️</div>
+        <div class="list-item__content">
+          <span class="list-item__title">语音设置</span>
+          <span class="list-item__desc">TTS 声音、语速、ASR 引擎</span>
+        </div>
+        <svg class="list-item__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="list-item list-item--toggle">
+        <div class="list-item__icon">📍</div>
+        <div class="list-item__content">
+          <span class="list-item__title">位置服务</span>
+          <span class="list-item__desc">允许 i 感知你的位置</span>
+        </div>
+        <div class="toggle toggle--on"><div class="toggle__knob"></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ INPUTS ═══════════ -->
+<section id="inputs" class="spec-section">
+  <h1>输入控件</h1>
+  <p class="section-desc">输入框延续 Chat 的玻璃长条语言。所有输入控件保持统一的玻璃质感。</p>
+
+  <h2>搜索框</h2>
+  <div class="demo-row">
+    <div class="search-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="搜索记忆、日程……" class="search-bar__input">
+    </div>
+  </div>
+
+  <h2>文本输入</h2>
+  <div class="demo-row demo-row--col">
+    <div class="text-field">
+      <label class="text-field__label">角色名称</label>
+      <input type="text" class="text-field__input" placeholder="输入名称" value="林埃">
+    </div>
+    <div class="text-field">
+      <label class="text-field__label">备注</label>
+      <textarea class="text-field__input text-field__textarea" placeholder="写点什么……"></textarea>
+    </div>
+  </div>
+
+  <h2>选择器</h2>
+  <div class="demo-row">
+    <div class="select-field">
+      <span class="select-field__value">春雨昼眠</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ NAVIGATION ═══════════ -->
+<section id="navigation" class="spec-section">
+  <h1>导航</h1>
+  <p class="section-desc">顶部导航栏使用玻璃材质。Tab 切换使用下划线指示器，不使用胶囊背景。</p>
+
+  <h2>顶部导航栏</h2>
+  <div class="demo-row demo-row--col">
+    <div class="top-bar">
+      <button class="icon-btn" aria-label="back">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="top-bar__tabs">
+        <span class="top-bar__tab top-bar__tab--active">记忆</span>
+        <span class="top-bar__tab">账本</span>
+        <span class="top-bar__tab">健康</span>
+        <span class="top-bar__tab">我的</span>
+      </div>
+      <button class="icon-btn" aria-label="more">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <h2>分段选择器</h2>
+  <div class="demo-row">
+    <div class="segment-control">
+      <span class="segment-control__item segment-control__item--active">日</span>
+      <span class="segment-control__item">周</span>
+      <span class="segment-control__item">月</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ BADGES & STATUS ═══════════ -->
+<section id="badges" class="spec-section">
+  <h1>标签与状态</h1>
+
+  <h2>标签 Chips</h2>
+  <div class="demo-row">
+    <span class="tag-chip">健康</span>
+    <span class="tag-chip">日程</span>
+    <span class="tag-chip">工作</span>
+    <span class="tag-chip tag-chip--accent">重要</span>
+    <span class="tag-chip tag-chip--muted">归档</span>
+  </div>
+
+  <h2>状态指示</h2>
+  <div class="demo-row">
+    <span class="status-dot status-dot--active"></span><span class="status-label">进行中</span>
+    <span class="status-dot status-dot--done"></span><span class="status-label">已完成</span>
+    <span class="status-dot status-dot--pending"></span><span class="status-label">待处理</span>
+  </div>
+
+  <h2>空状态</h2>
+  <div class="demo-row">
+    <div class="empty-state">
+      <div class="empty-state__icon">🌧️</div>
+      <div class="empty-state__title">还没有记忆</div>
+      <div class="empty-state__desc">和 i 聊天时，点击消息旁的「记录」按钮，把重要的事保存下来。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ TYPOGRAPHY ═══════════ -->
+<section id="typography" class="spec-section">
+  <h1>字体排版</h1>
+  <p class="section-desc">中文使用系统字体（PingFang SC / Microsoft YaHei），英文使用 Inter。Chat 区域有独立排版规则。</p>
+
+  <div class="type-specimen">
+    <div class="type-row"><span class="type-label">页面标题 H1</span><span class="type-sample" style="font-size:24px;font-weight:600">生活空间</span></div>
+    <div class="type-row"><span class="type-label">区块标题 H2</span><span class="type-sample" style="font-size:18px;font-weight:600">最近记忆</span></div>
+    <div class="type-row"><span class="type-label">卡片标题 H3</span><span class="type-sample" style="font-size:16px;font-weight:500">下周三牙医复诊</span></div>
+    <div class="type-row"><span class="type-label">正文 Body</span><span class="type-sample" style="font-size:15px;font-weight:400">带了上次的片子，需要拍新的全景片。</span></div>
+    <div class="type-row"><span class="type-label">辅助文字 Caption</span><span class="type-sample" style="font-size:13px;font-weight:400;opacity:.7">今天 14:32 · 来自聊天</span></div>
+    <div class="type-row"><span class="type-label">极小文字 Micro</span><span class="type-sample" style="font-size:11px;font-weight:400;opacity:.5">AI 生成 · 仅供参考</span></div>
+  </div>
+
+  <h2>Chat 排版（独立规则）</h2>
+  <div class="type-specimen chat-type">
+    <div class="type-row"><span class="type-label">i 的消息</span><span class="type-sample" style="font-size:17px;font-weight:500;color:#F5EEE0">暖象牙白 · 17px · 500</span></div>
+    <div class="type-row"><span class="type-label">用户消息</span><span class="type-sample" style="font-size:16px;font-weight:400;color:#DEE6EA">雾灰白 · 16px · 400</span></div>
+    <div class="type-row"><span class="type-label">动作/神态</span><span class="type-sample" style="font-size:14.5px;font-weight:400;font-style:italic;color:#C6B48E">低饱和暖金灰 · 斜体 · 14.5px</span></div>
+    <div class="type-row"><span class="type-label">时间标</span><span class="type-sample" style="font-size:12px;font-weight:400;opacity:.5;text-align:center;display:block">今天 14:32</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ SCREEN PROTOTYPES ═══════════ -->
+<section id="screens" class="spec-section">
+  <h1>界面原型</h1>
+  <p class="section-desc">主要界面的 UI 原型。点击标签切换查看。</p>
+
+  <div class="screen-tabs">
+    <button class="screen-tab screen-tab--active" data-screen="life-space">生活空间</button>
+    <button class="screen-tab" data-screen="memory-review">记忆回顾</button>
+    <button class="screen-tab" data-screen="settings">个人中心</button>
+    <button class="screen-tab" data-screen="health">健康</button>
+  </div>
+
+  <div class="screen-viewport">
+    <!-- Life Space -->
+    <div class="screen-frame" id="screen-life-space">
+      <div class="phone-frame">
+        <div class="phone-top-bar">
+          <button class="icon-btn icon-btn--sm">←</button>
+          <div class="phone-tabs">
+            <span class="phone-tab phone-tab--active">记忆</span>
+            <span class="phone-tab">账本</span>
+            <span class="phone-tab">健康</span>
+            <span class="phone-tab">我的</span>
+          </div>
+          <button class="icon-btn icon-btn--sm">⋮</button>
+        </div>
+        <div class="phone-body">
+          <div class="phone-search">
+            <span class="phone-search__icon">🔍</span>
+            <span class="phone-search__placeholder">搜索记忆……</span>
+          </div>
+          <div class="phone-section-title">今天</div>
+          <div class="phone-memory-card">
+            <div class="pmc-header"><span class="pmc-type">事实</span><span class="pmc-time">14:32</span></div>
+            <div class="pmc-title">下周三下午两点牙医复诊</div>
+            <div class="pmc-body">带了上次的片子，需要拍新的全景片。医保卡记得带。</div>
+            <div class="pmc-tags"><span class="tag-chip">健康</span><span class="tag-chip">日程</span></div>
+          </div>
+          <div class="phone-memory-card">
+            <div class="pmc-header"><span class="pmc-type">事件</span><span class="pmc-time">11:20</span></div>
+            <div class="pmc-title">和领导确认了 Q3 方案</div>
+            <div class="pmc-body">最终选了方案 B，下周一前出详细排期。</div>
+            <div class="pmc-tags"><span class="tag-chip">工作</span></div>
+          </div>
+          <div class="phone-section-title">昨天</div>
+          <div class="phone-memory-card">
+            <div class="pmc-header"><span class="pmc-type">计划</span><span class="pmc-time">21:45</span></div>
+            <div class="pmc-title">周末去爬山</div>
+            <div class="pmc-body">约了小鱼，走那条有溪谷的线路。早上七点出发。</div>
+            <div class="pmc-tags"><span class="tag-chip">生活</span><span class="tag-chip">运动</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Memory Review -->
+    <div class="screen-frame" id="screen-memory-review" style="display:none">
+      <div class="phone-frame">
+        <div class="phone-top-bar">
+          <button class="icon-btn icon-btn--sm">←</button>
+          <span class="phone-title">记忆回顾</span>
+          <button class="icon-btn icon-btn--sm">✓</button>
+        </div>
+        <div class="phone-body">
+          <div class="review-hint">i 帮你整理了 3 条新记忆，确认一下？</div>
+          <div class="phone-memory-card review-card">
+            <div class="pmc-header"><span class="pmc-type">事实</span><span class="pmc-time">来自聊天</span></div>
+            <div class="pmc-title">妈妈生日是农历八月十二</div>
+            <div class="pmc-body">今年阳历大概是九月下旬，提前两周准备礼物。</div>
+            <div class="review-actions">
+              <button class="btn btn--sm btn--primary">确认</button>
+              <button class="btn btn--sm btn--ghost">修改</button>
+              <button class="btn btn--sm btn--ghost" style="opacity:.6">删除</button>
+            </div>
+          </div>
+          <div class="phone-memory-card review-card">
+            <div class="pmc-header"><span class="pmc-type">偏好</span><span class="pmc-time">来自聊天</span></div>
+            <div class="pmc-title">最近开始喝黑咖啡了</div>
+            <div class="pmc-body">不加糖不加奶，说是习惯了苦味。</div>
+            <div class="review-actions">
+              <button class="btn btn--sm btn--primary">确认</button>
+              <button class="btn btn--sm btn--ghost">修改</button>
+              <button class="btn btn--sm btn--ghost" style="opacity:.6">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings / Personal -->
+    <div class="screen-frame" id="screen-settings" style="display:none">
+      <div class="phone-frame">
+        <div class="phone-top-bar">
+          <button class="icon-btn icon-btn--sm">←</button>
+          <span class="phone-title">个人中心</span>
+          <span></span>
+        </div>
+        <div class="phone-body">
+          <div class="profile-header">
+            <div class="profile-avatar">林</div>
+            <div class="profile-info">
+              <span class="profile-name">林埃</span>
+              <span class="profile-sub">与 i 相伴 128 天</span>
+            </div>
+          </div>
+          <div class="phone-list-group">
+            <div class="phone-list-item"><span class="pli-icon">🎨</span><span class="pli-text">外观与皮肤</span><span class="pli-arrow">›</span></div>
+            <div class="phone-list-item"><span class="pli-icon">🗣️</span><span class="pli-text">语音设置</span><span class="pli-arrow">›</span></div>
+            <div class="phone-list-item"><span class="pli-icon">📍</span><span class="pli-text">位置服务</span><span class="pli-arrow">›</span></div>
+            <div class="phone-list-item"><span class="pli-icon">🤖</span><span class="pli-text">模型配置</span><span class="pli-arrow">›</span></div>
+            <div class="phone-list-item"><span class="pli-icon">💾</span><span class="pli-text">备份与恢复</span><span class="pli-arrow">›</span></div>
+            <div class="phone-list-item"><span class="pli-icon">⚙️</span><span class="pli-text">高级设置</span><span class="pli-arrow">›</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Health -->
+    <div class="screen-frame" id="screen-health" style="display:none">
+      <div class="phone-frame">
+        <div class="phone-top-bar">
+          <button class="icon-btn icon-btn--sm">←</button>
+          <span class="phone-title">健康</span>
+          <span></span>
+        </div>
+        <div class="phone-body">
+          <div class="phone-segment">
+            <span class="seg-item seg-item--active">日</span>
+            <span class="seg-item">周</span>
+            <span class="seg-item">月</span>
+          </div>
+          <div class="health-grid">
+            <div class="health-stat-card">
+              <span class="hsc-icon">🌙</span>
+              <span class="hsc-value">6h 42m</span>
+              <span class="hsc-label">睡眠</span>
+              <span class="hsc-trend hsc-trend--down">↓ 0.5h</span>
+            </div>
+            <div class="health-stat-card">
+              <span class="hsc-icon">👟</span>
+              <span class="hsc-value">8,241</span>
+              <span class="hsc-label">步数</span>
+              <span class="hsc-trend hsc-trend--up">↑ 1.2k</span>
+            </div>
+            <div class="health-stat-card">
+              <span class="hsc-icon">❤️</span>
+              <span class="hsc-value">72</span>
+              <span class="hsc-label">静息心率</span>
+              <span class="hsc-trend">—</span>
+            </div>
+            <div class="health-stat-card">
+              <span class="hsc-icon">🔥</span>
+              <span class="hsc-value">1,847</span>
+              <span class="hsc-label">消耗 kcal</span>
+              <span class="hsc-trend hsc-trend--up">↑ 120</span>
+            </div>
+          </div>
+          <div class="phone-section-title">i 的观察</div>
+          <div class="insight-bubble">
+            <p>这两天睡得都不太够，昨晚是不是又刷手机到很晚了？今天试着早一点放下吧。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<script src="components.js"></script>
+</body>
+</html>
