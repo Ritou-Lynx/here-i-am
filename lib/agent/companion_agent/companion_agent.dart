@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
@@ -25,6 +26,8 @@ import 'package:memex/data/services/toy_control_service.dart'
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/time_context.dart';
+import 'package:memex/data/services/comic/comic_reading_progress_service.dart';
+import 'package:memex/data/services/comic/comic_screenplay_service.dart';
 
 /// Thrown when a companion chat turn fails because of an API/connection error
 /// (quota exhausted, timeout, 4xx/5xx from the provider) rather than a normal
@@ -399,6 +402,48 @@ class CompanionAgent {
       }
     } else {
       state.systemReminders.remove('memory_v3_cards');
+    }
+    // Co-reading: inject the page the user is currently reading so the
+    // character can react to it naturally ("边看边聊"). Code-forced, not
+    // tool-dependent — same philosophy as the Memory V3 auto-lookup above
+    // (MiniMax-style models are stubborn about proactively calling tools).
+    if (ComicReadingProgressService.isInitialized &&
+        ComicScreenplayService.isInitialized) {
+      try {
+        final manga = await ComicReadingProgressService.instance
+            .getCurrentlyReadingManga(withinMinutes: 60);
+        if (manga != null) {
+          final progress = await ComicReadingProgressService.instance
+              .getProgress(manga.id);
+          final chapterId = progress?.chapterId;
+          if (chapterId != null && progress != null) {
+            final pageText = await ComicScreenplayService.instance
+                .getPageScreenplayText(chapterId, progress.page);
+            if (pageText.trim().isNotEmpty) {
+              state.systemReminders['comic_current_page'] =
+                  '## 用户正在看的漫画（当前页）\n'
+                  '《${manga.title}》· 第 ${progress.page} 页\n'
+                  '$pageText\n'
+                  '这是用户此刻正翻到的漫画页。规则：\n'
+                  '- 用户没提漫画时，照常聊天，不要主动复述或总结这一页，更不要念台词。\n'
+                  '- 用户聊到漫画、剧情、角色，或问"这页/刚才/接下来"时，像一起看的朋友'
+                  '一样自然回应，带你的感受和吐槽，不要像在读剧本摘要。\n'
+                  '- 永远不要把上面的剧本内容原样复述给用户。';
+            } else {
+              state.systemReminders.remove('comic_current_page');
+            }
+          } else {
+            state.systemReminders.remove('comic_current_page');
+          }
+        } else {
+          state.systemReminders.remove('comic_current_page');
+        }
+      } catch (e) {
+        _logger.warning('Failed to inject comic current page: $e');
+        state.systemReminders.remove('comic_current_page');
+      }
+    } else {
+      state.systemReminders.remove('comic_current_page');
     }
     // Inject recent dreaming output (episodes + fragments) as relationship context.
     if (DreamingOrchestratorServiceV3.isInitialized) {
@@ -915,6 +960,7 @@ class CompanionAgent {
           userId: userId,
           characterId: characterId,
           window: const Duration(hours: 6),
+          skipChatHistory: true,
         );
         state.systemReminders['recent_activity_snapshot'] = snapshot;
       } catch (e) {
@@ -988,6 +1034,14 @@ class CompanionAgent {
             _imageRequestDirective;
         debugPrint(
             '[ImageGen] Injected image_request_directive into systemReminders');
+      }
+
+      final historyTurns = await _loadChatHistoryTurns(
+        characterId: characterId,
+        excludeMessageId: userMessageId,
+      );
+      if (historyTurns.isNotEmpty) {
+        state.history.messages.insertAll(0, historyTurns);
       }
 
       final List<UserContentPart> userParts = [TextPart(timedUserMessage)];
@@ -1112,6 +1166,44 @@ class CompanionAgent {
         // ($e) is preserved on the exception for logs/Lab, never shown raw.
         throw CompanionApiException(e, st);
       }
+    }
+  }
+
+  static Future<List<LLMMessage>> _loadChatHistoryTurns({
+    required String characterId,
+    int? excludeMessageId,
+    int limit = 20,
+  }) async {
+    if (!AppDatabase.isInitialized) return [];
+    final db = AppDatabase.instance;
+    try {
+      final query = db.select(db.personaChatMessages)
+        ..where((t) => t.characterId.equals(characterId))
+        ..orderBy([(t) => OrderingTerm.desc(t.id)])
+        ..limit(limit + 1);
+      final rows = await query.get();
+      final turns = <LLMMessage>[];
+      for (final row in rows) {
+        if (row.id == excludeMessageId) continue;
+        if (row.content.trim().isEmpty) continue;
+        if (turns.length >= limit) break;
+        if (row.isFromCharacter) {
+          turns.add(ModelMessage(
+            textOutput: row.content,
+            model: 'history',
+            timestamp: row.timestamp.millisecondsSinceEpoch * 1000,
+          ));
+        } else {
+          turns.add(UserMessage(
+            [TextPart(row.content)],
+            timestamp: row.timestamp.millisecondsSinceEpoch * 1000,
+          ));
+        }
+      }
+      return turns.reversed.toList();
+    } catch (e) {
+      _logger.warning('Failed to load chat history turns: $e');
+      return [];
     }
   }
 
