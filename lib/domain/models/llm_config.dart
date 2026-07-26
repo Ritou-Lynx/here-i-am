@@ -381,6 +381,12 @@ class LLMConfig {
             id.contains('mimo-v2.5') ||
             id.contains('mimo-v2-omni') ||
             (id.contains('glm-') && id.contains('v'));
+      case typeOllama:
+        return id.contains('vl') ||
+            id.contains('vision') ||
+            id.contains('omni') ||
+            id.contains('llava') ||
+            id.contains('minicpm-v');
       default:
         return false;
     }

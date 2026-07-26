@@ -23245,6 +23245,2102 @@ class ProjectMemorySourcesCompanion
   }
 }
 
+class $ComicMangasTable extends ComicMangas
+    with TableInfo<$ComicMangasTable, ComicManga> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ComicMangasTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _characterIdMeta =
+      const VerificationMeta('characterId');
+  @override
+  late final GeneratedColumn<String> characterId = GeneratedColumn<String>(
+      'character_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceSiteMeta =
+      const VerificationMeta('sourceSite');
+  @override
+  late final GeneratedColumn<String> sourceSite = GeneratedColumn<String>(
+      'source_site', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _comicUrlMeta =
+      const VerificationMeta('comicUrl');
+  @override
+  late final GeneratedColumn<String> comicUrl = GeneratedColumn<String>(
+      'comic_url', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _coverUrlMeta =
+      const VerificationMeta('coverUrl');
+  @override
+  late final GeneratedColumn<String> coverUrl = GeneratedColumn<String>(
+      'cover_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        characterId,
+        sourceSite,
+        comicUrl,
+        title,
+        coverUrl,
+        status,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'comic_mangas';
+  @override
+  VerificationContext validateIntegrity(Insertable<ComicManga> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('character_id')) {
+      context.handle(
+          _characterIdMeta,
+          characterId.isAcceptableOrUnknown(
+              data['character_id']!, _characterIdMeta));
+    } else if (isInserting) {
+      context.missing(_characterIdMeta);
+    }
+    if (data.containsKey('source_site')) {
+      context.handle(
+          _sourceSiteMeta,
+          sourceSite.isAcceptableOrUnknown(
+              data['source_site']!, _sourceSiteMeta));
+    } else if (isInserting) {
+      context.missing(_sourceSiteMeta);
+    }
+    if (data.containsKey('comic_url')) {
+      context.handle(_comicUrlMeta,
+          comicUrl.isAcceptableOrUnknown(data['comic_url']!, _comicUrlMeta));
+    } else if (isInserting) {
+      context.missing(_comicUrlMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('cover_url')) {
+      context.handle(_coverUrlMeta,
+          coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ComicManga map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ComicManga(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      characterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
+      sourceSite: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_site'])!,
+      comicUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}comic_url'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      coverUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}cover_url']),
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $ComicMangasTable createAlias(String alias) {
+    return $ComicMangasTable(attachedDatabase, alias);
+  }
+}
+
+class ComicManga extends DataClass implements Insertable<ComicManga> {
+  final String id;
+  final String characterId;
+  final String sourceSite;
+  final String comicUrl;
+  final String title;
+  final String? coverUrl;
+  final String status;
+  final int createdAt;
+  final int updatedAt;
+  const ComicManga(
+      {required this.id,
+      required this.characterId,
+      required this.sourceSite,
+      required this.comicUrl,
+      required this.title,
+      this.coverUrl,
+      required this.status,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['character_id'] = Variable<String>(characterId);
+    map['source_site'] = Variable<String>(sourceSite);
+    map['comic_url'] = Variable<String>(comicUrl);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || coverUrl != null) {
+      map['cover_url'] = Variable<String>(coverUrl);
+    }
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  ComicMangasCompanion toCompanion(bool nullToAbsent) {
+    return ComicMangasCompanion(
+      id: Value(id),
+      characterId: Value(characterId),
+      sourceSite: Value(sourceSite),
+      comicUrl: Value(comicUrl),
+      title: Value(title),
+      coverUrl: coverUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverUrl),
+      status: Value(status),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ComicManga.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ComicManga(
+      id: serializer.fromJson<String>(json['id']),
+      characterId: serializer.fromJson<String>(json['characterId']),
+      sourceSite: serializer.fromJson<String>(json['sourceSite']),
+      comicUrl: serializer.fromJson<String>(json['comicUrl']),
+      title: serializer.fromJson<String>(json['title']),
+      coverUrl: serializer.fromJson<String?>(json['coverUrl']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'characterId': serializer.toJson<String>(characterId),
+      'sourceSite': serializer.toJson<String>(sourceSite),
+      'comicUrl': serializer.toJson<String>(comicUrl),
+      'title': serializer.toJson<String>(title),
+      'coverUrl': serializer.toJson<String?>(coverUrl),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  ComicManga copyWith(
+          {String? id,
+          String? characterId,
+          String? sourceSite,
+          String? comicUrl,
+          String? title,
+          Value<String?> coverUrl = const Value.absent(),
+          String? status,
+          int? createdAt,
+          int? updatedAt}) =>
+      ComicManga(
+        id: id ?? this.id,
+        characterId: characterId ?? this.characterId,
+        sourceSite: sourceSite ?? this.sourceSite,
+        comicUrl: comicUrl ?? this.comicUrl,
+        title: title ?? this.title,
+        coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
+        status: status ?? this.status,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  ComicManga copyWithCompanion(ComicMangasCompanion data) {
+    return ComicManga(
+      id: data.id.present ? data.id.value : this.id,
+      characterId:
+          data.characterId.present ? data.characterId.value : this.characterId,
+      sourceSite:
+          data.sourceSite.present ? data.sourceSite.value : this.sourceSite,
+      comicUrl: data.comicUrl.present ? data.comicUrl.value : this.comicUrl,
+      title: data.title.present ? data.title.value : this.title,
+      coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ComicManga(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('sourceSite: $sourceSite, ')
+          ..write('comicUrl: $comicUrl, ')
+          ..write('title: $title, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, characterId, sourceSite, comicUrl, title,
+      coverUrl, status, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ComicManga &&
+          other.id == this.id &&
+          other.characterId == this.characterId &&
+          other.sourceSite == this.sourceSite &&
+          other.comicUrl == this.comicUrl &&
+          other.title == this.title &&
+          other.coverUrl == this.coverUrl &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
+  final Value<String> id;
+  final Value<String> characterId;
+  final Value<String> sourceSite;
+  final Value<String> comicUrl;
+  final Value<String> title;
+  final Value<String?> coverUrl;
+  final Value<String> status;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const ComicMangasCompanion({
+    this.id = const Value.absent(),
+    this.characterId = const Value.absent(),
+    this.sourceSite = const Value.absent(),
+    this.comicUrl = const Value.absent(),
+    this.title = const Value.absent(),
+    this.coverUrl = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ComicMangasCompanion.insert({
+    required String id,
+    required String characterId,
+    required String sourceSite,
+    required String comicUrl,
+    required String title,
+    this.coverUrl = const Value.absent(),
+    this.status = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        characterId = Value(characterId),
+        sourceSite = Value(sourceSite),
+        comicUrl = Value(comicUrl),
+        title = Value(title),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<ComicManga> custom({
+    Expression<String>? id,
+    Expression<String>? characterId,
+    Expression<String>? sourceSite,
+    Expression<String>? comicUrl,
+    Expression<String>? title,
+    Expression<String>? coverUrl,
+    Expression<String>? status,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (characterId != null) 'character_id': characterId,
+      if (sourceSite != null) 'source_site': sourceSite,
+      if (comicUrl != null) 'comic_url': comicUrl,
+      if (title != null) 'title': title,
+      if (coverUrl != null) 'cover_url': coverUrl,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ComicMangasCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? characterId,
+      Value<String>? sourceSite,
+      Value<String>? comicUrl,
+      Value<String>? title,
+      Value<String?>? coverUrl,
+      Value<String>? status,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return ComicMangasCompanion(
+      id: id ?? this.id,
+      characterId: characterId ?? this.characterId,
+      sourceSite: sourceSite ?? this.sourceSite,
+      comicUrl: comicUrl ?? this.comicUrl,
+      title: title ?? this.title,
+      coverUrl: coverUrl ?? this.coverUrl,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (characterId.present) {
+      map['character_id'] = Variable<String>(characterId.value);
+    }
+    if (sourceSite.present) {
+      map['source_site'] = Variable<String>(sourceSite.value);
+    }
+    if (comicUrl.present) {
+      map['comic_url'] = Variable<String>(comicUrl.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (coverUrl.present) {
+      map['cover_url'] = Variable<String>(coverUrl.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ComicMangasCompanion(')
+          ..write('id: $id, ')
+          ..write('characterId: $characterId, ')
+          ..write('sourceSite: $sourceSite, ')
+          ..write('comicUrl: $comicUrl, ')
+          ..write('title: $title, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ComicChaptersTable extends ComicChapters
+    with TableInfo<$ComicChaptersTable, ComicChapter> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ComicChaptersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _mangaIdMeta =
+      const VerificationMeta('mangaId');
+  @override
+  late final GeneratedColumn<String> mangaId = GeneratedColumn<String>(
+      'manga_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _chapterNumberMeta =
+      const VerificationMeta('chapterNumber');
+  @override
+  late final GeneratedColumn<int> chapterNumber = GeneratedColumn<int>(
+      'chapter_number', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _chapterTitleMeta =
+      const VerificationMeta('chapterTitle');
+  @override
+  late final GeneratedColumn<String> chapterTitle = GeneratedColumn<String>(
+      'chapter_title', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _chapterUrlMeta =
+      const VerificationMeta('chapterUrl');
+  @override
+  late final GeneratedColumn<String> chapterUrl = GeneratedColumn<String>(
+      'chapter_url', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _pageCountMeta =
+      const VerificationMeta('pageCount');
+  @override
+  late final GeneratedColumn<int> pageCount = GeneratedColumn<int>(
+      'page_count', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _pagesJsonMeta =
+      const VerificationMeta('pagesJson');
+  @override
+  late final GeneratedColumn<String> pagesJson = GeneratedColumn<String>(
+      'pages_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _commentsJsonMeta =
+      const VerificationMeta('commentsJson');
+  @override
+  late final GeneratedColumn<String> commentsJson = GeneratedColumn<String>(
+      'comments_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _coverUrlMeta =
+      const VerificationMeta('coverUrl');
+  @override
+  late final GeneratedColumn<String> coverUrl = GeneratedColumn<String>(
+      'cover_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('pending'));
+  static const VerificationMeta _errorMeta = const VerificationMeta('error');
+  @override
+  late final GeneratedColumn<String> error = GeneratedColumn<String>(
+      'error', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        mangaId,
+        chapterNumber,
+        chapterTitle,
+        chapterUrl,
+        pageCount,
+        pagesJson,
+        commentsJson,
+        coverUrl,
+        status,
+        error,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'comic_chapters';
+  @override
+  VerificationContext validateIntegrity(Insertable<ComicChapter> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('manga_id')) {
+      context.handle(_mangaIdMeta,
+          mangaId.isAcceptableOrUnknown(data['manga_id']!, _mangaIdMeta));
+    } else if (isInserting) {
+      context.missing(_mangaIdMeta);
+    }
+    if (data.containsKey('chapter_number')) {
+      context.handle(
+          _chapterNumberMeta,
+          chapterNumber.isAcceptableOrUnknown(
+              data['chapter_number']!, _chapterNumberMeta));
+    } else if (isInserting) {
+      context.missing(_chapterNumberMeta);
+    }
+    if (data.containsKey('chapter_title')) {
+      context.handle(
+          _chapterTitleMeta,
+          chapterTitle.isAcceptableOrUnknown(
+              data['chapter_title']!, _chapterTitleMeta));
+    }
+    if (data.containsKey('chapter_url')) {
+      context.handle(
+          _chapterUrlMeta,
+          chapterUrl.isAcceptableOrUnknown(
+              data['chapter_url']!, _chapterUrlMeta));
+    } else if (isInserting) {
+      context.missing(_chapterUrlMeta);
+    }
+    if (data.containsKey('page_count')) {
+      context.handle(_pageCountMeta,
+          pageCount.isAcceptableOrUnknown(data['page_count']!, _pageCountMeta));
+    }
+    if (data.containsKey('pages_json')) {
+      context.handle(_pagesJsonMeta,
+          pagesJson.isAcceptableOrUnknown(data['pages_json']!, _pagesJsonMeta));
+    }
+    if (data.containsKey('comments_json')) {
+      context.handle(
+          _commentsJsonMeta,
+          commentsJson.isAcceptableOrUnknown(
+              data['comments_json']!, _commentsJsonMeta));
+    }
+    if (data.containsKey('cover_url')) {
+      context.handle(_coverUrlMeta,
+          coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('error')) {
+      context.handle(
+          _errorMeta, error.isAcceptableOrUnknown(data['error']!, _errorMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ComicChapter map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ComicChapter(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      mangaId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}manga_id'])!,
+      chapterNumber: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}chapter_number'])!,
+      chapterTitle: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}chapter_title']),
+      chapterUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}chapter_url'])!,
+      pageCount: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}page_count'])!,
+      pagesJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}pages_json']),
+      commentsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}comments_json']),
+      coverUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}cover_url']),
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      error: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}error']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $ComicChaptersTable createAlias(String alias) {
+    return $ComicChaptersTable(attachedDatabase, alias);
+  }
+}
+
+class ComicChapter extends DataClass implements Insertable<ComicChapter> {
+  final String id;
+  final String mangaId;
+  final int chapterNumber;
+  final String? chapterTitle;
+  final String chapterUrl;
+  final int pageCount;
+  final String? pagesJson;
+  final String? commentsJson;
+  final String? coverUrl;
+  final String status;
+  final String? error;
+  final int createdAt;
+  final int updatedAt;
+  const ComicChapter(
+      {required this.id,
+      required this.mangaId,
+      required this.chapterNumber,
+      this.chapterTitle,
+      required this.chapterUrl,
+      required this.pageCount,
+      this.pagesJson,
+      this.commentsJson,
+      this.coverUrl,
+      required this.status,
+      this.error,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['manga_id'] = Variable<String>(mangaId);
+    map['chapter_number'] = Variable<int>(chapterNumber);
+    if (!nullToAbsent || chapterTitle != null) {
+      map['chapter_title'] = Variable<String>(chapterTitle);
+    }
+    map['chapter_url'] = Variable<String>(chapterUrl);
+    map['page_count'] = Variable<int>(pageCount);
+    if (!nullToAbsent || pagesJson != null) {
+      map['pages_json'] = Variable<String>(pagesJson);
+    }
+    if (!nullToAbsent || commentsJson != null) {
+      map['comments_json'] = Variable<String>(commentsJson);
+    }
+    if (!nullToAbsent || coverUrl != null) {
+      map['cover_url'] = Variable<String>(coverUrl);
+    }
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || error != null) {
+      map['error'] = Variable<String>(error);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  ComicChaptersCompanion toCompanion(bool nullToAbsent) {
+    return ComicChaptersCompanion(
+      id: Value(id),
+      mangaId: Value(mangaId),
+      chapterNumber: Value(chapterNumber),
+      chapterTitle: chapterTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(chapterTitle),
+      chapterUrl: Value(chapterUrl),
+      pageCount: Value(pageCount),
+      pagesJson: pagesJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pagesJson),
+      commentsJson: commentsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(commentsJson),
+      coverUrl: coverUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverUrl),
+      status: Value(status),
+      error:
+          error == null && nullToAbsent ? const Value.absent() : Value(error),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ComicChapter.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ComicChapter(
+      id: serializer.fromJson<String>(json['id']),
+      mangaId: serializer.fromJson<String>(json['mangaId']),
+      chapterNumber: serializer.fromJson<int>(json['chapterNumber']),
+      chapterTitle: serializer.fromJson<String?>(json['chapterTitle']),
+      chapterUrl: serializer.fromJson<String>(json['chapterUrl']),
+      pageCount: serializer.fromJson<int>(json['pageCount']),
+      pagesJson: serializer.fromJson<String?>(json['pagesJson']),
+      commentsJson: serializer.fromJson<String?>(json['commentsJson']),
+      coverUrl: serializer.fromJson<String?>(json['coverUrl']),
+      status: serializer.fromJson<String>(json['status']),
+      error: serializer.fromJson<String?>(json['error']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'mangaId': serializer.toJson<String>(mangaId),
+      'chapterNumber': serializer.toJson<int>(chapterNumber),
+      'chapterTitle': serializer.toJson<String?>(chapterTitle),
+      'chapterUrl': serializer.toJson<String>(chapterUrl),
+      'pageCount': serializer.toJson<int>(pageCount),
+      'pagesJson': serializer.toJson<String?>(pagesJson),
+      'commentsJson': serializer.toJson<String?>(commentsJson),
+      'coverUrl': serializer.toJson<String?>(coverUrl),
+      'status': serializer.toJson<String>(status),
+      'error': serializer.toJson<String?>(error),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  ComicChapter copyWith(
+          {String? id,
+          String? mangaId,
+          int? chapterNumber,
+          Value<String?> chapterTitle = const Value.absent(),
+          String? chapterUrl,
+          int? pageCount,
+          Value<String?> pagesJson = const Value.absent(),
+          Value<String?> commentsJson = const Value.absent(),
+          Value<String?> coverUrl = const Value.absent(),
+          String? status,
+          Value<String?> error = const Value.absent(),
+          int? createdAt,
+          int? updatedAt}) =>
+      ComicChapter(
+        id: id ?? this.id,
+        mangaId: mangaId ?? this.mangaId,
+        chapterNumber: chapterNumber ?? this.chapterNumber,
+        chapterTitle:
+            chapterTitle.present ? chapterTitle.value : this.chapterTitle,
+        chapterUrl: chapterUrl ?? this.chapterUrl,
+        pageCount: pageCount ?? this.pageCount,
+        pagesJson: pagesJson.present ? pagesJson.value : this.pagesJson,
+        commentsJson:
+            commentsJson.present ? commentsJson.value : this.commentsJson,
+        coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
+        status: status ?? this.status,
+        error: error.present ? error.value : this.error,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  ComicChapter copyWithCompanion(ComicChaptersCompanion data) {
+    return ComicChapter(
+      id: data.id.present ? data.id.value : this.id,
+      mangaId: data.mangaId.present ? data.mangaId.value : this.mangaId,
+      chapterNumber: data.chapterNumber.present
+          ? data.chapterNumber.value
+          : this.chapterNumber,
+      chapterTitle: data.chapterTitle.present
+          ? data.chapterTitle.value
+          : this.chapterTitle,
+      chapterUrl:
+          data.chapterUrl.present ? data.chapterUrl.value : this.chapterUrl,
+      pageCount: data.pageCount.present ? data.pageCount.value : this.pageCount,
+      pagesJson: data.pagesJson.present ? data.pagesJson.value : this.pagesJson,
+      commentsJson: data.commentsJson.present
+          ? data.commentsJson.value
+          : this.commentsJson,
+      coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
+      status: data.status.present ? data.status.value : this.status,
+      error: data.error.present ? data.error.value : this.error,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ComicChapter(')
+          ..write('id: $id, ')
+          ..write('mangaId: $mangaId, ')
+          ..write('chapterNumber: $chapterNumber, ')
+          ..write('chapterTitle: $chapterTitle, ')
+          ..write('chapterUrl: $chapterUrl, ')
+          ..write('pageCount: $pageCount, ')
+          ..write('pagesJson: $pagesJson, ')
+          ..write('commentsJson: $commentsJson, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('status: $status, ')
+          ..write('error: $error, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      mangaId,
+      chapterNumber,
+      chapterTitle,
+      chapterUrl,
+      pageCount,
+      pagesJson,
+      commentsJson,
+      coverUrl,
+      status,
+      error,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ComicChapter &&
+          other.id == this.id &&
+          other.mangaId == this.mangaId &&
+          other.chapterNumber == this.chapterNumber &&
+          other.chapterTitle == this.chapterTitle &&
+          other.chapterUrl == this.chapterUrl &&
+          other.pageCount == this.pageCount &&
+          other.pagesJson == this.pagesJson &&
+          other.commentsJson == this.commentsJson &&
+          other.coverUrl == this.coverUrl &&
+          other.status == this.status &&
+          other.error == this.error &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ComicChaptersCompanion extends UpdateCompanion<ComicChapter> {
+  final Value<String> id;
+  final Value<String> mangaId;
+  final Value<int> chapterNumber;
+  final Value<String?> chapterTitle;
+  final Value<String> chapterUrl;
+  final Value<int> pageCount;
+  final Value<String?> pagesJson;
+  final Value<String?> commentsJson;
+  final Value<String?> coverUrl;
+  final Value<String> status;
+  final Value<String?> error;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const ComicChaptersCompanion({
+    this.id = const Value.absent(),
+    this.mangaId = const Value.absent(),
+    this.chapterNumber = const Value.absent(),
+    this.chapterTitle = const Value.absent(),
+    this.chapterUrl = const Value.absent(),
+    this.pageCount = const Value.absent(),
+    this.pagesJson = const Value.absent(),
+    this.commentsJson = const Value.absent(),
+    this.coverUrl = const Value.absent(),
+    this.status = const Value.absent(),
+    this.error = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ComicChaptersCompanion.insert({
+    required String id,
+    required String mangaId,
+    required int chapterNumber,
+    this.chapterTitle = const Value.absent(),
+    required String chapterUrl,
+    this.pageCount = const Value.absent(),
+    this.pagesJson = const Value.absent(),
+    this.commentsJson = const Value.absent(),
+    this.coverUrl = const Value.absent(),
+    this.status = const Value.absent(),
+    this.error = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        mangaId = Value(mangaId),
+        chapterNumber = Value(chapterNumber),
+        chapterUrl = Value(chapterUrl),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<ComicChapter> custom({
+    Expression<String>? id,
+    Expression<String>? mangaId,
+    Expression<int>? chapterNumber,
+    Expression<String>? chapterTitle,
+    Expression<String>? chapterUrl,
+    Expression<int>? pageCount,
+    Expression<String>? pagesJson,
+    Expression<String>? commentsJson,
+    Expression<String>? coverUrl,
+    Expression<String>? status,
+    Expression<String>? error,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (mangaId != null) 'manga_id': mangaId,
+      if (chapterNumber != null) 'chapter_number': chapterNumber,
+      if (chapterTitle != null) 'chapter_title': chapterTitle,
+      if (chapterUrl != null) 'chapter_url': chapterUrl,
+      if (pageCount != null) 'page_count': pageCount,
+      if (pagesJson != null) 'pages_json': pagesJson,
+      if (commentsJson != null) 'comments_json': commentsJson,
+      if (coverUrl != null) 'cover_url': coverUrl,
+      if (status != null) 'status': status,
+      if (error != null) 'error': error,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ComicChaptersCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? mangaId,
+      Value<int>? chapterNumber,
+      Value<String?>? chapterTitle,
+      Value<String>? chapterUrl,
+      Value<int>? pageCount,
+      Value<String?>? pagesJson,
+      Value<String?>? commentsJson,
+      Value<String?>? coverUrl,
+      Value<String>? status,
+      Value<String?>? error,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return ComicChaptersCompanion(
+      id: id ?? this.id,
+      mangaId: mangaId ?? this.mangaId,
+      chapterNumber: chapterNumber ?? this.chapterNumber,
+      chapterTitle: chapterTitle ?? this.chapterTitle,
+      chapterUrl: chapterUrl ?? this.chapterUrl,
+      pageCount: pageCount ?? this.pageCount,
+      pagesJson: pagesJson ?? this.pagesJson,
+      commentsJson: commentsJson ?? this.commentsJson,
+      coverUrl: coverUrl ?? this.coverUrl,
+      status: status ?? this.status,
+      error: error ?? this.error,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (mangaId.present) {
+      map['manga_id'] = Variable<String>(mangaId.value);
+    }
+    if (chapterNumber.present) {
+      map['chapter_number'] = Variable<int>(chapterNumber.value);
+    }
+    if (chapterTitle.present) {
+      map['chapter_title'] = Variable<String>(chapterTitle.value);
+    }
+    if (chapterUrl.present) {
+      map['chapter_url'] = Variable<String>(chapterUrl.value);
+    }
+    if (pageCount.present) {
+      map['page_count'] = Variable<int>(pageCount.value);
+    }
+    if (pagesJson.present) {
+      map['pages_json'] = Variable<String>(pagesJson.value);
+    }
+    if (commentsJson.present) {
+      map['comments_json'] = Variable<String>(commentsJson.value);
+    }
+    if (coverUrl.present) {
+      map['cover_url'] = Variable<String>(coverUrl.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (error.present) {
+      map['error'] = Variable<String>(error.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ComicChaptersCompanion(')
+          ..write('id: $id, ')
+          ..write('mangaId: $mangaId, ')
+          ..write('chapterNumber: $chapterNumber, ')
+          ..write('chapterTitle: $chapterTitle, ')
+          ..write('chapterUrl: $chapterUrl, ')
+          ..write('pageCount: $pageCount, ')
+          ..write('pagesJson: $pagesJson, ')
+          ..write('commentsJson: $commentsJson, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('status: $status, ')
+          ..write('error: $error, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ComicPageScreenplaysTable extends ComicPageScreenplays
+    with TableInfo<$ComicPageScreenplaysTable, ComicPageScreenplay> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ComicPageScreenplaysTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _chapterIdMeta =
+      const VerificationMeta('chapterId');
+  @override
+  late final GeneratedColumn<String> chapterId = GeneratedColumn<String>(
+      'chapter_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _pageNumMeta =
+      const VerificationMeta('pageNum');
+  @override
+  late final GeneratedColumn<int> pageNum = GeneratedColumn<int>(
+      'page_num', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _screenplayJsonMeta =
+      const VerificationMeta('screenplayJson');
+  @override
+  late final GeneratedColumn<String> screenplayJson = GeneratedColumn<String>(
+      'screenplay_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _imageUrlMeta =
+      const VerificationMeta('imageUrl');
+  @override
+  late final GeneratedColumn<String> imageUrl = GeneratedColumn<String>(
+      'image_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _schemaVersionMeta =
+      const VerificationMeta('schemaVersion');
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+      'schema_version', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _generatedByModelMeta =
+      const VerificationMeta('generatedByModel');
+  @override
+  late final GeneratedColumn<String> generatedByModel = GeneratedColumn<String>(
+      'generated_by_model', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        chapterId,
+        pageNum,
+        screenplayJson,
+        imageUrl,
+        schemaVersion,
+        generatedByModel,
+        createdAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'comic_page_screenplays';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<ComicPageScreenplay> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('chapter_id')) {
+      context.handle(_chapterIdMeta,
+          chapterId.isAcceptableOrUnknown(data['chapter_id']!, _chapterIdMeta));
+    } else if (isInserting) {
+      context.missing(_chapterIdMeta);
+    }
+    if (data.containsKey('page_num')) {
+      context.handle(_pageNumMeta,
+          pageNum.isAcceptableOrUnknown(data['page_num']!, _pageNumMeta));
+    } else if (isInserting) {
+      context.missing(_pageNumMeta);
+    }
+    if (data.containsKey('screenplay_json')) {
+      context.handle(
+          _screenplayJsonMeta,
+          screenplayJson.isAcceptableOrUnknown(
+              data['screenplay_json']!, _screenplayJsonMeta));
+    } else if (isInserting) {
+      context.missing(_screenplayJsonMeta);
+    }
+    if (data.containsKey('image_url')) {
+      context.handle(_imageUrlMeta,
+          imageUrl.isAcceptableOrUnknown(data['image_url']!, _imageUrlMeta));
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+          _schemaVersionMeta,
+          schemaVersion.isAcceptableOrUnknown(
+              data['schema_version']!, _schemaVersionMeta));
+    }
+    if (data.containsKey('generated_by_model')) {
+      context.handle(
+          _generatedByModelMeta,
+          generatedByModel.isAcceptableOrUnknown(
+              data['generated_by_model']!, _generatedByModelMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ComicPageScreenplay map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ComicPageScreenplay(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      chapterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}chapter_id'])!,
+      pageNum: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}page_num'])!,
+      screenplayJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}screenplay_json'])!,
+      imageUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}image_url']),
+      schemaVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}schema_version'])!,
+      generatedByModel: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}generated_by_model']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $ComicPageScreenplaysTable createAlias(String alias) {
+    return $ComicPageScreenplaysTable(attachedDatabase, alias);
+  }
+}
+
+class ComicPageScreenplay extends DataClass
+    implements Insertable<ComicPageScreenplay> {
+  final String id;
+  final String chapterId;
+  final int pageNum;
+  final String screenplayJson;
+  final String? imageUrl;
+  final int schemaVersion;
+  final String? generatedByModel;
+  final int createdAt;
+  const ComicPageScreenplay(
+      {required this.id,
+      required this.chapterId,
+      required this.pageNum,
+      required this.screenplayJson,
+      this.imageUrl,
+      required this.schemaVersion,
+      this.generatedByModel,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['chapter_id'] = Variable<String>(chapterId);
+    map['page_num'] = Variable<int>(pageNum);
+    map['screenplay_json'] = Variable<String>(screenplayJson);
+    if (!nullToAbsent || imageUrl != null) {
+      map['image_url'] = Variable<String>(imageUrl);
+    }
+    map['schema_version'] = Variable<int>(schemaVersion);
+    if (!nullToAbsent || generatedByModel != null) {
+      map['generated_by_model'] = Variable<String>(generatedByModel);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  ComicPageScreenplaysCompanion toCompanion(bool nullToAbsent) {
+    return ComicPageScreenplaysCompanion(
+      id: Value(id),
+      chapterId: Value(chapterId),
+      pageNum: Value(pageNum),
+      screenplayJson: Value(screenplayJson),
+      imageUrl: imageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(imageUrl),
+      schemaVersion: Value(schemaVersion),
+      generatedByModel: generatedByModel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(generatedByModel),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ComicPageScreenplay.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ComicPageScreenplay(
+      id: serializer.fromJson<String>(json['id']),
+      chapterId: serializer.fromJson<String>(json['chapterId']),
+      pageNum: serializer.fromJson<int>(json['pageNum']),
+      screenplayJson: serializer.fromJson<String>(json['screenplayJson']),
+      imageUrl: serializer.fromJson<String?>(json['imageUrl']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      generatedByModel: serializer.fromJson<String?>(json['generatedByModel']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'chapterId': serializer.toJson<String>(chapterId),
+      'pageNum': serializer.toJson<int>(pageNum),
+      'screenplayJson': serializer.toJson<String>(screenplayJson),
+      'imageUrl': serializer.toJson<String?>(imageUrl),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'generatedByModel': serializer.toJson<String?>(generatedByModel),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  ComicPageScreenplay copyWith(
+          {String? id,
+          String? chapterId,
+          int? pageNum,
+          String? screenplayJson,
+          Value<String?> imageUrl = const Value.absent(),
+          int? schemaVersion,
+          Value<String?> generatedByModel = const Value.absent(),
+          int? createdAt}) =>
+      ComicPageScreenplay(
+        id: id ?? this.id,
+        chapterId: chapterId ?? this.chapterId,
+        pageNum: pageNum ?? this.pageNum,
+        screenplayJson: screenplayJson ?? this.screenplayJson,
+        imageUrl: imageUrl.present ? imageUrl.value : this.imageUrl,
+        schemaVersion: schemaVersion ?? this.schemaVersion,
+        generatedByModel: generatedByModel.present
+            ? generatedByModel.value
+            : this.generatedByModel,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  ComicPageScreenplay copyWithCompanion(ComicPageScreenplaysCompanion data) {
+    return ComicPageScreenplay(
+      id: data.id.present ? data.id.value : this.id,
+      chapterId: data.chapterId.present ? data.chapterId.value : this.chapterId,
+      pageNum: data.pageNum.present ? data.pageNum.value : this.pageNum,
+      screenplayJson: data.screenplayJson.present
+          ? data.screenplayJson.value
+          : this.screenplayJson,
+      imageUrl: data.imageUrl.present ? data.imageUrl.value : this.imageUrl,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+      generatedByModel: data.generatedByModel.present
+          ? data.generatedByModel.value
+          : this.generatedByModel,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ComicPageScreenplay(')
+          ..write('id: $id, ')
+          ..write('chapterId: $chapterId, ')
+          ..write('pageNum: $pageNum, ')
+          ..write('screenplayJson: $screenplayJson, ')
+          ..write('imageUrl: $imageUrl, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('generatedByModel: $generatedByModel, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, chapterId, pageNum, screenplayJson,
+      imageUrl, schemaVersion, generatedByModel, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ComicPageScreenplay &&
+          other.id == this.id &&
+          other.chapterId == this.chapterId &&
+          other.pageNum == this.pageNum &&
+          other.screenplayJson == this.screenplayJson &&
+          other.imageUrl == this.imageUrl &&
+          other.schemaVersion == this.schemaVersion &&
+          other.generatedByModel == this.generatedByModel &&
+          other.createdAt == this.createdAt);
+}
+
+class ComicPageScreenplaysCompanion
+    extends UpdateCompanion<ComicPageScreenplay> {
+  final Value<String> id;
+  final Value<String> chapterId;
+  final Value<int> pageNum;
+  final Value<String> screenplayJson;
+  final Value<String?> imageUrl;
+  final Value<int> schemaVersion;
+  final Value<String?> generatedByModel;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const ComicPageScreenplaysCompanion({
+    this.id = const Value.absent(),
+    this.chapterId = const Value.absent(),
+    this.pageNum = const Value.absent(),
+    this.screenplayJson = const Value.absent(),
+    this.imageUrl = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.generatedByModel = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ComicPageScreenplaysCompanion.insert({
+    required String id,
+    required String chapterId,
+    required int pageNum,
+    required String screenplayJson,
+    this.imageUrl = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.generatedByModel = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        chapterId = Value(chapterId),
+        pageNum = Value(pageNum),
+        screenplayJson = Value(screenplayJson),
+        createdAt = Value(createdAt);
+  static Insertable<ComicPageScreenplay> custom({
+    Expression<String>? id,
+    Expression<String>? chapterId,
+    Expression<int>? pageNum,
+    Expression<String>? screenplayJson,
+    Expression<String>? imageUrl,
+    Expression<int>? schemaVersion,
+    Expression<String>? generatedByModel,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (chapterId != null) 'chapter_id': chapterId,
+      if (pageNum != null) 'page_num': pageNum,
+      if (screenplayJson != null) 'screenplay_json': screenplayJson,
+      if (imageUrl != null) 'image_url': imageUrl,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (generatedByModel != null) 'generated_by_model': generatedByModel,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ComicPageScreenplaysCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? chapterId,
+      Value<int>? pageNum,
+      Value<String>? screenplayJson,
+      Value<String?>? imageUrl,
+      Value<int>? schemaVersion,
+      Value<String?>? generatedByModel,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return ComicPageScreenplaysCompanion(
+      id: id ?? this.id,
+      chapterId: chapterId ?? this.chapterId,
+      pageNum: pageNum ?? this.pageNum,
+      screenplayJson: screenplayJson ?? this.screenplayJson,
+      imageUrl: imageUrl ?? this.imageUrl,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      generatedByModel: generatedByModel ?? this.generatedByModel,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (chapterId.present) {
+      map['chapter_id'] = Variable<String>(chapterId.value);
+    }
+    if (pageNum.present) {
+      map['page_num'] = Variable<int>(pageNum.value);
+    }
+    if (screenplayJson.present) {
+      map['screenplay_json'] = Variable<String>(screenplayJson.value);
+    }
+    if (imageUrl.present) {
+      map['image_url'] = Variable<String>(imageUrl.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (generatedByModel.present) {
+      map['generated_by_model'] = Variable<String>(generatedByModel.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ComicPageScreenplaysCompanion(')
+          ..write('id: $id, ')
+          ..write('chapterId: $chapterId, ')
+          ..write('pageNum: $pageNum, ')
+          ..write('screenplayJson: $screenplayJson, ')
+          ..write('imageUrl: $imageUrl, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('generatedByModel: $generatedByModel, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ComicReadingProgressTable extends ComicReadingProgress
+    with TableInfo<$ComicReadingProgressTable, ComicReadingProgressData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ComicReadingProgressTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _mangaIdMeta =
+      const VerificationMeta('mangaId');
+  @override
+  late final GeneratedColumn<String> mangaId = GeneratedColumn<String>(
+      'manga_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _chapterIdMeta =
+      const VerificationMeta('chapterId');
+  @override
+  late final GeneratedColumn<String> chapterId = GeneratedColumn<String>(
+      'chapter_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _pageMeta = const VerificationMeta('page');
+  @override
+  late final GeneratedColumn<int> page = GeneratedColumn<int>(
+      'page', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _readAtMeta = const VerificationMeta('readAt');
+  @override
+  late final GeneratedColumn<int> readAt = GeneratedColumn<int>(
+      'read_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [mangaId, chapterId, page, readAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'comic_reading_progress';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<ComicReadingProgressData> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('manga_id')) {
+      context.handle(_mangaIdMeta,
+          mangaId.isAcceptableOrUnknown(data['manga_id']!, _mangaIdMeta));
+    } else if (isInserting) {
+      context.missing(_mangaIdMeta);
+    }
+    if (data.containsKey('chapter_id')) {
+      context.handle(_chapterIdMeta,
+          chapterId.isAcceptableOrUnknown(data['chapter_id']!, _chapterIdMeta));
+    }
+    if (data.containsKey('page')) {
+      context.handle(
+          _pageMeta, page.isAcceptableOrUnknown(data['page']!, _pageMeta));
+    }
+    if (data.containsKey('read_at')) {
+      context.handle(_readAtMeta,
+          readAt.isAcceptableOrUnknown(data['read_at']!, _readAtMeta));
+    } else if (isInserting) {
+      context.missing(_readAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {mangaId};
+  @override
+  ComicReadingProgressData map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ComicReadingProgressData(
+      mangaId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}manga_id'])!,
+      chapterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}chapter_id']),
+      page: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}page'])!,
+      readAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}read_at'])!,
+    );
+  }
+
+  @override
+  $ComicReadingProgressTable createAlias(String alias) {
+    return $ComicReadingProgressTable(attachedDatabase, alias);
+  }
+}
+
+class ComicReadingProgressData extends DataClass
+    implements Insertable<ComicReadingProgressData> {
+  final String mangaId;
+  final String? chapterId;
+  final int page;
+  final int readAt;
+  const ComicReadingProgressData(
+      {required this.mangaId,
+      this.chapterId,
+      required this.page,
+      required this.readAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['manga_id'] = Variable<String>(mangaId);
+    if (!nullToAbsent || chapterId != null) {
+      map['chapter_id'] = Variable<String>(chapterId);
+    }
+    map['page'] = Variable<int>(page);
+    map['read_at'] = Variable<int>(readAt);
+    return map;
+  }
+
+  ComicReadingProgressCompanion toCompanion(bool nullToAbsent) {
+    return ComicReadingProgressCompanion(
+      mangaId: Value(mangaId),
+      chapterId: chapterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(chapterId),
+      page: Value(page),
+      readAt: Value(readAt),
+    );
+  }
+
+  factory ComicReadingProgressData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ComicReadingProgressData(
+      mangaId: serializer.fromJson<String>(json['mangaId']),
+      chapterId: serializer.fromJson<String?>(json['chapterId']),
+      page: serializer.fromJson<int>(json['page']),
+      readAt: serializer.fromJson<int>(json['readAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'mangaId': serializer.toJson<String>(mangaId),
+      'chapterId': serializer.toJson<String?>(chapterId),
+      'page': serializer.toJson<int>(page),
+      'readAt': serializer.toJson<int>(readAt),
+    };
+  }
+
+  ComicReadingProgressData copyWith(
+          {String? mangaId,
+          Value<String?> chapterId = const Value.absent(),
+          int? page,
+          int? readAt}) =>
+      ComicReadingProgressData(
+        mangaId: mangaId ?? this.mangaId,
+        chapterId: chapterId.present ? chapterId.value : this.chapterId,
+        page: page ?? this.page,
+        readAt: readAt ?? this.readAt,
+      );
+  ComicReadingProgressData copyWithCompanion(
+      ComicReadingProgressCompanion data) {
+    return ComicReadingProgressData(
+      mangaId: data.mangaId.present ? data.mangaId.value : this.mangaId,
+      chapterId: data.chapterId.present ? data.chapterId.value : this.chapterId,
+      page: data.page.present ? data.page.value : this.page,
+      readAt: data.readAt.present ? data.readAt.value : this.readAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ComicReadingProgressData(')
+          ..write('mangaId: $mangaId, ')
+          ..write('chapterId: $chapterId, ')
+          ..write('page: $page, ')
+          ..write('readAt: $readAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(mangaId, chapterId, page, readAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ComicReadingProgressData &&
+          other.mangaId == this.mangaId &&
+          other.chapterId == this.chapterId &&
+          other.page == this.page &&
+          other.readAt == this.readAt);
+}
+
+class ComicReadingProgressCompanion
+    extends UpdateCompanion<ComicReadingProgressData> {
+  final Value<String> mangaId;
+  final Value<String?> chapterId;
+  final Value<int> page;
+  final Value<int> readAt;
+  final Value<int> rowid;
+  const ComicReadingProgressCompanion({
+    this.mangaId = const Value.absent(),
+    this.chapterId = const Value.absent(),
+    this.page = const Value.absent(),
+    this.readAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ComicReadingProgressCompanion.insert({
+    required String mangaId,
+    this.chapterId = const Value.absent(),
+    this.page = const Value.absent(),
+    required int readAt,
+    this.rowid = const Value.absent(),
+  })  : mangaId = Value(mangaId),
+        readAt = Value(readAt);
+  static Insertable<ComicReadingProgressData> custom({
+    Expression<String>? mangaId,
+    Expression<String>? chapterId,
+    Expression<int>? page,
+    Expression<int>? readAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (mangaId != null) 'manga_id': mangaId,
+      if (chapterId != null) 'chapter_id': chapterId,
+      if (page != null) 'page': page,
+      if (readAt != null) 'read_at': readAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ComicReadingProgressCompanion copyWith(
+      {Value<String>? mangaId,
+      Value<String?>? chapterId,
+      Value<int>? page,
+      Value<int>? readAt,
+      Value<int>? rowid}) {
+    return ComicReadingProgressCompanion(
+      mangaId: mangaId ?? this.mangaId,
+      chapterId: chapterId ?? this.chapterId,
+      page: page ?? this.page,
+      readAt: readAt ?? this.readAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (mangaId.present) {
+      map['manga_id'] = Variable<String>(mangaId.value);
+    }
+    if (chapterId.present) {
+      map['chapter_id'] = Variable<String>(chapterId.value);
+    }
+    if (page.present) {
+      map['page'] = Variable<int>(page.value);
+    }
+    if (readAt.present) {
+      map['read_at'] = Variable<int>(readAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ComicReadingProgressCompanion(')
+          ..write('mangaId: $mangaId, ')
+          ..write('chapterId: $chapterId, ')
+          ..write('page: $page, ')
+          ..write('readAt: $readAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ComicSyncCursorTable extends ComicSyncCursor
+    with TableInfo<$ComicSyncCursorTable, ComicSyncCursorData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ComicSyncCursorTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _mangaIdMeta =
+      const VerificationMeta('mangaId');
+  @override
+  late final GeneratedColumn<String> mangaId = GeneratedColumn<String>(
+      'manga_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _lastSyncedChapterIdMeta =
+      const VerificationMeta('lastSyncedChapterId');
+  @override
+  late final GeneratedColumn<String> lastSyncedChapterId =
+      GeneratedColumn<String>('last_synced_chapter_id', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _lastSyncedAtMeta =
+      const VerificationMeta('lastSyncedAt');
+  @override
+  late final GeneratedColumn<int> lastSyncedAt = GeneratedColumn<int>(
+      'last_synced_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [mangaId, lastSyncedChapterId, lastSyncedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'comic_sync_cursor';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<ComicSyncCursorData> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('manga_id')) {
+      context.handle(_mangaIdMeta,
+          mangaId.isAcceptableOrUnknown(data['manga_id']!, _mangaIdMeta));
+    } else if (isInserting) {
+      context.missing(_mangaIdMeta);
+    }
+    if (data.containsKey('last_synced_chapter_id')) {
+      context.handle(
+          _lastSyncedChapterIdMeta,
+          lastSyncedChapterId.isAcceptableOrUnknown(
+              data['last_synced_chapter_id']!, _lastSyncedChapterIdMeta));
+    }
+    if (data.containsKey('last_synced_at')) {
+      context.handle(
+          _lastSyncedAtMeta,
+          lastSyncedAt.isAcceptableOrUnknown(
+              data['last_synced_at']!, _lastSyncedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {mangaId};
+  @override
+  ComicSyncCursorData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ComicSyncCursorData(
+      mangaId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}manga_id'])!,
+      lastSyncedChapterId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}last_synced_chapter_id']),
+      lastSyncedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}last_synced_at']),
+    );
+  }
+
+  @override
+  $ComicSyncCursorTable createAlias(String alias) {
+    return $ComicSyncCursorTable(attachedDatabase, alias);
+  }
+}
+
+class ComicSyncCursorData extends DataClass
+    implements Insertable<ComicSyncCursorData> {
+  final String mangaId;
+  final String? lastSyncedChapterId;
+  final int? lastSyncedAt;
+  const ComicSyncCursorData(
+      {required this.mangaId, this.lastSyncedChapterId, this.lastSyncedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['manga_id'] = Variable<String>(mangaId);
+    if (!nullToAbsent || lastSyncedChapterId != null) {
+      map['last_synced_chapter_id'] = Variable<String>(lastSyncedChapterId);
+    }
+    if (!nullToAbsent || lastSyncedAt != null) {
+      map['last_synced_at'] = Variable<int>(lastSyncedAt);
+    }
+    return map;
+  }
+
+  ComicSyncCursorCompanion toCompanion(bool nullToAbsent) {
+    return ComicSyncCursorCompanion(
+      mangaId: Value(mangaId),
+      lastSyncedChapterId: lastSyncedChapterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSyncedChapterId),
+      lastSyncedAt: lastSyncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSyncedAt),
+    );
+  }
+
+  factory ComicSyncCursorData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ComicSyncCursorData(
+      mangaId: serializer.fromJson<String>(json['mangaId']),
+      lastSyncedChapterId:
+          serializer.fromJson<String?>(json['lastSyncedChapterId']),
+      lastSyncedAt: serializer.fromJson<int?>(json['lastSyncedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'mangaId': serializer.toJson<String>(mangaId),
+      'lastSyncedChapterId': serializer.toJson<String?>(lastSyncedChapterId),
+      'lastSyncedAt': serializer.toJson<int?>(lastSyncedAt),
+    };
+  }
+
+  ComicSyncCursorData copyWith(
+          {String? mangaId,
+          Value<String?> lastSyncedChapterId = const Value.absent(),
+          Value<int?> lastSyncedAt = const Value.absent()}) =>
+      ComicSyncCursorData(
+        mangaId: mangaId ?? this.mangaId,
+        lastSyncedChapterId: lastSyncedChapterId.present
+            ? lastSyncedChapterId.value
+            : this.lastSyncedChapterId,
+        lastSyncedAt:
+            lastSyncedAt.present ? lastSyncedAt.value : this.lastSyncedAt,
+      );
+  ComicSyncCursorData copyWithCompanion(ComicSyncCursorCompanion data) {
+    return ComicSyncCursorData(
+      mangaId: data.mangaId.present ? data.mangaId.value : this.mangaId,
+      lastSyncedChapterId: data.lastSyncedChapterId.present
+          ? data.lastSyncedChapterId.value
+          : this.lastSyncedChapterId,
+      lastSyncedAt: data.lastSyncedAt.present
+          ? data.lastSyncedAt.value
+          : this.lastSyncedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ComicSyncCursorData(')
+          ..write('mangaId: $mangaId, ')
+          ..write('lastSyncedChapterId: $lastSyncedChapterId, ')
+          ..write('lastSyncedAt: $lastSyncedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(mangaId, lastSyncedChapterId, lastSyncedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ComicSyncCursorData &&
+          other.mangaId == this.mangaId &&
+          other.lastSyncedChapterId == this.lastSyncedChapterId &&
+          other.lastSyncedAt == this.lastSyncedAt);
+}
+
+class ComicSyncCursorCompanion extends UpdateCompanion<ComicSyncCursorData> {
+  final Value<String> mangaId;
+  final Value<String?> lastSyncedChapterId;
+  final Value<int?> lastSyncedAt;
+  final Value<int> rowid;
+  const ComicSyncCursorCompanion({
+    this.mangaId = const Value.absent(),
+    this.lastSyncedChapterId = const Value.absent(),
+    this.lastSyncedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ComicSyncCursorCompanion.insert({
+    required String mangaId,
+    this.lastSyncedChapterId = const Value.absent(),
+    this.lastSyncedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : mangaId = Value(mangaId);
+  static Insertable<ComicSyncCursorData> custom({
+    Expression<String>? mangaId,
+    Expression<String>? lastSyncedChapterId,
+    Expression<int>? lastSyncedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (mangaId != null) 'manga_id': mangaId,
+      if (lastSyncedChapterId != null)
+        'last_synced_chapter_id': lastSyncedChapterId,
+      if (lastSyncedAt != null) 'last_synced_at': lastSyncedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ComicSyncCursorCompanion copyWith(
+      {Value<String>? mangaId,
+      Value<String?>? lastSyncedChapterId,
+      Value<int?>? lastSyncedAt,
+      Value<int>? rowid}) {
+    return ComicSyncCursorCompanion(
+      mangaId: mangaId ?? this.mangaId,
+      lastSyncedChapterId: lastSyncedChapterId ?? this.lastSyncedChapterId,
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (mangaId.present) {
+      map['manga_id'] = Variable<String>(mangaId.value);
+    }
+    if (lastSyncedChapterId.present) {
+      map['last_synced_chapter_id'] =
+          Variable<String>(lastSyncedChapterId.value);
+    }
+    if (lastSyncedAt.present) {
+      map['last_synced_at'] = Variable<int>(lastSyncedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ComicSyncCursorCompanion(')
+          ..write('mangaId: $mangaId, ')
+          ..write('lastSyncedChapterId: $lastSyncedChapterId, ')
+          ..write('lastSyncedAt: $lastSyncedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -23324,6 +25420,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ProjectMemoryItemsTable(this);
   late final $ProjectMemorySourcesTable projectMemorySources =
       $ProjectMemorySourcesTable(this);
+  late final $ComicMangasTable comicMangas = $ComicMangasTable(this);
+  late final $ComicChaptersTable comicChapters = $ComicChaptersTable(this);
+  late final $ComicPageScreenplaysTable comicPageScreenplays =
+      $ComicPageScreenplaysTable(this);
+  late final $ComicReadingProgressTable comicReadingProgress =
+      $ComicReadingProgressTable(this);
+  late final $ComicSyncCursorTable comicSyncCursor =
+      $ComicSyncCursorTable(this);
   late final CardDao cardDao = CardDao(this as AppDatabase);
   late final AiFinanceDao aiFinanceDao = AiFinanceDao(this as AppDatabase);
   late final AiPurchaseDao aiPurchaseDao = AiPurchaseDao(this as AppDatabase);
@@ -23377,7 +25481,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         memoryRecallEvents,
         memoryEmbeddings,
         projectMemoryItems,
-        projectMemorySources
+        projectMemorySources,
+        comicMangas,
+        comicChapters,
+        comicPageScreenplays,
+        comicReadingProgress,
+        comicSyncCursor
       ];
 }
 
@@ -35843,6 +37952,1069 @@ typedef $$ProjectMemorySourcesTableProcessedTableManager
         ),
         ProjectMemorySource,
         PrefetchHooks Function()>;
+typedef $$ComicMangasTableCreateCompanionBuilder = ComicMangasCompanion
+    Function({
+  required String id,
+  required String characterId,
+  required String sourceSite,
+  required String comicUrl,
+  required String title,
+  Value<String?> coverUrl,
+  Value<String> status,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$ComicMangasTableUpdateCompanionBuilder = ComicMangasCompanion
+    Function({
+  Value<String> id,
+  Value<String> characterId,
+  Value<String> sourceSite,
+  Value<String> comicUrl,
+  Value<String> title,
+  Value<String?> coverUrl,
+  Value<String> status,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$ComicMangasTableFilterComposer
+    extends Composer<_$AppDatabase, $ComicMangasTable> {
+  $$ComicMangasTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceSite => $composableBuilder(
+      column: $table.sourceSite, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get comicUrl => $composableBuilder(
+      column: $table.comicUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get coverUrl => $composableBuilder(
+      column: $table.coverUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$ComicMangasTableOrderingComposer
+    extends Composer<_$AppDatabase, $ComicMangasTable> {
+  $$ComicMangasTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceSite => $composableBuilder(
+      column: $table.sourceSite, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get comicUrl => $composableBuilder(
+      column: $table.comicUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get coverUrl => $composableBuilder(
+      column: $table.coverUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ComicMangasTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ComicMangasTable> {
+  $$ComicMangasTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceSite => $composableBuilder(
+      column: $table.sourceSite, builder: (column) => column);
+
+  GeneratedColumn<String> get comicUrl =>
+      $composableBuilder(column: $table.comicUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get coverUrl =>
+      $composableBuilder(column: $table.coverUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ComicMangasTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ComicMangasTable,
+    ComicManga,
+    $$ComicMangasTableFilterComposer,
+    $$ComicMangasTableOrderingComposer,
+    $$ComicMangasTableAnnotationComposer,
+    $$ComicMangasTableCreateCompanionBuilder,
+    $$ComicMangasTableUpdateCompanionBuilder,
+    (ComicManga, BaseReferences<_$AppDatabase, $ComicMangasTable, ComicManga>),
+    ComicManga,
+    PrefetchHooks Function()> {
+  $$ComicMangasTableTableManager(_$AppDatabase db, $ComicMangasTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ComicMangasTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ComicMangasTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ComicMangasTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> characterId = const Value.absent(),
+            Value<String> sourceSite = const Value.absent(),
+            Value<String> comicUrl = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String?> coverUrl = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ComicMangasCompanion(
+            id: id,
+            characterId: characterId,
+            sourceSite: sourceSite,
+            comicUrl: comicUrl,
+            title: title,
+            coverUrl: coverUrl,
+            status: status,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String characterId,
+            required String sourceSite,
+            required String comicUrl,
+            required String title,
+            Value<String?> coverUrl = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ComicMangasCompanion.insert(
+            id: id,
+            characterId: characterId,
+            sourceSite: sourceSite,
+            comicUrl: comicUrl,
+            title: title,
+            coverUrl: coverUrl,
+            status: status,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ComicMangasTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ComicMangasTable,
+    ComicManga,
+    $$ComicMangasTableFilterComposer,
+    $$ComicMangasTableOrderingComposer,
+    $$ComicMangasTableAnnotationComposer,
+    $$ComicMangasTableCreateCompanionBuilder,
+    $$ComicMangasTableUpdateCompanionBuilder,
+    (ComicManga, BaseReferences<_$AppDatabase, $ComicMangasTable, ComicManga>),
+    ComicManga,
+    PrefetchHooks Function()>;
+typedef $$ComicChaptersTableCreateCompanionBuilder = ComicChaptersCompanion
+    Function({
+  required String id,
+  required String mangaId,
+  required int chapterNumber,
+  Value<String?> chapterTitle,
+  required String chapterUrl,
+  Value<int> pageCount,
+  Value<String?> pagesJson,
+  Value<String?> commentsJson,
+  Value<String?> coverUrl,
+  Value<String> status,
+  Value<String?> error,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$ComicChaptersTableUpdateCompanionBuilder = ComicChaptersCompanion
+    Function({
+  Value<String> id,
+  Value<String> mangaId,
+  Value<int> chapterNumber,
+  Value<String?> chapterTitle,
+  Value<String> chapterUrl,
+  Value<int> pageCount,
+  Value<String?> pagesJson,
+  Value<String?> commentsJson,
+  Value<String?> coverUrl,
+  Value<String> status,
+  Value<String?> error,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$ComicChaptersTableFilterComposer
+    extends Composer<_$AppDatabase, $ComicChaptersTable> {
+  $$ComicChaptersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mangaId => $composableBuilder(
+      column: $table.mangaId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get chapterTitle => $composableBuilder(
+      column: $table.chapterTitle, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get chapterUrl => $composableBuilder(
+      column: $table.chapterUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get pageCount => $composableBuilder(
+      column: $table.pageCount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get pagesJson => $composableBuilder(
+      column: $table.pagesJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get commentsJson => $composableBuilder(
+      column: $table.commentsJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get coverUrl => $composableBuilder(
+      column: $table.coverUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get error => $composableBuilder(
+      column: $table.error, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$ComicChaptersTableOrderingComposer
+    extends Composer<_$AppDatabase, $ComicChaptersTable> {
+  $$ComicChaptersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mangaId => $composableBuilder(
+      column: $table.mangaId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get chapterTitle => $composableBuilder(
+      column: $table.chapterTitle,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get chapterUrl => $composableBuilder(
+      column: $table.chapterUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get pageCount => $composableBuilder(
+      column: $table.pageCount, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get pagesJson => $composableBuilder(
+      column: $table.pagesJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get commentsJson => $composableBuilder(
+      column: $table.commentsJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get coverUrl => $composableBuilder(
+      column: $table.coverUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get error => $composableBuilder(
+      column: $table.error, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ComicChaptersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ComicChaptersTable> {
+  $$ComicChaptersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get mangaId =>
+      $composableBuilder(column: $table.mangaId, builder: (column) => column);
+
+  GeneratedColumn<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber, builder: (column) => column);
+
+  GeneratedColumn<String> get chapterTitle => $composableBuilder(
+      column: $table.chapterTitle, builder: (column) => column);
+
+  GeneratedColumn<String> get chapterUrl => $composableBuilder(
+      column: $table.chapterUrl, builder: (column) => column);
+
+  GeneratedColumn<int> get pageCount =>
+      $composableBuilder(column: $table.pageCount, builder: (column) => column);
+
+  GeneratedColumn<String> get pagesJson =>
+      $composableBuilder(column: $table.pagesJson, builder: (column) => column);
+
+  GeneratedColumn<String> get commentsJson => $composableBuilder(
+      column: $table.commentsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get coverUrl =>
+      $composableBuilder(column: $table.coverUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get error =>
+      $composableBuilder(column: $table.error, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ComicChaptersTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ComicChaptersTable,
+    ComicChapter,
+    $$ComicChaptersTableFilterComposer,
+    $$ComicChaptersTableOrderingComposer,
+    $$ComicChaptersTableAnnotationComposer,
+    $$ComicChaptersTableCreateCompanionBuilder,
+    $$ComicChaptersTableUpdateCompanionBuilder,
+    (
+      ComicChapter,
+      BaseReferences<_$AppDatabase, $ComicChaptersTable, ComicChapter>
+    ),
+    ComicChapter,
+    PrefetchHooks Function()> {
+  $$ComicChaptersTableTableManager(_$AppDatabase db, $ComicChaptersTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ComicChaptersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ComicChaptersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ComicChaptersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> mangaId = const Value.absent(),
+            Value<int> chapterNumber = const Value.absent(),
+            Value<String?> chapterTitle = const Value.absent(),
+            Value<String> chapterUrl = const Value.absent(),
+            Value<int> pageCount = const Value.absent(),
+            Value<String?> pagesJson = const Value.absent(),
+            Value<String?> commentsJson = const Value.absent(),
+            Value<String?> coverUrl = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String?> error = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ComicChaptersCompanion(
+            id: id,
+            mangaId: mangaId,
+            chapterNumber: chapterNumber,
+            chapterTitle: chapterTitle,
+            chapterUrl: chapterUrl,
+            pageCount: pageCount,
+            pagesJson: pagesJson,
+            commentsJson: commentsJson,
+            coverUrl: coverUrl,
+            status: status,
+            error: error,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String mangaId,
+            required int chapterNumber,
+            Value<String?> chapterTitle = const Value.absent(),
+            required String chapterUrl,
+            Value<int> pageCount = const Value.absent(),
+            Value<String?> pagesJson = const Value.absent(),
+            Value<String?> commentsJson = const Value.absent(),
+            Value<String?> coverUrl = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String?> error = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ComicChaptersCompanion.insert(
+            id: id,
+            mangaId: mangaId,
+            chapterNumber: chapterNumber,
+            chapterTitle: chapterTitle,
+            chapterUrl: chapterUrl,
+            pageCount: pageCount,
+            pagesJson: pagesJson,
+            commentsJson: commentsJson,
+            coverUrl: coverUrl,
+            status: status,
+            error: error,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ComicChaptersTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ComicChaptersTable,
+    ComicChapter,
+    $$ComicChaptersTableFilterComposer,
+    $$ComicChaptersTableOrderingComposer,
+    $$ComicChaptersTableAnnotationComposer,
+    $$ComicChaptersTableCreateCompanionBuilder,
+    $$ComicChaptersTableUpdateCompanionBuilder,
+    (
+      ComicChapter,
+      BaseReferences<_$AppDatabase, $ComicChaptersTable, ComicChapter>
+    ),
+    ComicChapter,
+    PrefetchHooks Function()>;
+typedef $$ComicPageScreenplaysTableCreateCompanionBuilder
+    = ComicPageScreenplaysCompanion Function({
+  required String id,
+  required String chapterId,
+  required int pageNum,
+  required String screenplayJson,
+  Value<String?> imageUrl,
+  Value<int> schemaVersion,
+  Value<String?> generatedByModel,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$ComicPageScreenplaysTableUpdateCompanionBuilder
+    = ComicPageScreenplaysCompanion Function({
+  Value<String> id,
+  Value<String> chapterId,
+  Value<int> pageNum,
+  Value<String> screenplayJson,
+  Value<String?> imageUrl,
+  Value<int> schemaVersion,
+  Value<String?> generatedByModel,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$ComicPageScreenplaysTableFilterComposer
+    extends Composer<_$AppDatabase, $ComicPageScreenplaysTable> {
+  $$ComicPageScreenplaysTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get chapterId => $composableBuilder(
+      column: $table.chapterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get pageNum => $composableBuilder(
+      column: $table.pageNum, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get screenplayJson => $composableBuilder(
+      column: $table.screenplayJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get imageUrl => $composableBuilder(
+      column: $table.imageUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get generatedByModel => $composableBuilder(
+      column: $table.generatedByModel,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$ComicPageScreenplaysTableOrderingComposer
+    extends Composer<_$AppDatabase, $ComicPageScreenplaysTable> {
+  $$ComicPageScreenplaysTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get chapterId => $composableBuilder(
+      column: $table.chapterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get pageNum => $composableBuilder(
+      column: $table.pageNum, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get screenplayJson => $composableBuilder(
+      column: $table.screenplayJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get imageUrl => $composableBuilder(
+      column: $table.imageUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get generatedByModel => $composableBuilder(
+      column: $table.generatedByModel,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ComicPageScreenplaysTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ComicPageScreenplaysTable> {
+  $$ComicPageScreenplaysTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get chapterId =>
+      $composableBuilder(column: $table.chapterId, builder: (column) => column);
+
+  GeneratedColumn<int> get pageNum =>
+      $composableBuilder(column: $table.pageNum, builder: (column) => column);
+
+  GeneratedColumn<String> get screenplayJson => $composableBuilder(
+      column: $table.screenplayJson, builder: (column) => column);
+
+  GeneratedColumn<String> get imageUrl =>
+      $composableBuilder(column: $table.imageUrl, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+      column: $table.schemaVersion, builder: (column) => column);
+
+  GeneratedColumn<String> get generatedByModel => $composableBuilder(
+      column: $table.generatedByModel, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$ComicPageScreenplaysTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ComicPageScreenplaysTable,
+    ComicPageScreenplay,
+    $$ComicPageScreenplaysTableFilterComposer,
+    $$ComicPageScreenplaysTableOrderingComposer,
+    $$ComicPageScreenplaysTableAnnotationComposer,
+    $$ComicPageScreenplaysTableCreateCompanionBuilder,
+    $$ComicPageScreenplaysTableUpdateCompanionBuilder,
+    (
+      ComicPageScreenplay,
+      BaseReferences<_$AppDatabase, $ComicPageScreenplaysTable,
+          ComicPageScreenplay>
+    ),
+    ComicPageScreenplay,
+    PrefetchHooks Function()> {
+  $$ComicPageScreenplaysTableTableManager(
+      _$AppDatabase db, $ComicPageScreenplaysTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ComicPageScreenplaysTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ComicPageScreenplaysTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ComicPageScreenplaysTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> chapterId = const Value.absent(),
+            Value<int> pageNum = const Value.absent(),
+            Value<String> screenplayJson = const Value.absent(),
+            Value<String?> imageUrl = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<String?> generatedByModel = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ComicPageScreenplaysCompanion(
+            id: id,
+            chapterId: chapterId,
+            pageNum: pageNum,
+            screenplayJson: screenplayJson,
+            imageUrl: imageUrl,
+            schemaVersion: schemaVersion,
+            generatedByModel: generatedByModel,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String chapterId,
+            required int pageNum,
+            required String screenplayJson,
+            Value<String?> imageUrl = const Value.absent(),
+            Value<int> schemaVersion = const Value.absent(),
+            Value<String?> generatedByModel = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ComicPageScreenplaysCompanion.insert(
+            id: id,
+            chapterId: chapterId,
+            pageNum: pageNum,
+            screenplayJson: screenplayJson,
+            imageUrl: imageUrl,
+            schemaVersion: schemaVersion,
+            generatedByModel: generatedByModel,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ComicPageScreenplaysTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $ComicPageScreenplaysTable,
+        ComicPageScreenplay,
+        $$ComicPageScreenplaysTableFilterComposer,
+        $$ComicPageScreenplaysTableOrderingComposer,
+        $$ComicPageScreenplaysTableAnnotationComposer,
+        $$ComicPageScreenplaysTableCreateCompanionBuilder,
+        $$ComicPageScreenplaysTableUpdateCompanionBuilder,
+        (
+          ComicPageScreenplay,
+          BaseReferences<_$AppDatabase, $ComicPageScreenplaysTable,
+              ComicPageScreenplay>
+        ),
+        ComicPageScreenplay,
+        PrefetchHooks Function()>;
+typedef $$ComicReadingProgressTableCreateCompanionBuilder
+    = ComicReadingProgressCompanion Function({
+  required String mangaId,
+  Value<String?> chapterId,
+  Value<int> page,
+  required int readAt,
+  Value<int> rowid,
+});
+typedef $$ComicReadingProgressTableUpdateCompanionBuilder
+    = ComicReadingProgressCompanion Function({
+  Value<String> mangaId,
+  Value<String?> chapterId,
+  Value<int> page,
+  Value<int> readAt,
+  Value<int> rowid,
+});
+
+class $$ComicReadingProgressTableFilterComposer
+    extends Composer<_$AppDatabase, $ComicReadingProgressTable> {
+  $$ComicReadingProgressTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get mangaId => $composableBuilder(
+      column: $table.mangaId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get chapterId => $composableBuilder(
+      column: $table.chapterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get page => $composableBuilder(
+      column: $table.page, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get readAt => $composableBuilder(
+      column: $table.readAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$ComicReadingProgressTableOrderingComposer
+    extends Composer<_$AppDatabase, $ComicReadingProgressTable> {
+  $$ComicReadingProgressTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get mangaId => $composableBuilder(
+      column: $table.mangaId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get chapterId => $composableBuilder(
+      column: $table.chapterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get page => $composableBuilder(
+      column: $table.page, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get readAt => $composableBuilder(
+      column: $table.readAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ComicReadingProgressTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ComicReadingProgressTable> {
+  $$ComicReadingProgressTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get mangaId =>
+      $composableBuilder(column: $table.mangaId, builder: (column) => column);
+
+  GeneratedColumn<String> get chapterId =>
+      $composableBuilder(column: $table.chapterId, builder: (column) => column);
+
+  GeneratedColumn<int> get page =>
+      $composableBuilder(column: $table.page, builder: (column) => column);
+
+  GeneratedColumn<int> get readAt =>
+      $composableBuilder(column: $table.readAt, builder: (column) => column);
+}
+
+class $$ComicReadingProgressTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ComicReadingProgressTable,
+    ComicReadingProgressData,
+    $$ComicReadingProgressTableFilterComposer,
+    $$ComicReadingProgressTableOrderingComposer,
+    $$ComicReadingProgressTableAnnotationComposer,
+    $$ComicReadingProgressTableCreateCompanionBuilder,
+    $$ComicReadingProgressTableUpdateCompanionBuilder,
+    (
+      ComicReadingProgressData,
+      BaseReferences<_$AppDatabase, $ComicReadingProgressTable,
+          ComicReadingProgressData>
+    ),
+    ComicReadingProgressData,
+    PrefetchHooks Function()> {
+  $$ComicReadingProgressTableTableManager(
+      _$AppDatabase db, $ComicReadingProgressTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ComicReadingProgressTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ComicReadingProgressTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ComicReadingProgressTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> mangaId = const Value.absent(),
+            Value<String?> chapterId = const Value.absent(),
+            Value<int> page = const Value.absent(),
+            Value<int> readAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ComicReadingProgressCompanion(
+            mangaId: mangaId,
+            chapterId: chapterId,
+            page: page,
+            readAt: readAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String mangaId,
+            Value<String?> chapterId = const Value.absent(),
+            Value<int> page = const Value.absent(),
+            required int readAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ComicReadingProgressCompanion.insert(
+            mangaId: mangaId,
+            chapterId: chapterId,
+            page: page,
+            readAt: readAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ComicReadingProgressTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $ComicReadingProgressTable,
+        ComicReadingProgressData,
+        $$ComicReadingProgressTableFilterComposer,
+        $$ComicReadingProgressTableOrderingComposer,
+        $$ComicReadingProgressTableAnnotationComposer,
+        $$ComicReadingProgressTableCreateCompanionBuilder,
+        $$ComicReadingProgressTableUpdateCompanionBuilder,
+        (
+          ComicReadingProgressData,
+          BaseReferences<_$AppDatabase, $ComicReadingProgressTable,
+              ComicReadingProgressData>
+        ),
+        ComicReadingProgressData,
+        PrefetchHooks Function()>;
+typedef $$ComicSyncCursorTableCreateCompanionBuilder = ComicSyncCursorCompanion
+    Function({
+  required String mangaId,
+  Value<String?> lastSyncedChapterId,
+  Value<int?> lastSyncedAt,
+  Value<int> rowid,
+});
+typedef $$ComicSyncCursorTableUpdateCompanionBuilder = ComicSyncCursorCompanion
+    Function({
+  Value<String> mangaId,
+  Value<String?> lastSyncedChapterId,
+  Value<int?> lastSyncedAt,
+  Value<int> rowid,
+});
+
+class $$ComicSyncCursorTableFilterComposer
+    extends Composer<_$AppDatabase, $ComicSyncCursorTable> {
+  $$ComicSyncCursorTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get mangaId => $composableBuilder(
+      column: $table.mangaId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get lastSyncedChapterId => $composableBuilder(
+      column: $table.lastSyncedChapterId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get lastSyncedAt => $composableBuilder(
+      column: $table.lastSyncedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$ComicSyncCursorTableOrderingComposer
+    extends Composer<_$AppDatabase, $ComicSyncCursorTable> {
+  $$ComicSyncCursorTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get mangaId => $composableBuilder(
+      column: $table.mangaId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get lastSyncedChapterId => $composableBuilder(
+      column: $table.lastSyncedChapterId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get lastSyncedAt => $composableBuilder(
+      column: $table.lastSyncedAt,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$ComicSyncCursorTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ComicSyncCursorTable> {
+  $$ComicSyncCursorTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get mangaId =>
+      $composableBuilder(column: $table.mangaId, builder: (column) => column);
+
+  GeneratedColumn<String> get lastSyncedChapterId => $composableBuilder(
+      column: $table.lastSyncedChapterId, builder: (column) => column);
+
+  GeneratedColumn<int> get lastSyncedAt => $composableBuilder(
+      column: $table.lastSyncedAt, builder: (column) => column);
+}
+
+class $$ComicSyncCursorTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ComicSyncCursorTable,
+    ComicSyncCursorData,
+    $$ComicSyncCursorTableFilterComposer,
+    $$ComicSyncCursorTableOrderingComposer,
+    $$ComicSyncCursorTableAnnotationComposer,
+    $$ComicSyncCursorTableCreateCompanionBuilder,
+    $$ComicSyncCursorTableUpdateCompanionBuilder,
+    (
+      ComicSyncCursorData,
+      BaseReferences<_$AppDatabase, $ComicSyncCursorTable, ComicSyncCursorData>
+    ),
+    ComicSyncCursorData,
+    PrefetchHooks Function()> {
+  $$ComicSyncCursorTableTableManager(
+      _$AppDatabase db, $ComicSyncCursorTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ComicSyncCursorTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ComicSyncCursorTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ComicSyncCursorTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> mangaId = const Value.absent(),
+            Value<String?> lastSyncedChapterId = const Value.absent(),
+            Value<int?> lastSyncedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ComicSyncCursorCompanion(
+            mangaId: mangaId,
+            lastSyncedChapterId: lastSyncedChapterId,
+            lastSyncedAt: lastSyncedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String mangaId,
+            Value<String?> lastSyncedChapterId = const Value.absent(),
+            Value<int?> lastSyncedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ComicSyncCursorCompanion.insert(
+            mangaId: mangaId,
+            lastSyncedChapterId: lastSyncedChapterId,
+            lastSyncedAt: lastSyncedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ComicSyncCursorTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ComicSyncCursorTable,
+    ComicSyncCursorData,
+    $$ComicSyncCursorTableFilterComposer,
+    $$ComicSyncCursorTableOrderingComposer,
+    $$ComicSyncCursorTableAnnotationComposer,
+    $$ComicSyncCursorTableCreateCompanionBuilder,
+    $$ComicSyncCursorTableUpdateCompanionBuilder,
+    (
+      ComicSyncCursorData,
+      BaseReferences<_$AppDatabase, $ComicSyncCursorTable, ComicSyncCursorData>
+    ),
+    ComicSyncCursorData,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -35943,4 +39115,14 @@ class $AppDatabaseManager {
       $$ProjectMemoryItemsTableTableManager(_db, _db.projectMemoryItems);
   $$ProjectMemorySourcesTableTableManager get projectMemorySources =>
       $$ProjectMemorySourcesTableTableManager(_db, _db.projectMemorySources);
+  $$ComicMangasTableTableManager get comicMangas =>
+      $$ComicMangasTableTableManager(_db, _db.comicMangas);
+  $$ComicChaptersTableTableManager get comicChapters =>
+      $$ComicChaptersTableTableManager(_db, _db.comicChapters);
+  $$ComicPageScreenplaysTableTableManager get comicPageScreenplays =>
+      $$ComicPageScreenplaysTableTableManager(_db, _db.comicPageScreenplays);
+  $$ComicReadingProgressTableTableManager get comicReadingProgress =>
+      $$ComicReadingProgressTableTableManager(_db, _db.comicReadingProgress);
+  $$ComicSyncCursorTableTableManager get comicSyncCursor =>
+      $$ComicSyncCursorTableTableManager(_db, _db.comicSyncCursor);
 }

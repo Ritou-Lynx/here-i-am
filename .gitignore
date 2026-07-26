@@ -143,3 +143,11 @@ latest_export.json
 
 # Local session plans (Codex / tool scratch, not project artifacts)
 android/.zcode/
+
+# Comic co-reading pipeline: login profile (contains session cookies — NEVER commit)
+# and probe artifacts. See docs/companion-first/COMIC_CO_READING_PLAN.md
+tools/comic_server/.manwa_profile/
+tools/comic_server/probe_out/
+tools/comic_server/node_modules/
+tools/comic_server/config.json
+tools/comic_server/data/

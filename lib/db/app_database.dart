@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'tables.dart';
 import 'dev_agent_tables.dart';
 import 'dev_agent_artifact_tables.dart';
+import 'comic_tables.dart';
 import '../data/memory_v3/db/tables.dart' as memory_v3;
 import 'daos/ai_finance_dao.dart';
 import 'daos/ai_purchase_dao.dart';
@@ -65,6 +66,12 @@ part 'app_database.g.dart';
     memory_v3.MemoryEmbeddings,
     memory_v3.ProjectMemoryItems,
     memory_v3.ProjectMemorySources,
+    // Comic co-reading tables — see docs/companion-first/COMIC_CO_READING_PLAN.md
+    ComicMangas,
+    ComicChapters,
+    ComicPageScreenplays,
+    ComicReadingProgress,
+    ComicSyncCursor,
   ],
   daos: [CardDao, AiFinanceDao, AiPurchaseDao, VoiceCallDao],
 )
@@ -121,7 +128,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 44;
+  int get schemaVersion => 46;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -152,6 +159,8 @@ class AppDatabase extends _$AppDatabase {
           await _createDevAgentSessionIndices();
           // Memory V3 indices (tables already created by createAll above)
           await _createMemoryV3Indices();
+          // Comic co-reading indices
+          await _createComicIndices();
           // Create FTS5 virtual tables for full-text search
           await searchDao.createFtsTables();
         },
@@ -563,7 +572,7 @@ class AppDatabase extends _$AppDatabase {
             // AiFinance transfer support: direction on transfer rows.
             //
             // This ALTER was originally appended to the v43 migration block in
-            // commit 89b02d84 (2026-07-21), but v43 was already published and
+            // commit 89b02f84 (2026-07-21), but v43 was already published and
             // applied to devices by commit 73041e19 (2026-07-20) — which only
             // added the dev-room model columns. Devices that had already
             // upgraded to v43 therefore never re-ran `if (from < 43)` and the
@@ -576,6 +585,21 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnIfMissing(
               "ai_finance_ledger ADD COLUMN transfer_direction TEXT",
             );
+          }
+          if (from < 45) {
+            // Comic co-reading: 5 new tables for manga library, chapters,
+            // page screenplays, reading progress, and sync cursor.
+            // See docs/companion-first/COMIC_CO_READING_PLAN.md
+            await m.createTable(comicMangas);
+            await m.createTable(comicChapters);
+            await m.createTable(comicPageScreenplays);
+            await m.createTable(comicReadingProgress);
+            await m.createTable(comicSyncCursor);
+            await _createComicIndices();
+          }
+          if (from < 46) {
+            // Add commentsJson column to comic_chapters for reader comments
+            await m.addColumn(comicChapters, comicChapters.commentsJson);
           }
           if (from < 39) {
             await _addColumnIfMissing(
@@ -720,6 +744,21 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_project_memory_sources_item '
         'ON project_memory_sources(item_id)');
+  }
+
+  Future<void> _createComicIndices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_comic_chapters_manga_status '
+        'ON comic_chapters(manga_id, status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_comic_chapters_number '
+        'ON comic_chapters(manga_id, chapter_number)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_comic_screenplay_chapter_page '
+        'ON comic_page_screenplays(chapter_id, page_num)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_comic_mangas_status '
+        'ON comic_mangas(status)');
   }
 
   Future<void> _createClarificationRequestsTable(Migrator m) async {

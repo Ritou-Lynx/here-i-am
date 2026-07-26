@@ -43,6 +43,7 @@ dependencies:
 
   # Media
   image_picker: ^1.0.7
+  cached_network_image: ^3.4.1
   record: ^6.0.0
   permission_handler: ^11.1.0
   photo_manager: ^3.5.0
@@ -128,3 +129,4 @@ flutter:
     - assets/icons/
     - assets/silero_vad.onnx
     - assets/jieba_dict.txt
+    - assets/comic_scaffold/

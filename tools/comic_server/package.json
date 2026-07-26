@@ -1,0 +1,14 @@
+{
+  "name": "hereiam-comic-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hermes-side comic co-reading pipeline tools (probe + crawler + vision benchmark).",
+  "scripts": {
+    "probe": "node probe_manwa.mjs",
+    "benchmark": "node benchmark_vision.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}
