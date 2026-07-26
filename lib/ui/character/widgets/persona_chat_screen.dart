@@ -16,6 +16,7 @@ import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/asr/asr_config.dart';
+import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
 import 'package:memex/data/services/asr/media_button_service.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
 import 'package:memex/data/services/active_persona_chat_service.dart';
@@ -630,7 +631,9 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       // Rebuild the toy controller on resume: BLE handles can go stale when a
       // toy is powered off/on or tested from settings.
       unawaited(_tryConnectToy(forceRefresh: true));
-      _queueVoiceModeRecordingStart();
+      if (_isInlineVoiceMode && !_voiceController.isStreaming) {
+        _queueVoiceModeStreamingStart();
+      }
     }
   }
 
@@ -695,6 +698,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _isInlineVoiceMode = widget.initialVoiceMode;
     _voiceController.onAutoRecognitionComplete =
         _onAutoVoiceRecognitionComplete;
+    _voiceController.onStreamingEvent = _onStreamingAsrEvent;
     WidgetsBinding.instance.addObserver(this);
     _textController.addListener(_onComposerTextChanged);
     unawaited(
@@ -792,7 +796,15 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   /// Toggle voice recording. If we just stopped a recording and got text back,
   /// fill the input and auto-send.
   Future<void> _onVoiceToggle() async {
-    if (_isInlineVoiceMode && _isStreaming && !_voiceController.isRecording) {
+    if (_isInlineVoiceMode && _voiceController.isStreaming) {
+      // In streaming mode the mic is always open; the button becomes a
+      // no-op (server VAD drives turn-taking). Barge-in is handled by
+      // SentenceBeginEvent -> _onStreamingAsrEvent.
+      return;
+    }
+    if (_isInlineVoiceMode &&
+        _isStreaming &&
+        !_voiceController.isRecording) {
       return;
     }
     if (_isInlineVoiceMode &&
@@ -824,6 +836,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   Future<void> _interruptRoleVoiceAndStartRecording() async {
     await _stopTtsPlayback();
     if (!mounted || !_isInlineVoiceMode) return;
+    if (_voiceController.isStreaming) {
+      // Mic is already open in streaming mode; barge-in is just TTS stop.
+      return;
+    }
     await _voiceController.start(
       autoStop: true,
       initialSilenceTimeout: _voiceModeIdleFollowUpSilenceTimeout,
@@ -881,10 +897,39 @@ only after you have written the goodbye you want the user to hear.''',
     await _runVoiceModeIdleFollowUp();
   }
 
+  /// Streaming ASR event handler (voice mode only).
+  ///
+  /// - [SentenceBeginEvent]: if TTS is playing, stop it for barge-in. The mic
+  ///   stays open, so this just silences the companion.
+  /// - [SentenceEndEvent]: dispatch the final text to the LLM, same as the
+  ///   file-mode auto-recognition path. An empty result triggers idle
+  ///   follow-up.
+  /// - [TranscriptionResultChangedEvent]: no-op for now (reserved for future
+  ///   partial-result streaming).
+  void _onStreamingAsrEvent(StreamingAsrEvent event) {
+    if (!mounted || !_isInlineVoiceMode) return;
+    switch (event) {
+      case SentenceBeginEvent():
+        if (_isRoleVoiceActive) {
+          debugPrint('Streaming barge-in: stopping TTS for speech');
+          unawaited(_stopTtsPlayback());
+        }
+        break;
+      case SentenceEndEvent():
+        final text = event.text.trim();
+        unawaited(_onAutoVoiceRecognitionComplete(
+          text.isEmpty ? null : text,
+        ));
+        break;
+      case TranscriptionResultChangedEvent():
+        break;
+    }
+  }
+
   Future<void> _runVoiceModeIdleFollowUp() async {
     if (!mounted || !_isInlineVoiceMode || _isAppInBackground) return;
     if (_isStreaming || _isRoleVoiceActive) {
-      _queueVoiceModeRecordingStart(delay: const Duration(milliseconds: 600));
+      _queueVoiceModeStreamingStart(delay: const Duration(milliseconds: 600));
       return;
     }
 
@@ -907,7 +952,7 @@ only after you have written the goodbye you want the user to hear.''',
 
     final spoken = text?.trim();
     if (spoken == null || spoken.isEmpty) {
-      _queueVoiceModeRecordingStart(delay: const Duration(milliseconds: 600));
+      _queueVoiceModeStreamingStart(delay: const Duration(milliseconds: 600));
       return;
     }
 
@@ -937,6 +982,34 @@ only after you have written the goodbye you want the user to hear.''',
         unawaited(_startVoiceModeRecordingIfReady());
       }),
     );
+  }
+
+  void _queueVoiceModeStreamingStart({Duration delay = Duration.zero}) {
+    if (_voiceModeStartQueued) return;
+    _voiceModeStartQueued = true;
+    unawaited(
+      Future<void>.delayed(delay).then((_) {
+        _voiceModeStartQueued = false;
+        unawaited(_startVoiceModeStreamingIfReady());
+      }),
+    );
+  }
+
+  Future<void> _startVoiceModeStreamingIfReady() async {
+    if (!mounted ||
+        !_isInlineVoiceMode ||
+        _isAppInBackground ||
+        _isVoiceReplyActive ||
+        _voiceController.isStreaming ||
+        _voiceController.isRecording) {
+      return;
+    }
+    await _voiceController.startStreaming();
+    if (!mounted) return;
+    final error = _voiceController.lastError;
+    if (error != null && error.isNotEmpty) {
+      _showVoiceInputError(error);
+    }
   }
 
   void _queueVoiceModeOpening() {
@@ -983,7 +1056,11 @@ only after you have written the goodbye you want the user to hear.''',
     final serial = ++_voiceModeOpeningSerial;
     _voiceModeOpeningInProgress = true;
     _voiceModeStartQueued = false;
-    await _voiceController.cancel();
+    if (_voiceController.isStreaming) {
+      await _voiceController.cancelStreaming();
+    } else {
+      await _voiceController.cancel();
+    }
     await _stopTtsPlayback();
 
     try {
@@ -1009,8 +1086,9 @@ only after you have written the goodbye you want the user to hear.''',
       if (mounted &&
           _isInlineVoiceMode &&
           !_isRoleVoiceActive &&
+          !_voiceController.isStreaming &&
           !_voiceController.isRecording) {
-        _queueVoiceModeRecordingStart();
+        _queueVoiceModeStreamingStart();
       }
     }
   }
@@ -3659,7 +3737,11 @@ only after you have written the goodbye you want the user to hear.''',
       final wasAgentEnded = _endVoiceModeAfterCurrentReply;
       _endVoiceModeAfterCurrentReply = false;
       _voiceModeSilentFollowUps = 0;
-      await _voiceController.cancel();
+      if (_voiceController.isStreaming) {
+        await _voiceController.cancelStreaming();
+      } else {
+        await _voiceController.cancel();
+      }
       await _stopTtsPlayback();
       // Notify the character that the user hung up (unless the agent ended it).
       if (!wasAgentEnded) {
@@ -3712,7 +3794,16 @@ only after you have written the goodbye you want the user to hear.''',
       unawaited(_setInlineVoiceMode(false));
       return;
     }
-    _queueVoiceModeRecordingStart();
+    if (_isInlineVoiceMode) {
+      if (_voiceController.isStreaming) {
+        // Mic already open (streaming ASR). The server VAD will fire
+        // SentenceBegin/SentenceEnd when the user speaks. Nothing to do.
+        return;
+      }
+      _queueVoiceModeStreamingStart();
+    } else {
+      _queueVoiceModeRecordingStart();
+    }
     // Chain to the next unread message when running in auto-read / voice mode.
     _autoReadNextMessageIfAny();
   }
@@ -3887,7 +3978,9 @@ only after you have written the goodbye you want the user to hear.''',
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
-        _queueVoiceModeRecordingStart();
+        if (_isInlineVoiceMode && !_voiceController.isStreaming) {
+          _queueVoiceModeStreamingStart();
+        }
       }
     }
   }

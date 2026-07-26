@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import 'package:memex/data/services/asr/alibaba_asr_client.dart';
+import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
 import 'package:memex/data/services/asr/asr_client.dart';
 import 'package:memex/data/services/asr/asr_config.dart';
 import 'package:memex/utils/logger.dart';
@@ -20,12 +21,29 @@ const _voiceEndpointTrailingSilenceTimeout = Duration(milliseconds: 1500);
 const _voiceEndpointMaxRecordingDuration = Duration(seconds: 60);
 const _voiceEndpointSpeechThresholdDb = -45.0;
 
-/// Drives the press-to-talk recording → ASR pipeline.
+/// Drives the press-to-talk recording -> ASR pipeline.
 ///
-/// State machine:
+/// Two modes:
+///
+/// **File mode** (press-to-talk, default):
 ///   idle ──toggle()──▶ recording ──toggle()──▶ processing ──(ASR)──▶ idle
-///                            │
-///                            └────cancel()────▶ idle (recording discarded)
+///                          │
+///                          └────cancel()────▶ idle (recording discarded)
+///
+///   Uses [AlibabaAsrClient] one-shot file recognition + amplitude-based
+///   endpoint detection. Suitable for single-shot voice input buttons.
+///
+/// **Streaming mode** (voice call / inline voice mode):
+///   idle ──startStreaming()──▶ streaming ──stopStreaming()──▶ idle
+///                                   │
+///                          ┌────────┴────────┐
+///                  onStreamingEvent()   onStreamingSentence()
+///
+///   Uses [AlibabaStreamingAsrClient] real-time WebSocket ASR with server-side
+///   VAD. The mic stays open; the server emits [SentenceBeginEvent] /
+///   [SentenceEndEvent] events. No amplitude thresholding, no trailing-silence
+///   timer - the NLS VAD is far more robust at distinguishing speech from
+///   background noise.
 ///
 /// Owned by the screen that uses it; call [dispose] when the screen unmounts.
 class VoiceInputController extends ChangeNotifier {
@@ -48,11 +66,24 @@ class VoiceInputController extends ChangeNotifier {
   bool _autoStopInProgress = false;
   bool _amplitudePollInProgress = false;
 
-  /// Called when automatic endpoint detection stops a recording.
+  // Streaming-mode state ------------------------------------------------
+  AlibabaStreamingAsrClient? _streamingClient;
+  StreamSubscription<StreamingAsrEvent>? _streamingEventSub;
+  StreamSubscription<Uint8List>? _streamingAudioSub;
+  bool _streamingStopping = false;
+
+  /// Called when automatic endpoint detection stops a recording (file mode).
   ///
   /// [text] is null when the recording was empty, too short, or ASR returned
   /// no usable text. The owner can decide whether to keep listening.
   Future<void> Function(String? text)? onAutoRecognitionComplete;
+
+  /// Called for each [StreamingAsrEvent] in streaming mode (barge-in hook).
+  ///
+  /// Fires on the UI isolate as soon as the server emits the event. Use
+  /// [SentenceBeginEvent] to interrupt TTS playback (barge-in) and
+  /// [SentenceEndEvent] to dispatch the final text to the LLM.
+  void Function(StreamingAsrEvent event)? onStreamingEvent;
 
   /// Last error message (for UI to surface). Cleared on next toggle.
   String? lastError;
@@ -60,11 +91,12 @@ class VoiceInputController extends ChangeNotifier {
   VoiceInputState get state => _state;
   bool get isRecording => _state == VoiceInputState.recording;
   bool get isProcessing => _state == VoiceInputState.processing;
+  bool get isStreaming => _streamingClient != null;
 
-  /// Toggle recording. From idle → start; from recording → stop & recognize.
+  /// Toggle recording. From idle -> start; from recording -> stop & recognize.
   /// While processing, calls are ignored.
   ///
-  /// Returns the recognized text on the recording → idle transition, null
+  /// Returns the recognized text on the recording -> idle transition, null
   /// otherwise. If ASR fails, returns null and sets [lastError].
   Future<String?> toggle({
     bool autoStop = false,
@@ -122,6 +154,182 @@ class VoiceInputController extends ChangeNotifier {
     _logger.info('Recording cancelled');
   }
 
+  // ── Streaming mode ───────────────────────────────────────────────────────
+
+  /// Start a streaming ASR session. The mic stays open until [stopStreaming]
+  /// or [cancelStreaming] is called. Server-side VAD drives sentence events
+  /// via [onStreamingEvent].
+  ///
+  /// Uses `record.startStream` with `AudioEncoder.pcm16bits` + echo cancel +
+  /// noise suppress. PCM chunks are forwarded directly to the NLS gateway
+  /// without touching local storage.
+  Future<void> startStreaming() async {
+    if (_state != VoiceInputState.idle) {
+      _logger.warning('startStreaming called in state $_state - ignoring');
+      return;
+    }
+    if (_streamingClient != null) {
+      _logger.warning('startStreaming called but session already active');
+      return;
+    }
+
+    lastError = null;
+
+    final config = await AsrConfig.load();
+    if (config == null) {
+      lastError = 'ASR 凭证未配置，请到设置 -> 语音输入填入阿里 NLS 凭证';
+      notifyListeners();
+      return;
+    }
+
+    if (!await _recorder.hasPermission()) {
+      lastError = '麦克风权限未授予';
+      notifyListeners();
+      return;
+    }
+
+    _streamingClient = AlibabaStreamingAsrClient(config);
+
+    Stream<StreamingAsrEvent> events;
+    try {
+      events = await _streamingClient!.start();
+    } catch (e) {
+      _logger.severe('Streaming ASR start failed: $e');
+      lastError = '流式 ASR 启动失败: $e';
+      await _streamingClient!.dispose();
+      _streamingClient = null;
+      notifyListeners();
+      return;
+    }
+
+    _state = VoiceInputState.recording;
+    _recordingStartedAt = DateTime.now();
+    notifyListeners();
+
+    _streamingEventSub = events.listen(
+      (event) {
+        onStreamingEvent?.call(event);
+        if (event is SentenceEndEvent) {
+          _logger.info('Streaming sentence #${event.index}: '
+              '"${event.text.length > 60 ? '${event.text.substring(0, 60)}...' : event.text}"');
+        }
+      },
+      onError: (Object e, StackTrace st) {
+        _logger.severe('Streaming ASR event stream error: $e');
+        lastError = '流式 ASR 错误: $e';
+      },
+      onDone: () {
+        _logger.info('Streaming ASR event stream done');
+      },
+    );
+
+    try {
+      final audioStream = await _recorder.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
+          numChannels: 1,
+          autoGain: true,
+          echoCancel: true,
+          noiseSuppress: true,
+        ),
+      );
+      _streamingAudioSub = audioStream.listen(
+        (chunk) => _streamingClient?.sendAudio(chunk),
+        onError: (Object e) {
+          _logger.warning('Audio stream error: $e');
+        },
+      );
+    } catch (e) {
+      _logger.severe('Failed to start PCM stream: $e');
+      lastError = '启动录音失败: $e';
+      await _cancelStreamingInternal();
+      notifyListeners();
+      return;
+    }
+
+    _logger.info('Streaming session started');
+  }
+
+  /// Gracefully stop the streaming session. Sends [StopTranscription] to the
+  /// server, waits for [TranscriptionCompleted], and tears down the mic.
+  Future<void> stopStreaming() async {
+    if (_streamingClient == null || _streamingStopping) return;
+    _streamingStopping = true;
+
+    _state = VoiceInputState.processing;
+    notifyListeners();
+
+    try {
+      await _streamingAudioSub?.cancel();
+    } catch (e) {
+      _logger.warning('streaming audio sub cancel: $e');
+    }
+    _streamingAudioSub = null;
+
+    try {
+      await _recorder.stop();
+    } catch (e) {
+      _logger.warning('streaming recorder stop: $e');
+    }
+
+    try {
+      await _streamingClient?.stop();
+    } catch (e) {
+      _logger.warning('streaming client stop: $e');
+    }
+
+    await _cancelStreamingInternal();
+    _streamingStopping = false;
+    _state = VoiceInputState.idle;
+    notifyListeners();
+    _logger.info('Streaming session stopped');
+  }
+
+  /// Hard-cancel a streaming session without the graceful stop handshake.
+  /// Use when the user hung up or the screen is unmounting mid-session.
+  Future<void> cancelStreaming() async {
+    if (_streamingClient == null) return;
+    await _cancelStreamingInternal();
+    _state = VoiceInputState.idle;
+    notifyListeners();
+    _logger.info('Streaming session cancelled');
+  }
+
+  Future<void> _cancelStreamingInternal() async {
+    try {
+      await _streamingAudioSub?.cancel();
+    } catch (e) {
+      _logger.warning('streaming audio sub cancel: $e');
+    }
+    _streamingAudioSub = null;
+
+    try {
+      await _streamingEventSub?.cancel();
+    } catch (e) {
+      _logger.warning('streaming event sub cancel: $e');
+    }
+    _streamingEventSub = null;
+
+    try {
+      await _recorder.stop();
+    } catch (e) {
+      _logger.fine('recorder stop during streaming teardown: $e');
+    }
+
+    final client = _streamingClient;
+    _streamingClient = null;
+    if (client != null) {
+      try {
+        await client.dispose();
+      } catch (e) {
+        _logger.warning('streaming client dispose: $e');
+      }
+    }
+  }
+
+  // ── File-mode internals (unchanged) ──────────────────────────────────────
+
   Future<void> _start({
     required bool autoStop,
     Duration? initialSilenceTimeout,
@@ -131,7 +339,7 @@ class VoiceInputController extends ChangeNotifier {
 
     final config = await AsrConfig.load();
     if (config == null) {
-      lastError = 'ASR 凭证未配置，请到设置 → 语音输入填入阿里 NLS 凭证';
+      lastError = 'ASR 凭证未配置，请到设置 -> 语音输入填入阿里 NLS 凭证';
       notifyListeners();
       return;
     }
@@ -155,6 +363,9 @@ class VoiceInputController extends ChangeNotifier {
           encoder: AudioEncoder.wav,
           sampleRate: 16000,
           numChannels: 1,
+          autoGain: true,
+          echoCancel: true,
+          noiseSuppress: true,
         ),
         path: path,
       );
@@ -172,7 +383,7 @@ class VoiceInputController extends ChangeNotifier {
       if (autoStop) {
         _startEndpointDetection();
       }
-      _logger.info('Recording started → $path');
+      _logger.info('Recording started -> $path');
       notifyListeners();
     } catch (e) {
       lastError = '启动录音失败: $e';
@@ -209,7 +420,6 @@ class VoiceInputController extends ChangeNotifier {
 
     final file = File(path);
     if (!file.existsSync() || file.lengthSync() < 1024) {
-      // <1KB = essentially silence / aborted recording
       _logger.warning(
           'Recording too short (${file.existsSync() ? file.lengthSync() : 0} bytes), skipping ASR');
       lastError = '录音过短';
@@ -414,6 +624,9 @@ class VoiceInputController extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_streamingClient != null) {
+      unawaited(_cancelStreamingInternal());
+    }
     if (_state == VoiceInputState.recording) {
       _recorder.stop().catchError((_) => null);
     }
