@@ -4010,18 +4010,32 @@ only after you have written the goodbye you want the user to hear.''',
                 Positioned.fill(
                   child: ShaderMask(
                     shaderCallback: (rect) => const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
                       colors: [
                         Colors.transparent,
                         Colors.white,
                         Colors.white,
                         Colors.transparent,
                       ],
-                      stops: [0.0, 0.08, 0.90, 1.0],
+                      stops: [0.0, 0.03, 0.97, 1.0],
                     ).createShader(rect),
                     blendMode: BlendMode.dstIn,
-                    child: _buildMessageList(),
+                    child: ShaderMask(
+                      shaderCallback: (rect) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.white,
+                          Colors.white,
+                          Colors.transparent,
+                        ],
+                        stops: [0.0, 0.14, 0.82, 1.0],
+                      ).createShader(rect),
+                      blendMode: BlendMode.dstIn,
+                      child: _buildMessageList(),
+                    ),
                   ),
                 ),
                 Positioned(

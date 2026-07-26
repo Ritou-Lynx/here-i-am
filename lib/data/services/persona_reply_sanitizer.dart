@@ -104,6 +104,30 @@ class PersonaReplySanitizer {
   static String stripTtsTags(String text) =>
       text.replaceAll(_ttsAudioTag, '').trim();
 
+  /// The model sometimes writes action / stage-direction text inside square
+  /// brackets (the TTS-tag format), often mixed with an English tone word,
+  /// e.g. `[low, 呼吸放软下来]`. The whitelist [_ttsAudioTag] only strips
+  /// pure-English tone tags, so a bracket containing Chinese is neither
+  /// stripped nor star-wrapped, and leaks into the chat as plain white text.
+  /// Convert any bracket that contains a CJK character into star-wrapped
+  /// action syntax so the existing italic-action recognition takes over: a
+  /// leading ASCII tone prefix (e.g. `low, `) is dropped, the remaining
+  /// Chinese description is wrapped in `*...*`. Markdown links (`[text](url)`,
+  /// detected by a `(` right after the bracket) are left untouched.
+  static String _convertBracketActions(String text) {
+    return text.replaceAllMapped(
+      RegExp(r'\[([^\]]*[\u4e00-\u9fff][^\]]*)\](?!\()'),
+      (m) {
+        var inner = m.group(1)!.trim();
+        inner = inner
+            .replaceFirst(RegExp(r'^[A-Za-z][A-Za-z\s,.\-]*[,，]\s*'), '')
+            .trim();
+        if (inner.isEmpty) return '';
+        return '*$inner*';
+      },
+    );
+  }
+
   static List<PersonaReplySegment> splitVisibleReply(
     String text, {
     String? characterName,
@@ -112,6 +136,7 @@ class PersonaReplySanitizer {
     var cleaned = stripLeakedReasoning(text).trim();
     if (cleaned.isEmpty) return const [];
     if (stripTtsTags) cleaned = PersonaReplySanitizer.stripTtsTags(cleaned);
+    cleaned = _convertBracketActions(cleaned);
 
     final segments = <PersonaReplySegment>[];
     for (final rawLine in cleaned.split(RegExp(r'\r?\n'))) {
@@ -546,7 +571,10 @@ class PersonaReplySanitizer {
       '\\u62b1\\u4f4f|\\u62cd\\u62cd|\\u6478\\u6478|'
       '\\u62c9\\u4f4f|\\u5750\\u4e0b|\\u7ad9\\u8d77|'
       '\\u8d70\\u8fd1|\\u6c89\\u9ed8|\\u505c\\u987f|'
-      '\\u547c\\u5438|\\u76b1\\u7709)',
+      '\\u547c\\u5438|\\u76b1\\u7709|'
+      '\\u8f7b\\u58f0|\\u4f4e\\u58f0|\\u67d4\\u58f0|\\u5462\\u5583|\\u4f4e\\u8bed|\\u6e29\\u67d4|'
+      '\\u8f7b\\u7b11|\\u6d45\\u7b11|\\u51b7\\u7b11|\\u82e6\\u7b11|\\u62bf\\u5634|\\u6487\\u5634|\\u54ac\\u5507|\\u8214\\u5507|'
+      '\\u5782\\u7738|\\u62ac\\u7738|\\u7737\\u773c|\\u95ed\\u773c|\\u7741\\u773c|\\u6311\\u7709|\\u8038\\u80a9|\\u6b6a\\u5634)',
     ).hasMatch(normalized);
   }
 
