@@ -13,6 +13,29 @@ class AiFinanceDao extends DatabaseAccessor<AppDatabase>
     await into(aiFinanceLedger).insert(entry);
   }
 
+  /// Overwrite the matching ledger row with the supplied companion values.
+  /// Caller is responsible for only setting the fields that should change.
+  Future<void> updateEntry(
+    String id,
+    AiFinanceLedgerCompanion companion,
+  ) async {
+    await (update(aiFinanceLedger)..where((t) => t.id.equals(id)))
+        .write(companion);
+  }
+
+  /// Hard-delete a single ledger row by id. Used for correcting wrong/duplicate
+  /// entries — there is no soft-delete convention on this table (it is a
+  /// derived view, not User-truth).
+  Future<void> deleteEntry(String id) async {
+    await (delete(aiFinanceLedger)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// Fetch a single row by id, or null if missing/deleted.
+  Future<AiFinanceLedgerData?> getEntryById(String id) async {
+    return (select(aiFinanceLedger)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
   Future<List<AiFinanceLedgerData>> getSharedEntries({
     String? entryType,
     int? sinceEpoch,

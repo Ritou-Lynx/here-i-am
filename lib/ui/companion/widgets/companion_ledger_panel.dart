@@ -311,47 +311,207 @@ class _LedgerEntryTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: _cardDecoration(),
-      child: Row(
+      child: InkWell(
+        onLongPress: () => _showEntryActions(context, entry),
+        borderRadius: BorderRadius.circular(13),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _entryColor(type).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(_entryIcon(type), size: 20, color: _entryColor(type)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (entry['purpose'] as String?)?.trim().isNotEmpty == true
+                        ? entry['purpose'] as String
+                        : _entryLabel(type),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${DateFormat('MM月dd日').format(date)} · $splitText',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              '${isInflow ? '+' : '-'}${_money(total)}',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: isInflow ? AppColors.success : AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showEntryActions(
+    BuildContext context,
+    Map<String, dynamic> entry,
+  ) async {
+    final id = entry['id'] as String?;
+    if (id == null) return;
+    final action = await showModalBottomSheet<_EntryAction>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _EntryActionSheet(),
+    );
+    if (action == null || !context.mounted) return;
+    switch (action) {
+      case _EntryAction.edit:
+        await _editEntry(context, entry);
+      case _EntryAction.delete:
+        await _confirmDelete(context, id);
+    }
+  }
+
+  Future<void> _editEntry(
+    BuildContext context,
+    Map<String, dynamic> entry,
+  ) async {
+    final viewModel = context.read<LedgerViewModel>();
+    final draft = await showModalBottomSheet<LedgerEntryDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _LedgerEntrySheet(existingEntry: entry),
+    );
+    if (draft == null || !context.mounted) return;
+    await viewModel.updateEntry.execute(draft);
+    if (!context.mounted) return;
+    switch (viewModel.updateEntry.result) {
+      case Ok<void>():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已更新')),
+        );
+      case Error<void>(:final error):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('更新失败：$error')),
+        );
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _confirmDelete(BuildContext context, String id) async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _DeleteConfirmSheet(),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final viewModel = context.read<LedgerViewModel>();
+    await viewModel.deleteEntry.execute(id);
+    if (!context.mounted) return;
+    switch (viewModel.deleteEntry.result) {
+      case Ok<void>():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已删除')),
+        );
+      case Error<void>(:final error):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除失败：$error')),
+        );
+      case null:
+        break;
+    }
+  }
+}
+
+enum _EntryAction { edit, delete }
+
+class _EntryActionSheet extends StatelessWidget {
+  const _EntryActionSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
+      decoration: const BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: _entryColor(type).withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(_entryIcon(type), size: 20, color: _entryColor(type)),
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('修改'),
+            onTap: () => Navigator.pop(context, _EntryAction.edit),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  (entry['purpose'] as String?)?.trim().isNotEmpty == true
-                      ? entry['purpose'] as String
-                      : _entryLabel(type),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${DateFormat('MM月dd日').format(date)} · $splitText',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
-                ),
-              ],
-            ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: AppColors.danger),
+            title: const Text('删除', style: TextStyle(color: AppColors.danger)),
+            onTap: () => Navigator.pop(context, _EntryAction.delete),
           ),
-          const SizedBox(width: 10),
-          Text(
-            '${isInflow ? '+' : '-'}${_money(total)}',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: isInflow ? AppColors.success : AppColors.textPrimary,
-            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeleteConfirmSheet extends StatelessWidget {
+  const _DeleteConfirmSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+      decoration: const BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            '删除这条账目？',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '删除后不可恢复。如果只是金额或类型错了，建议用「修改」。',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 13)),
+                  child: const Text('取消'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    backgroundColor: AppColors.danger,
+                  ),
+                  child: const Text('删除'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -394,7 +554,10 @@ class _LoadError extends StatelessWidget {
 }
 
 class _LedgerEntrySheet extends StatefulWidget {
-  const _LedgerEntrySheet();
+  const _LedgerEntrySheet({this.existingEntry});
+
+  /// When non-null, the sheet opens in edit mode pre-filled from this entry.
+  final Map<String, dynamic>? existingEntry;
 
   @override
   State<_LedgerEntrySheet> createState() => _LedgerEntrySheetState();
@@ -410,8 +573,38 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
   String _transferDirection = 'user_to_ai';
   DateTime _occurredAt = DateTime.now();
 
+  bool get _isEditing => widget.existingEntry != null;
   bool get _isShared => _entryType == 'income' || _entryType == 'cost' || _entryType == 'expense';
   bool get _isTransfer => _entryType == 'transfer';
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existingEntry;
+    if (e != null) {
+      _entryType = (e['type'] as String?) ?? 'income';
+      _transferDirection =
+          (e['transfer_direction'] as String?) ?? 'user_to_ai';
+      _amountController.text = _formatForInput(_number(e['total_amount']));
+      _aiAmountController.text = _formatForInput(_number(e['ai_amount']));
+      _purposeController.text = (e['purpose'] as String?) ?? '';
+      _notesController.text = (e['notes'] as String?) ?? '';
+      final recordedAt = (e['recorded_at'] as num?)?.toInt();
+      if (recordedAt != null && recordedAt > 0) {
+        _occurredAt = DateTime.fromMillisecondsSinceEpoch(recordedAt * 1000);
+      }
+      // For legacy types that aren't "shared" (reward/penalty/loan/repayment),
+      // mirror amount into aiAmount by default when editing.
+      if (!_isShared && !_isTransfer) {
+        _aiAmountController.text = _amountController.text;
+      }
+    }
+  }
+
+  String _formatForInput(double v) {
+    if (v == v.roundToDouble()) return v.toStringAsFixed(0);
+    return v.toStringAsFixed(2);
+  }
 
   @override
   void dispose() {
@@ -444,8 +637,11 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
             children: [
               Row(
                 children: [
-                  const Expanded(
-                    child: Text('记一笔', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                  Expanded(
+                    child: Text(
+                      _isEditing ? '修改账目' : '记一笔',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                    ),
                   ),
                   IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded)),
                 ],
@@ -542,7 +738,7 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
                 child: FilledButton(
                   onPressed: _submit,
                   style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                  child: const Text('保存到共同账本'),
+                  child: Text(_isEditing ? '保存修改' : '保存到共同账本'),
                 ),
               ),
             ],
@@ -568,6 +764,7 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
     Navigator.pop(
       context,
       LedgerEntryDraft(
+        id: _isEditing ? widget.existingEntry!['id'] as String? : null,
         entryType: _entryType,
         totalAmount: amount,
         aiAmount: _isShared ? double.parse(_aiAmountController.text) : amount,

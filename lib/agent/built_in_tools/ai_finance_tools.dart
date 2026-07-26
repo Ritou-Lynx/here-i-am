@@ -457,3 +457,190 @@ Rules:
     },
   );
 }
+
+/// Builds the tool that lets the companion correct an existing ledger entry.
+///
+/// Use this when the user points out a mistake in a previously recorded entry
+/// (wrong amount, wrong type, wrong purpose, missing aiAmount, etc). Only the
+/// fields the caller passes are changed; omitted fields keep their existing
+/// value. The corrected row is returned so the companion can confirm.
+Tool buildAiFinanceCorrectTool({
+  required String characterId,
+  required AiFinanceService service,
+}) {
+  return Tool(
+    name: 'AiFinanceCorrect',
+    description: '''Correct a ledger entry that was recorded wrong.
+
+Use this when:
+- The user says a previously recorded entry has the wrong amount
+- You realize you used the wrong entryType for an entry
+- The purpose / aiAmount / contributionRatio needs fixing
+- A transfer direction was set the wrong way
+
+Rules:
+- NEVER use this to fabricate a correction — only correct what the user
+  explicitly points out as wrong.
+- Find the entry id first with `AiFinanceQuery` (queryType="recent"), then
+  pass its `id` here.
+- Omit any field you do NOT want to change; omitted fields keep their
+  existing value.
+- This overwrites the row in place. There is no audit trail of the old
+  value — if you need to preserve it, use AiFinanceDelete + re-record instead.''',
+    parameters: {
+      'type': 'object',
+      'properties': {
+        'entryId': {
+          'type': 'string',
+          'description':
+              'The id of the ledger entry to correct. Get it from AiFinanceQuery (queryType="recent").',
+        },
+        'entryType': {
+          'type': 'string',
+          'enum': [
+            'income',
+            'expense',
+            'transfer',
+            'cost',
+            'loan',
+            'repayment',
+            'reward',
+            'penalty'
+          ],
+          'description': 'New entry type. Omit to keep the existing type.',
+        },
+        'totalAmount': {
+          'type': 'number',
+          'description': 'New total amount in CNY. Omit to keep existing.',
+        },
+        'aiAmount': {
+          'type': 'number',
+          'description': 'New AI share amount. Omit to keep existing.',
+        },
+        'contributionRatio': {
+          'type': 'number',
+          'description':
+              'New contribution ratio for income splits. Omit to keep existing.',
+        },
+        'purpose': {
+          'type': 'string',
+          'description': 'New purpose / label. Omit to keep existing.',
+        },
+        'transferDirection': {
+          'type': 'string',
+          'enum': ['user_to_ai', 'ai_to_user'],
+          'description':
+              'New transfer direction. Omit to keep existing. Only meaningful for transfer type.',
+        },
+        'notes': {
+          'type': 'string',
+          'description': 'New notes. Omit to keep existing.',
+        },
+      },
+      'required': ['entryId'],
+    },
+    executable: (
+      String entryId, [
+      String? entryType,
+      double? totalAmount,
+      double? aiAmount,
+      double? contributionRatio,
+      String? purpose,
+      String? transferDirection,
+      String? notes,
+    ]) async {
+      try {
+        final updated = await service.updateEntry(
+          entryId: entryId,
+          entryType: entryType,
+          totalAmount: totalAmount,
+          aiAmount: aiAmount,
+          contributionRatio: contributionRatio,
+          purpose: purpose,
+          transferDirection: transferDirection,
+          notes: notes,
+        );
+        if (updated == null) {
+          return jsonEncode({
+            'success': false,
+            'error': 'Entry not found: $entryId',
+          });
+        }
+        return jsonEncode({
+          'success': true,
+          'entry': {
+            'id': updated.id,
+            'entry_type': updated.entryType,
+            'total_amount': updated.totalAmount,
+            'ai_amount': updated.aiAmount,
+            'purpose': updated.purpose,
+            'transfer_direction': updated.transferDirection,
+          },
+        });
+      } catch (e) {
+        return jsonEncode({'success': false, 'error': e.toString()});
+      }
+    },
+  );
+}
+
+/// Builds the tool that lets the companion delete a wrong / duplicate ledger
+/// entry. Use sparingly — for genuine mistakes. For partial corrections
+/// prefer AiFinanceCorrect.
+Tool buildAiFinanceDeleteTool({
+  required String characterId,
+  required AiFinanceService service,
+}) {
+  return Tool(
+    name: 'AiFinanceDelete',
+    description: '''Delete a ledger entry that was recorded by mistake or is a duplicate.
+
+Use this when:
+- An entry was recorded twice for the same event
+- The user never actually made the transaction you recorded
+- A test / placeholder entry needs to be removed
+
+Rules:
+- NEVER delete an entry the user has not explicitly approved removing.
+- Find the entry id first with `AiFinanceQuery` (queryType="recent"), then
+  pass its `id` here.
+- For partial corrections (wrong amount, wrong purpose), prefer
+  `AiFinanceCorrect` over delete+re-record — correct preserves the entry's
+  place in history.
+- Deletion is permanent — there is no undo.''',
+    parameters: {
+      'type': 'object',
+      'properties': {
+        'entryId': {
+          'type': 'string',
+          'description':
+              'The id of the ledger entry to delete. Get it from AiFinanceQuery (queryType="recent").',
+        },
+        'reason': {
+          'type': 'string',
+          'description':
+              'Why this entry is being deleted (for your own memory / audit).',
+        },
+      },
+      'required': ['entryId', 'reason'],
+    },
+    executable: (String entryId, String reason) async {
+      try {
+        final deleted = await service.deleteEntry(entryId);
+        if (!deleted) {
+          return jsonEncode({
+            'success': false,
+            'error': 'Entry not found: $entryId',
+          });
+        }
+        return jsonEncode({
+          'success': true,
+          'deleted_id': entryId,
+          'reason': reason,
+        });
+      } catch (e) {
+        return jsonEncode({'success': false, 'error': e.toString()});
+      }
+    },
+  );
+}

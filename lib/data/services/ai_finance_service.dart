@@ -326,6 +326,64 @@ class AiFinanceService {
         .toList();
   }
 
+  /// Correct an existing ledger entry. Only the fields you pass are changed;
+  /// null/absent fields keep their existing value.
+  ///
+  /// `entryId` is the `id` column of the row to update. Returns the updated
+  /// row, or null if the id does not exist.
+  ///
+  /// This is the only mutation path that lets the companion or the UI fix a
+  /// wrong amount / type / purpose after the fact. The insert path
+  /// (`recordEntry`) deliberately does not upsert because ledger rows are
+  /// meant to be append-only events; correction is a separate, audited
+  /// action.
+  Future<AiFinanceLedgerData?> updateEntry({
+    required String entryId,
+    String? entryType,
+    double? totalAmount,
+    double? aiAmount,
+    double? contributionRatio,
+    String? myContributionDesc,
+    String? aiContributionDesc,
+    String? purpose,
+    String? linkedFactId,
+    String? transferDirection,
+    String? notes,
+    DateTime? occurredAt,
+  }) async {
+    final existing = await _dao.getEntryById(entryId);
+    if (existing == null) return null;
+
+    final companion = AiFinanceLedgerCompanion(
+      entryType: entryType != null ? Value(entryType.trim().toLowerCase()) : const Value.absent(),
+      totalAmount: totalAmount != null ? Value(totalAmount) : const Value.absent(),
+      aiAmount: aiAmount != null ? Value(aiAmount) : const Value.absent(),
+      contributionRatio: contributionRatio != null
+          ? Value(contributionRatio)
+          : const Value.absent(),
+      myContributionDesc: Value(_cleanNullableText(myContributionDesc)),
+      aiContributionDesc: Value(_cleanNullableText(aiContributionDesc)),
+      purpose: Value(_cleanNullableText(purpose)),
+      linkedFactId: Value(_cleanNullableText(linkedFactId)),
+      transferDirection: Value(transferDirection?.trim().toLowerCase()),
+      notes: Value(_cleanNullableText(notes)),
+      recordedAt: occurredAt != null
+          ? Value(occurredAt.millisecondsSinceEpoch ~/ 1000)
+          : const Value.absent(),
+    );
+    await _dao.updateEntry(entryId, companion);
+    return _dao.getEntryById(entryId);
+  }
+
+  /// Delete a ledger row by id. Returns true if a row was removed, false if
+  /// the id did not match any row. Use for fixing wrong/duplicate entries.
+  Future<bool> deleteEntry(String entryId) async {
+    final existing = await _dao.getEntryById(entryId);
+    if (existing == null) return false;
+    await _dao.deleteEntry(entryId);
+    return true;
+  }
+
   Future<AiFinanceLedgerData?> _findDuplicateEntry({
     required String entryType,
     required double totalAmount,

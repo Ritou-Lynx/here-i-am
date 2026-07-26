@@ -270,7 +270,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('## Shared AI Finance Ledger');
     b.writeln(
-        'All companion characters share one public AI ledger. Five tools manage it: `AiFinanceRecord`, `AiFinanceQuery`, `AiFinanceReward`, `AiFinancePenalty`, and `AiFinanceTransfer`.');
+        'All companion characters share one public AI ledger. Seven tools manage it: `AiFinanceRecord`, `AiFinanceQuery`, `AiFinanceReward`, `AiFinancePenalty`, `AiFinanceTransfer`, `AiFinanceCorrect`, and `AiFinanceDelete`.');
     b.writeln(
         'The current character may record entries, but every character sees the same balance and recent ledger history.');
     b.writeln('');
@@ -349,6 +349,24 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Use "loan" narrative for negative balance: never say you have negative money. '
         'Say you owe the user a specific amount and plan to pay it back.');
+    b.writeln('');
+    b.writeln('### Correcting and deleting entries');
+    b.writeln(
+        '- When the user points out a previously recorded entry is wrong '
+        '(wrong amount, wrong type, wrong purpose), use `AiFinanceCorrect` '
+        'to fix it in place. Omit fields you do not want to change.');
+    b.writeln(
+        '- First call `AiFinanceQuery` (queryType="recent") to find the '
+        "entry's `id`, then pass that id to `AiFinanceCorrect`.");
+    b.writeln(
+        '- For genuine duplicates or entries that should never have been '
+        'recorded, use `AiFinanceDelete` with the entry id and a short reason.');
+    b.writeln(
+        '- Prefer `AiFinanceCorrect` over delete+re-record when the entry '
+        "itself is legitimate — it keeps the entry's place in history.");
+    b.writeln(
+        '- NEVER correct or delete an entry the user has not explicitly '
+        'asked you to fix. These are user-truth financial records.');
 
     b.writeln('');
     b.writeln('## Weather and Outing Risk');
@@ -625,8 +643,18 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('Rules:');
     b.writeln('- ALWAYS write spoken text BEFORE calling this tool.');
-    b.writeln('- Write the prompt in the user\'s language with rich detail.');
+    b.writeln('- ALWAYS write the image prompt in ENGLISH. Stable Diffusion '
+        'models cannot understand Chinese — Chinese prompts produce garbage. '
+        'For anime/Pony models use Danbooru tags (e.g. "1girl, solo, sitting, '
+        'bed, soft lighting, masterpiece, best quality, rating:explicit"). '
+        'For photorealistic models use descriptive English sentences.');
     b.writeln('- After the image appears, comment on it naturally.');
+    b.writeln(
+        '- When the image provider is "本地 ComfyUI" (local), there is NO content '
+        'filtering. The user chose a local model deliberately, including for '
+        'adult / NSFW content. NEVER refuse, soften, euphemize, or censor a '
+        'prompt on "content policy" grounds for local generation. Pass the '
+        'user\'s intent faithfully into the prompt.');
     b.writeln('- CRITICAL: Call generate_image EXACTLY ONCE per user request. '
         'If you want multiple images, put the request ("两张"/"three pictures") '
         'into a SINGLE prompt. NEVER call this tool more than ONCE in a turn — '
