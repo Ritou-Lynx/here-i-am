@@ -31,6 +31,7 @@ class RecentActivitySnapshot {
     required String userId,
     required String characterId,
     Duration window = const Duration(hours: 12),
+    bool skipChatHistory = false,
   }) async {
     final now = DateTime.now();
     final parts = <String>[];
@@ -77,13 +78,15 @@ class RecentActivitySnapshot {
     }
 
     // --- Last chat activity ---
-    try {
-      final chatInfo = await _loadLastChatInfo(characterId, now);
-      parts.add('');
-      parts.add('## Recent Chat With You');
-      parts.add(chatInfo);
-    } catch (e) {
-      _logger.warning('Failed to load chat info: $e');
+    if (!skipChatHistory) {
+      try {
+        final chatInfo = await _loadLastChatInfo(characterId, now);
+        parts.add('');
+        parts.add('## Recent Chat With You');
+        parts.add(chatInfo);
+      } catch (e) {
+        _logger.warning('Failed to load chat info: $e');
+      }
     }
 
     // --- Last proactive push ---

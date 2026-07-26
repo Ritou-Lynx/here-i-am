@@ -14,6 +14,7 @@ class AgentDefinitions {
   static const String clarificationResolutionAgent =
       'clarification_resolution_agent';
   static const String recordOrganizerAgent = 'record_organizer_agent';
+  static const String embeddingAgent = 'embedding_agent';
 
   static const Map<String, String> displayNames = {
     pkmAgent: 'PKM',
@@ -29,6 +30,7 @@ class AgentDefinitions {
     analyzeAssets: 'Media analysis',
     clarificationResolutionAgent: 'Ask resolution',
     recordOrganizerAgent: 'Record organizer',
+    embeddingAgent: 'Embedding',
   };
 
   /// Agent IDs exposed in the model configuration screen.

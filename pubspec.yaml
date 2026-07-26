@@ -130,3 +130,8 @@ flutter:
     - assets/silero_vad.onnx
     - assets/jieba_dict.txt
     - assets/comic_scaffold/
+
+  fonts:
+    - family: LXGW WenKai
+      fonts:
+        - asset: assets/fonts/LXGWWenKai-Regular.ttf

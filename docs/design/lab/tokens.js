@@ -12,7 +12,7 @@ window.DESIGN_TOKENS = {
   iAnchorAlpha: 0.05,
   userAnchor: 'none',
   userAnchorAlpha: 0.26,
-  userPreset: 'olive',
+  userPreset: 'moss',
   userWarmth: 0.34,
   userOpacity: 0.92,
   userGlow: 0.3,
@@ -31,7 +31,11 @@ window.DESIGN_TOKENS = {
   glassBlur: 2,
   fadeStrength: 0.45,
   fadeRatio: 0.45,
-  textShadow: 0.5
+  textShadow: 0.5,
+  imgMaxW: 72,
+  imgRadius: 12,
+  linkBarAlpha: 0.5,
+  justify: 'on'
 };
 
 window.DESIGN_TOKEN_META = [
@@ -63,7 +67,7 @@ window.DESIGN_TOKEN_META = [
   { key: 'userAnchorAlpha', label: 'user 锚浓度', min: 0.05, max: 0.7, step: 0.02 },
   { type: 'head', label: '用户字色 / 衬底 / 高亮' },
   { key: 'userPreset', label: '用户字色', type: 'select', options: [
-    { v: 'temp', t: '窗光白（滑块）' }, { v: 'olive', t: '橄榄字 #6e7541' }, { v: 'lime', t: '嫩黄绿 #d4f8a5' }, { v: 'mark', t: '马克笔高亮（逐行·白字）' }, { v: 'block', t: '整块衬底（白字）' }
+    { v: 'temp', t: '窗光白（滑块）' }, { v: 'moss', t: '苔绿 #a3a866' }, { v: 'olive', t: '橄榄字 #6e7541' }, { v: 'lime', t: '嫩黄绿 #d4f8a5' }, { v: 'mark', t: '马克笔高亮（逐行·白字）' }, { v: 'block', t: '整块衬底（白字）' }
   ] },
   { key: 'userMark', label: '高亮 / 衬底浓度', min: 0, max: 1, step: 0.05 },
   { key: 'userWarmth', label: '冷白↔暖白', min: 0, max: 1, step: 0.02 },
@@ -86,5 +90,12 @@ window.DESIGN_TOKEN_META = [
   { type: 'head', label: '淡出与描影' },
   { key: 'fadeStrength', label: '淡出强度', min: 0, max: 1, step: 0.05 },
   { key: 'fadeRatio', label: '淡出位置', min: 0.2, max: 0.9, step: 0.05 },
-  { key: 'textShadow', label: '文字描影', min: 0, max: 1, step: 0.05 }
+  { key: 'textShadow', label: '文字描影', min: 0, max: 1, step: 0.05 },
+  { type: 'head', label: '多模态（钉入）' },
+  { key: 'imgMaxW', label: '单图宽度%', min: 40, max: 100, step: 1 },
+  { key: 'imgRadius', label: '图片圆角', min: 0, max: 24, step: 1 },
+  { key: 'linkBarAlpha', label: '链接钉线浓度', min: 0.05, max: 1, step: 0.05 },
+  { key: 'justify', label: '长文两端对齐', type: 'select', options: [
+    { v: 'off', t: '关' }, { v: 'on', t: '开' }
+  ] }
 ];

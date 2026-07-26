@@ -47,6 +47,7 @@ import 'package:memex/ui/character/widgets/voice_input_button.dart';
 import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
+import 'package:memex/ui/core/themes/spring_rain_chat_tokens.dart';
 import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/widgets/here_iam_glass_surface.dart';
@@ -560,19 +561,33 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _viewingHistoryWindow = false;
 
   MarkdownStyleSheet get _messageMarkdownStyle {
-    final tokens = HereIamThemeRuntime.current;
-    final codeBackground = tokens.brightness == Brightness.dark
-        ? const Color(0xFF241615)
-        : tokens.glassFillSoft;
+    const c = SpringRainChatTokens.springRainDaydream;
+    final codeBackground = c.brightness == Brightness.dark
+        ? c.backgroundSoft
+        : c.glassFillSoft;
 
     return MarkdownStyleSheet(
-      p: TextStyle(fontSize: 15, height: 1.68, color: tokens.textPrimary),
-      strong: TextStyle(fontWeight: FontWeight.w700, color: tokens.textPrimary),
-      em: const TextStyle(fontStyle: FontStyle.italic),
-      listBullet: TextStyle(color: tokens.accent),
+      p: TextStyle(
+        fontSize: c.iSize,
+        height: c.lineHeight,
+        fontWeight: c.iWeight,
+        color: c.iColor,
+        fontFamily: c.fontFamily,
+      ),
+      strong: TextStyle(
+        fontWeight: FontWeight.w700,
+        color: c.iColor,
+        fontFamily: c.fontFamily,
+      ),
+      em: TextStyle(
+        fontStyle: FontStyle.italic,
+        color: c.iColor,
+        fontFamily: c.fontFamily,
+      ),
+      listBullet: TextStyle(color: c.actionColor),
       code: TextStyle(
         fontSize: 13,
-        color: tokens.textPrimary,
+        color: c.iColor,
         backgroundColor: codeBackground,
         fontFamily: 'monospace',
       ),
@@ -4129,6 +4144,7 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   Widget _buildMessageList() {
+    const c = SpringRainChatTokens.springRainDaydream;
     final mediaQuery = MediaQuery.of(context);
     final topPadding = mediaQuery.padding.top + 118;
     final mediaTrayPadding =
@@ -4170,9 +4186,9 @@ only after you have written the goodbye you want the user to hear.''',
                 physics: const ClampingScrollPhysics(),
                 reverse: true,
                 padding: EdgeInsets.fromLTRB(
-                  10,
+                  c.pageMargin,
                   topPadding,
-                  12,
+                  c.pageMargin,
                   bottomPadding,
                 ),
                 itemCount: itemCount,
@@ -4245,6 +4261,8 @@ only after you have written the goodbye you want the user to hear.''',
                                   ),
                                   Expanded(
                                     child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
                                       children: [
                                         if (showDate)
                                           _buildDateDivider(msg.timestamp),
@@ -4269,6 +4287,8 @@ only after you have written the goodbye you want the user to hear.''',
                               ),
                             )
                           : Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.stretch,
                               children: [
                                 if (showDate) _buildDateDivider(msg.timestamp),
                                 if (msg.messageType == 'action')
@@ -4489,21 +4509,46 @@ only after you have written the goodbye you want the user to hear.''',
 
   Widget _buildDateDivider(DateTime date) {
     final label = _formatTimeDivider(date);
+    const c = SpringRainChatTokens.springRainDaydream;
+    final ink = const Color(0xFFD6D4C8).withValues(alpha: c.timeAlpha);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: _personaPanel.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      padding: EdgeInsets.symmetric(vertical: c.timeGap / 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.transparent, ink],
+                ),
+              ),
+            ),
           ),
-          child: Text(
-            label,
-            style: TextStyle(fontSize: 11, color: _personaTextMuted),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: ink,
+                letterSpacing: 1.4,
+              ),
+            ),
           ),
-        ),
+          Expanded(
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [ink, Colors.transparent],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -4569,55 +4614,33 @@ only after you have written the goodbye you want the user to hear.''',
   /// No speech bubble; italic text centred with a subtle divider style,
   /// matching the roleplay convention for stage directions.
   Widget _buildActionMessage({required String text}) {
+    const c = SpringRainChatTokens.springRainDaydream;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 24),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Base the italic aside's max width on the *actual* available width
-          // (which shrinks in selection mode when a checkbox is prepended),
-          // not the full screen width, otherwise the two dividers + gaps can
-          // exceed the row and overflow by a few pixels.
-          final available = constraints.maxWidth.isFinite
-              ? constraints.maxWidth
-              : MediaQuery.sizeOf(context).width;
-          return Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 0.5,
-                  color: _personaLine.withValues(alpha: 0.4),
-                ),
+      padding: EdgeInsets.symmetric(vertical: c.blockGap / 2),
+      child: Padding(
+        padding: EdgeInsets.only(left: c.iIndent - 10),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: c.actionColor.withValues(alpha: c.iAnchorAlpha),
+                width: 2,
               ),
-              const SizedBox(width: 12),
-              Flexible(
-                flex: 0,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: available * 0.68,
-                  ),
-                  child: SelectableText(
-                    text,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      height: 1.6,
-                      fontStyle: FontStyle.italic,
-                      color: _personaTextMuted,
-                      letterSpacing: 0.1,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  height: 0.5,
-                  color: _personaLine.withValues(alpha: 0.4),
-                ),
-              ),
-            ],
-          );
-        },
+            ),
+          ),
+          padding: const EdgeInsets.only(left: 8),
+          child: SelectableText(
+            text,
+            style: TextStyle(
+              fontSize: c.actionSize,
+              height: c.lineHeight,
+              fontStyle: FontStyle.italic,
+              color: c.actionColor,
+              fontFamily: c.fontFamily,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -4658,16 +4681,16 @@ only after you have written the goodbye you want the user to hear.''',
     final userBubbleKey = GlobalKey();
     final hasActions = userMessage != null && !_isSelecting;
 
+    const c = SpringRainChatTokens.springRainDaydream;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
+      padding: EdgeInsets.only(bottom: c.turnGap),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(width: 40),
           Flexible(
             child: Align(
-              alignment: Alignment.topRight,
+              alignment: Alignment.topLeft,
               child: GestureDetector(
                 key: userBubbleKey,
                 behavior: HitTestBehavior.translucent,
@@ -4685,28 +4708,35 @@ only after you have written the goodbye you want the user to hear.''',
                 onDoubleTap: userMessage != null && !_isSelecting
                     ? () => _recordMessage(userMessage)
                     : null,
-                child: _FrostedChatBubbleSurface(
-                  isCharacter: false,
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (text.isNotEmpty)
-                        Text(
-                          text,
-                          style: TextStyle(
-                            fontSize: 15,
-                            height: 1.55,
-                            color: _personaText,
-                          ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (text.isNotEmpty)
+                      Text(
+                        text,
+                        style: TextStyle(
+                          fontSize: c.userSize,
+                          height: c.lineHeight,
+                          fontWeight: c.userWeight,
+                          letterSpacing: c.userLetterSpacing,
+                          color: c.userColor,
+                          fontFamily: c.fontFamily,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black
+                                  .withValues(alpha: c.textShadow * 0.6),
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
-                      if (attachmentWidgets.isNotEmpty) ...[
-                        if (text.isNotEmpty) const SizedBox(height: 8),
-                        ...attachmentWidgets,
-                      ],
+                      ),
+                    if (attachmentWidgets.isNotEmpty) ...[
+                      if (text.isNotEmpty) const SizedBox(height: 8),
+                      ...attachmentWidgets,
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -5134,81 +5164,83 @@ only after you have written the goodbye you want the user to hear.''',
         attachmentsJson != null && attachmentsJson.trim().isNotEmpty;
     final bubbleKey = GlobalKey();
 
+    const c = SpringRainChatTokens.springRainDaydream;
     return Padding(
       padding: EdgeInsets.only(bottom: bottomSpacing),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Flexible(
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: GestureDetector(
-                key: bubbleKey,
-                onLongPress: hasActions
-                    ? () {
-                        HapticFeedback.mediumImpact();
-                        _showBubbleActionPopup(
-                          messageId: messageId,
-                          text: fullMessageText ?? text,
-                          bubbleKey: bubbleKey,
-                        );
-                      }
-                    : null,
-                child: _CharacterMessageFrame(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Flexible(
-                            child: MarkdownBody(
-                              data: text,
-                              softLineBreak: true,
-                              styleSheet: _messageMarkdownStyle,
-                              onTapLink: (text, href, title) {
-                                if (href == null) return;
-                                final uri = Uri.tryParse(href);
-                                if (uri == null ||
-                                    (!uri.isScheme('http') &&
-                                        !uri.isScheme('https'))) {
-                                  return;
-                                }
-                                unawaited(launchUrl(uri,
-                                    mode: LaunchMode.externalApplication));
-                              },
-                            ),
-                          ),
-                          if (isStreaming) ...[
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              width: 8,
-                              height: 8,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                color: _personaAccent,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      if (hasAddenda) ...[
-                        const SizedBox(height: 10),
-                        MessageAddendumRenderer(
-                          attachmentsJson: attachmentsJson,
-                          isCharacterBubble: true,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+      child: Padding(
+        padding: EdgeInsets.only(left: c.iIndent - 10),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: c.actionColor.withValues(alpha: c.iAnchorAlpha),
+                width: 2,
               ),
             ),
           ),
-          const SizedBox(width: 36),
-        ],
+          padding: const EdgeInsets.only(left: 8),
+          child: GestureDetector(
+            key: bubbleKey,
+            onLongPress: hasActions
+                ? () {
+                    HapticFeedback.mediumImpact();
+                    _showBubbleActionPopup(
+                      messageId: messageId,
+                      text: fullMessageText ?? text,
+                      bubbleKey: bubbleKey,
+                    );
+                  }
+                : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Flexible(
+                      child: MarkdownBody(
+                        data: text,
+                        softLineBreak: true,
+                        styleSheet: _messageMarkdownStyle,
+                        onTapLink: (text, href, title) {
+                          if (href == null) return;
+                          final uri = Uri.tryParse(href);
+                          if (uri == null ||
+                              (!uri.isScheme('http') &&
+                                  !uri.isScheme('https'))) {
+                            return;
+                          }
+                          unawaited(launchUrl(uri,
+                              mode: LaunchMode.externalApplication));
+                        },
+                      ),
+                    ),
+                    if (isStreaming) ...[
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 8,
+                        height: 8,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: _personaAccent,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (hasAddenda) ...[
+                  const SizedBox(height: 10),
+                  MessageAddendumRenderer(
+                    attachmentsJson: attachmentsJson,
+                    isCharacterBubble: true,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -5816,6 +5848,7 @@ class _ChatAtmosphereBackgroundState extends State<_ChatAtmosphereBackground> {
     final hasCustomBg = _hasCustomBg ?? false;
     final bgPath = _cachedBgPath;
     final tokens = context.hereIamTheme;
+    const chat = SpringRainChatTokens.springRainDaydream;
 
     return Stack(
       children: [
@@ -5830,11 +5863,9 @@ class _ChatAtmosphereBackgroundState extends State<_ChatAtmosphereBackground> {
         else
           Positioned.fill(
             child: Image.asset(
-              'assets/images/dusky_rose_rain_glass.png',
+              'assets/images/spring_rain_daydream_chat_bg.png',
               fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-              color: tokens.background.withValues(alpha: 0.18),
-              colorBlendMode: BlendMode.multiply,
+              alignment: Alignment.center,
             ),
           ),
         if (!hasCustomBg)
@@ -5846,8 +5877,8 @@ class _ChatAtmosphereBackgroundState extends State<_ChatAtmosphereBackground> {
                   end: Alignment.bottomCenter,
                   colors: [
                     const Color(0xFF070608).withValues(alpha: 0.24),
-                    tokens.background.withValues(alpha: 0.08),
-                    tokens.background.withValues(alpha: 0.22),
+                    chat.background.withValues(alpha: 0.08),
+                    chat.background.withValues(alpha: 0.22),
                     const Color(0xFF070608).withValues(alpha: 0.78),
                   ],
                   stops: const [0, 0.34, 0.68, 1],
@@ -5855,7 +5886,7 @@ class _ChatAtmosphereBackgroundState extends State<_ChatAtmosphereBackground> {
               ),
             ),
           ),
-        if (!hasCustomBg) ...[
+        if (false) ...[
           Positioned(
             top: -88,
             left: -72,
@@ -5900,9 +5931,9 @@ class _ChatAtmosphereBackgroundState extends State<_ChatAtmosphereBackground> {
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    tokens.backgroundSoft,
-                    tokens.backgroundSoft.withValues(alpha: 0.92),
-                    tokens.backgroundSoft.withValues(alpha: 0.55),
+                    chat.backgroundSoft,
+                    chat.backgroundSoft.withValues(alpha: 0.92),
+                    chat.backgroundSoft.withValues(alpha: 0.55),
                     Colors.transparent,
                     Colors.transparent,
                   ],
@@ -6600,6 +6631,7 @@ class PersonaChatInputBar extends StatelessWidget {
     final hasImages = selectedImages.isNotEmpty || isCompressing;
     final tokens = HereIamThemeRuntime.current;
     final isDark = tokens.brightness == Brightness.dark;
+    const c = SpringRainChatTokens.springRainDaydream;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(32, 10, 32, bottomPadding + 24),
@@ -6769,8 +6801,9 @@ class PersonaChatInputBar extends StatelessWidget {
                               decoration: InputDecoration(
                                 hintText: hintText,
                                 hintStyle: TextStyle(
-                                  color: _personaTextMuted,
+                                  color: c.iColor.withValues(alpha: 0.45),
                                   fontSize: 15,
+                                  fontFamily: c.fontFamily,
                                 ),
                                 isDense: true,
                                 contentPadding: const EdgeInsets.symmetric(
@@ -6782,7 +6815,8 @@ class PersonaChatInputBar extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 15,
                                 height: 1.35,
-                                color: _personaText,
+                                color: c.iColor,
+                                fontFamily: c.fontFamily,
                               ),
                               keyboardType: TextInputType.multiline,
                               textInputAction: TextInputAction.newline,
@@ -6876,12 +6910,29 @@ class _FloatingGlassInputCapsule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return HereIamGlassSurface(
-      level: HereIamGlassLevel.raised,
+    const c = SpringRainChatTokens.springRainDaydream;
+    return ClipRRect(
       borderRadius: BorderRadius.circular(27),
-      constraints: const BoxConstraints(minHeight: 66),
-      padding: const EdgeInsets.fromLTRB(9, 7, 9, 7),
-      child: child,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: c.glassBlur, sigmaY: c.glassBlur),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 66),
+          padding: const EdgeInsets.fromLTRB(9, 7, 9, 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(27),
+            color: c.glassFill,
+            border: Border.all(color: c.glassStroke),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }
@@ -6916,36 +6967,17 @@ class _AddButton extends StatelessWidget {
                 height: 38,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF241319).withValues(alpha: 0.38),
-                  gradient: RadialGradient(
-                    center: const Alignment(-0.36, -0.44),
-                    radius: 1.08,
-                    colors: [
-                      const Color(
-                        0xFFFFECDD,
-                      ).withValues(alpha: active ? 0.13 : 0.08),
-                      active
-                          ? const Color(0xFF4D222B).withValues(alpha: 0.58)
-                          : const Color(0xFF3A2123).withValues(alpha: 0.48),
-                      const Color(0xFF120B0E).withValues(alpha: 0.72),
-                    ],
-                    stops: const [0, 0.54, 1],
-                  ),
+                  color: const Color(0xFF12160F).withValues(alpha: 0.5),
                   border: Border.all(
                     color: active
-                        ? const Color(0xFFFFC6B5).withValues(alpha: 0.12)
-                        : Colors.white.withValues(alpha: 0.045),
+                        ? const Color(0xFFF2CA70).withValues(alpha: 0.3)
+                        : Colors.white.withValues(alpha: 0.12),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.30),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                    ),
-                    BoxShadow(
-                      color: const Color(0xFFC0646E).withValues(alpha: 0.10),
-                      blurRadius: 12,
-                      offset: Offset.zero,
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
@@ -6992,8 +7024,8 @@ class _ChatVoiceActions extends StatelessWidget {
           VoiceInputButton(
             controller: voiceController!,
             onTap: onVoiceTap!,
-            iconColor: const Color(0xFFF6F0EF).withValues(alpha: 0.84),
-            bgColor: const Color(0xFF241319).withValues(alpha: 0.34),
+            iconColor: const Color(0xFFF5EEE0).withValues(alpha: 0.84),
+            bgColor: const Color(0xFF12160F).withValues(alpha: 0.4),
             enabled: voiceInputEnabled,
           ),
           const SizedBox(width: 8),
@@ -7082,35 +7114,19 @@ class _VoiceModeButton extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF241319).withValues(alpha: 0.30),
-                gradient: RadialGradient(
-                  center: const Alignment(-0.32, -0.42),
-                  radius: 1.12,
-                  colors: active
-                      ? [
-                          const Color(0xFFFFECDD).withValues(alpha: 0.12),
-                          const Color(0xFFC0646E).withValues(alpha: 0.38),
-                          const Color(0xFF4D222B).withValues(alpha: 0.60),
-                        ]
-                      : [
-                          const Color(0xFFFFECDD).withValues(alpha: 0.07),
-                          const Color(0xFF3A2123).withValues(alpha: 0.34),
-                          const Color(0xFF120B0E).withValues(alpha: 0.54),
-                        ],
-                  stops: const [0, 0.56, 1],
-                ),
+                color: const Color(0xFF12160F).withValues(alpha: 0.5),
                 border: Border.all(
                   color: active
-                      ? const Color(0xFFFFC6B5).withValues(alpha: 0.10)
-                      : Colors.white.withValues(alpha: 0.035),
+                      ? const Color(0xFFF2CA70).withValues(alpha: 0.3)
+                      : Colors.white.withValues(alpha: 0.12),
                 ),
                 boxShadow: active
                     ? [
                         BoxShadow(
                           color: const Color(
-                            0xFFC0646E,
-                          ).withValues(alpha: 0.16),
-                          blurRadius: 16,
+                            0xFFF2CA70,
+                          ).withValues(alpha: 0.12),
+                          blurRadius: 14,
                           offset: Offset.zero,
                         ),
                       ]
@@ -7295,49 +7311,22 @@ class _SendButton extends StatelessWidget {
               height: 42,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF241319).withValues(alpha: 0.38),
-                gradient: RadialGradient(
-                  center: const Alignment(-0.36, -0.44),
-                  radius: 1.12,
-                  colors: enabled
-                      ? (isComposeMode
-                          ? [
-                              const Color(0xFFFFECDD).withValues(alpha: 0.16),
-                              const Color(0xFFB5838E).withValues(alpha: 0.55),
-                              const Color(0xFF4D222B).withValues(alpha: 0.66),
-                            ]
-                          : [
-                              const Color(0xFFFFECDD).withValues(alpha: 0.13),
-                              const Color(0xFFC0646E).withValues(alpha: 0.48),
-                              const Color(0xFF4D222B).withValues(alpha: 0.66),
-                            ])
-                      : [
-                          const Color(0xFFFFECDD).withValues(alpha: 0.06),
-                          const Color(0xFF3A2123).withValues(alpha: 0.32),
-                          const Color(0xFF120B0E).withValues(alpha: 0.58),
-                        ],
-                  stops: const [0, 0.56, 1],
-                ),
+                color: const Color(0xFF12160F).withValues(alpha: 0.5),
                 border: Border.all(
                   color: enabled
-                      ? (isComposeMode
-                          ? const Color(0xFFFFD9B0).withValues(alpha: 0.20)
-                          : const Color(0xFFFFC6B5).withValues(alpha: 0.10))
-                      : Colors.white.withValues(alpha: 0.035),
+                      ? const Color(0xFFF2CA70).withValues(alpha: 0.3)
+                      : Colors.white.withValues(alpha: 0.12),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.28),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
                   ),
                   if (enabled)
                     BoxShadow(
-                      color: (isComposeMode
-                              ? const Color(0xFFB5838E)
-                              : const Color(0xFFC0646E))
-                          .withValues(alpha: 0.18),
-                      blurRadius: 18,
+                      color: const Color(0xFFF2CA70).withValues(alpha: 0.12),
+                      blurRadius: 16,
                       offset: Offset.zero,
                     ),
                 ],

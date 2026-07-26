@@ -128,6 +128,7 @@ _latest_android_logcat.txt
 btdump*/
 magicmotion_apk/
 mm_*.txt
+.tmp/
 tools/dev_agent_bridge/.state/
 
 # Dev Agent local artifacts

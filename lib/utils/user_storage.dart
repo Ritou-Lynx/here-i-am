@@ -374,6 +374,8 @@ class UserStorage {
   static const String _keyMiniMaxGroupId = 'minimax_group_id';
   static const String _keyImageGenProvider = 'image_gen_provider';
   static const String _keyImageGenLlmConfigKey = 'image_gen_llm_config_key';
+  static const String _keyComfyuiUrl = 'comfyui_url';
+  static const String _keyComfyuiModel = 'comfyui_model';
 
   /// Get specified agent config
   static Future<AgentConfig> getAgentConfig(String agentId) async {
@@ -497,6 +499,42 @@ class UserStorage {
       await prefs.setString(_keyImageGenProvider, provider);
     } catch (e) {
       throw Exception('Failed to save image gen provider: $e');
+    }
+  }
+
+  static Future<String?> getComfyuiUrl() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyComfyuiUrl);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<void> setComfyuiUrl(String url) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyComfyuiUrl, url);
+    } catch (e) {
+      throw Exception('Failed to save ComfyUI URL: $e');
+    }
+  }
+
+  static Future<String?> getComfyuiModel() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyComfyuiModel);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<void> setComfyuiModel(String model) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyComfyuiModel, model);
+    } catch (e) {
+      throw Exception('Failed to save ComfyUI model: $e');
     }
   }
 

@@ -25,6 +25,10 @@ import 'package:memex/data/services/reading/reading_capture_service.dart';
 import 'package:memex/data/services/reading/reading_fetch_coordinator.dart';
 import 'package:memex/data/services/reading/transient_fetch_cache.dart';
 import 'package:memex/data/services/reading/xhs/xhs_cookie_repository.dart';
+import 'package:memex/data/services/comic/comic_remote_service.dart';
+import 'package:memex/data/services/comic/comic_library_service.dart';
+import 'package:memex/data/services/comic/comic_reading_progress_service.dart';
+import 'package:memex/data/services/comic/comic_screenplay_service.dart';
 import 'package:memex/data/services/book/book_remote_service.dart';
 import 'package:memex/data/services/book/book_library_service.dart';
 import 'package:memex/data/services/app_update_service.dart';
@@ -166,6 +170,12 @@ class MemexRouter {
         // a previously-confirmed session survives app restarts. (The
         // system WebView keeps the cookie itself; this restores OUR flag.)
         unawaited(XhsCookieRepository.instance.restoreFromPrefs());
+        // Comic co-reading: Hermes HTTP server pipeline.
+        // See docs/companion-first/COMIC_CO_READING_PLAN.md
+        final comicRemote = ComicRemoteService(db: AppDatabase.instance);
+        ComicLibraryService.init(db: AppDatabase.instance, remote: comicRemote);
+        ComicReadingProgressService.init(db: AppDatabase.instance);
+        ComicScreenplayService.init(db: AppDatabase.instance);
         // Book co-reading: Hermes book server pipeline.
         final bookRemote = BookRemoteService(db: AppDatabase.instance);
         BookLibraryService.init(db: AppDatabase.instance, remote: bookRemote);

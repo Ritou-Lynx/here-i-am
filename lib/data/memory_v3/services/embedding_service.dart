@@ -14,6 +14,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
+import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/llm_client/codex_responses_client.dart' show configureProxy;
@@ -45,7 +46,7 @@ class EmbeddingService {
 
     try {
       final config = await UserStorage.getAgentLLMConfig(
-        'record_organizer',
+        AgentDefinitions.embeddingAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
       _configureFromLLMConfig(config);
@@ -305,8 +306,23 @@ class EmbeddingService {
       }),
     );
 
-    final data = response.data as Map<String, dynamic>;
-    final embeddings = data['data'] as List<dynamic>;
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw Exception(
+        'Embedding API returned non-object response (HTTP ${response.statusCode}). '
+        'URL: $url. Provider may not support embeddings.',
+      );
+    }
+    final dataList = data['data'];
+    if (dataList is! List) {
+      final errMsg = data['error'];
+      throw Exception(
+        'Embedding API returned no data array. '
+        'URL: $url, model: $_model. '
+        'error: $errMsg',
+      );
+    }
+    final embeddings = dataList.cast<Map<String, dynamic>>();
     return embeddings.map((e) {
       final vec = (e['embedding'] as List<dynamic>)
           .map((v) => (v as num).toDouble())

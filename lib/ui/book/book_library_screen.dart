@@ -21,7 +21,7 @@ class BookLibraryScreen extends StatefulWidget {
 }
 
 class _BookLibraryScreenState extends State<BookLibraryScreen> {
-  List<BookData> _books = const [];
+  List<Book> _books = const [];
   bool _loading = true;
   bool _configured = false;
   bool _importing = false;

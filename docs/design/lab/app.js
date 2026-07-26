@@ -9,6 +9,7 @@
   var USER_WARM = { r: 238, g: 232, b: 214 };
   var MARK_WHITE = { r: 242, g: 244, b: 236 };
   var OLIVE = { r: 110, g: 117, b: 65, a: 0.96 };
+  var MOSS = { r: 163, g: 168, b: 102, a: 0.96 };
   var LIME = { r: 212, g: 248, b: 165, a: 0.96 };
   var FONT_MAP = {
     system: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif',
@@ -45,6 +46,7 @@
   }
   function presetColor(p) {
     if (p === 'olive') { return OLIVE; }
+    if (p === 'moss') { return MOSS; }
     if (p === 'lime') { return LIME; }
     return null;
   }
@@ -111,6 +113,10 @@
     root.setAttribute('data-user-anchor', T.userAnchor);
     root.setAttribute('data-time-style', T.timeStyle);
     root.setAttribute('data-user-fill', T.userPreset);
+    S.setProperty('--img-max-w', T.imgMaxW + '%');
+    S.setProperty('--img-radius', T.imgRadius + 'px');
+    S.setProperty('--link-bar-a', T.linkBarAlpha.toFixed(2));
+    root.setAttribute('data-justify', T.justify);
     layoutGaps();
     updateFade();
   }
@@ -118,6 +124,7 @@
   var SAMPLE = [
     { t: 'time', x: '今天 14:32' },
     { t: 'user', x: '雨好大。' },
+    { t: 'img', g: 'u', src: ['../../../assets/images/spring_rain_glass_texture_raw.png', '../../../assets/images/spring_rain_daydream_chat_bg.png'], cap: '刚拍的，窗上全是水。' },
     { t: 'i', x: '嗯，听着呢。' },
     { t: 'user', x: '我累了。' },
     { t: 'action', x: '*他把书翻过一页，手却停住了。*' },
@@ -136,8 +143,11 @@
     { t: 'i', x: '那不是坚强。' },
     { t: 'i', x: '是你塞得太满了，满到情绪都挤不出来。' },
     { t: 'user', x: '你说得对。我太满了。' },
+    { t: 'link', g: 'u', title: '《雨天的书》｜雨声是房间的心跳', domain: '阅读分享 · 微信读书' },
+    { t: 'i', x: '这篇我先收着了，睡前念给你听。' },
     { t: 'action', x: '*一滴水顺着玻璃，慢慢划完整条高度，才肯落下。*' },
-    { t: 'i', x: '那我们就一点点往外掏。今天掏一句也行。' }
+    { t: 'i', x: '那我们就一点点往外掏。今天掏一句也行。' },
+    { t: 'img', g: 'i', src: ['../../../assets/images/spring_rain_daydream_chat_bg.png'], cap: '窗台这盆绿萝，今天也喝饱了。' }
   ];
 
   function escapeHtml(s) {
@@ -153,15 +163,27 @@
       if (m.t === 'time') { cls = 'msg-time'; }
       else if (m.t === 'user') { cls = 'msg-user'; }
       else if (m.t === 'action') { cls = 'msg-action'; }
+      else if (m.t === 'img') { cls = 'msg-img'; }
+      else if (m.t === 'link') { cls = 'msg-link'; }
       else { cls = 'msg-i'; }
-      var g = groupOf(m.t);
+      var g = m.g || groupOf(m.t);
       if (g !== 'time') {
-        var prevG = i > 0 ? groupOf(SAMPLE[i - 1].t) : null;
+        var prevG = i > 0 ? (SAMPLE[i - 1].g || groupOf(SAMPLE[i - 1].t)) : null;
         if (prevG !== g) { cls += ' lead'; }
       }
-      var text = m.t === 'action' ? m.x.replace(/^\*|\*$/g, '') : m.x;
-      var inner = escapeHtml(text);
-      if (m.t === 'user') { inner = '<span class="mark-hl">' + inner + '</span>'; }
+      var inner;
+      if (m.t === 'img') {
+        var imgs = m.src.map(function (s) { return '<img src="' + s + '" alt="">'; }).join('');
+        inner = '<div class="frames' + (m.src.length > 1 ? '' : ' single') + '">' + imgs + '</div>'
+          + (m.cap ? '<span class="cap">' + escapeHtml(m.cap) + '</span>' : '');
+      } else if (m.t === 'link') {
+        inner = '<span class="link-title">' + escapeHtml(m.title) + '</span>'
+          + '<span class="link-domain">' + escapeHtml(m.domain) + '</span>';
+      } else {
+        var text = m.t === 'action' ? m.x.replace(/^\*|\*$/g, '') : m.x;
+        inner = escapeHtml(text);
+        if (m.t === 'user') { inner = '<span class="mark-hl">' + inner + '</span>'; }
+      }
       html += '<div class="msg ' + cls + '" data-g="' + g + '">' + inner + '</div>';
     }
     list.innerHTML = html;

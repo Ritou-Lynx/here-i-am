@@ -168,6 +168,74 @@ html, body {
   width: 2px;
   background: rgba(var(--user-anchor-rgb, 214, 224, 232), var(--user-bar-solid-a, .84));
 }
+/* 长文两端对齐：右缘齐平，强化共用右边界 */
+[data-justify="on"] .msg-user,
+[data-justify="on"] .msg-i {
+  text-align: justify;
+  text-justify: inter-ideograph;
+}
+/* 多模态「钉」入：与发送者同轴、无气泡底、无容器卡片 */
+.msg-img[data-g="i"],
+.msg-link[data-g="i"] { margin-left: var(--i-indent, 21px); }
+.msg-img .frames { display: flex; gap: 4px; }
+.msg-img .frames img {
+  display: block;
+  min-width: 0;
+  flex: 1 1 0;
+  width: 100%;
+  border-radius: var(--img-radius, 12px);
+  border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+}
+.msg-img .frames.single img { flex: 0 1 auto; width: auto; max-width: var(--img-max-w, 72%); max-height: 320px; }
+.msg-img .cap {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: var(--line-height, 1.52);
+}
+.msg-img[data-g="u"] .cap {
+  color: var(--user-color, #d6e0e8);
+  font-weight: var(--user-weight, 400);
+  letter-spacing: var(--user-ls, 0.3px);
+  text-shadow: var(--user-shadow, 0 1px 3px rgba(0, 0, 0, .5));
+}
+.msg-img[data-g="i"] .cap {
+  color: var(--i-color, #f5eee0);
+  text-shadow: var(--i-shadow, 0 1px 3px rgba(0, 0, 0, .5));
+}
+.msg-link { position: relative; padding-left: 12px; }
+.msg-link::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  border-radius: 1px;
+}
+.msg-link[data-g="u"]::before { background: rgba(var(--user-anchor-rgb, 214, 224, 232), var(--link-bar-a, .5)); }
+.msg-link[data-g="i"]::before { background: rgba(var(--anchor-gold-rgb, 242, 202, 112), var(--link-bar-a, .5)); }
+.msg-link .link-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: var(--line-height, 1.52);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.msg-link[data-g="u"] .link-title { color: var(--user-color, #d6e0e8); text-shadow: var(--user-shadow, 0 1px 3px rgba(0, 0, 0, .5)); }
+.msg-link[data-g="i"] .link-title { color: var(--i-color, #f5eee0); text-shadow: var(--i-shadow, 0 1px 3px rgba(0, 0, 0, .5)); }
+.msg-link .link-domain {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  letter-spacing: .04em;
+  opacity: .5;
+}
+.msg-link[data-g="u"] .link-domain { color: var(--user-color, #d6e0e8); }
+.msg-link[data-g="i"] .link-domain { color: var(--i-color, #f5eee0); }
 .glass-bar {
   position: absolute;
   left: var(--page-margin, 22px);

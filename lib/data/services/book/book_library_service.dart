@@ -36,7 +36,7 @@ class BookLibraryService {
 
   /// Import a TXT file: upload to server → receive metadata → store locally.
   /// Returns the local Book row, or null on failure.
-  Future<BookData?> importTxt(
+  Future<Book?> importTxt(
     Uint8List bytes,
     String filename, {
     required String characterId,
@@ -106,26 +106,26 @@ class BookLibraryService {
 
   // ── Local queries ──────────────────────────────────────────────────────────
 
-  Future<List<BookData>> getLibrary() async {
+  Future<List<Book>> getLibrary() async {
     return (_db.select(_db.books)
           ..where((t) => t.status.equals('active'))
           ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
         .get();
   }
 
-  Future<BookData?> getBook(String bookId) async {
+  Future<Book?> getBook(String bookId) async {
     return (_db.select(_db.books)..where((t) => t.id.equals(bookId)))
         .getSingleOrNull();
   }
 
-  Future<List<BookChapterData>> getChapters(String bookId) async {
+  Future<List<BookChapter>> getChapters(String bookId) async {
     return (_db.select(_db.bookChapters)
           ..where((t) => t.bookId.equals(bookId))
           ..orderBy([(t) => OrderingTerm.asc(t.number)]))
         .get();
   }
 
-  Future<BookChapterData?> getChapter(String bookId, int number) async {
+  Future<BookChapter?> getChapter(String bookId, int number) async {
     return (_db.select(_db.bookChapters)
           ..where((t) => t.bookId.equals(bookId) & t.number.equals(number)))
         .getSingleOrNull();

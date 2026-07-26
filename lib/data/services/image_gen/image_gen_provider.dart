@@ -4,7 +4,8 @@ import 'dart:typed_data';
 enum ImageGenProvider {
   tongyiWanxiang,
   minimax,
-  openaiCompatible;
+  openaiCompatible,
+  comfyuiLocal;
 
   static ImageGenProvider fromString(String value) {
     switch (value) {
@@ -12,6 +13,8 @@ enum ImageGenProvider {
         return ImageGenProvider.minimax;
       case 'openai_compatible':
         return ImageGenProvider.openaiCompatible;
+      case 'comfyui_local':
+        return ImageGenProvider.comfyuiLocal;
       default:
         return ImageGenProvider.tongyiWanxiang;
     }
@@ -25,6 +28,8 @@ enum ImageGenProvider {
         return 'minimax';
       case ImageGenProvider.openaiCompatible:
         return 'openai_compatible';
+      case ImageGenProvider.comfyuiLocal:
+        return 'comfyui_local';
     }
   }
 
@@ -36,6 +41,8 @@ enum ImageGenProvider {
         return 'MiniMax';
       case ImageGenProvider.openaiCompatible:
         return '自定义 (OpenAI 兼容)';
+      case ImageGenProvider.comfyuiLocal:
+        return '本地 ComfyUI';
     }
   }
 }

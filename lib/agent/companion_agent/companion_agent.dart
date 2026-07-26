@@ -27,6 +27,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/time_context.dart';
 import 'package:memex/data/services/comic/comic_reading_progress_service.dart';
+import 'package:memex/data/services/book/book_library_service.dart';
 import 'package:memex/data/services/comic/comic_screenplay_service.dart';
 
 /// Thrown when a companion chat turn fails because of an API/connection error
@@ -101,6 +102,56 @@ class CompanionAgent {
     const names = ['一', '二', '三', '四', '五', '六', '日'];
     if (weekday < 1 || weekday > 7) return '?';
     return names[weekday - 1];
+  }
+
+  /// Build the book co-reading system reminder if the user has been reading
+  /// a book recently (within 60 minutes). Returns null if not active.
+  static Future<String?> _getActiveBookReadingContext() async {
+    if (!BookLibraryService.isInitialized) return null;
+    final lib = BookLibraryService.instance;
+    final books = await lib.getLibrary();
+    if (books.isEmpty) return null;
+
+    // Find the most recently read book
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    Book? active;
+    BookReadingProgressData? progress;
+    for (final book in books) {
+      final p = await lib.getProgress(book.id);
+      if (p == null) continue;
+      // Only consider books read within the last 60 minutes
+      if (now - p.readAt > 3600) continue;
+      if (active == null || p.readAt > (progress?.readAt ?? 0)) {
+        active = book;
+        progress = p;
+      }
+    }
+    if (active == null || progress == null) return null;
+
+    // Get current chapter title
+    final chapter = await lib.getChapter(active.id, progress.chapterNumber);
+    final chTitle = chapter?.title ?? '第 ${progress.chapterNumber} 章';
+
+    // Get a snippet of the chapter content for context (first 500 chars)
+    final content = await lib.getChapterContent(active.id, progress.chapterNumber);
+    final snippet = content != null && content.length > 500
+        ? content.substring(0, 500)
+        : (content ?? '');
+
+    final buf = StringBuffer();
+    buf.writeln('## 用户正在读的书（当前章节）');
+    buf.writeln('《${active.title}》· $chTitle（第 ${progress.chapterNumber}/${active.chapterCount} 章）');
+    if (snippet.isNotEmpty) {
+      buf.writeln('本章开头：');
+      buf.writeln(snippet);
+      if (content != null && content.length > 500) buf.writeln('……');
+    }
+    buf.writeln('这是用户此刻正在读的书。规则：');
+    buf.writeln('- 用户没提书时，照常聊天，不要主动复述或总结章节内容。');
+    buf.writeln('- 用户聊到书、剧情、角色，或问"这段/刚才/接下来"时，像一起读的朋友');
+    buf.writeln('一样自然回应，带你的感受和理解，不要像在读摘要。');
+    buf.writeln('- 永远不要把上面的原文内容原样复述给用户。');
+    return buf.toString();
   }
 
   /// Resolve the best event-date anchor for a dreaming record and format it
@@ -444,6 +495,19 @@ class CompanionAgent {
       }
     } else {
       state.systemReminders.remove('comic_current_page');
+    }
+    // Book co-reading: inject current chapter context so the character
+    // can discuss the book naturally ("一起读书").
+    try {
+      final bookProgress = await _getActiveBookReadingContext();
+      if (bookProgress != null) {
+        state.systemReminders['book_current_chapter'] = bookProgress;
+      } else {
+        state.systemReminders.remove('book_current_chapter');
+      }
+    } catch (e) {
+      _logger.warning('Failed to inject book reading context: $e');
+      state.systemReminders.remove('book_current_chapter');
     }
     // Inject recent dreaming output (episodes + fragments) as relationship context.
     if (DreamingOrchestratorServiceV3.isInitialized) {

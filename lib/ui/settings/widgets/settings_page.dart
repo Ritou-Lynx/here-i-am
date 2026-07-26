@@ -47,6 +47,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String _imageGenProvider = 'tongyi_wanxiang';
   String? _imageGenLlmConfigKey;
   List<LLMConfig> _llmConfigs = [];
+  String _comfyuiUrl = 'http://192.0.2.1:8188';
+  String _comfyuiModel = 'juggernautXL_ragnarok.safetensors';
 
   @override
   void initState() {
@@ -81,6 +83,14 @@ class _SettingsPageState extends State<SettingsPage> {
           _imageGenProvider = imageGenProvider;
           _imageGenLlmConfigKey = imageGenLlmConfigKey;
           _llmConfigs = llmConfigs;
+        });
+      }
+      final comfyuiUrl = await UserStorage.getComfyuiUrl();
+      final comfyuiModel = await UserStorage.getComfyuiModel();
+      if (mounted) {
+        setState(() {
+          if (comfyuiUrl != null && comfyuiUrl.isNotEmpty) _comfyuiUrl = comfyuiUrl;
+          if (comfyuiModel != null && comfyuiModel.isNotEmpty) _comfyuiModel = comfyuiModel;
         });
       }
     }
@@ -440,11 +450,57 @@ class _SettingsPageState extends State<SettingsPage> {
                     _imageGenProviderChip('通义万相', 'tongyi_wanxiang'),
                     _imageGenProviderChip('MiniMax', 'minimax'),
                     _imageGenProviderChip('自定义', 'openai_compatible'),
+                    _imageGenProviderChip('本地 ComfyUI', 'comfyui_local'),
                   ],
                 ),
                 if (_imageGenProvider == 'openai_compatible') ...[
                   const SizedBox(height: 12),
                   _buildLlmConfigSelector(),
+                ],
+                if (_imageGenProvider == 'comfyui_local') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'ComfyUI 地址',
+                      hintText: 'http://127.0.0.1:8188',
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                    controller: TextEditingController(text: _comfyuiUrl),
+                    onChanged: (v) {
+                      _comfyuiUrl = v.trim();
+                      UserStorage.setComfyuiUrl(_comfyuiUrl);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: '模型',
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                    value: _comfyuiModel,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'juggernautXL_ragnarok.safetensors',
+                        child: Text('Juggernaut XL (写实)', overflow: TextOverflow.ellipsis),
+                      ),
+                      DropdownMenuItem(
+                        value: 'ponyDiffusionV6XL.safetensors',
+                        child: Text('Pony V6 XL (动漫)', overflow: TextOverflow.ellipsis),
+                      ),
+                      DropdownMenuItem(
+                        value: 'cyberrealistic_final.safetensors',
+                        child: Text('CyberRealistic (SD1.5)', overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _comfyuiModel = v);
+                        UserStorage.setComfyuiModel(v);
+                      }
+                    },
+                  ),
                 ],
               ],
             ),
