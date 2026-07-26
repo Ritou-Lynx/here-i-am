@@ -134,6 +134,110 @@ class MiniMaxTtsService {
     }
   }
 
+  static Stream<List<int>> streamTextToSpeech({
+    required String text,
+    required String voiceId,
+  }) async* {
+    if (text.trim().isEmpty) return;
+    final script = buildSpeechScript(text);
+    if (script.text.isEmpty) return;
+
+    final apiKey = await UserStorage.getMiniMaxApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      throw Exception('MiniMax API Key is not configured in Settings');
+    }
+    final groupId = await UserStorage.getMiniMaxGroupId();
+    if (groupId == null || groupId.isEmpty) {
+      throw Exception('MiniMax Group ID is not configured in Settings');
+    }
+
+    final client = http.Client();
+    try {
+      final request = http.Request(
+        'POST',
+        Uri.parse('$_baseUrl/v1/t2a_v2?GroupId=$groupId'),
+      );
+      request.headers.addAll({
+        'Authorization': 'Bearer $apiKey',
+        'Content-Type': 'application/json',
+      });
+      request.body = jsonEncode({
+        'model': _model,
+        'text': script.text,
+        'stream': true,
+        'voice_setting': script.toVoiceSetting(voiceId),
+        'audio_setting': {
+          'sample_rate': 32000,
+          'bitrate': 128000,
+          'format': 'mp3',
+          'channel': 1,
+        },
+      });
+
+      final response = await client.send(request);
+      if (response.statusCode != 200) {
+        final body = await response.stream.bytesToString();
+        String detail;
+        try {
+          final json = jsonDecode(body);
+          detail = json['base_resp']?['status_msg'] ?? body;
+        } catch (_) {
+          detail = body;
+        }
+        throw Exception('MiniMax API error ${response.statusCode}: $detail');
+      }
+
+      final lineBuffer = StringBuffer();
+      await for (final chunk in response.stream) {
+        lineBuffer.write(utf8.decode(chunk, allowMalformed: true));
+        var content = lineBuffer.toString();
+        var newlineIndex = content.indexOf('\n');
+        while (newlineIndex != -1) {
+          final line = content.substring(0, newlineIndex).trim();
+          content = content.substring(newlineIndex + 1);
+          newlineIndex = content.indexOf('\n');
+          if (line.isEmpty || !line.startsWith('data:')) continue;
+          final jsonStr = line.substring(5).trim();
+          if (jsonStr.isEmpty || jsonStr == '[DONE]') continue;
+          try {
+            final json = jsonDecode(jsonStr);
+            final statusCode = json['base_resp']?['status_code'];
+            if (statusCode != null && statusCode != 0) {
+              final msg = json['base_resp']?['status_msg'] ?? 'unknown error';
+              throw Exception('MiniMax API error: $msg');
+            }
+            final audioHex = json['data']?['audio'] as String?;
+            if (audioHex != null && audioHex.isNotEmpty) {
+              yield _hexDecode(audioHex);
+            }
+          } on FormatException {
+            continue;
+          }
+        }
+        lineBuffer
+          ..clear()
+          ..write(content);
+      }
+      final remaining = lineBuffer.toString().trim();
+      if (remaining.startsWith('data:')) {
+        final jsonStr = remaining.substring(5).trim();
+        if (jsonStr.isNotEmpty && jsonStr != '[DONE]') {
+          try {
+            final json = jsonDecode(jsonStr);
+            final audioHex = json['data']?['audio'] as String?;
+            if (audioHex != null && audioHex.isNotEmpty) {
+              yield _hexDecode(audioHex);
+            }
+          } on FormatException {
+            // ignore
+          }
+        }
+      }
+    } finally {
+      client.close();
+    }
+  }
+
   static List<int> _hexDecode(String hex) {
     final result = <int>[];
     for (var i = 0; i + 1 < hex.length; i += 2) {

@@ -75,6 +75,58 @@ class ElevenLabsTtsService {
     }
   }
 
+  static Stream<List<int>> streamTextToSpeech({
+    required String text,
+    required String voiceId,
+  }) async* {
+    if (text.trim().isEmpty) return;
+    final speechText = _prepareTextForSpeech(text);
+
+    final apiKey = await UserStorage.getElevenLabsApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      throw Exception('ElevenLabs API Key 未配置，请在 Settings 中设置');
+    }
+
+    final client = http.Client();
+    try {
+      final request = http.Request(
+        'POST',
+        Uri.parse('$_baseUrl/v1/text-to-speech/$voiceId/stream'),
+      );
+      request.headers.addAll({
+        'xi-api-key': apiKey,
+        'Content-Type': 'application/json',
+      });
+      request.body = jsonEncode({
+        'text': speechText,
+        'model_id': _modelId,
+        'voice_settings': {
+          'stability': 0.25,
+          'similarity_boost': 0.75,
+          'style': 0.84,
+          'use_speaker_boost': true,
+        },
+      });
+
+      final response = await client.send(request);
+      if (response.statusCode == 200) {
+        yield* response.stream;
+      } else {
+        final body = await response.stream.bytesToString();
+        String detail;
+        try {
+          final json = jsonDecode(body);
+          detail = json['detail']?['message'] ?? body;
+        } catch (_) {
+          detail = body;
+        }
+        throw Exception('API 错误 ${response.statusCode}: $detail');
+      }
+    } finally {
+      client.close();
+    }
+  }
+
   static String _prepareTextForSpeech(String text) {
     final normalized = text.trim();
     if (normalized.isEmpty) return normalized;

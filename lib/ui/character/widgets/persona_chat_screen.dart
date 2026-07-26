@@ -20,6 +20,7 @@ import 'package:memex/data/services/asr/media_button_service.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
 import 'package:memex/data/services/active_persona_chat_service.dart';
 import 'package:memex/data/services/bad_case_collector.dart';
+import 'package:memex/data/services/streaming_tts_player.dart';
 import 'package:memex/data/services/tts_service.dart';
 import 'package:memex/data/services/buttplug_toy_controller.dart';
 import 'package:memex/data/services/magic_motion_flamingo_controller.dart';
@@ -529,6 +530,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   int _voiceModeOpeningSerial = 0;
   int _voiceModeIdleFollowUpSerial = 0;
   int _ttsRequestSerial = 0;
+  StreamingTtsSession? _streamingTtsSession;
 
   bool _isAppInBackground = false;
   bool _mediaButtonsActive = false;
@@ -1454,6 +1456,7 @@ only after you have written the goodbye you want the user to hear.''',
     _audioCompleteSub?.cancel();
     _audioStateSub?.cancel();
     _openRequestSub?.cancel();
+    _streamingTtsSession?.cancel();
     _messageRefreshTimer?.cancel();
     _devRunPollTimer?.cancel();
     _hideRememberedNotice();
@@ -1938,6 +1941,7 @@ only after you have written the goodbye you want the user to hear.''',
 
     String lastChunk = '';
     var responsePersisted = false;
+    StreamingTtsSession? ttsSession;
 
     try {
       final resources = await UserStorage.getAgentLLMResources(
@@ -1952,6 +1956,22 @@ only after you have written the goodbye you want the user to hear.''',
       final toyControlService = _readyToyControlService();
       if (toyControlService == null) {
         _connectToyInBackground();
+      }
+
+      if (_isInlineVoiceMode) {
+        final voiceId = _character?.ttsVoiceId;
+        if (voiceId != null && voiceId.isNotEmpty) {
+          final requestSerial = ++_ttsRequestSerial;
+          ttsSession = StreamingTtsSession(voiceId: voiceId);
+          await ttsSession.start();
+          _streamingTtsSession = ttsSession;
+          if (mounted) {
+            setState(() {
+              _playingMessageId = 'streaming:$requestSerial';
+              _isTtsLoading = true;
+            });
+          }
+        }
       }
 
       await for (final chunk in CompanionAgent.chat(
@@ -1975,6 +1995,7 @@ only after you have written the goodbye you want the user to hear.''',
           break;
         }
         lastChunk = chunk;
+        ttsSession?.feedText(chunk);
         if (mounted) {
           setState(() => _streamingText = chunk);
           if (_currentCharacterId == sendCharacterId) {
@@ -1986,6 +2007,8 @@ only after you have written the goodbye you want the user to hear.''',
         setState(() => _toyConnected = toyControlService.isReady);
       }
       if (_isSendCanceled(sendSerial, primaryMessageId)) {
+        unawaited(ttsSession?.cancel());
+        _streamingTtsSession = null;
         _finishCanceledSend(sendSerial);
         return;
       }
@@ -2040,7 +2063,16 @@ only after you have written the goodbye you want the user to hear.''',
         });
         _finishActiveSend(sendSerial);
         if (isViewingSendCharacter) {
-          if (_autoReadEnabled || _isInlineVoiceMode) {
+          if (ttsSession != null) {
+            _streamingTtsSession = null;
+            final playingId = _playingMessageId;
+            final reqSerial = _ttsRequestSerial;
+            unawaited(ttsSession.finishAndWait().then((_) {
+              if (mounted && playingId != null) {
+                _handleTtsPlaybackCompleted(reqSerial, playingId);
+              }
+            }));
+          } else if (_autoReadEnabled || _isInlineVoiceMode) {
             _autoReadNewestCharacterMessage(
               previousMessages: messages,
               updatedMessages: updated,
@@ -2069,11 +2101,8 @@ only after you have written the goodbye you want the user to hear.''',
         }
       }
     } on CompanionApiException catch (e) {
-      // API/connection failure (quota exhausted, 4xx/5xx, timeout). Nothing was
-      // yielded, so there is no partial reply to persist — and critically, we do
-      // NOT write the raw error as a character message (that would both look bad
-      // and pollute Dreaming extraction). Full detail goes to logs only; the
-      // user sees a transient toast with a Retry action.
+      unawaited(ttsSession?.cancel());
+      _streamingTtsSession = null;
       debugPrint('CompanionApiException during send: ${e.cause}');
       if (_isSendCanceled(sendSerial, primaryMessageId)) {
         _finishCanceledSend(sendSerial);
@@ -2109,6 +2138,8 @@ only after you have written the goodbye you want the user to hear.''',
         _sendPendingMessage();
       }
     } catch (e) {
+      unawaited(ttsSession?.cancel());
+      _streamingTtsSession = null;
       if (_isSendCanceled(sendSerial, primaryMessageId)) {
         _finishCanceledSend(sendSerial);
         return;
@@ -3645,6 +3676,11 @@ only after you have written the goodbye you want the user to hear.''',
 
   Future<void> _stopTtsPlayback() async {
     _ttsRequestSerial++;
+    final session = _streamingTtsSession;
+    _streamingTtsSession = null;
+    if (session != null) {
+      await session.cancel();
+    }
     await _audioCompleteSub?.cancel();
     _audioCompleteSub = null;
     await _audioStateSub?.cancel();
@@ -3878,7 +3914,23 @@ only after you have written the goodbye you want the user to hear.''',
                     child: _ChatAtmosphereBackground(character: _character),
                   ),
                 ),
-                Positioned.fill(child: _buildMessageList()),
+                Positioned.fill(
+                  child: ShaderMask(
+                    shaderCallback: (rect) => const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.white,
+                        Colors.white,
+                        Colors.transparent,
+                      ],
+                      stops: [0.0, 0.08, 0.90, 1.0],
+                    ).createShader(rect),
+                    blendMode: BlendMode.dstIn,
+                    child: _buildMessageList(),
+                  ),
+                ),
                 Positioned(
                   top: 0,
                   left: 0,
@@ -3950,17 +4002,29 @@ only after you have written the goodbye you want the user to hear.''',
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () => context.push(AppRoutes.aboutI),
-              child: _hasUsableHeaderAvatar(character)
-                  ? _HeaderImageAvatar(
-                      avatar: character.avatar!,
-                      size: 42,
-                    )
-                  : CharacterAvatar(
-                      avatar: character.avatar,
-                      name: character.name,
-                      size: 42,
-                      backgroundColor: _personaPanelSoft,
-                    ),
+              child: Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF12160F).withValues(alpha: 0.5),
+                  border: Border.all(
+                    color: const Color(0xFFF5EEE0).withValues(alpha: 0.28),
+                    width: 1,
+                  ),
+                ),
+                child: const Text(
+                  'i',
+                  style: TextStyle(
+                    fontFamily: 'LXGW WenKai',
+                    fontStyle: FontStyle.italic,
+                    fontSize: 23,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFF5EEE0),
+                  ),
+                ),
+              ),
             ),
             const Spacer(),
             if (_toyControlService != null || _toyConnecting) ...[
@@ -4081,7 +4145,22 @@ only after you have written the goodbye you want the user to hear.''',
         },
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            if (_character != null) ...[
+              GestureDetector(
+                onTap: () {
+                  setState(() => _isHeaderActionsOpen = false);
+                  context.push(AppRoutes.aboutI);
+                },
+                child: _FramedCharacterAvatar(
+                  avatar: _character!.avatar,
+                  name: _character!.name,
+                  size: 48,
+                ),
+              ),
+              const SizedBox(height: 9),
+            ],
             for (var i = 0; i < actions.length; i++) ...[
               actions[i],
               if (i != actions.length - 1) const SizedBox(height: 9),
