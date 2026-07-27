@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 /**
- * Hermes Comic HTTP Server
+ * Hermes Comic + Book HTTP Server
  *
- * Serves the comic co-reading pipeline: watch list CRUD + chapter storage
- * + image proxy. The phone app connects over Tailscale HTTPS (same trust
- * boundary as the Dev Agent Bridge).
+ * Serves both the comic co-reading pipeline (watch list CRUD + chapter
+ * storage + image proxy) and the book co-reading pipeline (TXT import +
+ * chapter splitting + notes), under separate /v1/comic/* and /v1/book/*
+ * path prefixes. Both share one HTTP listener, one Tailscale serve port,
+ * and one trust boundary (Tailscale network layer, same as Dev Agent
+ * Bridge).
  *
- * See docs/companion-first/COMIC_CO_READING_PLAN.md §2.1 for the design.
+ * See docs/companion-first/COMIC_CO_READING_PLAN.md §2.1 for the comic
+ * design; tools/book_server/README.md (kept for the splitter module
+ * docs) and docs/development/I_PROJECT_STATE.md for the book pipeline.
  *
  * Run:
  *   node tools/comic_server/comic_server.mjs
@@ -14,17 +19,17 @@
  * Env:
  *   COMIC_SERVER_HOST       default 127.0.0.1
  *   COMIC_SERVER_PORT       default 47840
- *   COMIC_SERVER_DATA_DIR   default <scriptDir>/data (shared with crawler)
+ *   COMIC_SERVER_DATA_DIR   default <scriptDir>/data (shared with crawler + book)
  *
  * Tailscale expose:
  *   tailscale serve --https=8443 http://127.0.0.1:47840
  */
 import http from 'node:http';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { homedir } from 'node:os';
 import { dirname, join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { processTxt } from '../book_server/chapter_splitter.mjs';
 
 // Lazy-loaded sharp for PNG→WebP conversion at serve time
 let _sharp = null;
@@ -46,8 +51,9 @@ const watchesPath = join(dataDir, 'watches.json');
 const chaptersDir = join(dataDir, 'chapters');
 const imagesDir = join(dataDir, 'images');
 const coversDir = join(dataDir, 'covers');
+const booksDir = join(dataDir, 'books');
 
-for (const dir of [dataDir, chaptersDir, imagesDir, coversDir]) {
+for (const dir of [dataDir, chaptersDir, imagesDir, coversDir, booksDir]) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 
@@ -108,6 +114,106 @@ function saveChapter(chapter) {
 function loadAllChapters() {
   const files = readdirSync(chaptersDir).filter((f) => f.endsWith('.json'));
   return files.map((f) => JSON.parse(readFileSync(join(chaptersDir, f), 'utf8')));
+}
+
+// ── Book helpers (merged from tools/book_server/book_server.mjs) ──────────────
+function bookDir(id) { return join(booksDir, id); }
+function bookMetaPath(id) { return join(bookDir(id), 'meta.json'); }
+function chaptersDirForBook(id) { return join(bookDir(id), 'chapters'); }
+function notesDirForBook(id) { return join(bookDir(id), 'notes'); }
+
+function loadBookMeta(id) {
+  const p = bookMetaPath(id);
+  if (!existsSync(p)) return null;
+  return JSON.parse(readFileSync(p, 'utf8'));
+}
+function saveBookMeta(id, meta) {
+  writeFileSync(bookMetaPath(id), JSON.stringify(meta, null, 2), 'utf8');
+}
+function listBooks() {
+  if (!existsSync(booksDir)) return [];
+  return readdirSync(booksDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => loadBookMeta(d.name))
+    .filter(Boolean)
+    .sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function parseMultipart(buf, contentType) {
+  const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^\s;]+))/);
+  if (!boundaryMatch) return null;
+  const boundary = '--' + (boundaryMatch[1] || boundaryMatch[2]);
+  const parts = [];
+  const bufStr = buf.toString('latin1');
+  const segments = bufStr.split(boundary);
+  for (let i = 1; i < segments.length; i++) {
+    const seg = segments[i];
+    if (seg.startsWith('--')) break;
+    const headerEnd = seg.indexOf('\r\n\r\n');
+    if (headerEnd < 0) continue;
+    const headers = seg.slice(0, headerEnd);
+    const body = seg.slice(headerEnd + 4, seg.length - 2);
+    const nameMatch = headers.match(/name="([^"]+)"/);
+    const fileMatch = headers.match(/filename="([^"]+)"/);
+    parts.push({
+      name: nameMatch?.[1] || '',
+      filename: fileMatch?.[1] || null,
+      data: Buffer.from(body, 'latin1'),
+    });
+  }
+  return parts;
+}
+
+function importBook(buf, filename, opts = {}) {
+  const id = randomUUID();
+  const chDir = chaptersDirForBook(id);
+  const nDir = notesDirForBook(id);
+  mkdirSync(chDir, { recursive: true });
+  mkdirSync(nDir, { recursive: true });
+
+  const result = processTxt(buf, opts);
+  const title = opts.title || filename.replace(/\.[^.]+$/, '').replace(/[_\-]/g, ' ').trim() || '未命名';
+  const author = opts.author || '';
+
+  const chapterIndex = [];
+  for (let i = 0; i < result.chapters.length; i++) {
+    const ch = result.chapters[i];
+    const num = String(i + 1).padStart(4, '0');
+    writeFileSync(join(chDir, `${num}.txt`), ch.content, 'utf8');
+    chapterIndex.push({
+      number: i + 1,
+      title: ch.title,
+      chars: ch.content.length,
+      file: `${num}.txt`,
+    });
+  }
+
+  const meta = {
+    id,
+    title,
+    author,
+    filename,
+    encoding: result.encoding,
+    total_chars: result.totalChars,
+    chapter_count: result.chapters.length,
+    split_method: result.method,
+    split_pattern: result.patternName,
+    chapters: chapterIndex,
+    status: 'ready',
+    created_at: nowSeconds(),
+    updated_at: nowSeconds(),
+  };
+  saveBookMeta(id, meta);
+  return meta;
 }
 
 const MIME = {
@@ -307,6 +413,127 @@ async function handle(req, res) {
       }
     }
 
+    // ── Book routes (merged from tools/book_server/book_server.mjs) ─────────
+    // Health
+    if (req.method === 'GET' && path === '/v1/book/health') {
+      return json(res, 200, { status: 'ok', books: listBooks().length, ts: nowSeconds() });
+    }
+
+    // Import
+    if (path === '/v1/book/import' && req.method === 'POST') {
+      const body = await readBody(req);
+      const ct = req.headers['content-type'] || '';
+      let fileBuf, filename, title, author;
+      if (ct.includes('multipart/form-data')) {
+        const parts = parseMultipart(body, ct);
+        if (!parts || parts.length === 0) return json(res, 400, { error: 'empty multipart' });
+        const filePart = parts.find((p) => p.filename) || parts[0];
+        fileBuf = filePart.data;
+        filename = filePart.filename || 'book.txt';
+        title = parts.find((p) => p.name === 'title')?.data.toString('utf8') || '';
+        author = parts.find((p) => p.name === 'author')?.data.toString('utf8') || '';
+      } else {
+        fileBuf = body;
+        filename = q.get('filename') || 'book.txt';
+        title = q.get('title') || '';
+        author = q.get('author') || '';
+      }
+      if (!fileBuf || fileBuf.length === 0) return json(res, 400, { error: 'empty file' });
+      const meta = importBook(fileBuf, filename, { title, author });
+      return json(res, 201, {
+        ok: true,
+        book: {
+          id: meta.id,
+          title: meta.title,
+          author: meta.author,
+          chapter_count: meta.chapter_count,
+          total_chars: meta.total_chars,
+          split_method: meta.split_method,
+          split_pattern: meta.split_pattern,
+          encoding: meta.encoding,
+        },
+      });
+    }
+
+    // List books
+    if (path === '/v1/book/books' && req.method === 'GET') {
+      const books = listBooks().map((b) => ({
+        id: b.id,
+        title: b.title,
+        author: b.author,
+        chapter_count: b.chapter_count,
+        total_chars: b.total_chars,
+        status: b.status,
+        created_at: b.created_at,
+      }));
+      return json(res, 200, { books });
+    }
+
+    // Book detail / delete
+    const bookMatch = path.match(/^\/v1\/book\/books\/([a-f0-9-]+)$/);
+    if (bookMatch) {
+      const id = bookMatch[1];
+      const meta = loadBookMeta(id);
+      if (!meta) return json(res, 404, { error: 'book not found' });
+      if (req.method === 'GET') return json(res, 200, { book: meta });
+      if (req.method === 'DELETE') {
+        rmSync(bookDir(id), { recursive: true, force: true });
+        return json(res, 200, { ok: true });
+      }
+    }
+
+    // Chapter list
+    const chapListMatch = path.match(/^\/v1\/book\/books\/([a-f0-9-]+)\/chapters$/);
+    if (chapListMatch && req.method === 'GET') {
+      const id = chapListMatch[1];
+      const meta = loadBookMeta(id);
+      if (!meta) return json(res, 404, { error: 'book not found' });
+      return json(res, 200, { chapters: meta.chapters });
+    }
+
+    // Single chapter content
+    const chapMatch = path.match(/^\/v1\/book\/books\/([a-f0-9-]+)\/chapters\/(\d+)$/);
+    if (chapMatch && req.method === 'GET') {
+      const id = chapMatch[1];
+      const num = parseInt(chapMatch[2], 10);
+      const meta = loadBookMeta(id);
+      if (!meta) return json(res, 404, { error: 'book not found' });
+      const chInfo = meta.chapters.find((c) => c.number === num);
+      if (!chInfo) return json(res, 404, { error: 'chapter not found' });
+      const content = readFileSync(join(chaptersDirForBook(id), chInfo.file), 'utf8');
+      return json(res, 200, {
+        chapter: { number: chInfo.number, title: chInfo.title, chars: chInfo.chars, content },
+      });
+    }
+
+    // Notes
+    const notesMatch = path.match(/^\/v1\/book\/books\/([a-f0-9-]+)\/notes$/);
+    if (notesMatch) {
+      const id = notesMatch[1];
+      const meta = loadBookMeta(id);
+      if (!meta) return json(res, 404, { error: 'book not found' });
+      const nDir = notesDirForBook(id);
+      if (req.method === 'GET') {
+        const files = existsSync(nDir) ? readdirSync(nDir).filter((f) => f.endsWith('.json')) : [];
+        const notes = files.map((f) => JSON.parse(readFileSync(join(nDir, f), 'utf8')));
+        notes.sort((a, b) => (a.chapter || 0) - (b.chapter || 0));
+        return json(res, 200, { notes });
+      }
+      if (req.method === 'POST') {
+        const body = JSON.parse((await readBody(req)).toString('utf8'));
+        const chNum = body.chapter;
+        const note = body.note;
+        if (!chNum || !note) return json(res, 400, { error: 'need chapter + note' });
+        if (!existsSync(nDir)) mkdirSync(nDir, { recursive: true });
+        writeFileSync(
+          join(nDir, `${String(chNum).padStart(4, '0')}.json`),
+          JSON.stringify({ chapter: chNum, note, created_at: nowSeconds() }, null, 2),
+          'utf8',
+        );
+        return json(res, 201, { ok: true });
+      }
+    }
+
     return json(res, 404, { error: 'not_found', path });
   } catch (err) {
     console.error('Handler error:', err);
@@ -316,7 +543,9 @@ async function handle(req, res) {
 
 const server = http.createServer(handle);
 server.listen(port, host, () => {
-  console.log(`Comic server listening on http://${host}:${port}`);
+  console.log(`Comic + Book server listening on http://${host}:${port}`);
   console.log(`Data dir: ${dataDir}`);
+  console.log(`  comic: /v1/comic/*  (watches, chapters, images)`);
+  console.log(`  book:  /v1/book/*   (import, books, chapters, notes)`);
   console.log(`Tailscale: tailscale serve --https=8443 http://127.0.0.1:${port}`);
 });

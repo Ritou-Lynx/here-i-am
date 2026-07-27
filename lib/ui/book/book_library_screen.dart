@@ -126,7 +126,7 @@ class _BookLibraryScreenState extends State<BookLibraryScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('填 Tailscale HTTPS 地址，例如 https://xxx.ts.net:8444。'),
+            const Text('默认复用漫画服务地址（同一服务器）。如需单独配置，填 Tailscale HTTPS 地址，例如 https://xxx.ts.net:8443。'),
             const SizedBox(height: 8),
             TextField(
               controller: ctrl,

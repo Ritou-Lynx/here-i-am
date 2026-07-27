@@ -21,6 +21,7 @@ class BookRemoteService {
   BookRemoteService({required AppDatabase db}) : _db = db;
 
   static const _kBaseUrl = 'book.hermes_url';
+  static const _kComicBaseUrl = 'comic.hermes_url';
 
   // ── Config (persisted in KvStore) ──────────────────────────────────────────
 
@@ -41,7 +42,16 @@ class BookRemoteService {
         );
   }
 
-  Future<String> getBaseUrl() async => (await _kvGet(_kBaseUrl)) ?? '';
+  /// Resolves the book server URL. Falls back to the comic server URL when
+  /// `book.hermes_url` is unset, because the merged comic_server now also
+  /// serves `/v1/book/*` on the same listener. This keeps existing installs
+  /// working without forcing a separate book URL config.
+  Future<String> getBaseUrl() async {
+    final own = await _kvGet(_kBaseUrl);
+    if (own != null && own.trim().isNotEmpty) return own;
+    final comic = await _kvGet(_kComicBaseUrl);
+    return comic ?? '';
+  }
 
   Future<void> saveBaseUrl(String url) async {
     var trimmed = url.trim();

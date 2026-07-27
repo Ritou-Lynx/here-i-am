@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * Hermes Book Server — 共读读书服务
+ * Hermes Book Server — 共读读书服务（已合并进 comic_server）
+ *
+ * ⚠️ 此文件保留作历史参考，不再启动。comic_server.mjs 现在同时服务
+ *    /v1/comic/* 和 /v1/book/*，共用一个 HTTP 进程和 Tailscale 端口。
+ *    本文件的路由逻辑已迁入 tools/comic_server/comic_server.mjs。
  *
  * 与 comic_server 平行的 HTTP 服务，处理文字书籍的导入、拆章、存储和分发。
  * 手机端通过 Tailscale HTTPS 直连（同 comic_server 信任模型）。
