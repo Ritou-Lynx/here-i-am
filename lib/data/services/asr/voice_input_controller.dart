@@ -96,6 +96,15 @@ class VoiceInputController extends ChangeNotifier {
   /// triggers it, not speaker echo.
   void Function()? onBargeInDetected;
 
+  /// Called when the streaming ASR session is lost unexpectedly (NLS WebSocket
+  /// closed, server-side timeout, or event stream errored) while the user has
+  /// not hung up. The owner should re-arm the mic by calling [startStreaming]
+  /// again (the controller will already be back in [VoiceInputState.idle] and
+  /// [isStreaming] will report false).
+  ///
+  /// Not fired during a graceful [stopStreaming] / [cancelStreaming].
+  void Function()? onStreamingSessionLost;
+
   /// Last error message (for UI to surface). Cleared on next toggle.
   String? lastError;
 
@@ -184,6 +193,10 @@ class VoiceInputController extends ChangeNotifier {
       return;
     }
 
+    // Always start with audio forwarding enabled. A previous TTS pause may
+    // have left the flag set; the new session needs a clean slate.
+    _audioForwardingPaused = false;
+
     lastError = null;
 
     final config = await AsrConfig.load();
@@ -228,9 +241,11 @@ class VoiceInputController extends ChangeNotifier {
       onError: (Object e, StackTrace st) {
         _logger.severe('Streaming ASR event stream error: $e');
         lastError = '流式 ASR 错误: $e';
+        _handleStreamingSessionLost();
       },
       onDone: () {
         _logger.info('Streaming ASR event stream done');
+        _handleStreamingSessionLost();
       },
     );
 
@@ -243,6 +258,13 @@ class VoiceInputController extends ChangeNotifier {
           autoGain: true,
           echoCancel: true,
           noiseSuppress: true,
+          // VoIP call path: route mic through the voice-call audio source so
+          // the platform AEC cancels speaker echo (TTS output) from the mic
+          // signal, and set MODE_IN_COMMUNICATION so mic + speaker coexist.
+          androidConfig: AndroidRecordConfig(
+            audioSource: AndroidAudioSource.voiceCommunication,
+            audioManagerMode: AudioManagerMode.modeInCommunication,
+          ),
         ),
       );
       _streamingAudioSub = audioStream.listen(
@@ -313,14 +335,19 @@ class VoiceInputController extends ChangeNotifier {
 
   /// Pause forwarding mic audio to the NLS server. Call this while TTS is
   /// playing so the speaker output is not recognized as user speech (echo
-  /// loop). The mic stays open; chunks are simply dropped. Starts barge-in
-  /// amplitude polling so the user can still interrupt.
+  /// loop) — a fallback for devices where the platform AEC leaks echo. The
+  /// mic stays open (VoIP call audio session keeps mic + speaker coexisting),
+  /// chunks are simply dropped. Starts barge-in amplitude polling so the user
+  /// can interrupt by speaking.
   void pauseAudioForwarding() {
     _audioForwardingPaused = true;
     startBargeInDetection();
   }
 
-  /// Resume forwarding mic audio to the NLS server after TTS stops.
+  /// Resume forwarding mic audio to the NLS server after TTS stops. If the NLS
+  /// session was lost during TTS (idle timeout while audio was paused), the
+  /// [onStreamingSessionLost] path already reset state to idle; the caller's
+  /// TTS-complete handler re-arms the mic via [startStreaming].
   void resumeAudioForwarding() {
     _audioForwardingPaused = false;
     stopBargeInDetection();
@@ -399,6 +426,45 @@ class VoiceInputController extends ChangeNotifier {
         _logger.warning('streaming client dispose: $e');
       }
     }
+  }
+
+  /// Handles an unexpected end of the NLS event stream (server closed the
+  /// WebSocket, idle timeout, or stream error) while the user has not hung up.
+  ///
+  /// Two cases:
+  /// * **TTS playing** (`_audioForwardingPaused`): the NLS idle-close is
+  ///   expected (no audio was sent). Only dispose the NLS client so
+  ///   [isStreaming] reports false — the mic stays open (VoIP call session
+  ///   owns it) and the TTS-complete handler re-arms a fresh NLS session.
+  /// * **Otherwise**: full teardown (mic + client) so the owner can re-arm.
+  ///
+  /// Skipped when a graceful [stopStreaming] / [cancelStreaming] is already in
+  /// progress ([_streamingStopping] == true).
+  void _handleStreamingSessionLost() {
+    if (_streamingStopping || _streamingClient == null) return;
+    if (_audioForwardingPaused) {
+      // TTS owns the lifecycle; do a full teardown so startStreaming can
+      // re-arm cleanly later, but don't fire onStreamingSessionLost (the
+      // TTS-complete handler re-arms the mic itself).
+      _logger.info('NLS session closed during TTS; full teardown (no callback)');
+      unawaited(() async {
+        await _cancelStreamingInternal();
+        _streamingStopping = false;
+        _state = VoiceInputState.idle;
+        notifyListeners();
+      }());
+      return;
+    }
+    _logger.warning('Streaming session lost unexpectedly; tearing down mic');
+    // Run the full internal teardown so the recorder is released and state
+    // resets to idle. Fire-and-forget; the callback notifies the owner.
+    unawaited(() async {
+      await _cancelStreamingInternal();
+      _streamingStopping = false;
+      _state = VoiceInputState.idle;
+      notifyListeners();
+      onStreamingSessionLost?.call();
+    }());
   }
 
   // ── File-mode internals (unchanged) ──────────────────────────────────────

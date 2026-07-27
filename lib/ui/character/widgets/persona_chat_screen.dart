@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:dart_agent_core/dart_agent_core.dart';
@@ -19,6 +20,7 @@ import 'package:memex/data/services/asr/asr_config.dart';
 import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
 import 'package:memex/data/services/asr/media_button_service.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
+import 'package:memex/data/services/voice_call_audio_session.dart';
 import 'package:memex/data/services/active_persona_chat_service.dart';
 import 'package:memex/data/services/bad_case_collector.dart';
 import 'package:memex/data/services/streaming_tts_player.dart';
@@ -535,6 +537,11 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   Timer? _sentenceDebounceTimer;
   final _sentenceDebounceBuffer = StringBuffer();
   static const _sentenceDebounceWindow = Duration(milliseconds: 1200);
+  // Longer window after a barge-in so the user has time to finish a multi-
+  // sentence correction ("不对，我说的是… 其实是…") before we flush.
+  static const _bargeInDebounceWindow = Duration(milliseconds: 2500);
+  // Set true on barge-in; reverts to normal after the first flush.
+  bool _inBargeInFollowUp = false;
 
   bool _isAppInBackground = false;
   bool _mediaButtonsActive = false;
@@ -904,32 +911,42 @@ only after you have written the goodbye you want the user to hear.''',
 
   /// Streaming ASR event handler (voice mode only).
   ///
-  /// - [SentenceBeginEvent]: no-op (barge-in is handled by client-side
-  ///   amplitude detection via [onBargeInDetected], not server events, because
-  ///   audio forwarding is paused during TTS to prevent echo loop).
-  /// - [SentenceEndEvent]: accumulate text in a debounce buffer. If no new
-  ///   sentence arrives within [_sentenceDebounceWindow] (1.2s), dispatch the
-  ///   combined text to the LLM as a single message.
-  /// - [TranscriptionResultChangedEvent]: no-op (reserved for future partial
-  ///   result display).
+  /// In VoIP call mode the platform AEC cancels speaker echo, so the NLS
+  /// server-side VAD fires [SentenceEndEvent] only when the *user* actually
+  /// speaks — even while TTS is playing. That event drives barge-in: stop
+  /// TTS and dispatch the text.
+  ///
+  /// - [SentenceEndEvent]: if TTS is playing, stop it (barge-in) then accumulate
+  ///   text in a debounce buffer. If no new sentence arrives within
+  ///   [_sentenceDebounceWindow] (1.2s), dispatch the combined text to the LLM.
+  /// - [SentenceBeginEvent]: no-op.
+  /// - [TranscriptionResultChangedEvent]: no-op.
   void _onStreamingAsrEvent(StreamingAsrEvent event) {
     if (!mounted || !_isInlineVoiceMode) return;
     switch (event) {
       case SentenceBeginEvent():
         break;
       case SentenceEndEvent():
-        if (_isRoleVoiceActive) {
-          debugPrint('Ignoring SentenceEnd during TTS (echo guard)');
-          break;
-        }
         final text = event.text.trim();
         if (text.isEmpty) break;
+        if (_isRoleVoiceActive) {
+          // User spoke during TTS → barge-in. Stop TTS so the user is heard.
+          // Use a longer debounce window so multi-sentence corrections
+          // ("不对，我说的是… 其实是…") merge into one message instead of
+          // being dispatched as separate turns.
+          debugPrint('Barge-in via NLS SentenceEnd during TTS: "$text"');
+          unawaited(_stopTtsPlayback());
+          _inBargeInFollowUp = true;
+        }
         if (_sentenceDebounceBuffer.isNotEmpty) {
           _sentenceDebounceBuffer.write(' ');
         }
         _sentenceDebounceBuffer.write(text);
         _sentenceDebounceTimer?.cancel();
-        _sentenceDebounceTimer = Timer(_sentenceDebounceWindow, _flushSentenceDebounce);
+        _sentenceDebounceTimer = Timer(
+          _inBargeInFollowUp ? _bargeInDebounceWindow : _sentenceDebounceWindow,
+          _flushSentenceDebounce,
+        );
         break;
       case TranscriptionResultChangedEvent():
         break;
@@ -938,6 +955,7 @@ only after you have written the goodbye you want the user to hear.''',
 
   void _flushSentenceDebounce() {
     _sentenceDebounceTimer = null;
+    _inBargeInFollowUp = false;
     final text = _sentenceDebounceBuffer.toString().trim();
     _sentenceDebounceBuffer.clear();
     if (text.isEmpty) return;
@@ -2082,9 +2100,10 @@ only after you have written the goodbye you want the user to hear.''',
           ttsSession = StreamingTtsSession(voiceId: voiceId);
           await ttsSession.start();
           _streamingTtsSession = ttsSession;
-          if (_voiceController.isStreaming) {
-            _voiceController.pauseAudioForwarding();
-          }
+          // VoIP call mode: the platform AEC cancels speaker echo, so the mic
+          // keeps forwarding audio to NLS during TTS — enabling seamless
+          // barge-in via NLS SentenceEnd without dropping the first words.
+          // If AEC leaks echo on a device, re-enable: _voiceController.pauseAudioForwarding();
           if (mounted) {
             setState(() {
               _playingMessageId = 'streaming:$requestSerial';
@@ -3777,6 +3796,8 @@ only after you have written the goodbye you want the user to hear.''',
     if (!mounted) return;
     setState(() => _isInlineVoiceMode = enabled);
     if (enabled) {
+      // Enter VoIP call audio mode so mic + TTS speaker coexist with AEC.
+      unawaited(VoiceCallAudioSession.instance.enter());
       _voiceModeSilentFollowUps = 0;
       _voiceModeIdleFollowUpSerial++;
       _queueVoiceModeOpening();
@@ -3788,6 +3809,7 @@ only after you have written the goodbye you want the user to hear.''',
       _sentenceDebounceTimer?.cancel();
       _sentenceDebounceTimer = null;
       _sentenceDebounceBuffer.clear();
+      _inBargeInFollowUp = false;
       final wasAgentEnded = _endVoiceModeAfterCurrentReply;
       _endVoiceModeAfterCurrentReply = false;
       _voiceModeSilentFollowUps = 0;
@@ -3797,6 +3819,8 @@ only after you have written the goodbye you want the user to hear.''',
         await _voiceController.cancel();
       }
       await _stopTtsPlayback();
+      // Exit VoIP call audio mode; restore the normal media audio session.
+      unawaited(VoiceCallAudioSession.instance.exit());
       // Notify the character that the user hung up (unless the agent ended it).
       if (!wasAgentEnded) {
         unawaited(
@@ -3822,8 +3846,13 @@ only after you have written the goodbye you want the user to hear.''',
     await _audioStateSub?.cancel();
     _audioStateSub = null;
     await _audioPlayer.stop();
-    if (_isInlineVoiceMode && _voiceController.isStreaming) {
-      _voiceController.resumeAudioForwarding();
+    if (_isInlineVoiceMode) {
+      if (_voiceController.isStreaming) {
+        _voiceController.resumeAudioForwarding();
+      } else {
+        // NLS session was lost during TTS; re-arm the mic.
+        _queueVoiceModeStreamingStart();
+      }
     }
     if (mounted) {
       setState(() {
@@ -4001,9 +4030,8 @@ only after you have written the goodbye you want the user to hear.''',
         _isTtsLoading = true;
       });
     }
-    if (_isInlineVoiceMode && _voiceController.isStreaming) {
-      _voiceController.pauseAudioForwarding();
-    }
+    // VoIP call mode: AEC handles echo; mic keeps forwarding during TTS.
+    // If AEC leaks echo, re-enable: if (_isInlineVoiceMode && _voiceController.isStreaming) _voiceController.pauseAudioForwarding();
 
     try {
       final audioPath = await TtsService.textToSpeech(
@@ -5481,29 +5509,27 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   Widget _buildTypingIndicator() {
+    const c = SpringRainChatTokens.springRainDaydream;
+    // Sit on i's axis: same right indent + gold anchor bar as a real i turn
+    // (spec §3.2 / §22.8). No avatar, no bubble (spec §2.1 / §18) — just a
+    // breathing droplet on the speaking point, so the first line of text
+    // hands off seamlessly (anchor bar unbroken, same vertical band).
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 46,
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: _FramedCharacterAvatar(
-                avatar: _character?.avatar,
-                name: _character?.name ?? '',
-                size: 40,
+      child: Padding(
+        padding: EdgeInsets.only(left: c.iIndent - 10),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: c.actionColor.withValues(alpha: c.iAnchorAlpha),
+                width: 2,
               ),
             ),
           ),
-          const _FrostedChatBubbleSurface(
-            isCharacter: true,
-            padding: EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-            child: _TypingDots(),
-          ),
-        ],
+          padding: const EdgeInsets.only(left: 8),
+          child: const _RainBreathIndicator(),
+        ),
       ),
     );
   }
@@ -7642,23 +7668,42 @@ class _PaperPlanePainter extends CustomPainter {
 }
 
 /// Animated three-dot typing indicator.
-class _TypingDots extends StatefulWidget {
-  const _TypingDots();
+/// Typing indicator for the 春雨昼眠 (Spring Rain Daydream) skin.
+///
+/// Replaces the legacy framed-avatar + frosted-bubble + bouncing red dots,
+/// which violated spec §2.1 (no chat bubbles) and §18 (no avatars). This is a
+/// quiet, on-axis signal that "i is about to speak": a warm-ivory droplet that
+/// breathes, ringed by faint raindrop ripples carrying directional light.
+///
+/// The ripple is deliberately NOT three animating circles. Each wavefront is a
+/// soft glowing band with a cross-section falloff (inner shoulder → bright
+/// crest → soft outer tail), so it reads as light refracted on a water crest
+/// rather than a flat stroked circle; a top-bright / bottom-dim modulate pass
+/// then lights every ring and the droplet from above (the 光影), and the core
+/// droplet carries a small specular glint so it reads as a wet sphere.
+class _RainBreathIndicator extends StatefulWidget {
+  const _RainBreathIndicator();
 
   @override
-  State<_TypingDots> createState() => _TypingDotsState();
+  State<_RainBreathIndicator> createState() => _RainBreathIndicatorState();
 }
 
-class _TypingDotsState extends State<_TypingDots>
+class _RainBreathIndicatorState extends State<_RainBreathIndicator>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  /// One seamless master loop. Breathing completes 2 cycles per loop (period
+  /// ~2.4s) and the ripple emits 3 wavefronts per loop (one every ~1.6s) —
+  /// both inside the calm range settled on in design, and phase-locked so the
+  /// loop never visibly restarts.
+  static const int _loopMs = 4800;
+
+  late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: _loopMs),
     )..repeat();
   }
 
@@ -7670,38 +7715,186 @@ class _TypingDotsState extends State<_TypingDots>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (i) {
-            // Stagger each dot by 0.2
-            final delay = i * 0.2;
-            final t = (_controller.value - delay) % 1.0;
-            // Bounce: peak at 0.3, back to 0 at 0.6
-            final offset = t < 0.3
-                ? -4.0 * (t / 0.3)
-                : t < 0.6
-                    ? -4.0 * (1 - (t - 0.3) / 0.3)
-                    : 0.0;
-            return Padding(
-              padding: EdgeInsets.only(right: i < 2 ? 4 : 0),
-              child: Transform.translate(
-                offset: Offset(0, offset),
-                child: Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: _personaAccent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            );
-          }),
-        );
-      },
+    const c = SpringRainChatTokens.springRainDaydream;
+    // Keep the layout height equal to one line of i text so the indicator and
+    // the real first line occupy the same vertical band (no jump on handoff).
+    // The ripple paints beyond this box — CustomPaint is unclipped by default.
+    final lineHeight = c.iSize * c.lineHeight;
+    return SizedBox(
+      width: 44,
+      height: lineHeight,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => CustomPaint(
+          size: Size(44, lineHeight),
+          painter: _RainRipplePainter(t: _controller.value, ivory: c.iColor),
+        ),
+      ),
     );
   }
+}
+
+class _RainRipplePainter extends CustomPainter {
+  _RainRipplePainter({required this.t, required this.ivory});
+
+  /// Master-loop phase, 0..1.
+  final double t;
+
+  /// i's text color (warm ivory #F5EEE0 @96%) — the droplet + ripple hue.
+  final Color ivory;
+
+  // --- tunables, kept together so the feel is easy to adjust ---
+  static const double _dotCx = 12; // inset a touch so the outer ripple clears the anchor bar
+  static const double _dotBaseR = 3.1; // resting droplet radius
+  static const double _breathAmp = 0.30; // ±30% radius swing while breathing
+  static const int _breathCycles = 2; // breaths per master loop (~2.4s each)
+  static const int _ringCount = 3; // wavefronts alive at once
+  static const double _ringRStart = 5.0; // emitted just outside the droplet
+  static const double _ringRMax = 18.0; // farthest reach before fading out
+  static const double _ringWidth = 2.4; // crest band half-thickness
+  static const double _ringPeakAlpha = 0.40; // brightest crest alpha
+  static const double _lightTop = 1.0; // directional light: full at top
+  static const double _lightBottom = 0.62; // …dimmer toward the bottom
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(_dotCx, size.height / 2);
+
+    // Isolate the drawing in a layer so the directional-light pass modulates
+    // only the ripple, never the app background behind it.
+    canvas.saveLayer(
+      Rect.fromLTWH(-40, -40, size.width + 80, size.height + 80),
+      Paint(),
+    );
+
+    _drawRipples(canvas, center);
+    _drawDroplet(canvas, center);
+    _applyDirectionalLight(canvas, center);
+    _drawSpecularGlint(canvas, center);
+
+    canvas.restore();
+  }
+
+  /// Concentric glowing wavefronts. The leading one is brightest; each older
+  /// one expands and decays. Cross-section gradient = inner shoulder, bright
+  /// crest, soft outer tail — the core of the "lit water" look.
+  void _drawRipples(Canvas canvas, Offset center) {
+    for (var k = 0; k < _ringCount; k++) {
+      // Evenly phase-offset emissions advancing with the master loop.
+      final p = (t + k / _ringCount) % 1.0;
+      final eased = 1 - math.pow(1 - p, 3).toDouble(); // easeOutCubic expand
+      final r = _ringRStart + (_ringRMax - _ringRStart) * eased;
+      // Ease in over the first sliver (no pop at the droplet edge), then fade
+      // out as the wavefront dies.
+      final fadeIn = (p / 0.12).clamp(0.0, 1.0);
+      final fadeOut = math.pow(1 - p, 1.4).toDouble();
+      final a = _ringPeakAlpha * fadeIn * fadeOut;
+      if (a <= 0.003) continue;
+      _drawGlowRing(canvas, center, r, a);
+    }
+  }
+
+  void _drawGlowRing(Canvas canvas, Offset center, double r, double alpha) {
+    final outer = r + _ringWidth * 2.2;
+    final s = (r / outer).clamp(0.0, 1.0); // crest position as a gradient stop
+    final hw = _ringWidth / outer; // crest half-width as a stop fraction
+
+    // Strictly non-decreasing stops so RadialGradient never asserts.
+    final stops = <double>[
+      0.0,
+      (s - hw * 1.8).clamp(0.0, 1.0),
+      (s - hw * 0.4).clamp(0.0, 1.0),
+      s,
+      (s + hw * 0.7).clamp(0.0, 1.0),
+      (s + hw * 2.0).clamp(0.0, 1.0),
+      1.0,
+    ];
+    for (var i = 1; i < stops.length; i++) {
+      if (stops[i] < stops[i - 1]) stops[i] = stops[i - 1];
+    }
+    final colors = <Color>[
+      ivory.withValues(alpha: 0),
+      ivory.withValues(alpha: 0),
+      ivory.withValues(alpha: alpha * 0.40), // inner shoulder
+      ivory.withValues(alpha: alpha), // bright crest
+      ivory.withValues(alpha: alpha * 0.45), // outer shoulder
+      ivory.withValues(alpha: 0),
+      ivory.withValues(alpha: 0),
+    ];
+    final paint = Paint()
+      ..shader = RadialGradient(colors: colors, stops: stops)
+          .createShader(Rect.fromCircle(center: center, radius: outer));
+    canvas.drawCircle(center, outer, paint);
+  }
+
+  /// The breathing warm-ivory droplet: a soft halo around a luminous core.
+  void _drawDroplet(Canvas canvas, Offset center) {
+    final breath = 0.5 - 0.5 * math.cos(2 * math.pi * _breathCycles * t);
+    final r = _dotBaseR * (1 - _breathAmp + 2 * _breathAmp * breath);
+
+    // Halo.
+    final haloR = r * 3.4;
+    final halo = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          ivory.withValues(alpha: 0.22 + 0.16 * breath),
+          ivory.withValues(alpha: 0),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: haloR));
+    canvas.drawCircle(center, haloR, halo);
+
+    // Luminous core: a slightly whiter hot-center melting into ivory.
+    final hot = Color.lerp(ivory, const Color(0xFFFFFFFF), 0.55)!;
+    final core = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          hot.withValues(alpha: 0.85),
+          ivory.withValues(alpha: 0.78 + 0.14 * breath),
+          ivory.withValues(alpha: 0),
+        ],
+        stops: const [0.0, 0.55, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: r * 1.7));
+    canvas.drawCircle(center, r * 1.7, core);
+  }
+
+  /// Top-bright / bottom-dim multiply pass — the directional light that gives
+  /// the ripple and droplet volume (lit from above).
+  void _applyDirectionalLight(Canvas canvas, Offset center) {
+    final rect = Rect.fromCircle(center: center, radius: _ringRMax + 8);
+    final top = (0xFF * _lightTop).round().clamp(0, 255);
+    final bottom = (0xFF * _lightBottom).round().clamp(0, 255);
+    final light = Paint()
+      ..blendMode = BlendMode.modulate
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Color.fromARGB(255, top, top, top),
+          Color.fromARGB(255, bottom, bottom, bottom),
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, light);
+  }
+
+  /// A tiny wet-highlight glint on the upper-left of the droplet. Drawn after
+  /// the light pass so it stays a pure, undimmed specular point.
+  void _drawSpecularGlint(Canvas canvas, Offset center) {
+    final breath = 0.5 - 0.5 * math.cos(2 * math.pi * _breathCycles * t);
+    final r = _dotBaseR * (1 - _breathAmp + 2 * _breathAmp * breath);
+    final glint = Offset(center.dx - r * 0.32, center.dy - r * 0.38);
+    final gr = r * 0.5;
+    final paint = Paint()
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.6)
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFFFFFFFF).withValues(alpha: 0.55 + 0.25 * breath),
+          const Color(0xFFFFFFFF).withValues(alpha: 0),
+        ],
+      ).createShader(Rect.fromCircle(center: glint, radius: gr));
+    canvas.drawCircle(glint, gr, paint);
+  }
+
+  @override
+  bool shouldRepaint(_RainRipplePainter oldDelegate) =>
+      oldDelegate.t != t || oldDelegate.ivory != ivory;
 }
