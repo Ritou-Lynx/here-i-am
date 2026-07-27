@@ -507,6 +507,41 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
   // TTS playback state
   final _audioPlayer = AudioPlayer();
+
+  /// TTS AudioContext for voice-call mode: routes the speaker through the
+  /// voice-communication stream so the platform AEC receives the TTS output
+  /// as its reference signal and cancels it from the mic feed. Without this,
+  /// the mic picks up the speaker and ASR transcribes the character's own
+  /// voice as user input (echo loop).
+  static final AudioContext _voiceCallTtsContext = AudioContext(
+    android: const AudioContextAndroid(
+      isSpeakerphoneOn: true,
+      audioMode: AndroidAudioMode.inCommunication,
+      contentType: AndroidContentType.speech,
+      usageType: AndroidUsageType.voiceCommunication,
+      audioFocus: AndroidAudioFocus.gainTransient,
+    ),
+    iOS: AudioContextIOS(
+      category: AVAudioSessionCategory.playAndRecord,
+      options: const {
+        AVAudioSessionOptions.defaultToSpeaker,
+        AVAudioSessionOptions.allowBluetooth,
+      },
+    ),
+  );
+
+  /// Default TTS AudioContext (normal media playback, restored on voice-mode exit).
+  static final AudioContext _defaultTtsContext = AudioContext(
+    android: const AudioContextAndroid(
+      contentType: AndroidContentType.speech,
+      usageType: AndroidUsageType.assistant,
+    ),
+    iOS: AudioContextIOS(
+      category: AVAudioSessionCategory.playback,
+    ),
+  );
+
+  bool _ttsAudioContextApplied = false;
   final Object _mediaButtonOwner = Object();
   StreamSubscription<void>? _audioCompleteSub;
   StreamSubscription<PlayerState>? _audioStateSub;
@@ -931,7 +966,9 @@ only after you have written the goodbye you want the user to hear.''',
         if (text.isEmpty) break;
         if (_isRoleVoiceActive) {
           // User spoke during TTS → barge-in. Stop TTS so the user is heard.
-          // Use a longer debounce window so multi-sentence corrections
+          // With TTS routed through voiceCommunication, the platform AEC
+          // cancels speaker echo so this only fires on real user speech. Use a
+          // longer debounce window so multi-sentence corrections
           // ("不对，我说的是… 其实是…") merge into one message instead of
           // being dispatched as separate turns.
           debugPrint('Barge-in via NLS SentenceEnd during TTS: "$text"');
@@ -968,6 +1005,13 @@ only after you have written the goodbye you want the user to hear.''',
   void _onBargeInDetected() {
     if (!mounted || !_isInlineVoiceMode) return;
     debugPrint('Barge-in: amplitude threshold exceeded, stopping TTS');
+    // Mark barge-in follow-up so subsequent NLS SentenceEnd events use the
+    // longer debounce window. The amplitude detector fires before the NLS
+    // server has processed the audio and emitted SentenceEnd, so without this
+    // flag the SentenceEnd would arrive after TTS stopped (_isRoleVoiceActive
+    // already false) and take the normal 1.2s path instead of the 2.5s
+    // barge-in window — splitting multi-sentence speech into separate messages.
+    _inBargeInFollowUp = true;
     unawaited(_stopTtsPlayback());
   }
 
@@ -2100,10 +2144,13 @@ only after you have written the goodbye you want the user to hear.''',
           ttsSession = StreamingTtsSession(voiceId: voiceId);
           await ttsSession.start();
           _streamingTtsSession = ttsSession;
-          // VoIP call mode: the platform AEC cancels speaker echo, so the mic
-          // keeps forwarding audio to NLS during TTS — enabling seamless
-          // barge-in via NLS SentenceEnd without dropping the first words.
-          // If AEC leaks echo on a device, re-enable: _voiceController.pauseAudioForwarding();
+          // Pause mic forwarding to NLS while TTS plays so the speaker output
+          // is not picked up by the mic and recognized as user speech (echo
+          // loop). Barge-in amplitude polling stays active so the user can
+          // interrupt by speaking; on TTS complete the mic resumes forwarding.
+          if (_voiceController.isStreaming) {
+            _voiceController.pauseAudioForwarding();
+          }
           if (mounted) {
             setState(() {
               _playingMessageId = 'streaming:$requestSerial';
@@ -3798,6 +3845,9 @@ only after you have written the goodbye you want the user to hear.''',
     if (enabled) {
       // Enter VoIP call audio mode so mic + TTS speaker coexist with AEC.
       unawaited(VoiceCallAudioSession.instance.enter());
+      // Route the TTS player through the voice-communication stream so the
+      // platform AEC can cancel speaker output from the mic signal.
+      unawaited(_applyVoiceCallTtsContext());
       _voiceModeSilentFollowUps = 0;
       _voiceModeIdleFollowUpSerial++;
       _queueVoiceModeOpening();
@@ -3819,7 +3869,8 @@ only after you have written the goodbye you want the user to hear.''',
         await _voiceController.cancel();
       }
       await _stopTtsPlayback();
-      // Exit VoIP call audio mode; restore the normal media audio session.
+      // Restore the TTS player to normal media playback and exit VoIP call mode.
+      unawaited(_restoreDefaultTtsContext());
       unawaited(VoiceCallAudioSession.instance.exit());
       // Notify the character that the user hung up (unless the agent ended it).
       if (!wasAgentEnded) {
@@ -3831,6 +3882,28 @@ only after you have written the goodbye you want the user to hear.''',
           ),
         );
       }
+    }
+  }
+
+  Future<void> _applyVoiceCallTtsContext() async {
+    if (_ttsAudioContextApplied) return;
+    try {
+      await _audioPlayer.setAudioContext(_voiceCallTtsContext);
+      _ttsAudioContextApplied = true;
+      debugPrint('TTS audio context → voiceCommunication (AEC reference)');
+    } catch (e) {
+      debugPrint('setAudioContext(voice call) failed: $e');
+    }
+  }
+
+  Future<void> _restoreDefaultTtsContext() async {
+    if (!_ttsAudioContextApplied) return;
+    _ttsAudioContextApplied = false;
+    try {
+      await _audioPlayer.setAudioContext(_defaultTtsContext);
+      debugPrint('TTS audio context → restored default');
+    } catch (e) {
+      debugPrint('setAudioContext(default) failed: $e');
     }
   }
 
@@ -4030,8 +4103,12 @@ only after you have written the goodbye you want the user to hear.''',
         _isTtsLoading = true;
       });
     }
-    // VoIP call mode: AEC handles echo; mic keeps forwarding during TTS.
-    // If AEC leaks echo, re-enable: if (_isInlineVoiceMode && _voiceController.isStreaming) _voiceController.pauseAudioForwarding();
+    // Pause mic forwarding while TTS plays to avoid the speaker output being
+    // captured by the mic and misrecognized as user speech (echo loop). The
+    // barge-in amplitude poller stays armed so the user can still interrupt.
+    if (_isInlineVoiceMode && _voiceController.isStreaming) {
+      _voiceController.pauseAudioForwarding();
+    }
 
     try {
       final audioPath = await TtsService.textToSpeech(
