@@ -532,6 +532,9 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   int _voiceModeIdleFollowUpSerial = 0;
   int _ttsRequestSerial = 0;
   StreamingTtsSession? _streamingTtsSession;
+  Timer? _sentenceDebounceTimer;
+  final _sentenceDebounceBuffer = StringBuffer();
+  static const _sentenceDebounceWindow = Duration(milliseconds: 1200);
 
   bool _isAppInBackground = false;
   bool _mediaButtonsActive = false;
@@ -699,6 +702,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _voiceController.onAutoRecognitionComplete =
         _onAutoVoiceRecognitionComplete;
     _voiceController.onStreamingEvent = _onStreamingAsrEvent;
+    _voiceController.onBargeInDetected = _onBargeInDetected;
     WidgetsBinding.instance.addObserver(this);
     _textController.addListener(_onComposerTextChanged);
     unawaited(
@@ -899,31 +903,53 @@ only after you have written the goodbye you want the user to hear.''',
 
   /// Streaming ASR event handler (voice mode only).
   ///
-  /// - [SentenceBeginEvent]: if TTS is playing, stop it for barge-in. The mic
-  ///   stays open, so this just silences the companion.
-  /// - [SentenceEndEvent]: dispatch the final text to the LLM, same as the
-  ///   file-mode auto-recognition path. An empty result triggers idle
-  ///   follow-up.
-  /// - [TranscriptionResultChangedEvent]: no-op for now (reserved for future
-  ///   partial-result streaming).
+  /// - [SentenceBeginEvent]: no-op (barge-in is handled by client-side
+  ///   amplitude detection via [onBargeInDetected], not server events, because
+  ///   audio forwarding is paused during TTS to prevent echo loop).
+  /// - [SentenceEndEvent]: accumulate text in a debounce buffer. If no new
+  ///   sentence arrives within [_sentenceDebounceWindow] (1.2s), dispatch the
+  ///   combined text to the LLM as a single message.
+  /// - [TranscriptionResultChangedEvent]: no-op (reserved for future partial
+  ///   result display).
   void _onStreamingAsrEvent(StreamingAsrEvent event) {
     if (!mounted || !_isInlineVoiceMode) return;
     switch (event) {
       case SentenceBeginEvent():
-        if (_isRoleVoiceActive) {
-          debugPrint('Streaming barge-in: stopping TTS for speech');
-          unawaited(_stopTtsPlayback());
-        }
         break;
       case SentenceEndEvent():
+        if (_isRoleVoiceActive) {
+          debugPrint('Ignoring SentenceEnd during TTS (echo guard)');
+          break;
+        }
         final text = event.text.trim();
-        unawaited(_onAutoVoiceRecognitionComplete(
-          text.isEmpty ? null : text,
-        ));
+        if (text.isEmpty) break;
+        if (_sentenceDebounceBuffer.isNotEmpty) {
+          _sentenceDebounceBuffer.write(' ');
+        }
+        _sentenceDebounceBuffer.write(text);
+        _sentenceDebounceTimer?.cancel();
+        _sentenceDebounceTimer = Timer(_sentenceDebounceWindow, _flushSentenceDebounce);
         break;
       case TranscriptionResultChangedEvent():
         break;
     }
+  }
+
+  void _flushSentenceDebounce() {
+    _sentenceDebounceTimer = null;
+    final text = _sentenceDebounceBuffer.toString().trim();
+    _sentenceDebounceBuffer.clear();
+    if (text.isEmpty) return;
+    if (!mounted || !_isInlineVoiceMode) return;
+    _voiceModeSilentFollowUps = 0;
+    _textController.text = text;
+    unawaited(_sendMessage());
+  }
+
+  void _onBargeInDetected() {
+    if (!mounted || !_isInlineVoiceMode) return;
+    debugPrint('Barge-in: amplitude threshold exceeded, stopping TTS');
+    unawaited(_stopTtsPlayback());
   }
 
   Future<void> _runVoiceModeIdleFollowUp() async {
@@ -1531,6 +1557,7 @@ only after you have written the goodbye you want the user to hear.''',
     _composerFocus.dispose();
     _scrollController.dispose();
     _highlightTimer?.cancel();
+    _sentenceDebounceTimer?.cancel();
     _audioCompleteSub?.cancel();
     _audioStateSub?.cancel();
     _openRequestSub?.cancel();
@@ -2043,6 +2070,9 @@ only after you have written the goodbye you want the user to hear.''',
           ttsSession = StreamingTtsSession(voiceId: voiceId);
           await ttsSession.start();
           _streamingTtsSession = ttsSession;
+          if (_voiceController.isStreaming) {
+            _voiceController.pauseAudioForwarding();
+          }
           if (mounted) {
             setState(() {
               _playingMessageId = 'streaming:$requestSerial';
@@ -2087,6 +2117,9 @@ only after you have written the goodbye you want the user to hear.''',
       if (_isSendCanceled(sendSerial, primaryMessageId)) {
         unawaited(ttsSession?.cancel());
         _streamingTtsSession = null;
+        if (_isInlineVoiceMode && _voiceController.isStreaming) {
+          _voiceController.resumeAudioForwarding();
+        }
         _finishCanceledSend(sendSerial);
         return;
       }
@@ -2181,6 +2214,9 @@ only after you have written the goodbye you want the user to hear.''',
     } on CompanionApiException catch (e) {
       unawaited(ttsSession?.cancel());
       _streamingTtsSession = null;
+      if (_isInlineVoiceMode && _voiceController.isStreaming) {
+        _voiceController.resumeAudioForwarding();
+      }
       debugPrint('CompanionApiException during send: ${e.cause}');
       if (_isSendCanceled(sendSerial, primaryMessageId)) {
         _finishCanceledSend(sendSerial);
@@ -2218,6 +2254,9 @@ only after you have written the goodbye you want the user to hear.''',
     } catch (e) {
       unawaited(ttsSession?.cancel());
       _streamingTtsSession = null;
+      if (_isInlineVoiceMode && _voiceController.isStreaming) {
+        _voiceController.resumeAudioForwarding();
+      }
       if (_isSendCanceled(sendSerial, primaryMessageId)) {
         _finishCanceledSend(sendSerial);
         return;
@@ -3734,6 +3773,9 @@ only after you have written the goodbye you want the user to hear.''',
       _voiceModeIdleFollowUpSerial++;
       _voiceModeOpeningInProgress = false;
       _voiceModeStartQueued = false;
+      _sentenceDebounceTimer?.cancel();
+      _sentenceDebounceTimer = null;
+      _sentenceDebounceBuffer.clear();
       final wasAgentEnded = _endVoiceModeAfterCurrentReply;
       _endVoiceModeAfterCurrentReply = false;
       _voiceModeSilentFollowUps = 0;
@@ -3768,6 +3810,9 @@ only after you have written the goodbye you want the user to hear.''',
     await _audioStateSub?.cancel();
     _audioStateSub = null;
     await _audioPlayer.stop();
+    if (_isInlineVoiceMode && _voiceController.isStreaming) {
+      _voiceController.resumeAudioForwarding();
+    }
     if (mounted) {
       setState(() {
         _playingMessageId = null;
@@ -3789,6 +3834,9 @@ only after you have written the goodbye you want the user to hear.''',
       _playingMessageId = null;
       _isTtsLoading = false;
     });
+    if (_isInlineVoiceMode && _voiceController.isStreaming) {
+      _voiceController.resumeAudioForwarding();
+    }
     if (_endVoiceModeAfterCurrentReply && _isInlineVoiceMode) {
       _endVoiceModeAfterCurrentReply = false;
       unawaited(_setInlineVoiceMode(false));
@@ -3940,6 +3988,9 @@ only after you have written the goodbye you want the user to hear.''',
         _playingMessageId = messageId;
         _isTtsLoading = true;
       });
+    }
+    if (_isInlineVoiceMode && _voiceController.isStreaming) {
+      _voiceController.pauseAudioForwarding();
     }
 
     try {

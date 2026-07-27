@@ -71,6 +71,12 @@ class VoiceInputController extends ChangeNotifier {
   StreamSubscription<StreamingAsrEvent>? _streamingEventSub;
   StreamSubscription<Uint8List>? _streamingAudioSub;
   bool _streamingStopping = false;
+  bool _audioForwardingPaused = false;
+  Timer? _bargeInPollTimer;
+  bool _bargeInPollInProgress = false;
+
+  static const double _bargeInThresholdDb = -25.0;
+  static const Duration _bargeInPollInterval = Duration(milliseconds: 150);
 
   /// Called when automatic endpoint detection stops a recording (file mode).
   ///
@@ -84,6 +90,11 @@ class VoiceInputController extends ChangeNotifier {
   /// [SentenceBeginEvent] to interrupt TTS playback (barge-in) and
   /// [SentenceEndEvent] to dispatch the final text to the LLM.
   void Function(StreamingAsrEvent event)? onStreamingEvent;
+
+  /// Called when client-side amplitude detection fires during TTS playback
+  /// (barge-in). The threshold is high (-25 dB) so only real user speech
+  /// triggers it, not speaker echo.
+  void Function()? onBargeInDetected;
 
   /// Last error message (for UI to surface). Cleared on next toggle.
   String? lastError;
@@ -235,7 +246,11 @@ class VoiceInputController extends ChangeNotifier {
         ),
       );
       _streamingAudioSub = audioStream.listen(
-        (chunk) => _streamingClient?.sendAudio(chunk),
+        (chunk) {
+          if (!_audioForwardingPaused) {
+            _streamingClient?.sendAudio(chunk);
+          }
+        },
         onError: (Object e) {
           _logger.warning('Audio stream error: $e');
         },
@@ -296,7 +311,65 @@ class VoiceInputController extends ChangeNotifier {
     _logger.info('Streaming session cancelled');
   }
 
+  /// Pause forwarding mic audio to the NLS server. Call this while TTS is
+  /// playing so the speaker output is not recognized as user speech (echo
+  /// loop). The mic stays open; chunks are simply dropped. Starts barge-in
+  /// amplitude polling so the user can still interrupt.
+  void pauseAudioForwarding() {
+    _audioForwardingPaused = true;
+    startBargeInDetection();
+  }
+
+  /// Resume forwarding mic audio to the NLS server after TTS stops.
+  void resumeAudioForwarding() {
+    _audioForwardingPaused = false;
+    stopBargeInDetection();
+  }
+
+  /// Start polling mic amplitude while TTS plays. If the level exceeds
+  /// [_bargeInThresholdDb] (-25 dB, well above speaker echo), fire
+  /// [onBargeInDetected] so the UI can stop TTS and resume forwarding.
+  void startBargeInDetection() {
+    if (_bargeInPollTimer != null) return;
+    _bargeInPollTimer = Timer.periodic(
+      _bargeInPollInterval,
+      (_) => unawaited(_pollBargeInAmplitude()),
+    );
+  }
+
+  void stopBargeInDetection() {
+    _bargeInPollTimer?.cancel();
+    _bargeInPollTimer = null;
+    _bargeInPollInProgress = false;
+  }
+
+  Future<void> _pollBargeInAmplitude() async {
+    if (_bargeInPollInProgress || _bargeInPollTimer == null) return;
+    _bargeInPollInProgress = true;
+    try {
+      final amplitude = await _recorder
+          .getAmplitude()
+          .timeout(const Duration(seconds: 1), onTimeout: () {
+        return Amplitude(current: -160.0, max: -160.0);
+      });
+      if (amplitude.current >= _bargeInThresholdDb) {
+        _logger.info(
+          'Barge-in detected: ${amplitude.current.toStringAsFixed(1)}dB '
+          '>= ${_bargeInThresholdDb}dB',
+        );
+        stopBargeInDetection();
+        onBargeInDetected?.call();
+      }
+    } catch (e) {
+      _logger.fine('Barge-in poll error: $e');
+    } finally {
+      _bargeInPollInProgress = false;
+    }
+  }
+
   Future<void> _cancelStreamingInternal() async {
+    stopBargeInDetection();
+    _audioForwardingPaused = false;
     try {
       await _streamingAudioSub?.cancel();
     } catch (e) {
