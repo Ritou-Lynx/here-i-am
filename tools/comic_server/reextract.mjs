@@ -25,7 +25,7 @@ const summariesPath = join(dataDir, 'summaries.json');
 
 const visionModel = process.argv.includes('--model')
   ? process.argv[process.argv.indexOf('--model') + 1]
-  : 'qwen3-vl:8b';
+  : 'qwen2.5vl:7b';
 
 // ── Load context ────────────────────────────────────────────────────────────
 function loadCharacters() {
@@ -127,7 +127,7 @@ const VISION_PROMPT_TEMPLATE = `你是一个漫画分镜分析助手。请仔细
 - NSFW 画面如实描述，不要回避或道德评判。
 - 如果文字确实无法辨认（严重模糊、过小、艺术化过度），text 填 "[不可辨认]"。`;
 
-// ── Ollama Vision call (chat API — qwen3-vl needs /api/chat not /api/generate) ─
+// ── Ollama Vision call (generate API — works for qwen2.5vl:7b) ─────────────
 async function visionExtractWithContext(imagePath, pageNum, context) {
   const imgBuf = readFileSync(imagePath);
   const b64 = imgBuf.toString('base64');
@@ -138,23 +138,20 @@ async function visionExtractWithContext(imagePath, pageNum, context) {
     .replace('{PAGE_NUM}', String(pageNum));
 
   try {
-    const resp = await fetch('http://127.0.0.1:11434/api/chat', {
+    const resp = await fetch('http://127.0.0.1:11434/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: visionModel,
-        messages: [
-          { role: 'user', content: prompt, images: [b64] },
-        ],
+        prompt,
+        images: [b64],
         stream: false,
-        think: false, // Disable thinking mode for faster extraction
+        format: 'json',
       }),
     });
     if (!resp.ok) return { error: `HTTP ${resp.status}` };
     const data = await resp.json();
-    // Check content first, then thinking (fallback)
-    let raw = data.message?.content || '';
-    if (!raw) raw = data.message?.thinking || '';
+    let raw = data.response || '';
 
     let parsed = null;
     try { parsed = JSON.parse(raw); }
