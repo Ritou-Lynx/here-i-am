@@ -703,6 +703,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         _onAutoVoiceRecognitionComplete;
     _voiceController.onStreamingEvent = _onStreamingAsrEvent;
     _voiceController.onBargeInDetected = _onBargeInDetected;
+    _voiceController.onStreamingSessionLost = _onStreamingSessionLost;
     WidgetsBinding.instance.addObserver(this);
     _textController.addListener(_onComposerTextChanged);
     unawaited(
@@ -950,6 +951,17 @@ only after you have written the goodbye you want the user to hear.''',
     if (!mounted || !_isInlineVoiceMode) return;
     debugPrint('Barge-in: amplitude threshold exceeded, stopping TTS');
     unawaited(_stopTtsPlayback());
+  }
+
+  /// The NLS streaming session died unexpectedly (server closed the WebSocket,
+  /// idle timeout, etc.) while the user is still in voice mode. Re-arm the mic
+  /// so the next turn can be recognized. Skipped while TTS is playing or a send
+  /// is in flight — those paths re-arm the mic themselves when they finish.
+  void _onStreamingSessionLost() {
+    if (!mounted || !_isInlineVoiceMode) return;
+    if (_isRoleVoiceActive || _isStreaming || _isAppInBackground) return;
+    debugPrint('Streaming ASR session lost; re-arming mic');
+    _queueVoiceModeStreamingStart(delay: const Duration(milliseconds: 400));
   }
 
   Future<void> _runVoiceModeIdleFollowUp() async {
@@ -4305,20 +4317,6 @@ only after you have written the goodbye you want the user to hear.''',
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            if (_character != null) ...[
-              GestureDetector(
-                onTap: () {
-                  setState(() => _isHeaderActionsOpen = false);
-                  context.push(AppRoutes.aboutI);
-                },
-                child: _FramedCharacterAvatar(
-                  avatar: _character!.avatar,
-                  name: _character!.name,
-                  size: 48,
-                ),
-              ),
-              const SizedBox(height: 9),
-            ],
             for (var i = 0; i < actions.length; i++) ...[
               actions[i],
               if (i != actions.length - 1) const SizedBox(height: 9),
