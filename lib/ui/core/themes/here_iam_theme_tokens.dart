@@ -135,6 +135,47 @@ class HereIamThemeTokens extends ThemeExtension<HereIamThemeTokens> {
     innerRadius: 19,
   );
 
+  /// 春雨昼眠 / Spring Rain Daydream — the current main UI direction.
+  ///
+  /// Palette is grounded in docs/design/春雨昼眠主题UI设计原型.md §22 and the
+  /// chat tokens: near-black green surface, warm-ivory text, moss-green accent
+  /// (ADR-13 user color), warm-gold highlight, and dew-glass panels.
+  ///
+  /// Intentionally NOT in [skins] yet: the global Material theme
+  /// (AppTheme.lightThemeFor) still hardcodes light scaffold/appbar colors and
+  /// does not follow these tokens, so exposing this as a globally switchable
+  /// skin would render other pages half-styled. Non-chat pages that adopt the
+  /// direction read this const directly (the same way Chat reads
+  /// SpringRainChatTokens) until AppTheme learns to follow the tokens.
+  static const HereIamThemeTokens springRainDaydream = HereIamThemeTokens(
+    id: 'springRainDaydream',
+    nameZh: '春雨昼眠',
+    nameEn: 'Spring Rain Daydream',
+    brightness: Brightness.dark,
+    background: Color(0xFF0C0F0D),
+    backgroundSoft: Color(0xFF080A09),
+    surface: Color(0xFF161A12),
+    surfaceSoft: Color(0xFF11150E),
+    surfaceDeep: Color(0xFF222918),
+    accent: Color(0xFFA3A866),
+    accentSoft: Color(0xFF878C56),
+    highlight: Color(0xFFF2CA70),
+    textPrimary: Color(0xFFF5EEE0),
+    textSecondary: Color(0xCCEDE6D5),
+    textMuted: Color(0x85E6DFCE),
+    glassFill: Color(0x0FFFFFFF),
+    glassFillSoft: Color(0x08FFFFFF),
+    glassStroke: Color(0x2EFFFFFF),
+    glassEdge: Color(0x3DFFFFFF),
+    rainBead: Color(0xCCF5EEE0),
+    rainOpacity: 0.40,
+    rainMicroOpacity: 0.20,
+    rainStreakOpacity: 0.36,
+    mistOpacity: 0.55,
+    cardRadius: 20,
+    innerRadius: 14,
+  );
+
   static const List<HereIamThemeTokens> skins = [
     duskyRoseRain,
     roseMistDay,

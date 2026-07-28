@@ -448,6 +448,52 @@ class UserStorage {
     }
   }
 
+  static const String _keyPendingCallEnd = 'pending_call_end_context';
+
+  /// Stash a one-shot "voice call just ended" note (who ended it) for the next
+  /// companion turn to inject into the LLM input. Never shown in the UI, never
+  /// spoken. [endedBy] is 'user' or 'agent'.
+  static Future<void> setPendingCallEnd(String endedBy) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _keyPendingCallEnd,
+        jsonEncode({
+          'e': endedBy,
+          't': DateTime.now().millisecondsSinceEpoch,
+        }),
+      );
+    } catch (e) {
+      // Non-fatal: worst case the character lacks the hang-up context.
+    }
+  }
+
+  /// Read & clear the pending hang-up note. Returns endedBy ('user'/'agent') if
+  /// a fresh one exists, or null if none / too old. Consuming clears it so the
+  /// note is injected into exactly one turn.
+  static Future<String?> takePendingCallEnd({
+    Duration maxAge = const Duration(hours: 2),
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_keyPendingCallEnd);
+      if (raw == null) return null;
+      await prefs.remove(_keyPendingCallEnd);
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final t = decoded['t'];
+      if (t is int) {
+        final age = DateTime.now()
+            .difference(DateTime.fromMillisecondsSinceEpoch(t));
+        if (age > maxAge) return null;
+      }
+      final e = decoded['e'];
+      return e is String && e.isNotEmpty ? e : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   static Future<String?> getElevenLabsApiKey() async {
     try {
       final prefs = await SharedPreferences.getInstance();

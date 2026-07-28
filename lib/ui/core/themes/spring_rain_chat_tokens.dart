@@ -118,7 +118,7 @@ class SpringRainChatTokens {
     timeGap: 27,
     timeAlpha: 0.80,
     fontFamily: 'LXGW WenKai',
-    userColor: Color(0xFF6E7541),
+    userColor: Color(0xFFA3A866),
     userWeight: FontWeight.w600,
     userSize: 16,
     userLetterSpacing: 0.3,

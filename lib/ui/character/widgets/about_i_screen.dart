@@ -6,12 +6,16 @@ import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/media_service.dart';
 import 'package:memex/domain/models/character_model.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
+import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
+import 'package:memex/ui/core/themes/spring_rain_chat_tokens.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/core/widgets/avatar_picker.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:provider/provider.dart';
 
 /// "关于 I" — minimal settings page for the singleton I.
 class AboutIScreen extends StatefulWidget {
@@ -242,12 +246,32 @@ class _AboutIScreenState extends State<AboutIScreen> {
 
   @override
   Widget build(BuildContext context) {
+    const skin = HereIamThemeTokens.springRainDaydream;
     return Scaffold(
-      appBar: AppBar(title: const Text('关于 I')),
+      backgroundColor: skin.background,
+      appBar: AppBar(
+        backgroundColor: skin.background,
+        elevation: 0,
+        centerTitle: true,
+        title: Text(
+          '关于 I',
+          style: TextStyle(
+            color: skin.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        iconTheme: IconThemeData(color: skin.textSecondary),
+      ),
       body: _isLoading
           ? const Center(child: AgentLogoLoading())
           : _character == null
-              ? const Center(child: Text('未初始化'))
+              ? Center(
+                  child: Text(
+                    '未初始化',
+                    style: TextStyle(color: skin.textMuted),
+                  ),
+                )
               : SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -262,46 +286,44 @@ class _AboutIScreenState extends State<AboutIScreen> {
                       const SizedBox(height: 8),
                       _buildChatBackgroundPicker(),
                       const SizedBox(height: 32),
+                      _sectionLabel('用户文字颜色'),
+                      const SizedBox(height: 8),
+                      _buildUserColorPicker(),
+                      const SizedBox(height: 32),
                       _sectionLabel('TTS 语音'),
                       const SizedBox(height: 4),
                       Text(
                         '将所选 TTS 服务的 Voice ID 粘贴到此处（在 Settings → TTS 语音 中设置服务商）',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                        style: TextStyle(fontSize: 12, color: skin.textMuted),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: _ttsVoiceIdController,
                         focusNode: _ttsVoiceIdFocusNode,
-                        style: const TextStyle(fontSize: 16),
+                        style: TextStyle(fontSize: 16, color: skin.textPrimary),
                         decoration: InputDecoration(
                           hintText: 'Voice ID',
                           hintStyle: TextStyle(
-                            color: Colors.grey[400],
+                            color: skin.textMuted,
                             fontSize: 14,
                           ),
                           filled: true,
-                          fillColor: const Color(0xFFF7F8FA),
+                          fillColor: skin.glassFill,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 20,
                             vertical: 16,
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE2E8F0),
-                            ),
+                            borderSide: BorderSide(color: skin.glassStroke),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE2E8F0),
-                            ),
+                            borderSide: BorderSide(color: skin.glassStroke),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF6366F1),
-                            ),
+                            borderSide: BorderSide(color: skin.accent),
                           ),
                         ),
                         onChanged: _onTtsVoiceIdChanged,
@@ -319,17 +341,19 @@ class _AboutIScreenState extends State<AboutIScreen> {
   }
 
   Widget _sectionLabel(String text) {
+    const skin = HereIamThemeTokens.springRainDaydream;
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.w600,
-        color: Color(0xFF64748B),
+        color: skin.textMuted,
       ),
     );
   }
 
   Widget _buildAvatar() {
+    const skin = HereIamThemeTokens.springRainDaydream;
     return GestureDetector(
       onTap: _pickAvatar,
       child: Stack(
@@ -342,14 +366,15 @@ class _AboutIScreenState extends State<AboutIScreen> {
           ),
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: const BoxDecoration(
-              color: Colors.black87,
+            decoration: BoxDecoration(
+              color: skin.surfaceDeep,
               shape: BoxShape.circle,
+              border: Border.all(color: skin.glassStroke),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.camera_alt_outlined,
               size: 16,
-              color: Colors.white,
+              color: skin.textPrimary,
             ),
           ),
         ],
@@ -358,6 +383,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
   }
 
   Widget _buildChatBackgroundPicker() {
+    const skin = HereIamThemeTokens.springRainDaydream;
     final preview = _chatBackgroundPreview;
     final hasBackground =
         preview != null && preview.isNotEmpty && File(preview).existsSync();
@@ -368,9 +394,9 @@ class _AboutIScreenState extends State<AboutIScreen> {
         key: ValueKey(hasBackground ? _fileImageKey(preview) : 'empty-bg'),
         height: 140,
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F8FA),
+          color: skin.glassFill,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: skin.glassStroke),
           image: hasBackground
               ? DecorationImage(
                   image: FileImage(
@@ -410,14 +436,14 @@ class _AboutIScreenState extends State<AboutIScreen> {
                     Icon(
                       Icons.add_photo_alternate_outlined,
                       size: 32,
-                      color: Colors.grey[400],
+                      color: skin.textMuted,
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '选择聊天背景图',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey[400],
+                        color: skin.textMuted,
                       ),
                     ),
                   ],
@@ -428,20 +454,88 @@ class _AboutIScreenState extends State<AboutIScreen> {
   }
 
   Widget _buildDreamingPlaceholder() {
+    const skin = HereIamThemeTokens.springRainDaydream;
     return Container(
       height: 88,
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
+        color: skin.glassFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: skin.glassStroke),
       ),
-      child: const Center(
+      child: Center(
         child: Text(
           'Dreaming · 即将到来',
           style: TextStyle(
             fontSize: 13,
-            color: Color(0xFF94A3B8),
+            color: skin.textMuted,
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserColorPicker() {
+    final controller = context.watch<SpringRainChatColorController>();
+    const chat = SpringRainChatTokens.springRainDaydream;
+    const options = SpringRainChatColorController.options;
+    return Row(
+      children: [
+        for (var i = 0; i < options.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(
+            child: _buildUserColorSwatch(
+              option: options[i],
+              chat: chat,
+              isSelected: controller.selectedId == options[i].id,
+              onTap: () => controller.select(options[i].id),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildUserColorSwatch({
+    required SpringRainUserColorOption option,
+    required SpringRainChatTokens chat,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    const skin = HereIamThemeTokens.springRainDaydream;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        decoration: BoxDecoration(
+          color: chat.background,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? option.color : skin.glassStroke,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '用户消息',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+                fontFamily: chat.fontFamily,
+                color: option.color,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              option.label,
+              style: TextStyle(
+                fontSize: 12,
+                color: skin.textMuted,
+              ),
+            ),
+          ],
         ),
       ),
     );

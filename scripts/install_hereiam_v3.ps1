@@ -17,6 +17,28 @@ Write-Host "== Here I Am V3 install =="
 Write-Host "Branch: $currentBranch"
 Write-Host "Package: $expectedPackage"
 
+# Ensure adb is reachable. Some shells don't have platform-tools on PATH.
+if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
+  $candidateRoots = @()
+  if ($env:ANDROID_HOME) { $candidateRoots += $env:ANDROID_HOME }
+  if ($env:ANDROID_SDK_ROOT) { $candidateRoots += $env:ANDROID_SDK_ROOT }
+  if ($env:LOCALAPPDATA) { $candidateRoots += (Join-Path $env:LOCALAPPDATA "Android\Sdk") }
+  $adbDir = $null
+  foreach ($root in $candidateRoots) {
+    $dir = Join-Path $root "platform-tools"
+    if (Test-Path -LiteralPath (Join-Path $dir "adb.exe")) {
+      $adbDir = $dir
+      break
+    }
+  }
+  if (-not $adbDir) {
+    Write-Error "adb not found on PATH or in common Android SDK locations. Set ANDROID_HOME or add platform-tools to PATH."
+    exit 1
+  }
+  $env:PATH = "$adbDir;$env:PATH"
+  Write-Host "adb resolved to: $adbDir"
+}
+
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot "scripts\verify_critical_fixes.ps1")
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE

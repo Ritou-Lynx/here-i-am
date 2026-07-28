@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_controller.dart';
+import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 
 /// Shared dependency providers for the app.
 /// Only register Repository and Service here; do not register ViewModels.
@@ -17,5 +18,8 @@ List<SingleChildWidget> get dependencyProviders => [
       ),
       ChangeNotifierProvider<HereIamThemeController>(
         create: (_) => HereIamThemeController()..load(),
+      ),
+      ChangeNotifierProvider<SpringRainChatColorController>(
+        create: (_) => SpringRainChatColorController()..load(),
       ),
     ];

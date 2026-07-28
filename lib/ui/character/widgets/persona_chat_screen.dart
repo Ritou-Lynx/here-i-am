@@ -21,6 +21,7 @@ import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
 import 'package:memex/data/services/asr/media_button_service.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
 import 'package:memex/data/services/voice_call_audio_session.dart';
+import 'package:memex/ui/character/widgets/hangup_tone.dart';
 import 'package:memex/data/services/active_persona_chat_service.dart';
 import 'package:memex/data/services/bad_case_collector.dart';
 import 'package:memex/data/services/streaming_tts_player.dart';
@@ -52,6 +53,7 @@ import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/themes/spring_rain_chat_tokens.dart';
+import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/widgets/here_iam_glass_surface.dart';
@@ -62,6 +64,7 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 Color get _personaStageInk => HereIamThemeRuntime.current.background;
 Color get _personaPanel => HereIamThemeRuntime.current.surfaceSoft;
@@ -571,7 +574,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   StreamingTtsSession? _streamingTtsSession;
   Timer? _sentenceDebounceTimer;
   final _sentenceDebounceBuffer = StringBuffer();
-  static const _sentenceDebounceWindow = Duration(milliseconds: 1200);
+  static const _sentenceDebounceWindow = Duration(milliseconds: 2000);
   // Longer window after a barge-in so the user has time to finish a multi-
   // sentence correction ("不对，我说的是… 其实是…") before we flush.
   static const _bargeInDebounceWindow = Duration(milliseconds: 2500);
@@ -953,7 +956,7 @@ only after you have written the goodbye you want the user to hear.''',
   ///
   /// - [SentenceEndEvent]: if TTS is playing, stop it (barge-in) then accumulate
   ///   text in a debounce buffer. If no new sentence arrives within
-  ///   [_sentenceDebounceWindow] (1.2s), dispatch the combined text to the LLM.
+  ///   [_sentenceDebounceWindow] (2.0s), dispatch the combined text to the LLM.
   /// - [SentenceBeginEvent]: no-op.
   /// - [TranscriptionResultChangedEvent]: no-op.
   void _onStreamingAsrEvent(StreamingAsrEvent event) {
@@ -1009,7 +1012,7 @@ only after you have written the goodbye you want the user to hear.''',
     // longer debounce window. The amplitude detector fires before the NLS
     // server has processed the audio and emitted SentenceEnd, so without this
     // flag the SentenceEnd would arrive after TTS stopped (_isRoleVoiceActive
-    // already false) and take the normal 1.2s path instead of the 2.5s
+    // already false) and take the normal 2.0s path instead of the 2.5s
     // barge-in window — splitting multi-sentence speech into separate messages.
     _inBargeInFollowUp = true;
     unawaited(_stopTtsPlayback());
@@ -2114,9 +2117,28 @@ only after you have written the goodbye you want the user to hear.''',
       perDraftAnalysis: perDraftAnalysis,
     );
     final combinedText = drafts.map((d) => d.text).join('\n');
-      final linkContext = await _buildLinkConversationContext(combinedText);
-    final chatMessageWithContext =
+    final linkContext = await _buildLinkConversationContext(combinedText);
+    var chatMessageWithContext =
         linkContext == null ? chatMessage : '$linkContext\n\n$chatMessage';
+    // One-shot hidden context: if a voice call just ended, tell the model so it
+    // carries "we were just on a call / who hung up" naturally. Injected into
+    // the LLM input only — not persisted, not shown, not spoken — and consumed
+    // so it lands on exactly the next turn (within maxAge).
+    final pendingCallEnd = await UserStorage.takePendingCallEnd();
+    if (pendingCallEnd != null) {
+      final who = pendingCallEnd == 'agent'
+          ? 'you (the character) chose to end the call'
+          : 'the user (they hung up)';
+      final callEndReminder = '<system-reminder type="call-ended">\n'
+          'A voice call between you and the user just ended, moments ago. '
+          'It was ended by: $who. The user heard a hang-up tone and already '
+          'knows the call is over. Do NOT read this note aloud and do NOT '
+          'announce "you hung up" / "I hung up" as a system message; simply '
+          'carry the context naturally into your next reply (e.g. the chat just '
+          'moved from a call back to text, or you ended it to give them space).\n'
+          '</system-reminder>';
+      chatMessageWithContext = '$callEndReminder\n\n$chatMessageWithContext';
+    }
 
     String lastChunk = '';
     var responsePersisted = false;
@@ -3852,6 +3874,28 @@ only after you have written the goodbye you want the user to hear.''',
       _sentenceDebounceTimer = null;
       _sentenceDebounceBuffer.clear();
       _inBargeInFollowUp = false;
+      // Hang-up must unlock the UI immediately. Invalidate any in-flight LLM
+      // turn and force-reset the streaming state, otherwise two paths leave
+      // _isStreaming stuck true: (1) the opening / idle-follow-up generators
+      // guard their `finally` reset on `serial == _voiceMode*Serial`, which we
+      // just bumped, so they skip the reset; (2) a user-message turn keeps
+      // streaming past hang-up. Clearing _activeSendSerial also makes the
+      // in-flight turn's next _isSendCanceled check bail out before it persists
+      // a reply (so no stray "delayed" reply after hang-up).
+      _activeSendSerial = null;
+      _activeUserMessageIds.clear();
+      _pendingBatches.clear();
+      if (_isStreaming ||
+          _streamingText.isNotEmpty ||
+          _playingMessageId != null ||
+          _isTtsLoading) {
+        setState(() {
+          _isStreaming = false;
+          _streamingText = '';
+          _playingMessageId = null;
+          _isTtsLoading = false;
+        });
+      }
       final wasAgentEnded = _endVoiceModeAfterCurrentReply;
       _endVoiceModeAfterCurrentReply = false;
       _voiceModeSilentFollowUps = 0;
@@ -3864,16 +3908,16 @@ only after you have written the goodbye you want the user to hear.''',
       // Restore the TTS player to normal media playback and exit VoIP call mode.
       unawaited(_restoreDefaultTtsContext());
       unawaited(VoiceCallAudioSession.instance.exit());
-      // Notify the character that the user hung up (unless the agent ended it).
-      if (!wasAgentEnded) {
-        unawaited(
-          _chatService.addCharacterMessage(
-            _currentCharacterId,
-            '📵 用户挂断了语音通话。',
-            isRead: true,
-          ),
-        );
-      }
+      // End-of-call cue + hidden context for the character. The previous code
+      // injected a *character* message ("📵 用户挂断了语音通话。") which auto-read spoke
+      // aloud and rendered as a character bubble — both wrong. Instead: play a
+      // synthesized hang-up tone (heard by the user, never spoken by the
+      // character) and stash a one-shot note carrying WHO ended the call; the
+      // next turn injects it into the LLM input only (see _runBatchSend) — never
+      // a bubble, never TTS. Done for both sides; wasAgentEnded tells us who.
+      final endedBy = wasAgentEnded ? 'agent' : 'user';
+      unawaited(UserStorage.setPendingCallEnd(endedBy));
+      unawaited(playHangupTone(context: _defaultTtsContext));
     }
   }
 
@@ -4987,6 +5031,7 @@ only after you have written the goodbye you want the user to hear.''',
     double characterBottomSpacing = 22,
     String? fullMessageText,
   }) {
+    final userColor = context.watch<SpringRainChatColorController>().userColor;
     if (isCharacter) {
       return _buildCharacterBubble(
         text: text,
@@ -5052,7 +5097,7 @@ only after you have written the goodbye you want the user to hear.''',
                           height: c.lineHeight,
                           fontWeight: c.userWeight,
                           letterSpacing: c.userLetterSpacing,
-                          color: c.userColor,
+                          color: userColor,
                           fontFamily: c.fontFamily,
                           shadows: [
                             Shadow(
