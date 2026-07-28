@@ -355,23 +355,9 @@ async function main() {
           continue;
         }
 
-        console.log(`  Vision 提取中 (${crawlResult.pages.length} 页)…`);
-        const screenplay = [];
-        for (const p of crawlResult.pages) {
-          const imgPath = join(imagesDir, ch.id, p.file);
-          process.stdout.write(`    页 ${p.page_num}/${crawlResult.pages.length}…`);
-          const vr = await visionExtract(imgPath, p.page_num);
-          if (vr.parsed) {
-            screenplay.push(vr.parsed);
-            const panelCount = vr.parsed.panels?.length || 0;
-            process.stdout.write(` ✓ ${panelCount} panels\n`);
-          } else {
-            screenplay.push({ page_num: p.page_num, panels: [], error: vr.error || 'parse failed' });
-            process.stdout.write(` ✗\n`);
-          }
-          await sleep(500);
-        }
-
+        // Save chapter immediately with empty screenplay — images are ready
+        // for reading right away. Vision extraction runs separately via
+        // reextract.mjs so the user doesn't wait for it.
         const chapterMeta = {
           id: ch.id,
           watch_id: book.id,
@@ -381,13 +367,13 @@ async function main() {
           chapter_url: chapterUrl,
           page_count: crawlResult.pages.length,
           pages: crawlResult.pages.map((p) => ({ page_num: p.page_num, image_path: `images/${ch.id}/${p.file}`, width: p.width, height: p.height })),
-          screenplay,
+          screenplay: [],
           comments: crawlResult.comments || [],
           status: 'ready',
           error: null,
           fetched_at: nowSec(),
-          ocr_completed_at: nowSec(),
-          ocr_model: visionModel,
+          ocr_completed_at: null,
+          ocr_model: null,
           created_at: nowSec(),
           updated_at: nowSec(),
         };

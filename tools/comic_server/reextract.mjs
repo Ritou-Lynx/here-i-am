@@ -193,6 +193,14 @@ async function main() {
     const chapterNum = chapter.chapter_number || 0;
     const prevChaptersText = buildPrevChaptersSummaryText(summaries, chapterNum);
 
+    // Skip chapters that already have a complete screenplay with the same model
+    const existingSp = chapter.screenplay || [];
+    const existingOk = existingSp.filter(s => !s.error).length;
+    if (existingSp.length === (chapter.page_count || 0) && existingOk === existingSp.length && chapter.ocr_model === visionModel) {
+      console.log(`\n═══ ${chapter.chapter_title} — 已完成，跳过 ═══`);
+      continue;
+    }
+
     console.log(`\n═══ ${chapter.chapter_title} (${chapter.id}) — ${chapter.page_count} 页 ═══`);
 
     // Find image files
