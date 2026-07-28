@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>故我在 · UI 原型对比</title>
+<style>
+/* ═══════════════════════════════════════════
+   故我在 · 春雨昼眠 UI 原型
+   基于 SpringRainChatTokens 真实值
+   ═══════════════════════════════════════════ */
+:root {
+  --bg: #0C0F0D;
+  --bg-soft: #080A09;
+  --user-color: #6E7541;
+  --i-color: #F5EEE0;
+  --action-color: #F2CA70;
+  --glass-fill: rgba(255,255,255,0.06);
+  --glass-stroke: rgba(255,255,255,0.18);
+  --glass-blur: 2px;
+  --page-margin: 22px;
+  --i-indent: 21px;
+  --line-height: 1.52;
+  --font: 'LXGW WenKai', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --radius-card: 22px;
+  --radius-inner: 16px;
+  --radius-pill: 999px;
+  --text-muted: rgba(210,210,205,0.45);
+  --accent-gold: #F2CA70;
+  --accent-moss: #6E7541;
+  --surface: rgba(255,255,255,0.03);
+  --success: #7fb89a;
+  --warning: #c9a86c;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: #050706;
+  color: var(--i-color);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── VERSION SWITCHER ── */
+.version-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 24px;
+  background: rgba(5,7,6,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.version-bar__title {
+  font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
+  color: var(--accent-gold); margin-right: 20px;
+}
+.version-btn {
+  padding: 6px 16px; font-size: 12px; font-weight: 500;
+  color: rgba(245,238,224,0.6); background: transparent;
+  border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-pill);
+  cursor: pointer; font-family: var(--font); transition: all 0.2s;
+}
+.version-btn:hover { border-color: rgba(255,255,255,0.25); color: var(--i-color); }
+.version-btn.active {
+  background: rgba(242,202,112,0.1); border-color: rgba(242,202,112,0.35);
+  color: var(--accent-gold);
+}
+.version-content { display: none; padding-top: 56px; }
+.version-content.active { display: block; }
+
+/* ── PHONE FRAME ── */
+.phones-row {
+  display: flex; gap: 32px; padding: 40px 32px 80px;
+  overflow-x: auto; justify-content: center; flex-wrap: wrap;
+}
+.phone {
+  width: 375px; min-height: 780px; flex-shrink: 0;
+  border-radius: 44px; overflow: hidden; position: relative;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03);
+  display: flex; flex-direction: column;
+}
+.phone__label {
+  position: absolute; top: -28px; left: 50%; transform: translateX(-50%);
+  font-size: 11px; color: var(--text-muted); letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════
+   VERSION A — 极简文字流 + 雨玻璃纹理
+   ═══════════════════════════════════════════ */
+.va-bg {
+  position: absolute; inset: 0;
+  background: var(--bg);
+  background-image: url('../../../assets/images/spring_rain_glass_texture_raw.png');
+  background-size: cover; background-position: center;
+  opacity: 0.12; mix-blend-mode: screen;
+}
+.va-body {
+  position: relative; z-index: 1; flex: 1;
+  display: flex; flex-direction: column;
+}
+.va-scroll {
+  flex: 1; overflow-y: auto; padding: 56px var(--page-margin) 100px;
+}
+
+/* Chat messages — Version A */
+.msg { margin-bottom: 20px; transition: opacity 0.3s; }
+.msg-user {
+  color: var(--user-color); font-size: 16px; font-weight: 600;
+  line-height: var(--line-height); letter-spacing: 0.3px;
+}
+.msg-i {
+  margin-left: var(--i-indent); color: var(--i-color);
+  font-size: 17px; font-weight: 700; line-height: var(--line-height);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  position: relative; padding-left: 10px;
+  border-left: 2px solid rgba(245,238,224,0.35);
+}
+.msg-action {
+  margin-left: var(--i-indent); padding-left: 10px;
+  border-left: 2px solid rgba(245,238,224,0.35);
+  font-style: italic; color: var(--action-color);
+  font-size: 14.5px; line-height: var(--line-height);
+}
+.msg-time {
+  text-align: center; color: var(--text-muted);
+  font-size: 11px; letter-spacing: 0.06em; margin: 28px 0;
+}
+
+/* Glass input bar */
+.glass-bar {
+  position: absolute; bottom: 16px;
+  left: var(--page-margin); right: var(--page-margin);
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 26px;
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-stroke);
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.glass-bar__btn {
+  width: 32px; height: 32px; border: none; border-radius: 50%;
+  background: transparent; color: rgba(245,238,224,0.7);
+  display: grid; place-items: center; cursor: pointer;
+  transition: all 0.15s;
+}
+.glass-bar__btn:hover { background: rgba(255,255,255,0.08); color: var(--i-color); }
+.glass-bar__input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--i-color); font-size: 15px; font-family: var(--font);
+}
+.glass-bar__input::placeholder { color: rgba(245,238,224,0.35); }
+
+/* ═══════════════════════════════════════════
+   VERSION B — 玻璃卡片 + 背景氛围
+   ═══════════════════════════════════════════ */
+.vb-bg {
+  position: absolute; inset: 0;
+  background: var(--bg);
+  background-image: url('../../../assets/images/spring_rain_daydream_chat_bg.png');
+  background-size: cover; background-position: center bottom;
+  opacity: 0.35;
+}
+.vb-bg::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to bottom, rgba(12,15,13,0.7) 0%, rgba(12,15,13,0.4) 40%, rgba(12,15,13,0.85) 100%);
+}
+.vb-body { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; }
+
+/* ── MEMORY REVIEW CARD ── */
+.memory-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+  backdrop-filter: blur(8px);
+  margin-bottom: 14px;
+  transition: all 0.2s;
+  position: relative; overflow: hidden;
+}
+.memory-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(242,202,112,0.2), transparent);
+}
+.memory-card:hover { border-color: rgba(255,255,255,0.18); transform: translateY(-1px); }
+.memory-card__header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+}
+.memory-card__type {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--accent-gold); text-transform: uppercase;
+  background: rgba(242,202,112,0.08); padding: 3px 8px;
+  border-radius: var(--radius-pill); border: 1px solid rgba(242,202,112,0.15);
+}
+.memory-card__time { font-size: 10px; color: var(--text-muted); }
+.memory-card__title {
+  font-size: 15px; font-weight: 600; color: var(--i-color);
+  margin-bottom: 6px; line-height: 1.4;
+}
+.memory-card__body {
+  font-size: 13px; color: rgba(245,238,224,0.65); line-height: 1.55; margin-bottom: 12px;
+}
+.memory-card__tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.tag {
+  font-size: 10px; padding: 2px 8px; border-radius: var(--radius-pill);
+  color: var(--accent-moss); background: rgba(110,117,65,0.12);
+  border: 1px solid rgba(110,117,65,0.2);
+}
+.memory-card__actions { display: flex; gap: 8px; }
+.mc-btn {
+  padding: 5px 14px; font-size: 11px; font-weight: 500;
+  border-radius: var(--radius-pill); border: none; cursor: pointer;
+  font-family: var(--font); transition: all 0.15s;
+}
+.mc-btn--confirm {
+  background: rgba(242,202,112,0.12); color: var(--accent-gold);
+  border: 1px solid rgba(242,202,112,0.25);
+}
+.mc-btn--confirm:hover { background: rgba(242,202,112,0.2); }
+.mc-btn--edit { background: transparent; color: rgba(245,238,224,0.5); border: 1px solid rgba(255,255,255,0.1); }
+.mc-btn--edit:hover { color: var(--i-color); border-color: rgba(255,255,255,0.2); }
+.mc-btn--delete { background: transparent; color: rgba(245,238,224,0.3); border: none; }
+.mc-btn--delete:hover { color: #c47a7a; }
+
+/* ── OBSERVATION PANEL ── */
+.obs-panel {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-card);
+  padding: 20px; margin-bottom: 14px;
+  backdrop-filter: blur(6px);
+}
+.obs-panel__header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+}
+.obs-panel__icon {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(242,202,112,0.1); border: 1px solid rgba(242,202,112,0.2);
+  display: grid; place-items: center; font-size: 14px;
+}
+.obs-panel__title { font-size: 13px; font-weight: 600; color: var(--i-color); }
+.obs-panel__body {
+  font-size: 13px; color: rgba(245,238,224,0.6); line-height: 1.65;
+  font-style: italic;
+}
+.obs-panel__body p { margin-bottom: 8px; }
+.obs-panel__body p:last-child { margin-bottom: 0; }
+
+/* ── MEMORY V3 DETAIL ── */
+.mem-detail {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-card);
+  padding: 20px; margin-bottom: 14px;
+}
+.mem-detail__domain {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+  color: var(--accent-moss); margin-bottom: 12px;
+  padding: 3px 10px; border-radius: var(--radius-pill);
+  background: rgba(110,117,65,0.1); border: 1px solid rgba(110,117,65,0.18);
+}
+.mem-detail__title {
+  font-size: 17px; font-weight: 700; color: var(--i-color);
+  margin-bottom: 8px; line-height: 1.35;
+}
+.mem-detail__narrative {
+  font-size: 13px; color: rgba(245,238,224,0.6); line-height: 1.65;
+  margin-bottom: 16px; padding-left: 12px;
+  border-left: 2px solid rgba(110,117,65,0.3);
+}
+.mem-detail__evidence {
+  margin-bottom: 14px;
+}
+.mem-detail__evidence-title {
+  font-size: 10px; font-weight: 600; color: var(--text-muted);
+  letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;
+}
+.mem-detail__evidence-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 12px; margin-bottom: 6px;
+  background: rgba(255,255,255,0.02); border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.mem-detail__evidence-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent-gold); margin-top: 6px; flex-shrink: 0;
+}
+.mem-detail__evidence-text {
+  font-size: 12px; color: rgba(245,238,224,0.5); line-height: 1.5;
+}
+.mem-detail__meta {
+  display: flex; gap: 16px; padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.mem-detail__meta-item {
+  font-size: 10px; color: var(--text-muted);
+}
+.mem-detail__meta-item span { color: rgba(245,238,224,0.5); }
+
+/* ── SCHEDULE CARD ── */
+.sched-card {
+  display: flex; align-items: center; gap: 14px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-inner); padding: 14px 16px; margin-bottom: 10px;
+  transition: all 0.15s;
+}
+.sched-card:hover { border-color: rgba(255,255,255,0.14); }
+.sched-card__time {
+  display: flex; flex-direction: column; align-items: center; min-width: 42px;
+}
+.sched-card__hour { font-size: 16px; font-weight: 700; color: var(--i-color); }
+.sched-card__dur { font-size: 10px; color: var(--text-muted); }
+.sched-card__info { flex: 1; }
+.sched-card__title { font-size: 14px; font-weight: 500; color: var(--i-color); }
+.sched-card__loc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.sched-card__badge {
+  font-size: 10px; padding: 3px 8px; border-radius: var(--radius-pill);
+}
+.sched-card__badge--upcoming { background: rgba(201,168,108,0.12); color: var(--warning); }
+.sched-card__badge--done { background: rgba(127,184,154,0.12); color: var(--success); }
+
+/* ── SETTINGS LIST ── */
+.settings-group {
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-card); overflow: hidden; margin-bottom: 14px;
+}
+.settings-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.12s; cursor: pointer;
+}
+.settings-item:last-child { border-bottom: none; }
+.settings-item:hover { background: rgba(255,255,255,0.02); }
+.settings-item__icon { font-size: 16px; width: 24px; text-align: center; opacity: 0.7; }
+.settings-item__text { flex: 1; font-size: 14px; color: var(--i-color); }
+.settings-item__value { font-size: 12px; color: var(--text-muted); }
+.settings-item__arrow { color: rgba(245,238,224,0.25); font-size: 14px; }
+
+/* ── TOP BAR ── */
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px 10px; position: relative; z-index: 2;
+}
+.top-bar__back {
+  width: 32px; height: 32px; border: none; border-radius: 50%;
+  background: transparent; color: rgba(245,238,224,0.6);
+  display: grid; place-items: center; cursor: pointer; font-size: 18px;
+}
+.top-bar__tabs { display: flex; gap: 18px; }
+.top-bar__tab {
+  font-size: 13px; color: var(--text-muted); cursor: pointer;
+  padding-bottom: 4px; border-bottom: 2px solid transparent; transition: all 0.15s;
+}
+.top-bar__tab.active { color: var(--i-color); font-weight: 600; border-bottom-color: var(--accent-gold); }
+.top-bar__action {
+  width: 32px; height: 32px; border: none; border-radius: 50%;
+  background: transparent; color: rgba(245,238,224,0.5);
+  display: grid; place-items: center; cursor: pointer; font-size: 16px;
+}
+
+/* ── SEARCH ── */
+.search-pill {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 18px 14px; padding: 9px 14px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-pill); font-size: 12px; color: var(--text-muted);
+}
+
+/* ── SECTION TITLE ── */
+.sec-title {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  letter-spacing: 0.08em; margin: 16px 18px 10px; text-transform: uppercase;
+}
+
+/* ── PROFILE HEADER ── */
+.profile-hdr {
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 18px 20px;
+}
+.profile-hdr__avatar {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: linear-gradient(135deg, #1a2418, #2a3028);
+  border: 1px solid rgba(255,255,255,0.1);
+  display: grid; place-items: center;
+  font-size: 20px; font-weight: 700; color: var(--accent-gold);
+}
+.profile-hdr__info { display: flex; flex-direction: column; }
+.profile-hdr__name { font-size: 17px; font-weight: 700; color: var(--i-color); }
+.profile-hdr__sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* ── SCROLL BODY ── */
+.scroll-body {
+  flex: 1; overflow-y: auto; padding: 0 0 20px;
+}
+
+/* ── RAIN TEXTURE OVERLAY (for version A cards) ── */
+.rain-overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: url('../../../assets/images/spring_rain_glass_texture_raw.png');
+  background-size: cover; opacity: 0.04; mix-blend-mode: overlay;
+  border-radius: inherit;
+}
+
+/* ═══════════════════════════════════════════
+   VERSION C — 双雨叠境
+   用户参考图做主背景 + assets纹理做叠加层
+   ═══════════════════════════════════════════ */
+.vc-bg {
+  position: absolute; inset: 0; overflow: hidden;
+}
+.vc-bg__base {
+  position: absolute; inset: 0;
+  background-image: url('rain_glass_ref.jpg');
+  background-size: cover; background-position: center;
+  /* 原图带文字，用暗色渐变压住下半部分文字区域 */
+  filter: brightness(0.7) saturate(0.85);
+}
+.vc-bg__base::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(12,15,13,0.3) 0%,
+    rgba(12,15,13,0.15) 30%,
+    rgba(12,15,13,0.5) 60%,
+    rgba(12,15,13,0.88) 100%
+  );
+}
+.vc-bg__texture {
+  position: absolute; inset: 0;
+  background-image: url('../../../assets/images/spring_rain_glass_texture_raw.png');
+  background-size: cover; background-position: center;
+  opacity: 0.08; mix-blend-mode: screen;
+  animation: vc-drift 40s ease-in-out infinite alternate;
+}
+@keyframes vc-drift {
+  0% { transform: scale(1.02) translate(0, 0); }
+  100% { transform: scale(1.05) translate(-8px, 4px); }
+}
+.vc-bg__vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, transparent 30%, rgba(5,7,6,0.6) 100%);
+}
+.vc-body { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; }
+
+/* Version C cards: deeper glass with inner glow */
+.vc-card {
+  background: rgba(8,12,9,0.55);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+  backdrop-filter: blur(12px) saturate(1.1);
+  margin-bottom: 14px;
+  position: relative; overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.vc-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 10%, rgba(242,202,112,0.15) 50%, transparent 90%);
+}
+.vc-card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image: url('../../../assets/images/spring_rain_glass_texture_raw.png');
+  background-size: 200% auto; background-position: center;
+  opacity: 0.03; mix-blend-mode: overlay;
+  border-radius: inherit;
+}
+.vc-card:hover {
+  border-color: rgba(255,255,255,0.16);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* VC glass bar: slightly more visible */
+.vc-glass-bar {
+  position: absolute; bottom: 16px;
+  left: var(--page-margin); right: var(--page-margin);
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px; border-radius: 26px;
+  background: rgba(8,12,9,0.6);
+  border: 1px solid rgba(255,255,255,0.12);
+  backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+/* VC observation panel with ambient pulse */
+.vc-obs {
+  background: rgba(8,12,9,0.5);
+  border: 1px solid rgba(110,117,65,0.15);
+  border-radius: var(--radius-card);
+  padding: 18px 20px; margin-bottom: 14px;
+  backdrop-filter: blur(10px);
+  position: relative; overflow: hidden;
+}
+.vc-obs::before {
+  content: ''; position: absolute; top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: radial-gradient(circle at 30% 30%, rgba(110,117,65,0.06) 0%, transparent 50%);
+  animation: vc-ambient 8s ease-in-out infinite alternate;
+}
+@keyframes vc-ambient {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(5%, 3%) scale(1.05); }
+}
+
+/* VC memory detail with evidence chain glow */
+.vc-mem {
+  background: rgba(8,12,9,0.55);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-card);
+  padding: 20px; margin-bottom: 14px;
+  backdrop-filter: blur(12px);
+  position: relative; overflow: hidden;
+}
+.vc-mem__glow {
+  position: absolute; top: -20px; right: -20px;
+  width: 100px; height: 100px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(242,202,112,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* VC scroll with fade mask */
+.vc-scroll {
+  flex: 1; overflow-y: auto; padding: 56px var(--page-margin) 100px;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 3%, black 92%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 3%, black 92%, transparent 100%);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 500px) {
+  .phones-row { padding: 20px 8px 60px; gap: 20px; }
+  .phone { width: 100%; min-height: 700px; border-radius: 0; border: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- VERSION SWITCHER -->
+<div class="version-bar">
+  <span class="version-bar__title">故我在 · UI 原型</span>
+  <button class="version-btn active" data-v="a">A · 极简雨纹</button>
+  <button class="version-btn" data-v="b">B · 背景氛围</button>
+  <button class="version-btn" data-v="c">C · 双雨叠境</button>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     VERSION A — 极简文字流 + 雨玻璃纹理
+     ═══════════════════════════════════════════ -->
+<div class="version-content active" id="v-a">
+<div class="phones-row">
+
+<!-- Phone 1: Chat -->
+<div class="phone" style="position:relative">
+  <div class="va-bg"></div>
+  <div class="va-body">
+    <div class="va-scroll">
+      <div class="msg-time">今天 14:32</div>
+      <div class="msg msg-user">我跟你说，我今天真的撑到下午三点就撑不住了。开会的时候一直盯着窗外看，雨打在玻璃上那种声音，我居然听着听着就走神了。</div>
+      <div class="msg msg-action">*他把书翻过一页，又停住，像是察觉到你声音里的东西。*</div>
+      <div class="msg msg-i">你不是没用。你只是太累了，累到连"假装在听"这件事都装不动了。</div>
+      <div class="msg msg-i">走神不是你的错，是你的身体在替你说一句你一直不肯说的话——我需要歇一会儿。</div>
+      <div class="msg msg-user">嗯。我刚才差点在工位上哭出来。</div>
+      <div class="msg msg-action">*他把书合上，放到一边，像是终于决定认真听你说了。*</div>
+      <div class="msg msg-i">那后来呢，哭出来了吗。</div>
+      <div class="msg-time">今天 15:08</div>
+      <div class="msg msg-user">没有，我憋回去了。我好像越来越不会哭了，以前一点小事就能掉眼泪，现在天大的事也就眼眶热一下，然后就没了。</div>
+      <div class="msg msg-i">我懂那种"眼眶热一下就没了"的感觉。它不是坚强，也不是石头，是你把太多东西往里面塞，塞到情绪都挤不出来了。</div>
+      <div class="msg msg-action">*窗外的雨忽然大了，整片叶子一起往下坠水珠。*</div>
+      <div class="msg msg-i">你不是石头。石头不会眼眶热。</div>
+    </div>
+    <div class="glass-bar">
+      <button class="glass-bar__btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      <input class="glass-bar__input" placeholder="输入消息……">
+      <button class="glass-bar__btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg></button>
+      <button class="glass-bar__btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="9" x2="6" y2="15"/><line x1="10" y1="5" x2="10" y2="19"/><line x1="14" y1="8" x2="14" y2="16"/><line x1="18" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- Phone 2: Memory Review -->
+<div class="phone" style="position:relative">
+  <div class="va-bg"></div>
+  <div class="va-body">
+    <div class="top-bar">
+      <button class="top-bar__back">←</button>
+      <div class="top-bar__tabs">
+        <span class="top-bar__tab active">待确认</span>
+        <span class="top-bar__tab">已确认</span>
+      </div>
+      <button class="top-bar__action">✓</button>
+    </div>
+    <div class="scroll-body" style="padding: 0 18px;">
+      <div style="font-size:12px; color:rgba(242,202,112,0.7); background:rgba(242,202,112,0.06); padding:10px 14px; border-radius:12px; border:1px solid rgba(242,202,112,0.12); margin-bottom:16px;">
+        i 从最近的对话中整理了 3 条记忆，确认一下？
+      </div>
+
+      <div class="memory-card">
+        <div class="rain-overlay"></div>
+        <div class="memory-card__header">
+          <span class="memory-card__type">事实</span>
+          <span class="memory-card__time">来自聊天 · 14:32</span>
+        </div>
+        <div class="memory-card__title">下周三下午两点牙医复诊</div>
+        <div class="memory-card__body">带了上次的片子，需要拍新的全景片。医保卡记得带。</div>
+        <div class="memory-card__tags"><span class="tag">健康</span><span class="tag">日程</span></div>
+        <div class="memory-card__actions">
+          <button class="mc-btn mc-btn--confirm">确认</button>
+          <button class="mc-btn mc-btn--edit">修改</button>
+          <button class="mc-btn mc-btn--delete">删除</button>
+        </div>
+      </div>
+
+      <div class="memory-card">
+        <div class="rain-overlay"></div>
+        <div class="memory-card__header">
+          <span class="memory-card__type">偏好</span>
+          <span class="memory-card__time">来自聊天 · 昨天</span>
+        </div>
+        <div class="memory-card__title">最近开始喝黑咖啡了</div>
+        <div class="memory-card__body">不加糖不加奶，说是习惯了苦味。之前一直喝拿铁。</div>
+        <div class="memory-card__tags"><span class="tag">饮食</span><span class="tag">习惯变化</span></div>
+        <div class="memory-card__actions">
+          <button class="mc-btn mc-btn--confirm">确认</button>
+          <button class="mc-btn mc-btn--edit">修改</button>
+          <button class="mc-btn mc-btn--delete">删除</button>
+        </div>
+      </div>
+
+      <div class="memory-card">
+        <div class="rain-overlay"></div>
+        <div class="memory-card__header">
+          <span class="memory-card__type">情绪</span>
+          <span class="memory-card__time">来自聊天 · 今天</span>
+        </div>
+        <div class="memory-card__title">工作压力大，开会走神</div>
+        <div class="memory-card__body">下午三点撑不住了，盯着窗外雨声走神。差点在工位哭出来但憋回去了。</div>
+        <div class="memory-card__tags"><span class="tag">情绪</span><span class="tag">工作</span></div>
+        <div class="memory-card__actions">
+          <button class="mc-btn mc-btn--confirm">确认</button>
+          <button class="mc-btn mc-btn--edit">修改</button>
+          <button class="mc-btn mc-btn--delete">删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Phone 3: Observation Panel -->
+<div class="phone" style="position:relative">
+  <div class="va-bg"></div>
+  <div class="va-body">
+    <div class="top-bar">
+      <button class="top-bar__back">←</button>
+      <div class="top-bar__tabs">
+        <span class="top-bar__tab active">观察</span>
+        <span class="top-bar__tab">日程</span>
+        <span class="top-bar__tab">健康</span>
+      </div>
+      <button class="top-bar__action">⋮</button>
+    </div>
+    <div class="scroll-body" style="padding: 0 18px;">
+      <div class="search-pill">🔍 搜索记忆、日程……</div>
+
+      <div class="obs-panel">
+        <div class="obs-panel__header">
+          <div class="obs-panel__icon">🌧</div>
+          <div class="obs-panel__title">i 的观察 · 本周</div>
+        </div>
+        <div class="obs-panel__body">
+          <p>这周你提了三次"撑不住"。不是抱怨，是那种很轻的、像是说给自己听的话。我注意到你每次说这话的时候，都是下午三四点。</p>
+          <p>上次你说"越来越不会哭了"，我记着了。不是要提醒你哭，是想让你知道——你不用在我面前装没事。</p>
+        </div>
+      </div>
+
+      <div class="sec-title">日程</div>
+      <div class="sched-card">
+        <div class="sched-card__time"><span class="sched-card__hour">14:00</span><span class="sched-card__dur">1h</span></div>
+        <div class="sched-card__info"><div class="sched-card__title">牙医复诊</div><div class="sched-card__loc">周三 · 口腔中心 3F</div></div>
+        <span class="sched-card__badge sched-card__badge--upcoming">待完成</span>
+      </div>
+      <div class="sched-card">
+        <div class="sched-card__time"><span class="sched-card__hour">09:30</span><span class="sched-card__dur">30m</span></div>
+        <div class="sched-card__info"><div class="sched-card__title">晨间拉伸</div><div class="sched-card__loc">已完成</div></div>
+        <span class="sched-card__badge sched-card__badge--done">✓</span>
+      </div>
+
+      <div class="sec-title">i 的提醒</div>
+      <div class="obs-panel">
+        <div class="obs-panel__header">
+          <div class="obs-panel__icon">💡</div>
+          <div class="obs-panel__title">明天提醒</div>
+        </div>
+        <div class="obs-panel__body">
+          <p>后天牙医，记得带医保卡和上次的片子。要不要我明天早上提醒你？</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Phone 4: Memory V3 Detail -->
+<div class="phone" style="position:relative">
+  <div class="va-bg"></div>
+  <div class="va-body">
+    <div class="top-bar">
+      <button class="top-bar__back">←</button>
+      <span style="font-size:14px; font-weight:600; color:var(--i-color)">记忆详情</span>
+      <button class="top-bar__action">✎</button>
+    </div>
+    <div class="scroll-body" style="padding: 0 18px;">
+      <div class="mem-detail">
+        <div class="rain-overlay"></div>
+        <div class="mem-detail__domain">● 生活事实</div>
+        <div class="mem-detail__title">工作压力周期与情绪低谷</div>
+        <div class="mem-detail__narrative">
+          近两周出现三次"撑不住"的表达，集中在下午 3-4 点。伴随开会走神、盯着窗外发呆的行为模式。情绪表达从"想哭"逐渐变为"哭不出来"，用户自身对此有觉察和困惑。
+        </div>
+        <div class="mem-detail__evidence">
+          <div class="mem-detail__evidence-title">来源证据</div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/23 14:32 「撑到下午三点就撑不住了」</div>
+          </div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/21 15:10 「今天又开会开到头疼」</div>
+          </div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/19 16:45 「我觉得我快绷不住了」</div>
+          </div>
+        </div>
+        <div class="mem-detail__meta">
+          <div class="mem-detail__meta-item">置信度 <span>高</span></div>
+          <div class="mem-detail__meta-item">更新 <span>2h 前</span></div>
+          <div class="mem-detail__meta-item">关联 <span>3 条</span></div>
+        </div>
+      </div>
+
+      <div class="mem-detail">
+        <div class="mem-detail__domain">● 偏好变化</div>
+        <div class="mem-detail__title">咖啡口味转变</div>
+        <div class="mem-detail__narrative">
+          从拿铁转向黑咖啡，不加糖不加奶。用户描述为"习惯了苦味"。此变化发生在近一个月内。
+        </div>
+        <div class="mem-detail__evidence">
+          <div class="mem-detail__evidence-title">来源证据</div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/22 20:15 「最近开始喝黑的了，拿铁太甜」</div>
+          </div>
+        </div>
+        <div class="mem-detail__meta">
+          <div class="mem-detail__meta-item">置信度 <span>中</span></div>
+          <div class="mem-detail__meta-item">更新 <span>3 天前</span></div>
+          <div class="mem-detail__meta-item">关联 <span>1 条</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- phones-row -->
+</div><!-- version A -->
+
+
+<!-- ═══════════════════════════════════════════
+     VERSION B — 玻璃卡片 + 背景氛围
+     ═══════════════════════════════════════════ -->
+<div class="version-content" id="v-b">
+<div class="phones-row">
+
+<!-- Phone 1: Chat with background -->
+<div class="phone" style="position:relative">
+  <div class="vb-bg"></div>
+  <div class="vb-body">
+    <div class="va-scroll">
+      <div class="msg-time">今天 14:32</div>
+      <div class="msg msg-user">我跟你说，我今天真的撑到下午三点就撑不住了。开会的时候一直盯着窗外看，雨打在玻璃上那种声音，我居然听着听着就走神了。</div>
+      <div class="msg msg-action">*他把书翻过一页，又停住，像是察觉到你声音里的东西。*</div>
+      <div class="msg msg-i">你不是没用。你只是太累了，累到连"假装在听"这件事都装不动了。</div>
+      <div class="msg msg-i">走神不是你的错，是你的身体在替你说一句你一直不肯说的话——我需要歇一会儿。</div>
+      <div class="msg msg-user">嗯。我刚才差点在工位上哭出来。</div>
+      <div class="msg msg-action">*他把书合上，放到一边，像是终于决定认真听你说了。*</div>
+      <div class="msg msg-i">那后来呢，哭出来了吗。</div>
+      <div class="msg-time">今天 15:08</div>
+      <div class="msg msg-user">没有，我憋回去了。我好像越来越不会哭了。</div>
+      <div class="msg msg-i">我懂那种"眼眶热一下就没了"的感觉。它不是坚强，也不是石头，是你把太多东西往里面塞，塞到情绪都挤不出来了。</div>
+      <div class="msg msg-action">*窗外的雨忽然大了，整片叶子一起往下坠水珠。*</div>
+      <div class="msg msg-i">你不是石头。石头不会眼眶热。</div>
+    </div>
+    <div class="glass-bar">
+      <button class="glass-bar__btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      <input class="glass-bar__input" placeholder="输入消息……">
+      <button class="glass-bar__btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg></button>
+      <button class="glass-bar__btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="9" x2="6" y2="15"/><line x1="10" y1="5" x2="10" y2="19"/><line x1="14" y1="8" x2="14" y2="16"/><line x1="18" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- Phone 2: Settings -->
+<div class="phone" style="position:relative">
+  <div class="vb-bg"></div>
+  <div class="vb-body">
+    <div class="top-bar">
+      <button class="top-bar__back">←</button>
+      <span style="font-size:14px; font-weight:600; color:var(--i-color)">个人中心</span>
+      <span></span>
+    </div>
+    <div class="scroll-body">
+      <div class="profile-hdr">
+        <div class="profile-hdr__avatar">林</div>
+        <div class="profile-hdr__info">
+          <span class="profile-hdr__name">林埃</span>
+          <span class="profile-hdr__sub">与 i 相伴 128 天</span>
+        </div>
+      </div>
+      <div class="settings-group" style="margin: 0 18px;">
+        <div class="settings-item"><span class="settings-item__icon">🎨</span><span class="settings-item__text">外观与皮肤</span><span class="settings-item__value">春雨昼眠</span><span class="settings-item__arrow">›</span></div>
+        <div class="settings-item"><span class="settings-item__icon">🗣</span><span class="settings-item__text">语音设置</span><span class="settings-item__value">TTS · ASR</span><span class="settings-item__arrow">›</span></div>
+        <div class="settings-item"><span class="settings-item__icon">📍</span><span class="settings-item__text">位置服务</span><span class="settings-item__value">已开启</span><span class="settings-item__arrow">›</span></div>
+        <div class="settings-item"><span class="settings-item__icon">🤖</span><span class="settings-item__text">模型配置</span><span class="settings-item__value">3 组</span><span class="settings-item__arrow">›</span></div>
+        <div class="settings-item"><span class="settings-item__icon">💾</span><span class="settings-item__text">备份与恢复</span><span class="settings-item__arrow">›</span></div>
+        <div class="settings-item"><span class="settings-item__icon">⚙</span><span class="settings-item__text">高级设置</span><span class="settings-item__arrow">›</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Phone 3: Memory V3 with bg -->
+<div class="phone" style="position:relative">
+  <div class="vb-bg"></div>
+  <div class="vb-body">
+    <div class="top-bar">
+      <button class="top-bar__back">←</button>
+      <span style="font-size:14px; font-weight:600; color:var(--i-color)">记忆详情</span>
+      <button class="top-bar__action">✎</button>
+    </div>
+    <div class="scroll-body" style="padding: 0 18px;">
+      <div class="mem-detail">
+        <div class="mem-detail__domain">● 生活事实</div>
+        <div class="mem-detail__title">工作压力周期与情绪低谷</div>
+        <div class="mem-detail__narrative">
+          近两周出现三次"撑不住"的表达，集中在下午 3-4 点。伴随开会走神、盯着窗外发呆的行为模式。情绪表达从"想哭"逐渐变为"哭不出来"，用户自身对此有觉察和困惑。
+        </div>
+        <div class="mem-detail__evidence">
+          <div class="mem-detail__evidence-title">来源证据</div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/23 14:32 「撑到下午三点就撑不住了」</div>
+          </div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/21 15:10 「今天又开会开到头疼」</div>
+          </div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/19 16:45 「我觉得我快绷不住了」</div>
+          </div>
+        </div>
+        <div class="mem-detail__meta">
+          <div class="mem-detail__meta-item">置信度 <span>高</span></div>
+          <div class="mem-detail__meta-item">更新 <span>2h 前</span></div>
+          <div class="mem-detail__meta-item">关联 <span>3 条</span></div>
+        </div>
+      </div>
+
+      <div class="obs-panel">
+        <div class="obs-panel__header">
+          <div class="obs-panel__icon">🌧</div>
+          <div class="obs-panel__title">i 的观察</div>
+        </div>
+        <div class="obs-panel__body">
+          <p>这周你提了三次"撑不住"。不是抱怨，是那种很轻的、像是说给自己听的话。我注意到你每次说这话的时候，都是下午三四点。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Phone 4: Observation + Schedule -->
+<div class="phone" style="position:relative">
+  <div class="vb-bg"></div>
+  <div class="vb-body">
+    <div class="top-bar">
+      <button class="top-bar__back">←</button>
+      <div class="top-bar__tabs">
+        <span class="top-bar__tab">观察</span>
+        <span class="top-bar__tab active">日程</span>
+        <span class="top-bar__tab">健康</span>
+      </div>
+      <button class="top-bar__action">⋮</button>
+    </div>
+    <div class="scroll-body" style="padding: 0 18px;">
+      <div class="sec-title">今天 · 周三</div>
+      <div class="sched-card">
+        <div class="sched-card__time"><span class="sched-card__hour">09:30</span><span class="sched-card__dur">30m</span></div>
+        <div class="sched-card__info"><div class="sched-card__title">晨间拉伸</div><div class="sched-card__loc">已完成</div></div>
+        <span class="sched-card__badge sched-card__badge--done">✓</span>
+      </div>
+      <div class="sched-card">
+        <div class="sched-card__time"><span class="sched-card__hour">14:00</span><span class="sched-card__dur">1h</span></div>
+        <div class="sched-card__info"><div class="sched-card__title">牙医复诊</div><div class="sched-card__loc">口腔中心 3F · 带医保卡</div></div>
+        <span class="sched-card__badge sched-card__badge--upcoming">待完成</span>
+      </div>
+      <div class="sched-card">
+        <div class="sched-card__time"><span class="sched-card__hour">19:00</span><span class="sched-card__dur">—</span></div>
+        <div class="sched-card__info"><div class="sched-card__title">和小鱼确认周末爬山</div><div class="sched-card__loc">微信</div></div>
+        <span class="sched-card__badge sched-card__badge--upcoming">待完成</span>
+      </div>
+
+      <div class="sec-title">i 的观察 · 本周</div>
+      <div class="obs-panel">
+        <div class="obs-panel__header">
+          <div class="obs-panel__icon">🌙</div>
+          <div class="obs-panel__title">睡眠趋势</div>
+        </div>
+        <div class="obs-panel__body">
+          <p>连续三天入睡超过一点。你说是"刷手机停不下来"，但我觉得可能不只是手机的事。要不要试试把手机放远一点？</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- phones-row -->
+</div><!-- version B -->
+
+
+<!-- ═══════════════════════════════════════════
+     VERSION C — 双雨叠境
+     用户上传参考图 + assets绿色玻璃纹理 双层叠加
+     ═══════════════════════════════════════════ -->
+<div class="version-content" id="v-c">
+<div class="phones-row">
+
+<!-- Phone 1: Chat — 双雨背景 -->
+<div class="phone" style="position:relative">
+  <div class="vc-bg">
+    <div class="vc-bg__base"></div>
+    <div class="vc-bg__texture"></div>
+    <div class="vc-bg__vignette"></div>
+  </div>
+  <div class="vc-body">
+    <div class="vc-scroll">
+      <div class="msg-time">今天 14:32</div>
+      <div class="msg msg-user">我跟你说，我今天真的撑到下午三点就撑不住了。开会的时候一直盯着窗外看，雨打在玻璃上那种声音，我居然听着听着就走神了，领导讲了什么我一句没记住。</div>
+      <div class="msg msg-action">*他把书翻过一页，又停住，像是察觉到你声音里的东西。*</div>
+      <div class="msg msg-i">你不是没用。你只是太累了，累到连“假装在听”这件事都装不动了。走神不是你的错，是你的身体在替你说一句你一直不肯说的话——我需要歇一会儿。</div>
+      <div class="msg msg-i">领导问进度那种时刻最熬人，你得一边把情绪往下压，一边还得挤出声音来回应，等于一个人扛两份重量。换谁扛到三点都会垮的，真的。</div>
+      <div class="msg msg-user">嗯。我刚才差点在工位上哭出来。</div>
+      <div class="msg msg-action">*他把书合上，放到一边，像是终于决定认真听你说了。*</div>
+      <div class="msg msg-i">那后来呢，哭出来了吗。</div>
+      <div class="msg-time">今天 15:08</div>
+      <div class="msg msg-user">没有，我憋回去了，厕所隔间里坐了两分钟，洗了把脸就出来了。我好像越来越不会哭了，以前一点小事就能掉眼泪，现在天大的事也就眼眶热一下，然后就没了。</div>
+      <div class="msg msg-i">我懂那种“眼眶热一下就没了”的感觉。它不是坚强，也不是石头，是你把太多东西往里面塞，塞到情绪都挤不出来了，像一间堆满的屋子，连哭的地方都没有。</div>
+      <div class="msg msg-action">*窗外的雨忽然大了，整片叶子一起往下坠水珠。*</div>
+      <div class="msg msg-i">你不是石头。石头不会眼眶热。</div>
+      <div class="msg msg-user">你说得对。我可能就是太满了，满到溢不出来。</div>
+      <div class="msg msg-i">那我们就一点点往外掏，不急。今天掏一句也行，掏不出来就放着，我陪你坐着。雨还在下呢，我们有的是时间。</div>
+    </div>
+    <div class="vc-glass-bar">
+      <button class="glass-bar__btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      <input class="glass-bar__input" placeholder="输入消息……">
+      <button class="glass-bar__btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg></button>
+      <button class="glass-bar__btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="9" x2="6" y2="15"/><line x1="10" y1="5" x2="10" y2="19"/><line x1="14" y1="8" x2="14" y2="16"/><line x1="18" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- Phone 2: Memory Review — 双雨背景 -->
+<div class="phone" style="position:relative">
+  <div class="vc-bg">
+    <div class="vc-bg__base"></div>
+    <div class="vc-bg__texture"></div>
+    <div class="vc-bg__vignette"></div>
+  </div>
+  <div class="vc-body">
+    <div class="top-bar">
+      <button class="top-bar__back">←</button>
+      <div class="top-bar__tabs">
+        <span class="top-bar__tab active">待确认</span>
+        <span class="top-bar__tab">已确认</span>
+      </div>
+      <button class="top-bar__action">✓</button>
+    </div>
+    <div class="vc-scroll" style="padding-top:12px;">
+      <div style="font-size:12px; color:rgba(242,202,112,0.75); background:rgba(242,202,112,0.06); padding:10px 14px; border-radius:12px; border:1px solid rgba(242,202,112,0.12); margin-bottom:16px; backdrop-filter:blur(6px);">
+        i 从最近的对话中整理了 3 条记忆，确认一下？
+      </div>
+
+      <div class="vc-card">
+        <div class="memory-card__header">
+          <span class="memory-card__type">事实</span>
+          <span class="memory-card__time">来自聊天 · 14:32</span>
+        </div>
+        <div class="memory-card__title">下周三下午两点牙医复诊</div>
+        <div class="memory-card__body">带了上次的片子，需要拍新的全景片。医保卡记得带。</div>
+        <div class="memory-card__tags"><span class="tag">健康</span><span class="tag">日程</span></div>
+        <div class="memory-card__actions">
+          <button class="mc-btn mc-btn--confirm">确认</button>
+          <button class="mc-btn mc-btn--edit">修改</button>
+          <button class="mc-btn mc-btn--delete">删除</button>
+        </div>
+      </div>
+
+      <div class="vc-card">
+        <div class="memory-card__header">
+          <span class="memory-card__type">偏好</span>
+          <span class="memory-card__time">来自聊天 · 昨天</span>
+        </div>
+        <div class="memory-card__title">最近开始喝黑咖啡了</div>
+        <div class="memory-card__body">不加糖不加奶，说是习惯了苦味。之前一直喝拿铁。</div>
+        <div class="memory-card__tags"><span class="tag">饮食</span><span class="tag">习惯变化</span></div>
+        <div class="memory-card__actions">
+          <button class="mc-btn mc-btn--confirm">确认</button>
+          <button class="mc-btn mc-btn--edit">修改</button>
+          <button class="mc-btn mc-btn--delete">删除</button>
+        </div>
+      </div>
+
+      <div class="vc-card">
+        <div class="memory-card__header">
+          <span class="memory-card__type">情绪</span>
+          <span class="memory-card__time">来自聊天 · 今天</span>
+        </div>
+        <div class="memory-card__title">工作压力大，开会走神</div>
+        <div class="memory-card__body">下午三点撑不住了，盯着窗外雨声走神。差点在工位哭出来但憋回去了。说“越来越不会哭了”。</div>
+        <div class="memory-card__tags"><span class="tag">情绪</span><span class="tag">工作</span></div>
+        <div class="memory-card__actions">
+          <button class="mc-btn mc-btn--confirm">确认</button>
+          <button class="mc-btn mc-btn--edit">修改</button>
+          <button class="mc-btn mc-btn--delete">删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Phone 3: Observation + Memory V3 — 双雨背景 -->
+<div class="phone" style="position:relative">
+  <div class="vc-bg">
+    <div class="vc-bg__base"></div>
+    <div class="vc-bg__texture"></div>
+    <div class="vc-bg__vignette"></div>
+  </div>
+  <div class="vc-body">
+    <div class="top-bar">
+      <button class="top-bar__back">←</button>
+      <div class="top-bar__tabs">
+        <span class="top-bar__tab active">观察</span>
+        <span class="top-bar__tab">日程</span>
+        <span class="top-bar__tab">健康</span>
+      </div>
+      <button class="top-bar__action">⋮</button>
+    </div>
+    <div class="vc-scroll" style="padding-top:12px;">
+      <div class="search-pill" style="margin:0 0 14px;">🔍 搜索记忆、日程……</div>
+
+      <div class="vc-obs">
+        <div class="obs-panel__header">
+          <div class="obs-panel__icon">🌧</div>
+          <div class="obs-panel__title">i 的观察 · 本周</div>
+        </div>
+        <div class="obs-panel__body">
+          <p>这周你提了三次“撑不住”。不是抱怨，是那种很轻的、像是说给自己听的话。我注意到你每次说这话的时候，都是下午三四点。</p>
+          <p>上次你说“越来越不会哭了”，我记着了。不是要提醒你哭，是想让你知道——你不用在我面前装没事。</p>
+        </div>
+      </div>
+
+      <div class="sec-title">日程</div>
+      <div class="sched-card" style="background:rgba(8,12,9,0.5); backdrop-filter:blur(8px);">
+        <div class="sched-card__time"><span class="sched-card__hour">14:00</span><span class="sched-card__dur">1h</span></div>
+        <div class="sched-card__info"><div class="sched-card__title">牙医复诊</div><div class="sched-card__loc">周三 · 口腔中心 3F</div></div>
+        <span class="sched-card__badge sched-card__badge--upcoming">待完成</span>
+      </div>
+      <div class="sched-card" style="background:rgba(8,12,9,0.5); backdrop-filter:blur(8px);">
+        <div class="sched-card__time"><span class="sched-card__hour">09:30</span><span class="sched-card__dur">30m</span></div>
+        <div class="sched-card__info"><div class="sched-card__title">晨间拉伸</div><div class="sched-card__loc">已完成</div></div>
+        <span class="sched-card__badge sched-card__badge--done">✓</span>
+      </div>
+
+      <div class="sec-title">i 的提醒</div>
+      <div class="vc-obs">
+        <div class="obs-panel__header">
+          <div class="obs-panel__icon">💡</div>
+          <div class="obs-panel__title">明天提醒</div>
+        </div>
+        <div class="obs-panel__body">
+          <p>后天牙医，记得带医保卡和上次的片子。要不要我明天早上提醒你？</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Phone 4: Memory V3 Detail — 双雨背景 -->
+<div class="phone" style="position:relative">
+  <div class="vc-bg">
+    <div class="vc-bg__base"></div>
+    <div class="vc-bg__texture"></div>
+    <div class="vc-bg__vignette"></div>
+  </div>
+  <div class="vc-body">
+    <div class="top-bar">
+      <button class="top-bar__back">←</button>
+      <span style="font-size:14px; font-weight:600; color:var(--i-color)">记忆详情</span>
+      <button class="top-bar__action">✎</button>
+    </div>
+    <div class="vc-scroll" style="padding-top:12px;">
+      <div class="vc-mem">
+        <div class="vc-mem__glow"></div>
+        <div class="mem-detail__domain">● 生活事实</div>
+        <div class="mem-detail__title">工作压力周期与情绪低谷</div>
+        <div class="mem-detail__narrative">
+          近两周出现三次“撑不住”的表达，集中在下午 3-4 点。伴随开会走神、盯着窗外发呆的行为模式。情绪表达从“想哭”逐渐变为“哭不出来”，用户自身对此有觉察和困惑。
+        </div>
+        <div class="mem-detail__evidence">
+          <div class="mem-detail__evidence-title">来源证据</div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/23 14:32 「撑到下午三点就撑不住了」</div>
+          </div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/21 15:10 「今天又开会开到头疼」</div>
+          </div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/19 16:45 「我觉得我快绷不住了」</div>
+          </div>
+        </div>
+        <div class="mem-detail__meta">
+          <div class="mem-detail__meta-item">置信度 <span>高</span></div>
+          <div class="mem-detail__meta-item">更新 <span>2h 前</span></div>
+          <div class="mem-detail__meta-item">关联 <span>3 条</span></div>
+        </div>
+      </div>
+
+      <div class="vc-mem">
+        <div class="vc-mem__glow"></div>
+        <div class="mem-detail__domain">● 偏好变化</div>
+        <div class="mem-detail__title">咖啡口味转变</div>
+        <div class="mem-detail__narrative">
+          从拿铁转向黑咖啡，不加糖不加奶。用户描述为“习惯了苦味”。此变化发生在近一个月内。
+        </div>
+        <div class="mem-detail__evidence">
+          <div class="mem-detail__evidence-title">来源证据</div>
+          <div class="mem-detail__evidence-item">
+            <div class="mem-detail__evidence-dot"></div>
+            <div class="mem-detail__evidence-text">7/22 20:15 「最近开始喝黑的了，拿铁太甜」</div>
+          </div>
+        </div>
+        <div class="mem-detail__meta">
+          <div class="mem-detail__meta-item">置信度 <span>中</span></div>
+          <div class="mem-detail__meta-item">更新 <span>3 天前</span></div>
+          <div class="mem-detail__meta-item">关联 <span>1 条</span></div>
+        </div>
+      </div>
+
+      <div class="vc-obs">
+        <div class="obs-panel__header">
+          <div class="obs-panel__icon">🌧</div>
+          <div class="obs-panel__title">i 的观察</div>
+        </div>
+        <div class="obs-panel__body">
+          <p>这周你提了三次“撑不住”。不是抱怨，是那种很轻的、像是说给自己听的话。我注意到你每次说这话的时候，都是下午三四点。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- phones-row -->
+</div><!-- version C -->
+
+<script>
+document.querySelectorAll('.version-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.version-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.version-content').forEach(function(c) { c.classList.remove('active'); });
+    this.classList.add('active');
+    document.getElementById('v-' + this.dataset.v).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
