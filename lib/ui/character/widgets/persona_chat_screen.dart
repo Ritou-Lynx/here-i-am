@@ -3772,17 +3772,9 @@ only after you have written the goodbye you want the user to hear.''',
       if (!enabled) {
         await _stopTtsPlayback();
       }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showToast(
-        enabled ? '自动朗读已开启' : '自动朗读已关闭',
-      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _autoReadEnabled = !enabled);
-      ScaffoldMessenger.of(context).showToast(
-        '自动朗读设置保存失败',
-        duration: const Duration(seconds: 2),
-      );
     }
   }
 
