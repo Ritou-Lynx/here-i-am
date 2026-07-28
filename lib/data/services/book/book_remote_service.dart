@@ -150,6 +150,36 @@ class BookRemoteService {
     }
   }
 
+  /// Fetch AI-generated summaries (characters + chapter summaries).
+  /// Returns null if summaries haven't been generated yet.
+  Future<Map<String, dynamic>?> getSummaries(String bookId) async {
+    final base = await getBaseUrl();
+    if (base.isEmpty) return null;
+    try {
+      final resp = await http
+          .get(_uri(base, '/v1/book/books/$bookId/summaries'), headers: _headers)
+          .timeout(const Duration(seconds: 15));
+      if (resp.statusCode != 200) return null;
+      return jsonDecode(resp.body) as Map<String, dynamic>?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Fetch single chapter summary (extracted from summaries.json).
+  Future<String?> getChapterSummary(String bookId, int number) async {
+    final summaries = await getSummaries(bookId);
+    if (summaries == null) return null;
+    final list = summaries['chapter_summaries'] as List<dynamic>?;
+    if (list == null) return null;
+    for (final s in list) {
+      if (s is Map && s['number'] == number) {
+        return s['summary'] as String?;
+      }
+    }
+    return null;
+  }
+
   // ── Notes ──────────────────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> getNotes(String bookId) async {

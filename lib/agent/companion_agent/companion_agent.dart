@@ -132,19 +132,28 @@ class CompanionAgent {
     final chapter = await lib.getChapter(active.id, progress.chapterNumber);
     final chTitle = chapter?.title ?? '第 ${progress.chapterNumber} 章';
 
-    // Get a snippet of the chapter content for context (first 500 chars)
-    final content = await lib.getChapterContent(active.id, progress.chapterNumber);
-    final snippet = content != null && content.length > 500
-        ? content.substring(0, 500)
-        : (content ?? '');
+    // Try AI summary first, fall back to raw text snippet
+    String? contextText;
+    try {
+      final summary = await lib.remote.getChapterSummary(active.id, progress.chapterNumber);
+      if (summary != null && summary.trim().isNotEmpty) {
+        contextText = '本章摘要：$summary';
+      }
+    } catch (_) {}
+    if (contextText == null) {
+      final content = await lib.getChapterContent(active.id, progress.chapterNumber);
+      if (content != null) {
+        contextText = content.length > 500
+            ? '本章开头：${content.substring(0, 500)}……'
+            : '本章内容：$content';
+      }
+    }
 
     final buf = StringBuffer();
     buf.writeln('## 用户正在读的书（当前章节）');
     buf.writeln('《${active.title}》· $chTitle（第 ${progress.chapterNumber}/${active.chapterCount} 章）');
-    if (snippet.isNotEmpty) {
-      buf.writeln('本章开头：');
-      buf.writeln(snippet);
-      if (content != null && content.length > 500) buf.writeln('……');
+    if (contextText != null && contextText.isNotEmpty) {
+      buf.writeln(contextText);
     }
     buf.writeln('这是用户此刻正在读的书。规则：');
     buf.writeln('- 用户没提书时，照常聊天，不要主动复述或总结章节内容。');
