@@ -13,7 +13,7 @@ const dataDir = join(__dirname, 'data');
 const chaptersDir = join(dataDir, 'chapters');
 const summariesPath = join(dataDir, 'summaries.json');
 const charactersPath = join(dataDir, 'characters.json');
-const model = 'qwen2.5vl:7b';
+const model = 'qwen3:8b';
 
 function screenplayToText(chapter) {
   const lines = [];
@@ -87,8 +87,8 @@ async function main() {
         else { parsed = { summary: result.substring(0, 200) }; }
       }
 
-      s.summary = parsed.summary || '';
-      s.key_events = parsed.key_events || [];
+      s.summary = parsed.summary || parsed.system || parsed.content || parsed.text || result.substring(0, 200);
+      s.key_events = parsed.key_events || parsed.events || [];
       console.log('  ✓ ' + s.summary.substring(0, 60));
       success++;
     } catch (e) {
