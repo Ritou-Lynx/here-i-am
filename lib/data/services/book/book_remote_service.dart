@@ -87,7 +87,8 @@ class BookRemoteService {
   // ── Import ─────────────────────────────────────────────────────────────────
 
   /// Upload a TXT file to the server for processing.
-  /// Returns the book metadata from the server, or null on failure.
+  /// Returns the book metadata from the server.
+  /// Throws on failure so the UI can show the actual error.
   Future<Map<String, dynamic>?> importBook(
     Uint8List bytes,
     String filename, {
@@ -95,24 +96,20 @@ class BookRemoteService {
     String? author,
   }) async {
     final base = await getBaseUrl();
-    if (base.isEmpty) return null;
-    try {
-      final uri = _uri(base, '/v1/book/import', {
-        'filename': filename,
-        if (title != null && title.isNotEmpty) 'title': title,
-        if (author != null && author.isNotEmpty) 'author': author,
-      });
-      final resp = await http
-          .post(uri, headers: {'Content-Type': 'application/octet-stream'}, body: bytes)
-          .timeout(const Duration(seconds: 60));
-      if (resp.statusCode == 201) {
-        final data = jsonDecode(resp.body);
-        return data['book'] as Map<String, dynamic>?;
-      }
-      return null;
-    } catch (_) {
-      return null;
+    if (base.isEmpty) throw Exception('未配置书籍服务地址');
+    final uri = _uri(base, '/v1/book/import', {
+      'filename': filename,
+      if (title != null && title.isNotEmpty) 'title': title,
+      if (author != null && author.isNotEmpty) 'author': author,
+    });
+    final resp = await http
+        .post(uri, headers: {'Content-Type': 'application/octet-stream'}, body: bytes)
+        .timeout(const Duration(seconds: 120));
+    if (resp.statusCode == 201) {
+      final data = jsonDecode(resp.body);
+      return data['book'] as Map<String, dynamic>?;
     }
+    throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
   }
 
   // ── Books ──────────────────────────────────────────────────────────────────

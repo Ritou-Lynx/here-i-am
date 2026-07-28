@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/services/book/book_library_service.dart';
+import 'package:memex/data/services/book/co_reading_note_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
@@ -80,6 +81,14 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
 
       await _loadChapterContent(startChapter);
       await _loadMessages();
+
+      if (CoReadingNoteService.isInitialized && _characterId.isNotEmpty) {
+        CoReadingNoteService.instance.maybeGenerateForBook(
+          bookId: widget.bookId,
+          bookTitle: widget.bookTitle,
+          characterId: _characterId,
+        );
+      }
 
       // Restore scroll position
       if (progress != null && progress.scrollRatio > 0) {
@@ -183,13 +192,18 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
             if (i == 0) {
               return const Padding(
                 padding: EdgeInsets.all(12),
-                child: Text('目录', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: Text('目录',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               );
             }
             final ch = _chapters[i - 1];
             return ListTile(
-              title: Text(ch.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: ch.number == _currentChapter ? const Icon(Icons.check, size: 18) : null,
+              title:
+                  Text(ch.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: ch.number == _currentChapter
+                  ? const Icon(Icons.check, size: 18)
+                  : null,
               onTap: () => Navigator.pop(ctx, ch.number),
             );
           },
@@ -275,7 +289,8 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 3),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+        constraints:
+            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
         decoration: BoxDecoration(
           color: fromCharacter ? Colors.white : const Color(0xFFD8F5B4),
           borderRadius: BorderRadius.circular(10),
@@ -304,7 +319,10 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
                 Expanded(
                   child: Text(
                     '和林埃聊 · ${_chapterTitle()}',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14),
                   ),
                 ),
               ],
@@ -312,7 +330,8 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
             Expanded(
               child: ListView.builder(
                 controller: _chatScroll,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 itemCount: _messages.length + (_reply.isNotEmpty ? 1 : 0),
                 itemBuilder: (_, i) {
                   if (i == _messages.length) return _buildBubble(_reply, true);
@@ -363,7 +382,13 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
           children: [
             const Icon(Icons.chat_bubble_outline, size: 20),
             const SizedBox(width: 8),
-            Text('和林埃聊这一段（${_chapterTitle()}）'),
+            Expanded(
+              child: Text(
+                '和林埃聊这一段（${_chapterTitle()}）',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
       ),
@@ -384,7 +409,8 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
     if (_error != null) {
       return Scaffold(
         appBar: AppBar(title: Text(widget.bookTitle)),
-        body: Center(child: Padding(
+        body: Center(
+            child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(_error!, textAlign: TextAlign.center),
         )),
@@ -417,7 +443,8 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
                     },
                     child: SingleChildScrollView(
                       controller: _scroll,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
                       child: SelectableText(
                         _content,
                         style: const TextStyle(
