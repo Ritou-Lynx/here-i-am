@@ -55,6 +55,14 @@ class PersonaReplySanitizer {
     r'use\s+(?:chinese|english)|stay\s+in\s+character)\b',
     caseSensitive: false,
   );
+  static final RegExp _englishAnalyticalOpener = RegExp(
+    r"^(?:there(?:'s|\s+is|\s+are)\b|i(?:'m|\s+am)\s+noticing|"
+    r'looking\s+at\b|given\s+the\b|based\s+on\b|it\s+seems\b|'
+    r'let\s+me\b|so\s+the\b|this\s+means\b|the\s+(?:key|main|real)\b|'
+    r"what(?:'s|\s+is)\s+(?:happening|going\s+on)|"
+    r'both\s+\w+\s+(?:actually|records?|entries))',
+    caseSensitive: false,
+  );
   static final RegExp _chineseMetaReference = RegExp(
     r'(?:用户|这段对话|聊天记录|对话发生在|身份自然地回应|以.+?的身份)',
   );
@@ -218,6 +226,9 @@ class PersonaReplySanitizer {
         .trim();
     if (result.isEmpty) return result;
 
+    result = _stripLeadingEnglishReasoningBlock(result);
+    if (result.isEmpty) return result;
+
     result = _stripLeadingReasoningSentences(result);
     if (result.isEmpty) return result;
 
@@ -260,10 +271,94 @@ class PersonaReplySanitizer {
     return remainder.trim();
   }
 
+  static String _stripLeadingEnglishReasoningBlock(String text) {
+    final trimmed = text.trimLeft();
+    if (trimmed.isEmpty) return text;
+
+    if (trimmed.codeUnitAt(0) > 127) return text;
+
+    final cjkTotal =
+        RegExp(r'[\u4e00-\u9fff]').allMatches(trimmed).length;
+    if (cjkTotal < 15) return text;
+
+    final sampleEnd = trimmed.length < 80 ? trimmed.length : 80;
+    final sample = trimmed.substring(0, sampleEnd);
+    final asciiInSample = RegExp(r'[a-zA-Z]').allMatches(sample).length;
+    final cjkInSample = RegExp(r'[\u4e00-\u9fff]').allMatches(sample).length;
+    if (asciiInSample < 10 || asciiInSample < cjkInSample * 3) return text;
+
+    final boundaryRe = RegExp(
+      r'[.!?](?:\s+(?=[A-Z])|(?=[\u4e00-\u9fff])|\s*$)|[。！？]|\n+',
+    );
+
+    var lastReasoningEnd = 0;
+    var prevEnd = 0;
+
+    for (final m in boundaryRe.allMatches(trimmed)) {
+      final segment = trimmed.substring(prevEnd, m.start);
+      final segAscii = RegExp(r'[a-zA-Z]').allMatches(segment).length;
+      final segCjk = RegExp(r'[\u4e00-\u9fff]').allMatches(segment).length;
+      prevEnd = m.end;
+
+      if (segAscii >= segCjk && segAscii > 3) {
+        lastReasoningEnd = m.end;
+      }
+    }
+
+    if (lastReasoningEnd > 0 && lastReasoningEnd < trimmed.length) {
+      var remainder = trimmed.substring(lastReasoningEnd).trim();
+      remainder = _stripChineseReasoningPrefix(remainder);
+      if (remainder.isNotEmpty) return remainder;
+    }
+    return text;
+  }
+
+  static String _stripChineseReasoningPrefix(String text) {
+    var remainder = text;
+    final sentenceRe = RegExp(r'[^。！？\n]+[。！？\n]?');
+    while (remainder.isNotEmpty) {
+      final m = sentenceRe.firstMatch(remainder);
+      if (m == null) break;
+      final sentence = m.group(0)!.trim();
+      if (sentence.isEmpty) {
+        remainder = remainder.substring(m.end).trimLeft();
+        continue;
+      }
+      if (_looksLikeLeakedReasoning(sentence) ||
+          _isChineseReasoningContinuation(sentence)) {
+        remainder = remainder.substring(m.end).trimLeft();
+      } else {
+        break;
+      }
+    }
+    return remainder.trim();
+  }
+
+  static bool _isChineseReasoningContinuation(String text) {
+    if (RegExp(r'^\d').hasMatch(text)) return true;
+    return RegExp(
+      r'(?:让我|我需要|我得|我要再|我应该告诉|我应该提出|'
+      r'重新(?:转换|核实|检查|计算)|'
+      r'仔细(?:核实|检查|看看|分析)|'
+      r'不过从.+?来看|'
+      r'既然.+?那么.+?应该|'
+      r'还有个更重要的问题|'
+      r'另外[，,]既然|'
+      r'我需要再|需要再仔细|'
+      r'所以.+?可能是|'
+      r'我应该|'
+      r'但这与.+?矛盾|'
+      r'这样的话|'
+      r'可能确实是|'
+      r'她(?:可能|应该|是因为|说|提到|的))',
+    ).hasMatch(text);
+  }
+
   static bool _looksLikeLeakedReasoning(String text) {
     final line = text.trim();
     if (line.isEmpty) return false;
     if (_leadingReasoningLine.hasMatch(line)) return true;
+    if (_englishAnalyticalOpener.hasMatch(line)) return true;
 
     if (RegExp(r"^(?:the\s+user(?:'s)?|user)\b", caseSensitive: false)
         .hasMatch(line)) {

@@ -187,17 +187,21 @@ class CharacterToolsFactory {
     return Tool(
       name: 'LifeMemoryCapture',
       description:
-          'Save the user\'s current message as a User-truth Memory Card. '
+          'Save a user-confirmed fact/event as a User-truth Memory Card. '
           'ONLY call when the user explicitly asks to record/save/remember. '
           'Phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、'
-          '"加到记录里"、"记住这个". Pass the raw message text as-is.',
+          '"加到记录里"、"记住这个"、"帮我记账".',
       parameters: {
         'type': 'object',
         'properties': {
           'text': {
             'type': 'string',
             'description':
-                'The raw Chinese text to record. Pass the user\'s message verbatim.',
+                'A self-contained Chinese description of what to record. '
+                'You MUST synthesize all relevant context from recent conversation '
+                'into this field so the downstream organizer needs no extra history. '
+                'Example: if the user said "今天跟小红吃了火锅" then "花了128" then '
+                '"帮我记一下", pass "今天跟小红吃了火锅，花了128元".',
           },
         },
         'required': ['text'],

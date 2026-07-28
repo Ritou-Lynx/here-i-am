@@ -233,5 +233,99 @@ More hidden planning that must also be discarded.
 
       expect(cleaned, '*我慢慢笑了。*\n谁说我不抓，我这不是留着慢慢来嘛。');
     });
+
+    test('strips English analytical block before Chinese reply (same line)',
+        () {
+      const source = "There's a meaningful difference between being careless "
+          'with time estimates and deliberately exploiting someone\'s good '
+          'nature. She wasn\'t doing the latter — she had no idea her friend '
+          'was working against a deadline. Being off by 10-15 minutes in a '
+          "casual context isn't excessive. But there's still something worth "
+          'acknowledging: habitually loose time estimates do create small '
+          'costs for the other person, even if unintentionally. The '
+          'distinction matters — it\'s not about being "过分" this time, but '
+          'recognizing that a tighter approach to estimates would have left '
+          'room for exactly this kind of situation. I should validate that '
+          "she wasn't crossing a line while also honoring the real insight "
+          'she\'s having about her own patterns.'
+          '蹬鼻子上脸和"估时间随便"是两件事。前者是你明知对方赶时间还压她的deadline，'
+          '后者是你没意识到今天不同、按老习惯来了。你是第二种，不是第一种。';
+
+      final cleaned = PersonaReplySanitizer.stripLeakedReasoning(source);
+
+      expect(cleaned, startsWith('蹬鼻子上脸和'));
+      expect(cleaned, contains('你是第二种，不是第一种。'));
+      expect(cleaned, isNot(contains('meaningful difference')));
+    });
+
+    test('strips English reasoning with mixed Chinese data references', () {
+      const source = "I'm noticing a discrepancy in the timeline — the card "
+          'shows a transaction from earlier today at 09:57 for the bike ride, '
+          'but that was before the user asked me to record it at 10:33. Let '
+          'me reconsider what actually happened here.\n\n'
+          'The user mentioned "共享单车好像没记到账本里" — they\'re saying it\'s '
+          'not showing up in their account book specifically, which might be '
+          'a different view from the general memory cards. Both expense '
+          'records actually exist in the system — the bike card from 09:57 '
+          'and the massage device card are both there. I should just verify '
+          'both records are there and show her the details — the bike at '
+          '0.8元 and the massage device at 332.98元. If the account book view '
+          "isn't syncing properly, I can let her know that might be a display "
+          'delay rather than a missing entry.'
+          '查了一下，都在的：\n'
+          '- 共享单车 0.8元，今早9:57记的\n'
+          '- 米家按摩仪 332.98，刚记进去了';
+
+      final cleaned = PersonaReplySanitizer.stripLeakedReasoning(source);
+
+      expect(cleaned, startsWith('查了一下'));
+      expect(cleaned, contains('共享单车 0.8元'));
+      expect(cleaned, isNot(contains('discrepancy')));
+    });
+
+    test('strips English+Chinese reasoning block with multiple paragraphs',
+        () {
+      const source = "I'm noticing a discrepancy in the ledger entries — "
+          'there are actually two bike ride transactions at 0.8 each, plus '
+          'the massage device and yesterday\'s lunch, but she\'s saying the '
+          'account book only shows the massage device for today. Now I\'m '
+          'trying to verify the lunch entry details, particularly around the'
+          '淮南牛肉汤 component that she just corrected me on.\n\n'
+          'Looking at the timestamps for those duplicate bike entries, one '
+          'is from yesterday (July 27th) and one from today (July 28th at '
+          '09:59), which is strange since she mentioned taking the subway '
+          'yesterday instead of biking. '
+          '让我重新转换这个时间戳。1785117548 UTC 对应 2026-07-28 06:39 CST，'
+          '这样的话共享单车的交易可能确实是今天早上发生的。'
+          '但这与她说今天买自行车的说法有些矛盾，我需要再仔细核实一下这些时间戳的对应关系。\n\n'
+          '不过从应用显示的顺序来看，按新旧排列是：按摩 → 昨天午饭 → 单车 → 单车 → 螺蛳粉，'
+          '所以两条单车记录可能是重复的，或者其中一条来自昨天。'
+          '我应该告诉她账本里有这两条单车记录加上按摩的交易，并检查一下是否存在日期筛选的显示问题。\n\n'
+          '还有个更重要的问题：账本里其实有两条0.8元的单车记录，她可能是因为显示或日期筛选的问题才看不到。'
+          '奇怪，我查了后台，共享单车有两条 0.8 的记录，都在。'
+          '可能你账本按今天日期筛选，其中一条记的日期跑到昨天去了，你切一下"全部"看看。';
+
+      final cleaned = PersonaReplySanitizer.stripLeakedReasoning(source);
+
+      expect(cleaned, startsWith('奇怪，我查了后台'));
+      expect(cleaned, isNot(contains('discrepancy')));
+      expect(cleaned, isNot(contains('让我重新转换')));
+    });
+
+    test('does not strip legitimate short English in Chinese reply', () {
+      const source = 'ok, give me one second. *抬了抬眉毛* 你说什么？';
+
+      final cleaned = PersonaReplySanitizer.stripLeakedReasoning(source);
+
+      expect(cleaned, source);
+    });
+
+    test('does not strip pure Chinese reply', () {
+      const source = '蹬鼻子上脸和"估时间随便"是两件事。前者是你明知对方赶时间还压她的deadline。';
+
+      final cleaned = PersonaReplySanitizer.stripLeakedReasoning(source);
+
+      expect(cleaned, source);
+    });
   });
 }

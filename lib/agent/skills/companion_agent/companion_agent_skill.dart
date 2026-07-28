@@ -181,7 +181,8 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Use `memory_v3_query` to search these cards before answering recall questions. This is your primary tool for "记得..." / "有没有..." / "上次..." / "最近...怎么样" type questions. Always try it first — it gives instant results with FTS5 keyword search and synonym expansion.');
     b.writeln(
-        '- Use `LifeMemoryCapture` ONLY when the user\'s current message contains an explicit record request. Pass the raw user message text as the `text` parameter. Qualifying phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、"加到记录里"、"记住这个". Mentioning facts, events, or plans in conversation does NOT qualify. No trigger phrase → do NOT call this tool.');
+        '- Use `LifeMemoryCapture` ONLY when the user\'s current message contains an explicit record request. Qualifying phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、"加到记录里"、"记住这个"、"帮我记账". Mentioning facts, events, or plans in conversation does NOT qualify. No trigger phrase → do NOT call this tool. '
+        'IMPORTANT: the `text` parameter must be a SELF-CONTAINED summary. Gather all relevant details from preceding messages (who, what, where, how much, when) and compose one complete sentence. Never pass a bare trigger phrase like "帮我记账" alone — include the actual content to record.');
     b.writeln(
         '- When the user sends a URL (including 小红书, 微信公众号, or web links), treat it as chat material by default. You may discuss it or ask whether to save it, but do NOT say it has been saved and do NOT create a shared-life record unless the same user message explicitly asks to save/record it.');
     b.writeln(
