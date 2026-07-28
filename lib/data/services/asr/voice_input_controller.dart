@@ -339,6 +339,12 @@ class VoiceInputController extends ChangeNotifier {
   /// mic stays open (VoIP call audio session keeps mic + speaker coexisting),
   /// chunks are simply dropped. Starts barge-in amplitude polling so the user
   /// can interrupt by speaking.
+  ///
+  /// This is a defense-in-depth guard. With the TTS player routed through the
+  /// voice-communication stream (see `_voiceCallTtsContext`), the platform AEC
+  /// should cancel speaker echo and the NLS server-side VAD will not fire on
+  /// TTS output. The pause + amplitude poller catches any residual echo that
+  /// slips past AEC on misbehaving devices.
   void pauseAudioForwarding() {
     _audioForwardingPaused = true;
     startBargeInDetection();
