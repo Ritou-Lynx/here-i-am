@@ -12,7 +12,6 @@ import 'package:memex/data/memory_v3/agents/dreaming_agent/episode_consolidator.
 import 'package:memex/data/memory_v3/agents/dreaming_agent/fragment_extractor.dart';
 import 'package:memex/data/memory_v3/agents/dreaming_agent/saga_weaver.dart';
 import 'package:memex/data/memory_v3/models/dreaming_fragment.dart';
-import 'package:memex/data/memory_v3/models/saga_weaving.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/memory_v3/services/embedding_service.dart';
 import 'package:memex/data/services/search/query_matcher.dart';
