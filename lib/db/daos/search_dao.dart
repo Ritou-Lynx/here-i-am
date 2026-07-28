@@ -72,6 +72,14 @@ class SearchDao {
       )
     ''');
     await _db.customStatement('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_sagas_fts USING fts5(
+        saga_id UNINDEXED,
+        title,
+        description,
+        tokenize='unicode61'
+      )
+    ''');
+    await _db.customStatement('''
       CREATE VIRTUAL TABLE IF NOT EXISTS project_memory_fts USING fts5(
         item_id UNINDEXED,
         project_id UNINDEXED,
@@ -662,6 +670,61 @@ class SearchDao {
     return results
         .map((row) => {
               'fragment_id': row.read<String>('fragment_id'),
+              'rank': row.read<double>('rank'),
+            })
+        .toList();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Memory V3 Saga FTS
+  // ---------------------------------------------------------------------------
+
+  Future<void> upsertMemorySagaFts({
+    required String sagaId,
+    required String title,
+    required String description,
+  }) async {
+    await deleteMemorySagaFts(sagaId);
+    await _db.customStatement(
+      'INSERT INTO memory_sagas_fts(saga_id, title, description) '
+      'VALUES (?, ?, ?)',
+      [
+        sagaId,
+        await tokenizeForIndex(title),
+        await tokenizeForIndex(description),
+      ],
+    );
+  }
+
+  Future<void> deleteMemorySagaFts(String sagaId) async {
+    await _db.customStatement(
+      'DELETE FROM memory_sagas_fts WHERE saga_id = ?',
+      [sagaId],
+    );
+  }
+
+  Future<void> clearMemorySagaFts() async {
+    await _db.customStatement('DELETE FROM memory_sagas_fts');
+  }
+
+  /// Search Dreaming sagas via FTS5. Returns `saga_id` and `rank`
+  /// (bm25 — lower is better). Description is weighted higher than title.
+  Future<List<Map<String, dynamic>>> searchMemorySagas(
+    String query, {
+    int limit = 20,
+  }) async {
+    final ftsQuery = await tokenizeForQuery(query);
+    if (ftsQuery.isEmpty) return [];
+    final results = await _db.customSelect(
+      '''SELECT saga_id, bm25(memory_sagas_fts, 1.0, 4.0) AS rank
+      FROM memory_sagas_fts
+      WHERE memory_sagas_fts MATCH ?
+      ORDER BY rank LIMIT ?''',
+      variables: [Variable<String>(ftsQuery), Variable<int>(limit)],
+    ).get();
+    return results
+        .map((row) => {
+              'saga_id': row.read<String>('saga_id'),
               'rank': row.read<double>('rank'),
             })
         .toList();

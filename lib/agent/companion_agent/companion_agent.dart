@@ -603,8 +603,29 @@ class CompanionAgent {
         _logger.warning('Failed to load dreaming context: $e');
         state.systemReminders.remove('dreaming_context');
       }
+      // Inject saga long-arc context (V3 § 7.2: reflection/emotion layer).
+      try {
+        final sagas = await DreamingOrchestratorServiceV3.instance
+            .querySagasForContext(queryHint: queryHint, limit: 3);
+        if (sagas.isNotEmpty) {
+          final sagaBuf = StringBuffer();
+          sagaBuf.writeln('## 长期弧线 — 跨周月的关系趋势');
+          sagaBuf.writeln('以下是从多个过往章节中编织出的长期叙事弧线。');
+          sagaBuf.writeln('它们描述的是趋势和模式，不是单次事件。');
+          for (final saga in sagas) {
+            sagaBuf.writeln('- 【${saga.title}】${saga.description}');
+          }
+          state.systemReminders['saga_context'] = sagaBuf.toString();
+        } else {
+          state.systemReminders.remove('saga_context');
+        }
+      } catch (e) {
+        _logger.warning('Failed to load saga context: $e');
+        state.systemReminders.remove('saga_context');
+      }
     } else {
       state.systemReminders.remove('dreaming_context');
+      state.systemReminders.remove('saga_context');
     }
     state.systemReminders.remove('post_history_instructions');
 

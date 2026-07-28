@@ -109,7 +109,7 @@ async function visionExtractWithContext(imagePath, pageNum, context) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 90000); // 90s timeout
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
     const resp = await fetch('http://127.0.0.1:11434/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
