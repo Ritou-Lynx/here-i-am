@@ -4226,11 +4226,10 @@ only after you have written the goodbye you want the user to hear.''',
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final viewInsetsBottom = mediaQuery.viewInsets.bottom;
-    final safeBottom = mediaQuery.padding.bottom;
     final hasVisibleMediaTray = widget.enableRichCapture && _isMediaTrayOpen;
+    // Estimate: input bar max ~160 + media tray ~104 when open.
     final jumpToLatestBottom =
-        viewInsetsBottom + safeBottom + (hasVisibleMediaTray ? 204 : 116);
-    final mediaTrayBottom = viewInsetsBottom + safeBottom + 96;
+        viewInsetsBottom + (hasVisibleMediaTray ? 272 : 168);
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -4294,21 +4293,21 @@ only after you have written the goodbye you want the user to hear.''',
                     bottom: jumpToLatestBottom,
                     child: _buildJumpToLatestPill(),
                   ),
-                if (widget.enableRichCapture)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: mediaTrayBottom,
-                    child: CompanionMediaTray(
-                      isOpen: _isMediaTrayOpen,
-                      onImagesPicked: _onImagesPicked,
-                    ),
-                  ),
                 Positioned(
                   left: 0,
                   right: 0,
                   bottom: viewInsetsBottom,
-                  child: _buildInputBar(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.enableRichCapture)
+                        CompanionMediaTray(
+                          isOpen: _isMediaTrayOpen,
+                          onImagesPicked: _onImagesPicked,
+                        ),
+                      _buildInputBar(),
+                    ],
+                  ),
                 ),
                 if (_isHeaderActionsOpen)
                   Positioned.fill(
