@@ -14,6 +14,9 @@ import 'package:memex/utils/logger.dart';
 import 'package:memex/data/services/background_task_drain_service.dart';
 import 'package:memex/data/services/background_task_foreground_service.dart';
 import 'package:memex/data/services/companion_foreground_task.dart';
+import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
+import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -352,6 +355,38 @@ void callbackDispatcher() {
           debugPrint(
               'Checkin: app in foreground, skipping WorkManager trigger');
           return Future.value(false);
+        }
+
+        // ── Last-resort: due call reminders ──
+        // If the alarm callback missed them (isolate spawn failure) and the
+        // foreground service is dead, this 15-min periodic task is the final
+        // safety net. Queue the call directly + show a notification.
+        final wmDueCalls =
+            await CheckinService.instance.claimDueCallReminders();
+        if (wmDueCalls.isNotEmpty) {
+          final wmChar =
+              await CharacterService.instance.getPrimaryCompanion(userId);
+          if (wmChar != null) {
+            await queuePendingCall(
+              characterId: wmChar.id,
+              openingMessage:
+                  alarmOpeningForDueCall(wmDueCalls.first.body),
+            );
+            try {
+              await NotificationService.instance.initialize();
+              await NotificationService.instance.showCallNotification(
+                title: wmChar.name,
+                body: '想给你打个电话 ☎️',
+                payload: 'call:${wmChar.id}',
+              );
+            } catch (e) {
+              debugPrint('Checkin WM: call notification failed: $e');
+            }
+            debugPrint('Checkin WM: call reminder handled directly');
+          }
+          for (final c in wmDueCalls) {
+            await CheckinService.instance.markStatus(c.id, 'done');
+          }
         }
         final enqueued = await CheckinService.instance.maybeEnqueueCheckin();
         debugPrint('Checkin pulse: ${enqueued ? "enqueued" : "skipped"}');

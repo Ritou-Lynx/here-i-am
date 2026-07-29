@@ -9,8 +9,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:workmanager/workmanager.dart';
 
+import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/services/callkit_service.dart';
+import 'package:memex/data/services/companion_foreground_task.dart';
+import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/notification_service.dart';
@@ -42,7 +45,13 @@ class CheckinService {
   static const int defaultMinIntervalMinutes = 3;
   static const int defaultMaxIntervalMinutes = 60;
   static const int _staleCheckinSeconds = 60 * 60;
+  /// Non-call reminders expire after 15 minutes — a late "remember to X" is
+  /// worse than silence.
   static const int _staleReminderSeconds = 15 * 60;
+  /// Call reminders get a 2-hour window: the foreground service may be
+  /// temporarily dead (Samsung battery management), and a scheduled call
+  /// arriving 30 min late is still useful.
+  static const int _staleCallReminderSeconds = 2 * 60 * 60;
 
   /// WorkManager task name — public so [callbackDispatcher] can route.
   static const String checkinTaskName = 'stochasticCheckinPulse';
@@ -551,13 +560,41 @@ class CheckinService {
               t.createdAt.isSmallerOrEqualValue(now - _staleCheckinSeconds)))
         .write(const SystemMessageQueueCompanion(status: Value('failed')));
 
+    // Reminders: call reminders get a 2-hour window (the foreground service
+    // may be temporarily dead); non-call reminders expire after 15 minutes.
+    // Drift has no NOT LIKE, so we first collect call-reminder IDs.
+    final callReminderIds = (await (_db.select(_db.systemMessageQueue)
+          ..where((t) =>
+              t.status.equals('pending') &
+              t.triggerType.equals('reminder') &
+              t.context.like('%"action":"call"%')))
+        .get())
+        .map((r) => r.id)
+        .toList();
+
+    // Non-call reminders: short expiry (15 min).
     expired += await (_db.update(_db.systemMessageQueue)
           ..where((t) =>
               t.status.equals('pending') &
               t.triggerType.equals('reminder') &
               t.scheduledFor
-                  .isSmallerOrEqualValue(now - _staleReminderSeconds)))
+                  .isSmallerOrEqualValue(now - _staleReminderSeconds) &
+              (callReminderIds.isEmpty
+                  ? const Constant(true)
+                  : t.id.isNotIn(callReminderIds))))
         .write(const SystemMessageQueueCompanion(status: Value('failed')));
+
+    // Call reminders: longer expiry (2 h).
+    if (callReminderIds.isNotEmpty) {
+      expired += await (_db.update(_db.systemMessageQueue)
+            ..where((t) =>
+                t.status.equals('pending') &
+                t.triggerType.equals('reminder') &
+                t.scheduledFor.isSmallerOrEqualValue(
+                    now - _staleCallReminderSeconds) &
+                t.id.isIn(callReminderIds)))
+          .write(const SystemMessageQueueCompanion(status: Value('failed')));
+    }
 
     if (expired > 0) {
       _logger.warning('Expired $expired stale pending system trigger(s)');
@@ -742,6 +779,13 @@ extension KvLookup on AppDatabase {
 /// Runs in a separate isolate. Mirrors the checkin branch of
 /// `callbackDispatcher` (health_service.dart) but is triggered by exact-time
 /// AlarmManager wakeups that bypass Doze mode.
+///
+/// KEY FIX (2026-07): due call reminders are now handled DIRECTLY — the call
+/// is queued and a notification fallback fires without waiting for the LLM
+/// agent. CallKit display is attempted but degrades gracefully: this
+/// background isolate has no Flutter engine, so CallKit usually fails;
+/// the persistent foreground service (15 s tick) shows it instead, and a
+/// full-screen notification is the last-resort fallback.
 @pragma('vm:entry-point')
 Future<void> alarmCheckinCallback(int alarmId) async {
   debugPrint(
@@ -762,12 +806,67 @@ Future<void> alarmCheckinCallback(int alarmId) async {
     }
     await UserStorage.initL10n();
 
-    // Skip checkin if the app is currently in the foreground — the user is
-    // actively using the app and doesn't need a background push.
+    final dataRoot = await UserStorage.resolveDataRoot(userId);
+    await FileSystemService.init(dataRoot);
+    await NotificationService.instance.initialize();
+
+    // ── Priority 1: due call reminders — deliver directly, no LLM needed ──
+    // The old path ran the full agent first, which was slow and could fail.
+    // A user-requested call ("1分钟后打给我") must not depend on an LLM round-
+    // trip; we queue the call immediately and let the foreground service
+    // (or the notification fallback below) deliver it.
+    final dueCalls =
+        await CheckinService.instance.claimDueCallReminders();
+    if (dueCalls.isNotEmpty) {
+      final character =
+          await CharacterService.instance.getPrimaryCompanion(userId);
+      if (character != null) {
+        await queuePendingCall(
+          characterId: character.id,
+          openingMessage: alarmOpeningForDueCall(dueCalls.first.body),
+        );
+        debugPrint('AlarmCheckin: call queued directly for '
+            '"${character.name}" (${dueCalls.length} reminder(s))');
+        // Try CallKit (usually fails in background isolate — no Flutter
+        // engine). The foreground service picks it up within 15 s.
+        var callDelivered = false;
+        try {
+          callDelivered =
+              await CallkitService.instance.showPendingIncomingCall(
+            characterId: character.id,
+            nameCaller: character.name,
+            avatarUrl: character.avatar,
+          );
+        } catch (e) {
+          debugPrint('AlarmCheckin: CallKit failed (expected in '
+              'background isolate): $e');
+        }
+        if (!callDelivered) {
+          await _showAlarmCallFallbackNotification(character);
+        }
+      } else {
+        debugPrint('AlarmCheckin: due call but no character found');
+      }
+      for (final c in dueCalls) {
+        await CheckinService.instance.markStatus(c.id, 'done');
+      }
+    }
+
+    // ── Priority 2: regular checkin / non-call reminders ──
     final hasDueReminder = await CheckinService.instance.hasDueReminders();
-    if (await CheckinService.instance.isAppInForeground() && !hasDueReminder) {
+    if (await CheckinService.instance.isAppInForeground() &&
+        !hasDueReminder) {
       debugPrint('AlarmCheckin: app is in foreground, skipping checkin');
       return;
+    }
+
+    // Best-effort: ensure the persistent foreground service is running so
+    // it can display CallKit for the pending call on its next tick.
+    try {
+      await CompanionForegroundService.startPersistent();
+      debugPrint('AlarmCheckin: foreground service ensured');
+    } catch (e) {
+      debugPrint('AlarmCheckin: could not start foreground service: $e');
     }
 
     final enqueued = await CheckinService.instance.maybeEnqueueCheckin();
@@ -775,10 +874,6 @@ Future<void> alarmCheckinCallback(int alarmId) async {
     debugPrint(
         'AlarmCheckin: enqueued=$enqueued hasPendingWork=$hasPendingWork');
     if (!enqueued && !hasPendingWork) return;
-
-    final dataRoot = await UserStorage.resolveDataRoot(userId);
-    await FileSystemService.init(dataRoot);
-    await NotificationService.instance.initialize();
 
     final character =
         await CharacterService.instance.getPrimaryCompanion(userId);
@@ -798,16 +893,25 @@ Future<void> alarmCheckinCallback(int alarmId) async {
       userId: userId,
       characterId: character.id,
     );
-    // CallKit display is handled by the persistent foreground service.
-    // This background isolate has no Flutter engine — CallKit can't show here.
     debugPrint('AlarmCheckin: agent run complete');
-    // If the agent queued a voice call during a spontaneous checkin, the
-    // foreground service picks it up on its next tick.
-    await CallkitService.instance.showPendingIncomingCall(
-      characterId: character.id,
-      nameCaller: character.name,
-      avatarUrl: character.avatar,
-    );
+
+    // If the agent queued a voice call during a spontaneous checkin,
+    // try CallKit (usually fails here) then fall back to notification.
+    try {
+      final showed = await CallkitService.instance.showPendingIncomingCall(
+        characterId: character.id,
+        nameCaller: character.name,
+        avatarUrl: character.avatar,
+      );
+      if (!showed) {
+        final pending = await readPendingCall();
+        if (pending != null) {
+          await _showAlarmCallFallbackNotification(character);
+        }
+      }
+    } catch (e) {
+      debugPrint('AlarmCheckin: post-agent call delivery failed: $e');
+    }
   } catch (e, st) {
     debugPrint('AlarmCheckin: error: $e\n$st');
   } finally {
@@ -819,5 +923,28 @@ Future<void> alarmCheckinCallback(int alarmId) async {
     } catch (e) {
       debugPrint('AlarmCheckin: failed to reschedule alarm: $e');
     }
+  }
+}
+
+/// Opening message for a due call reminder (alarm callback path).
+String alarmOpeningForDueCall(String reminderBody) {
+  final body = reminderBody.trim();
+  if (body.startsWith('宝，') || body.startsWith('宝。')) return body;
+  return '宝，到时间了，我打过来了。现在方便说话吗？';
+}
+
+/// Fallback: show a full-screen notification when CallKit cannot display
+/// from a background isolate. Tapping it opens the app in voice mode.
+Future<void> _showAlarmCallFallbackNotification(
+    CharacterModel character) async {
+  try {
+    await NotificationService.instance.showCallNotification(
+      title: character.name,
+      body: '想给你打个电话 ☎️',
+      payload: 'call:${character.id}',
+    );
+    debugPrint('AlarmCheckin: fallback call notification shown');
+  } catch (e) {
+    debugPrint('AlarmCheckin: fallback notification failed: $e');
   }
 }
