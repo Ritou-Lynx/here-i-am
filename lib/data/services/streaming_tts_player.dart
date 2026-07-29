@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:memex/data/services/tts_service.dart';
 import 'package:memex/utils/logger.dart';
@@ -59,9 +60,15 @@ class _GrowingBufferSource extends StreamAudioSource {
 }
 
 class StreamingTtsSession {
-  StreamingTtsSession({required this.voiceId});
+  StreamingTtsSession({required this.voiceId, this.voiceMode = false});
 
   final String voiceId;
+
+  /// When true, route playback through the voice-communication audio usage so
+  /// it is audible during a VoIP call (notably over Bluetooth HFP, where the
+  /// default media stream is suspended). Also keeps TTS on the same stream as
+  /// the mic so platform AEC can cancel the echo.
+  final bool voiceMode;
   final _log = getLogger('StreamingTts');
   final _player = AudioPlayer();
   final _source = _GrowingBufferSource();
@@ -85,6 +92,23 @@ class StreamingTtsSession {
       }
     });
     await _player.setAudioSource(_source, preload: false);
+    if (voiceMode) {
+      // Pin the Android audio usage to voice-communication explicitly. Relying
+      // on just_audio's configurationStream subscription is racy (broadcast
+      // stream won't replay the value configured by the unawaited VoIP-session
+      // enter), which leaves the player on the default media usage — silent
+      // over Bluetooth HFP during a call.
+      try {
+        await _player.setAndroidAudioAttributes(
+          const AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.speech,
+            usage: AndroidAudioUsage.voiceCommunication,
+          ),
+        );
+      } catch (e) {
+        _log.warning('set voice-communication audio attributes failed: $e');
+      }
+    }
   }
 
   void feedText(String chunk) {

@@ -56,7 +56,6 @@ import 'package:memex/ui/core/themes/spring_rain_chat_tokens.dart';
 import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
-import 'package:memex/ui/core/widgets/here_iam_glass_surface.dart';
 import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/time_context.dart';
@@ -1922,6 +1921,14 @@ only after you have written the goodbye you want the user to hear.''',
       }
       return;
     }
+    // Synchronous send lock: claim _isStreaming BEFORE the await chain below
+    // (_stopTtsPlayback / image compression / addUserMessage) yields the event
+    // loop. Without this, a second voice flush arriving during that window sees
+    // _isStreaming==false and dispatches a concurrent reply turn → out-of-order
+    // / duplicate replies and a clobbered _activeSendSerial/_streamingText.
+    // Released by _runBatchSend's existing exit paths, with a catch backstop.
+    _isStreaming = true;
+    _streamingText = '';
 
     // Capture state before clearing
     final imagesToSend = queuedImages != null
@@ -1936,6 +1943,7 @@ only after you have written the goodbye you want the user to hear.''',
       _clearImages();
     }
 
+    try {
     await _stopTtsPlayback();
 
     final userMessageTime = queuedMessage?.timestamp ?? DateTime.now();
@@ -1976,6 +1984,23 @@ only after you have written the goodbye you want the user to hear.''',
     );
 
     await _runBatchSend(batch, primaryMessageId: userMessageId);
+    } catch (_) {
+      // Backstop: release the synchronous lock if anything before/inside
+      // _runBatchSend throws before its own exit paths reset _isStreaming, so a
+      // later send can't deadlock. Normal completion never reaches here
+      // (_runBatchSend swallows its own errors), so a chained _sendBatch's claim
+      // is never clobbered.
+      if (mounted) {
+        setState(() {
+          _isStreaming = false;
+          _streamingText = '';
+        });
+      } else {
+        _isStreaming = false;
+        _streamingText = '';
+      }
+      rethrow;
+    }
   }
 
   /// Executes a [batch] as a single LLM turn. When the batch has more than one
@@ -2163,7 +2188,10 @@ only after you have written the goodbye you want the user to hear.''',
         final voiceId = _character?.ttsVoiceId;
         if (voiceId != null && voiceId.isNotEmpty) {
           final requestSerial = ++_ttsRequestSerial;
-          ttsSession = StreamingTtsSession(voiceId: voiceId);
+          ttsSession = StreamingTtsSession(
+            voiceId: voiceId,
+            voiceMode: _isInlineVoiceMode,
+          );
           await ttsSession.start();
           _streamingTtsSession = ttsSession;
           // Pause mic forwarding to NLS while TTS plays so the speaker output
@@ -2470,6 +2498,11 @@ only after you have written the goodbye you want the user to hear.''',
   /// call; the persisted user messages from the queue-while-streaming path are
   /// reused without re-persisting.
   Future<void> _sendBatch(_PendingBatch batch) async {
+    // Synchronous send lock for the persist window below (compose batches await
+    // image compression + addUserMessage before _runBatchSend would claim it).
+    // Stops a concurrent direct _sendMessage from dispatching a second turn.
+    _isStreaming = true;
+    _streamingText = '';
     // If the batch was queued while streaming (e.g. from Compose mode), its
     // drafts aren't persisted yet. Persist them now so they appear as visible
     // user messages before the character reply streams in.
@@ -4419,7 +4452,6 @@ only after you have written the goodbye you want the user to hear.''',
             : _chatUiText(zh: '开启自动朗读', en: 'Turn on auto read'),
         active: _autoReadEnabled,
         onTap: () {
-          setState(() => _isHeaderActionsOpen = false);
           unawaited(_setAutoReadEnabled(!_autoReadEnabled));
         },
       ),
@@ -6672,32 +6704,20 @@ class _FrostedCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const c = SpringRainChatTokens.springRainDaydream;
     return ClipOval(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        filter: ImageFilter.blur(sigmaX: c.glassBlur, sigmaY: c.glassBlur),
         child: Container(
           width: 40,
           height: 40,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: const Color(0xFF241319).withValues(alpha: 0.24),
-            border: Border.all(
-              color: const Color(0xFFFFECDD).withValues(alpha: 0.045),
-              width: 0.8,
-            ),
-            gradient: RadialGradient(
-              center: const Alignment(-0.45, -0.55),
-              radius: 1.05,
-              colors: [
-                const Color(0xFFFFECDD).withValues(alpha: 0.105),
-                const Color(0xFFC86774).withValues(alpha: 0.055),
-                Colors.black.withValues(alpha: 0.045),
-              ],
-              stops: const [0, 0.52, 1],
-            ),
+            color: c.glassFill,
+            border: Border.all(color: c.glassStroke, width: 1),
           ),
           child: IconTheme(
-            data: IconThemeData(color: _personaText),
+            data: IconThemeData(color: c.iColor),
             child: Center(child: child),
           ),
         ),
@@ -6746,20 +6766,36 @@ class _HeaderActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const c = SpringRainChatTokens.springRainDaydream;
     return Tooltip(
       message: label,
       child: GestureDetector(
         onTap: onTap,
-        child: HereIamGlassSurface(
-          level: active ? HereIamGlassLevel.hero : HereIamGlassLevel.raised,
-          shape: BoxShape.circle,
-          width: 40,
-          height: 40,
-          child: Center(
-            child: Icon(
-              icon,
-              size: 18,
-              color: active ? _personaAccent : _personaText,
+        child: ClipOval(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: c.glassBlur, sigmaY: c.glassBlur),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: active
+                    ? c.glassFill.withValues(alpha: 0.14)
+                    : c.glassFill,
+                border: Border.all(
+                  color: active
+                      ? const Color(0xFFA3A866).withValues(alpha: 0.5)
+                      : c.glassStroke,
+                  width: 1,
+                ),
+              ),
+              child: Center(
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: active ? const Color(0xFFA3A866) : c.iColor,
+                ),
+              ),
             ),
           ),
         ),
