@@ -62,8 +62,10 @@ function buildCharacterRosterText(characters) {
 function buildPrevChaptersSummaryText(summaries, currentChapterNumber) {
   const prev = summaries.filter(s => s.chapter_number < currentChapterNumber && s.summary && !s.summary.includes('跳过'));
   if (!prev.length) return '（这是第一话）';
-  // All previous chapter summaries — gives full story context
-  return prev.map(s => `【${s.chapter_title}】${s.summary}`).join('\n');
+  // Only pass the immediately preceding chapter summary — keeps context
+  // size constant regardless of how many chapters have been processed.
+  const lastChapter = prev[prev.length - 1];
+  return `【${lastChapter.chapter_title}】${lastChapter.summary}`;
 }
 
 function buildCurrentChapterPagesText(prevPagesScreenplay) {
@@ -138,6 +140,8 @@ async function visionExtractWithContext(imagePath, pageNum, context) {
     .replace('{PAGE_NUM}', String(pageNum));
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
     const resp = await fetch('http://127.0.0.1:11434/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -147,8 +151,12 @@ async function visionExtractWithContext(imagePath, pageNum, context) {
         images: [b64],
         stream: false,
         format: 'json',
+        options: { num_ctx: 8192 },
+        keep_alive: '30m', // Keep model in GPU memory between pages
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     if (!resp.ok) return { error: `HTTP ${resp.status}` };
     const data = await resp.json();
     let raw = data.response || '';
@@ -185,6 +193,14 @@ async function main() {
     const chapterNum = chapter.chapter_number || 0;
     const prevChaptersText = buildPrevChaptersSummaryText(summaries, chapterNum);
 
+    // Skip chapters that already have a complete screenplay with the same model
+    const existingSp = chapter.screenplay || [];
+    const existingOk = existingSp.filter(s => !s.error).length;
+    if (existingSp.length === (chapter.page_count || 0) && existingOk === existingSp.length && chapter.ocr_model === visionModel) {
+      console.log(`\n═══ ${chapter.chapter_title} — 已完成，跳过 ═══`);
+      continue;
+    }
+
     console.log(`\n═══ ${chapter.chapter_title} (${chapter.id}) — ${chapter.page_count} 页 ═══`);
 
     // Find image files
@@ -205,7 +221,9 @@ async function main() {
       const imgFile = imgFiles[pi];
       const pageNum = pi + 1;
       const imgPath = join(chImgDir, imgFile);
-      const currentPagesText = buildCurrentChapterPagesText(chapterPages);
+      // Only pass the last 5 pages as in-chapter context to avoid context overflow
+      const recentPages = chapterPages.slice(-5);
+      const currentPagesText = buildCurrentChapterPagesText(recentPages);
 
       const context = {
         roster: rosterText,

@@ -87,7 +87,8 @@ class BookRemoteService {
   // ── Import ─────────────────────────────────────────────────────────────────
 
   /// Upload a TXT file to the server for processing.
-  /// Returns the book metadata from the server, or null on failure.
+  /// Returns the book metadata from the server.
+  /// Throws on failure so the UI can show the actual error.
   Future<Map<String, dynamic>?> importBook(
     Uint8List bytes,
     String filename, {
@@ -95,24 +96,20 @@ class BookRemoteService {
     String? author,
   }) async {
     final base = await getBaseUrl();
-    if (base.isEmpty) return null;
-    try {
-      final uri = _uri(base, '/v1/book/import', {
-        'filename': filename,
-        if (title != null && title.isNotEmpty) 'title': title,
-        if (author != null && author.isNotEmpty) 'author': author,
-      });
-      final resp = await http
-          .post(uri, headers: {'Content-Type': 'application/octet-stream'}, body: bytes)
-          .timeout(const Duration(seconds: 60));
-      if (resp.statusCode == 201) {
-        final data = jsonDecode(resp.body);
-        return data['book'] as Map<String, dynamic>?;
-      }
-      return null;
-    } catch (_) {
-      return null;
+    if (base.isEmpty) throw Exception('未配置书籍服务地址');
+    final uri = _uri(base, '/v1/book/import', {
+      'filename': filename,
+      if (title != null && title.isNotEmpty) 'title': title,
+      if (author != null && author.isNotEmpty) 'author': author,
+    });
+    final resp = await http
+        .post(uri, headers: {'Content-Type': 'application/octet-stream'}, body: bytes)
+        .timeout(const Duration(seconds: 120));
+    if (resp.statusCode == 201) {
+      final data = jsonDecode(resp.body);
+      return data['book'] as Map<String, dynamic>?;
     }
+    throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
   }
 
   // ── Books ──────────────────────────────────────────────────────────────────
@@ -151,6 +148,36 @@ class BookRemoteService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Fetch AI-generated summaries (characters + chapter summaries).
+  /// Returns null if summaries haven't been generated yet.
+  Future<Map<String, dynamic>?> getSummaries(String bookId) async {
+    final base = await getBaseUrl();
+    if (base.isEmpty) return null;
+    try {
+      final resp = await http
+          .get(_uri(base, '/v1/book/books/$bookId/summaries'), headers: _headers)
+          .timeout(const Duration(seconds: 15));
+      if (resp.statusCode != 200) return null;
+      return jsonDecode(resp.body) as Map<String, dynamic>?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Fetch single chapter summary (extracted from summaries.json).
+  Future<String?> getChapterSummary(String bookId, int number) async {
+    final summaries = await getSummaries(bookId);
+    if (summaries == null) return null;
+    final list = summaries['chapter_summaries'] as List<dynamic>?;
+    if (list == null) return null;
+    for (final s in list) {
+      if (s is Map && s['number'] == number) {
+        return s['summary'] as String?;
+      }
+    }
+    return null;
   }
 
   // ── Notes ──────────────────────────────────────────────────────────────────

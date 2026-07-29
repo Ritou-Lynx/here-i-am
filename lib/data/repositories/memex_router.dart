@@ -31,6 +31,7 @@ import 'package:memex/data/services/comic/comic_reading_progress_service.dart';
 import 'package:memex/data/services/comic/comic_screenplay_service.dart';
 import 'package:memex/data/services/book/book_remote_service.dart';
 import 'package:memex/data/services/book/book_library_service.dart';
+import 'package:memex/data/services/book/co_reading_note_service.dart';
 import 'package:memex/data/services/app_update_service.dart';
 import 'package:memex/data/services/user_notification_service.dart';
 import 'package:path/path.dart' as path;
@@ -179,6 +180,7 @@ class MemexRouter {
         // Book co-reading: Hermes book server pipeline.
         final bookRemote = BookRemoteService(db: AppDatabase.instance);
         BookLibraryService.init(db: AppDatabase.instance, remote: bookRemote);
+        CoReadingNoteService.init(AppDatabase.instance);
         await _resetCharacterMemoryIfNeeded(userId);
         await _resetWorkspaceDirsIfNeeded(userId);
         await _resetSystemMemoryIfNeeded(userId);

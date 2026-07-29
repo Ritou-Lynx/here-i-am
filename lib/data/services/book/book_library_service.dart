@@ -30,6 +30,9 @@ class BookLibraryService {
     _instance = BookLibraryService(db: db, remote: remote);
   }
 
+  /// The remote HTTP client — exposed for AI summary lookup.
+  BookRemoteService get remote => _remote;
+
   int _now() => DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
   // ── Import ─────────────────────────────────────────────────────────────────

@@ -1,23 +1,23 @@
 /**
  * 阶段 2: 从粗提取结果生成角色名册 + 全书章节摘要
  *
- * 读取 data/chapters/*.json 的 screenplay 字段，拼接后发给 MiniMax-M3，
+ * 读取 data/chapters/*.json 的 screenplay 字段，拼接后发给 Ollama，
  * 生成:
  *   1. 角色名册 (characters.json) — {name, description, aliases}
  *   2. 章节摘要 (summaries.json) — {chapterId, chapterTitle, summary}
  *
- * 用法: node generate_summary.mjs
+ * 用法: node generate_summary.mjs [--model qwen3:8b]
  */
-import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, 'data');
 const chaptersDir = join(dataDir, 'chapters');
-const configPath = join(__dirname, 'config.json');
 
-const config = JSON.parse(readFileSync(configPath, 'utf8'));
+const modelIdx = process.argv.indexOf('--model');
+const model = modelIdx >= 0 ? process.argv[modelIdx + 1] : 'qwen3:8b';
 
 // ── Load all chapters ─────────────────────────────────────────────────────
 function loadChapters() {
@@ -58,56 +58,34 @@ function screenplayToText(chapter) {
   return lines.join('\n');
 }
 
-// ── Call MiniMax ────────────────────────────────────────────────────────────
-async function callMiniMax(messages, maxTokens = 8000) {
-  // Retry with content sanitization on 422 (content filter)
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const resp = await fetch(config.minimax_base_url + '/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + config.minimax_api_key,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.minimax_model,
-        messages,
-        max_tokens: maxTokens,
-        temperature: 0.3,
-      }),
-    });
+// ── Call Ollama ──────────────────────────────────────────────────────────────
 
-    if (resp.ok) {
-      const data = await resp.json();
-      return data.choices[0].message.content;
-    }
-
-    const text = await resp.text();
-
-    // 422 content filter — sanitize and retry
-    if (resp.status === 422 && attempt < 2) {
-      console.log(`\n    (422 content filter, retry ${attempt + 1}/2)`);
-      // Sanitize: replace potentially sensitive words in user message
-      const sanitized = messages.map(m => {
-        if (m.role === 'user') {
-          let content = m.content;
-          // Replace common manga content filter triggers
-          content = content.replace(/强暴|强奸|性侵|裸体|裸露/g, '***');
-          content = content.replace(/杀|死|血/g, match => {
-            // Only replace standalone violence words, not parts of other words
-            return match;
-          });
-          return { ...m, content };
-        }
-        return m;
-      });
-      messages = sanitized;
-      await new Promise(r => setTimeout(r, 1000));
-      continue;
-    }
-
-    throw new Error(`MiniMax API ${resp.status}: ${text}`);
+async function callOllama(prompt, opts = {}) {
+  const body = {
+    model,
+    prompt,
+    stream: false,
+    format: 'json',
+    options: {
+      num_ctx: opts.numCtx || 8192,
+      temperature: opts.temperature ?? 0.3,
+    },
+    keep_alive: '30m',
+  };
+  const resp = await fetch('http://127.0.0.1:11434/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error(`Ollama HTTP ${resp.status}`);
+  const data = await resp.json();
+  let raw = data.response || '';
+  try { return JSON.parse(raw); }
+  catch {
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (m) { try { return JSON.parse(m[0]); } catch {} }
+    return { raw, _parseError: true };
   }
-  throw new Error('MiniMax API: max retries exceeded');
 }
 
 // ── Generate character roster ───────────────────────────────────────────────
@@ -115,12 +93,13 @@ async function generateCharacterRoster(chapters) {
   console.log('=== 生成角色名册 ===');
   console.log(`  输入：${chapters.length} 章`);
 
-  // Build a compact view of all chapters for character analysis
   const allText = chapters.map(ch => {
     return `【${ch.chapterTitle}】\n${screenplayToText(ch)}`;
   }).join('\n\n---\n\n');
 
-  const prompt = `你是一个漫画分析助手。以下是整部漫画的分镜提取文本。请从中识别所有角色，生成角色名册。
+  const prompt = `你是一个漫画分析助手。只输出JSON，不要输出其他文字。
+
+以下是整部漫画的分镜提取文本。请从中识别所有角色，生成角色名册。
 
 要求：
 1. 提取所有出现过的角色名（包括"角色A""黑发男"等临时称呼）
@@ -144,29 +123,14 @@ async function generateCharacterRoster(chapters) {
 ${allText}`;
 
   console.log(`  内容长度：${allText.length} 字符`);
-  console.log('  调用 MiniMax-M3...');
+  console.log(`  调用 Ollama (${model})...`);
 
-  const result = await callMiniMax([
-    { role: 'system', content: '你是一个专业的漫画内容分析助手。只输出JSON，不要输出其他文字。' },
-    { role: 'user', content: prompt },
-  ], 4000);
-
-  // Extract JSON from response
-  let parsed;
-  try {
-    parsed = JSON.parse(result);
-  } catch {
-    const m = result.match(/\{[\s\S]*\}/);
-    if (m) {
-      try { parsed = JSON.parse(m[0]); } catch { parsed = { characters: [] }; }
-    } else {
-      parsed = { characters: [] };
-    }
-  }
+  const parsed = await callOllama(prompt, { numCtx: 16384 });
+  const characters = parsed.characters || [];
 
   const outputPath = join(dataDir, 'characters.json');
   writeFileSync(outputPath, JSON.stringify(parsed, null, 2));
-  console.log(`  ✓ 生成 ${parsed.characters?.length || 0} 个角色`);
+  console.log(`  ✓ 生成 ${characters.length} 个角色`);
   console.log(`  ✓ 保存到 ${outputPath}`);
   return parsed;
 }
@@ -186,7 +150,9 @@ async function generateChapterSummaries(chapters, roster) {
     const prevSummary = i > 0 ? summaries[i - 1].summary : '无';
     const chText = screenplayToText(ch);
 
-    const prompt = `你是一个漫画分析助手。以下是漫画"${ch.chapterTitle}"的分镜提取文本。
+    const prompt = `你是一个漫画分析助手。只输出JSON，不要输出其他文字。
+
+以下是漫画"${ch.chapterTitle}"的分镜提取文本。
 
 已知角色名册：
 ${rosterText}
@@ -212,22 +178,7 @@ ${chText}`;
 
     process.stdout.write(`  [${i + 1}/${chapters.length}] ${ch.chapterTitle}...`);
     try {
-      const result = await callMiniMax([
-        { role: 'system', content: '你是一个专业的漫画内容分析助手。只输出JSON，不要输出其他文字。' },
-        { role: 'user', content: prompt },
-      ], 2000);
-
-      let parsed;
-      try {
-        parsed = JSON.parse(result);
-      } catch {
-        const m = result.match(/\{[\s\S]*\}/);
-        if (m) {
-          try { parsed = JSON.parse(m[0]); } catch { parsed = { summary: result.substring(0, 200) }; }
-        } else {
-          parsed = { summary: result.substring(0, 200) };
-        }
-      }
+      const parsed = await callOllama(prompt);
 
       summaries.push({
         chapter_id: ch.id,
@@ -243,8 +194,9 @@ ${chText}`;
         chapter_id: ch.id,
         chapter_title: ch.chapterTitle,
         chapter_number: ch.chapterNumber,
-        summary: '(内容审核限制，跳过)',
+        summary: '',
         key_events: [],
+        error: e.message.substring(0, 200),
       });
     }
   }
@@ -257,7 +209,7 @@ ${chText}`;
 
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log('漫画摘要生成器 · MiniMax-M3\n');
+  console.log(`漫画摘要生成器 · Ollama ${model}\n`);
 
   const chapters = loadChapters();
   console.log(`加载 ${chapters.length} 章\n`);

@@ -49,6 +49,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
   List<MemoryCard> _recent = const [];
   List<MemoryFragment> _recentFragments = const [];
   List<MemoryEpisode> _recentEpisodes = const [];
+  List<MemorySaga> _recentSagas = const [];
   List<QueryLogEntry> _queryLogEntries = const [];
   List<DreamingRecallLogEntry> _dreamingRecallLogEntries = const [];
   int _zeroResultCount = 0;
@@ -60,6 +61,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     unawaited(_loadRecent());
     unawaited(_loadRecentFragments());
     unawaited(_loadRecentEpisodes());
+    unawaited(_loadRecentSagas());
     unawaited(_loadQueryLog());
     unawaited(_loadDreamingRecallLog());
   }
@@ -101,6 +103,17 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
         .get();
     if (!mounted) return;
     setState(() => _recentEpisodes = rows);
+  }
+
+  Future<void> _loadRecentSagas() async {
+    if (!DreamingOrchestratorServiceV3.isInitialized) return;
+    final db = AppDatabase.instance;
+    final rows = await (db.select(db.memorySagas)
+          ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)])
+          ..limit(20))
+        .get();
+    if (!mounted) return;
+    setState(() => _recentSagas = rows);
   }
 
   Future<void> _loadQueryLog() async {
@@ -956,6 +969,254 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     return rows.isEmpty ? null : rows.single.characterId;
   }
 
+  Future<void> _runSagaWeaving() async {
+    if (!DreamingOrchestratorServiceV3.isInitialized) {
+      setState(() => _lastError = 'Dreaming service 未初始化');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+
+    try {
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.recordOrganizerAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+
+      final result =
+          await DreamingOrchestratorServiceV3.instance.runSagaWeaving(
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+        forceRun: true,
+      );
+      await _loadRecentSagas();
+      if (!mounted) return;
+      setState(() {
+        if (result.isEmpty) {
+          _lastError = 'Saga 编织未产生结果\n'
+              '${result.skippedReasons.join("\n")}';
+        } else {
+          _lastSuccess = 'Saga 编织完成：'
+              '新增 ${result.sagaIds.length} 条，'
+              '更新 ${result.updatedSagaIds.length} 条';
+        }
+      });
+    } catch (e, stack) {
+      _logger.warning('runSagaWeaving failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = 'Saga 编织失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _clearAllSagas() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清空所有 Saga？'),
+        content: const Text('这会删除所有 saga 及其历史快照。不能撤销。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('清空', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+
+    try {
+      await DreamingOrchestratorServiceV3.instance.clearAllSagas();
+      await _loadRecentSagas();
+      if (!mounted) return;
+      setState(() {
+        _lastSuccess = '已清空所有 saga';
+      });
+    } catch (e, stack) {
+      _logger.warning('clearAllSagas failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '清空失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _editSagaDialog(MemorySaga saga) async {
+    final titleController = TextEditingController(text: saga.title);
+    final descController = TextEditingController(text: saga.description);
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        final keyboardInset = MediaQuery.of(ctx).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + keyboardInset),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('编辑 Saga',
+                    style: Theme.of(ctx).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleController,
+                  maxLength: 30,
+                  maxLines: 1,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Title',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descController,
+                  maxLines: 6,
+                  minLines: 3,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Description',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('保存'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (result != true) return;
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    try {
+      await DreamingOrchestratorServiceV3.instance.updateSaga(
+        saga.id,
+        title: titleController.text.trim() != saga.title
+            ? titleController.text.trim()
+            : null,
+        description: descController.text.trim() != saga.description
+            ? descController.text.trim()
+            : null,
+      );
+      await _loadRecentSagas();
+      if (!mounted) return;
+      setState(() => _lastSuccess = 'Saga 已修正');
+    } catch (e, stack) {
+      _logger.warning('updateSaga failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '修正失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _sagaActionsSheet(MemorySaga saga) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('编辑 Title / Description'),
+              onTap: () => Navigator.pop(ctx, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.visibility_off_outlined),
+              title: const Text('标记 hidden'),
+              subtitle: const Text('Companion 不再注入这条'),
+              enabled: saga.status != 'hidden',
+              onTap: () => Navigator.pop(ctx, 'hidden'),
+            ),
+            ListTile(
+              leading: Icon(
+                saga.status == 'deleted'
+                    ? Icons.restore_from_trash_outlined
+                    : Icons.delete_outline,
+                color: Colors.red.shade700,
+              ),
+              title: Text(
+                saga.status == 'deleted' ? '恢复为 active' : '标记 deleted',
+              ),
+              onTap: () => Navigator.pop(ctx, 'toggle_deleted'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null) return;
+
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    try {
+      switch (action) {
+        case 'edit':
+          await _editSagaDialog(saga);
+          return;
+        case 'hidden':
+          await DreamingOrchestratorServiceV3.instance.updateSaga(
+            saga.id,
+            status: 'hidden',
+          );
+          break;
+        case 'toggle_deleted':
+          await DreamingOrchestratorServiceV3.instance.updateSaga(
+            saga.id,
+            status: saga.status == 'deleted' ? 'active' : 'deleted',
+          );
+          break;
+      }
+      await _loadRecentSagas();
+      if (!mounted) return;
+      setState(() => _lastSuccess = '状态已更新');
+    } catch (e, stack) {
+      _logger.warning('saga action failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '操作失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<int?> _latestChatMessageId() async {
     final db = AppDatabase.instance;
     final rows = await (db.select(db.personaChatMessages)
@@ -1270,6 +1531,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
               unawaited(_loadRecent());
               unawaited(_loadRecentFragments());
               unawaited(_loadRecentEpisodes());
+              unawaited(_loadRecentSagas());
               unawaited(_loadQueryLog());
               unawaited(_loadDreamingRecallLog());
             },
@@ -1315,7 +1577,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                   initiallyExpanded: true,
                   title: const Text('Dreaming 调试'),
                   subtitle: Text(
-                    'fragments ${_recentFragments.length} · episodes ${_recentEpisodes.length}',
+                    'fragments ${_recentFragments.length} · episodes ${_recentEpisodes.length} · sagas ${_recentSagas.length}',
                     style: const TextStyle(fontSize: 12),
                   ),
                   children: [
@@ -1370,6 +1632,18 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                             label: const Text('clear fragments',
                                 style: TextStyle(color: Colors.red)),
                           ),
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _runSagaWeaving,
+                            icon: const Icon(Icons.auto_stories_outlined),
+                            label: const Text('saga weaving'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _clearAllSagas,
+                            icon: const Icon(Icons.delete_sweep,
+                                color: Colors.red),
+                            label: const Text('clear sagas',
+                                style: TextStyle(color: Colors.red)),
+                          ),
                         ],
                       ),
                     ),
@@ -1407,6 +1681,8 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                 Text('fragments ${_recentFragments.length}',
                     style: const TextStyle(fontSize: 11)),
                 Text('episodes ${_recentEpisodes.length}',
+                    style: const TextStyle(fontSize: 11)),
+                Text('sagas ${_recentSagas.length}',
                     style: const TextStyle(fontSize: 11)),
                 Text('recall logs ${_dreamingRecallLogEntries.length}',
                     style: const TextStyle(fontSize: 11)),
@@ -1491,6 +1767,27 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                                 onTap: () => _editEpisodeDialog(ep),
                                 onLongPress: () =>
                                     _episodeActionsSheet(ep),
+                              ))
+                          .toList(growable: false),
+                ),
+                const Divider(height: 1),
+                ExpansionTile(
+                  title: Text('Saga 长期弧线',
+                      style: Theme.of(context).textTheme.titleSmall),
+                  subtitle: Text('${_recentSagas.length} 条',
+                      style: const TextStyle(fontSize: 11)),
+                  children: _recentSagas.isEmpty
+                      ? const [
+                          Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: Text('（暂无 saga）')),
+                          ),
+                        ]
+                      : _recentSagas
+                          .map((saga) => _SagaListTile(
+                                saga: saga,
+                                onTap: () => _editSagaDialog(saga),
+                                onLongPress: () => _sagaActionsSheet(saga),
                               ))
                           .toList(growable: false),
                 ),
@@ -1579,6 +1876,64 @@ class _EpisodeListTile extends StatelessWidget {
                     'v ${episode.valence.toStringAsFixed(2)} '
                     'a ${episode.arousal.toStringAsFixed(2)} · '
                     '${episode.status} · $createdAt$corrected',
+                    style: const TextStyle(
+                        fontSize: 10, color: Colors.black38),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.edit_outlined, size: 16, color: Colors.black26),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SagaListTile extends StatelessWidget {
+  const _SagaListTile({
+    required this.saga,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  final MemorySaga saga;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final updatedAt =
+        DateTime.fromMillisecondsSinceEpoch(saga.updatedAt).toString();
+    final corrected = saga.userCorrected ? ' · 已修正' : '';
+    return InkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.auto_stories_outlined,
+              size: 18,
+              color: Colors.deepPurple.shade300,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(saga.title,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text(saga.description,
+                      style: const TextStyle(fontSize: 12),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${saga.status} · $updatedAt$corrected',
                     style: const TextStyle(
                         fontSize: 10, color: Colors.black38),
                   ),

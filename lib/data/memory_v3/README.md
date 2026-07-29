@@ -93,7 +93,7 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 - Fragment 记录 `eventTime`（原始事件时间，非抽取时间）；Episode 的 `occurredAtRange` 由源 fragment eventTime 代码算出，不依赖 LLM。见 V3 § 5.6。
 - Companion 注入 dreaming context 时在 narrative 前加日期前缀（例："(07-08 · 2 天前)"），让模型能区分过去和现在。
 - Dreaming 自动产物写入 Dreaming 表族（fragments / episodes），不直接写 `memory_cards`。它承载的是事件+关系记忆，可信度中等（AI 观察）；Card 是用户显式确认的高置信版本。用户可以在 Memory Review 把高置信 Episode 升格成 Card。详见 V3 § 2.5。
-- Saga / Deep Dreaming 还未接入；当前版本以 Fragment + Episode + 召回观测为 MVP 闭环。
+- Saga / Deep Dreaming 已接入：`SagaWeaverV3` 在 Daily Dreaming 末尾按阈值（≥5 episodes、跨度≥14天、上次 saga ≥7天前）触发，把 active episodes 编织为长期叙事弧线；更新走增量改写（旧版进 `memory_saga_snapshots`）；Companion 每轮注入最多 3 条 saga 作为「长期弧线」上下文；Lab 可手动触发 / 编辑 / 清空。
 
 ### Project Memory 边界
 

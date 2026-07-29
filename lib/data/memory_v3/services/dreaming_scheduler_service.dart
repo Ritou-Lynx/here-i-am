@@ -322,6 +322,25 @@ class DreamingSchedulerService {
       _logger.warning('Daily batch: post-batch cleanup failed', e, stack);
     }
 
+    // 8. Deep Dreaming: saga weaving (threshold-gated, runs at most weekly).
+    try {
+      if (await orchestrator.shouldRunSagaWeaving()) {
+        _logger.info('Daily batch: saga threshold met, running Deep Dreaming');
+        final sagaResult = await orchestrator.runSagaWeaving(
+          client: epResources.client,
+          modelConfig: epResources.modelConfig,
+          forceRun: true, // threshold already checked
+        );
+        _logger.info(
+          'Daily batch: saga weaving done — '
+          '${sagaResult.sagaIds.length} new, '
+          '${sagaResult.updatedSagaIds.length} updated',
+        );
+      }
+    } catch (e, stack) {
+      _logger.warning('Daily batch: saga weaving failed', e, stack);
+    }
+
     await orchestrator.markDailyBatchComplete(characterId);
     return true;
   }

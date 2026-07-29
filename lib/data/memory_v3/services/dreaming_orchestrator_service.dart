@@ -10,6 +10,7 @@ import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:drift/drift.dart';
 import 'package:memex/data/memory_v3/agents/dreaming_agent/episode_consolidator.dart';
 import 'package:memex/data/memory_v3/agents/dreaming_agent/fragment_extractor.dart';
+import 'package:memex/data/memory_v3/agents/dreaming_agent/saga_weaver.dart';
 import 'package:memex/data/memory_v3/models/dreaming_fragment.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/memory_v3/services/embedding_service.dart';
@@ -51,6 +52,20 @@ class EpisodeConsolidationRunResult {
   final int consolidatedFragmentCount;
 
   bool get isEmpty => episodeIds.isEmpty;
+}
+
+class SagaWeavingRunResult {
+  SagaWeavingRunResult({
+    required this.sagaIds,
+    required this.updatedSagaIds,
+    required this.skippedReasons,
+  });
+
+  final List<String> sagaIds;
+  final List<String> updatedSagaIds;
+  final List<String> skippedReasons;
+
+  bool get isEmpty => sagaIds.isEmpty && updatedSagaIds.isEmpty;
 }
 
 class DreamingContextQueryResult {
@@ -98,6 +113,7 @@ class DreamingOrchestratorServiceV3 {
   static const _extractorVersion = 'dreaming.fragment_extractor.v3.1';
   static const _episodeConsolidatorVersion =
       'dreaming.episode_consolidator.v3.1';
+  static const _sagaWeaverVersion = 'dreaming.saga_weaver.v3.0';
 
   static DreamingOrchestratorServiceV3? _instance;
 
@@ -127,8 +143,9 @@ class DreamingOrchestratorServiceV3 {
         await db.searchDao.createFtsTables();
         final ep = await _instance!.reindexAllEpisodes();
         final fr = await _instance!.reindexAllFragments();
+        final sg = await _instance!.reindexAllSagas();
         _logger.info(
-            'Dreaming FTS backfill: $ep episode(s), $fr fragment(s) indexed');
+            'Dreaming FTS backfill: $ep episode(s), $fr fragment(s), $sg saga(s) indexed');
         await _instance!.backfillFragmentEventTimes();
         await _instance!.recomputeAllEpisodeOccurredAtRange();
       } catch (e, s) {
@@ -1867,5 +1884,334 @@ class DreamingOrchestratorServiceV3 {
       }
     }
     return count;
+  }
+
+  // ===========================================================================
+  // Saga Weaving (Deep Dreaming)
+  // ===========================================================================
+
+  /// V3 § 10.7 trigger threshold: run saga weaving only when:
+  /// - active episodes >= [minEpisodes]
+  /// - episode time span >= [minTimeSpanDays]
+  /// - last saga update was >= [minDaysSinceLastSaga] days ago (or never)
+  static const _sagaMinEpisodes = 5;
+  static const _sagaMinTimeSpanDays = 14;
+  static const _sagaMinDaysSinceLastSaga = 7;
+
+  /// Check whether saga weaving should run based on V3 § 10.7 thresholds.
+  Future<bool> shouldRunSagaWeaving() async {
+    final activeEpisodes = await (_db.select(_db.memoryEpisodes)
+          ..where((t) => t.status.equals('active')))
+        .get();
+    if (activeEpisodes.length < _sagaMinEpisodes) return false;
+
+    // Check time span: earliest vs latest episode createdAt.
+    final createdAts = activeEpisodes.map((e) => e.createdAt).toList()..sort();
+    final spanDays =
+        (createdAts.last - createdAts.first) / (1000 * 60 * 60 * 24);
+    if (spanDays < _sagaMinTimeSpanDays) return false;
+
+    // Check last saga update time.
+    final lastSaga = await (_db.select(_db.memorySagas)
+          ..where((t) => t.status.equals('active'))
+          ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+          ..limit(1))
+        .getSingleOrNull();
+    if (lastSaga != null) {
+      final daysSince =
+          (DateTime.now().millisecondsSinceEpoch - lastSaga.updatedAt) /
+              (1000 * 60 * 60 * 24);
+      if (daysSince < _sagaMinDaysSinceLastSaga) return false;
+    }
+
+    return true;
+  }
+
+  /// Run Deep Dreaming: weave active episodes into long-term sagas.
+  ///
+  /// Persistence: new sagas are inserted; updated sagas get a snapshot of
+  /// the old version in [MemorySagaSnapshots] before being overwritten.
+  /// FTS is updated for each new/changed saga.
+  Future<SagaWeavingRunResult> runSagaWeaving({
+    required LLMClient client,
+    required ModelConfig modelConfig,
+    SagaWeaverV3 agent = const SagaWeaverV3(),
+    bool forceRun = false,
+  }) async {
+    if (!forceRun && !await shouldRunSagaWeaving()) {
+      return SagaWeavingRunResult(
+        sagaIds: const [],
+        updatedSagaIds: const [],
+        skippedReasons: ['threshold not met'],
+      );
+    }
+
+    final episodes = await (_db.select(_db.memoryEpisodes)
+          ..where((t) => t.status.equals('active'))
+          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+        .get();
+    final existingSagas = await (_db.select(_db.memorySagas)
+          ..where((t) => t.status.equals('active')))
+        .get();
+
+    _logger.info(
+      'Saga: weaving ${episodes.length} episodes, '
+      '${existingSagas.length} existing saga(s)',
+    );
+
+    final result = await agent.weave(
+      client: client,
+      modelConfig: modelConfig,
+      episodes: episodes,
+      existingSagas: existingSagas,
+    );
+
+    if (result.isEmpty) {
+      _logger.info('Saga: weaver returned no sagas. '
+          'Reasons: ${result.skippedReasons.join('; ')}');
+      return SagaWeavingRunResult(
+        sagaIds: const [],
+        updatedSagaIds: const [],
+        skippedReasons: result.skippedReasons,
+      );
+    }
+
+    final newSagaIds = <String>[];
+    final updatedSagaIds = <String>[];
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    await _db.transaction(() async {
+      for (final draft in result.sagas) {
+        final episodeIdsJson = jsonEncode(draft.episodeIds);
+        final axisJson = jsonEncode(draft.emotionalAxis.toJson());
+
+        if (draft.existingSagaId != null &&
+            draft.existingSagaId!.isNotEmpty) {
+          // ── Update existing saga: snapshot old version first ──
+          final oldSaga = await (_db.select(_db.memorySagas)
+                ..where((t) =>
+                    t.id.equals(draft.existingSagaId!) &
+                    t.status.equals('active')))
+              .getSingleOrNull();
+
+          if (oldSaga != null) {
+            // Archive old version.
+            await _db.into(_db.memorySagaSnapshots).insert(
+                  MemorySagaSnapshotsCompanion(
+                    id: Value(_uuid.v4()),
+                    sagaId: Value(oldSaga.id),
+                    title: Value(oldSaga.title),
+                    description: Value(oldSaga.description),
+                    episodeIds: Value(oldSaga.episodeIds),
+                    emotionalAxis: Value(oldSaga.emotionalAxis),
+                    generatedByVersion: Value(oldSaga.generatedByVersion),
+                    snapshotAt: Value(now),
+                  ),
+                );
+
+            // Overwrite current saga.
+            await (_db.update(_db.memorySagas)
+                  ..where((t) => t.id.equals(oldSaga.id)))
+                .write(MemorySagasCompanion(
+              title: Value(draft.title),
+              description: Value(draft.description),
+              episodeIds: Value(episodeIdsJson),
+              emotionalAxis: Value(axisJson),
+              generatedByVersion: const Value(_sagaWeaverVersion),
+              updatedAt: Value(now),
+            ));
+            updatedSagaIds.add(oldSaga.id);
+
+            // FTS update.
+            try {
+              await _db.searchDao.upsertMemorySagaFts(
+                sagaId: oldSaga.id,
+                title: draft.title,
+                description: draft.description,
+              );
+            } catch (e, s) {
+              _logger.warning('Saga FTS update failed for ${oldSaga.id}', e, s);
+            }
+            continue;
+          }
+          // Old saga not found — fall through to create new.
+        }
+
+        // ── Create new saga ──
+        final sagaId = _uuid.v4();
+        await _db.into(_db.memorySagas).insert(
+              MemorySagasCompanion(
+                id: Value(sagaId),
+                title: Value(draft.title),
+                description: Value(draft.description),
+                episodeIds: Value(episodeIdsJson),
+                emotionalAxis: Value(axisJson),
+                status: const Value('active'),
+                generatedByVersion: const Value(_sagaWeaverVersion),
+                userCorrected: const Value(false),
+                schemaVersion: const Value(1),
+                createdAt: Value(now),
+                updatedAt: Value(now),
+              ),
+            );
+        newSagaIds.add(sagaId);
+
+        // FTS insert.
+        try {
+          await _db.searchDao.upsertMemorySagaFts(
+            sagaId: sagaId,
+            title: draft.title,
+            description: draft.description,
+          );
+        } catch (e, s) {
+          _logger.warning('Saga FTS insert failed for $sagaId', e, s);
+        }
+      }
+    });
+
+    _logger.info(
+      'Saga: created ${newSagaIds.length}, updated ${updatedSagaIds.length}',
+    );
+    return SagaWeavingRunResult(
+      sagaIds: newSagaIds,
+      updatedSagaIds: updatedSagaIds,
+      skippedReasons: result.skippedReasons,
+    );
+  }
+
+  /// Query active sagas for companion context injection.
+  ///
+  /// When [queryHint] is non-empty, FTS search ranks sagas by relevance.
+  /// Remaining slots filled by recency. Returns at most [limit] sagas.
+  Future<List<MemorySaga>> querySagasForContext({
+    String queryHint = '',
+    int limit = 3,
+  }) async {
+    final trimmedHint = queryHint.trim();
+    final results = <MemorySaga>[];
+    final seenIds = <String>{};
+
+    if (trimmedHint.isNotEmpty) {
+      try {
+        final ftsHits = await _db.searchDao.searchMemorySagas(
+          trimmedHint,
+          limit: limit * 2,
+        );
+        if (ftsHits.isNotEmpty) {
+          final ids = ftsHits
+              .map((h) => h['saga_id'] as String)
+              .toList(growable: false);
+          final rows = await (_db.select(_db.memorySagas)
+                ..where((t) =>
+                    t.id.isIn(ids) & t.status.equals('active')))
+              .get();
+          // Sort by FTS rank order.
+          final idOrder = {for (var i = 0; i < ids.length; i++) ids[i]: i};
+          rows.sort((a, b) =>
+              (idOrder[a.id] ?? 999).compareTo(idOrder[b.id] ?? 999));
+          for (final saga in rows) {
+            if (results.length >= limit) break;
+            if (seenIds.add(saga.id)) results.add(saga);
+          }
+        }
+      } catch (e, s) {
+        _logger.warning('Saga FTS search failed; falling back to recency', e, s);
+      }
+    }
+
+    // Recency fill.
+    if (results.length < limit) {
+      final fillQuery = _db.select(_db.memorySagas)
+        ..where((t) => t.status.equals('active'))
+        ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+        ..limit(limit);
+      final fillRows = await fillQuery.get();
+      for (final saga in fillRows) {
+        if (results.length >= limit) break;
+        if (seenIds.add(saga.id)) results.add(saga);
+      }
+    }
+
+    return results;
+  }
+
+  /// Rebuild the saga FTS index from all active sagas. Idempotent.
+  Future<int> reindexAllSagas() async {
+    final rows = await (_db.select(_db.memorySagas)
+          ..where((t) => t.status.equals('active')))
+        .get();
+    var count = 0;
+    for (final row in rows) {
+      try {
+        await _db.searchDao.upsertMemorySagaFts(
+          sagaId: row.id,
+          title: row.title,
+          description: row.description,
+        );
+        count++;
+      } catch (e, s) {
+        _logger.warning('reindexAllSagas: failed for ${row.id}', e, s);
+      }
+    }
+    return count;
+  }
+
+  /// Delete all sagas and their snapshots. For Lab/dev reset only.
+  Future<void> clearAllSagas() async {
+    await _db.delete(_db.memorySagaSnapshots).go();
+    await _db.delete(_db.memorySagas).go();
+    await _db.searchDao.clearMemorySagaFts();
+    _logger.info('clearAllSagas: all sagas and snapshots deleted');
+  }
+
+  /// Update a saga's fields from Lab UI. Marks [userCorrected] = true.
+  Future<MemorySaga> updateSaga(
+    String sagaId, {
+    String? title,
+    String? description,
+    String? status,
+  }) async {
+    return _db.transaction(() async {
+      final row = await (_db.select(_db.memorySagas)
+            ..where((t) => t.id.equals(sagaId)))
+          .getSingleOrNull();
+      if (row == null) {
+        throw StateError('Saga not found: $sagaId');
+      }
+
+      await (_db.update(_db.memorySagas)..where((t) => t.id.equals(sagaId)))
+          .write(MemorySagasCompanion(
+        title: title != null ? Value(title) : const Value.absent(),
+        description:
+            description != null ? Value(description) : const Value.absent(),
+        status: status != null ? Value(status) : const Value.absent(),
+        userCorrected: const Value(true),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ));
+
+      // FTS handling.
+      final becameDeleted = (status == 'deleted');
+      final contentChanged =
+          (title != null && title != row.title) ||
+          (description != null && description != row.description);
+      try {
+        if (becameDeleted) {
+          await _db.searchDao.deleteMemorySagaFts(sagaId);
+        } else if (contentChanged) {
+          await _db.searchDao.upsertMemorySagaFts(
+            sagaId: sagaId,
+            title: title ?? row.title,
+            description: description ?? row.description,
+          );
+        }
+      } catch (e, s) {
+        _logger.warning('updateSaga: FTS update failed for $sagaId', e, s);
+      }
+
+      final updated = await (_db.select(_db.memorySagas)
+            ..where((t) => t.id.equals(sagaId)))
+          .getSingle();
+      return updated;
+    });
   }
 }
