@@ -1,29 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/services/photo_suggestion_service.dart';
-import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
+import 'package:memex/ui/core/themes/spring_rain_chat_tokens.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
-Color get _trayPanel {
-  final tokens = HereIamThemeRuntime.current;
-  return tokens.brightness == Brightness.dark
-      ? tokens.background.withValues(alpha: 0.94)
-      : tokens.surface.withValues(alpha: 0.86);
-}
+const _sr = SpringRainChatTokens.springRainDaydream;
 
-Color get _trayPanelSoft {
-  final tokens = HereIamThemeRuntime.current;
-  return tokens.brightness == Brightness.dark
-      ? tokens.surface
-      : tokens.surfaceSoft.withValues(alpha: 0.92);
-}
-
-Color get _trayText => HereIamThemeRuntime.current.textPrimary;
-Color get _trayMuted => HereIamThemeRuntime.current.textSecondary;
-Color get _trayAccent => HereIamThemeRuntime.current.accent;
-Color get _trayEdge => HereIamThemeRuntime.current.glassEdge;
+Color get _trayPanel => _sr.background.withValues(alpha: 0.94);
+Color get _trayPanelSoft => const Color(0xFF161A12);
+Color get _trayText => _sr.iColor;
+Color get _trayMuted => const Color(0xCCEDE6D5);
+Color get _trayAccent => const Color(0xFFA3A866);
+Color get _trayEdge => _sr.glassStroke;
 
 /// Lightweight media picker for companion chat.
 ///

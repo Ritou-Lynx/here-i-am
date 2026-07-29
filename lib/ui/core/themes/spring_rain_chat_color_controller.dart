@@ -18,28 +18,29 @@ class SpringRainUserColorOption {
 
 /// Runtime switch for the chat user-message color.
 ///
-/// Two lightness steps of the same moss/olive hue (H≈68°): moss green #A3A866
-/// for everyday use (the §22.5 / ADR-13 final — ~5:1 contrast on the dark
-/// surface) and a brighter moss #AEB873 that stays legible in a dark room.
-/// Only the user message text consumes [userColor]; nothing else changes.
+/// Two colors of the same olive/moss hue family (H≈65–68°): the deep olive
+/// #6E7541 for everyday use (the original look the user prefers; ~2.7:1 on the
+/// dark surface — a knowingly accepted trade-off, see ADR-16) and moss green
+/// #A3A866 (~5:1) as a more legible alternative. Only the user message text
+/// consumes [userColor]; nothing else changes.
 class SpringRainChatColorController extends ChangeNotifier {
   static const _prefsKey = 'spring_rain_user_color_id';
 
   static const List<SpringRainUserColorOption> options = [
     SpringRainUserColorOption(
-      id: 'moss',
-      label: '苔绿 · 日常',
-      color: Color(0xFFA3A866),
+      id: 'deep',
+      label: '橄榄 · 深',
+      color: Color(0xFF6E7541),
     ),
     SpringRainUserColorOption(
-      id: 'bright',
-      label: '苔绿 · 暗室',
-      color: Color(0xFFAEB873),
+      id: 'moss',
+      label: '苔绿 · 浅',
+      color: Color(0xFFA3A866),
     ),
   ];
 
   Color _userColor = SpringRainChatTokens.springRainDaydream.userColor;
-  String _selectedId = 'moss';
+  String _selectedId = 'deep';
 
   Color get userColor => _userColor;
   String get selectedId => _selectedId;

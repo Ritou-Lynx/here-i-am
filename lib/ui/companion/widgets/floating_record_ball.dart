@@ -139,13 +139,13 @@ class _BallWidgetState extends State<_BallWidget>
                               center: const Alignment(-0.24, -0.38),
                               radius: 1.12,
                               colors: [
-                                const Color(0xFFFFECDD).withValues(alpha: 0.13),
+                                const Color(0xFFF5EEE0).withValues(alpha: 0.13),
                                 const Color(
-                                  0xFFFFC4B5,
+                                  0xFFA3A866,
                                 ).withValues(alpha: 0.065),
-                                const Color(0xFF74464B).withValues(alpha: 0.34),
-                                const Color(0xFF2A1219).withValues(alpha: 0.76),
-                                const Color(0xFF080406).withValues(alpha: 0.94),
+                                const Color(0xFF222918).withValues(alpha: 0.34),
+                                const Color(0xFF11150E).withValues(alpha: 0.76),
+                                const Color(0xFF080A09).withValues(alpha: 0.94),
                               ],
                               stops: const [0, 0.24, 0.48, 0.78, 1],
                             ),
@@ -160,7 +160,7 @@ class _BallWidgetState extends State<_BallWidget>
                       Center(
                         child: _DropletPlusMark(
                           color:
-                              const Color(0xFFF0D5D7).withValues(alpha: 0.82),
+                              const Color(0xFFF5EEE0).withValues(alpha: 0.82),
                         ),
                       ),
                     ],
@@ -196,7 +196,7 @@ class _DropletPlusMark extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFFC6B5).withValues(alpha: 0.12),
+                  color: const Color(0xFFA3A866).withValues(alpha: 0.12),
                   blurRadius: 10,
                 ),
               ],
@@ -210,7 +210,7 @@ class _DropletPlusMark extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFFC6B5).withValues(alpha: 0.12),
+                  color: const Color(0xFFA3A866).withValues(alpha: 0.12),
                   blurRadius: 10,
                 ),
               ],
@@ -235,8 +235,8 @@ class _DropletLiquidPainter extends CustomPainter {
         center: const Alignment(-0.34, -0.42),
         radius: 0.92,
         colors: [
-          const Color(0xFFFFECDD).withValues(alpha: 0.16),
-          const Color(0xFFFFC6B5).withValues(alpha: 0.07),
+          const Color(0xFFF5EEE0).withValues(alpha: 0.16),
+          const Color(0xFFA3A866).withValues(alpha: 0.07),
           Colors.transparent,
         ],
         stops: const [0, 0.42, 1],
@@ -260,8 +260,8 @@ class _DropletLiquidPainter extends CustomPainter {
           center: const Alignment(-0.38, -0.35),
           radius: 0.9,
           colors: [
-            const Color(0xFFFFF6EF).withValues(alpha: 0.22),
-            const Color(0xFFFFC6B5).withValues(alpha: 0.06),
+            const Color(0xFFF5EEE0).withValues(alpha: 0.22),
+            const Color(0xFFA3A866).withValues(alpha: 0.06),
             Colors.transparent,
           ],
           stops: const [0, 0.36, 1],
@@ -285,7 +285,7 @@ class _DropletLiquidPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 7
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFFFECDD).withValues(alpha: 0.018)
+        ..color = const Color(0xFFF5EEE0).withValues(alpha: 0.018)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
     );
     canvas.drawPath(
@@ -294,7 +294,7 @@ class _DropletLiquidPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.5
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFFFECDD).withValues(alpha: 0.024)
+        ..color = const Color(0xFFF5EEE0).withValues(alpha: 0.024)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
     );
 
@@ -306,8 +306,8 @@ class _DropletLiquidPainter extends CustomPainter {
           center: const Alignment(0.34, 0.30),
           radius: 0.88,
           colors: [
-            const Color(0xFFC0646E).withValues(alpha: 0.20),
-            const Color(0xFFFFC6B5).withValues(alpha: 0.06),
+            const Color(0xFF6E7541).withValues(alpha: 0.20),
+            const Color(0xFFA3A866).withValues(alpha: 0.06),
             Colors.transparent,
           ],
           stops: const [0, 0.45, 1],
@@ -331,7 +331,7 @@ class _DropletLiquidPainter extends CustomPainter {
     final rim = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1
-      ..color = const Color(0xFFFFECDD).withValues(alpha: 0.055)
+      ..color = const Color(0xFFF5EEE0).withValues(alpha: 0.055)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6);
     canvas.drawPath(_dropletPath(size).shift(const Offset(0, 0.4)), rim);
   }
@@ -360,7 +360,7 @@ class _DropletShadowPainter extends CustomPainter {
       ..drawShadow(path, Colors.black.withValues(alpha: 0.46), 18, true)
       ..drawShadow(
         path,
-        const Color(0xFFD36F7E).withValues(alpha: 0.24),
+        const Color(0xFF6E7541).withValues(alpha: 0.24),
         24,
         true,
       );
@@ -368,7 +368,7 @@ class _DropletShadowPainter extends CustomPainter {
     final highlight = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.9
-      ..color = const Color(0xFFEECDBF).withValues(alpha: 0.15);
+      ..color = const Color(0xFFF5EEE0).withValues(alpha: 0.15);
     canvas.drawPath(
       _dropletPath(size).shift(const Offset(0, 0.5)),
       highlight,

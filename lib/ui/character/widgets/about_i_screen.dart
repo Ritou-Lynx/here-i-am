@@ -503,6 +503,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
   }) {
     const skin = HereIamThemeTokens.springRainDaydream;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
@@ -510,7 +511,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
           color: chat.background,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? option.color : skin.glassStroke,
+            color: isSelected ? skin.highlight : skin.glassStroke,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -528,12 +529,26 @@ class _AboutIScreenState extends State<AboutIScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            Text(
-              option.label,
-              style: TextStyle(
-                fontSize: 12,
-                color: skin.textMuted,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isSelected) ...[
+                  Icon(
+                    Icons.check_circle,
+                    size: 14,
+                    color: skin.highlight,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  option.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected ? skin.textPrimary : skin.textMuted,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
