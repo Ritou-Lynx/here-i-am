@@ -1,68 +1,28 @@
 /**
- * 小说文本 AI 处理：角色提取 + 章节摘要
+ * Generate character roster + chapter summaries for an imported book.
  *
- * 读取 data/books/<id>/ 下所有章节 .txt 文件，
- * 调用 Ollama 文本模型生成:
- *   1. 角色名册 — 全书角色、别名、描述
- *   2. 章节摘要 — 每章 2-3 句剧情摘要 + 关键事件
+ * Reads data/books/<id>/chapters/*.txt and meta.json, calls Ollama to
+ * produce summaries.json in the same book directory. The comic_server
+ * /v1/book/books/:id/summaries endpoint serves this file directly.
  *
- * 用法: node generate_book_summary.mjs <book-id> [--model qwen2.5:14b]
- *
- * 输出:
- *   data/books/<id>/summaries.json — 角色名册 + 章节摘要
+ * Usage:
+ *   node generate_book_summary.mjs <bookId> [--model qwen2.5:7b] [--max-chapters 50]
+ *   node generate_book_summary.mjs --all [--model qwen2.5:7b]
  */
-
-import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const dataDir = join(__dirname, 'data');
+const dataDir = process.env.COMIC_SERVER_DATA_DIR || join(__dirname, 'data');
 const booksDir = join(dataDir, 'books');
 
-const bookId = process.argv[2];
-if (!bookId) {
-  console.error('Usage: node generate_book_summary.mjs <book-id> [--model <model>]');
-  process.exit(1);
-}
-
 const modelIdx = process.argv.indexOf('--model');
-const model = modelIdx >= 0 ? process.argv[modelIdx + 1] : 'qwen3:8b';
+const model = modelIdx >= 0 ? process.argv[modelIdx + 1] : 'qwen2.5:7b';
+const maxChIdx = process.argv.indexOf('--max-chapters');
+const maxChapters = maxChIdx >= 0 ? parseInt(process.argv[maxChIdx + 1], 10) : 80;
 
-const bookDir = join(booksDir, bookId);
-const metaPath = join(bookDir, 'meta.json');
-const chaptersDir = join(bookDir, 'chapters');
-const summariesPath = join(bookDir, 'summaries.json');
-
-if (!existsSync(metaPath)) {
-  console.error(`Book not found: ${bookId}`);
-  process.exit(1);
-}
-
-const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
-
-// ── Load chapters ────────────────────────────────────────────────────────────
-
-function loadChapters() {
-  const files = readdirSync(chaptersDir)
-    .filter(f => f.endsWith('.txt'))
-    .sort();
-  const chapters = [];
-  for (const f of files) {
-    const num = parseInt(f.replace('.txt', ''), 10);
-    const content = readFileSync(join(chaptersDir, f), 'utf8');
-    const info = meta.chapters.find(c => c.number === num);
-    chapters.push({
-      number: num,
-      title: info?.title || `第${num}章`,
-      chars: info?.chars || content.length,
-      content,
-    });
-  }
-  return chapters;
-}
-
-// ── Call Ollama ──────────────────────────────────────────────────────────────
+// ── Ollama ──────────────────────────────────────────────────────────────────
 
 async function callOllama(prompt, opts = {}) {
   const body = {
@@ -83,184 +43,194 @@ async function callOllama(prompt, opts = {}) {
   });
   if (!resp.ok) throw new Error(`Ollama HTTP ${resp.status}`);
   const data = await resp.json();
-  let raw = data.response || '';
-  // Try parse as JSON
-  try { return JSON.parse(raw); }
-  catch {
+  const raw = data.response || '';
+  try { return JSON.parse(raw); } catch {
     const m = raw.match(/\{[\s\S]*\}/);
     if (m) { try { return JSON.parse(m[0]); } catch {} }
     return { raw, _parseError: true };
   }
 }
 
-// ── Phase 1: Character extraction from all chapters ──────────────────────────
+// ── Load book ───────────────────────────────────────────────────────────────
 
-async function extractCharacters(chapters) {
-  console.log('=== 阶段 1：角色提取 ===');
-
-  // Build a compact sample: first 800 chars of each chapter
-  const samples = chapters.map(ch => {
-    const preview = ch.content.length > 800
-      ? ch.content.substring(0, 800) + '…'
-      : ch.content;
-    return `【${ch.title}】\n${preview}`;
-  });
-
-  // For books with many chapters, sample strategically
-  let input;
-  if (chapters.length <= 20) {
-    input = samples.join('\n\n---\n\n');
-  } else {
-    // first 10 + spaced samples from rest
-    const selected = samples.slice(0, 10);
-    const interval = Math.max(1, Math.floor((chapters.length - 10) / 10));
-    for (let i = 10; i < chapters.length; i += interval) {
-      selected.push(samples[i]);
-    }
-    input = selected.join('\n\n---\n\n');
+function loadBook(bookId) {
+  const bDir = join(booksDir, bookId);
+  const metaPath = join(bDir, 'meta.json');
+  if (!existsSync(metaPath)) return null;
+  const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
+  const chDir = join(bDir, 'chapters');
+  const chapters = [];
+  for (const ch of (meta.chapters || [])) {
+    const fp = join(chDir, ch.file);
+    if (!existsSync(fp)) continue;
+    chapters.push({
+      number: ch.number,
+      title: ch.title,
+      chars: ch.chars,
+      content: readFileSync(fp, 'utf8'),
+    });
   }
+  chapters.sort((a, b) => a.number - b.number);
+  return { meta, bDir, chapters };
+}
 
-  console.log(`  输入：${chapters.length} 章，采样 ${input.length} 字符`);
-  console.log('  调用 Ollama...');
+function listBookIds() {
+  if (!existsSync(booksDir)) return [];
+  return readdirSync(booksDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+}
 
-  const prompt = `你是一个小说分析助手。以下是小说《${meta.title}》各章节开头的摘录。请从中识别所有角色，生成角色名册。
+// ── Truncate chapter for context window ─────────────────────────────────────
+
+function truncate(text, maxChars = 6000) {
+  if (text.length <= maxChars) return text;
+  const head = text.substring(0, Math.floor(maxChars * 0.7));
+  const tail = text.substring(text.length - Math.floor(maxChars * 0.2));
+  return `${head}\n\n……（中间省略）……\n\n${tail}`;
+}
+
+// ── Generate character roster ───────────────────────────────────────────────
+
+async function generateRoster(book) {
+  console.log('=== 生成角色名册 ===');
+  const sample = book.chapters.slice(0, Math.min(5, book.chapters.length));
+  const text = sample.map((ch) => `【${ch.title}】\n${truncate(ch.content, 3000)}`).join('\n\n---\n\n');
+
+  const prompt = `你是一个小说分析助手。只输出JSON，不要输出其他文字。
+
+以下是小说《${book.meta.title}》前几章的内容。请从中识别主要角色，生成角色名册。
 
 要求：
-1. 提取所有出现过的角色名，包括全名、昵称、称呼
-2. 如果同一个人有不同称呼（如"小明""明哥""李明"），合并为一条，列出所有别名
+1. 提取所有重要角色（主角、配角、反派）
+2. 如果同一个人有不同称呼，合并为一条，列出别名
 3. 简要描述每个角色的身份和特征
-4. 标注角色首次出现的大致章节（从摘录判断）
 
-输出纯 JSON（不要在 JSON 外写其他文字）：
+输出 JSON 格式：
 {
   "characters": [
-    {
-      "name": "主要称呼",
-      "aliases": ["别名1", "别名2"],
-      "description": "身份和外貌描述",
-      "first_seen_chapter": 3
-    }
+    {"name": "主要称呼", "aliases": ["别名1"], "description": "身份和特征描述"}
   ]
 }
 
-以下是各章摘录：
+以下是小说内容：
 
-${input}`;
+${text}`;
 
-  const result = await callOllama(prompt);
-  const characters = result.characters || [];
-  console.log(`  ✓ 提取 ${characters.length} 个角色`);
-  return characters;
+  console.log(`  采样 ${sample.length} 章，${text.length} 字符`);
+  const parsed = await callOllama(prompt, { numCtx: 16384 });
+  const characters = parsed.characters || [];
+  console.log(`  ✓ ${characters.length} 个角色`);
+  return { characters };
 }
 
-// ── Phase 2: Chapter-by-chapter summaries ────────────────────────────────────
+// ── Generate chapter summaries ──────────────────────────────────────────────
 
-async function generateChapterSummaries(chapters, characters) {
-  console.log('\n=== 阶段 2：章节摘要 ===');
+async function generateSummaries(book, roster) {
+  console.log('\n=== 生成章节摘要 ===');
+  const rosterText = (roster.characters || [])
+    .map((c) => `- ${c.name}${c.aliases?.length ? `（${c.aliases.join('、')}）` : ''}：${c.description || ''}`)
+    .join('\n');
 
-  const rosterText = characters.map(c => {
-    const aliases = c.aliases?.length ? `（又名：${c.aliases.join('、')}）` : '';
-    return `- ${c.name}${aliases}：${c.description || ''}`;
-  }).join('\n') || '（暂无角色信息）';
-
-  const chapterSummaries = [];
+  const chapters = book.chapters.slice(0, maxChapters);
+  const summaries = [];
 
   for (let i = 0; i < chapters.length; i++) {
     const ch = chapters[i];
-    const prevSummary = i > 0 ? chapterSummaries[i - 1].summary : '无';
-    // Only pass the immediately preceding chapter summary — keeps ctx constant
-    const prevCtx = i > 0
-      ? `前一章「${chapters[i - 1].title}」摘要：${chapterSummaries[i - 1].summary}`
-      : '（这是第一章）';
+    const prevSummary = i > 0 ? summaries[i - 1].summary : '（第一章，无前文）';
+    const chText = truncate(ch.content, 5000);
 
-    // Trim chapter content if it's very long
-    const chText = ch.content.length > 6000
-      ? ch.content.substring(0, 6000) + '\n…（后续内容省略）'
-      : ch.content;
+    const prompt = `你是一个小说分析助手。只输出JSON，不要输出其他文字。
 
-    const prompt = `你是一个小说分析助手。以下是小说《${meta.title}》第${ch.number}章「${ch.title}」的正文。
+小说：《${book.meta.title}》
+当前章节：${ch.title}（第 ${ch.number} 章）
 
-已知角色名册：
-${rosterText}
+已知角色：
+${rosterText || '（未知）'}
 
-${prevCtx}
+前一章摘要：${prevSummary}
 
-请基于以上信息和本章正文，写一个简洁的章节摘要。要求：
-1. 用 2-3 句话概括这一章的核心剧情
-2. 如果本章引入了重要的新角色，在 new_characters 中列出
-3. 列举 1-2 个本章关键事件
-4. 标注主要出场的已知角色
+请总结本章剧情。要求：
+1. 用角色名册中的称呼
+2. 3-5句话概括本章发生了什么
+3. 标注重要转折或新角色登场
 
-输出纯 JSON（不要写其他文字）：
-{
-  "number": ${ch.number},
-  "title": "${ch.title.replace(/"/g, '\\"')}",
-  "summary": "2-3句话的剧情摘要",
-  "key_events": ["关键事件"],
-  "main_characters": ["本章出场的主要角色"],
-  "new_characters": ["本章新出现的角色（没有则为空数组）"]
-}
+输出 JSON：
+{"summary": "3-5句话摘要", "key_events": ["事件1", "事件2"]}
 
-以下是本章正文：
+本章内容：
 
 ${chText}`;
 
-    process.stdout.write(`  [${i + 1}/${chapters.length}] ${ch.title}…`);
+    process.stdout.write(`  [${i + 1}/${chapters.length}] ${ch.title}...`);
     try {
-      const result = await callOllama(prompt);
-      chapterSummaries.push({
+      const parsed = await callOllama(prompt);
+      summaries.push({
         number: ch.number,
         title: ch.title,
-        summary: result.summary || '',
-        key_events: result.key_events || [],
-        main_characters: result.main_characters || [],
-        new_characters: result.new_characters || [],
+        summary: parsed.summary || '',
+        key_events: parsed.key_events || [],
       });
       console.log(' ✓');
     } catch (e) {
       console.log(` ✗ (${e.message.substring(0, 60)})`);
-      chapterSummaries.push({
-        number: ch.number,
-        title: ch.title,
-        summary: '',
-        key_events: [],
-        main_characters: [],
-        new_characters: [],
-        error: e.message.substring(0, 200),
-      });
+      summaries.push({ number: ch.number, title: ch.title, summary: '', key_events: [], error: e.message.substring(0, 200) });
     }
   }
-
-  return chapterSummaries;
+  return summaries;
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
-async function main() {
-  console.log(`小说摘要生成 · 模型 ${model}\n`);
-  console.log(`书名：《${meta.title}》`);
-  console.log(`章节：${meta.chapter_count} 章 · 总字数：${meta.total_chars.toLocaleString()}\n`);
+async function processBook(bookId) {
+  const book = loadBook(bookId);
+  if (!book) { console.error(`Book ${bookId} not found`); return; }
 
-  const chapters = loadChapters();
-  console.log(`加载 ${chapters.length} 章\n`);
+  const outPath = join(book.bDir, 'summaries.json');
+  if (existsSync(outPath)) {
+    console.log(`[${book.meta.title}] summaries.json already exists, skipping. Delete it to regenerate.`);
+    return;
+  }
 
-  const characters = await extractCharacters(chapters);
-  const chapterSummaries = await generateChapterSummaries(chapters, characters);
+  console.log(`\n《${book.meta.title}》 ${book.chapters.length} 章 · ${book.meta.total_chars} 字\n`);
+
+  const roster = await generateRoster(book);
+  const chapterSummaries = await generateSummaries(book, roster);
 
   const output = {
     book_id: bookId,
-    book_title: meta.title,
-    generated_at: Math.floor(Date.now() / 1000),
-    model,
-    characters,
+    title: book.meta.title,
+    characters: roster.characters,
     chapter_summaries: chapterSummaries,
+    generated_at: new Date().toISOString(),
+    model,
   };
-
-  writeFileSync(summariesPath, JSON.stringify(output, null, 2), 'utf8');
-  console.log(`\n=== 完成 ===`);
-  console.log(`角色：${characters.length} 个`);
-  console.log(`摘要：${chapterSummaries.filter(s => s.summary).length}/${chapterSummaries.length} 章`);
-  console.log(`输出：${summariesPath}`);
+  writeFileSync(outPath, JSON.stringify(output, null, 2), 'utf8');
+  console.log(`\n✓ 保存到 ${outPath}`);
+  console.log(`  角色：${roster.characters.length} · 摘要：${chapterSummaries.length} 章`);
 }
 
-main().catch(e => { console.error('Error:', e); process.exit(1); });
+async function main() {
+  console.log(`小说摘要生成器 · Ollama ${model}\n`);
+
+  const allIdx = process.argv.indexOf('--all');
+  let ids;
+  if (allIdx >= 0) {
+    ids = listBookIds();
+    console.log(`找到 ${ids.length} 本书\n`);
+  } else {
+    const bookId = process.argv[2];
+    if (!bookId || bookId.startsWith('--')) {
+      console.error('Usage: node generate_book_summary.mjs <bookId> [--model qwen2.5:7b]');
+      console.error('       node generate_book_summary.mjs --all');
+      process.exit(1);
+    }
+    ids = [bookId];
+  }
+
+  for (const id of ids) {
+    await processBook(id);
+  }
+}
+
+main().catch((e) => { console.error('Error:', e); process.exit(1); });

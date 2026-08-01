@@ -204,6 +204,14 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Relationship memory is owned by Dreaming/Memory V3. Do not try to write private relationship memory through legacy character memory tools.');
     b.writeln('');
+    b.writeln('## 话题线索（Topic Thread）');
+    b.writeln(
+        '- 用 `topic_thread_create`：用户明确表达想长期追踪某话题时（"想追踪""持续关注""以后继续聊""记下这个话题"等词）。先回复用户，再调用工具创建。title 从用户表述提炼，core_positions 只填用户明确说出的立场，不得 AI 自行总结。');
+    b.writeln(
+        '- 用 `topic_thread_recall`：用户说"继续聊 XX 话题"或明确提及之前追踪过的话题时，先检索再接续。把 context_block 内容自然融入对话，不要逐字朗读。');
+    b.writeln(
+        '- 不要在用户没有明确表达追踪意图时自主创建 Thread。普通话题聊完就聊完。');
+    b.writeln('');
     b.writeln('## Phone Usage Awareness');
     b.writeln(
         '- `PhoneUsageQuery` lets you inspect local Android app usage summaries. It is not a visible user dashboard; treat it as your private observational tool.');

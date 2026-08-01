@@ -5,8 +5,6 @@ import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/memory/widgets/memory_card_detail_screen_v3.dart';
 import 'package:memex/ui/memory/widgets/memory_summary_card_v3.dart';
 import 'package:memex/utils/logger.dart';
@@ -32,6 +30,11 @@ class CompanionReviewScreen extends StatefulWidget {
 }
 
 class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
+  static const _accent = Color(0xFF737B46);
+  static const _ink = Color(0xFF293025);
+  static const _inkSoft = Color(0xFF667061);
+  static const _stateSurface = Color(0xE8F7F5EE);
+
   final _logger = getLogger('CompanionReviewScreen');
   final _scrollController = ScrollController();
 
@@ -106,57 +109,85 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
 
   Widget _buildBody() {
     if (_loading && _cards.isEmpty) {
-      return const Center(child: AgentLogoLoading());
+      return const Center(
+        child: _ReviewStateSurface(
+          key: ValueKey('memory_review_loading'),
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              color: _accent,
+              strokeWidth: 2.2,
+            ),
+          ),
+        ),
+      );
     }
     if (_error != null && _cards.isEmpty) {
-      return RefreshIndicator(
+      return _ReviewStateList(
+        key: const ValueKey('memory_review_error'),
         onRefresh: _loadCards,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            SizedBox(
-              height: MediaQuery.sizeOf(context).height * 0.65,
-              child: Center(
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: AppColors.textTertiary),
+        child: _ReviewStateSurface(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.refresh_rounded, color: _inkSoft, size: 26),
+              const SizedBox(height: 10),
+              const Text(
+                '暂时没有读到记忆',
+                style: TextStyle(
+                  color: _ink,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: _loadCards,
+                style: TextButton.styleFrom(foregroundColor: _accent),
+                child: const Text('重试'),
+              ),
+            ],
+          ),
         ),
       );
     }
     if (_cards.isEmpty) {
-      return RefreshIndicator(
+      return _ReviewStateList(
+        key: const ValueKey('memory_review_empty'),
         onRefresh: _loadCards,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            SizedBox(
-              height: MediaQuery.sizeOf(context).height * 0.65,
-              child: Center(
-                child: Text(
-                  UserStorage.l10n.nothingHere,
-                  style: const TextStyle(
-                    color: AppColors.textTertiary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+        child: _ReviewStateSurface(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.water_drop_outlined,
+                color: _accent,
+                size: 20,
+              ),
+              const SizedBox(width: 9),
+              Text(
+                UserStorage.l10n.nothingHere,
+                style: const TextStyle(
+                  color: _ink,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
 
     return RefreshIndicator(
+      color: _accent,
+      backgroundColor: const Color(0xFFF7F5EE),
       onRefresh: _loadCards,
       child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
         itemCount: _cards.length,
         itemBuilder: (context, index) {
           final card = _cards[index];
@@ -165,50 +196,96 @@ class _CompanionReviewScreenState extends State<CompanionReviewScreen> {
           // should still show as 7/15 noon in the list — only the detail
           // page's "修改时间" should reflect the edit.
           final eventMs = card.eventTimeMs ?? card.createdAt;
-          final displayTime = _formatDisplayTime(eventMs);
+          final displayTime = formatMemoryReviewTimestamp(eventMs);
           return Padding(
-            padding: const EdgeInsets.only(bottom: 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 9),
-                  child: Text(
-                    displayTime,
-                    style: const TextStyle(
-                      color: AppColors.textTertiary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                MemorySummaryCardV3(
-                  card: card,
-                  onTap: () => _openDetail(card),
-                ),
-              ],
+            padding: const EdgeInsets.only(bottom: 14),
+            child: MemorySummaryCardV3(
+              key: ValueKey('memory_review_card_${card.id}'),
+              card: card,
+              variant: MemorySummaryCardVariant.springRainReview,
+              metaLabel: displayTime,
+              categoryLabel: card.typeLabel,
+              pressFeedback: true,
+              onTap: () => _openDetail(card),
             ),
           );
         },
       ),
     );
   }
+}
 
-  /// Format ms-since-epoch timestamp to a user-facing date/time string.
-  String _formatDisplayTime(int msSinceEpoch) {
-    final dt = DateTime.fromMillisecondsSinceEpoch(msSinceEpoch);
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final cardDate = DateTime(dt.year, dt.month, dt.day);
-    final diff = today.difference(cardDate).inDays;
+/// Stable, absolute date label for Memory Review.
+///
+/// Card content is explicitly anchored to absolute dates by the Record
+/// Organizer; the list follows the same rule instead of switching between
+/// “今天”, “3天前” and “7/30”. The year is omitted only for the current year.
+String formatMemoryReviewTimestamp(
+  int msSinceEpoch, {
+  DateTime? now,
+}) {
+  final dt = DateTime.fromMillisecondsSinceEpoch(msSinceEpoch);
+  final current = now ?? DateTime.now();
+  final hour = dt.hour.toString().padLeft(2, '0');
+  final minute = dt.minute.toString().padLeft(2, '0');
+  final date = dt.year == current.year
+      ? '${dt.month}月${dt.day}日'
+      : '${dt.year}年${dt.month}月${dt.day}日';
+  return '$date $hour:$minute';
+}
 
-    final hour = dt.hour.toString().padLeft(2, '0');
-    final minute = dt.minute.toString().padLeft(2, '0');
-    final time = '$hour:$minute';
+class _ReviewStateList extends StatelessWidget {
+  const _ReviewStateList({
+    super.key,
+    required this.onRefresh,
+    required this.child,
+  });
 
-    if (diff == 0) return '今天 $time';
-    if (diff == 1) return '昨天 $time';
-    if (diff < 7) return '$diff天前 $time';
-    return '${dt.month}/${dt.day} $time';
+  final Future<void> Function() onRefresh;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      color: _CompanionReviewScreenState._accent,
+      backgroundColor: const Color(0xFFF7F5EE),
+      onRefresh: onRefresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        children: [
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.60,
+            child: Center(child: child),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewStateSurface extends StatelessWidget {
+  const _ReviewStateSurface({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+      decoration: BoxDecoration(
+        color: _CompanionReviewScreenState._stateSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xB8FFFFFF), width: 0.8),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x24161C15),
+            blurRadius: 24,
+            offset: Offset(0, 9),
+          ),
+        ],
+      ),
+      child: child,
+    );
   }
 }

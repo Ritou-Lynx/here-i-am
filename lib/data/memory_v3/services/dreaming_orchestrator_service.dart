@@ -28,6 +28,7 @@ class DreamingFragmentPersistResult {
     required this.processedMessageCount,
     required this.lastProcessedMessageId,
     required this.isEmpty,
+    this.coveredMessageIds = const [],
   });
 
   final List<String> fragmentIds;
@@ -36,6 +37,12 @@ class DreamingFragmentPersistResult {
   final int processedMessageCount;
   final int lastProcessedMessageId;
   final bool isEmpty;
+
+  /// Message ids that were referenced by at least one persisted fragment in
+  /// this batch. Used by [runDailyFragmentBatch] to advance the watermark only
+  /// past messages the model actually evaluated, preventing silent drops
+  /// when the LLM only processes the first few messages of a large batch.
+  final List<int> coveredMessageIds;
 }
 
 class EpisodeConsolidationRunResult {
@@ -158,28 +165,33 @@ class DreamingOrchestratorServiceV3 {
 
   /// Run one bounded Daily Dreaming fragment extraction batch for a character.
   ///
-  /// The batch is capped to V3 § 10.4's 60-message limit. This method does not
-  /// decide charging/Wi-Fi/idle policy; callers should invoke it only when the
-  /// environment is appropriate.
+  /// The batch is capped to [batchSize] (default 30). This method does not
+  /// decide charging/Wi-Fi/idle policy; callers should invoke it only when
+  /// the environment is appropriate.
   ///
-  /// Watermark advancement: the watermark is advanced to the last processed
-  /// message id even when extraction throws (e.g. model refuses sensitive
-  /// content, returns invalid JSON after retry, or API errors). Without this,
-  /// a single failed batch would leave the watermark stuck at the old value,
-  /// causing every subsequent trigger to re-read the SAME messages and hit the
-  /// SAME failure forever - effectively permanently stalling Dreaming for that
-  /// character. The fragments that were in the failed batch are lost (they
-  /// will not be retried), but this is the correct trade-off: it is better to
-  /// skip one batch's worth of memories than to block all future Dreaming.
+  /// Watermark advancement (coverage-aware):
+  /// - **Extraction throws** (model refusal, invalid JSON, API error): the
+  ///   watermark advances past the whole batch so the next run does not
+  ///   re-read and re-fail on the same messages. The batch's fragments are
+  ///   lost; this is the correct trade-off to avoid permanently stalling
+  ///   Dreaming for a character.
+  /// - **Extraction succeeds with fragments**: the watermark advances only
+  ///   to the last message id actually referenced by a persisted fragment.
+  ///   If the model only processed the first N of M messages (attention
+  ///   decay on large batches), the remaining M-N messages will be re-read
+  ///   by the next batch. This prevents silent permanent loss of memories.
+  /// - **Extraction succeeds with zero fragments**: the model evaluated all
+  ///   messages and found no relationship evidence. The watermark advances
+  ///   past the whole batch.
   Future<DreamingFragmentPersistResult> runDailyFragmentBatch({
     required String characterId,
     required LLMClient client,
     required ModelConfig modelConfig,
-    int batchSize = 60,
+    int batchSize = 30,
     String sourceScope = 'main_chat',
     DreamingFragmentExtractorV3 agent = const DreamingFragmentExtractorV3(),
   }) async {
-    final cappedBatchSize = batchSize.clamp(1, 60).toInt();
+    final cappedBatchSize = batchSize.clamp(1, 30).toInt();
     final lastMessageId = await _readWatermark(characterId);
     final rows = await (_db.select(_db.personaChatMessages)
           ..where((t) =>
@@ -243,7 +255,46 @@ class DreamingOrchestratorServiceV3 {
       lastProcessedMessageId: rows.last.id,
       sourceScope: sourceScope,
     );
-    await _writeWatermark(characterId, rows.last.id);
+
+    // Coverage-aware watermark advancement.
+    //
+    // When the LLM only extracts fragments for the first few messages of a
+    // large batch (a common attention-decay failure mode), advancing the
+    // watermark to rows.last.id would silently drop the remaining messages
+    // forever. Instead, advance only to the last message id that the model
+    // actually referenced in a persisted fragment. The un-processed tail will
+    // be re-read by the next batch.
+    //
+    // When the model returns zero fragments (it evaluated all messages and
+    // found no relationship evidence), coveredMessageIds is empty — in that
+    // case we advance to rows.last.id because the messages were evaluated,
+    // just not worth extracting.
+    final batchMessageIds = rows.map((r) => r.id).toSet();
+    final coveredInBatch = result.coveredMessageIds
+        .where((id) => batchMessageIds.contains(id))
+        .toList();
+    final int newWatermark;
+    if (coveredInBatch.isEmpty) {
+      // Model returned empty (all evaluated, no evidence) or all fragments
+      // were dropped by dedupe. Advance past the whole batch.
+      newWatermark = rows.last.id;
+    } else {
+      // Advance to the last covered message, but never beyond the batch.
+      final maxCovered = coveredInBatch.reduce((a, b) => a > b ? a : b);
+      newWatermark = maxCovered < rows.last.id ? maxCovered : rows.last.id;
+    }
+    await _writeWatermark(characterId, newWatermark);
+
+    if (newWatermark < rows.last.id) {
+      _logger.warning(
+        'Fragment batch partial coverage for $characterId: '
+        '${rows.length} messages read (id ${rows.first.id}→${rows.last.id}), '
+        'but model only covered up to id $newWatermark. '
+        'Watermark advanced to $newWatermark; ${rows.last.id - newWatermark} '
+        'message(s) will be re-read next batch.',
+      );
+    }
+
     return result;
   }
 
@@ -273,6 +324,7 @@ class DreamingOrchestratorServiceV3 {
         processedMessageCount: processedMessageCount,
         lastProcessedMessageId: lastProcessedMessageId,
         isEmpty: true,
+        coveredMessageIds: const [],
       );
     }
 
@@ -284,6 +336,7 @@ class DreamingOrchestratorServiceV3 {
       final fragmentIds = <String>[];
       final fragmentContents = <String, String>{}; // id → content
       final entityIds = <String>[];
+      final batchCoveredMessageIds = <int>{};
 
       for (final draft in extraction.fragments) {
         final key = _dedupeKey(draft.content);
@@ -320,6 +373,7 @@ class DreamingOrchestratorServiceV3 {
         // the same batch, so a single model pass that emits the same
         // set twice in one batch can't sneak both through.
         coveredSourceIds.addAll(draft.sourceMessageIds);
+        batchCoveredMessageIds.addAll(draft.sourceMessageIds);
 
         final fragmentId = _uuid.v4();
         fragmentIds.add(fragmentId);
@@ -380,6 +434,7 @@ class DreamingOrchestratorServiceV3 {
         processedMessageCount: processedMessageCount,
         lastProcessedMessageId: lastProcessedMessageId,
         isEmpty: fragmentIds.isEmpty,
+        coveredMessageIds: batchCoveredMessageIds.toList()..sort(),
       );
     });
 

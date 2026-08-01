@@ -5,6 +5,8 @@
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import 'package:memex/data/repositories/memex_router.dart';
+import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_controller.dart';
 import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 
@@ -15,6 +17,11 @@ import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 List<SingleChildWidget> get dependencyProviders => [
       Provider<MemexRouter>(
         create: (_) => MemexRouter(),
+      ),
+      // Memory V3 services — constructor-injected with AppDatabase.instance.
+      // AppDatabase.init() is called before these providers are accessed.
+      Provider<TopicThreadService>(
+        create: (_) => TopicThreadService(db: AppDatabase.instance),
       ),
       ChangeNotifierProvider<HereIamThemeController>(
         create: (_) => HereIamThemeController()..load(),

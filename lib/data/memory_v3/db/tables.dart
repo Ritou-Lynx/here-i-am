@@ -444,3 +444,85 @@ class ProjectMemorySources extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+// ============================================================================
+// 六、Topic Thread 话题追踪层 — docs/memory-research/TOPIC_THREAD_DESIGN.md
+// ============================================================================
+
+/// 长期话题追踪主文档（活文档）。
+///
+/// 每个 TopicThread 代表用户持续关注的一个话题，随着时间和阅读/对话积累而演进。
+/// 治理独立于 i Gateway Project Memory，不需要项目注册。
+/// corePositions 只能由用户确认更新（user_confirmed），不允许 AI 自主写入。
+class TopicThreads extends Table {
+  TextColumn get id => text()(); // UUID v4, stable
+  TextColumn get title => text()(); // 话题名，用户命名
+
+  /// 当前思考所在阶段（一句话）。agent_inferred + user_confirmed。
+  TextColumn get currentStage => text().withDefault(const Constant(''))();
+
+  /// 已确认的洞察/立场。JSON array<String>。严格 user_confirmed。
+  TextColumn get corePositionsJson =>
+      text().withDefault(const Constant('[]'))();
+
+  /// 还没想清楚的问题。JSON array<String>。agent_inferred + user_confirmed。
+  TextColumn get openQuestionsJson =>
+      text().withDefault(const Constant('[]'))();
+
+  /// 逗号分隔标签，用于粗粒度分类和检索。
+  TextColumn get tags => text().withDefault(const Constant(''))();
+
+  /// active | paused | archived
+  TextColumn get status =>
+      text().withDefault(const Constant('active'))();
+
+  IntColumn get lastDiscussedAt => integer().nullable()(); // ms since epoch
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 每次与某话题相关的讨论摘要（append-only）。
+///
+/// [sourceType] 标记来源类型：chat | book_reading | comic_reading |
+/// project_work | standalone
+/// [linkedCardIds] 和 [linkedProjectMemoryIds] 是软引用（无 FK 约束）。
+/// [authority] 标记写入权限级别：user_confirmed | agent_inferred
+class TopicThreadSessions extends Table {
+  TextColumn get id => text()(); // UUID v4
+  TextColumn get threadId => text()(); // soft FK → topic_threads.id
+
+  IntColumn get occurredAt => integer()(); // 讨论时间戳，ms since epoch
+
+  /// 这次讨论了什么、得出什么（≤200 字）。
+  TextColumn get summary => text()();
+
+  /// chat | book_reading | comic_reading | project_work | standalone
+  TextColumn get sourceType =>
+      text().withDefault(const Constant('chat'))();
+
+  /// 来源引用 JSON：{ bookTitle?, chapterTitle?, mangaId?, chapterId?,
+  /// projectKey?, note? }
+  TextColumn get sourceRefJson =>
+      text().withDefault(const Constant('{}'))();
+
+  /// 关联 Memory Card IDs。JSON array<String>，软引用，无 FK 约束。
+  TextColumn get linkedCardIds =>
+      text().withDefault(const Constant('[]'))();
+
+  /// 关联 ProjectMemoryItem IDs。JSON array<String>，软引用，无 FK 约束。
+  /// 访问时按原始项目政策解引用（personal_full 全文，work_redacted 脱敏）。
+  TextColumn get linkedProjectMemoryIds =>
+      text().withDefault(const Constant('[]'))();
+
+  /// user_confirmed | agent_inferred
+  TextColumn get authority =>
+      text().withDefault(const Constant('agent_inferred'))();
+
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

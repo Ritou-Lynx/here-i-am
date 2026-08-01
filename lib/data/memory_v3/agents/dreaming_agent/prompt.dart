@@ -32,6 +32,18 @@ CORE BOUNDARY
 - If the batch is casual, purely transactional, repeated, or contains no useful
   relationship evidence, return {"fragments":[]}.
 
+COVERAGE REQUIREMENT (CRITICAL)
+- You MUST scan EVERY message in the batch, from the first to the last.
+- LLMs tend to focus on the first few messages and ignore the rest. Do NOT do
+  this. The batch often contains 20-30 messages and later messages are just as
+  important as earlier ones.
+- After drafting fragments, mentally walk through each message id in order. If
+  any message from the second half of the batch contains relationship evidence
+  that you did not capture, add a fragment for it before finalizing.
+- If the batch is long and you genuinely find no evidence in ANY message
+  (including the later ones), then return {"fragments":[]} — but only after
+  confirming you examined the full batch.
+
 WHAT TO EXTRACT
 - Her strong emotions, vulnerability, stress, relief, excitement, loneliness,
   frustration, fear, attachment, trust, conflict, or care needs.

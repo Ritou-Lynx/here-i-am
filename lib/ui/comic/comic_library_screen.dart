@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:memex/data/memory_v3/models/topic_thread_intent.dart';
+import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/comic/comic_library_service.dart';
 import 'package:memex/data/services/comic/comic_reading_progress_service.dart';
@@ -161,6 +163,36 @@ class _ComicLibraryScreenState extends State<ComicLibraryScreen> {
       chapterId: _demoChapterId,
       page: 1,
     );
+  }
+
+  Future<void> _setMangaIntents(BuildContext context, ComicManga manga) async {
+    final svc = TopicThreadService(db: AppDatabase.instance);
+    final threads = await svc.getThreads();
+    final current = TopicThreadIntentItem.parseList(manga.intentsJson)
+        .map((e) => e.threadId)
+        .toList();
+
+    if (!context.mounted) return;
+    final selected = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _MangaIntentPickerSheet(
+        mangaId: manga.id,
+        mangaTitle: manga.title,
+        allThreads: threads,
+        selectedIds: current,
+      ),
+    );
+    if (selected == null) return;
+    final items = threads
+        .where((t) => selected.contains(t.id))
+        .map((t) => TopicThreadIntentItem(threadId: t.id, threadTitle: t.title))
+        .toList();
+    final json = TopicThreadIntentItem.encodeList(items);
+    await (AppDatabase.instance.update(AppDatabase.instance.comicMangas)
+          ..where((m) => m.id.equals(manga.id)))
+        .write(ComicMangasCompanion(intentsJson: Value(json)));
+    _load();
   }
 
   Future<void> _openManga(ComicManga m) async {
@@ -340,6 +372,11 @@ class _ComicLibraryScreenState extends State<ComicLibraryScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
+                                    icon: const Icon(Icons.topic_outlined, size: 20),
+                                    tooltip: '设置话题关联',
+                                    onPressed: () => _setMangaIntents(context, m),
+                                  ),
+                                  IconButton(
                                     icon: const Icon(Icons.delete_outline, size: 20),
                                     tooltip: '删除',
                                     onPressed: () async {
@@ -372,6 +409,85 @@ class _ComicLibraryScreenState extends State<ComicLibraryScreen> {
                           },
                         ),
                 ),
+    );
+  }
+}
+
+class _MangaIntentPickerSheet extends StatefulWidget {
+  final String mangaId;
+  final String mangaTitle;
+  final List<TopicThread> allThreads;
+  final List<String> selectedIds;
+
+  const _MangaIntentPickerSheet({
+    required this.mangaId,
+    required this.mangaTitle,
+    required this.allThreads,
+    required this.selectedIds,
+  });
+
+  @override
+  State<_MangaIntentPickerSheet> createState() => _MangaIntentPickerSheetState();
+}
+
+class _MangaIntentPickerSheetState extends State<_MangaIntentPickerSheet> {
+  late Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set.from(widget.selectedIds);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text('设置话题追踪',
+                style: Theme.of(context).textTheme.titleMedium),
+          ),
+          if (widget.allThreads.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('还没有话题线索。先去生活空间 → 话题线索创建一个吧。'),
+            )
+          else
+            ...widget.allThreads.map((t) => CheckboxListTile(
+                  title: Text(t.title),
+                  subtitle: t.currentStage.isNotEmpty
+                      ? Text(t.currentStage,
+                          maxLines: 1, overflow: TextOverflow.ellipsis)
+                      : null,
+                  value: _selected.contains(t.id),
+                  onChanged: (v) => setState(() {
+                    if (v == true) {
+                      _selected.add(t.id);
+                    } else {
+                      _selected.remove(t.id);
+                    }
+                  }),
+                )),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('取消')),
+                const SizedBox(width: 8),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, _selected),
+                    child: const Text('保存')),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

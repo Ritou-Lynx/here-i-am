@@ -30,6 +30,11 @@ class Books extends Table {
   IntColumn get createdAt => integer()(); // seconds since epoch
   IntColumn get updatedAt => integer()();
 
+  /// JSON array of TopicThread intent objects: [{threadId, threadTitle}]
+  /// Set by user to route co-reading cleanup to specific Topic Threads.
+  TextColumn get intentsJson =>
+      text().withDefault(const Constant('[]'))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

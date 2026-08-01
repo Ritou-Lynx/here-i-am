@@ -27,6 +27,7 @@
 import http from 'node:http';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { dirname, join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { processTxt } from '../book_server/chapter_splitter.mjs';
@@ -214,6 +215,20 @@ function importBook(buf, filename, opts = {}) {
   };
   saveBookMeta(id, meta);
   return meta;
+}
+
+function spawnSummaryGeneration(bookId) {
+  const script = join(scriptDir, 'generate_book_summary.mjs');
+  if (!existsSync(script)) return;
+  const model = process.env.BOOK_SUMMARY_MODEL || 'qwen3:8b';
+  const child = spawn(process.execPath, [script, bookId, '--model', model], {
+    cwd: scriptDir,
+    stdio: 'ignore',
+    detached: true,
+    env: { ...process.env, COMIC_SERVER_DATA_DIR: dataDir },
+  });
+  child.unref();
+  console.log(`[book] Summary generation spawned for ${bookId} (pid=${child.pid}, model=${model})`);
 }
 
 const MIME = {
@@ -440,6 +455,7 @@ async function handle(req, res) {
       }
       if (!fileBuf || fileBuf.length === 0) return json(res, 400, { error: 'empty file' });
       const meta = importBook(fileBuf, filename, { title, author });
+      spawnSummaryGeneration(meta.id);
       return json(res, 201, {
         ok: true,
         book: {

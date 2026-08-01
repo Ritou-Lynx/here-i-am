@@ -5,42 +5,104 @@ import 'package:flutter/material.dart';
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/domain/models/presentation_module.dart';
-import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // ============================================================================
-// Palette — adapted from the V2 Rose Mist card. Intentionally uses the
-// daytime Rose Mist tokens even when the app is in a dark skin; the Memory
-// Review surface is always light.
+// Palettes. Existing call sites keep the Rose Mist card; Memory Review opts
+// into Spring Rain explicitly so detail and Health do not change prematurely.
 // ============================================================================
 
 class _Palette {
-  const _Palette._();
+  const _Palette({
+    required this.ink,
+    required this.inkMid,
+    required this.inkSoft,
+    required this.accent,
+    required this.accentSoft,
+    required this.hairline,
+    required this.glassLine,
+    required this.glassFill,
+    required this.glassFillSoft,
+    required this.cardTint,
+    required this.shadow,
+    required this.moodExcited,
+    required this.moodCalm,
+    required this.moodTense,
+    required this.moodLow,
+    required this.moodNeutral,
+    required this.completed,
+    required this.cancelInk,
+    required this.followUpDot,
+  });
 
-  static const HereIamThemeTokens _tokens = HereIamThemeTokens.roseMistDay;
+  final Color ink;
+  final Color inkMid;
+  final Color inkSoft;
+  final Color accent;
+  final Color accentSoft;
+  final Color hairline;
+  final Color glassLine;
+  final Color glassFill;
+  final Color glassFillSoft;
+  final Color cardTint;
+  final Color shadow;
+  final Color moodExcited;
+  final Color moodCalm;
+  final Color moodTense;
+  final Color moodLow;
+  final Color moodNeutral;
+  final Color completed;
+  final Color cancelInk;
+  final Color followUpDot;
 
-  static Color get ink => _tokens.textPrimary;
-  static Color get inkMid => _tokens.textSecondary;
-  static Color get inkSoft => _tokens.textMuted;
+  static const roseMist = _Palette(
+    ink: Color(0xFF5F4B4A),
+    inkMid: Color(0xFF6F5A59),
+    inkSoft: Color(0xFFA8908E),
+    accent: Color(0xFFC08E96),
+    accentSoft: Color(0xFFE5C7CB),
+    hairline: Color(0x2475615F),
+    glassLine: Color(0xEBFFFFFF),
+    glassFill: Color(0xFFFFFBFA),
+    glassFillSoft: Color(0xFFF8F3F2),
+    cardTint: Color(0xFFF2E7E7),
+    shadow: Color(0x2975615F),
+    moodExcited: Color(0xFFE89A8E),
+    moodCalm: Color(0xFFE5C7CB),
+    moodTense: Color(0xFF9E7A8A),
+    moodLow: Color(0xFF6F7A8A),
+    moodNeutral: Color(0xFFDCD2CE),
+    completed: Color(0xFF6FA87A),
+    cancelInk: Color(0xFF7A6664),
+    followUpDot: Color(0xFFD8A05A),
+  );
 
-  static Color get rose => _tokens.accent;
-  static Color get roseSoft => _tokens.accentSoft;
-  static Color get hairline => const Color(0xFF75615F).withValues(alpha: 0.14);
-  static Color get glassLine => Colors.white.withValues(alpha: 0.92);
-  static Color get glassFill => const Color(0xFFFFFBFA);
-  static Color get glassFillSoft => const Color(0xFFF8F3F2);
-  static Color get cardTint => const Color(0xFFF2E7E7);
-  static Color get shadow => const Color(0xFF75615F).withValues(alpha: 0.16);
+  static const springRain = _Palette(
+    ink: Color(0xFF252C22),
+    inkMid: Color(0xFF465040),
+    inkSoft: Color(0xFF70786A),
+    accent: Color(0xFF737B46),
+    accentSoft: Color(0xFFAAB083),
+    hairline: Color(0x24434A3D),
+    glassLine: Color(0xCCFFFFFF),
+    glassFill: Color(0xE8F8F6F0),
+    glassFillSoft: Color(0xE5F0EFE7),
+    cardTint: Color(0xE0E4E8DC),
+    shadow: Color(0x2E161C15),
+    moodExcited: Color(0xFFD7B968),
+    moodCalm: Color(0xFFAAB083),
+    moodTense: Color(0xFF8B7962),
+    moodLow: Color(0xFF657168),
+    moodNeutral: Color(0xFFBEC2B4),
+    completed: Color(0xFF687B57),
+    cancelInk: Color(0xFF746B62),
+    followUpDot: Color(0xFFC99E4A),
+  );
 
-  static const moodExcited = Color(0xFFE89A8E);
-  static const moodCalm = Color(0xFFE5C7CB);
-  static const moodTense = Color(0xFF9E7A8A);
-  static const moodLow = Color(0xFF6F7A8A);
-  static const moodNeutral = Color(0xFFDCD2CE);
-
-  static const completed = Color(0xFF6FA87A);
-  static const cancelInk = Color(0xFF7A6664);
-  static const followUpDot = Color(0xFFD8A05A);
+  static _Palette forVariant(MemorySummaryCardVariant variant) =>
+      variant == MemorySummaryCardVariant.springRainReview
+          ? springRain
+          : roseMist;
 }
 
 // ============================================================================
@@ -53,15 +115,15 @@ extension MemoryMoodColor on MemoryMood {
   Color get color {
     switch (this) {
       case MemoryMood.excited:
-        return _Palette.moodExcited;
+        return _Palette.roseMist.moodExcited;
       case MemoryMood.calm:
-        return _Palette.moodCalm;
+        return _Palette.roseMist.moodCalm;
       case MemoryMood.tense:
-        return _Palette.moodTense;
+        return _Palette.roseMist.moodTense;
       case MemoryMood.low:
-        return _Palette.moodLow;
+        return _Palette.roseMist.moodLow;
       case MemoryMood.neutral:
-        return _Palette.moodNeutral;
+        return _Palette.roseMist.moodNeutral;
     }
   }
 }
@@ -86,50 +148,80 @@ MemoryMood resolveMood({double? valence, double? arousal}) {
 // Public widget
 // ============================================================================
 
+enum MemorySummaryCardVariant { roseMist, springRainReview }
+
 class MemorySummaryCardV3 extends StatelessWidget {
   const MemorySummaryCardV3({
     super.key,
     required this.card,
     this.onTap,
+    this.variant = MemorySummaryCardVariant.roseMist,
+    this.metaLabel,
+    this.categoryLabel,
+    this.pressFeedback = false,
   });
 
   final MemoryCardViewData card;
   final VoidCallback? onTap;
+  final MemorySummaryCardVariant variant;
+  final String? metaLabel;
+  final String? categoryLabel;
+  final bool pressFeedback;
 
   @override
   Widget build(BuildContext context) {
-    final presentation =
-        PresentationModule.tryParse(card.presentationModule);
-    final mood = resolveMood(valence: card.valence, arousal: card.arousal);
-    final muted = card.status == 'cancelled';
-    final showStatus = card.isTaskLike && card.hasStatus && card.status != 'active';
+    final presentation = PresentationModule.tryParse(card.presentationModule);
+    final palette = _Palette.forVariant(variant);
+    final showStatus =
+        card.isTaskLike && card.hasStatus && card.status != 'active';
 
-    return GestureDetector(
+    return _PressableCard(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
+      enabled: pressFeedback,
       child: _CardShell(
-        moodColor: mood.color,
-        muted: muted,
+        palette: palette,
         child: Stack(
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (showStatus)
+                if (metaLabel != null || categoryLabel != null) ...[
+                  _CardMetaRow(
+                    palette: palette,
+                    metaLabel: metaLabel,
+                    categoryLabel: categoryLabel,
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                if (showStatus || presentation?.statusLabel != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: _StatusPill(
-                      text: card.statusLabel!,
-                      kind: card.status == 'completed'
-                          ? _StatusPillKind.completed
-                          : _StatusPillKind.cancelled,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        if (presentation?.statusLabel != null)
+                          _PresentationStatusPill(
+                            palette: palette,
+                            text: presentation!.statusLabel!,
+                          ),
+                        if (showStatus)
+                          _StatusPill(
+                            palette: palette,
+                            text: card.statusLabel!,
+                            kind: card.status == 'completed'
+                                ? _StatusPillKind.completed
+                                : _StatusPillKind.cancelled,
+                          ),
+                      ],
                     ),
                   ),
                 V3CardBlocks(
                   presentation: presentation,
                   dropletLabel: card.dropletLabel,
                   fallbackText: card.retrievalText,
+                  variant: variant,
                 ),
                 const SizedBox(height: 18),
               ],
@@ -141,9 +233,9 @@ class MemorySummaryCardV3 extends StatelessWidget {
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _Palette.followUpDot,
+                    color: palette.followUpDot,
                   ),
                 ),
               ),
@@ -154,19 +246,112 @@ class MemorySummaryCardV3 extends StatelessWidget {
   }
 }
 
+class _PressableCard extends StatefulWidget {
+  const _PressableCard({
+    required this.child,
+    required this.onTap,
+    required this.enabled,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final bool enabled;
+
+  @override
+  State<_PressableCard> createState() => _PressableCardState();
+}
+
+class _PressableCardState extends State<_PressableCard> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (!widget.enabled || _pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: widget.onTap != null,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedScale(
+          scale: _pressed ? 0.985 : 1,
+          duration: const Duration(milliseconds: 110),
+          curve: Curves.easeOutCubic,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+class _CardMetaRow extends StatelessWidget {
+  const _CardMetaRow({
+    required this.palette,
+    required this.metaLabel,
+    required this.categoryLabel,
+  });
+
+  final _Palette palette;
+  final String? metaLabel;
+  final String? categoryLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        if (metaLabel != null)
+          Expanded(
+            child: Text(
+              metaLabel!,
+              style: TextStyle(
+                color: palette.inkSoft,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.2,
+              ),
+            ),
+          )
+        else
+          const Spacer(),
+        if (categoryLabel != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: palette.accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              categoryLabel!,
+              style: TextStyle(
+                color: palette.accent,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 // ============================================================================
 // Shell
 // ============================================================================
 
 class _CardShell extends StatelessWidget {
   const _CardShell({
-    required this.moodColor,
-    required this.muted,
+    required this.palette,
     required this.child,
   });
 
-  final Color moodColor;
-  final bool muted;
+  final _Palette palette;
   final Widget child;
 
   @override
@@ -177,20 +362,20 @@ class _CardShell extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: _Palette.glassLine, width: 1),
+          border: Border.all(color: palette.glassLine, width: 1),
           gradient: LinearGradient(
             begin: const Alignment(-0.4, -0.7),
             end: Alignment.bottomRight,
             colors: [
-              _Palette.glassFill,
-              _Palette.glassFillSoft,
-              _Palette.cardTint,
+              palette.glassFill,
+              palette.glassFillSoft,
+              palette.cardTint,
             ],
             stops: const [0.0, 0.58, 1.0],
           ),
           boxShadow: [
             BoxShadow(
-              color: _Palette.shadow,
+              color: palette.shadow,
               blurRadius: 46,
               offset: const Offset(0, 20),
               spreadRadius: -10,
@@ -214,17 +399,52 @@ class _CardShell extends StatelessWidget {
 
 enum _StatusPillKind { completed, cancelled }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.text, required this.kind});
+class _PresentationStatusPill extends StatelessWidget {
+  const _PresentationStatusPill({
+    required this.palette,
+    required this.text,
+  });
 
+  final _Palette palette;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: palette.accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.accent.withValues(alpha: 0.18)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: palette.accent,
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
+    required this.palette,
+    required this.text,
+    required this.kind,
+  });
+
+  final _Palette palette;
   final String text;
   final _StatusPillKind kind;
 
   @override
   Widget build(BuildContext context) {
     final color = kind == _StatusPillKind.completed
-        ? _Palette.completed
-        : _Palette.cancelInk;
+        ? palette.completed
+        : palette.cancelInk;
     return Container(
       padding: const EdgeInsets.fromLTRB(7, 4, 9, 4),
       decoration: BoxDecoration(
@@ -267,30 +487,34 @@ class V3CardBlocks extends StatelessWidget {
     required this.presentation,
     this.dropletLabel = '',
     required this.fallbackText,
+    this.variant = MemorySummaryCardVariant.roseMist,
   });
 
   final PresentationModule? presentation;
   final String dropletLabel;
   final String? fallbackText;
+  final MemorySummaryCardVariant variant;
 
   @override
   Widget build(BuildContext context) {
+    final palette = _Palette.forVariant(variant);
     final children = <Widget>[];
 
-    if (dropletLabel.isNotEmpty) {
-      children.add(_TitleBlock(dropletLabel));
+    final visibleTitle = presentation?.title ?? dropletLabel;
+    if (visibleTitle.isNotEmpty) {
+      children.add(_TitleBlock(visibleTitle, palette));
     }
 
     if (presentation?.subjectRef != null) {
-      children.add(_SubjectRef(presentation!.subjectRef!));
+      children.add(_SubjectRef(presentation!.subjectRef!, palette));
     }
 
     final blocks = presentation?.blocks ?? const <MemoryBlock>[];
     if (blocks.isEmpty && fallbackText != null) {
-      children.add(_TextBlockView(TextBlock(text: fallbackText!)));
+      children.add(_TextBlockView(TextBlock(text: fallbackText!), palette));
     } else {
       for (final b in blocks) {
-        children.add(_buildBlock(b));
+        children.add(_buildBlock(b, palette));
       }
     }
 
@@ -301,15 +525,17 @@ class V3CardBlocks extends StatelessWidget {
     );
   }
 
-  Widget _buildBlock(MemoryBlock block) {
-    if (block is TextBlock) return _TextBlockView(block);
-    if (block is QuoteBlock) return _QuoteBlockView(block);
-    if (block is NumberBlock) return _NumberBlockView(block);
-    if (block is TableBlock) return _TableBlockView(block);
-    if (block is SparklineBlock) return _SparklineView(block);
-    if (block is MediaBlock) return _MediaBlockView(block);
-    if (block is LinkAttachmentBlock) return _LinkBlockView(block);
-    if (block is ProgressBarBlock) return _ProgressBarBlockView(block);
+  Widget _buildBlock(MemoryBlock block, _Palette palette) {
+    if (block is TextBlock) return _TextBlockView(block, palette);
+    if (block is QuoteBlock) return _QuoteBlockView(block, palette);
+    if (block is NumberBlock) return _NumberBlockView(block, palette);
+    if (block is TableBlock) return _TableBlockView(block, palette);
+    if (block is SparklineBlock) return _SparklineView(block, palette);
+    if (block is MediaBlock) return _MediaBlockView(block, palette);
+    if (block is LinkAttachmentBlock) return _LinkBlockView(block, palette);
+    if (block is ProgressBarBlock) {
+      return _ProgressBarBlockView(block, palette);
+    }
     return const SizedBox.shrink();
   }
 }
@@ -329,13 +555,14 @@ List<Widget> _withGap(List<Widget> items, double gap) {
 // ============================================================================
 
 class _TitleBlock extends StatelessWidget {
-  const _TitleBlock(this.text);
+  const _TitleBlock(this.text, this.palette);
   final String text;
+  final _Palette palette;
   @override
   Widget build(BuildContext context) => Text(
         text,
         style: TextStyle(
-          color: _Palette.inkMid,
+          color: palette.inkMid,
           fontSize: 14,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.4,
@@ -344,15 +571,16 @@ class _TitleBlock extends StatelessWidget {
 }
 
 class _SubjectRef extends StatelessWidget {
-  const _SubjectRef(this.text);
+  const _SubjectRef(this.text, this.palette);
   final String text;
+  final _Palette palette;
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 0),
         child: Text(
           text,
           style: TextStyle(
-            color: _Palette.inkSoft,
+            color: palette.inkSoft,
             fontSize: 11,
             letterSpacing: 0.5,
           ),
@@ -361,8 +589,9 @@ class _SubjectRef extends StatelessWidget {
 }
 
 class _TextBlockView extends StatelessWidget {
-  const _TextBlockView(this.block);
+  const _TextBlockView(this.block, this.palette);
   final TextBlock block;
+  final _Palette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -370,7 +599,7 @@ class _TextBlockView extends StatelessWidget {
       return Text(
         block.text,
         style: TextStyle(
-          color: _Palette.ink.withValues(alpha: 0.96),
+          color: palette.ink.withValues(alpha: 0.96),
           fontSize: 14.5,
           height: 1.78,
           letterSpacing: 0.15,
@@ -380,17 +609,21 @@ class _TextBlockView extends StatelessWidget {
     return RichText(
       text: TextSpan(
         style: TextStyle(
-          color: _Palette.ink.withValues(alpha: 0.96),
+          color: palette.ink.withValues(alpha: 0.96),
           fontSize: 14.5,
           height: 1.78,
           letterSpacing: 0.15,
         ),
-        children: _splitWithEmphasis(block.text, block.emphases),
+        children: _splitWithEmphasis(block.text, block.emphases, palette),
       ),
     );
   }
 
-  static List<TextSpan> _splitWithEmphasis(String text, List<String> emphases) {
+  static List<TextSpan> _splitWithEmphasis(
+    String text,
+    List<String> emphases,
+    _Palette palette,
+  ) {
     if (emphases.isEmpty) return [TextSpan(text: text)];
     final spans = <TextSpan>[];
     var remaining = text;
@@ -415,9 +648,9 @@ class _TextBlockView extends StatelessWidget {
       spans.add(TextSpan(
         text: bestMatch,
         style: TextStyle(
-          color: _Palette.ink,
+          color: palette.ink,
           background: Paint()
-            ..color = _Palette.roseSoft.withValues(alpha: 0.42),
+            ..color = palette.accentSoft.withValues(alpha: 0.42),
         ),
       ));
       remaining = remaining.substring(bestIdx + bestMatch.length);
@@ -427,8 +660,9 @@ class _TextBlockView extends StatelessWidget {
 }
 
 class _QuoteBlockView extends StatelessWidget {
-  const _QuoteBlockView(this.block);
+  const _QuoteBlockView(this.block, this.palette);
   final QuoteBlock block;
+  final _Palette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -437,7 +671,7 @@ class _QuoteBlockView extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           left: BorderSide(
-            color: _Palette.rose.withValues(alpha: 0.55),
+            color: palette.accent.withValues(alpha: 0.55),
             width: 2,
           ),
         ),
@@ -448,7 +682,7 @@ class _QuoteBlockView extends StatelessWidget {
           Text(
             '"${block.text}"',
             style: TextStyle(
-              color: _Palette.ink,
+              color: palette.ink,
               fontSize: 17,
               height: 1.72,
               fontWeight: FontWeight.w400,
@@ -459,7 +693,7 @@ class _QuoteBlockView extends StatelessWidget {
             Text(
               block.context!,
               style: TextStyle(
-                color: _Palette.inkSoft,
+                color: palette.inkSoft,
                 fontSize: 12,
                 height: 1.65,
               ),
@@ -472,8 +706,9 @@ class _QuoteBlockView extends StatelessWidget {
 }
 
 class _NumberBlockView extends StatelessWidget {
-  const _NumberBlockView(this.block);
+  const _NumberBlockView(this.block, this.palette);
   final NumberBlock block;
+  final _Palette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -486,7 +721,7 @@ class _NumberBlockView extends StatelessWidget {
               TextSpan(
                 text: block.value,
                 style: TextStyle(
-                  color: _Palette.ink,
+                  color: palette.ink,
                   fontSize: 44,
                   height: 1,
                   fontWeight: FontWeight.w500,
@@ -496,7 +731,7 @@ class _NumberBlockView extends StatelessWidget {
                 TextSpan(
                   text: '  ${block.unit}',
                   style: TextStyle(
-                    color: _Palette.inkSoft,
+                    color: palette.inkSoft,
                     fontSize: 13,
                     letterSpacing: 0.6,
                   ),
@@ -512,7 +747,7 @@ class _NumberBlockView extends StatelessWidget {
               child: Text(
                 block.note!,
                 style: TextStyle(
-                  color: _Palette.ink.withValues(alpha: 0.78),
+                  color: palette.ink.withValues(alpha: 0.78),
                   fontSize: 13.5,
                   height: 1.62,
                 ),
@@ -526,21 +761,22 @@ class _NumberBlockView extends StatelessWidget {
 }
 
 class _TableBlockView extends StatelessWidget {
-  const _TableBlockView(this.block);
+  const _TableBlockView(this.block, this.palette);
   final TableBlock block;
+  final _Palette palette;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Divider(height: 1, color: _Palette.hairline),
+        Divider(height: 1, color: palette.hairline),
         for (final row in block.rows)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 7),
             decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: _Palette.hairline),
+                bottom: BorderSide(color: palette.hairline),
               ),
             ),
             child: Row(
@@ -551,7 +787,7 @@ class _TableBlockView extends StatelessWidget {
                   child: Text(
                     row.label,
                     style: TextStyle(
-                      color: _Palette.inkSoft,
+                      color: palette.inkSoft,
                       fontSize: 12.5,
                       height: 1.4,
                     ),
@@ -563,7 +799,7 @@ class _TableBlockView extends StatelessWidget {
                     row.value,
                     textAlign: TextAlign.right,
                     style: TextStyle(
-                      color: _Palette.inkMid,
+                      color: palette.inkMid,
                       fontSize: 13,
                       height: 1.4,
                       fontWeight: FontWeight.w500,
@@ -579,8 +815,9 @@ class _TableBlockView extends StatelessWidget {
 }
 
 class _SparklineView extends StatelessWidget {
-  const _SparklineView(this.block);
+  const _SparklineView(this.block, this.palette);
   final SparklineBlock block;
+  final _Palette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -590,14 +827,16 @@ class _SparklineView extends StatelessWidget {
         SizedBox(
           height: 28,
           width: double.infinity,
-          child: CustomPaint(painter: _SparklinePainter(block.points)),
+          child: CustomPaint(
+            painter: _SparklinePainter(block.points, palette),
+          ),
         ),
         if (block.caption != null) ...[
           const SizedBox(height: 4),
           Text(
             block.caption!,
             style: TextStyle(
-              color: _Palette.inkSoft,
+              color: palette.inkSoft,
               fontSize: 11,
             ),
           ),
@@ -608,8 +847,9 @@ class _SparklineView extends StatelessWidget {
 }
 
 class _SparklinePainter extends CustomPainter {
-  _SparklinePainter(this.points);
+  _SparklinePainter(this.points, this.palette);
   final List<double> points;
+  final _Palette palette;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -639,12 +879,12 @@ class _SparklinePainter extends CustomPainter {
 
     canvas.drawPath(
       fill,
-      Paint()..color = _Palette.rose.withValues(alpha: 0.10),
+      Paint()..color = palette.accent.withValues(alpha: 0.10),
     );
     canvas.drawPath(
       path,
       Paint()
-        ..color = _Palette.rose
+        ..color = palette.accent
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.45
         ..strokeCap = StrokeCap.round
@@ -656,13 +896,13 @@ class _SparklinePainter extends CustomPainter {
     canvas.drawCircle(
       Offset(lastX - 2, lastY),
       2.8,
-      Paint()..color = _Palette.rose,
+      Paint()..color = palette.accent,
     );
   }
 
   @override
   bool shouldRepaint(covariant _SparklinePainter oldDelegate) =>
-      !_listEq(oldDelegate.points, points);
+      oldDelegate.palette != palette || !_listEq(oldDelegate.points, points);
 
   static bool _listEq(List<double> a, List<double> b) {
     if (a.length != b.length) return false;
@@ -674,8 +914,9 @@ class _SparklinePainter extends CustomPainter {
 }
 
 class _MediaBlockView extends StatelessWidget {
-  const _MediaBlockView(this.block);
+  const _MediaBlockView(this.block, this.palette);
   final MediaBlock block;
+  final _Palette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -686,9 +927,22 @@ class _MediaBlockView extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           child: AspectRatio(
             aspectRatio: 16 / 10,
-            child: _buildMediaImage(block.assetPath),
+            child: block.kind == 'image'
+                ? _buildMediaImage(block.assetPath)
+                : _mediaPlaceholder(kind: block.kind),
           ),
         ),
+        if (block.caption != null) ...[
+          const SizedBox(height: 7),
+          Text(
+            block.caption!,
+            style: TextStyle(
+              color: palette.inkSoft,
+              fontSize: 11.5,
+              height: 1.45,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -703,33 +957,59 @@ class _MediaBlockView extends StatelessWidget {
           fit: BoxFit.cover,
           errorBuilder: (_, e, st) {
             debugPrint('[V3Card] Image.memory error: $e');
-            return _mediaPlaceholder();
+            return _mediaPlaceholder(kind: 'image');
           },
         );
       }
     } catch (e, st) {
       debugPrint('[V3Card] media exception: $e\n$st');
     }
-    return _mediaPlaceholder();
+    return _mediaPlaceholder(kind: 'image');
   }
 
-  Widget _mediaPlaceholder() {
+  Widget _mediaPlaceholder({required String kind}) {
+    final (icon, label) = switch (kind) {
+      'audio' => (Icons.graphic_eq_rounded, '音频'),
+      'video' => (Icons.play_arrow_rounded, '视频'),
+      _ => (Icons.image_outlined, '图片'),
+    };
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFCDB8C8), Color(0xFFD9B5AF), Color(0xFF8FA7A0)],
-          stops: [0.0, 0.38, 1.0],
+          colors: [
+            palette.glassFillSoft,
+            palette.cardTint,
+            palette.accentSoft.withValues(alpha: 0.72),
+          ],
+          stops: const [0.0, 0.38, 1.0],
         ),
+      ),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: palette.inkMid, size: 28),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: palette.inkMid,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _LinkBlockView extends StatelessWidget {
-  const _LinkBlockView(this.block);
+  const _LinkBlockView(this.block, this.palette);
   final LinkAttachmentBlock block;
+  final _Palette palette;
 
   static const _brandColors = {
     'xhs': Color(0xFFFE2C55),
@@ -747,7 +1027,7 @@ class _LinkBlockView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final source = block.source ?? 'web';
-    final color = _brandColors[source] ?? _Palette.rose;
+    final color = _brandColors[source] ?? palette.accent;
     final label = _brandLabels[source] ?? 'W';
     return InkWell(
       onTap: () => _openUrl(block.url),
@@ -758,8 +1038,7 @@ class _LinkBlockView extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           color: Colors.white.withValues(alpha: 0.38),
-          border:
-              Border.all(color: _Palette.ink.withValues(alpha: 0.10)),
+          border: Border.all(color: palette.ink.withValues(alpha: 0.10)),
         ),
         child: Row(
           children: [
@@ -787,7 +1066,7 @@ class _LinkBlockView extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: _Palette.inkMid,
+                  color: palette.inkMid,
                   fontSize: 12.5,
                   fontWeight: FontWeight.w500,
                 ),
@@ -800,13 +1079,13 @@ class _LinkBlockView extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
                 color: Colors.white.withValues(alpha: 0.22),
                 border: Border.all(
-                  color: _Palette.rose.withValues(alpha: 0.24),
+                  color: palette.accent.withValues(alpha: 0.24),
                 ),
               ),
               child: Text(
                 '打开',
                 style: TextStyle(
-                  color: _Palette.rose,
+                  color: palette.accent,
                   fontSize: 11,
                   letterSpacing: 0.8,
                 ),
@@ -826,8 +1105,9 @@ class _LinkBlockView extends StatelessWidget {
 }
 
 class _ProgressBarBlockView extends StatelessWidget {
-  const _ProgressBarBlockView(this.block);
+  const _ProgressBarBlockView(this.block, this.palette);
   final ProgressBarBlock block;
+  final _Palette palette;
 
   String _fmtNum(double n) {
     if (n == n.roundToDouble()) return n.toInt().toString();
@@ -837,8 +1117,11 @@ class _ProgressBarBlockView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final unit = block.unit ?? '';
-    final valueText = '${_fmtNum(block.value)}/${_fmtNum(block.max)}'
-        '${unit.isEmpty ? '' : ' $unit'}';
+    final isRatio = unit.isEmpty && block.max == 1;
+    final valueText = isRatio
+        ? '${(block.fraction * 100).round()}%'
+        : '${_fmtNum(block.value)}/${_fmtNum(block.max)}'
+            '${unit.isEmpty ? '' : ' $unit'}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -846,7 +1129,7 @@ class _ProgressBarBlockView extends StatelessWidget {
           Text(
             block.label!,
             style: TextStyle(
-              color: _Palette.inkMid,
+              color: palette.inkMid,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -860,10 +1143,11 @@ class _ProgressBarBlockView extends StatelessWidget {
             child: Stack(
               children: [
                 Container(
-                    color: _Palette.roseSoft.withValues(alpha: 0.45)),
+                  color: palette.accentSoft.withValues(alpha: 0.45),
+                ),
                 FractionallySizedBox(
                   widthFactor: block.fraction,
-                  child: Container(color: _Palette.rose),
+                  child: Container(color: palette.accent),
                 ),
               ],
             ),
@@ -873,7 +1157,7 @@ class _ProgressBarBlockView extends StatelessWidget {
         Text(
           valueText,
           style: TextStyle(
-            color: _Palette.ink,
+            color: palette.ink,
             fontSize: 13,
             fontWeight: FontWeight.w600,
             fontFeatures: const [FontFeature.tabularFigures()],

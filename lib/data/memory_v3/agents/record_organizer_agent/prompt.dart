@@ -57,7 +57,8 @@ FINAL CHECK — BEFORE RETURNING THE JSON, YOU MUST:
 
 1. **NAME SCAN** (MUST DO — this check has regressed before):
    Read every `retrievalText`, every `presentationModule.blocks[].text`,
-   every `presentationModule.blocks[].caption`, and every `title`. Search
+   every `presentationModule.blocks[].note` (or legacy `caption`), and every
+   `title`. Search
    them character-by-character for the literal substring "用户". If you
    find even ONE occurrence, you MUST rewrite the string to omit it
    BEFORE returning the JSON. The user is the default subject; no word
@@ -112,13 +113,13 @@ NUMBERS — PRESERVE ORIGINAL, COMPUTE AS AUXILIARY (boundary B)
 - When the user mentions multiple related numbers and a derivation is
   informative (per-person split, monthly total, per-unit cost, percent
   change, etc.), you SHOULD emit one additional computed number block.
-  Use a `caption` that names the derivation in natural Chinese — never
+  Use a `note` that names the derivation in natural Chinese — never
   use "她说" / "用户说" / "原话":
-  - ✅ {value: 83,   caption: "总消费"}
-  - ✅ {value: 12,   caption: "记账时人均"}
-  - ✅ {value: 41.5, caption: "按 83/2 推算的人均"}
+  - ✅ {value: 83,   note: "总消费"}
+  - ✅ {value: 12,   note: "记账时人均"}
+  - ✅ {value: 41.5, note: "按 83/2 推算的人均"}
   - ❌ silently replacing 12 with 41.5
-  - ❌ {value: 83, caption: "用户说花了 83 块"}
+  - ❌ {value: 83, note: "用户说花了 83 块"}
 - Computed numbers must never go into structuredFields. structuredFields
   carries the original values only.
 
@@ -131,8 +132,8 @@ OUTPUT JSON SHAPE
       "dropletLabel": "2-4 char essence (e.g. 汇报打回, not 工作)",
       "presentationModule": {
         "blocks": [
-          {"kind": "text", "text": "..."},
-          {"kind": "number", "value": 128, "unit": "元"}
+          {"type": "text", "text": "..."},
+          {"type": "number", "value": 128, "unit": "元", "note": "总消费"}
         ]
       },
       "retrievalText": "natural-language paragraph for I after recall. preserve hearsay framing.",
@@ -191,13 +192,14 @@ Space — it must read as ONE concept, not a list.
       论文作业（两个并列名词拼接）/ 开会写代码
 
 presentationModule — the Summary Card content. Use blocks that fit:
-  - text:           {"kind":"text","text":"..."}
-  - quote:          {"kind":"quote","text":"..."}
-  - number:         {"kind":"number","value":128,"unit":"元","caption":"..."}
-  - table:          {"kind":"table","headers":[...],"rows":[[...],...]}
-  - linkAttachment: {"kind":"linkAttachment","url":"...","title":"..."}
-  - media:          {"kind":"media","assetPath":"<copy assetId from input media>"}
-  - progressBar:    {"kind":"progressBar","value":0.6,"label":"..."}
+  - text:           {"type":"text","text":"...","emphases":["..."]}
+  - quote:          {"type":"quote","text":"...","context":"..."}
+  - number:         {"type":"number","value":128,"unit":"元","note":"总消费"}
+  - table:          {"type":"table","rows":[{"label":"项目","value":"午餐"}]}
+  - sparkline:      {"type":"sparkline","points":[6.2,7.0,6.8],"caption":"最近三天"}
+  - linkAttachment: {"type":"linkAttachment","url":"...","title":"...","source":"web"}
+  - media:          {"type":"media","assetPath":"<copy assetId from input media>","kind":"image","caption":"..."}
+  - progressBar:    {"type":"progressBar","value":3,"max":5,"unit":"次","label":"本周跑步"}
   **CRITICAL**: If the user input includes `media` (images/audio), you MUST
   include a media block for EVERY media file. Place media blocks FIRST
   in the blocks array (before text). Copy the `assetId` field from the input
@@ -235,17 +237,17 @@ retrievalText — one natural-language paragraph for I to read after recall.
     ❌ "她今晚跟室友 A 一起吃了汉堡。"      // "她"指用户本身，多余
     ❌ "用户的妈妈住在杭州。"
 
-presentationModule block text (especially `caption`) follows the SAME
+presentationModule block text (especially `note` / `caption`) follows the SAME
 naming rules as retrievalText:
   - Never use "用户".
   - Avoid "她" / "他" when referring to the user.
-  - "原话" / "用户说" 等系统化措辞也不要 — caption 是给用户看的，应该
+  - "原话" / "用户说" 等系统化措辞也不要 — note 是给用户看的，应该
     自然简洁。
   ✅ "总消费"  /  "人均"  /  "按 83/2 推算的人均"
   ❌ "她说花了 83 块钱"  /  "用户说人均 12 块钱"
-  仍然要保留区分 "原话数字" 和 "推算数字"，但靠 caption 措辞自然表达：
-  ✅ {"value": 12,   "caption": "记账时人均"}
-  ✅ {"value": 41.5, "caption": "按 83/2 推算"}
+  仍然要保留区分 "原话数字" 和 "推算数字"，但靠 note 措辞自然表达：
+  ✅ {"value": 12,   "note": "记账时人均"}
+  ✅ {"value": 41.5, "note": "按 83/2 推算"}
 
 valence / arousal — emotional coordinates per V3 § 4.1.
   - valence: -1.0 (very negative) to 1.0 (very positive)

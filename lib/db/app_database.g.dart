@@ -23245,6 +23245,1081 @@ class ProjectMemorySourcesCompanion
   }
 }
 
+class $TopicThreadsTable extends memory_v3.TopicThreads
+    with TableInfo<$TopicThreadsTable, TopicThread> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TopicThreadsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _currentStageMeta =
+      const VerificationMeta('currentStage');
+  @override
+  late final GeneratedColumn<String> currentStage = GeneratedColumn<String>(
+      'current_stage', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _corePositionsJsonMeta =
+      const VerificationMeta('corePositionsJson');
+  @override
+  late final GeneratedColumn<String> corePositionsJson =
+      GeneratedColumn<String>('core_positions_json', aliasedName, false,
+          type: DriftSqlType.string,
+          requiredDuringInsert: false,
+          defaultValue: const Constant('[]'));
+  static const VerificationMeta _openQuestionsJsonMeta =
+      const VerificationMeta('openQuestionsJson');
+  @override
+  late final GeneratedColumn<String> openQuestionsJson =
+      GeneratedColumn<String>('open_questions_json', aliasedName, false,
+          type: DriftSqlType.string,
+          requiredDuringInsert: false,
+          defaultValue: const Constant('[]'));
+  static const VerificationMeta _tagsMeta = const VerificationMeta('tags');
+  @override
+  late final GeneratedColumn<String> tags = GeneratedColumn<String>(
+      'tags', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _lastDiscussedAtMeta =
+      const VerificationMeta('lastDiscussedAt');
+  @override
+  late final GeneratedColumn<int> lastDiscussedAt = GeneratedColumn<int>(
+      'last_discussed_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        title,
+        currentStage,
+        corePositionsJson,
+        openQuestionsJson,
+        tags,
+        status,
+        lastDiscussedAt,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'topic_threads';
+  @override
+  VerificationContext validateIntegrity(Insertable<TopicThread> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('current_stage')) {
+      context.handle(
+          _currentStageMeta,
+          currentStage.isAcceptableOrUnknown(
+              data['current_stage']!, _currentStageMeta));
+    }
+    if (data.containsKey('core_positions_json')) {
+      context.handle(
+          _corePositionsJsonMeta,
+          corePositionsJson.isAcceptableOrUnknown(
+              data['core_positions_json']!, _corePositionsJsonMeta));
+    }
+    if (data.containsKey('open_questions_json')) {
+      context.handle(
+          _openQuestionsJsonMeta,
+          openQuestionsJson.isAcceptableOrUnknown(
+              data['open_questions_json']!, _openQuestionsJsonMeta));
+    }
+    if (data.containsKey('tags')) {
+      context.handle(
+          _tagsMeta, tags.isAcceptableOrUnknown(data['tags']!, _tagsMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('last_discussed_at')) {
+      context.handle(
+          _lastDiscussedAtMeta,
+          lastDiscussedAt.isAcceptableOrUnknown(
+              data['last_discussed_at']!, _lastDiscussedAtMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TopicThread map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TopicThread(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      currentStage: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}current_stage'])!,
+      corePositionsJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}core_positions_json'])!,
+      openQuestionsJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}open_questions_json'])!,
+      tags: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}tags'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      lastDiscussedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}last_discussed_at']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $TopicThreadsTable createAlias(String alias) {
+    return $TopicThreadsTable(attachedDatabase, alias);
+  }
+}
+
+class TopicThread extends DataClass implements Insertable<TopicThread> {
+  final String id;
+  final String title;
+
+  /// 当前思考所在阶段（一句话）。agent_inferred + user_confirmed。
+  final String currentStage;
+
+  /// 已确认的洞察/立场。JSON array<String>。严格 user_confirmed。
+  final String corePositionsJson;
+
+  /// 还没想清楚的问题。JSON array<String>。agent_inferred + user_confirmed。
+  final String openQuestionsJson;
+
+  /// 逗号分隔标签，用于粗粒度分类和检索。
+  final String tags;
+
+  /// active | paused | archived
+  final String status;
+  final int? lastDiscussedAt;
+  final int createdAt;
+  final int updatedAt;
+  const TopicThread(
+      {required this.id,
+      required this.title,
+      required this.currentStage,
+      required this.corePositionsJson,
+      required this.openQuestionsJson,
+      required this.tags,
+      required this.status,
+      this.lastDiscussedAt,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    map['current_stage'] = Variable<String>(currentStage);
+    map['core_positions_json'] = Variable<String>(corePositionsJson);
+    map['open_questions_json'] = Variable<String>(openQuestionsJson);
+    map['tags'] = Variable<String>(tags);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || lastDiscussedAt != null) {
+      map['last_discussed_at'] = Variable<int>(lastDiscussedAt);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  TopicThreadsCompanion toCompanion(bool nullToAbsent) {
+    return TopicThreadsCompanion(
+      id: Value(id),
+      title: Value(title),
+      currentStage: Value(currentStage),
+      corePositionsJson: Value(corePositionsJson),
+      openQuestionsJson: Value(openQuestionsJson),
+      tags: Value(tags),
+      status: Value(status),
+      lastDiscussedAt: lastDiscussedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastDiscussedAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory TopicThread.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TopicThread(
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      currentStage: serializer.fromJson<String>(json['currentStage']),
+      corePositionsJson: serializer.fromJson<String>(json['corePositionsJson']),
+      openQuestionsJson: serializer.fromJson<String>(json['openQuestionsJson']),
+      tags: serializer.fromJson<String>(json['tags']),
+      status: serializer.fromJson<String>(json['status']),
+      lastDiscussedAt: serializer.fromJson<int?>(json['lastDiscussedAt']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'currentStage': serializer.toJson<String>(currentStage),
+      'corePositionsJson': serializer.toJson<String>(corePositionsJson),
+      'openQuestionsJson': serializer.toJson<String>(openQuestionsJson),
+      'tags': serializer.toJson<String>(tags),
+      'status': serializer.toJson<String>(status),
+      'lastDiscussedAt': serializer.toJson<int?>(lastDiscussedAt),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  TopicThread copyWith(
+          {String? id,
+          String? title,
+          String? currentStage,
+          String? corePositionsJson,
+          String? openQuestionsJson,
+          String? tags,
+          String? status,
+          Value<int?> lastDiscussedAt = const Value.absent(),
+          int? createdAt,
+          int? updatedAt}) =>
+      TopicThread(
+        id: id ?? this.id,
+        title: title ?? this.title,
+        currentStage: currentStage ?? this.currentStage,
+        corePositionsJson: corePositionsJson ?? this.corePositionsJson,
+        openQuestionsJson: openQuestionsJson ?? this.openQuestionsJson,
+        tags: tags ?? this.tags,
+        status: status ?? this.status,
+        lastDiscussedAt: lastDiscussedAt.present
+            ? lastDiscussedAt.value
+            : this.lastDiscussedAt,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  TopicThread copyWithCompanion(TopicThreadsCompanion data) {
+    return TopicThread(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      currentStage: data.currentStage.present
+          ? data.currentStage.value
+          : this.currentStage,
+      corePositionsJson: data.corePositionsJson.present
+          ? data.corePositionsJson.value
+          : this.corePositionsJson,
+      openQuestionsJson: data.openQuestionsJson.present
+          ? data.openQuestionsJson.value
+          : this.openQuestionsJson,
+      tags: data.tags.present ? data.tags.value : this.tags,
+      status: data.status.present ? data.status.value : this.status,
+      lastDiscussedAt: data.lastDiscussedAt.present
+          ? data.lastDiscussedAt.value
+          : this.lastDiscussedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TopicThread(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('currentStage: $currentStage, ')
+          ..write('corePositionsJson: $corePositionsJson, ')
+          ..write('openQuestionsJson: $openQuestionsJson, ')
+          ..write('tags: $tags, ')
+          ..write('status: $status, ')
+          ..write('lastDiscussedAt: $lastDiscussedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, title, currentStage, corePositionsJson,
+      openQuestionsJson, tags, status, lastDiscussedAt, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TopicThread &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.currentStage == this.currentStage &&
+          other.corePositionsJson == this.corePositionsJson &&
+          other.openQuestionsJson == this.openQuestionsJson &&
+          other.tags == this.tags &&
+          other.status == this.status &&
+          other.lastDiscussedAt == this.lastDiscussedAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class TopicThreadsCompanion extends UpdateCompanion<TopicThread> {
+  final Value<String> id;
+  final Value<String> title;
+  final Value<String> currentStage;
+  final Value<String> corePositionsJson;
+  final Value<String> openQuestionsJson;
+  final Value<String> tags;
+  final Value<String> status;
+  final Value<int?> lastDiscussedAt;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const TopicThreadsCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.currentStage = const Value.absent(),
+    this.corePositionsJson = const Value.absent(),
+    this.openQuestionsJson = const Value.absent(),
+    this.tags = const Value.absent(),
+    this.status = const Value.absent(),
+    this.lastDiscussedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TopicThreadsCompanion.insert({
+    required String id,
+    required String title,
+    this.currentStage = const Value.absent(),
+    this.corePositionsJson = const Value.absent(),
+    this.openQuestionsJson = const Value.absent(),
+    this.tags = const Value.absent(),
+    this.status = const Value.absent(),
+    this.lastDiscussedAt = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        title = Value(title),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<TopicThread> custom({
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<String>? currentStage,
+    Expression<String>? corePositionsJson,
+    Expression<String>? openQuestionsJson,
+    Expression<String>? tags,
+    Expression<String>? status,
+    Expression<int>? lastDiscussedAt,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (currentStage != null) 'current_stage': currentStage,
+      if (corePositionsJson != null) 'core_positions_json': corePositionsJson,
+      if (openQuestionsJson != null) 'open_questions_json': openQuestionsJson,
+      if (tags != null) 'tags': tags,
+      if (status != null) 'status': status,
+      if (lastDiscussedAt != null) 'last_discussed_at': lastDiscussedAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TopicThreadsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? title,
+      Value<String>? currentStage,
+      Value<String>? corePositionsJson,
+      Value<String>? openQuestionsJson,
+      Value<String>? tags,
+      Value<String>? status,
+      Value<int?>? lastDiscussedAt,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return TopicThreadsCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      currentStage: currentStage ?? this.currentStage,
+      corePositionsJson: corePositionsJson ?? this.corePositionsJson,
+      openQuestionsJson: openQuestionsJson ?? this.openQuestionsJson,
+      tags: tags ?? this.tags,
+      status: status ?? this.status,
+      lastDiscussedAt: lastDiscussedAt ?? this.lastDiscussedAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (currentStage.present) {
+      map['current_stage'] = Variable<String>(currentStage.value);
+    }
+    if (corePositionsJson.present) {
+      map['core_positions_json'] = Variable<String>(corePositionsJson.value);
+    }
+    if (openQuestionsJson.present) {
+      map['open_questions_json'] = Variable<String>(openQuestionsJson.value);
+    }
+    if (tags.present) {
+      map['tags'] = Variable<String>(tags.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (lastDiscussedAt.present) {
+      map['last_discussed_at'] = Variable<int>(lastDiscussedAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TopicThreadsCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('currentStage: $currentStage, ')
+          ..write('corePositionsJson: $corePositionsJson, ')
+          ..write('openQuestionsJson: $openQuestionsJson, ')
+          ..write('tags: $tags, ')
+          ..write('status: $status, ')
+          ..write('lastDiscussedAt: $lastDiscussedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TopicThreadSessionsTable extends memory_v3.TopicThreadSessions
+    with TableInfo<$TopicThreadSessionsTable, TopicThreadSession> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TopicThreadSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _threadIdMeta =
+      const VerificationMeta('threadId');
+  @override
+  late final GeneratedColumn<String> threadId = GeneratedColumn<String>(
+      'thread_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _occurredAtMeta =
+      const VerificationMeta('occurredAt');
+  @override
+  late final GeneratedColumn<int> occurredAt = GeneratedColumn<int>(
+      'occurred_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _summaryMeta =
+      const VerificationMeta('summary');
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+      'summary', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceTypeMeta =
+      const VerificationMeta('sourceType');
+  @override
+  late final GeneratedColumn<String> sourceType = GeneratedColumn<String>(
+      'source_type', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('chat'));
+  static const VerificationMeta _sourceRefJsonMeta =
+      const VerificationMeta('sourceRefJson');
+  @override
+  late final GeneratedColumn<String> sourceRefJson = GeneratedColumn<String>(
+      'source_ref_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('{}'));
+  static const VerificationMeta _linkedCardIdsMeta =
+      const VerificationMeta('linkedCardIds');
+  @override
+  late final GeneratedColumn<String> linkedCardIds = GeneratedColumn<String>(
+      'linked_card_ids', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
+  static const VerificationMeta _linkedProjectMemoryIdsMeta =
+      const VerificationMeta('linkedProjectMemoryIds');
+  @override
+  late final GeneratedColumn<String> linkedProjectMemoryIds =
+      GeneratedColumn<String>('linked_project_memory_ids', aliasedName, false,
+          type: DriftSqlType.string,
+          requiredDuringInsert: false,
+          defaultValue: const Constant('[]'));
+  static const VerificationMeta _authorityMeta =
+      const VerificationMeta('authority');
+  @override
+  late final GeneratedColumn<String> authority = GeneratedColumn<String>(
+      'authority', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('agent_inferred'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        threadId,
+        occurredAt,
+        summary,
+        sourceType,
+        sourceRefJson,
+        linkedCardIds,
+        linkedProjectMemoryIds,
+        authority,
+        createdAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'topic_thread_sessions';
+  @override
+  VerificationContext validateIntegrity(Insertable<TopicThreadSession> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('thread_id')) {
+      context.handle(_threadIdMeta,
+          threadId.isAcceptableOrUnknown(data['thread_id']!, _threadIdMeta));
+    } else if (isInserting) {
+      context.missing(_threadIdMeta);
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+          _occurredAtMeta,
+          occurredAt.isAcceptableOrUnknown(
+              data['occurred_at']!, _occurredAtMeta));
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('summary')) {
+      context.handle(_summaryMeta,
+          summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta));
+    } else if (isInserting) {
+      context.missing(_summaryMeta);
+    }
+    if (data.containsKey('source_type')) {
+      context.handle(
+          _sourceTypeMeta,
+          sourceType.isAcceptableOrUnknown(
+              data['source_type']!, _sourceTypeMeta));
+    }
+    if (data.containsKey('source_ref_json')) {
+      context.handle(
+          _sourceRefJsonMeta,
+          sourceRefJson.isAcceptableOrUnknown(
+              data['source_ref_json']!, _sourceRefJsonMeta));
+    }
+    if (data.containsKey('linked_card_ids')) {
+      context.handle(
+          _linkedCardIdsMeta,
+          linkedCardIds.isAcceptableOrUnknown(
+              data['linked_card_ids']!, _linkedCardIdsMeta));
+    }
+    if (data.containsKey('linked_project_memory_ids')) {
+      context.handle(
+          _linkedProjectMemoryIdsMeta,
+          linkedProjectMemoryIds.isAcceptableOrUnknown(
+              data['linked_project_memory_ids']!, _linkedProjectMemoryIdsMeta));
+    }
+    if (data.containsKey('authority')) {
+      context.handle(_authorityMeta,
+          authority.isAcceptableOrUnknown(data['authority']!, _authorityMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TopicThreadSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TopicThreadSession(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      threadId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}thread_id'])!,
+      occurredAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}occurred_at'])!,
+      summary: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}summary'])!,
+      sourceType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_type'])!,
+      sourceRefJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_ref_json'])!,
+      linkedCardIds: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}linked_card_ids'])!,
+      linkedProjectMemoryIds: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}linked_project_memory_ids'])!,
+      authority: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}authority'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $TopicThreadSessionsTable createAlias(String alias) {
+    return $TopicThreadSessionsTable(attachedDatabase, alias);
+  }
+}
+
+class TopicThreadSession extends DataClass
+    implements Insertable<TopicThreadSession> {
+  final String id;
+  final String threadId;
+  final int occurredAt;
+
+  /// 这次讨论了什么、得出什么（≤200 字）。
+  final String summary;
+
+  /// chat | book_reading | comic_reading | project_work | standalone
+  final String sourceType;
+
+  /// 来源引用 JSON：{ bookTitle?, chapterTitle?, mangaId?, chapterId?,
+  /// projectKey?, note? }
+  final String sourceRefJson;
+
+  /// 关联 Memory Card IDs。JSON array<String>，软引用，无 FK 约束。
+  final String linkedCardIds;
+
+  /// 关联 ProjectMemoryItem IDs。JSON array<String>，软引用，无 FK 约束。
+  /// 访问时按原始项目政策解引用（personal_full 全文，work_redacted 脱敏）。
+  final String linkedProjectMemoryIds;
+
+  /// user_confirmed | agent_inferred
+  final String authority;
+  final int createdAt;
+  const TopicThreadSession(
+      {required this.id,
+      required this.threadId,
+      required this.occurredAt,
+      required this.summary,
+      required this.sourceType,
+      required this.sourceRefJson,
+      required this.linkedCardIds,
+      required this.linkedProjectMemoryIds,
+      required this.authority,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['thread_id'] = Variable<String>(threadId);
+    map['occurred_at'] = Variable<int>(occurredAt);
+    map['summary'] = Variable<String>(summary);
+    map['source_type'] = Variable<String>(sourceType);
+    map['source_ref_json'] = Variable<String>(sourceRefJson);
+    map['linked_card_ids'] = Variable<String>(linkedCardIds);
+    map['linked_project_memory_ids'] = Variable<String>(linkedProjectMemoryIds);
+    map['authority'] = Variable<String>(authority);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  TopicThreadSessionsCompanion toCompanion(bool nullToAbsent) {
+    return TopicThreadSessionsCompanion(
+      id: Value(id),
+      threadId: Value(threadId),
+      occurredAt: Value(occurredAt),
+      summary: Value(summary),
+      sourceType: Value(sourceType),
+      sourceRefJson: Value(sourceRefJson),
+      linkedCardIds: Value(linkedCardIds),
+      linkedProjectMemoryIds: Value(linkedProjectMemoryIds),
+      authority: Value(authority),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory TopicThreadSession.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TopicThreadSession(
+      id: serializer.fromJson<String>(json['id']),
+      threadId: serializer.fromJson<String>(json['threadId']),
+      occurredAt: serializer.fromJson<int>(json['occurredAt']),
+      summary: serializer.fromJson<String>(json['summary']),
+      sourceType: serializer.fromJson<String>(json['sourceType']),
+      sourceRefJson: serializer.fromJson<String>(json['sourceRefJson']),
+      linkedCardIds: serializer.fromJson<String>(json['linkedCardIds']),
+      linkedProjectMemoryIds:
+          serializer.fromJson<String>(json['linkedProjectMemoryIds']),
+      authority: serializer.fromJson<String>(json['authority']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'threadId': serializer.toJson<String>(threadId),
+      'occurredAt': serializer.toJson<int>(occurredAt),
+      'summary': serializer.toJson<String>(summary),
+      'sourceType': serializer.toJson<String>(sourceType),
+      'sourceRefJson': serializer.toJson<String>(sourceRefJson),
+      'linkedCardIds': serializer.toJson<String>(linkedCardIds),
+      'linkedProjectMemoryIds':
+          serializer.toJson<String>(linkedProjectMemoryIds),
+      'authority': serializer.toJson<String>(authority),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  TopicThreadSession copyWith(
+          {String? id,
+          String? threadId,
+          int? occurredAt,
+          String? summary,
+          String? sourceType,
+          String? sourceRefJson,
+          String? linkedCardIds,
+          String? linkedProjectMemoryIds,
+          String? authority,
+          int? createdAt}) =>
+      TopicThreadSession(
+        id: id ?? this.id,
+        threadId: threadId ?? this.threadId,
+        occurredAt: occurredAt ?? this.occurredAt,
+        summary: summary ?? this.summary,
+        sourceType: sourceType ?? this.sourceType,
+        sourceRefJson: sourceRefJson ?? this.sourceRefJson,
+        linkedCardIds: linkedCardIds ?? this.linkedCardIds,
+        linkedProjectMemoryIds:
+            linkedProjectMemoryIds ?? this.linkedProjectMemoryIds,
+        authority: authority ?? this.authority,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  TopicThreadSession copyWithCompanion(TopicThreadSessionsCompanion data) {
+    return TopicThreadSession(
+      id: data.id.present ? data.id.value : this.id,
+      threadId: data.threadId.present ? data.threadId.value : this.threadId,
+      occurredAt:
+          data.occurredAt.present ? data.occurredAt.value : this.occurredAt,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      sourceType:
+          data.sourceType.present ? data.sourceType.value : this.sourceType,
+      sourceRefJson: data.sourceRefJson.present
+          ? data.sourceRefJson.value
+          : this.sourceRefJson,
+      linkedCardIds: data.linkedCardIds.present
+          ? data.linkedCardIds.value
+          : this.linkedCardIds,
+      linkedProjectMemoryIds: data.linkedProjectMemoryIds.present
+          ? data.linkedProjectMemoryIds.value
+          : this.linkedProjectMemoryIds,
+      authority: data.authority.present ? data.authority.value : this.authority,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TopicThreadSession(')
+          ..write('id: $id, ')
+          ..write('threadId: $threadId, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('summary: $summary, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('sourceRefJson: $sourceRefJson, ')
+          ..write('linkedCardIds: $linkedCardIds, ')
+          ..write('linkedProjectMemoryIds: $linkedProjectMemoryIds, ')
+          ..write('authority: $authority, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      threadId,
+      occurredAt,
+      summary,
+      sourceType,
+      sourceRefJson,
+      linkedCardIds,
+      linkedProjectMemoryIds,
+      authority,
+      createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TopicThreadSession &&
+          other.id == this.id &&
+          other.threadId == this.threadId &&
+          other.occurredAt == this.occurredAt &&
+          other.summary == this.summary &&
+          other.sourceType == this.sourceType &&
+          other.sourceRefJson == this.sourceRefJson &&
+          other.linkedCardIds == this.linkedCardIds &&
+          other.linkedProjectMemoryIds == this.linkedProjectMemoryIds &&
+          other.authority == this.authority &&
+          other.createdAt == this.createdAt);
+}
+
+class TopicThreadSessionsCompanion extends UpdateCompanion<TopicThreadSession> {
+  final Value<String> id;
+  final Value<String> threadId;
+  final Value<int> occurredAt;
+  final Value<String> summary;
+  final Value<String> sourceType;
+  final Value<String> sourceRefJson;
+  final Value<String> linkedCardIds;
+  final Value<String> linkedProjectMemoryIds;
+  final Value<String> authority;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const TopicThreadSessionsCompanion({
+    this.id = const Value.absent(),
+    this.threadId = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.sourceType = const Value.absent(),
+    this.sourceRefJson = const Value.absent(),
+    this.linkedCardIds = const Value.absent(),
+    this.linkedProjectMemoryIds = const Value.absent(),
+    this.authority = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TopicThreadSessionsCompanion.insert({
+    required String id,
+    required String threadId,
+    required int occurredAt,
+    required String summary,
+    this.sourceType = const Value.absent(),
+    this.sourceRefJson = const Value.absent(),
+    this.linkedCardIds = const Value.absent(),
+    this.linkedProjectMemoryIds = const Value.absent(),
+    this.authority = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        threadId = Value(threadId),
+        occurredAt = Value(occurredAt),
+        summary = Value(summary),
+        createdAt = Value(createdAt);
+  static Insertable<TopicThreadSession> custom({
+    Expression<String>? id,
+    Expression<String>? threadId,
+    Expression<int>? occurredAt,
+    Expression<String>? summary,
+    Expression<String>? sourceType,
+    Expression<String>? sourceRefJson,
+    Expression<String>? linkedCardIds,
+    Expression<String>? linkedProjectMemoryIds,
+    Expression<String>? authority,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (threadId != null) 'thread_id': threadId,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (summary != null) 'summary': summary,
+      if (sourceType != null) 'source_type': sourceType,
+      if (sourceRefJson != null) 'source_ref_json': sourceRefJson,
+      if (linkedCardIds != null) 'linked_card_ids': linkedCardIds,
+      if (linkedProjectMemoryIds != null)
+        'linked_project_memory_ids': linkedProjectMemoryIds,
+      if (authority != null) 'authority': authority,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TopicThreadSessionsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? threadId,
+      Value<int>? occurredAt,
+      Value<String>? summary,
+      Value<String>? sourceType,
+      Value<String>? sourceRefJson,
+      Value<String>? linkedCardIds,
+      Value<String>? linkedProjectMemoryIds,
+      Value<String>? authority,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return TopicThreadSessionsCompanion(
+      id: id ?? this.id,
+      threadId: threadId ?? this.threadId,
+      occurredAt: occurredAt ?? this.occurredAt,
+      summary: summary ?? this.summary,
+      sourceType: sourceType ?? this.sourceType,
+      sourceRefJson: sourceRefJson ?? this.sourceRefJson,
+      linkedCardIds: linkedCardIds ?? this.linkedCardIds,
+      linkedProjectMemoryIds:
+          linkedProjectMemoryIds ?? this.linkedProjectMemoryIds,
+      authority: authority ?? this.authority,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (threadId.present) {
+      map['thread_id'] = Variable<String>(threadId.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<int>(occurredAt.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (sourceType.present) {
+      map['source_type'] = Variable<String>(sourceType.value);
+    }
+    if (sourceRefJson.present) {
+      map['source_ref_json'] = Variable<String>(sourceRefJson.value);
+    }
+    if (linkedCardIds.present) {
+      map['linked_card_ids'] = Variable<String>(linkedCardIds.value);
+    }
+    if (linkedProjectMemoryIds.present) {
+      map['linked_project_memory_ids'] =
+          Variable<String>(linkedProjectMemoryIds.value);
+    }
+    if (authority.present) {
+      map['authority'] = Variable<String>(authority.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TopicThreadSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('threadId: $threadId, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('summary: $summary, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('sourceRefJson: $sourceRefJson, ')
+          ..write('linkedCardIds: $linkedCardIds, ')
+          ..write('linkedProjectMemoryIds: $linkedProjectMemoryIds, ')
+          ..write('authority: $authority, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ComicMangasTable extends ComicMangas
     with TableInfo<$ComicMangasTable, ComicManga> {
   @override
@@ -23304,6 +24379,14 @@ class $ComicMangasTable extends ComicMangas
   late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
       'updated_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _intentsJsonMeta =
+      const VerificationMeta('intentsJson');
+  @override
+  late final GeneratedColumn<String> intentsJson = GeneratedColumn<String>(
+      'intents_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -23314,7 +24397,8 @@ class $ComicMangasTable extends ComicMangas
         coverUrl,
         status,
         createdAt,
-        updatedAt
+        updatedAt,
+        intentsJson
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -23379,6 +24463,12 @@ class $ComicMangasTable extends ComicMangas
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('intents_json')) {
+      context.handle(
+          _intentsJsonMeta,
+          intentsJson.isAcceptableOrUnknown(
+              data['intents_json']!, _intentsJsonMeta));
+    }
     return context;
   }
 
@@ -23406,6 +24496,8 @@ class $ComicMangasTable extends ComicMangas
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+      intentsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}intents_json'])!,
     );
   }
 
@@ -23425,6 +24517,10 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
   final String status;
   final int createdAt;
   final int updatedAt;
+
+  /// JSON array of TopicThread intent objects: [{threadId, threadTitle}]
+  /// Set by user to route co-reading cleanup to specific Topic Threads.
+  final String intentsJson;
   const ComicManga(
       {required this.id,
       required this.characterId,
@@ -23434,7 +24530,8 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
       this.coverUrl,
       required this.status,
       required this.createdAt,
-      required this.updatedAt});
+      required this.updatedAt,
+      required this.intentsJson});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -23449,6 +24546,7 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
     map['status'] = Variable<String>(status);
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
+    map['intents_json'] = Variable<String>(intentsJson);
     return map;
   }
 
@@ -23465,6 +24563,7 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
       status: Value(status),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      intentsJson: Value(intentsJson),
     );
   }
 
@@ -23481,6 +24580,7 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
       status: serializer.fromJson<String>(json['status']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      intentsJson: serializer.fromJson<String>(json['intentsJson']),
     );
   }
   @override
@@ -23496,6 +24596,7 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
       'status': serializer.toJson<String>(status),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
+      'intentsJson': serializer.toJson<String>(intentsJson),
     };
   }
 
@@ -23508,7 +24609,8 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
           Value<String?> coverUrl = const Value.absent(),
           String? status,
           int? createdAt,
-          int? updatedAt}) =>
+          int? updatedAt,
+          String? intentsJson}) =>
       ComicManga(
         id: id ?? this.id,
         characterId: characterId ?? this.characterId,
@@ -23519,6 +24621,7 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
         status: status ?? this.status,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
+        intentsJson: intentsJson ?? this.intentsJson,
       );
   ComicManga copyWithCompanion(ComicMangasCompanion data) {
     return ComicManga(
@@ -23533,6 +24636,8 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
       status: data.status.present ? data.status.value : this.status,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      intentsJson:
+          data.intentsJson.present ? data.intentsJson.value : this.intentsJson,
     );
   }
 
@@ -23547,14 +24652,15 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
           ..write('coverUrl: $coverUrl, ')
           ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('intentsJson: $intentsJson')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(id, characterId, sourceSite, comicUrl, title,
-      coverUrl, status, createdAt, updatedAt);
+      coverUrl, status, createdAt, updatedAt, intentsJson);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -23567,7 +24673,8 @@ class ComicManga extends DataClass implements Insertable<ComicManga> {
           other.coverUrl == this.coverUrl &&
           other.status == this.status &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.intentsJson == this.intentsJson);
 }
 
 class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
@@ -23580,6 +24687,7 @@ class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
   final Value<String> status;
   final Value<int> createdAt;
   final Value<int> updatedAt;
+  final Value<String> intentsJson;
   final Value<int> rowid;
   const ComicMangasCompanion({
     this.id = const Value.absent(),
@@ -23591,6 +24699,7 @@ class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
     this.status = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.intentsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ComicMangasCompanion.insert({
@@ -23603,6 +24712,7 @@ class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
     this.status = const Value.absent(),
     required int createdAt,
     required int updatedAt,
+    this.intentsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         characterId = Value(characterId),
@@ -23621,6 +24731,7 @@ class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
     Expression<String>? status,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
+    Expression<String>? intentsJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -23633,6 +24744,7 @@ class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
       if (status != null) 'status': status,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (intentsJson != null) 'intents_json': intentsJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -23647,6 +24759,7 @@ class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
       Value<String>? status,
       Value<int>? createdAt,
       Value<int>? updatedAt,
+      Value<String>? intentsJson,
       Value<int>? rowid}) {
     return ComicMangasCompanion(
       id: id ?? this.id,
@@ -23658,6 +24771,7 @@ class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      intentsJson: intentsJson ?? this.intentsJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -23692,6 +24806,9 @@ class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<int>(updatedAt.value);
     }
+    if (intentsJson.present) {
+      map['intents_json'] = Variable<String>(intentsJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -23710,6 +24827,7 @@ class ComicMangasCompanion extends UpdateCompanion<ComicManga> {
           ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('intentsJson: $intentsJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -25429,6 +26547,14 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
   late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
       'updated_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _intentsJsonMeta =
+      const VerificationMeta('intentsJson');
+  @override
+  late final GeneratedColumn<String> intentsJson = GeneratedColumn<String>(
+      'intents_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -25443,7 +26569,8 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         splitPattern,
         status,
         createdAt,
-        updatedAt
+        updatedAt,
+        intentsJson
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -25526,6 +26653,12 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('intents_json')) {
+      context.handle(
+          _intentsJsonMeta,
+          intentsJson.isAcceptableOrUnknown(
+              data['intents_json']!, _intentsJsonMeta));
+    }
     return context;
   }
 
@@ -25561,6 +26694,8 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+      intentsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}intents_json'])!,
     );
   }
 
@@ -25584,6 +26719,10 @@ class Book extends DataClass implements Insertable<Book> {
   final String status;
   final int createdAt;
   final int updatedAt;
+
+  /// JSON array of TopicThread intent objects: [{threadId, threadTitle}]
+  /// Set by user to route co-reading cleanup to specific Topic Threads.
+  final String intentsJson;
   const Book(
       {required this.id,
       required this.characterId,
@@ -25597,7 +26736,8 @@ class Book extends DataClass implements Insertable<Book> {
       this.splitPattern,
       required this.status,
       required this.createdAt,
-      required this.updatedAt});
+      required this.updatedAt,
+      required this.intentsJson});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -25620,6 +26760,7 @@ class Book extends DataClass implements Insertable<Book> {
     map['status'] = Variable<String>(status);
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
+    map['intents_json'] = Variable<String>(intentsJson);
     return map;
   }
 
@@ -25644,6 +26785,7 @@ class Book extends DataClass implements Insertable<Book> {
       status: Value(status),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      intentsJson: Value(intentsJson),
     );
   }
 
@@ -25664,6 +26806,7 @@ class Book extends DataClass implements Insertable<Book> {
       status: serializer.fromJson<String>(json['status']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      intentsJson: serializer.fromJson<String>(json['intentsJson']),
     );
   }
   @override
@@ -25683,6 +26826,7 @@ class Book extends DataClass implements Insertable<Book> {
       'status': serializer.toJson<String>(status),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
+      'intentsJson': serializer.toJson<String>(intentsJson),
     };
   }
 
@@ -25699,7 +26843,8 @@ class Book extends DataClass implements Insertable<Book> {
           Value<String?> splitPattern = const Value.absent(),
           String? status,
           int? createdAt,
-          int? updatedAt}) =>
+          int? updatedAt,
+          String? intentsJson}) =>
       Book(
         id: id ?? this.id,
         characterId: characterId ?? this.characterId,
@@ -25715,6 +26860,7 @@ class Book extends DataClass implements Insertable<Book> {
         status: status ?? this.status,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
+        intentsJson: intentsJson ?? this.intentsJson,
       );
   Book copyWithCompanion(BooksCompanion data) {
     return Book(
@@ -25738,6 +26884,8 @@ class Book extends DataClass implements Insertable<Book> {
       status: data.status.present ? data.status.value : this.status,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      intentsJson:
+          data.intentsJson.present ? data.intentsJson.value : this.intentsJson,
     );
   }
 
@@ -25756,7 +26904,8 @@ class Book extends DataClass implements Insertable<Book> {
           ..write('splitPattern: $splitPattern, ')
           ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('intentsJson: $intentsJson')
           ..write(')'))
         .toString();
   }
@@ -25775,7 +26924,8 @@ class Book extends DataClass implements Insertable<Book> {
       splitPattern,
       status,
       createdAt,
-      updatedAt);
+      updatedAt,
+      intentsJson);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -25792,7 +26942,8 @@ class Book extends DataClass implements Insertable<Book> {
           other.splitPattern == this.splitPattern &&
           other.status == this.status &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.intentsJson == this.intentsJson);
 }
 
 class BooksCompanion extends UpdateCompanion<Book> {
@@ -25809,6 +26960,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
   final Value<String> status;
   final Value<int> createdAt;
   final Value<int> updatedAt;
+  final Value<String> intentsJson;
   final Value<int> rowid;
   const BooksCompanion({
     this.id = const Value.absent(),
@@ -25824,6 +26976,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.status = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.intentsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BooksCompanion.insert({
@@ -25840,6 +26993,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.status = const Value.absent(),
     required int createdAt,
     required int updatedAt,
+    this.intentsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         characterId = Value(characterId),
@@ -25860,6 +27014,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Expression<String>? status,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
+    Expression<String>? intentsJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -25876,6 +27031,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       if (status != null) 'status': status,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (intentsJson != null) 'intents_json': intentsJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -25894,6 +27050,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       Value<String>? status,
       Value<int>? createdAt,
       Value<int>? updatedAt,
+      Value<String>? intentsJson,
       Value<int>? rowid}) {
     return BooksCompanion(
       id: id ?? this.id,
@@ -25909,6 +27066,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      intentsJson: intentsJson ?? this.intentsJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -25955,6 +27113,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<int>(updatedAt.value);
     }
+    if (intentsJson.present) {
+      map['intents_json'] = Variable<String>(intentsJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -25977,6 +27138,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
           ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('intentsJson: $intentsJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -27038,6 +28200,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ProjectMemoryItemsTable(this);
   late final $ProjectMemorySourcesTable projectMemorySources =
       $ProjectMemorySourcesTable(this);
+  late final $TopicThreadsTable topicThreads = $TopicThreadsTable(this);
+  late final $TopicThreadSessionsTable topicThreadSessions =
+      $TopicThreadSessionsTable(this);
   late final $ComicMangasTable comicMangas = $ComicMangasTable(this);
   late final $ComicChaptersTable comicChapters = $ComicChaptersTable(this);
   late final $ComicPageScreenplaysTable comicPageScreenplays =
@@ -27106,6 +28271,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         memoryEmbeddings,
         projectMemoryItems,
         projectMemorySources,
+        topicThreads,
+        topicThreadSessions,
         comicMangas,
         comicChapters,
         comicPageScreenplays,
@@ -39580,6 +40747,518 @@ typedef $$ProjectMemorySourcesTableProcessedTableManager
         ),
         ProjectMemorySource,
         PrefetchHooks Function()>;
+typedef $$TopicThreadsTableCreateCompanionBuilder = TopicThreadsCompanion
+    Function({
+  required String id,
+  required String title,
+  Value<String> currentStage,
+  Value<String> corePositionsJson,
+  Value<String> openQuestionsJson,
+  Value<String> tags,
+  Value<String> status,
+  Value<int?> lastDiscussedAt,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$TopicThreadsTableUpdateCompanionBuilder = TopicThreadsCompanion
+    Function({
+  Value<String> id,
+  Value<String> title,
+  Value<String> currentStage,
+  Value<String> corePositionsJson,
+  Value<String> openQuestionsJson,
+  Value<String> tags,
+  Value<String> status,
+  Value<int?> lastDiscussedAt,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$TopicThreadsTableFilterComposer
+    extends Composer<_$AppDatabase, $TopicThreadsTable> {
+  $$TopicThreadsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get currentStage => $composableBuilder(
+      column: $table.currentStage, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get corePositionsJson => $composableBuilder(
+      column: $table.corePositionsJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get openQuestionsJson => $composableBuilder(
+      column: $table.openQuestionsJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get tags => $composableBuilder(
+      column: $table.tags, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get lastDiscussedAt => $composableBuilder(
+      column: $table.lastDiscussedAt,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$TopicThreadsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TopicThreadsTable> {
+  $$TopicThreadsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get currentStage => $composableBuilder(
+      column: $table.currentStage,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get corePositionsJson => $composableBuilder(
+      column: $table.corePositionsJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get openQuestionsJson => $composableBuilder(
+      column: $table.openQuestionsJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get tags => $composableBuilder(
+      column: $table.tags, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get lastDiscussedAt => $composableBuilder(
+      column: $table.lastDiscussedAt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$TopicThreadsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TopicThreadsTable> {
+  $$TopicThreadsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get currentStage => $composableBuilder(
+      column: $table.currentStage, builder: (column) => column);
+
+  GeneratedColumn<String> get corePositionsJson => $composableBuilder(
+      column: $table.corePositionsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get openQuestionsJson => $composableBuilder(
+      column: $table.openQuestionsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get tags =>
+      $composableBuilder(column: $table.tags, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get lastDiscussedAt => $composableBuilder(
+      column: $table.lastDiscussedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$TopicThreadsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $TopicThreadsTable,
+    TopicThread,
+    $$TopicThreadsTableFilterComposer,
+    $$TopicThreadsTableOrderingComposer,
+    $$TopicThreadsTableAnnotationComposer,
+    $$TopicThreadsTableCreateCompanionBuilder,
+    $$TopicThreadsTableUpdateCompanionBuilder,
+    (
+      TopicThread,
+      BaseReferences<_$AppDatabase, $TopicThreadsTable, TopicThread>
+    ),
+    TopicThread,
+    PrefetchHooks Function()> {
+  $$TopicThreadsTableTableManager(_$AppDatabase db, $TopicThreadsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TopicThreadsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TopicThreadsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TopicThreadsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> currentStage = const Value.absent(),
+            Value<String> corePositionsJson = const Value.absent(),
+            Value<String> openQuestionsJson = const Value.absent(),
+            Value<String> tags = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int?> lastDiscussedAt = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TopicThreadsCompanion(
+            id: id,
+            title: title,
+            currentStage: currentStage,
+            corePositionsJson: corePositionsJson,
+            openQuestionsJson: openQuestionsJson,
+            tags: tags,
+            status: status,
+            lastDiscussedAt: lastDiscussedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String title,
+            Value<String> currentStage = const Value.absent(),
+            Value<String> corePositionsJson = const Value.absent(),
+            Value<String> openQuestionsJson = const Value.absent(),
+            Value<String> tags = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int?> lastDiscussedAt = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TopicThreadsCompanion.insert(
+            id: id,
+            title: title,
+            currentStage: currentStage,
+            corePositionsJson: corePositionsJson,
+            openQuestionsJson: openQuestionsJson,
+            tags: tags,
+            status: status,
+            lastDiscussedAt: lastDiscussedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$TopicThreadsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $TopicThreadsTable,
+    TopicThread,
+    $$TopicThreadsTableFilterComposer,
+    $$TopicThreadsTableOrderingComposer,
+    $$TopicThreadsTableAnnotationComposer,
+    $$TopicThreadsTableCreateCompanionBuilder,
+    $$TopicThreadsTableUpdateCompanionBuilder,
+    (
+      TopicThread,
+      BaseReferences<_$AppDatabase, $TopicThreadsTable, TopicThread>
+    ),
+    TopicThread,
+    PrefetchHooks Function()>;
+typedef $$TopicThreadSessionsTableCreateCompanionBuilder
+    = TopicThreadSessionsCompanion Function({
+  required String id,
+  required String threadId,
+  required int occurredAt,
+  required String summary,
+  Value<String> sourceType,
+  Value<String> sourceRefJson,
+  Value<String> linkedCardIds,
+  Value<String> linkedProjectMemoryIds,
+  Value<String> authority,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$TopicThreadSessionsTableUpdateCompanionBuilder
+    = TopicThreadSessionsCompanion Function({
+  Value<String> id,
+  Value<String> threadId,
+  Value<int> occurredAt,
+  Value<String> summary,
+  Value<String> sourceType,
+  Value<String> sourceRefJson,
+  Value<String> linkedCardIds,
+  Value<String> linkedProjectMemoryIds,
+  Value<String> authority,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$TopicThreadSessionsTableFilterComposer
+    extends Composer<_$AppDatabase, $TopicThreadSessionsTable> {
+  $$TopicThreadSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get threadId => $composableBuilder(
+      column: $table.threadId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get occurredAt => $composableBuilder(
+      column: $table.occurredAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get summary => $composableBuilder(
+      column: $table.summary, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceType => $composableBuilder(
+      column: $table.sourceType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceRefJson => $composableBuilder(
+      column: $table.sourceRefJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get linkedCardIds => $composableBuilder(
+      column: $table.linkedCardIds, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get linkedProjectMemoryIds => $composableBuilder(
+      column: $table.linkedProjectMemoryIds,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$TopicThreadSessionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TopicThreadSessionsTable> {
+  $$TopicThreadSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get threadId => $composableBuilder(
+      column: $table.threadId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get occurredAt => $composableBuilder(
+      column: $table.occurredAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+      column: $table.summary, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceType => $composableBuilder(
+      column: $table.sourceType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceRefJson => $composableBuilder(
+      column: $table.sourceRefJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get linkedCardIds => $composableBuilder(
+      column: $table.linkedCardIds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get linkedProjectMemoryIds => $composableBuilder(
+      column: $table.linkedProjectMemoryIds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$TopicThreadSessionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TopicThreadSessionsTable> {
+  $$TopicThreadSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get threadId =>
+      $composableBuilder(column: $table.threadId, builder: (column) => column);
+
+  GeneratedColumn<int> get occurredAt => $composableBuilder(
+      column: $table.occurredAt, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceType => $composableBuilder(
+      column: $table.sourceType, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceRefJson => $composableBuilder(
+      column: $table.sourceRefJson, builder: (column) => column);
+
+  GeneratedColumn<String> get linkedCardIds => $composableBuilder(
+      column: $table.linkedCardIds, builder: (column) => column);
+
+  GeneratedColumn<String> get linkedProjectMemoryIds => $composableBuilder(
+      column: $table.linkedProjectMemoryIds, builder: (column) => column);
+
+  GeneratedColumn<String> get authority =>
+      $composableBuilder(column: $table.authority, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$TopicThreadSessionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $TopicThreadSessionsTable,
+    TopicThreadSession,
+    $$TopicThreadSessionsTableFilterComposer,
+    $$TopicThreadSessionsTableOrderingComposer,
+    $$TopicThreadSessionsTableAnnotationComposer,
+    $$TopicThreadSessionsTableCreateCompanionBuilder,
+    $$TopicThreadSessionsTableUpdateCompanionBuilder,
+    (
+      TopicThreadSession,
+      BaseReferences<_$AppDatabase, $TopicThreadSessionsTable,
+          TopicThreadSession>
+    ),
+    TopicThreadSession,
+    PrefetchHooks Function()> {
+  $$TopicThreadSessionsTableTableManager(
+      _$AppDatabase db, $TopicThreadSessionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TopicThreadSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TopicThreadSessionsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TopicThreadSessionsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> threadId = const Value.absent(),
+            Value<int> occurredAt = const Value.absent(),
+            Value<String> summary = const Value.absent(),
+            Value<String> sourceType = const Value.absent(),
+            Value<String> sourceRefJson = const Value.absent(),
+            Value<String> linkedCardIds = const Value.absent(),
+            Value<String> linkedProjectMemoryIds = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TopicThreadSessionsCompanion(
+            id: id,
+            threadId: threadId,
+            occurredAt: occurredAt,
+            summary: summary,
+            sourceType: sourceType,
+            sourceRefJson: sourceRefJson,
+            linkedCardIds: linkedCardIds,
+            linkedProjectMemoryIds: linkedProjectMemoryIds,
+            authority: authority,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String threadId,
+            required int occurredAt,
+            required String summary,
+            Value<String> sourceType = const Value.absent(),
+            Value<String> sourceRefJson = const Value.absent(),
+            Value<String> linkedCardIds = const Value.absent(),
+            Value<String> linkedProjectMemoryIds = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TopicThreadSessionsCompanion.insert(
+            id: id,
+            threadId: threadId,
+            occurredAt: occurredAt,
+            summary: summary,
+            sourceType: sourceType,
+            sourceRefJson: sourceRefJson,
+            linkedCardIds: linkedCardIds,
+            linkedProjectMemoryIds: linkedProjectMemoryIds,
+            authority: authority,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$TopicThreadSessionsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $TopicThreadSessionsTable,
+    TopicThreadSession,
+    $$TopicThreadSessionsTableFilterComposer,
+    $$TopicThreadSessionsTableOrderingComposer,
+    $$TopicThreadSessionsTableAnnotationComposer,
+    $$TopicThreadSessionsTableCreateCompanionBuilder,
+    $$TopicThreadSessionsTableUpdateCompanionBuilder,
+    (
+      TopicThreadSession,
+      BaseReferences<_$AppDatabase, $TopicThreadSessionsTable,
+          TopicThreadSession>
+    ),
+    TopicThreadSession,
+    PrefetchHooks Function()>;
 typedef $$ComicMangasTableCreateCompanionBuilder = ComicMangasCompanion
     Function({
   required String id,
@@ -39591,6 +41270,7 @@ typedef $$ComicMangasTableCreateCompanionBuilder = ComicMangasCompanion
   Value<String> status,
   required int createdAt,
   required int updatedAt,
+  Value<String> intentsJson,
   Value<int> rowid,
 });
 typedef $$ComicMangasTableUpdateCompanionBuilder = ComicMangasCompanion
@@ -39604,6 +41284,7 @@ typedef $$ComicMangasTableUpdateCompanionBuilder = ComicMangasCompanion
   Value<String> status,
   Value<int> createdAt,
   Value<int> updatedAt,
+  Value<String> intentsJson,
   Value<int> rowid,
 });
 
@@ -39642,6 +41323,9 @@ class $$ComicMangasTableFilterComposer
 
   ColumnFilters<int> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get intentsJson => $composableBuilder(
+      column: $table.intentsJson, builder: (column) => ColumnFilters(column));
 }
 
 class $$ComicMangasTableOrderingComposer
@@ -39679,6 +41363,9 @@ class $$ComicMangasTableOrderingComposer
 
   ColumnOrderings<int> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get intentsJson => $composableBuilder(
+      column: $table.intentsJson, builder: (column) => ColumnOrderings(column));
 }
 
 class $$ComicMangasTableAnnotationComposer
@@ -39716,6 +41403,9 @@ class $$ComicMangasTableAnnotationComposer
 
   GeneratedColumn<int> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get intentsJson => $composableBuilder(
+      column: $table.intentsJson, builder: (column) => column);
 }
 
 class $$ComicMangasTableTableManager extends RootTableManager<
@@ -39750,6 +41440,7 @@ class $$ComicMangasTableTableManager extends RootTableManager<
             Value<String> status = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<int> updatedAt = const Value.absent(),
+            Value<String> intentsJson = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ComicMangasCompanion(
@@ -39762,6 +41453,7 @@ class $$ComicMangasTableTableManager extends RootTableManager<
             status: status,
             createdAt: createdAt,
             updatedAt: updatedAt,
+            intentsJson: intentsJson,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -39774,6 +41466,7 @@ class $$ComicMangasTableTableManager extends RootTableManager<
             Value<String> status = const Value.absent(),
             required int createdAt,
             required int updatedAt,
+            Value<String> intentsJson = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ComicMangasCompanion.insert(
@@ -39786,6 +41479,7 @@ class $$ComicMangasTableTableManager extends RootTableManager<
             status: status,
             createdAt: createdAt,
             updatedAt: updatedAt,
+            intentsJson: intentsJson,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -40657,6 +42351,7 @@ typedef $$BooksTableCreateCompanionBuilder = BooksCompanion Function({
   Value<String> status,
   required int createdAt,
   required int updatedAt,
+  Value<String> intentsJson,
   Value<int> rowid,
 });
 typedef $$BooksTableUpdateCompanionBuilder = BooksCompanion Function({
@@ -40673,6 +42368,7 @@ typedef $$BooksTableUpdateCompanionBuilder = BooksCompanion Function({
   Value<String> status,
   Value<int> createdAt,
   Value<int> updatedAt,
+  Value<String> intentsJson,
   Value<int> rowid,
 });
 
@@ -40722,6 +42418,9 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<int> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get intentsJson => $composableBuilder(
+      column: $table.intentsJson, builder: (column) => ColumnFilters(column));
 }
 
 class $$BooksTableOrderingComposer
@@ -40773,6 +42472,9 @@ class $$BooksTableOrderingComposer
 
   ColumnOrderings<int> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get intentsJson => $composableBuilder(
+      column: $table.intentsJson, builder: (column) => ColumnOrderings(column));
 }
 
 class $$BooksTableAnnotationComposer
@@ -40822,6 +42524,9 @@ class $$BooksTableAnnotationComposer
 
   GeneratedColumn<int> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get intentsJson => $composableBuilder(
+      column: $table.intentsJson, builder: (column) => column);
 }
 
 class $$BooksTableTableManager extends RootTableManager<
@@ -40860,6 +42565,7 @@ class $$BooksTableTableManager extends RootTableManager<
             Value<String> status = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<int> updatedAt = const Value.absent(),
+            Value<String> intentsJson = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               BooksCompanion(
@@ -40876,6 +42582,7 @@ class $$BooksTableTableManager extends RootTableManager<
             status: status,
             createdAt: createdAt,
             updatedAt: updatedAt,
+            intentsJson: intentsJson,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -40892,6 +42599,7 @@ class $$BooksTableTableManager extends RootTableManager<
             Value<String> status = const Value.absent(),
             required int createdAt,
             required int updatedAt,
+            Value<String> intentsJson = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               BooksCompanion.insert(
@@ -40908,6 +42616,7 @@ class $$BooksTableTableManager extends RootTableManager<
             status: status,
             createdAt: createdAt,
             updatedAt: updatedAt,
+            intentsJson: intentsJson,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -41571,6 +43280,10 @@ class $AppDatabaseManager {
       $$ProjectMemoryItemsTableTableManager(_db, _db.projectMemoryItems);
   $$ProjectMemorySourcesTableTableManager get projectMemorySources =>
       $$ProjectMemorySourcesTableTableManager(_db, _db.projectMemorySources);
+  $$TopicThreadsTableTableManager get topicThreads =>
+      $$TopicThreadsTableTableManager(_db, _db.topicThreads);
+  $$TopicThreadSessionsTableTableManager get topicThreadSessions =>
+      $$TopicThreadSessionsTableTableManager(_db, _db.topicThreadSessions);
   $$ComicMangasTableTableManager get comicMangas =>
       $$ComicMangasTableTableManager(_db, _db.comicMangas);
   $$ComicChaptersTableTableManager get comicChapters =>

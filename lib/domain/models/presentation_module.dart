@@ -185,7 +185,10 @@ class NumberBlock extends MemoryBlock {
   static NumberBlock fromJson(Map<String, dynamic> json) => NumberBlock(
         value: _string(json['value']) ?? '',
         unit: _string(json['unit']),
-        note: _string(json['note']),
+        // `caption` was used by the Record Organizer prompt before the Dart
+        // model settled on `note`. Keep accepting it so existing cards do not
+        // silently lose their explanation.
+        note: _string(json['note']) ?? _string(json['caption']),
       );
 }
 
@@ -208,11 +211,34 @@ class TableBlock extends MemoryBlock {
 
   static TableBlock fromJson(Map<String, dynamic> json) {
     final raw = json['rows'];
+    final headers = _stringList(json['headers']);
     final rows = <TableRowData>[];
     if (raw is List) {
       for (final item in raw) {
-        if (item is! Map) continue;
-        rows.add(TableRowData.fromJson(Map<String, dynamic>.from(item)));
+        if (item is Map) {
+          rows.add(TableRowData.fromJson(Map<String, dynamic>.from(item)));
+          continue;
+        }
+        // Compatibility for the early prompt shape:
+        // {"headers":["项目","金额"],"rows":[["午餐","83元"]]}.
+        // The UI is intentionally a compact two-column table, so additional
+        // cells are folded into the value rather than discarded.
+        if (item is List && item.isNotEmpty) {
+          final cells = item.map(_string).whereType<String>().toList();
+          if (cells.isEmpty) continue;
+          final valueParts = <String>[];
+          for (var i = 1; i < cells.length; i++) {
+            if (cells.length > 2 && i < headers.length) {
+              valueParts.add('${headers[i]}：${cells[i]}');
+            } else {
+              valueParts.add(cells[i]);
+            }
+          }
+          rows.add(TableRowData(
+            label: cells.first,
+            value: valueParts.join(' · '),
+          ));
+        }
       }
     }
     return TableBlock(rows: rows);
@@ -386,9 +412,15 @@ class ProgressBarBlock extends MemoryBlock {
       return 0;
     }
 
+    final value = parseNum(json['value']);
+    final hasExplicitMax = json.containsKey('max') && json['max'] != null;
+    final max =
+        hasExplicitMax ? parseNum(json['max']) : (value <= 1 ? 1.0 : 100.0);
     return ProgressBarBlock(
-      value: parseNum(json['value']),
-      max: parseNum(json['max']),
+      value: value,
+      // Early cards stored a ratio such as 0.6 without `max`; treating that as
+      // 0.6/1 keeps the intended 60% progress instead of rendering an empty bar.
+      max: max,
       unit: _string(json['unit']),
       label: _string(json['label']),
     );

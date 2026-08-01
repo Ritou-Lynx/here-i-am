@@ -67,6 +67,9 @@ part 'app_database.g.dart';
     memory_v3.MemoryEmbeddings,
     memory_v3.ProjectMemoryItems,
     memory_v3.ProjectMemorySources,
+    // Topic Thread tables — see docs/memory-research/TOPIC_THREAD_DESIGN.md
+    memory_v3.TopicThreads,
+    memory_v3.TopicThreadSessions,
     // Comic co-reading tables — see docs/companion-first/COMIC_CO_READING_PLAN.md
     ComicMangas,
     ComicChapters,
@@ -134,7 +137,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 47;
+  int get schemaVersion => 49;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -622,6 +625,33 @@ class AppDatabase extends _$AppDatabase {
               'ON book_chapter_notes (book_id, chapter_number)',
             );
           }
+          if (from < 48) {
+            // Topic Thread: long-running topic tracking (Memory V3 facet 6).
+            // See docs/memory-research/TOPIC_THREAD_DESIGN.md
+            await m.createTable(topicThreads);
+            await m.createTable(topicThreadSessions);
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_topic_threads_status '
+              'ON topic_threads(status)',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_topic_threads_last_discussed '
+              'ON topic_threads(last_discussed_at)',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_topic_thread_sessions_thread '
+              'ON topic_thread_sessions(thread_id, occurred_at)',
+            );
+          }
+          if (from < 49) {
+            // Reading Intent: link books/manga to Topic Threads for co-reading routing.
+            await _addColumnIfMissing(
+              "books ADD COLUMN intents_json TEXT NOT NULL DEFAULT '[]'",
+            );
+            await _addColumnIfMissing(
+              "comic_mangas ADD COLUMN intents_json TEXT NOT NULL DEFAULT '[]'",
+            );
+          }
           if (from < 39) {
             await _addColumnIfMissing(
               "memory_episodes ADD COLUMN topic_id TEXT NOT NULL DEFAULT '__ungrouped__'",
@@ -707,6 +737,10 @@ class AppDatabase extends _$AppDatabase {
     await m.createTable(projectMemoryItems);
     await m.createTable(projectMemorySources);
 
+    // Topic Thread tables
+    await m.createTable(topicThreads);
+    await m.createTable(topicThreadSessions);
+
     await _createMemoryV3Indices();
   }
 
@@ -753,6 +787,15 @@ class AppDatabase extends _$AppDatabase {
         'CREATE INDEX IF NOT EXISTS idx_memory_embeddings_updated '
         'ON memory_embeddings(updated_at)');
     await _createProjectMemoryIndices();
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_topic_threads_status '
+        'ON topic_threads(status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_topic_threads_last_discussed '
+        'ON topic_threads(last_discussed_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_topic_thread_sessions_thread '
+        'ON topic_thread_sessions(thread_id, occurred_at)');
   }
 
   Future<void> _createProjectMemoryIndices() async {

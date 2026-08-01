@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
+import 'package:memex/data/services/book/co_reading_note_service.dart';
 import 'package:memex/data/services/comic/comic_library_service.dart';
 import 'package:memex/data/services/comic/comic_reading_progress_service.dart';
 import 'package:memex/data/services/comic/comic_remote_service.dart';
@@ -138,6 +139,15 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
       });
 
       await _loadMessages();
+
+      // Fire-and-forget: generate co-reading notes if enough messages have accumulated.
+      if (CoReadingNoteService.isInitialized && _manga != null && _characterId.isNotEmpty) {
+        CoReadingNoteService.instance.maybeGenerateForManga(
+          mangaId: widget.mangaId,
+          mangaTitle: _manga!.title,
+          characterId: _characterId,
+        );
+      }
 
       if (pages.isNotEmpty) {
         await ComicReadingProgressService.instance.recordProgress(

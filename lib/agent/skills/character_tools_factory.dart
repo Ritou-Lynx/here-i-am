@@ -22,6 +22,7 @@ import 'package:memex/agent/built_in_tools/generate_image_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_query_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_update_card_tool.dart';
 import 'package:memex/agent/built_in_tools/project_memory_query_tool.dart';
+import 'package:memex/agent/built_in_tools/topic_thread_tool.dart';
 import 'package:memex/agent/security/file_permission_manager.dart';
 import 'package:memex/agent/skills/comment_agent/tools/comment_tools.dart';
 import 'package:memex/agent/skills/companion_agent/tools/action_message_tools.dart';
@@ -117,6 +118,10 @@ class CharacterToolsFactory {
       tools.add(buildMemoryV3QueryTool());
       tools.add(buildMemoryV3UpdateCardTool());
       tools.add(buildProjectMemoryQueryTool());
+    }
+    if (AppDatabase.isInitialized) {
+      tools.add(buildTopicThreadCreateTool());
+      tools.add(buildTopicThreadRecallTool());
     }
     if (SharedLifeMemoryService.isInitialized &&
         !RecordOrganizerServiceV3.isInitialized) {

@@ -380,7 +380,7 @@ async function main() {
         saveChapter(chapterMeta);
         localIds.add(ch.id);
         totalCrawled++;
-        console.log(`  ✓ ${ch.text} 完成 (${crawlResult.pages.length} 页, ${screenplay.filter((s) => !s.error).length}/${screenplay.length} 页提取成功)`);
+        console.log(`  ✓ ${ch.text} 完成 (${crawlResult.pages.length} 页, ${(crawlResult.comments || []).length} 条评论)`);
 
         if (totalCrawled < maxChapters && newChapters.indexOf(ch) < newChapters.length - 1) {
           const delay = randDelay(30, 90);

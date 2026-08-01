@@ -708,6 +708,110 @@ void main() {
     expect(replayed.processedMessageCount, 2);
   });
 
+  test(
+      'runDailyFragmentBatch keeps watermark at last covered message when model only processes part of the batch',
+      () async {
+    if (!fts5Available) return;
+    // Insert 6 messages; the fake extractor will only produce fragments
+    // covering messages 1-2, simulating attention decay where the model
+    // ignores later messages.
+    for (var i = 0; i < 6; i++) {
+      await _insertMessage(
+        db,
+        characterId: 'i',
+        content: '消息 $i 的内容，包含一些关系证据。',
+        isFromCharacter: i % 2 == 0,
+        timestamp: DateTime(2026, 7, 5, 20, i),
+      );
+    }
+
+    final first = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+        DreamingFragmentExtraction(
+          fragments: [
+            DreamingFragmentDraft(
+              content: '她说了消息0中的事，情绪明显。',
+              sourceMessageIds: const [1, 2],
+              emotionalWeight: 0.6,
+              isUserTruthCandidate: false,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // The batch read 6 messages but only 1 fragment was persisted.
+    expect(first.processedMessageCount, 6);
+    expect(first.fragmentIds, hasLength(1));
+
+    // Watermark should be at message id 2 (last covered), NOT 6.
+    // Verify by running a second batch — it should re-read messages 3-6
+    // (4 messages), proving the watermark stayed at 2.
+    final second = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+        DreamingFragmentExtraction(
+          fragments: [
+            DreamingFragmentDraft(
+              content: '她后续聊到了消息3到5的内容。',
+              sourceMessageIds: const [4, 5, 6],
+              emotionalWeight: 0.5,
+              isUserTruthCandidate: false,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // The second batch should have re-read messages 3-6 (4 messages).
+    expect(second.processedMessageCount, 4);
+    expect(second.fragmentIds, hasLength(1));
+  });
+
+  test(
+      'runDailyFragmentBatch advances watermark past whole batch when model returns empty (all evaluated)',
+      () async {
+    if (!fts5Available) return;
+    for (var i = 0; i < 3; i++) {
+      await _insertMessage(
+        db,
+        characterId: 'i',
+        content: '日常闲聊 $i',
+        isFromCharacter: i % 2 == 0,
+        timestamp: DateTime(2026, 7, 5, 20, i),
+      );
+    }
+
+    final result = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+        DreamingFragmentExtraction(fragments: const []),
+      ),
+    );
+
+    expect(result.processedMessageCount, 3);
+    expect(result.isEmpty, isTrue);
+
+    // Since model returned empty (evaluated all, no evidence), watermark
+    // should advance past the whole batch. Next batch should read 0.
+    final next = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+        DreamingFragmentExtraction(fragments: const []),
+      ),
+    );
+    expect(next.processedMessageCount, 0);
+  });
+
   test('source-message dedupe drops paraphrased duplicates from re-extracted batches',
       () async {
     if (!fts5Available) return;
@@ -725,8 +829,17 @@ void main() {
       isFromCharacter: true,
       timestamp: DateTime(2026, 7, 5, 20, 1),
     );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '后来她好一点了，说谢谢我。',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20, 2),
+    );
 
-    // First batch extracts two fragments covering two messages.
+    // First batch extracts one fragment covering messages 1-2.
+    // Watermark advances to 2 (last covered message), NOT 3 — so message 3
+    // remains unread and will be picked up by the next batch.
     final first = await service.runDailyFragmentBatch(
       characterId: 'i',
       client: _FakeLLMClient(),
@@ -766,7 +879,7 @@ void main() {
           ),
           // Genuinely new message that wasn't covered before — must be kept.
           DreamingFragmentDraft(
-            content: '新消息的新片段',
+            content: '她后来情绪好转，跟我说谢谢。',
             sourceMessageIds: const [3],
             emotionalWeight: 0.3,
             isUserTruthCandidate: false,

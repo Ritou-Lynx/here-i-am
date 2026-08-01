@@ -106,20 +106,21 @@ class CompanionAgent {
 
   /// Build the book co-reading system reminder if the user has been reading
   /// a book recently (within 60 minutes). Returns null if not active.
+  ///
+  /// Injects: book title, progress, character roster, previous chapter
+  /// summaries, and current chapter summary (or raw text fallback).
   static Future<String?> _getActiveBookReadingContext() async {
     if (!BookLibraryService.isInitialized) return null;
     final lib = BookLibraryService.instance;
     final books = await lib.getLibrary();
     if (books.isEmpty) return null;
 
-    // Find the most recently read book
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     Book? active;
     BookReadingProgressData? progress;
     for (final book in books) {
       final p = await lib.getProgress(book.id);
       if (p == null) continue;
-      // Only consider books read within the last 60 minutes
       if (now - p.readAt > 3600) continue;
       if (active == null || p.readAt > (progress?.readAt ?? 0)) {
         active = book;
@@ -128,38 +129,96 @@ class CompanionAgent {
     }
     if (active == null || progress == null) return null;
 
-    // Get current chapter title
     final chapter = await lib.getChapter(active.id, progress.chapterNumber);
     final chTitle = chapter?.title ?? '第 ${progress.chapterNumber} 章';
-
-    // Try AI summary first, fall back to raw text snippet
-    String? contextText;
-    try {
-      final summary = await lib.remote.getChapterSummary(active.id, progress.chapterNumber);
-      if (summary != null && summary.trim().isNotEmpty) {
-        contextText = '本章摘要：$summary';
-      }
-    } catch (_) {}
-    if (contextText == null) {
-      final content = await lib.getChapterContent(active.id, progress.chapterNumber);
-      if (content != null) {
-        contextText = content.length > 500
-            ? '本章开头：${content.substring(0, 500)}……'
-            : '本章内容：$content';
-      }
-    }
+    final curNum = progress.chapterNumber;
+    final totalCh = active.chapterCount;
+    final pct = totalCh > 0 ? (curNum * 100 ~/ totalCh) : 0;
 
     final buf = StringBuffer();
-    buf.writeln('## 用户正在读的书（当前章节）');
-    buf.writeln('《${active.title}》· $chTitle（第 ${progress.chapterNumber}/${active.chapterCount} 章）');
-    if (contextText != null && contextText.isNotEmpty) {
-      buf.writeln(contextText);
+    buf.writeln('## 用户正在共读的书');
+    buf.writeln('《${active.title}》${active.author.isNotEmpty ? '（${active.author}）' : ''}');
+    buf.writeln('进度：第 $curNum/$totalCh 章（$pct%）· 当前章节：$chTitle');
+    if (progress.scrollRatio > 0.01) {
+      buf.writeln('本章阅读位置：约 ${(progress.scrollRatio * 100).toInt()}%');
     }
-    buf.writeln('这是用户此刻正在读的书。规则：');
+
+    Map<String, dynamic>? summaries;
+    try {
+      summaries = await lib.remote.getSummaries(active.id);
+    } catch (_) {}
+
+    if (summaries != null) {
+      final characters = summaries['characters'] as List<dynamic>?;
+      if (characters != null && characters.isNotEmpty) {
+        buf.writeln();
+        buf.writeln('### 主要角色');
+        for (final c in characters.take(8)) {
+          if (c is! Map) continue;
+          final name = c['name'] ?? '?';
+          final aliases = (c['aliases'] as List<dynamic>?)?.join('、') ?? '';
+          final desc = c['description'] ?? '';
+          buf.writeln('- $name${aliases.isNotEmpty ? '（$aliases）' : ''}：$desc');
+        }
+      }
+
+      final chSummaries = summaries['chapter_summaries'] as List<dynamic>?;
+      if (chSummaries != null && chSummaries.isNotEmpty) {
+        final prevNums = <int>[curNum - 2, curNum - 1].where((n) => n >= 1).toList();
+        final prevSummaries = <String>[];
+        for (final s in chSummaries) {
+          if (s is! Map) continue;
+          final chapterNum = (s['number'] as num?)?.toInt();
+          if (chapterNum != null && prevNums.contains(chapterNum)) {
+            final summary = s['summary'] as String? ?? '';
+            final title = s['title'] as String? ?? '第 $chapterNum 章';
+            if (summary.isNotEmpty) prevSummaries.add('第 $chapterNum 章「$title」：$summary');
+          }
+        }
+        if (prevSummaries.isNotEmpty) {
+          buf.writeln();
+          buf.writeln('### 前文回顾');
+          for (final ps in prevSummaries) {
+            buf.writeln('- $ps');
+          }
+        }
+
+        for (final s in chSummaries) {
+          if (s is! Map) continue;
+          final chapterNum = (s['number'] as num?)?.toInt();
+          if (chapterNum == curNum) {
+            final summary = s['summary'] as String? ?? '';
+            if (summary.isNotEmpty) {
+              buf.writeln();
+              buf.writeln('### 本章摘要');
+              buf.writeln(summary);
+              final events = s['key_events'] as List<dynamic>?;
+              if (events != null && events.isNotEmpty) {
+                buf.writeln('关键事件：${events.join('；')}');
+              }
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    if (!buf.toString().contains('本章摘要')) {
+      final content = await lib.getChapterContent(active.id, curNum);
+      if (content != null && content.isNotEmpty) {
+        buf.writeln();
+        buf.writeln('### 本章开头');
+        buf.writeln(content.length > 800 ? '${content.substring(0, 800)}……' : content);
+      }
+    }
+
+    buf.writeln();
+    buf.writeln('规则：');
     buf.writeln('- 用户没提书时，照常聊天，不要主动复述或总结章节内容。');
     buf.writeln('- 用户聊到书、剧情、角色，或问"这段/刚才/接下来"时，像一起读的朋友');
     buf.writeln('一样自然回应，带你的感受和理解，不要像在读摘要。');
     buf.writeln('- 永远不要把上面的原文内容原样复述给用户。');
+    buf.writeln('- 你了解前文剧情和角色关系，可以自然地引用之前发生的事。');
     return buf.toString();
   }
 

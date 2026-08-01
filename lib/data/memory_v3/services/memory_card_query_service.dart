@@ -370,6 +370,81 @@ class MemoryCardQueryService {
   }
 
   // ---------------------------------------------------------------------------
+  // Schedule / task aggregation
+  // ---------------------------------------------------------------------------
+
+  /// List active task-like cards (type in task / schedule / plan) with
+  /// structured fields attached. Used by the Schedule observation panel.
+  ///
+  /// Cards are returned in ascending due-time order (soonest first).
+  /// Cards without a time anchor are placed at the end (unscheduled).
+  Future<List<MemoryCardViewData>> listScheduleCards({
+    Set<String> types = const {'task', 'schedule', 'plan'},
+    bool includeCompleted = false,
+    int limit = 200,
+  }) async {
+    final query = _db.select(_db.memoryCards)
+      ..where((t) => t.type.isIn(types.toList()))
+      ..orderBy([(t) => OrderingTerm.asc(t.updatedAt)])
+      ..limit(limit);
+
+    if (!includeCompleted) {
+      query.where((t) => t.status.equals('active') | t.status.isNull());
+    }
+
+    final rows = await query.get();
+    final cards = rows.map(_toViewData).toList();
+    await _attachStructuredFields(cards);
+    await _attachSourceInfo(cards);
+
+    // Sort by event time ascending; nulls (unscheduled) go last.
+    cards.sort((a, b) {
+      final aMs = a.eventTimeMs;
+      final bMs = b.eventTimeMs;
+      if (aMs == null && bMs == null) return 0;
+      if (aMs == null) return 1;
+      if (bMs == null) return -1;
+      return aMs.compareTo(bMs);
+    });
+    return cards;
+  }
+
+  /// Count active task-like cards grouped by urgency bucket.
+  /// Returns {overdue: n, today: n, upcoming: n, unscheduled: n}.
+  Future<Map<String, int>> getScheduleOverview() async {
+    final cards = await listScheduleCards();
+    final now = DateTime.now();
+    final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+    var overdue = 0;
+    var today = 0;
+    var upcoming = 0;
+    var unscheduled = 0;
+
+    for (final card in cards) {
+      final ms = card.eventTimeMs;
+      if (ms == null) {
+        unscheduled++;
+      } else {
+        final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+        if (dt.isBefore(DateTime(now.year, now.month, now.day))) {
+          overdue++;
+        } else if (dt.isBefore(todayEnd)) {
+          today++;
+        } else {
+          upcoming++;
+        }
+      }
+    }
+    return {
+      'overdue': overdue,
+      'today': today,
+      'upcoming': upcoming,
+      'unscheduled': unscheduled,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
   // Follow-up cards
   // ---------------------------------------------------------------------------
 

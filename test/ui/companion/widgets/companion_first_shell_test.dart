@@ -16,6 +16,14 @@ void main() {
       const MaterialApp(home: CompanionLifeSpaceScreen()),
     );
 
+    expect(
+      find.byKey(const ValueKey('life_space_rain_glass_background')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('life_space_content_surface')),
+      findsOneWidget,
+    );
     expect(find.text(UserStorage.l10n.bottomNavTimeline), findsOneWidget);
     expect(find.text('Ledger'), findsOneWidget);
     expect(find.text('Health'), findsOneWidget);

@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:memex/data/memory_v3/models/topic_thread_intent.dart';
+import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
 import 'package:memex/data/services/book/book_library_service.dart';
 import 'package:memex/data/services/book/book_remote_service.dart';
 import 'package:memex/data/services/character_service.dart';
@@ -117,6 +120,7 @@ class _BookLibraryScreenState extends State<BookLibraryScreen> {
   Future<void> _configureServer() async {
     final remote = BookRemoteService(db: AppDatabase.instance);
     final cur = await remote.getBaseUrl();
+    if (!mounted) return;
     final ctrl = TextEditingController(text: cur);
     final url = await showDialog<String>(
       context: context,
@@ -164,6 +168,36 @@ class _BookLibraryScreenState extends State<BookLibraryScreen> {
         builder: (_) => BookReaderScreen(bookId: book.id, bookTitle: book.title),
       ),
     );
+  }
+
+  Future<void> _setBookIntents(BuildContext context, Book book) async {
+    final svc = TopicThreadService(db: AppDatabase.instance);
+    final threads = await svc.getThreads();
+    final current = TopicThreadIntentItem.parseList(book.intentsJson)
+        .map((e) => e.threadId)
+        .toList();
+
+    if (!context.mounted) return;
+    final selected = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _IntentPickerSheet(
+        bookId: book.id,
+        bookTitle: book.title,
+        allThreads: threads,
+        selectedIds: current,
+      ),
+    );
+    if (selected == null) return;
+    final items = threads
+        .where((t) => selected.contains(t.id))
+        .map((t) => TopicThreadIntentItem(threadId: t.id, threadTitle: t.title))
+        .toList();
+    final json = TopicThreadIntentItem.encodeList(items);
+    await (AppDatabase.instance.update(AppDatabase.instance.books)
+          ..where((b) => b.id.equals(book.id)))
+        .write(BooksCompanion(intentsJson: Value(json)));
+    _load();
   }
 
   @override
@@ -225,6 +259,11 @@ class _BookLibraryScreenState extends State<BookLibraryScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
+                                icon: const Icon(Icons.topic_outlined, size: 20),
+                                tooltip: '设置话题关联',
+                                onPressed: () => _setBookIntents(context, book),
+                              ),
+                              IconButton(
                                 icon: const Icon(Icons.delete_outline, size: 20),
                                 tooltip: '删除',
                                 onPressed: () async {
@@ -253,6 +292,85 @@ class _BookLibraryScreenState extends State<BookLibraryScreen> {
                         );
                       },
                     ),
+    );
+  }
+}
+
+class _IntentPickerSheet extends StatefulWidget {
+  final String bookId;
+  final String bookTitle;
+  final List<TopicThread> allThreads;
+  final List<String> selectedIds;
+
+  const _IntentPickerSheet({
+    required this.bookId,
+    required this.bookTitle,
+    required this.allThreads,
+    required this.selectedIds,
+  });
+
+  @override
+  State<_IntentPickerSheet> createState() => _IntentPickerSheetState();
+}
+
+class _IntentPickerSheetState extends State<_IntentPickerSheet> {
+  late Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set.from(widget.selectedIds);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text('设置话题追踪',
+                style: Theme.of(context).textTheme.titleMedium),
+          ),
+          if (widget.allThreads.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('还没有话题线索。先去生活空间 → 话题线索创建一个吧。'),
+            )
+          else
+            ...widget.allThreads.map((t) => CheckboxListTile(
+                  title: Text(t.title),
+                  subtitle: t.currentStage.isNotEmpty
+                      ? Text(t.currentStage,
+                          maxLines: 1, overflow: TextOverflow.ellipsis)
+                      : null,
+                  value: _selected.contains(t.id),
+                  onChanged: (v) => setState(() {
+                    if (v == true) {
+                      _selected.add(t.id);
+                    } else {
+                      _selected.remove(t.id);
+                    }
+                  }),
+                )),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('取消')),
+                const SizedBox(width: 8),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, _selected),
+                    child: const Text('保存')),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
