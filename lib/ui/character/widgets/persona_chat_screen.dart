@@ -39,6 +39,7 @@ import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/quick_chat_service.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/media_input_attachment.dart';
@@ -777,6 +778,15 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     );
     if (_isInlineVoiceMode) {
       _queueVoiceModeOpening();
+    }
+    // Pick up any message queued from the floating ball quick-chat sheet.
+    final pendingMsg = QuickChatService.take(_currentCharacterId);
+    if (pendingMsg != null && pendingMsg.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_sendMessage(syntheticInput: pendingMsg));
+        }
+      });
     }
   }
 
