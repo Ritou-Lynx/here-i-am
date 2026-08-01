@@ -18,6 +18,7 @@ import 'package:memex/data/services/active_persona_chat_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/quick_chat_service.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/data/services/current_context_service.dart';
 
 /// Floating action ball that lets the user quickly save a fact, plan, or note
 /// to User-truth from any screen in the app.
@@ -460,10 +461,12 @@ class _QuickChatSheetState extends State<_QuickChatSheet> {
   bool _sending = false;
   String? _characterName;
   String? _characterId;
+  CurrentPageContext? _pageContext;
 
   @override
   void initState() {
     super.initState();
+    _pageContext = CurrentContextService.current;
     _resolveCharacter();
   }
 
@@ -522,7 +525,10 @@ class _QuickChatSheetState extends State<_QuickChatSheet> {
     setState(() => _sending = true);
     if (mounted) Navigator.pop(context);
 
-    QuickChatService.queue(characterId: characterId, message: text);
+    // Prepend page context hint so the companion knows what is on screen
+    final hint = _pageContext?.messageHint ?? '';
+    final message = hint.isEmpty ? text : '$hint$text';
+    QuickChatService.queue(characterId: characterId, message: message);
 
     final navContext = widget.navigatorKey.currentContext;
     if (navContext != null && navContext.mounted) {
@@ -541,14 +547,61 @@ class _QuickChatSheetState extends State<_QuickChatSheet> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.chat_bubble_outline, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  '发消息给 $characterLabel',
-                  style: Theme.of(context).textTheme.labelMedium,
+                Row(
+                  children: [
+                    const Icon(Icons.chat_bubble_outline, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      '发消息给 $characterLabel',
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  ],
                 ),
+                if (_pageContext != null) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _pageContext!.type ==
+                                  CurrentContextType.memoryCard
+                              ? Icons.bookmark_outline
+                              : Icons.topic_outlined,
+                          size: 12,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            _pageContext!.label,
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary,
+                                ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

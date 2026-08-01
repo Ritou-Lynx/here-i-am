@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:memex/data/services/current_context_service.dart';
 import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
 import 'package:memex/db/app_database.dart';
 
@@ -231,7 +232,18 @@ class _TopicThreadDetailScreenState extends State<_TopicThreadDetailScreen> {
   void initState() {
     super.initState();
     _thread = widget.thread;
+    CurrentContextService.push(CurrentPageContext(
+      type: CurrentContextType.topicThread,
+      id: _thread.id,
+      title: _thread.title,
+    ));
     _loadSessions();
+  }
+
+  @override
+  void dispose() {
+    CurrentContextService.pop(_thread.id);
+    super.dispose();
   }
 
   Future<void> _loadSessions() async {

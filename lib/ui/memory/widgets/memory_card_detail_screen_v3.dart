@@ -14,6 +14,8 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/domain/models/presentation_module.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 
+import 'package:memex/data/services/current_context_service.dart';
+
 import 'memory_summary_card_v3.dart';
 
 class MemoryCardDetailScreenV3 extends StatefulWidget {
@@ -61,10 +63,23 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
     _load();
   }
 
+  @override
+  void dispose() {
+    CurrentContextService.pop(widget.cardId);
+    super.dispose();
+  }
+
   Future<void> _load() async {
     try {
       final detail = await _query.getCardDetail(widget.cardId);
-      if (mounted) setState(() { _detail = detail; _loading = false; });
+      if (mounted) {
+        CurrentContextService.push(CurrentPageContext(
+          type: CurrentContextType.memoryCard,
+          id: widget.cardId,
+          title: detail.card.title,
+        ));
+        setState(() { _detail = detail; _loading = false; });
+      }
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
