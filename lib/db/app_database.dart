@@ -9,6 +9,7 @@ import 'dev_agent_tables.dart';
 import 'dev_agent_artifact_tables.dart';
 import 'comic_tables.dart';
 import 'book_tables.dart';
+import 'game_tables.dart';
 import '../data/memory_v3/db/tables.dart' as memory_v3;
 import 'daos/ai_finance_dao.dart';
 import 'daos/ai_purchase_dao.dart';
@@ -81,6 +82,10 @@ part 'app_database.g.dart';
     BookChapters,
     BookReadingProgress,
     BookChapterNotes,
+    // Game tables — see lib/db/game_tables.dart
+    GameCharacterCards,
+    GameSessions,
+    GameMessages,
   ],
   daos: [CardDao, AiFinanceDao, AiPurchaseDao, VoiceCallDao],
 )
@@ -137,7 +142,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 49;
+  int get schemaVersion => 50;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -170,6 +175,8 @@ class AppDatabase extends _$AppDatabase {
           await _createMemoryV3Indices();
           // Comic co-reading indices
           await _createComicIndices();
+          // Game indices
+          await _createGameIndices();
           // Create FTS5 virtual tables for full-text search
           await searchDao.createFtsTables();
         },
@@ -652,6 +659,15 @@ class AppDatabase extends _$AppDatabase {
               "comic_mangas ADD COLUMN intents_json TEXT NOT NULL DEFAULT '[]'",
             );
           }
+          if (from < 50) {
+            // Game feature: SillyTavern-style character card roleplay sessions.
+            // Completely isolated from companion memory — GameMessages is never
+            // joined with PersonaChatMessages or SharedLife tables.
+            await m.createTable(gameCharacterCards);
+            await m.createTable(gameSessions);
+            await m.createTable(gameMessages);
+            await _createGameIndices();
+          }
           if (from < 39) {
             await _addColumnIfMissing(
               "memory_episodes ADD COLUMN topic_id TEXT NOT NULL DEFAULT '__ungrouped__'",
@@ -925,6 +941,24 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_dev_agent_artifacts_run_kind '
         'ON dev_agent_artifacts(run_id, kind)');
+  }
+
+  Future<void> _createGameIndices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_game_sessions_card_status '
+        'ON game_sessions(card_id, status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_game_sessions_last_played '
+        'ON game_sessions(last_played_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_game_sessions_parent '
+        'ON game_sessions(parent_session_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_game_messages_session_ts '
+        'ON game_messages(session_id, timestamp)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_game_messages_type '
+        'ON game_messages(session_id, message_type)');
   }
 
   Future<void> _createTableIfMissing(

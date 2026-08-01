@@ -13,6 +13,11 @@ import 'package:memex/ui/character/widgets/persona_chat_screen.dart'
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:go_router/go_router.dart';
+import 'package:memex/data/services/active_persona_chat_service.dart';
+import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/quick_chat_service.dart';
+import 'package:memex/routing/routes.dart';
 
 /// Floating action ball that lets the user quickly save a fact, plan, or note
 /// to User-truth from any screen in the app.
@@ -38,6 +43,8 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
   static const double _controlHeight = 68;
   // Track drag so we can skip _showQuickSave after a real drag gesture
   bool _dragging = false;
+  // Track long-press so we can suppress the tap-on-release
+  bool _longPressDetected = false;
 
   void _showQuickSave() {
     if (!RecordOrganizerServiceV3.isInitialized) return;
@@ -51,31 +58,49 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
     );
   }
 
+  void _showQuickChat() {
+    _longPressDetected = true;
+    final navContext = widget.navigatorKey.currentContext;
+    if (navContext == null) return;
+    showModalBottomSheet<void>(
+      context: navContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _QuickChatSheet(navigatorKey: widget.navigatorKey),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Positioned(
       right: _right,
       bottom: _bottom,
-      child: Listener(
-        behavior: HitTestBehavior.opaque,
-        onPointerDown: (_) => _dragging = false,
-        onPointerMove: (e) {
-          if (e.delta.distance > 3) {
-            _dragging = true;
-            final size = MediaQuery.of(context).size;
-            final padding = MediaQuery.of(context).padding;
-            setState(() {
-              _right =
-                  (_right - e.delta.dx).clamp(0.0, size.width - _controlWidth);
-              _bottom = (_bottom - e.delta.dy).clamp(
-                  padding.bottom, size.height - _controlHeight - padding.top);
-            });
-          }
-        },
-        onPointerUp: (_) {
-          if (!_dragging) _showQuickSave();
-        },
-        child: const _BallWidget(),
+      child: GestureDetector(
+        onLongPress: _showQuickChat,
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (_) {
+            _dragging = false;
+            _longPressDetected = false;
+          },
+          onPointerMove: (e) {
+            if (e.delta.distance > 3) {
+              _dragging = true;
+              final size = MediaQuery.of(context).size;
+              final padding = MediaQuery.of(context).padding;
+              setState(() {
+                _right = (_right - e.delta.dx).clamp(
+                    0.0, size.width - _controlWidth);
+                _bottom = (_bottom - e.delta.dy).clamp(
+                    padding.bottom, size.height - _controlHeight - padding.top);
+              });
+            }
+          },
+          onPointerUp: (_) {
+            if (!_dragging && !_longPressDetected) _showQuickSave();
+          },
+          child: const _BallWidget(),
+        ),
       ),
     );
   }
@@ -417,6 +442,126 @@ Path _dropletPath(Size size) {
       h * 0.07,
     )
     ..close();
+}
+
+// ─── Quick-chat sheet — send a message to the active companion ─────────────────
+
+class _QuickChatSheet extends StatefulWidget {
+  const _QuickChatSheet({required this.navigatorKey});
+
+  final GlobalKey<NavigatorState> navigatorKey;
+
+  @override
+  State<_QuickChatSheet> createState() => _QuickChatSheetState();
+}
+
+class _QuickChatSheetState extends State<_QuickChatSheet> {
+  final _controller = TextEditingController();
+  bool _sending = false;
+  String? _characterName;
+  String? _characterId;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveCharacter();
+  }
+
+  Future<void> _resolveCharacter() async {
+    final activeId =
+        await ActivePersonaChatService.instance.getActiveCharacterId();
+    String? resolvedId = activeId;
+    String? resolvedName;
+
+    final userId = await UserStorage.getUserId();
+    if (userId == null) {
+      if (mounted) setState(() { _characterId = null; _characterName = 'i'; });
+      return;
+    }
+
+    if (resolvedId == null) {
+      try {
+        final chars = await CharacterService.instance.getAllCharacters(userId);
+        if (chars.isNotEmpty) {
+          resolvedId = chars.first.id;
+          resolvedName = chars.first.name;
+        }
+      } catch (_) {}
+    }
+
+    if (resolvedId != null && resolvedName == null) {
+      try {
+        final chars = await CharacterService.instance.getAllCharacters(userId);
+        resolvedName = chars
+            .where((c) => c.id == resolvedId)
+            .firstOrNull
+            ?.name;
+      } catch (_) {}
+    }
+
+    if (mounted) {
+      setState(() {
+        _characterId = resolvedId;
+        _characterName = resolvedName ?? 'i';
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _sending) return;
+    final characterId = _characterId;
+    if (characterId == null) return;
+
+    setState(() => _sending = true);
+    if (mounted) Navigator.pop(context);
+
+    QuickChatService.queue(characterId: characterId, message: text);
+
+    final navContext = widget.navigatorKey.currentContext;
+    if (navContext != null && navContext.mounted) {
+      navContext.go(AppRoutes.home);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final characterLabel = _characterName ?? 'i';
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboardHeight),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: Row(
+              children: [
+                const Icon(Icons.chat_bubble_outline, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  '发消息给 $characterLabel',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ],
+            ),
+          ),
+          PersonaChatInputBar(
+            controller: _controller,
+            isStreaming: _sending,
+            onSend: _send,
+            hintText: '发消息给 $characterLabel……',
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Quick-save sheet — full chat input experience ────────────────────────────

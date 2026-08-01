@@ -28121,6 +28121,1508 @@ class BookChapterNotesCompanion extends UpdateCompanion<BookChapterNote> {
   }
 }
 
+class $GameCharacterCardsTable extends GameCharacterCards
+    with TableInfo<$GameCharacterCardsTable, GameCharacterCard> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GameCharacterCardsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _descriptionMeta =
+      const VerificationMeta('description');
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+      'description', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _cardJsonMeta =
+      const VerificationMeta('cardJson');
+  @override
+  late final GeneratedColumn<String> cardJson = GeneratedColumn<String>(
+      'card_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _avatarPathMeta =
+      const VerificationMeta('avatarPath');
+  @override
+  late final GeneratedColumn<String> avatarPath = GeneratedColumn<String>(
+      'avatar_path', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sourceFilenameMeta =
+      const VerificationMeta('sourceFilename');
+  @override
+  late final GeneratedColumn<String> sourceFilename = GeneratedColumn<String>(
+      'source_filename', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _importedAtMeta =
+      const VerificationMeta('importedAt');
+  @override
+  late final GeneratedColumn<int> importedAt = GeneratedColumn<int>(
+      'imported_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        title,
+        description,
+        cardJson,
+        avatarPath,
+        sourceFilename,
+        importedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'game_character_cards';
+  @override
+  VerificationContext validateIntegrity(Insertable<GameCharacterCard> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+          _descriptionMeta,
+          description.isAcceptableOrUnknown(
+              data['description']!, _descriptionMeta));
+    }
+    if (data.containsKey('card_json')) {
+      context.handle(_cardJsonMeta,
+          cardJson.isAcceptableOrUnknown(data['card_json']!, _cardJsonMeta));
+    } else if (isInserting) {
+      context.missing(_cardJsonMeta);
+    }
+    if (data.containsKey('avatar_path')) {
+      context.handle(
+          _avatarPathMeta,
+          avatarPath.isAcceptableOrUnknown(
+              data['avatar_path']!, _avatarPathMeta));
+    }
+    if (data.containsKey('source_filename')) {
+      context.handle(
+          _sourceFilenameMeta,
+          sourceFilename.isAcceptableOrUnknown(
+              data['source_filename']!, _sourceFilenameMeta));
+    }
+    if (data.containsKey('imported_at')) {
+      context.handle(
+          _importedAtMeta,
+          importedAt.isAcceptableOrUnknown(
+              data['imported_at']!, _importedAtMeta));
+    } else if (isInserting) {
+      context.missing(_importedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GameCharacterCard map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GameCharacterCard(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      description: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+      cardJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}card_json'])!,
+      avatarPath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}avatar_path']),
+      sourceFilename: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_filename'])!,
+      importedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}imported_at'])!,
+    );
+  }
+
+  @override
+  $GameCharacterCardsTable createAlias(String alias) {
+    return $GameCharacterCardsTable(attachedDatabase, alias);
+  }
+}
+
+class GameCharacterCard extends DataClass
+    implements Insertable<GameCharacterCard> {
+  final String id;
+  final String title;
+  final String description;
+
+  /// Full SillyTavern card JSON (character spec v2 or legacy).
+  final String cardJson;
+
+  /// Local file path to extracted avatar image (nullable — cards may have none).
+  final String? avatarPath;
+
+  /// Original filename the user imported (e.g. "阿黛尔.json").
+  final String sourceFilename;
+  final int importedAt;
+  const GameCharacterCard(
+      {required this.id,
+      required this.title,
+      required this.description,
+      required this.cardJson,
+      this.avatarPath,
+      required this.sourceFilename,
+      required this.importedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    map['description'] = Variable<String>(description);
+    map['card_json'] = Variable<String>(cardJson);
+    if (!nullToAbsent || avatarPath != null) {
+      map['avatar_path'] = Variable<String>(avatarPath);
+    }
+    map['source_filename'] = Variable<String>(sourceFilename);
+    map['imported_at'] = Variable<int>(importedAt);
+    return map;
+  }
+
+  GameCharacterCardsCompanion toCompanion(bool nullToAbsent) {
+    return GameCharacterCardsCompanion(
+      id: Value(id),
+      title: Value(title),
+      description: Value(description),
+      cardJson: Value(cardJson),
+      avatarPath: avatarPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarPath),
+      sourceFilename: Value(sourceFilename),
+      importedAt: Value(importedAt),
+    );
+  }
+
+  factory GameCharacterCard.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GameCharacterCard(
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      description: serializer.fromJson<String>(json['description']),
+      cardJson: serializer.fromJson<String>(json['cardJson']),
+      avatarPath: serializer.fromJson<String?>(json['avatarPath']),
+      sourceFilename: serializer.fromJson<String>(json['sourceFilename']),
+      importedAt: serializer.fromJson<int>(json['importedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'description': serializer.toJson<String>(description),
+      'cardJson': serializer.toJson<String>(cardJson),
+      'avatarPath': serializer.toJson<String?>(avatarPath),
+      'sourceFilename': serializer.toJson<String>(sourceFilename),
+      'importedAt': serializer.toJson<int>(importedAt),
+    };
+  }
+
+  GameCharacterCard copyWith(
+          {String? id,
+          String? title,
+          String? description,
+          String? cardJson,
+          Value<String?> avatarPath = const Value.absent(),
+          String? sourceFilename,
+          int? importedAt}) =>
+      GameCharacterCard(
+        id: id ?? this.id,
+        title: title ?? this.title,
+        description: description ?? this.description,
+        cardJson: cardJson ?? this.cardJson,
+        avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
+        sourceFilename: sourceFilename ?? this.sourceFilename,
+        importedAt: importedAt ?? this.importedAt,
+      );
+  GameCharacterCard copyWithCompanion(GameCharacterCardsCompanion data) {
+    return GameCharacterCard(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      description:
+          data.description.present ? data.description.value : this.description,
+      cardJson: data.cardJson.present ? data.cardJson.value : this.cardJson,
+      avatarPath:
+          data.avatarPath.present ? data.avatarPath.value : this.avatarPath,
+      sourceFilename: data.sourceFilename.present
+          ? data.sourceFilename.value
+          : this.sourceFilename,
+      importedAt:
+          data.importedAt.present ? data.importedAt.value : this.importedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GameCharacterCard(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('cardJson: $cardJson, ')
+          ..write('avatarPath: $avatarPath, ')
+          ..write('sourceFilename: $sourceFilename, ')
+          ..write('importedAt: $importedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, title, description, cardJson, avatarPath, sourceFilename, importedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GameCharacterCard &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.description == this.description &&
+          other.cardJson == this.cardJson &&
+          other.avatarPath == this.avatarPath &&
+          other.sourceFilename == this.sourceFilename &&
+          other.importedAt == this.importedAt);
+}
+
+class GameCharacterCardsCompanion extends UpdateCompanion<GameCharacterCard> {
+  final Value<String> id;
+  final Value<String> title;
+  final Value<String> description;
+  final Value<String> cardJson;
+  final Value<String?> avatarPath;
+  final Value<String> sourceFilename;
+  final Value<int> importedAt;
+  final Value<int> rowid;
+  const GameCharacterCardsCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.cardJson = const Value.absent(),
+    this.avatarPath = const Value.absent(),
+    this.sourceFilename = const Value.absent(),
+    this.importedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GameCharacterCardsCompanion.insert({
+    required String id,
+    required String title,
+    this.description = const Value.absent(),
+    required String cardJson,
+    this.avatarPath = const Value.absent(),
+    this.sourceFilename = const Value.absent(),
+    required int importedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        title = Value(title),
+        cardJson = Value(cardJson),
+        importedAt = Value(importedAt);
+  static Insertable<GameCharacterCard> custom({
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<String>? cardJson,
+    Expression<String>? avatarPath,
+    Expression<String>? sourceFilename,
+    Expression<int>? importedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (cardJson != null) 'card_json': cardJson,
+      if (avatarPath != null) 'avatar_path': avatarPath,
+      if (sourceFilename != null) 'source_filename': sourceFilename,
+      if (importedAt != null) 'imported_at': importedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GameCharacterCardsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? title,
+      Value<String>? description,
+      Value<String>? cardJson,
+      Value<String?>? avatarPath,
+      Value<String>? sourceFilename,
+      Value<int>? importedAt,
+      Value<int>? rowid}) {
+    return GameCharacterCardsCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      cardJson: cardJson ?? this.cardJson,
+      avatarPath: avatarPath ?? this.avatarPath,
+      sourceFilename: sourceFilename ?? this.sourceFilename,
+      importedAt: importedAt ?? this.importedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (cardJson.present) {
+      map['card_json'] = Variable<String>(cardJson.value);
+    }
+    if (avatarPath.present) {
+      map['avatar_path'] = Variable<String>(avatarPath.value);
+    }
+    if (sourceFilename.present) {
+      map['source_filename'] = Variable<String>(sourceFilename.value);
+    }
+    if (importedAt.present) {
+      map['imported_at'] = Variable<int>(importedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GameCharacterCardsCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('cardJson: $cardJson, ')
+          ..write('avatarPath: $avatarPath, ')
+          ..write('sourceFilename: $sourceFilename, ')
+          ..write('importedAt: $importedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GameSessionsTable extends GameSessions
+    with TableInfo<$GameSessionsTable, GameSession> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GameSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _cardIdMeta = const VerificationMeta('cardId');
+  @override
+  late final GeneratedColumn<String> cardId = GeneratedColumn<String>(
+      'card_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _cardTitleMeta =
+      const VerificationMeta('cardTitle');
+  @override
+  late final GeneratedColumn<String> cardTitle = GeneratedColumn<String>(
+      'card_title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _cardSnapshotJsonMeta =
+      const VerificationMeta('cardSnapshotJson');
+  @override
+  late final GeneratedColumn<String> cardSnapshotJson = GeneratedColumn<String>(
+      'card_snapshot_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sessionTitleMeta =
+      const VerificationMeta('sessionTitle');
+  @override
+  late final GeneratedColumn<String> sessionTitle = GeneratedColumn<String>(
+      'session_title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _parentSessionIdMeta =
+      const VerificationMeta('parentSessionId');
+  @override
+  late final GeneratedColumn<String> parentSessionId = GeneratedColumn<String>(
+      'parent_session_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _branchFromMessageIdMeta =
+      const VerificationMeta('branchFromMessageId');
+  @override
+  late final GeneratedColumn<int> branchFromMessageId = GeneratedColumn<int>(
+      'branch_from_message_id', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _worldStateJsonMeta =
+      const VerificationMeta('worldStateJson');
+  @override
+  late final GeneratedColumn<String> worldStateJson = GeneratedColumn<String>(
+      'world_state_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _storySummaryMeta =
+      const VerificationMeta('storySummary');
+  @override
+  late final GeneratedColumn<String> storySummary = GeneratedColumn<String>(
+      'story_summary', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _gameLogInjectedMeta =
+      const VerificationMeta('gameLogInjected');
+  @override
+  late final GeneratedColumn<bool> gameLogInjected = GeneratedColumn<bool>(
+      'game_log_injected', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("game_log_injected" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _lastPlayedAtMeta =
+      const VerificationMeta('lastPlayedAt');
+  @override
+  late final GeneratedColumn<int> lastPlayedAt = GeneratedColumn<int>(
+      'last_played_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        cardId,
+        cardTitle,
+        cardSnapshotJson,
+        sessionTitle,
+        status,
+        parentSessionId,
+        branchFromMessageId,
+        worldStateJson,
+        storySummary,
+        gameLogInjected,
+        createdAt,
+        lastPlayedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'game_sessions';
+  @override
+  VerificationContext validateIntegrity(Insertable<GameSession> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('card_id')) {
+      context.handle(_cardIdMeta,
+          cardId.isAcceptableOrUnknown(data['card_id']!, _cardIdMeta));
+    }
+    if (data.containsKey('card_title')) {
+      context.handle(_cardTitleMeta,
+          cardTitle.isAcceptableOrUnknown(data['card_title']!, _cardTitleMeta));
+    } else if (isInserting) {
+      context.missing(_cardTitleMeta);
+    }
+    if (data.containsKey('card_snapshot_json')) {
+      context.handle(
+          _cardSnapshotJsonMeta,
+          cardSnapshotJson.isAcceptableOrUnknown(
+              data['card_snapshot_json']!, _cardSnapshotJsonMeta));
+    } else if (isInserting) {
+      context.missing(_cardSnapshotJsonMeta);
+    }
+    if (data.containsKey('session_title')) {
+      context.handle(
+          _sessionTitleMeta,
+          sessionTitle.isAcceptableOrUnknown(
+              data['session_title']!, _sessionTitleMeta));
+    } else if (isInserting) {
+      context.missing(_sessionTitleMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('parent_session_id')) {
+      context.handle(
+          _parentSessionIdMeta,
+          parentSessionId.isAcceptableOrUnknown(
+              data['parent_session_id']!, _parentSessionIdMeta));
+    }
+    if (data.containsKey('branch_from_message_id')) {
+      context.handle(
+          _branchFromMessageIdMeta,
+          branchFromMessageId.isAcceptableOrUnknown(
+              data['branch_from_message_id']!, _branchFromMessageIdMeta));
+    }
+    if (data.containsKey('world_state_json')) {
+      context.handle(
+          _worldStateJsonMeta,
+          worldStateJson.isAcceptableOrUnknown(
+              data['world_state_json']!, _worldStateJsonMeta));
+    }
+    if (data.containsKey('story_summary')) {
+      context.handle(
+          _storySummaryMeta,
+          storySummary.isAcceptableOrUnknown(
+              data['story_summary']!, _storySummaryMeta));
+    }
+    if (data.containsKey('game_log_injected')) {
+      context.handle(
+          _gameLogInjectedMeta,
+          gameLogInjected.isAcceptableOrUnknown(
+              data['game_log_injected']!, _gameLogInjectedMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('last_played_at')) {
+      context.handle(
+          _lastPlayedAtMeta,
+          lastPlayedAt.isAcceptableOrUnknown(
+              data['last_played_at']!, _lastPlayedAtMeta));
+    } else if (isInserting) {
+      context.missing(_lastPlayedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GameSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GameSession(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      cardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}card_id']),
+      cardTitle: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}card_title'])!,
+      cardSnapshotJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}card_snapshot_json'])!,
+      sessionTitle: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}session_title'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      parentSessionId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}parent_session_id']),
+      branchFromMessageId: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}branch_from_message_id']),
+      worldStateJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}world_state_json']),
+      storySummary: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}story_summary']),
+      gameLogInjected: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool, data['${effectivePrefix}game_log_injected'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      lastPlayedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}last_played_at'])!,
+    );
+  }
+
+  @override
+  $GameSessionsTable createAlias(String alias) {
+    return $GameSessionsTable(attachedDatabase, alias);
+  }
+}
+
+class GameSession extends DataClass implements Insertable<GameSession> {
+  final String id;
+
+  /// Soft reference to [GameCharacterCards.id].
+  /// Nullable so sessions survive card deletion.
+  final String? cardId;
+
+  /// Redundant copy of the card title for display after card deletion.
+  final String cardTitle;
+
+  /// Full card JSON snapshot at session-creation time.
+  /// Ensures the session always plays back with the original card,
+  /// even if the user later edits or deletes the card from the library.
+  final String cardSnapshotJson;
+
+  /// User-visible session title (auto-generated or user-renamed).
+  final String sessionTitle;
+
+  /// 'active'  — in progress
+  /// 'ended'   — game ended, summary generated
+  /// 'archived'— soft-deleted (hidden from default list)
+  final String status;
+
+  /// Parent session this one was branched from (null = root session).
+  final String? parentSessionId;
+
+  /// The [GameMessages.id] in [parentSessionId] at which this branch diverged.
+  /// Messages in the new session start from a copy of all messages up to
+  /// (and including) this point.
+  final int? branchFromMessageId;
+
+  /// Arbitrary JSON blob the game agent may persist (lorebook state, flags…).
+  /// Snapshotted on each save_marker.
+  final String? worldStateJson;
+
+  /// AI-generated story summary, produced when session ends (or on explicit save).
+  final String? storySummary;
+
+  /// Whether a game_log entry has already been injected into User-truth.
+  final bool gameLogInjected;
+  final int createdAt;
+  final int lastPlayedAt;
+  const GameSession(
+      {required this.id,
+      this.cardId,
+      required this.cardTitle,
+      required this.cardSnapshotJson,
+      required this.sessionTitle,
+      required this.status,
+      this.parentSessionId,
+      this.branchFromMessageId,
+      this.worldStateJson,
+      this.storySummary,
+      required this.gameLogInjected,
+      required this.createdAt,
+      required this.lastPlayedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || cardId != null) {
+      map['card_id'] = Variable<String>(cardId);
+    }
+    map['card_title'] = Variable<String>(cardTitle);
+    map['card_snapshot_json'] = Variable<String>(cardSnapshotJson);
+    map['session_title'] = Variable<String>(sessionTitle);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || parentSessionId != null) {
+      map['parent_session_id'] = Variable<String>(parentSessionId);
+    }
+    if (!nullToAbsent || branchFromMessageId != null) {
+      map['branch_from_message_id'] = Variable<int>(branchFromMessageId);
+    }
+    if (!nullToAbsent || worldStateJson != null) {
+      map['world_state_json'] = Variable<String>(worldStateJson);
+    }
+    if (!nullToAbsent || storySummary != null) {
+      map['story_summary'] = Variable<String>(storySummary);
+    }
+    map['game_log_injected'] = Variable<bool>(gameLogInjected);
+    map['created_at'] = Variable<int>(createdAt);
+    map['last_played_at'] = Variable<int>(lastPlayedAt);
+    return map;
+  }
+
+  GameSessionsCompanion toCompanion(bool nullToAbsent) {
+    return GameSessionsCompanion(
+      id: Value(id),
+      cardId:
+          cardId == null && nullToAbsent ? const Value.absent() : Value(cardId),
+      cardTitle: Value(cardTitle),
+      cardSnapshotJson: Value(cardSnapshotJson),
+      sessionTitle: Value(sessionTitle),
+      status: Value(status),
+      parentSessionId: parentSessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentSessionId),
+      branchFromMessageId: branchFromMessageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(branchFromMessageId),
+      worldStateJson: worldStateJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(worldStateJson),
+      storySummary: storySummary == null && nullToAbsent
+          ? const Value.absent()
+          : Value(storySummary),
+      gameLogInjected: Value(gameLogInjected),
+      createdAt: Value(createdAt),
+      lastPlayedAt: Value(lastPlayedAt),
+    );
+  }
+
+  factory GameSession.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GameSession(
+      id: serializer.fromJson<String>(json['id']),
+      cardId: serializer.fromJson<String?>(json['cardId']),
+      cardTitle: serializer.fromJson<String>(json['cardTitle']),
+      cardSnapshotJson: serializer.fromJson<String>(json['cardSnapshotJson']),
+      sessionTitle: serializer.fromJson<String>(json['sessionTitle']),
+      status: serializer.fromJson<String>(json['status']),
+      parentSessionId: serializer.fromJson<String?>(json['parentSessionId']),
+      branchFromMessageId:
+          serializer.fromJson<int?>(json['branchFromMessageId']),
+      worldStateJson: serializer.fromJson<String?>(json['worldStateJson']),
+      storySummary: serializer.fromJson<String?>(json['storySummary']),
+      gameLogInjected: serializer.fromJson<bool>(json['gameLogInjected']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      lastPlayedAt: serializer.fromJson<int>(json['lastPlayedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'cardId': serializer.toJson<String?>(cardId),
+      'cardTitle': serializer.toJson<String>(cardTitle),
+      'cardSnapshotJson': serializer.toJson<String>(cardSnapshotJson),
+      'sessionTitle': serializer.toJson<String>(sessionTitle),
+      'status': serializer.toJson<String>(status),
+      'parentSessionId': serializer.toJson<String?>(parentSessionId),
+      'branchFromMessageId': serializer.toJson<int?>(branchFromMessageId),
+      'worldStateJson': serializer.toJson<String?>(worldStateJson),
+      'storySummary': serializer.toJson<String?>(storySummary),
+      'gameLogInjected': serializer.toJson<bool>(gameLogInjected),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'lastPlayedAt': serializer.toJson<int>(lastPlayedAt),
+    };
+  }
+
+  GameSession copyWith(
+          {String? id,
+          Value<String?> cardId = const Value.absent(),
+          String? cardTitle,
+          String? cardSnapshotJson,
+          String? sessionTitle,
+          String? status,
+          Value<String?> parentSessionId = const Value.absent(),
+          Value<int?> branchFromMessageId = const Value.absent(),
+          Value<String?> worldStateJson = const Value.absent(),
+          Value<String?> storySummary = const Value.absent(),
+          bool? gameLogInjected,
+          int? createdAt,
+          int? lastPlayedAt}) =>
+      GameSession(
+        id: id ?? this.id,
+        cardId: cardId.present ? cardId.value : this.cardId,
+        cardTitle: cardTitle ?? this.cardTitle,
+        cardSnapshotJson: cardSnapshotJson ?? this.cardSnapshotJson,
+        sessionTitle: sessionTitle ?? this.sessionTitle,
+        status: status ?? this.status,
+        parentSessionId: parentSessionId.present
+            ? parentSessionId.value
+            : this.parentSessionId,
+        branchFromMessageId: branchFromMessageId.present
+            ? branchFromMessageId.value
+            : this.branchFromMessageId,
+        worldStateJson:
+            worldStateJson.present ? worldStateJson.value : this.worldStateJson,
+        storySummary:
+            storySummary.present ? storySummary.value : this.storySummary,
+        gameLogInjected: gameLogInjected ?? this.gameLogInjected,
+        createdAt: createdAt ?? this.createdAt,
+        lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
+      );
+  GameSession copyWithCompanion(GameSessionsCompanion data) {
+    return GameSession(
+      id: data.id.present ? data.id.value : this.id,
+      cardId: data.cardId.present ? data.cardId.value : this.cardId,
+      cardTitle: data.cardTitle.present ? data.cardTitle.value : this.cardTitle,
+      cardSnapshotJson: data.cardSnapshotJson.present
+          ? data.cardSnapshotJson.value
+          : this.cardSnapshotJson,
+      sessionTitle: data.sessionTitle.present
+          ? data.sessionTitle.value
+          : this.sessionTitle,
+      status: data.status.present ? data.status.value : this.status,
+      parentSessionId: data.parentSessionId.present
+          ? data.parentSessionId.value
+          : this.parentSessionId,
+      branchFromMessageId: data.branchFromMessageId.present
+          ? data.branchFromMessageId.value
+          : this.branchFromMessageId,
+      worldStateJson: data.worldStateJson.present
+          ? data.worldStateJson.value
+          : this.worldStateJson,
+      storySummary: data.storySummary.present
+          ? data.storySummary.value
+          : this.storySummary,
+      gameLogInjected: data.gameLogInjected.present
+          ? data.gameLogInjected.value
+          : this.gameLogInjected,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      lastPlayedAt: data.lastPlayedAt.present
+          ? data.lastPlayedAt.value
+          : this.lastPlayedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GameSession(')
+          ..write('id: $id, ')
+          ..write('cardId: $cardId, ')
+          ..write('cardTitle: $cardTitle, ')
+          ..write('cardSnapshotJson: $cardSnapshotJson, ')
+          ..write('sessionTitle: $sessionTitle, ')
+          ..write('status: $status, ')
+          ..write('parentSessionId: $parentSessionId, ')
+          ..write('branchFromMessageId: $branchFromMessageId, ')
+          ..write('worldStateJson: $worldStateJson, ')
+          ..write('storySummary: $storySummary, ')
+          ..write('gameLogInjected: $gameLogInjected, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('lastPlayedAt: $lastPlayedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      cardId,
+      cardTitle,
+      cardSnapshotJson,
+      sessionTitle,
+      status,
+      parentSessionId,
+      branchFromMessageId,
+      worldStateJson,
+      storySummary,
+      gameLogInjected,
+      createdAt,
+      lastPlayedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GameSession &&
+          other.id == this.id &&
+          other.cardId == this.cardId &&
+          other.cardTitle == this.cardTitle &&
+          other.cardSnapshotJson == this.cardSnapshotJson &&
+          other.sessionTitle == this.sessionTitle &&
+          other.status == this.status &&
+          other.parentSessionId == this.parentSessionId &&
+          other.branchFromMessageId == this.branchFromMessageId &&
+          other.worldStateJson == this.worldStateJson &&
+          other.storySummary == this.storySummary &&
+          other.gameLogInjected == this.gameLogInjected &&
+          other.createdAt == this.createdAt &&
+          other.lastPlayedAt == this.lastPlayedAt);
+}
+
+class GameSessionsCompanion extends UpdateCompanion<GameSession> {
+  final Value<String> id;
+  final Value<String?> cardId;
+  final Value<String> cardTitle;
+  final Value<String> cardSnapshotJson;
+  final Value<String> sessionTitle;
+  final Value<String> status;
+  final Value<String?> parentSessionId;
+  final Value<int?> branchFromMessageId;
+  final Value<String?> worldStateJson;
+  final Value<String?> storySummary;
+  final Value<bool> gameLogInjected;
+  final Value<int> createdAt;
+  final Value<int> lastPlayedAt;
+  final Value<int> rowid;
+  const GameSessionsCompanion({
+    this.id = const Value.absent(),
+    this.cardId = const Value.absent(),
+    this.cardTitle = const Value.absent(),
+    this.cardSnapshotJson = const Value.absent(),
+    this.sessionTitle = const Value.absent(),
+    this.status = const Value.absent(),
+    this.parentSessionId = const Value.absent(),
+    this.branchFromMessageId = const Value.absent(),
+    this.worldStateJson = const Value.absent(),
+    this.storySummary = const Value.absent(),
+    this.gameLogInjected = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.lastPlayedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GameSessionsCompanion.insert({
+    required String id,
+    this.cardId = const Value.absent(),
+    required String cardTitle,
+    required String cardSnapshotJson,
+    required String sessionTitle,
+    this.status = const Value.absent(),
+    this.parentSessionId = const Value.absent(),
+    this.branchFromMessageId = const Value.absent(),
+    this.worldStateJson = const Value.absent(),
+    this.storySummary = const Value.absent(),
+    this.gameLogInjected = const Value.absent(),
+    required int createdAt,
+    required int lastPlayedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        cardTitle = Value(cardTitle),
+        cardSnapshotJson = Value(cardSnapshotJson),
+        sessionTitle = Value(sessionTitle),
+        createdAt = Value(createdAt),
+        lastPlayedAt = Value(lastPlayedAt);
+  static Insertable<GameSession> custom({
+    Expression<String>? id,
+    Expression<String>? cardId,
+    Expression<String>? cardTitle,
+    Expression<String>? cardSnapshotJson,
+    Expression<String>? sessionTitle,
+    Expression<String>? status,
+    Expression<String>? parentSessionId,
+    Expression<int>? branchFromMessageId,
+    Expression<String>? worldStateJson,
+    Expression<String>? storySummary,
+    Expression<bool>? gameLogInjected,
+    Expression<int>? createdAt,
+    Expression<int>? lastPlayedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (cardId != null) 'card_id': cardId,
+      if (cardTitle != null) 'card_title': cardTitle,
+      if (cardSnapshotJson != null) 'card_snapshot_json': cardSnapshotJson,
+      if (sessionTitle != null) 'session_title': sessionTitle,
+      if (status != null) 'status': status,
+      if (parentSessionId != null) 'parent_session_id': parentSessionId,
+      if (branchFromMessageId != null)
+        'branch_from_message_id': branchFromMessageId,
+      if (worldStateJson != null) 'world_state_json': worldStateJson,
+      if (storySummary != null) 'story_summary': storySummary,
+      if (gameLogInjected != null) 'game_log_injected': gameLogInjected,
+      if (createdAt != null) 'created_at': createdAt,
+      if (lastPlayedAt != null) 'last_played_at': lastPlayedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GameSessionsCompanion copyWith(
+      {Value<String>? id,
+      Value<String?>? cardId,
+      Value<String>? cardTitle,
+      Value<String>? cardSnapshotJson,
+      Value<String>? sessionTitle,
+      Value<String>? status,
+      Value<String?>? parentSessionId,
+      Value<int?>? branchFromMessageId,
+      Value<String?>? worldStateJson,
+      Value<String?>? storySummary,
+      Value<bool>? gameLogInjected,
+      Value<int>? createdAt,
+      Value<int>? lastPlayedAt,
+      Value<int>? rowid}) {
+    return GameSessionsCompanion(
+      id: id ?? this.id,
+      cardId: cardId ?? this.cardId,
+      cardTitle: cardTitle ?? this.cardTitle,
+      cardSnapshotJson: cardSnapshotJson ?? this.cardSnapshotJson,
+      sessionTitle: sessionTitle ?? this.sessionTitle,
+      status: status ?? this.status,
+      parentSessionId: parentSessionId ?? this.parentSessionId,
+      branchFromMessageId: branchFromMessageId ?? this.branchFromMessageId,
+      worldStateJson: worldStateJson ?? this.worldStateJson,
+      storySummary: storySummary ?? this.storySummary,
+      gameLogInjected: gameLogInjected ?? this.gameLogInjected,
+      createdAt: createdAt ?? this.createdAt,
+      lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (cardId.present) {
+      map['card_id'] = Variable<String>(cardId.value);
+    }
+    if (cardTitle.present) {
+      map['card_title'] = Variable<String>(cardTitle.value);
+    }
+    if (cardSnapshotJson.present) {
+      map['card_snapshot_json'] = Variable<String>(cardSnapshotJson.value);
+    }
+    if (sessionTitle.present) {
+      map['session_title'] = Variable<String>(sessionTitle.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (parentSessionId.present) {
+      map['parent_session_id'] = Variable<String>(parentSessionId.value);
+    }
+    if (branchFromMessageId.present) {
+      map['branch_from_message_id'] = Variable<int>(branchFromMessageId.value);
+    }
+    if (worldStateJson.present) {
+      map['world_state_json'] = Variable<String>(worldStateJson.value);
+    }
+    if (storySummary.present) {
+      map['story_summary'] = Variable<String>(storySummary.value);
+    }
+    if (gameLogInjected.present) {
+      map['game_log_injected'] = Variable<bool>(gameLogInjected.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (lastPlayedAt.present) {
+      map['last_played_at'] = Variable<int>(lastPlayedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GameSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('cardId: $cardId, ')
+          ..write('cardTitle: $cardTitle, ')
+          ..write('cardSnapshotJson: $cardSnapshotJson, ')
+          ..write('sessionTitle: $sessionTitle, ')
+          ..write('status: $status, ')
+          ..write('parentSessionId: $parentSessionId, ')
+          ..write('branchFromMessageId: $branchFromMessageId, ')
+          ..write('worldStateJson: $worldStateJson, ')
+          ..write('storySummary: $storySummary, ')
+          ..write('gameLogInjected: $gameLogInjected, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('lastPlayedAt: $lastPlayedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GameMessagesTable extends GameMessages
+    with TableInfo<$GameMessagesTable, GameMessage> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GameMessagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _sessionIdMeta =
+      const VerificationMeta('sessionId');
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+      'session_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+      'role', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _messageTypeMeta =
+      const VerificationMeta('messageType');
+  @override
+  late final GeneratedColumn<String> messageType = GeneratedColumn<String>(
+      'message_type', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('normal'));
+  static const VerificationMeta _savepointLabelMeta =
+      const VerificationMeta('savepointLabel');
+  @override
+  late final GeneratedColumn<String> savepointLabel = GeneratedColumn<String>(
+      'savepoint_label', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _timestampMeta =
+      const VerificationMeta('timestamp');
+  @override
+  late final GeneratedColumn<int> timestamp = GeneratedColumn<int>(
+      'timestamp', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, sessionId, role, content, messageType, savepointLabel, timestamp];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'game_messages';
+  @override
+  VerificationContext validateIntegrity(Insertable<GameMessage> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(_sessionIdMeta,
+          sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta));
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+          _roleMeta, role.isAcceptableOrUnknown(data['role']!, _roleMeta));
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('message_type')) {
+      context.handle(
+          _messageTypeMeta,
+          messageType.isAcceptableOrUnknown(
+              data['message_type']!, _messageTypeMeta));
+    }
+    if (data.containsKey('savepoint_label')) {
+      context.handle(
+          _savepointLabelMeta,
+          savepointLabel.isAcceptableOrUnknown(
+              data['savepoint_label']!, _savepointLabelMeta));
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(_timestampMeta,
+          timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta));
+    } else if (isInserting) {
+      context.missing(_timestampMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GameMessage map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GameMessage(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      sessionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}session_id'])!,
+      role: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}role'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      messageType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}message_type'])!,
+      savepointLabel: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}savepoint_label']),
+      timestamp: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}timestamp'])!,
+    );
+  }
+
+  @override
+  $GameMessagesTable createAlias(String alias) {
+    return $GameMessagesTable(attachedDatabase, alias);
+  }
+}
+
+class GameMessage extends DataClass implements Insertable<GameMessage> {
+  final int id;
+
+  /// Soft reference to [GameSessions.id].
+  final String sessionId;
+
+  /// 'user' | 'assistant' | 'system'
+  final String role;
+  final String content;
+
+  /// 'normal'      — regular in-character message
+  /// 'ooc'         — out-of-character instruction from user
+  /// 'save_marker' — synthetic marker inserted when user saves
+  final String messageType;
+
+  /// Human-readable label for save_marker messages (e.g. "第1章结束").
+  /// Null for non-marker messages.
+  final String? savepointLabel;
+  final int timestamp;
+  const GameMessage(
+      {required this.id,
+      required this.sessionId,
+      required this.role,
+      required this.content,
+      required this.messageType,
+      this.savepointLabel,
+      required this.timestamp});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['session_id'] = Variable<String>(sessionId);
+    map['role'] = Variable<String>(role);
+    map['content'] = Variable<String>(content);
+    map['message_type'] = Variable<String>(messageType);
+    if (!nullToAbsent || savepointLabel != null) {
+      map['savepoint_label'] = Variable<String>(savepointLabel);
+    }
+    map['timestamp'] = Variable<int>(timestamp);
+    return map;
+  }
+
+  GameMessagesCompanion toCompanion(bool nullToAbsent) {
+    return GameMessagesCompanion(
+      id: Value(id),
+      sessionId: Value(sessionId),
+      role: Value(role),
+      content: Value(content),
+      messageType: Value(messageType),
+      savepointLabel: savepointLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(savepointLabel),
+      timestamp: Value(timestamp),
+    );
+  }
+
+  factory GameMessage.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GameMessage(
+      id: serializer.fromJson<int>(json['id']),
+      sessionId: serializer.fromJson<String>(json['sessionId']),
+      role: serializer.fromJson<String>(json['role']),
+      content: serializer.fromJson<String>(json['content']),
+      messageType: serializer.fromJson<String>(json['messageType']),
+      savepointLabel: serializer.fromJson<String?>(json['savepointLabel']),
+      timestamp: serializer.fromJson<int>(json['timestamp']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'sessionId': serializer.toJson<String>(sessionId),
+      'role': serializer.toJson<String>(role),
+      'content': serializer.toJson<String>(content),
+      'messageType': serializer.toJson<String>(messageType),
+      'savepointLabel': serializer.toJson<String?>(savepointLabel),
+      'timestamp': serializer.toJson<int>(timestamp),
+    };
+  }
+
+  GameMessage copyWith(
+          {int? id,
+          String? sessionId,
+          String? role,
+          String? content,
+          String? messageType,
+          Value<String?> savepointLabel = const Value.absent(),
+          int? timestamp}) =>
+      GameMessage(
+        id: id ?? this.id,
+        sessionId: sessionId ?? this.sessionId,
+        role: role ?? this.role,
+        content: content ?? this.content,
+        messageType: messageType ?? this.messageType,
+        savepointLabel:
+            savepointLabel.present ? savepointLabel.value : this.savepointLabel,
+        timestamp: timestamp ?? this.timestamp,
+      );
+  GameMessage copyWithCompanion(GameMessagesCompanion data) {
+    return GameMessage(
+      id: data.id.present ? data.id.value : this.id,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      role: data.role.present ? data.role.value : this.role,
+      content: data.content.present ? data.content.value : this.content,
+      messageType:
+          data.messageType.present ? data.messageType.value : this.messageType,
+      savepointLabel: data.savepointLabel.present
+          ? data.savepointLabel.value
+          : this.savepointLabel,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GameMessage(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('messageType: $messageType, ')
+          ..write('savepointLabel: $savepointLabel, ')
+          ..write('timestamp: $timestamp')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, sessionId, role, content, messageType, savepointLabel, timestamp);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GameMessage &&
+          other.id == this.id &&
+          other.sessionId == this.sessionId &&
+          other.role == this.role &&
+          other.content == this.content &&
+          other.messageType == this.messageType &&
+          other.savepointLabel == this.savepointLabel &&
+          other.timestamp == this.timestamp);
+}
+
+class GameMessagesCompanion extends UpdateCompanion<GameMessage> {
+  final Value<int> id;
+  final Value<String> sessionId;
+  final Value<String> role;
+  final Value<String> content;
+  final Value<String> messageType;
+  final Value<String?> savepointLabel;
+  final Value<int> timestamp;
+  const GameMessagesCompanion({
+    this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.role = const Value.absent(),
+    this.content = const Value.absent(),
+    this.messageType = const Value.absent(),
+    this.savepointLabel = const Value.absent(),
+    this.timestamp = const Value.absent(),
+  });
+  GameMessagesCompanion.insert({
+    this.id = const Value.absent(),
+    required String sessionId,
+    required String role,
+    required String content,
+    this.messageType = const Value.absent(),
+    this.savepointLabel = const Value.absent(),
+    required int timestamp,
+  })  : sessionId = Value(sessionId),
+        role = Value(role),
+        content = Value(content),
+        timestamp = Value(timestamp);
+  static Insertable<GameMessage> custom({
+    Expression<int>? id,
+    Expression<String>? sessionId,
+    Expression<String>? role,
+    Expression<String>? content,
+    Expression<String>? messageType,
+    Expression<String>? savepointLabel,
+    Expression<int>? timestamp,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sessionId != null) 'session_id': sessionId,
+      if (role != null) 'role': role,
+      if (content != null) 'content': content,
+      if (messageType != null) 'message_type': messageType,
+      if (savepointLabel != null) 'savepoint_label': savepointLabel,
+      if (timestamp != null) 'timestamp': timestamp,
+    });
+  }
+
+  GameMessagesCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? sessionId,
+      Value<String>? role,
+      Value<String>? content,
+      Value<String>? messageType,
+      Value<String?>? savepointLabel,
+      Value<int>? timestamp}) {
+    return GameMessagesCompanion(
+      id: id ?? this.id,
+      sessionId: sessionId ?? this.sessionId,
+      role: role ?? this.role,
+      content: content ?? this.content,
+      messageType: messageType ?? this.messageType,
+      savepointLabel: savepointLabel ?? this.savepointLabel,
+      timestamp: timestamp ?? this.timestamp,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (messageType.present) {
+      map['message_type'] = Variable<String>(messageType.value);
+    }
+    if (savepointLabel.present) {
+      map['savepoint_label'] = Variable<String>(savepointLabel.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<int>(timestamp.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GameMessagesCompanion(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('messageType: $messageType, ')
+          ..write('savepointLabel: $savepointLabel, ')
+          ..write('timestamp: $timestamp')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -28217,6 +29719,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $BookReadingProgressTable(this);
   late final $BookChapterNotesTable bookChapterNotes =
       $BookChapterNotesTable(this);
+  late final $GameCharacterCardsTable gameCharacterCards =
+      $GameCharacterCardsTable(this);
+  late final $GameSessionsTable gameSessions = $GameSessionsTable(this);
+  late final $GameMessagesTable gameMessages = $GameMessagesTable(this);
   late final CardDao cardDao = CardDao(this as AppDatabase);
   late final AiFinanceDao aiFinanceDao = AiFinanceDao(this as AppDatabase);
   late final AiPurchaseDao aiPurchaseDao = AiPurchaseDao(this as AppDatabase);
@@ -28281,7 +29787,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         books,
         bookChapters,
         bookReadingProgress,
-        bookChapterNotes
+        bookChapterNotes,
+        gameCharacterCards,
+        gameSessions,
+        gameMessages
       ];
 }
 
@@ -43180,6 +44689,718 @@ typedef $$BookChapterNotesTableProcessedTableManager = ProcessedTableManager<
     ),
     BookChapterNote,
     PrefetchHooks Function()>;
+typedef $$GameCharacterCardsTableCreateCompanionBuilder
+    = GameCharacterCardsCompanion Function({
+  required String id,
+  required String title,
+  Value<String> description,
+  required String cardJson,
+  Value<String?> avatarPath,
+  Value<String> sourceFilename,
+  required int importedAt,
+  Value<int> rowid,
+});
+typedef $$GameCharacterCardsTableUpdateCompanionBuilder
+    = GameCharacterCardsCompanion Function({
+  Value<String> id,
+  Value<String> title,
+  Value<String> description,
+  Value<String> cardJson,
+  Value<String?> avatarPath,
+  Value<String> sourceFilename,
+  Value<int> importedAt,
+  Value<int> rowid,
+});
+
+class $$GameCharacterCardsTableFilterComposer
+    extends Composer<_$AppDatabase, $GameCharacterCardsTable> {
+  $$GameCharacterCardsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cardJson => $composableBuilder(
+      column: $table.cardJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get avatarPath => $composableBuilder(
+      column: $table.avatarPath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceFilename => $composableBuilder(
+      column: $table.sourceFilename,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get importedAt => $composableBuilder(
+      column: $table.importedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$GameCharacterCardsTableOrderingComposer
+    extends Composer<_$AppDatabase, $GameCharacterCardsTable> {
+  $$GameCharacterCardsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cardJson => $composableBuilder(
+      column: $table.cardJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get avatarPath => $composableBuilder(
+      column: $table.avatarPath, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceFilename => $composableBuilder(
+      column: $table.sourceFilename,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get importedAt => $composableBuilder(
+      column: $table.importedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$GameCharacterCardsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GameCharacterCardsTable> {
+  $$GameCharacterCardsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<String> get cardJson =>
+      $composableBuilder(column: $table.cardJson, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarPath => $composableBuilder(
+      column: $table.avatarPath, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceFilename => $composableBuilder(
+      column: $table.sourceFilename, builder: (column) => column);
+
+  GeneratedColumn<int> get importedAt => $composableBuilder(
+      column: $table.importedAt, builder: (column) => column);
+}
+
+class $$GameCharacterCardsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $GameCharacterCardsTable,
+    GameCharacterCard,
+    $$GameCharacterCardsTableFilterComposer,
+    $$GameCharacterCardsTableOrderingComposer,
+    $$GameCharacterCardsTableAnnotationComposer,
+    $$GameCharacterCardsTableCreateCompanionBuilder,
+    $$GameCharacterCardsTableUpdateCompanionBuilder,
+    (
+      GameCharacterCard,
+      BaseReferences<_$AppDatabase, $GameCharacterCardsTable, GameCharacterCard>
+    ),
+    GameCharacterCard,
+    PrefetchHooks Function()> {
+  $$GameCharacterCardsTableTableManager(
+      _$AppDatabase db, $GameCharacterCardsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GameCharacterCardsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GameCharacterCardsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GameCharacterCardsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> description = const Value.absent(),
+            Value<String> cardJson = const Value.absent(),
+            Value<String?> avatarPath = const Value.absent(),
+            Value<String> sourceFilename = const Value.absent(),
+            Value<int> importedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              GameCharacterCardsCompanion(
+            id: id,
+            title: title,
+            description: description,
+            cardJson: cardJson,
+            avatarPath: avatarPath,
+            sourceFilename: sourceFilename,
+            importedAt: importedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String title,
+            Value<String> description = const Value.absent(),
+            required String cardJson,
+            Value<String?> avatarPath = const Value.absent(),
+            Value<String> sourceFilename = const Value.absent(),
+            required int importedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              GameCharacterCardsCompanion.insert(
+            id: id,
+            title: title,
+            description: description,
+            cardJson: cardJson,
+            avatarPath: avatarPath,
+            sourceFilename: sourceFilename,
+            importedAt: importedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$GameCharacterCardsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $GameCharacterCardsTable,
+    GameCharacterCard,
+    $$GameCharacterCardsTableFilterComposer,
+    $$GameCharacterCardsTableOrderingComposer,
+    $$GameCharacterCardsTableAnnotationComposer,
+    $$GameCharacterCardsTableCreateCompanionBuilder,
+    $$GameCharacterCardsTableUpdateCompanionBuilder,
+    (
+      GameCharacterCard,
+      BaseReferences<_$AppDatabase, $GameCharacterCardsTable, GameCharacterCard>
+    ),
+    GameCharacterCard,
+    PrefetchHooks Function()>;
+typedef $$GameSessionsTableCreateCompanionBuilder = GameSessionsCompanion
+    Function({
+  required String id,
+  Value<String?> cardId,
+  required String cardTitle,
+  required String cardSnapshotJson,
+  required String sessionTitle,
+  Value<String> status,
+  Value<String?> parentSessionId,
+  Value<int?> branchFromMessageId,
+  Value<String?> worldStateJson,
+  Value<String?> storySummary,
+  Value<bool> gameLogInjected,
+  required int createdAt,
+  required int lastPlayedAt,
+  Value<int> rowid,
+});
+typedef $$GameSessionsTableUpdateCompanionBuilder = GameSessionsCompanion
+    Function({
+  Value<String> id,
+  Value<String?> cardId,
+  Value<String> cardTitle,
+  Value<String> cardSnapshotJson,
+  Value<String> sessionTitle,
+  Value<String> status,
+  Value<String?> parentSessionId,
+  Value<int?> branchFromMessageId,
+  Value<String?> worldStateJson,
+  Value<String?> storySummary,
+  Value<bool> gameLogInjected,
+  Value<int> createdAt,
+  Value<int> lastPlayedAt,
+  Value<int> rowid,
+});
+
+class $$GameSessionsTableFilterComposer
+    extends Composer<_$AppDatabase, $GameSessionsTable> {
+  $$GameSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cardTitle => $composableBuilder(
+      column: $table.cardTitle, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cardSnapshotJson => $composableBuilder(
+      column: $table.cardSnapshotJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sessionTitle => $composableBuilder(
+      column: $table.sessionTitle, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get parentSessionId => $composableBuilder(
+      column: $table.parentSessionId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get branchFromMessageId => $composableBuilder(
+      column: $table.branchFromMessageId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get worldStateJson => $composableBuilder(
+      column: $table.worldStateJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get storySummary => $composableBuilder(
+      column: $table.storySummary, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get gameLogInjected => $composableBuilder(
+      column: $table.gameLogInjected,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get lastPlayedAt => $composableBuilder(
+      column: $table.lastPlayedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$GameSessionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $GameSessionsTable> {
+  $$GameSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cardTitle => $composableBuilder(
+      column: $table.cardTitle, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cardSnapshotJson => $composableBuilder(
+      column: $table.cardSnapshotJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sessionTitle => $composableBuilder(
+      column: $table.sessionTitle,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get parentSessionId => $composableBuilder(
+      column: $table.parentSessionId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get branchFromMessageId => $composableBuilder(
+      column: $table.branchFromMessageId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get worldStateJson => $composableBuilder(
+      column: $table.worldStateJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get storySummary => $composableBuilder(
+      column: $table.storySummary,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get gameLogInjected => $composableBuilder(
+      column: $table.gameLogInjected,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get lastPlayedAt => $composableBuilder(
+      column: $table.lastPlayedAt,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$GameSessionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GameSessionsTable> {
+  $$GameSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get cardId =>
+      $composableBuilder(column: $table.cardId, builder: (column) => column);
+
+  GeneratedColumn<String> get cardTitle =>
+      $composableBuilder(column: $table.cardTitle, builder: (column) => column);
+
+  GeneratedColumn<String> get cardSnapshotJson => $composableBuilder(
+      column: $table.cardSnapshotJson, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionTitle => $composableBuilder(
+      column: $table.sessionTitle, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get parentSessionId => $composableBuilder(
+      column: $table.parentSessionId, builder: (column) => column);
+
+  GeneratedColumn<int> get branchFromMessageId => $composableBuilder(
+      column: $table.branchFromMessageId, builder: (column) => column);
+
+  GeneratedColumn<String> get worldStateJson => $composableBuilder(
+      column: $table.worldStateJson, builder: (column) => column);
+
+  GeneratedColumn<String> get storySummary => $composableBuilder(
+      column: $table.storySummary, builder: (column) => column);
+
+  GeneratedColumn<bool> get gameLogInjected => $composableBuilder(
+      column: $table.gameLogInjected, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get lastPlayedAt => $composableBuilder(
+      column: $table.lastPlayedAt, builder: (column) => column);
+}
+
+class $$GameSessionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $GameSessionsTable,
+    GameSession,
+    $$GameSessionsTableFilterComposer,
+    $$GameSessionsTableOrderingComposer,
+    $$GameSessionsTableAnnotationComposer,
+    $$GameSessionsTableCreateCompanionBuilder,
+    $$GameSessionsTableUpdateCompanionBuilder,
+    (
+      GameSession,
+      BaseReferences<_$AppDatabase, $GameSessionsTable, GameSession>
+    ),
+    GameSession,
+    PrefetchHooks Function()> {
+  $$GameSessionsTableTableManager(_$AppDatabase db, $GameSessionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GameSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GameSessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GameSessionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String?> cardId = const Value.absent(),
+            Value<String> cardTitle = const Value.absent(),
+            Value<String> cardSnapshotJson = const Value.absent(),
+            Value<String> sessionTitle = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String?> parentSessionId = const Value.absent(),
+            Value<int?> branchFromMessageId = const Value.absent(),
+            Value<String?> worldStateJson = const Value.absent(),
+            Value<String?> storySummary = const Value.absent(),
+            Value<bool> gameLogInjected = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> lastPlayedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              GameSessionsCompanion(
+            id: id,
+            cardId: cardId,
+            cardTitle: cardTitle,
+            cardSnapshotJson: cardSnapshotJson,
+            sessionTitle: sessionTitle,
+            status: status,
+            parentSessionId: parentSessionId,
+            branchFromMessageId: branchFromMessageId,
+            worldStateJson: worldStateJson,
+            storySummary: storySummary,
+            gameLogInjected: gameLogInjected,
+            createdAt: createdAt,
+            lastPlayedAt: lastPlayedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            Value<String?> cardId = const Value.absent(),
+            required String cardTitle,
+            required String cardSnapshotJson,
+            required String sessionTitle,
+            Value<String> status = const Value.absent(),
+            Value<String?> parentSessionId = const Value.absent(),
+            Value<int?> branchFromMessageId = const Value.absent(),
+            Value<String?> worldStateJson = const Value.absent(),
+            Value<String?> storySummary = const Value.absent(),
+            Value<bool> gameLogInjected = const Value.absent(),
+            required int createdAt,
+            required int lastPlayedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              GameSessionsCompanion.insert(
+            id: id,
+            cardId: cardId,
+            cardTitle: cardTitle,
+            cardSnapshotJson: cardSnapshotJson,
+            sessionTitle: sessionTitle,
+            status: status,
+            parentSessionId: parentSessionId,
+            branchFromMessageId: branchFromMessageId,
+            worldStateJson: worldStateJson,
+            storySummary: storySummary,
+            gameLogInjected: gameLogInjected,
+            createdAt: createdAt,
+            lastPlayedAt: lastPlayedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$GameSessionsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $GameSessionsTable,
+    GameSession,
+    $$GameSessionsTableFilterComposer,
+    $$GameSessionsTableOrderingComposer,
+    $$GameSessionsTableAnnotationComposer,
+    $$GameSessionsTableCreateCompanionBuilder,
+    $$GameSessionsTableUpdateCompanionBuilder,
+    (
+      GameSession,
+      BaseReferences<_$AppDatabase, $GameSessionsTable, GameSession>
+    ),
+    GameSession,
+    PrefetchHooks Function()>;
+typedef $$GameMessagesTableCreateCompanionBuilder = GameMessagesCompanion
+    Function({
+  Value<int> id,
+  required String sessionId,
+  required String role,
+  required String content,
+  Value<String> messageType,
+  Value<String?> savepointLabel,
+  required int timestamp,
+});
+typedef $$GameMessagesTableUpdateCompanionBuilder = GameMessagesCompanion
+    Function({
+  Value<int> id,
+  Value<String> sessionId,
+  Value<String> role,
+  Value<String> content,
+  Value<String> messageType,
+  Value<String?> savepointLabel,
+  Value<int> timestamp,
+});
+
+class $$GameMessagesTableFilterComposer
+    extends Composer<_$AppDatabase, $GameMessagesTable> {
+  $$GameMessagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get role => $composableBuilder(
+      column: $table.role, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get messageType => $composableBuilder(
+      column: $table.messageType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get savepointLabel => $composableBuilder(
+      column: $table.savepointLabel,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnFilters(column));
+}
+
+class $$GameMessagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $GameMessagesTable> {
+  $$GameMessagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get role => $composableBuilder(
+      column: $table.role, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get messageType => $composableBuilder(
+      column: $table.messageType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get savepointLabel => $composableBuilder(
+      column: $table.savepointLabel,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnOrderings(column));
+}
+
+class $$GameMessagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GameMessagesTable> {
+  $$GameMessagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get messageType => $composableBuilder(
+      column: $table.messageType, builder: (column) => column);
+
+  GeneratedColumn<String> get savepointLabel => $composableBuilder(
+      column: $table.savepointLabel, builder: (column) => column);
+
+  GeneratedColumn<int> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+}
+
+class $$GameMessagesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $GameMessagesTable,
+    GameMessage,
+    $$GameMessagesTableFilterComposer,
+    $$GameMessagesTableOrderingComposer,
+    $$GameMessagesTableAnnotationComposer,
+    $$GameMessagesTableCreateCompanionBuilder,
+    $$GameMessagesTableUpdateCompanionBuilder,
+    (
+      GameMessage,
+      BaseReferences<_$AppDatabase, $GameMessagesTable, GameMessage>
+    ),
+    GameMessage,
+    PrefetchHooks Function()> {
+  $$GameMessagesTableTableManager(_$AppDatabase db, $GameMessagesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GameMessagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GameMessagesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GameMessagesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> sessionId = const Value.absent(),
+            Value<String> role = const Value.absent(),
+            Value<String> content = const Value.absent(),
+            Value<String> messageType = const Value.absent(),
+            Value<String?> savepointLabel = const Value.absent(),
+            Value<int> timestamp = const Value.absent(),
+          }) =>
+              GameMessagesCompanion(
+            id: id,
+            sessionId: sessionId,
+            role: role,
+            content: content,
+            messageType: messageType,
+            savepointLabel: savepointLabel,
+            timestamp: timestamp,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String sessionId,
+            required String role,
+            required String content,
+            Value<String> messageType = const Value.absent(),
+            Value<String?> savepointLabel = const Value.absent(),
+            required int timestamp,
+          }) =>
+              GameMessagesCompanion.insert(
+            id: id,
+            sessionId: sessionId,
+            role: role,
+            content: content,
+            messageType: messageType,
+            savepointLabel: savepointLabel,
+            timestamp: timestamp,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$GameMessagesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $GameMessagesTable,
+    GameMessage,
+    $$GameMessagesTableFilterComposer,
+    $$GameMessagesTableOrderingComposer,
+    $$GameMessagesTableAnnotationComposer,
+    $$GameMessagesTableCreateCompanionBuilder,
+    $$GameMessagesTableUpdateCompanionBuilder,
+    (
+      GameMessage,
+      BaseReferences<_$AppDatabase, $GameMessagesTable, GameMessage>
+    ),
+    GameMessage,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -43302,4 +45523,10 @@ class $AppDatabaseManager {
       $$BookReadingProgressTableTableManager(_db, _db.bookReadingProgress);
   $$BookChapterNotesTableTableManager get bookChapterNotes =>
       $$BookChapterNotesTableTableManager(_db, _db.bookChapterNotes);
+  $$GameCharacterCardsTableTableManager get gameCharacterCards =>
+      $$GameCharacterCardsTableTableManager(_db, _db.gameCharacterCards);
+  $$GameSessionsTableTableManager get gameSessions =>
+      $$GameSessionsTableTableManager(_db, _db.gameSessions);
+  $$GameMessagesTableTableManager get gameMessages =>
+      $$GameMessagesTableTableManager(_db, _db.gameMessages);
 }
