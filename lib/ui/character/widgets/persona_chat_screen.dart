@@ -595,6 +595,11 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   OverlayEntry? _bubblePopupOverlay;
   String? _popupMessageId;
 
+  String? _retractToastText;
+  String? _retractToastActionLabel;
+  VoidCallback? _retractToastAction;
+  Timer? _retractToastTimer;
+
   ToyController? _toyControlService;
   bool _toyConnected = false;
   bool _toyConnecting = false;
@@ -859,8 +864,17 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     if (_isInlineVoiceMode &&
         _isRoleVoiceActive &&
         !_voiceController.isRecording) {
+      // About to start recording (interrupt TTS path).
+      unawaited(playRecordStartTone());
       await _interruptRoleVoiceAndStartRecording();
       return;
+    }
+
+    // Play start cue before the toggle so the user gets immediate feedback.
+    // Stop cue plays AFTER toggle returns so it isn't captured in the recording.
+    final aboutToStart = _voiceController.state == VoiceInputState.idle;
+    if (aboutToStart) {
+      unawaited(playRecordStartTone());
     }
 
     final result = await _voiceController.toggle(
@@ -870,6 +884,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       maxRecordingDuration:
           _isInlineVoiceMode ? _voiceModeMaxRecordingDuration : null,
     );
+
+    if (!aboutToStart) {
+      unawaited(playRecordStopTone());
+    }
     if (!mounted) return;
     if (result != null && result.isNotEmpty) {
       _textController.text = result;
@@ -1634,6 +1652,7 @@ only after you have written the goodbye you want the user to hear.''',
     _scrollController.dispose();
     _highlightTimer?.cancel();
     _sentenceDebounceTimer?.cancel();
+    _retractToastTimer?.cancel();
     _audioCompleteSub?.cancel();
     _audioStateSub?.cancel();
     _openRequestSub?.cancel();
@@ -3723,14 +3742,10 @@ only after you have written the goodbye you want the user to hear.''',
     if (!mounted) return;
 
     if (primaryDeleted == 0 && toRetract.length == 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _chatUiText(
-              zh: '这条消息已经不能撤回',
-              en: 'This message can no longer be recalled',
-            ),
-          ),
+      _showRetractToast(
+        _chatUiText(
+          zh: '这条消息已经不能撤回',
+          en: 'This message can no longer be recalled',
         ),
       );
       return;
@@ -3738,21 +3753,94 @@ only after you have written the goodbye you want the user to hear.''',
 
     await _refreshMessagesFromStore(autoRead: false, scrollToBottom: false);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_chatUiText(
-          zh: toRetract.length > 1 ? '已撤回 ${toRetract.length} 条' : '已撤回',
-          en: toRetract.length > 1
-              ? '${toRetract.length} messages recalled'
-              : 'Message recalled',
-        )),
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: _chatUiText(zh: '重新编辑', en: 'Edit'),
-          onPressed: () {
-            _textController.text = message.content;
-            _composerFocus.requestFocus();
-          },
+    _showRetractToast(
+      _chatUiText(
+        zh: toRetract.length > 1 ? '已撤回 ${toRetract.length} 条' : '已撤回',
+        en: toRetract.length > 1
+            ? '${toRetract.length} messages recalled'
+            : 'Message recalled',
+      ),
+      actionLabel: _chatUiText(zh: '重新编辑', en: 'Edit'),
+      onAction: () {
+        _textController.text = message.content;
+        _composerFocus.requestFocus();
+      },
+    );
+  }
+
+  void _showRetractToast(
+    String text, {
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    _retractToastTimer?.cancel();
+    setState(() {
+      _retractToastText = text;
+      _retractToastActionLabel = actionLabel;
+      _retractToastAction = onAction;
+    });
+    _retractToastTimer = Timer(const Duration(seconds: 3), _hideRetractToast);
+  }
+
+  void _hideRetractToast() {
+    _retractToastTimer?.cancel();
+    _retractToastTimer = null;
+    if (!mounted) return;
+    setState(() {
+      _retractToastText = null;
+      _retractToastActionLabel = null;
+      _retractToastAction = null;
+    });
+  }
+
+  Widget _buildRetractToast() {
+    const c = SpringRainChatTokens.springRainDaydream;
+    return GestureDetector(
+      onTap: _hideRetractToast,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            decoration: BoxDecoration(
+              color: c.background.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: c.glassStroke.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _retractToastText!,
+                  style: TextStyle(
+                    color: c.iColor.withValues(alpha: 0.85),
+                    fontSize: 13,
+                    fontFamily: c.fontFamily,
+                  ),
+                ),
+                if (_retractToastActionLabel != null) ...[
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () {
+                      _hideRetractToast();
+                      _retractToastAction?.call();
+                    },
+                    child: Text(
+                      _retractToastActionLabel!,
+                      style: TextStyle(
+                        color: c.actionColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: c.fontFamily,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -3938,19 +4026,23 @@ only after you have written the goodbye you want the user to hear.''',
         await _voiceController.cancel();
       }
       await _stopTtsPlayback();
-      // Restore the TTS player to normal media playback and exit VoIP call mode.
-      unawaited(_restoreDefaultTtsContext());
-      unawaited(VoiceCallAudioSession.instance.exit());
+      // Play the hangup tone through just_audio while the VoIP audio session
+      // is still active. A new audioplayers AudioPlayer can't acquire audio
+      // focus while the VoIP session holds it, producing no sound. just_audio
+      // with handleAudioSessionActivation:false plays through the existing
+      // active session. We await completion (~0.5s) before tearing down.
+      await playHangupTone();
+      // Now safe to restore default and exit VoIP call mode.
+      await _restoreDefaultTtsContext();
+      await VoiceCallAudioSession.instance.exit();
       // End-of-call cue + hidden context for the character. The previous code
       // injected a *character* message ("📵 用户挂断了语音通话。") which auto-read spoke
-      // aloud and rendered as a character bubble — both wrong. Instead: play a
-      // synthesized hang-up tone (heard by the user, never spoken by the
-      // character) and stash a one-shot note carrying WHO ended the call; the
-      // next turn injects it into the LLM input only (see _runBatchSend) — never
-      // a bubble, never TTS. Done for both sides; wasAgentEnded tells us who.
+      // aloud and rendered as a character bubble - both wrong. Instead: stash
+      // a one-shot note carrying WHO ended the call; the next turn injects it
+      // into the LLM input only (see _runBatchSend) - never a bubble, never TTS.
+      // Done for both sides; wasAgentEnded tells us who.
       final endedBy = wasAgentEnded ? 'agent' : 'user';
       unawaited(UserStorage.setPendingCallEnd(endedBy));
-      unawaited(playHangupTone(context: _defaultTtsContext));
     }
   }
 
@@ -4300,6 +4392,7 @@ only after you have written the goodbye you want the user to hear.''',
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (_retractToastText != null) _buildRetractToast(),
                       if (widget.enableRichCapture)
                         CompanionMediaTray(
                           isOpen: _isMediaTrayOpen,

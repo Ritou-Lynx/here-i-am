@@ -2,57 +2,87 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 
-/// Plays a short, synthesized "call ended" tone (two soft descending beeps)
-/// with no bundled audio asset. Used on voice-call hang-up — by either side —
-/// so the user hears a natural end-of-call cue instead of the character reading
-/// a "user hung up" line aloud.
-///
-/// The tone is generated as a 16 kHz mono PCM WAV in the system temp dir and
-/// played through a throw-away [AudioPlayer]. When [context] is provided the
-/// player is routed through it (e.g. media/assistant playback so the cue is
-/// heard on the speaker after the VoIP session is torn down).
-Future<void> playHangupTone({AudioContext? context}) async {
+/// Plays a short "call ended" tone (two soft descending beeps).
+/// Call while the VoIP audio session is still active so the tone routes
+/// through the voice-communication path to the speaker.
+Future<void> playHangupTone() async {
+  await _playTone(
+    fileName: 'hereiam_hangup_tone.wav',
+    segments: const [
+      [520, 0.18],
+      [0, 0.12],
+      [400, 0.24],
+    ],
+    amp: 0.35,
+    activateSession: false,
+  );
+}
+
+/// Plays a short "recording started" beep (single rising tone) so the user
+/// gets audible feedback when a headset button press begins recording.
+Future<void> playRecordStartTone() async {
+  await _playTone(
+    fileName: 'hereiam_record_start_tone.wav',
+    segments: const [
+      [880, 0.10],
+    ],
+    amp: 0.3,
+  );
+}
+
+/// Plays a short "recording stopped" beep (single lower tone) so the user
+/// gets audible feedback when a headset button press stops recording.
+Future<void> playRecordStopTone() async {
+  await _playTone(
+    fileName: 'hereiam_record_stop_tone.wav',
+    segments: const [
+      [660, 0.10],
+    ],
+    amp: 0.3,
+  );
+}
+
+Future<void> _playTone({
+  required String fileName,
+  required List<List<double>> segments,
+  required double amp,
+  bool activateSession = true,
+}) async {
   AudioPlayer? player;
   try {
-    final file = File('${Directory.systemTemp.path}/hereiam_hangup_tone.wav');
-    await file.writeAsBytes(_buildHangupToneWav(), flush: true);
-    player = AudioPlayer();
-    if (context != null) {
-      try {
-        await player.setAudioContext(context);
-      } catch (e) {
-        debugPrint('hangup tone setAudioContext failed: $e');
-      }
-    }
-    final toDispose = player;
-    // Release the player once the cue finishes, with a timeout fallback so a
-    // misbehaving platform can't leak it.
-    unawaited(
-      player.onPlayerComplete.first
-          .timeout(const Duration(seconds: 4), onTimeout: () {})
-          .then((_) => toDispose.dispose(), onError: (_) => toDispose.dispose()),
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsBytes(
+      _buildToneWav(segments: segments, amp: amp),
+      flush: true,
     );
-    await player.play(DeviceFileSource(file.path));
+    player = AudioPlayer(
+      handleAudioSessionActivation: activateSession,
+      androidApplyAudioAttributes: false,
+    );
+    await player.setFilePath(file.path);
+    await player.play();
+    await player.playerStateStream
+        .firstWhere((s) => s.processingState == ProcessingState.completed)
+        .timeout(const Duration(seconds: 3));
   } catch (e) {
-    debugPrint('playHangupTone failed: $e');
+    debugPrint('playTone($fileName) failed: $e');
+  } finally {
     await player?.dispose();
   }
 }
 
-/// Builds a WAV (16 kHz, mono, 16-bit PCM) containing two soft descending
-/// beeps — a recognizable "call ended" cue. Pure synthesis, no asset needed.
-Uint8List _buildHangupToneWav() {
+/// Builds a WAV (16 kHz, mono, 16-bit PCM) from the given tone segments.
+/// Each segment is [frequencyHz, durationSeconds]; frequency 0 = silence gap.
+Uint8List _buildToneWav({
+  required List<List<double>> segments,
+  required double amp,
+}) {
   const sampleRate = 16000;
-  const amp = 0.35;
-  // [frequencyHz, durationSeconds]; frequency 0 = silence gap.
-  const segments = <List<double>>[
-    [520, 0.18],
-    [0, 0.12],
-    [400, 0.24],
-  ];
   const fadeMs = 12;
   final fadeSamples = (sampleRate * fadeMs / 1000).round();
 
