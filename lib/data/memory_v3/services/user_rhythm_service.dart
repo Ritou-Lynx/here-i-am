@@ -14,6 +14,8 @@
 ///   - Growth Pacts（作为 target 的 dailyAdjust 依据）
 library;
 
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
@@ -340,6 +342,328 @@ class UserRhythmService {
     final pt = to.split(':').map(int.parse).toList();
     return (pt[0] * 60 + pt[1]) - (pf[0] * 60 + pf[1]);
   }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Menstrual cycle tracking (special kind, no rrule)
+  // ──────────────────────────────────────────────────────────────────────
+
+  /// Record a menstrual period start/end and update the cycle rhythm.
+  ///
+  /// Called when a menstrual_record Memory Card is created or when
+  /// RhythmSignalExtractor detects period mention in chat.
+  ///
+  /// This creates or updates a UserRhythm with kind="menstrual_cycle".
+  /// The rrule field stores a JSON cycle prediction instead of an iCalendar
+  /// recurrence rule.
+  Future<void> recordMenstrualCycle({
+    required DateTime startDate,
+    DateTime? endDate,
+    String? flowLevel,
+    int? painLevel,
+    List<String>? symptoms,
+    String? notes,
+  }) async {
+    // Find existing menstrual_cycle rhythm
+    final existing = await getActiveRhythmsByKind('menstrual_cycle');
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Parse cycle history from existing rhythm
+    List<Map<String, dynamic>> cycleHistory = [];
+    String? rhythmId;
+    if (existing.isNotEmpty) {
+      rhythmId = existing.first.id;
+      cycleHistory = _parseCycleHistory(existing.first.rrule);
+    }
+
+    // Check if this start date already exists in history
+    final startDateStr = _dateStr(startDate);
+    final existingEntry = cycleHistory.any((c) => c['start'] == startDateStr);
+    if (!existingEntry) {
+      // Add new cycle entry
+      cycleHistory.add({
+        'start': startDateStr,
+        'end': endDate != null ? _dateStr(endDate) : null,
+        'flow': flowLevel,
+        'pain': painLevel,
+        'symptoms': symptoms,
+        'notes': notes,
+      });
+    } else if (endDate != null) {
+      // Update end date for existing entry
+      for (final c in cycleHistory) {
+        if (c['start'] == startDateStr) {
+          c['end'] = _dateStr(endDate);
+          break;
+        }
+      }
+    }
+
+    // Sort by start date descending (most recent first)
+    cycleHistory.sort((a, b) =>
+        (b['start'] as String).compareTo(a['start'] as String));
+
+    // Keep only last 12 cycles
+    if (cycleHistory.length > 12) {
+      cycleHistory = cycleHistory.sublist(0, 12);
+    }
+
+    // Calculate cycle metrics from history
+    final cycleData = _calculateCycleMetrics(cycleHistory, startDate);
+
+    // Build rrule JSON (stores cycle prediction, not an actual rrule)
+    final rruleJson = _encodeCycleData(cycleData);
+
+    if (rhythmId != null) {
+      // Update existing rhythm
+      await updateRhythm(rhythmId, rrule: rruleJson, confidence: cycleData.confidence);
+      _log.info('Menstrual cycle rhythm updated: $rhythmId, '
+          'cycles tracked: ${cycleHistory.length}, '
+          'predicted next: ${cycleData.predictedNextStart}');
+    } else {
+      // Create new rhythm
+      rhythmId = await createRhythm(
+        kind: 'menstrual_cycle',
+        description: '经期周期追踪',
+        rrule: rruleJson,
+        authority: 'agent_inferred',
+        origin: 'mixed',
+        confidence: cycleData.confidence,
+      );
+      _log.info('Menstrual cycle rhythm created: $rhythmId');
+    }
+  }
+
+  /// Get current menstrual cycle status for check-in snapshot.
+  Future<MenstrualCycleStatus?> getMenstrualCycleStatus({
+    DateTime? now,
+  }) async {
+    final moment = now ?? DateTime.now();
+    final rhythms = await getActiveRhythmsByKind('menstrual_cycle');
+    if (rhythms.isEmpty) return null;
+
+    final cycleData = _parseCycleData(rhythms.first.rrule);
+    if (cycleData.cycleHistory.isEmpty) return null;
+
+    final latest = cycleData.cycleHistory.first;
+    final latestStart = _parseDate(latest['start'] as String);
+    if (latestStart == null) return null;
+
+    final latestEnd = latest['end'] != null
+        ? _parseDate(latest['end'] as String)
+        : null;
+
+    // Determine current phase
+    final daysSinceStart = moment.difference(latestStart).inDays;
+    String phase;
+    String phaseDescription;
+
+    if (latestEnd == null && daysSinceStart <= 7) {
+      // Period still ongoing (no end date, within 7 days of start)
+      phase = 'menstrual';
+      phaseDescription = '经期中（第 ${daysSinceStart + 1} 天）';
+    } else if (latestEnd != null && daysSinceStart <= 7) {
+      // Period ended recently
+      final daysSinceEnd = moment.difference(latestEnd).inDays;
+      if (daysSinceEnd < 7) {
+        phase = 'follicular';
+        phaseDescription = '卵泡期（经期结束后第 ${daysSinceEnd + 1} 天）';
+      } else if (daysSinceEnd < 14) {
+        phase = 'ovulation';
+        phaseDescription = '排卵期附近';
+      } else {
+        phase = 'luteal';
+        phaseDescription = '黄体期（经前阶段）';
+      }
+    } else if (daysSinceStart <= 14) {
+      phase = 'follicular';
+      phaseDescription = '卵泡期（经期后第 ${daysSinceStart - (latestEnd != null ? latestEnd.difference(latestStart).inDays + 1 : 7)} 天）';
+    } else if (daysSinceStart <= 21) {
+      phase = 'luteal';
+      phaseDescription = '黄体期（经前阶段）';
+    } else {
+      phase = 'late';
+      phaseDescription = '可能推迟了（已过 ${daysSinceStart} 天）';
+    }
+
+    // Check if period is predicted to start soon
+    String? upcomingAlert;
+    if (cycleData.predictedNextStart != null) {
+      final daysUntil = cycleData.predictedNextStart!.difference(moment).inDays;
+      if (daysUntil >= 0 && daysUntil <= 3 && phase != 'menstrual') {
+        upcomingAlert = '预计 ${daysUntil == 0 ? '今天' : '$daysUntil 天后'}来';
+      }
+    }
+
+    return MenstrualCycleStatus(
+      phase: phase,
+      phaseDescription: phaseDescription,
+      latestStart: latestStart,
+      latestEnd: latestEnd,
+      avgCycleDays: cycleData.avgCycleDays,
+      avgPeriodDays: cycleData.avgPeriodDays,
+      predictedNextStart: cycleData.predictedNextStart,
+      upcomingAlert: upcomingAlert,
+      cycleCount: cycleData.cycleHistory.length,
+      latestFlow: latest['flow'] as String?,
+      latestPain: latest['pain'] as int?,
+    );
+  }
+
+  /// Build menstrual cycle section for check-in snapshot.
+  Future<String> buildMenstrualSnapshotSection({DateTime? now}) async {
+    final status = await getMenstrualCycleStatus(now: now);
+    if (status == null) return '';
+
+    final lines = <String>['## Menstrual Cycle'];
+    lines.add('- Phase: ${status.phase} - ${status.phaseDescription}');
+
+    if (status.latestFlow != null) {
+      lines.add('  Flow: ${status.latestFlow}');
+    }
+    if (status.latestPain != null) {
+      lines.add('  Pain: ${status.latestPain}/10');
+    }
+    if (status.avgCycleDays != null) {
+      lines.add('  Average cycle: ${status.avgCycleDays} days');
+    }
+    if (status.predictedNextStart != null) {
+      lines.add('  Predicted next: ${_dateStr(status.predictedNextStart!)}');
+    }
+    if (status.upcomingAlert != null) {
+      lines.add('  ⚠️ ${status.upcomingAlert}');
+    }
+
+    // Care hints for the companion
+    if (status.phase == 'menstrual') {
+      lines.add('  💡 Be gentle, ask about pain/cramps, don\'t suggest intense exercise.');
+    } else if (status.phase == 'late') {
+      lines.add('  💡 Period is late - ask if everything is okay, don\'t alarm.');
+    } else if (status.upcomingAlert != null) {
+      lines.add('  💡 Period coming soon - remind to prepare supplies, avoid cold food.');
+    }
+
+    return lines.join('\n');
+  }
+
+  // ── Cycle data helpers ──
+
+  List<Map<String, dynamic>> _parseCycleHistory(String rruleJson) {
+    try {
+      final decoded = rruleJson;
+      if (decoded.isEmpty || !decoded.startsWith('{')) return [];
+      final data = _parseJson(decoded);
+      final history = data?['cycleHistory'];
+      if (history is List) {
+        return history.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  _CycleData _parseCycleData(String rruleJson) {
+    try {
+      if (rruleJson.isEmpty || !rruleJson.startsWith('{')) {
+        return _CycleData(cycleHistory: []);
+      }
+      final data = _parseJson(rruleJson);
+      if (data == null) return _CycleData(cycleHistory: []);
+
+      final history = (data['cycleHistory'] as List?)
+              ?.cast<Map<String, dynamic>>() ??
+          [];
+      return _CycleData(
+        avgCycleDays: (data['avgCycleDays'] as num?)?.toInt(),
+        avgPeriodDays: (data['avgPeriodDays'] as num?)?.toInt(),
+        predictedNextStart: data['predictedNextStart'] != null
+            ? _parseDate(data['predictedNextStart'] as String)
+            : null,
+        cycleHistory: history,
+        confidence: (data['confidence'] as num?)?.toDouble() ?? 0.5,
+      );
+    } catch (_) {
+      return _CycleData(cycleHistory: []);
+    }
+  }
+
+  _CycleData _calculateCycleMetrics(
+      List<Map<String, dynamic>> history, DateTime latestStart) {
+    // Calculate cycle lengths (days between consecutive starts)
+    final cycleLengths = <int>[];
+    final periodLengths = <int>[];
+
+    for (var i = 0; i < history.length - 1; i++) {
+      final curr = _parseDate(history[i]['start'] as String);
+      final prev = _parseDate(history[i + 1]['start'] as String);
+      if (curr != null && prev != null) {
+        cycleLengths.add(curr.difference(prev).inDays);
+      }
+    }
+
+    for (final entry in history) {
+      final start = _parseDate(entry['start'] as String);
+      final end = entry['end'] != null ? _parseDate(entry['end'] as String) : null;
+      if (start != null && end != null) {
+        periodLengths.add(end.difference(start).inDays + 1);
+      }
+    }
+
+    final avgCycle = cycleLengths.isEmpty
+        ? null
+        : (cycleLengths.reduce((a, b) => a + b) / cycleLengths.length).round();
+    final avgPeriod = periodLengths.isEmpty
+        ? null
+        : (periodLengths.reduce((a, b) => a + b) / periodLengths.length).round();
+
+    // Predict next start: use avg cycle if available, else default 28 days
+    final cycleForPrediction = avgCycle ?? 28;
+    final predictedNext = latestStart.add(Duration(days: cycleForPrediction));
+
+    final confidence = history.length >= 3
+        ? 0.9
+        : history.length == 2
+            ? 0.7
+            : 0.5;
+
+    return _CycleData(
+      avgCycleDays: avgCycle,
+      avgPeriodDays: avgPeriod,
+      predictedNextStart: predictedNext,
+      cycleHistory: history,
+      confidence: confidence,
+    );
+  }
+
+  String _encodeCycleData(_CycleData data) {
+    final map = <String, dynamic>{
+      'cycleHistory': data.cycleHistory,
+      'confidence': data.confidence,
+    };
+    if (data.avgCycleDays != null) map['avgCycleDays'] = data.avgCycleDays;
+    if (data.avgPeriodDays != null) map['avgPeriodDays'] = data.avgPeriodDays;
+    if (data.predictedNextStart != null) {
+      map['predictedNextStart'] = _dateStr(data.predictedNextStart!);
+    }
+    return _encodeJson(map);
+  }
+
+  Map<String, dynamic>? _parseJson(String json) {
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {}
+    return null;
+  }
+
+  String _encodeJson(Map<String, dynamic> map) {
+    return jsonEncode(map);
+  }
+
+  static String _dateStr(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  DateTime? _parseDate(String s) {
+    return DateTime.tryParse(s);
+  }
 }
 
 /// rrule 解析出的一个时间槽。
@@ -361,4 +685,50 @@ class ActiveRhythmSlot {
   final RhythmTimeSlot slot;
 
   ActiveRhythmSlot({required this.rhythm, required this.slot});
+}
+
+/// 经期周期当前状态快照。
+class MenstrualCycleStatus {
+  final String phase; // menstrual | follicular | ovulation | luteal | late
+  final String phaseDescription;
+  final DateTime latestStart;
+  final DateTime? latestEnd;
+  final int? avgCycleDays;
+  final int? avgPeriodDays;
+  final DateTime? predictedNextStart;
+  final String? upcomingAlert;
+  final int cycleCount;
+  final String? latestFlow;
+  final int? latestPain;
+
+  MenstrualCycleStatus({
+    required this.phase,
+    required this.phaseDescription,
+    required this.latestStart,
+    this.latestEnd,
+    this.avgCycleDays,
+    this.avgPeriodDays,
+    this.predictedNextStart,
+    this.upcomingAlert,
+    required this.cycleCount,
+    this.latestFlow,
+    this.latestPain,
+  });
+}
+
+/// 经期周期预测内部数据。
+class _CycleData {
+  final int? avgCycleDays;
+  final int? avgPeriodDays;
+  final DateTime? predictedNextStart;
+  final List<Map<String, dynamic>> cycleHistory;
+  final double confidence;
+
+  _CycleData({
+    this.avgCycleDays,
+    this.avgPeriodDays,
+    this.predictedNextStart,
+    required this.cycleHistory,
+    this.confidence = 0.5,
+  });
 }

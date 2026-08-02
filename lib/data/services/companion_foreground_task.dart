@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
+import 'package:memex/data/services/background_voice_session.dart';
 import 'package:memex/data/services/callkit_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
@@ -42,8 +43,26 @@ class CompanionTaskHandler extends TaskHandler {
     try {
       await setupLogger();
     } catch (_) {}
+    // Pre-warm the background voice session (DB, character, ASR controller)
+    // so the first media-button press doesn't pay the initialization cost.
+    unawaited(BackgroundVoiceSession.instance.ensureReady());
     // Run one tick right away so a fresh (re)start doesn't idle a full interval.
     await _tick();
+  }
+
+  /// Receives media-button events forwarded from the main isolate by
+  /// VoiceSessionRouter. Drives the half-duplex background voice session.
+  @override
+  Future<void> onReceiveData(Object data) async {
+    debugPrint('[ForegroundTask] onReceiveData: $data');
+    if (data is! Map) return;
+    final type = data['type'];
+    switch (type) {
+      case 'voice_toggle':
+        await BackgroundVoiceSession.instance.handleToggle();
+      case 'voice_cancel':
+        await BackgroundVoiceSession.instance.handleCancel();
+    }
   }
 
   @override

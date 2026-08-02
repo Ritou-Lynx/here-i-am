@@ -51,6 +51,7 @@ import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:memex/data/services/companion_foreground_task.dart';
+import 'package:memex/data/services/voice_session_router.dart';
 import 'package:health/health.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/utils/logger.dart';
@@ -167,6 +168,11 @@ void main() async {
   if (Platform.isAndroid) {
     await CompanionForegroundService.initialize();
   }
+
+  // Route media-button (headset) events to the background voice session when
+  // no chat screen owns them — enables half-duplex voice with the app
+  // backgrounded. No-op when the media-key setting is off.
+  await VoiceSessionRouter.instance.init();
 
   // Initialize notification service for agent checkins
   await NotificationService.instance.initialize();

@@ -5,45 +5,45 @@ import 'package:flutter/material.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/domain/models/presentation_module.dart';
-import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Rose Mist Memory Card color adapter.
+/// Spring Rain daylight Memory Card color adapter.
 ///
 /// Memory Review currently lives on a light observation surface, so the
-/// summary card uses the daytime Rose Mist material even when chat is using a
-/// night skin. Otherwise dark theme tokens turn the card into a low-contrast
-/// grey-purple fog block on a light page.
+/// Memory Review lives on the rain-glass observation surface, so summary cards
+/// use the warm daylight application tokens even while Chat uses its dark
+/// scene palette.
 class RoseMistPalette {
   const RoseMistPalette._();
 
-  static const HereIamThemeTokens _tokens = HereIamThemeTokens.roseMistDay;
+  static const SpringRainUiTokens _tokens = SpringRainUiTokens.daylight;
 
   static Color get ink => _tokens.textPrimary;
   static Color get inkMid => _tokens.textSecondary;
-  static Color get inkSoft => _tokens.textMuted;
+  static Color get inkSoft => _tokens.textTertiary;
 
   static Color get rose => _tokens.accent;
   static Color get roseSoft => _tokens.accentSoft;
-  static Color get roseDeep => _tokens.surfaceDeep;
+  static Color get roseDeep => _tokens.surfaceMuted;
 
-  static Color get hairline => const Color(0xFF75615F).withValues(alpha: 0.14);
-  static Color get glassLine => Colors.white.withValues(alpha: 0.92);
-  static Color get glassFill => const Color(0xFFFFFBFA);
-  static Color get glassFillSoft => const Color(0xFFF8F3F2);
-  static Color get cardTint => const Color(0xFFF2E7E7);
-  static Color get shadow => const Color(0xFF75615F).withValues(alpha: 0.16);
+  static Color get hairline => _tokens.divider;
+  static Color get glassLine => _tokens.glassStroke;
+  static Color get glassFill => _tokens.surfaceRaised;
+  static Color get glassFillSoft => _tokens.surface;
+  static Color get cardTint => _tokens.accentSoft;
+  static Color get shadow => _tokens.textPrimary.withValues(alpha: 0.12);
 
   // Mood colors remain semantic and intentionally independent of skin.
-  static const moodExcited = Color(0xFFE89A8E);
-  static const moodCalm = Color(0xFFE5C7CB);
-  static const moodTense = Color(0xFF9E7A8A);
-  static const moodLow = Color(0xFF6F7A8A);
-  static const moodNeutral = Color(0xFFDCD2CE);
+  static const moodExcited = Color(0xFFF2CA70);
+  static const moodCalm = Color(0xFF8B9060);
+  static const moodTense = Color(0xFF9B5B52);
+  static const moodLow = Color(0xFF526E72);
+  static const moodNeutral = Color(0xFFD6D5C5);
 
   static const warn = Color(0xFFD8A05A);
   static const warnInk = Color(0xFFB57A2E);
-  static const cancelInk = Color(0xFF7A6664);
+  static const cancelInk = Color(0xFF74766E);
 }
 
 /// 5 档情绪，从 valence/arousal 派生。

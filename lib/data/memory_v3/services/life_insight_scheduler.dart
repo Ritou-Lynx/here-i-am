@@ -60,6 +60,13 @@ class LifeInsightScheduler {
     await _runAnalysis(LifeInsightPeriod.weekly);
   }
 
+  /// Force a weekly analysis, bypassing the rate limit. Used by the manual
+  /// refresh button in the observation panels so the user can pull fresh
+  /// insights on demand.
+  Future<void> forceRunWeeklyAnalysis() async {
+    await _runAnalysis(LifeInsightPeriod.weekly, force: true);
+  }
+
   /// Run daily analysis (today). Produces baseline and anomaly insights.
   Future<void> runDailyAnalysis() async {
     await _runAnalysis(LifeInsightPeriod.daily);
@@ -98,14 +105,15 @@ class LifeInsightScheduler {
   // Internal
   // ──────────────────────────────────────────────────────────────────────
 
-  Future<void> _runAnalysis(LifeInsightPeriod period) async {
+  Future<void> _runAnalysis(LifeInsightPeriod period,
+      {bool force = false}) async {
     if (!LifeInsightService.isInitialized) {
       _logger.warning('LifeInsight: service not initialized, skipping');
       return;
     }
 
     // Rate-limit: don't run the same period more than once per _minInterval
-    if (!await _shouldRun(period)) {
+    if (!force && !await _shouldRun(period)) {
       _logger.info('LifeInsight: $period analysis rate-limited, skipping');
       return;
     }

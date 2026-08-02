@@ -1,6 +1,5 @@
 package com.memexlab.memex
 
-import android.app.Activity
 import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
@@ -27,13 +26,19 @@ class MediaButtonBridge(
         Log.d(TAG, "audio focus changed: $change")
     }
 
-    fun activate(activity: Activity) {
+    /**
+     * Activate the media-button takeover with an application [Context] so the
+     * MediaSession survives Activity recreation (e.g. the app is backgrounded
+     * and the system recreates the Activity). Callers should pass
+     * `applicationContext` when the session must outlive the Activity.
+     */
+    fun activate(context: Context) {
         deactivate()
 
         MediaButtonEventDispatcher.configure(onToggle, onCancel)
-        requestAudioFocus(activity)
+        requestAudioFocus(context)
 
-        val receiver = ComponentName(activity, MediaButtonReceiver::class.java)
+        val receiver = ComponentName(context, MediaButtonReceiver::class.java)
         receiverComponent = receiver
         audioManager?.registerMediaButtonEventReceiver(receiver)
         val receiverIntent = Intent(Intent.ACTION_MEDIA_BUTTON).setComponent(receiver)
@@ -44,13 +49,13 @@ class MediaButtonBridge(
                 0
             }
         val receiverPendingIntent = PendingIntent.getBroadcast(
-            activity,
+            context,
             0,
             receiverIntent,
             pendingIntentFlags
         )
         val session = MediaSessionCompat(
-            activity,
+            context,
             "MemexVoiceInputMediaButtons",
             receiver,
             receiverPendingIntent
@@ -117,8 +122,8 @@ class MediaButtonBridge(
         Log.d(TAG, "MediaSession deactivated")
     }
 
-    private fun requestAudioFocus(activity: Activity) {
-        val manager = activity.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private fun requestAudioFocus(context: Context) {
+        val manager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
             .setAudioAttributes(
                 AudioAttributes.Builder()

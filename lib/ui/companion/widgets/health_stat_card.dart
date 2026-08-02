@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+
+const _healthMuted = Color(0xFF667061);
+const _healthAccent = Color(0xFF737B46);
+const _healthSurface = Color(0xEDE7E8D1);
 
 /// A single health metric card displayed in the Health panel.
 ///
@@ -26,22 +29,16 @@ class HealthStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = color ?? AppColors.primary;
+    final accentColor = color ?? _healthAccent;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: _healthSurface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 16,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border.all(color: const Color(0xA8FFFFFF), width: .8),
         ),
         child: Row(
           children: [
@@ -64,7 +61,7 @@ class HealthStatCard extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
+                      color: _healthMuted,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -88,7 +85,7 @@ class HealthStatCard extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: AppColors.textTertiary,
+                            color: _healthMuted,
                           ),
                         ),
                       ],
@@ -100,7 +97,7 @@ class HealthStatCard extends StatelessWidget {
                       subtitle!,
                       style: const TextStyle(
                         fontSize: 12,
-                        color: AppColors.textTertiary,
+                        color: _healthMuted,
                       ),
                     ),
                   ],
@@ -108,7 +105,7 @@ class HealthStatCard extends StatelessWidget {
               ),
             ),
             if (onTap != null)
-              const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+              const Icon(Icons.chevron_right, color: _healthMuted),
           ],
         ),
       ),

@@ -99,6 +99,26 @@ class RhythmSignalExtractor {
           continue;
         }
 
+        // Menstrual cycle signals use a special persistence path (cycle
+        // prediction JSON, not rrule). Detect period start mentions and
+        // route to recordMenstrualCycle.
+        if (signal.kind == 'menstrual_cycle') {
+          final periodDate = _tryExtractPeriodDate(signal.description);
+          if (periodDate != null) {
+            await UserRhythmService.instance.recordMenstrualCycle(
+              startDate: periodDate,
+              flowLevel: signal.extra?['flowLevel'] as String?,
+              painLevel: signal.extra?['painLevel'] as int?,
+              symptoms: (signal.extra?['symptoms'] as List?)
+                  ?.cast<String>(),
+              notes: signal.extra?['notes'] as String?,
+            );
+            created++;
+            _logger.info('Menstrual cycle recorded: start=$periodDate');
+            continue;
+          }
+        }
+
         await UserRhythmService.instance.createRhythm(
           kind: signal.kind,
           description: signal.description,
@@ -143,12 +163,16 @@ $existingContext
 - **meal_pattern**: "我一般12点吃午饭", "晚上7点吃饭"
 - **exercise_pattern**: "我每周三跑步", "每天走路上班"
 - **commute_pattern**: "坐地铁40分钟", "骑车15分钟到公司"
+- **menstrual_cycle**: "大姨妈来了", "月经", "来例假", "生理期", "经期", "肚子疼"(经期语境).
+  For menstrual_cycle, put the start date in extra.startDate (ISO yyyy-MM-dd)
+  and optional extra fields: flowLevel (light/medium/heavy), painLevel (0-10),
+  symptoms (array). The rrule field can be empty for this kind.
 
 ## What NOT to detect
 
-- One-time events ("明天有个面试") — that's a schedule card, not a rhythm
-- Emotional states ("最近很累") — not a rhythm
-- Preferences ("我喜欢晚睡") — not a concrete schedule
+- One-time events ("明天有个面试") - that's a schedule card, not a rhythm
+- Emotional states ("最近很累") - not a rhythm
+- Preferences ("我喜欢晚睡") - not a concrete schedule
 - Things the user is asking about, not stating ("我是不是该早点睡？")
 
 ## Output format
@@ -156,11 +180,29 @@ $existingContext
 Return a JSON array ONLY. Each item:
 ```json
 {
-  "kind": "work_schedule|class_schedule|sleep_pattern|meal_pattern|exercise_pattern|commute_pattern",
+  "kind": "work_schedule|class_schedule|sleep_pattern|meal_pattern|exercise_pattern|commute_pattern|menstrual_cycle",
   "description": "short Chinese description, e.g. 实习上班",
   "rrule": "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;10:00-19:00",
   "location": "home|office|remote|commute|unknown",
-  "confidence": 0.0-1.0
+  "confidence": 0.0-1.0,
+  "extra": null
+}
+```
+
+For menstrual_cycle, use this format instead:
+```json
+{
+  "kind": "menstrual_cycle",
+  "description": "经期 2026-08-02",
+  "rrule": "",
+  "location": "unknown",
+  "confidence": 0.8,
+  "extra": {
+    "startDate": "2026-08-02",
+    "flowLevel": "medium",
+    "painLevel": 4,
+    "symptoms": ["cramps", "fatigue"]
+  }
 }
 ```
 
@@ -205,8 +247,9 @@ Return ONLY the JSON array. No markdown, no explanation.
                 rrule: m['rrule'] as String? ?? '',
                 location: m['location'] as String? ?? 'unknown',
                 confidence: (m['confidence'] as num?)?.toDouble() ?? 0.5,
+                extra: m['extra'] as Map<String, dynamic>?,
               ))
-          .where((s) => s.description.isNotEmpty && s.rrule.isNotEmpty)
+          .where((s) => s.description.isNotEmpty)
           .where((s) => s.confidence >= 0.5)
           .toList();
     } catch (e) {
@@ -234,6 +277,39 @@ Return ONLY the JSON array. No markdown, no explanation.
     }
     return overlap / aChars.length > 0.6;
   }
+
+  /// Try to extract a date from a menstrual cycle signal description.
+  /// Returns null if no date can be inferred (LLM should put the date in
+  /// extra.startDate as ISO string when possible).
+  DateTime? _tryExtractPeriodDate(String description) {
+    // Check for ISO date in description
+    final isoMatch = RegExp(r'(\d{4}-\d{2}-\d{2})').firstMatch(description);
+    if (isoMatch != null) {
+      return DateTime.tryParse(isoMatch.group(1)!);
+    }
+
+    // Check for relative date keywords
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (description.contains('今天') || description.contains('刚来')) {
+      return today;
+    }
+    if (description.contains('昨天')) {
+      return today.subtract(const Duration(days: 1));
+    }
+    if (description.contains('前天')) {
+      return today.subtract(const Duration(days: 2));
+    }
+
+    // If no date found, but signal is present, assume today
+    // (the LLM was asked to detect period mentions, so "来了" without
+    // explicit date usually means today)
+    if (description.contains('来了') || description.contains('大姨妈')) {
+      return today;
+    }
+
+    return null;
+  }
 }
 
 class RhythmSignal {
@@ -242,6 +318,7 @@ class RhythmSignal {
   final String rrule;
   final String location;
   final double confidence;
+  final Map<String, dynamic>? extra;
 
   RhythmSignal({
     required this.kind,
@@ -249,5 +326,6 @@ class RhythmSignal {
     required this.rrule,
     required this.location,
     required this.confidence,
+    this.extra,
   });
 }

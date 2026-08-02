@@ -1,20 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/domain/models/settings_item.dart';
-import 'package:memex/data/repositories/memex_router.dart';
-import 'package:memex/ui/settings/widgets/system_authorization_page.dart';
-import 'package:memex/ui/settings/widgets/model_config_list_page.dart';
-import 'package:memex/ui/settings/widgets/agent_config_list_page.dart';
-import 'package:memex/ui/settings/widgets/settings_page.dart';
-import 'package:memex/ui/settings/widgets/debug_settings_page.dart';
+import 'package:memex/ui/settings/widgets/personal_center_detail_pages.dart';
+import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
-import 'package:memex/ui/memory/view_models/memory_viewmodel.dart';
-import 'package:memex/ui/memory/widgets/memory_screen.dart';
+import 'package:memex/ui/settings/widgets/image_generation_settings_page.dart';
 import 'package:memex/utils/user_storage.dart';
 
 /// Settings registry. Maintains a static list of all searchable settings items.
@@ -35,178 +29,171 @@ class SettingsRegistry {
 
   static List<SettingsItem> get _personalCenterItems => [
         SettingsItem(
-          id: 'system_authorization',
-          titleGetter: () => UserStorage.l10n.systemAuthorization,
-          descriptionGetter: () => UserStorage.l10n.systemAuthorization,
+          id: 'personal.ai_models',
+          titleGetter: () => 'AI 与模型',
+          descriptionGetter: () => '任务模型、模型服务与图片生成',
           keywords: const [
-            '权限',
-            '授权',
-            '通知',
-            '相册',
-            '麦克风',
-            '定位',
-            '健康',
-            '运动',
-            '步数',
-            'permission',
-            'authorization',
-            'notification',
-            'photos',
-            'microphone',
-            'location',
-            'health',
-            'fitness',
-          ],
-          icon: Icons.security_outlined,
-          navigationTarget: NavigationTarget(
-            pageBuilder: (_) => const SystemAuthorizationPage(),
-          ),
-          parentPathGetter: () => [UserStorage.l10n.personalCenter],
-        ),
-        SettingsItem(
-          id: 'model_config',
-          titleGetter: () => UserStorage.l10n.modelConfig,
-          descriptionGetter: () => UserStorage.l10n.modelConfiguration,
-          keywords: const [
+            'AI',
             '模型',
+            '聊天',
+            '记忆整理',
+            '日程分析',
+            '内容分析',
+            '游戏',
             'API',
-            '密钥',
-            'LLM',
-            '大模型',
-            '配置',
-            '接口',
-            '服务商',
-            'token',
+            '图片生成',
             'model',
-            'api key',
-            'endpoint',
             'llm',
-            'openai',
-            'claude',
-            'gemini',
-            'deepseek',
             'provider',
           ],
-          icon: Icons.settings_input_component_outlined,
+          icon: Icons.auto_awesome_outlined,
           navigationTarget: NavigationTarget(
-            pageBuilder: (_) => const ModelConfigListPage(),
+            pageBuilder: (_) => const PersonalCenterScreen(
+              initialSection: PersonalCenterSection.ai,
+            ),
           ),
           parentPathGetter: () => [UserStorage.l10n.personalCenter],
         ),
         SettingsItem(
-          id: 'agent_config',
-          titleGetter: () => UserStorage.l10n.agentConfig,
-          descriptionGetter: () => UserStorage.l10n.agentConfiguration,
+          id: 'personal.image_generation',
+          titleGetter: () => '图片生成',
+          descriptionGetter: () => '通义万相、MiniMax、OpenAI 兼容或本地 ComfyUI',
           keywords: const [
-            'agent',
-            '智能体',
-            '代理',
-            '分配模型',
-            '卡片处理',
-            '知识提取',
-            '评论生成',
-            '聊天',
-            '图片分析',
-            'agent config',
-            'agent model',
-            'card agent',
-            'knowledge',
-            'comment',
-            'chat',
+            '图片生成',
+            '绘图',
+            '通义万相',
+            'MiniMax',
+            'ComfyUI',
+            'OpenAI image',
+            'image generation',
           ],
-          icon: Icons.people_outline,
+          icon: Icons.palette_outlined,
           navigationTarget: NavigationTarget(
-            pageBuilder: (_) => const AgentConfigListPage(),
+            pageBuilder: (_) => const ImageGenerationSettingsPage(),
           ),
-          parentPathGetter: () => [UserStorage.l10n.personalCenter],
-        ),
-        SettingsItem(
-          id: 'memory',
-          titleGetter: () => UserStorage.l10n.memoryTitle,
-          descriptionGetter: () => UserStorage.l10n.memoryTitle,
-          keywords: const [
-            '记忆',
-            '了解',
-            '个人信息',
-            '偏好',
-            '用户画像',
-            '习惯',
-            '兴趣',
-            'memory',
-            'remember',
-            'personal info',
-            'preferences',
-            'profile',
-            'habit',
-            'interest',
+          parentPathGetter: () => [
+            UserStorage.l10n.personalCenter,
+            'AI 与模型',
           ],
-          icon: Icons.memory,
+        ),
+        SettingsItem(
+          id: 'personal.voice_interaction',
+          titleGetter: () => '声音与互动',
+          descriptionGetter: () => '语音输入、播放与主动陪伴',
+          keywords: const [
+            '语音',
+            'ASR',
+            'TTS',
+            '麦克风',
+            '媒体键',
+            '主动陪伴',
+            'voice',
+          ],
+          icon: Icons.graphic_eq_rounded,
           navigationTarget: NavigationTarget(
-            pageBuilder: (context) {
-              final vm = MemoryViewModel(router: context.read<MemexRouter>());
-              vm.loadMemory();
-              return MemoryScreen(viewModel: vm);
-            },
+            pageBuilder: (_) => const PersonalCenterScreen(
+              initialSection: PersonalCenterSection.voice,
+            ),
           ),
           parentPathGetter: () => [UserStorage.l10n.personalCenter],
         ),
         SettingsItem(
-          id: 'settings',
-          titleGetter: () => UserStorage.l10n.settings,
-          descriptionGetter: () => UserStorage.l10n.settings,
+          id: 'personal.devices_connections',
+          titleGetter: () => '设备与连接',
+          descriptionGetter: () => '系统权限、位置与外部服务',
           keywords: const [
-            '设置',
-            '通用',
-            '偏好',
-            '选项',
-            '配置',
+            '权限',
+            '定位',
+            '位置',
+            'COROS',
+            '小红书',
+            '购物',
+            '玩具',
+            '专注',
+            'permission',
+            'location',
+            'device',
+            'connection',
+          ],
+          icon: Icons.devices_other_rounded,
+          navigationTarget: NavigationTarget(
+            pageBuilder: (_) => const PersonalCenterScreen(
+              initialSection: PersonalCenterSection.connections,
+            ),
+          ),
+          parentPathGetter: () => [UserStorage.l10n.personalCenter],
+        ),
+        SettingsItem(
+          id: 'personal.data_security',
+          titleGetter: () => '数据与安全',
+          descriptionGetter: () => '备份、同步、存储与隐私',
+          keywords: const [
+            '备份',
+            '恢复',
+            '同步',
+            '迁移',
+            '导出',
+            '存储',
+            '应用锁',
+            '隐私',
+            'backup',
+            'sync',
+            'export',
+            'storage',
+            'privacy',
+            'security',
+          ],
+          icon: Icons.shield_outlined,
+          navigationTarget: NavigationTarget(
+            pageBuilder: (_) => const PersonalCenterScreen(
+              initialSection: PersonalCenterSection.data,
+            ),
+          ),
+          parentPathGetter: () => [UserStorage.l10n.personalCenter],
+        ),
+        SettingsItem(
+          id: 'personal.app_settings',
+          titleGetter: () => '应用设置',
+          descriptionGetter: () => '语言、外观、更新与版本',
+          keywords: const [
+            '语言',
+            '外观',
+            '主题',
+            '更新',
+            '版本',
+            '许可',
             'settings',
-            'general',
-            'preferences',
-            'options',
-            'config',
+            'theme',
           ],
-          icon: Icons.settings_outlined,
+          icon: Icons.tune_rounded,
           navigationTarget: NavigationTarget(
-            pageBuilder: (_) => const SettingsPage(),
+            pageBuilder: (_) => const PersonalCenterScreen(
+              initialSection: PersonalCenterSection.app,
+            ),
           ),
           parentPathGetter: () => [UserStorage.l10n.personalCenter],
         ),
         SettingsItem(
-          id: 'debug',
-          titleGetter: () => 'Debug',
-          descriptionGetter: () => 'Debug',
+          id: 'personal.advanced',
+          titleGetter: () => '开发与诊断',
+          descriptionGetter: () => 'Dev Room、用量、异步任务、日志与索引',
           keywords: const [
-            '调试',
             '开发',
+            '诊断',
+            'Dev Room',
             '日志',
-            '重建索引',
-            '清除数据',
-            '重新处理',
-            '搜索索引',
-            '退出登录',
-            'debug',
+            '索引',
+            '模型用量',
+            '异步任务',
             'developer',
+            'debug',
             'logs',
-            'rebuild index',
-            'clear data',
-            'reprocess',
-            'logout',
+            'index',
           ],
-          icon: Icons.bug_report_outlined,
+          icon: Icons.construction_outlined,
           navigationTarget: NavigationTarget(
-            pageBuilder: (_) => DebugSettingsPage(
-              onClearToken: () async {},
-              onClearData: () async {},
-              onReprocessCards: () async {},
-              onReprocessComments: () async {},
-              onReprocessKnowledgeBase: () async {},
-              onRebuildSearchIndex: () async {},
-              isClearingData: false,
-              isReprocessingCards: false,
-              isReprocessingComments: false,
-              isReprocessingKnowledgeBase: false,
-              isRebuildingSearchIndex: false,
+            pageBuilder: (_) => const PersonalCenterScreen(
+              initialSection: PersonalCenterSection.advanced,
             ),
           ),
           parentPathGetter: () => [UserStorage.l10n.personalCenter],
@@ -238,35 +225,7 @@ class SettingsRegistry {
           ],
           icon: Icons.language,
           navigationTarget: NavigationTarget(
-            pageBuilder: (_) => const SettingsPage(),
-          ),
-          parentPathGetter: () =>
-              [UserStorage.l10n.personalCenter, UserStorage.l10n.settings],
-        ),
-        SettingsItem(
-          id: 'settings.local_speech',
-          titleGetter: () => UserStorage.l10n.useLocalSpeechToTextTitle,
-          descriptionGetter: () => UserStorage.l10n.useLocalSpeechToTextDesc,
-          keywords: const [
-            '语音',
-            '识别',
-            '转文字',
-            '本地语音',
-            '录音',
-            '输入',
-            '麦克风',
-            'speech',
-            'recognition',
-            'voice',
-            'speech to text',
-            'stt',
-            'whisper',
-            'recording',
-            'dictation',
-          ],
-          icon: Icons.graphic_eq,
-          navigationTarget: NavigationTarget(
-            pageBuilder: (_) => const SettingsPage(),
+            pageBuilder: (_) => const LanguageSettingsPage(),
           ),
           parentPathGetter: () =>
               [UserStorage.l10n.personalCenter, UserStorage.l10n.settings],
@@ -295,7 +254,7 @@ class SettingsRegistry {
             ],
             icon: Icons.system_update_alt,
             navigationTarget: NavigationTarget(
-              pageBuilder: (_) => const SettingsPage(),
+              pageBuilder: (_) => const VersionUpdateSettingsPage(),
             ),
             parentPathGetter: () =>
                 [UserStorage.l10n.personalCenter, UserStorage.l10n.settings],
@@ -412,7 +371,7 @@ class SettingsRegistry {
           ],
           icon: Icons.privacy_tip_outlined,
           navigationTarget: NavigationTarget(
-            pageBuilder: (_) => const SettingsPage(),
+            pageBuilder: (_) => const PrivacyPolicyPage(),
           ),
           parentPathGetter: () =>
               [UserStorage.l10n.personalCenter, UserStorage.l10n.settings],

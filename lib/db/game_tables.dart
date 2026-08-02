@@ -1,21 +1,31 @@
 import 'package:drift/drift.dart';
 
-/// Imported SillyTavern character cards (role-play game cards).
+/// A game definition (character card, game scenario, rulebook, etc.).
+///
+/// Currently gameType = 'card_roleplay' stores SillyTavern V1/V2 character cards.
+/// Future game types (text adventures, tabletop RPG, etc.) will use the same
+/// table with different gameType values and different definitionJson structures.
 ///
 /// Architecture guard: no FK to Memex card system. All cross-table
 /// references are soft (text columns). This domain can be lifted out
 /// independently.
-class GameCharacterCards extends Table {
+class GameDefinitions extends Table {
   TextColumn get id => text()(); // UUID v4
+
+  /// Game type discriminator.
+  /// 'card_roleplay' — SillyTavern-style character card.
+  /// Reserved for future: 'text_adventure', 'tabletop_rpg', etc.
+  TextColumn get gameType => text().withDefault(const Constant('card_roleplay'))();
 
   TextColumn get title => text()();
   TextColumn get description => text().withDefault(const Constant(''))();
 
-  /// Full SillyTavern card JSON (character spec v2 or legacy).
-  TextColumn get cardJson => text()();
+  /// Full game definition JSON. For card_roleplay: SillyTavern V1/V2 spec.
+  /// For other game types: their own config format.
+  TextColumn get definitionJson => text()();
 
-  /// Local file path to extracted avatar image (nullable — cards may have none).
-  TextColumn get avatarPath => text().nullable()();
+  /// Local file path to thumbnail/avatar image (nullable).
+  TextColumn get thumbnailPath => text().nullable()();
 
   /// Original filename the user imported (e.g. "阿黛尔.json").
   TextColumn get sourceFilename => text().withDefault(const Constant(''))();
@@ -36,17 +46,21 @@ class GameCharacterCards extends Table {
 class GameSessions extends Table {
   TextColumn get id => text()(); // UUID v4
 
-  /// Soft reference to [GameCharacterCards.id].
-  /// Nullable so sessions survive card deletion.
-  TextColumn get cardId => text().nullable()();
+  /// Soft reference to [GameDefinitions.id].
+  /// Nullable so sessions can be created without a definition (pure-dynamic games).
+  TextColumn get definitionId => text().nullable()();
 
-  /// Redundant copy of the card title for display after card deletion.
-  TextColumn get cardTitle => text()();
+  /// Game type, copied from the definition at creation time.
+  /// Allows querying sessions by type without joining GameDefinitions.
+  TextColumn get gameType => text().withDefault(const Constant('card_roleplay'))();
 
-  /// Full card JSON snapshot at session-creation time.
-  /// Ensures the session always plays back with the original card,
-  /// even if the user later edits or deletes the card from the library.
-  TextColumn get cardSnapshotJson => text()();
+  /// Redundant copy of the definition title for display after deletion.
+  TextColumn get definitionTitle => text()();
+
+  /// Full definition JSON snapshot at session-creation time.
+  /// Ensures the session always plays back with the original config,
+  /// even if the user later edits or deletes the definition from the library.
+  TextColumn get definitionSnapshotJson => text()();
 
   /// User-visible session title (auto-generated or user-renamed).
   TextColumn get sessionTitle => text()();

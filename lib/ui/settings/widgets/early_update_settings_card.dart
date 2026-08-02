@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:memex/data/services/app_update_service.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -167,6 +167,7 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
     }
 
     final settings = _settings;
+    final tokens = context.springRainUi;
     if (settings == null) {
       return _buildShell(
         child: const SizedBox(
@@ -183,9 +184,9 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
+              Icon(
                 Icons.system_update_alt,
-                color: AppColors.primary,
+                color: tokens.accent,
                 size: 22,
               ),
               const SizedBox(width: 12),
@@ -195,10 +196,10 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
                   children: [
                     Text(
                       UserStorage.l10n.earlyUpdateSettingsTitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: tokens.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -206,7 +207,7 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
                       UserStorage.l10n.earlyUpdateSettingsDesc,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey[600],
+                        color: tokens.textSecondary,
                         height: 1.35,
                       ),
                     ),
@@ -242,9 +243,9 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
             const SizedBox(height: 12),
             Text(
               _statusText!,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
-                color: AppColors.textSecondary,
+                color: tokens.textSecondary,
                 height: 1.35,
               ),
             ),
@@ -253,7 +254,7 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
             const SizedBox(height: 10),
             LinearProgressIndicator(
               value: _downloadPercent <= 0 ? null : _downloadPercent / 100,
-              color: AppColors.primary,
+              color: tokens.accent,
               minHeight: 4,
             ),
           ],
@@ -288,18 +289,13 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
   }
 
   Widget _buildShell({required Widget child}) {
+    final tokens = context.springRainUi;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.textSecondary.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: tokens.surface,
+        borderRadius: BorderRadius.circular(tokens.radius18),
+        border: Border.all(color: tokens.divider),
       ),
       child: child,
     );
@@ -311,15 +307,16 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
+    final tokens = context.springRainUi;
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
       dense: true,
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w500,
-          color: AppColors.textPrimary,
+          color: tokens.textPrimary,
         ),
       ),
       subtitle: Padding(
@@ -328,7 +325,7 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
           subtitle,
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey[600],
+            color: tokens.textSecondary,
             height: 1.35,
           ),
         ),

@@ -27,7 +27,8 @@ void main() {
     expect(find.text(UserStorage.l10n.bottomNavTimeline), findsOneWidget);
     expect(find.text('Ledger'), findsOneWidget);
     expect(find.text('Health'), findsOneWidget);
-    expect(find.text(UserStorage.l10n.personalCenter), findsOneWidget);
+    expect(find.text('话题线索'), findsOneWidget);
+    expect(find.text(UserStorage.l10n.personalCenter), findsNothing);
 
     expect(find.byIcon(Icons.arrow_back_ios_new_rounded), findsOneWidget);
 

@@ -3,15 +3,15 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
+import 'package:memex/data/memory_v3/services/life_insight_scheduler.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/services/user_rhythm_service.dart';
 import 'package:memex/data/services/coros_mcp_service.dart';
 import 'package:memex/data/services/coros_sync_service.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/companion/widgets/insight_strip.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
-import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/memory/widgets/memory_card_detail_screen_v3.dart';
 import 'package:memex/ui/memory/widgets/memory_summary_card_v3.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
@@ -19,6 +19,16 @@ import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 
 import 'health_stat_card.dart';
+
+const _healthAccent = Color(0xFF737B46);
+const _healthInk = Color(0xFF293025);
+const _healthMuted = Color(0xFF667061);
+const _healthOnRain = Color(0xFFF5EEE0);
+const _healthSurface = Color(0xEDE7E8D1);
+const _healthGreen = Color(0xFF5F7658);
+const _healthWarm = Color(0xFF9A702E);
+const _healthHeart = Color(0xFF9B5B52);
+const _healthInfo = Color(0xFF526E72);
 
 /// Health observation panel in Life Space.
 ///
@@ -62,6 +72,14 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   // Health memory cards
   List<MemoryCardViewData> _healthCards = const [];
 
+  // Menstrual cycle status
+  String? _cyclePhase;
+  String? _cyclePhaseDesc;
+  DateTime? _cycleLatestStart;
+  DateTime? _cyclePredictedNext;
+  String? _cycleUpcomingAlert;
+  int? _cycleCount;
+
   MemoryCardQueryService? get _query {
     if (!AppDatabase.isInitialized) return null;
     return MemoryCardQueryService(AppDatabase.instance);
@@ -100,6 +118,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         }
       }
       await _fetchHealthCards();
+      await _loadCycleStatus();
     } catch (e) {
       _logger.warning('Health panel load failed: $e');
       if (mounted) {
@@ -182,7 +201,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       // COROS MCP returns literal \n escape sequences — normalize to real newlines
       final text = rawText.replaceAll(r'\n', '\n');
       _logger.info('[COROS LIVE] $toolName → ${text.length} chars');
-      _logger.info('[COROS RAW] $toolName:\n${text.length > 2000 ? text.substring(0, 2000) : text}');
+      _logger.info(
+          '[COROS RAW] $toolName:\n${text.length > 2000 ? text.substring(0, 2000) : text}');
       if (text.isNotEmpty) return text;
     } catch (e) {
       _logger.info('Live $toolName failed, trying file fallback: $e');
@@ -197,8 +217,10 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         if (file.existsSync()) {
           final rawText = await file.readAsString();
           final text = rawText.replaceAll(r'\n', '\n');
-          _logger.info('[COROS CACHE] $toolName ← $fallbackFileName → ${text.length} chars');
-          _logger.info('[CACHE RAW] $toolName:\n${text.length > 2000 ? text.substring(0, 2000) : text}');
+          _logger.info(
+              '[COROS CACHE] $toolName ← $fallbackFileName → ${text.length} chars');
+          _logger.info(
+              '[CACHE RAW] $toolName:\n${text.length > 2000 ? text.substring(0, 2000) : text}');
           return text;
         }
       } catch (e) {
@@ -219,11 +241,13 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     if (text == null) return;
 
     final sections = _splitDatedSections(text);
-    _logger.info('[PARSE] daily_health sections: ${sections.keys.toList()..sort()}');
+    _logger.info(
+        '[PARSE] daily_health sections: ${sections.keys.toList()..sort()}');
     if (sections.isEmpty) return;
     final newestDate = _pickNewestDate(sections.keys.toList());
     final section = sections[newestDate]!;
-    _logger.info('[PARSE] daily_health picked date: $newestDate, section preview: ${section.substring(0, section.length > 300 ? 300 : section.length)}');
+    _logger.info(
+        '[PARSE] daily_health picked date: $newestDate, section preview: ${section.substring(0, section.length > 300 ? 300 : section.length)}');
 
     final steps = _parseInt(section, 'Steps:');
     final calories = _parseInt(section, 'Calories:') ??
@@ -232,7 +256,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     // Stress format: "Stress: Avg 45" — need to skip "Avg" prefix
     final stressVal = _parseIntAfterWord(section, 'Stress:', 'Avg') ??
         _parseInt(section, 'Avg Stress:');
-    _logger.info('[PARSE] daily_health values — steps=$steps, calories=$calories, avgHr=$avgHrVal, stress=$stressVal');
+    _logger.info(
+        '[PARSE] daily_health values — steps=$steps, calories=$calories, avgHr=$avgHrVal, stress=$stressVal');
 
     if (mounted) {
       setState(() {
@@ -265,7 +290,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         dateIndices[i] = line;
       }
     }
-    _logger.info('[PARSE] sleep date lines found: ${dateIndices.length} — ${dateIndices.values.toList()}');
+    _logger.info(
+        '[PARSE] sleep date lines found: ${dateIndices.length} — ${dateIndices.values.toList()}');
 
     if (dateIndices.isEmpty) return;
 
@@ -275,18 +301,19 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       final dateStr = dateList[j].value;
       // Content starts at the line after the date line
       final contentStartLine = dateList[j].key + 1;
-      final contentEndLine = (j + 1 < dateList.length)
-          ? dateList[j + 1].key
-          : lines.length;
+      final contentEndLine =
+          (j + 1 < dateList.length) ? dateList[j + 1].key : lines.length;
       final sectionLines = lines.sublist(contentStartLine, contentEndLine);
       final section = sectionLines.join('\n').trim();
-      _logger.info('[PARSE] sleep section $dateStr: ${sectionLines.length} lines, hasScore=${section.contains("Sleep Score:")}');
+      _logger.info(
+          '[PARSE] sleep section $dateStr: ${sectionLines.length} lines, hasScore=${section.contains("Sleep Score:")}');
       if (section.contains('Sleep Score:')) {
         sleepSections[dateStr] = section;
       }
     }
 
-    _logger.info('[PARSE] sleep sections with scores: ${sleepSections.keys.toList()..sort()}');
+    _logger.info(
+        '[PARSE] sleep sections with scores: ${sleepSections.keys.toList()..sort()}');
     if (sleepSections.isEmpty) return;
 
     final newestDate = _pickNewestDate(sleepSections.keys.toList());
@@ -300,7 +327,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     final deepPct = _parseInt(section, 'Deep Sleep Ratio:');
     final remPct = _parseInt(section, 'REM Ratio:');
     final lightPct = _parseInt(section, 'Light Sleep Ratio:');
-    _logger.info('[PARSE] sleep values — score=$score, totalMin=$totalMin, deep=$deepPct%, rem=$remPct%, light=$lightPct%');
+    _logger.info(
+        '[PARSE] sleep values — score=$score, totalMin=$totalMin, deep=$deepPct%, rem=$remPct%, light=$lightPct%');
 
     if (mounted) {
       setState(() {
@@ -461,12 +489,10 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           _extractLine(s, 'Sport:') ??
           _extractLine(s, 'Workout:') ??
           '';
-      final date = _extractLine(s, 'Date:') ??
-          _extractLine(s, 'Start Time:') ??
-          '';
-      final duration = _extractLine(s, 'Duration:') ??
-          _extractLine(s, 'Total Time:') ??
-          '';
+      final date =
+          _extractLine(s, 'Date:') ?? _extractLine(s, 'Start Time:') ?? '';
+      final duration =
+          _extractLine(s, 'Duration:') ?? _extractLine(s, 'Total Time:') ?? '';
       final distance = _extractLine(s, 'Distance:') ?? '';
       final kcal = _parseInt(s, 'Calories:') ?? _parseInt(s, 'Energy:');
 
@@ -625,9 +651,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         final dateStr = m2Matches[i].group(1)!;
         // start after the date line; end at next date line or EOF
         final contentStart = m2Matches[i].end;
-        final contentEnd = (i + 1 < m2Matches.length)
-            ? m2Matches[i + 1].start
-            : text.length;
+        final contentEnd =
+            (i + 1 < m2Matches.length) ? m2Matches[i + 1].start : text.length;
         final section = text.substring(contentStart, contentEnd).trim();
         if (section.isNotEmpty) result[dateStr] = section;
       }
@@ -637,8 +662,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     // Pattern 3: "YYYY-MM-DD:" — two sub-cases:
     //  3a: "YYYY-MM-DD: value" all on one line  (resting HR)
     //  3b: "YYYY-MM-DD:\nKey: value\n..." multi-line section  (stress)
-    final m3 = RegExp(r'(?:^|\n)(\d{4}-\d{2}-\d{2}):[ \t]*(\S.*)?$',
-        multiLine: true);
+    final m3 =
+        RegExp(r'(?:^|\n)(\d{4}-\d{2}-\d{2}):[ \t]*(\S.*)?$', multiLine: true);
     final m3Matches = m3.allMatches(text).toList();
     if (m3Matches.length >= 1) {
       for (int i = 0; i < m3Matches.length; i++) {
@@ -650,9 +675,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         } else {
           // Case 3b: value on following lines until next date marker or EOF
           final contentStart = m3Matches[i].end;
-          final contentEnd = (i + 1 < m3Matches.length)
-              ? m3Matches[i + 1].start
-              : text.length;
+          final contentEnd =
+              (i + 1 < m3Matches.length) ? m3Matches[i + 1].start : text.length;
           final section = text.substring(contentStart, contentEnd).trim();
           if (section.isNotEmpty) result[dateStr] = section;
         }
@@ -708,6 +732,26 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     }
   }
 
+  Future<void> _loadCycleStatus() async {
+    try {
+      if (!UserRhythmService.isInitialized) return;
+      final status =
+          await UserRhythmService.instance.getMenstrualCycleStatus();
+      if (mounted) {
+        setState(() {
+          _cyclePhase = status?.phase;
+          _cyclePhaseDesc = status?.phaseDescription;
+          _cycleLatestStart = status?.latestStart;
+          _cyclePredictedNext = status?.predictedNextStart;
+          _cycleUpcomingAlert = status?.upcomingAlert;
+          _cycleCount = status?.cycleCount;
+        });
+      }
+    } catch (e) {
+      _logger.warning('Failed to load cycle status: $e');
+    }
+  }
+
   // ── Sync ────────────────────────────────────────────────────────────────
 
   Future<void> _syncCorosData() async {
@@ -748,7 +792,9 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
 
   Widget _buildBody() {
     if (_loading && _noData) {
-      return const Center(child: AgentLogoLoading());
+      return const Center(
+        child: CircularProgressIndicator(color: _healthAccent, strokeWidth: 2),
+      );
     }
 
     if (_error != null && _noData) {
@@ -762,7 +808,10 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
               child: Text(
                 '加载失败\n$_error',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textTertiary),
+                style: const TextStyle(
+                  color: _healthOnRain,
+                  shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+                ),
               ),
             ),
           ),
@@ -827,7 +876,11 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     final items = <Widget>[];
 
     // ── Insight strip (Life Insights for health domain) ──
-    items.add(const InsightStrip(domain: 'health'));
+    items.add(InsightStrip(
+      domain: 'health',
+      onRefresh: () => LifeInsightScheduler(db: AppDatabase.instance)
+          .forceRunWeeklyAnalysis(),
+    ));
 
     // ── Section: COROS watch metrics ──
 
@@ -852,7 +905,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           label: '今日步数',
           value: _steps!,
           unit: '步',
-          color: const Color(0xFF10B981),
+          color: _healthGreen,
         ));
       }
 
@@ -862,7 +915,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           label: '活动卡路里',
           value: _calories!,
           unit: 'kcal',
-          color: const Color(0xFFF97316),
+          color: _healthWarm,
         ));
       }
 
@@ -872,7 +925,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           label: '睡眠评分',
           value: _sleepScore!,
           subtitle: _sleepBreakdown,
-          color: const Color(0xFF6366F1),
+          color: _healthAccent,
         ));
       }
 
@@ -883,7 +936,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           label: '静息心率',
           value: _restingHr!,
           unit: 'bpm',
-          color: const Color(0xFFF43F5E),
+          color: _healthHeart,
         ));
       } else if (_avgHr != null) {
         // Fallback: shown as "平均心率" (not "静息心率") because it's avg, not resting
@@ -892,7 +945,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           label: '平均心率',
           value: _avgHr!,
           unit: 'bpm',
-          color: const Color(0xFFF43F5E),
+          color: _healthHeart,
         ));
       }
 
@@ -901,7 +954,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           icon: Icons.auto_awesome,
           label: '身体恢复',
           value: '$_recovery%',
-          color: const Color(0xFFF59E0B),
+          color: _healthWarm,
         ));
       }
 
@@ -910,7 +963,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           icon: Icons.psychology_outlined,
           label: '压力指数',
           value: _stress!,
-          color: const Color(0xFF8B5CF6),
+          color: _healthAccent,
         ));
       }
 
@@ -920,7 +973,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           label: 'HRV',
           value: _hrv!,
           unit: 'ms',
-          color: const Color(0xFF06B6D4),
+          color: _healthInfo,
         ));
       }
 
@@ -931,7 +984,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           value: _vo2max ?? _fitnessLevel ?? '',
           unit: _vo2max != null ? 'ml/kg/min' : null,
           subtitle: _vo2max != null ? _fitnessLevel : null,
-          color: const Color(0xFF22C55E),
+          color: _healthGreen,
         ));
       }
 
@@ -955,7 +1008,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           label: type.isNotEmpty ? type : '训练记录',
           value: date,
           subtitle: subtitleParts.join(' · '),
-          color: const Color(0xFF3B82F6),
+          color: _healthInfo,
         ));
       }
 
@@ -979,6 +1032,14 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       items.add(const SizedBox(height: 16));
     }
 
+    // ── Section: Menstrual cycle ──
+
+    if (_cyclePhase != null) {
+      items.add(_sectionHeader('经期'));
+      items.add(_buildCycleCard());
+      items.add(const SizedBox(height: 8));
+    }
+
     // ── Section: Health memory cards ──
 
     if (_healthCards.isNotEmpty) {
@@ -1000,12 +1061,12 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.textTertiary.withValues(alpha: 0.12),
+        color: _healthSurface,
         borderRadius: BorderRadius.circular(4),
       ),
       child: const Text(
         '离线缓存',
-        style: TextStyle(fontSize: 10, color: AppColors.textTertiary),
+        style: TextStyle(fontSize: 10, color: _healthMuted),
       ),
     );
   }
@@ -1015,13 +1076,13 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _healthSurface,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xA8FFFFFF), width: .8),
       ),
       child: Column(
         children: [
-          Icon(Icons.watch_outlined,
-              size: 48, color: AppColors.primary.withValues(alpha: 0.4)),
+          const Icon(Icons.watch_outlined, size: 48, color: _healthAccent),
           const SizedBox(height: 12),
           const Text(
             'COROS 已连接，暂无手表数据',
@@ -1030,11 +1091,73 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           const SizedBox(height: 8),
           const Text(
             '请确认手表已同步至 COROS App，再点击同步。',
-            style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+            style: TextStyle(fontSize: 13, color: _healthMuted),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           _syncButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCycleCard() {
+    final phaseColor = _cyclePhase == 'menstrual'
+        ? const Color(0xFFE91E63)
+        : _cyclePhase == 'late'
+            ? const Color(0xFFFF9800)
+            : const Color(0xFFAB47BC);
+
+    final lines = <String>[];
+    if (_cyclePhaseDesc != null) lines.add(_cyclePhaseDesc!);
+    if (_cycleLatestStart != null) {
+      lines.add('上次开始：${_cycleLatestStart!.month}/${_cycleLatestStart!.day}');
+    }
+    if (_cyclePredictedNext != null) {
+      lines.add('预测下次：${_cyclePredictedNext!.month}/${_cyclePredictedNext!.day}');
+    }
+    if (_cycleUpcomingAlert != null) {
+      lines.add('⚠️ ${_cycleUpcomingAlert}');
+    }
+    if (_cycleCount != null && _cycleCount! > 0) {
+      lines.add('已记录 $_cycleCount 个周期');
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: phaseColor.withValues(alpha: 0.3),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.spa_outlined, size: 20, color: phaseColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: lines
+                  .map((l) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          l,
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.4,
+                            color: l.startsWith('⚠️')
+                                ? const Color(0xFFFF9800)
+                                : const Color(0xFF333333),
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
         ],
       ),
     );
@@ -1045,34 +1168,27 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _healthSurface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: const Color(0xA8FFFFFF), width: .8),
       ),
       child: Column(
         children: [
-          Icon(Icons.watch_outlined,
-              size: 48, color: AppColors.primary.withValues(alpha: 0.4)),
+          const Icon(Icons.watch_outlined, size: 48, color: _healthAccent),
           const SizedBox(height: 12),
           const Text(
             '连接 COROS 获取手表数据',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary,
+              color: _healthInk,
             ),
           ),
           const SizedBox(height: 8),
           const Text(
             '在设置中连接 COROS 后，这里将展示步数、睡眠、心率、压力、HRV、体能等数据。',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+            style: TextStyle(fontSize: 13, color: _healthMuted),
           ),
           const SizedBox(height: 16),
           TextButton(
@@ -1109,10 +1225,10 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           : const Icon(Icons.sync, size: 16),
       label: Text(_syncing ? '同步中' : '同步'),
       style: TextButton.styleFrom(
-        foregroundColor: AppColors.primary,
-        backgroundColor: AppColors.primary.withValues(alpha: 0.08),
-        disabledForegroundColor: AppColors.textTertiary,
-        disabledBackgroundColor: AppColors.textTertiary.withValues(alpha: 0.08),
+        foregroundColor: _healthAccent,
+        backgroundColor: _healthSurface,
+        disabledForegroundColor: _healthMuted,
+        disabledBackgroundColor: _healthSurface.withValues(alpha: 0.72),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         minimumSize: const Size(72, 36),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1128,7 +1244,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         style: const TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w600,
-          color: AppColors.textSecondary,
+          color: _healthOnRain,
+          shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
         ),
       ),
     );
@@ -1141,7 +1258,8 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         text,
         style: const TextStyle(
           fontSize: 13,
-          color: AppColors.textTertiary,
+          color: _healthOnRain,
+          shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
         ),
       ),
     );
@@ -1175,16 +1293,14 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   /// Parse integer after a prefix followed by a word to skip.
   /// E.g. "Stress: Avg 45" → parseIntAfterWord(text, 'Stress:', 'Avg') → 45.
   int? _parseIntAfterWord(String text, String prefix, String word) {
-    final match =
-        RegExp('$prefix\\s*$word\\s*([0-9,]+)').firstMatch(text);
+    final match = RegExp('$prefix\\s*$word\\s*([0-9,]+)').firstMatch(text);
     if (match == null) return null;
     return int.tryParse(match.group(1)!.replaceAll(',', ''));
   }
 
   /// Parse a float from text after a prefix, e.g. "VO2max: 48.5" → 48.5.
   double? _parseFloat(String text, String prefix) {
-    final match =
-        RegExp('$prefix\\s*([0-9]+(?:\\.[0-9]+)?)').firstMatch(text);
+    final match = RegExp('$prefix\\s*([0-9]+(?:\\.[0-9]+)?)').firstMatch(text);
     if (match == null) return null;
     return double.tryParse(match.group(1)!);
   }

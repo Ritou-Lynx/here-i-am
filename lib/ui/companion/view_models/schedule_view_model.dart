@@ -16,6 +16,8 @@ enum ScheduleBucket {
   completed,
 }
 
+enum ScheduleDisplayMode { todo, calendar }
+
 /// One section in the schedule list.
 class ScheduleSection {
   const ScheduleSection({
@@ -52,6 +54,17 @@ class ScheduleViewModel extends ChangeNotifier {
   /// Grouped sections for the current filter state.
   List<ScheduleSection> sections = const [];
 
+  /// The same active cards are reused by both todo and calendar views.
+  List<MemoryCardViewData> activeCards = const [];
+
+  ScheduleDisplayMode displayMode = ScheduleDisplayMode.todo;
+  DateTime visibleMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime selectedDate = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
+  );
+
   /// Summary counts for the header badge row.
   Map<String, int> overview = const {};
 
@@ -63,6 +76,22 @@ class ScheduleViewModel extends ChangeNotifier {
 
   bool get hasAnyCards =>
       sections.any((s) => s.cards.isNotEmpty) || completedCards.isNotEmpty;
+
+  int get unscheduledCount =>
+      activeCards.where((card) => card.eventTimeMs == null).length;
+
+  List<MemoryCardViewData> cardsForDate(DateTime date) =>
+      activeCards.where((card) {
+        final ms = card.eventTimeMs;
+        if (ms == null) return false;
+        final value = DateTime.fromMillisecondsSinceEpoch(ms);
+        return value.year == date.year &&
+            value.month == date.month &&
+            value.day == date.day;
+      }).toList()
+        ..sort((a, b) => (a.eventTimeMs ?? 0).compareTo(b.eventTimeMs ?? 0));
+
+  bool hasCardsOnDate(DateTime date) => cardsForDate(date).isNotEmpty;
 
   Future<Result<void>> _load() => runResultVoid(_refresh);
 
@@ -102,6 +131,7 @@ class ScheduleViewModel extends ChangeNotifier {
     ]);
 
     final activeCards = results[0] as List<MemoryCardViewData>;
+    this.activeCards = activeCards;
     overview = results[1] as Map<String, int>;
 
     if (showCompleted) {
@@ -121,6 +151,23 @@ class ScheduleViewModel extends ChangeNotifier {
     if (showCompleted == value) return;
     showCompleted = value;
     load.execute();
+  }
+
+  void setDisplayMode(ScheduleDisplayMode value) {
+    if (displayMode == value) return;
+    displayMode = value;
+    notifyListeners();
+  }
+
+  void selectDate(DateTime value) {
+    selectedDate = DateTime(value.year, value.month, value.day);
+    notifyListeners();
+  }
+
+  void changeMonth(int delta) {
+    visibleMonth = DateTime(visibleMonth.year, visibleMonth.month + delta);
+    selectedDate = DateTime(visibleMonth.year, visibleMonth.month, 1);
+    notifyListeners();
   }
 
   // ---------------------------------------------------------------------------

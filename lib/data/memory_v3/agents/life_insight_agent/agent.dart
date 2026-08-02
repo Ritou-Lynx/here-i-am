@@ -340,6 +340,28 @@ class _InsightDataCollector {
       _logger.fine('LifeInsight: sleep cards query failed: $e');
     }
 
+    // Collect menstrual_record cards for cycle pattern analysis
+    try {
+      final queryService = MemoryCardQueryService(db);
+      final menstrualCards = await queryService.listCardsByStructuredFieldTypes(
+        {'menstrual_record'},
+        limit: 30,
+      );
+      if (menstrualCards.isNotEmpty) {
+        result['menstrual_records'] = menstrualCards.map((c) => {
+              'title': c.title,
+              'retrievalText': c.retrievalText,
+              'eventTime': c.eventTimeMs != null
+                  ? DateTime.fromMillisecondsSinceEpoch(c.eventTimeMs!)
+                      .toIso8601String()
+                  : null,
+              'structuredFields': c.structuredFieldsMap,
+            }).toList();
+      }
+    } catch (e) {
+      _logger.fine('LifeInsight: menstrual cards query failed: $e');
+    }
+
     return result.isNotEmpty ? result : null;
   }
 

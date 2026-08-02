@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:memex/data/memory_v3/services/life_insight_scheduler.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/companion/view_models/ledger_view_model.dart';
 import 'package:memex/ui/companion/widgets/insight_strip.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/result.dart';
 import 'package:provider/provider.dart';
+
+const _ledgerInk = Color(0xFF293025);
+const _ledgerMuted = Color(0xFF667061);
+const _ledgerOnRain = Color(0xFFF5EEE0);
+const _ledgerAccent = Color(0xFF737B46);
+const _ledgerIncome = Color(0xFF5F7658);
+const _ledgerExpense = Color(0xFFA66F58);
+const _ledgerTransfer = Color(0xFF9A8051);
+const _ledgerFog = Color(0xEAF7F5ED);
 
 class CompanionLedgerPanel extends StatelessWidget {
   const CompanionLedgerPanel({super.key});
@@ -26,7 +37,11 @@ class CompanionLedgerPanel extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
         children: [
-          const InsightStrip(domain: 'finance'),
+          InsightStrip(
+            domain: 'finance',
+            onRefresh: () => LifeInsightScheduler(db: AppDatabase.instance)
+                .forceRunWeeklyAnalysis(),
+          ),
           _Header(onAdd: () => _showEntrySheet(context)),
           const SizedBox(height: 16),
           _CashSummary(overview: viewModel.overview),
@@ -36,9 +51,10 @@ class CompanionLedgerPanel extends StatelessWidget {
           const Text(
             '最近明细',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: _ledgerOnRain,
+              shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
             ),
           ),
           const SizedBox(height: 10),
@@ -86,32 +102,29 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '共同账本',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                '真实收支是总账，i 的份额从同一笔记录中派生。',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ],
+          child: Text(
+            '全部记录',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: _ledgerOnRain,
+              shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+            ),
           ),
         ),
         FilledButton.icon(
           onPressed: onAdd,
           icon: const Icon(Icons.add_rounded, size: 18),
           label: const Text('记一笔'),
+          style: FilledButton.styleFrom(
+            backgroundColor: _ledgerAccent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            visualDensity: VisualDensity.compact,
+          ),
         ),
       ],
     );
@@ -132,7 +145,7 @@ class _CashSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('全部真实收支', style: TextStyle(color: AppColors.textSecondary)),
+          const Text('真实收支结余', style: TextStyle(color: _ledgerMuted)),
           const SizedBox(height: 7),
           Text(
             _money(net, signed: true),
@@ -140,7 +153,8 @@ class _CashSummary extends StatelessWidget {
               fontSize: 34,
               height: 1.1,
               fontWeight: FontWeight.w800,
-              color: net >= 0 ? AppColors.success : AppColors.danger,
+              color: net >= 0 ? _ledgerIncome : _ledgerExpense,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
           const SizedBox(height: 18),
@@ -150,21 +164,21 @@ class _CashSummary extends StatelessWidget {
                 child: _Metric(
                   label: '收入',
                   value: _money(_number(overview['external_income'])),
-                  color: AppColors.success,
+                  color: _ledgerIncome,
                 ),
               ),
               Expanded(
                 child: _Metric(
                   label: '支出',
                   value: _money(_number(overview['external_expense'])),
-                  color: AppColors.danger,
+                  color: _ledgerExpense,
                 ),
               ),
               Expanded(
                 child: _Metric(
                   label: '记录',
                   value: '${overview['entry_count'] ?? 0} 笔',
-                  color: AppColors.primary,
+                  color: _ledgerAccent,
                 ),
               ),
             ],
@@ -232,19 +246,20 @@ class _PersonCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(
-        color: highlight ? AppColors.iconBgLight : AppColors.cardBackground,
+        color: highlight ? const Color(0xECEAEBD8) : _ledgerFog,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(eyebrow, style: const TextStyle(color: AppColors.textSecondary)),
+          Text(eyebrow, style: const TextStyle(color: _ledgerMuted)),
           const SizedBox(height: 6),
           Text(
             _money(amount),
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+              color: _ledgerInk,
+              fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
           const SizedBox(height: 12),
@@ -255,7 +270,7 @@ class _PersonCard extends StatelessWidget {
                 line,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+                style: const TextStyle(fontSize: 12, color: _ledgerMuted),
               ),
             ),
         ],
@@ -265,7 +280,8 @@ class _PersonCard extends StatelessWidget {
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.value, required this.color});
+  const _Metric(
+      {required this.label, required this.value, required this.color});
 
   final String label;
   final String value;
@@ -276,9 +292,10 @@ class _Metric extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
+        Text(label, style: const TextStyle(fontSize: 12, color: _ledgerMuted)),
         const SizedBox(height: 3),
-        Text(value, style: TextStyle(fontWeight: FontWeight.w700, color: color)),
+        Text(value,
+            style: TextStyle(fontWeight: FontWeight.w700, color: color)),
       ],
     );
   }
@@ -295,13 +312,18 @@ class _LedgerEntryTile extends StatelessWidget {
     final total = _number(entry['total_amount']);
     final aiAmount = _number(entry['ai_amount']);
     final transferDir = entry['transfer_direction'] as String?;
-    final isInflow = type == 'income' || type == 'reward' || type == 'repayment'
-        || (type == 'transfer' && transferDir == 'ai_to_user');
+    final isInflow = type == 'income' ||
+        type == 'reward' ||
+        type == 'repayment' ||
+        (type == 'transfer' && transferDir == 'ai_to_user');
     final date = DateTime.fromMillisecondsSinceEpoch(
       ((entry['recorded_at'] as num?)?.toInt() ?? 0) * 1000,
     );
     final splitText = switch (type) {
-      'income' || 'cost' || 'expense' => '我 ${_money(total - aiAmount)} · i ${_money(aiAmount)}',
+      'income' ||
+      'cost' ||
+      'expense' =>
+        '我 ${_money(total - aiAmount)} · i ${_money(aiAmount)}',
       'reward' => 'i → 我',
       'penalty' => '我 → i',
       'loan' => '我先垫付给 i',
@@ -342,10 +364,10 @@ class _LedgerEntryTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${DateFormat('MM月dd日').format(date)} · $splitText',
+                    '${date.month}月${date.day}日 · $splitText',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+                    style: const TextStyle(fontSize: 12, color: _ledgerMuted),
                   ),
                 ],
               ),
@@ -355,7 +377,8 @@ class _LedgerEntryTile extends StatelessWidget {
               '${isInflow ? '+' : '-'}${_money(total)}',
               style: TextStyle(
                 fontWeight: FontWeight.w700,
-                color: isInflow ? AppColors.success : AppColors.textPrimary,
+                color: isInflow ? _ledgerIncome : _ledgerInk,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ],
@@ -498,7 +521,8 @@ class _DeleteConfirmSheet extends StatelessWidget {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => Navigator.pop(context, false),
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 13)),
+                  style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 13)),
                   child: const Text('取消'),
                 ),
               ),
@@ -531,7 +555,8 @@ class _EmptyLedger extends StatelessWidget {
       decoration: _cardDecoration(),
       child: const Column(
         children: [
-          Icon(Icons.receipt_long_outlined, size: 34, color: AppColors.textTertiary),
+          Icon(Icons.receipt_long_outlined,
+              size: 34, color: AppColors.textTertiary),
           SizedBox(height: 10),
           Text('还没有账目', style: TextStyle(fontWeight: FontWeight.w600)),
           SizedBox(height: 4),
@@ -550,7 +575,8 @@ class _LoadError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: FilledButton.tonal(onPressed: onRetry, child: const Text('账本加载失败，重试')),
+      child: FilledButton.tonal(
+          onPressed: onRetry, child: const Text('账本加载失败，重试')),
     );
   }
 }
@@ -576,7 +602,8 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
   DateTime _occurredAt = DateTime.now();
 
   bool get _isEditing => widget.existingEntry != null;
-  bool get _isShared => _entryType == 'income' || _entryType == 'cost' || _entryType == 'expense';
+  bool get _isShared =>
+      _entryType == 'income' || _entryType == 'cost' || _entryType == 'expense';
   bool get _isTransfer => _entryType == 'transfer';
 
   @override
@@ -585,8 +612,7 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
     final e = widget.existingEntry;
     if (e != null) {
       _entryType = (e['type'] as String?) ?? 'income';
-      _transferDirection =
-          (e['transfer_direction'] as String?) ?? 'user_to_ai';
+      _transferDirection = (e['transfer_direction'] as String?) ?? 'user_to_ai';
       _amountController.text = _formatForInput(_number(e['total_amount']));
       _aiAmountController.text = _formatForInput(_number(e['ai_amount']));
       _purposeController.text = (e['purpose'] as String?) ?? '';
@@ -642,41 +668,53 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
                   Expanded(
                     child: Text(
                       _isEditing ? '修改账目' : '记一笔',
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.w800),
                     ),
                   ),
-                  IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded)),
+                  IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded)),
                 ],
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 initialValue: _entryType,
-                decoration: const InputDecoration(labelText: '类型', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: '类型', border: OutlineInputBorder()),
                 items: const [
                   DropdownMenuItem(value: 'income', child: Text('制作 / 项目收入')),
                   DropdownMenuItem(value: 'expense', child: Text('日常支出 / 消费')),
                   DropdownMenuItem(value: 'transfer', child: Text('我和 i 之间转账')),
                   DropdownMenuItem(value: 'cost', child: Text('AI 套餐 / 共同支出')),
-                  DropdownMenuItem(value: 'reward', child: Text('i 转给我（奖励 / 补偿）')),
-                  DropdownMenuItem(value: 'penalty', child: Text('我转给 i（奖励 / 罚款）')),
+                  DropdownMenuItem(
+                      value: 'reward', child: Text('i 转给我（奖励 / 补偿）')),
+                  DropdownMenuItem(
+                      value: 'penalty', child: Text('我转给 i（奖励 / 罚款）')),
                   DropdownMenuItem(value: 'loan', child: Text('我替 i 垫付')),
                   DropdownMenuItem(value: 'repayment', child: Text('i 归还垫款')),
                 ],
                 onChanged: (value) => setState(() {
                   _entryType = value!;
-                  if (!_isShared && !_isTransfer) _aiAmountController.text = _amountController.text;
+                  if (!_isShared && !_isTransfer) {
+                    _aiAmountController.text = _amountController.text;
+                  }
                 }),
               ),
               if (_isTransfer) ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _transferDirection,
-                  decoration: const InputDecoration(labelText: '方向', border: OutlineInputBorder()),
+                  initialValue: _transferDirection,
+                  decoration: const InputDecoration(
+                      labelText: '方向', border: OutlineInputBorder()),
                   items: const [
-                    DropdownMenuItem(value: 'user_to_ai', child: Text('我 → i（我给 i 钱）')),
-                    DropdownMenuItem(value: 'ai_to_user', child: Text('i → 我（i 给我钱）')),
+                    DropdownMenuItem(
+                        value: 'user_to_ai', child: Text('我 → i（我给 i 钱）')),
+                    DropdownMenuItem(
+                        value: 'ai_to_user', child: Text('i → 我（i 给我钱）')),
                   ],
-                  onChanged: (value) => setState(() => _transferDirection = value!),
+                  onChanged: (value) =>
+                      setState(() => _transferDirection = value!),
                 ),
               ],
               const SizedBox(height: 12),
@@ -685,12 +723,21 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
                   Expanded(
                     child: TextFormField(
                       controller: _amountController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
-                      decoration: const InputDecoration(labelText: '总金额', prefixText: '¥ ', border: OutlineInputBorder()),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d{0,2}'))
+                      ],
+                      decoration: const InputDecoration(
+                          labelText: '总金额',
+                          prefixText: '¥ ',
+                          border: OutlineInputBorder()),
                       validator: _validatePositiveMoney,
                       onChanged: (value) {
-                        if (!_isShared && !_isTransfer) _aiAmountController.text = value;
+                        if (!_isShared && !_isTransfer) {
+                          _aiAmountController.text = value;
+                        }
                       },
                     ),
                   ),
@@ -699,15 +746,24 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
                     Expanded(
                       child: TextFormField(
                         controller: _aiAmountController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
-                        decoration: const InputDecoration(labelText: '其中 i 的份额', prefixText: '¥ ', border: OutlineInputBorder()),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d{0,2}'))
+                        ],
+                        decoration: const InputDecoration(
+                            labelText: '其中 i 的份额',
+                            prefixText: '¥ ',
+                            border: OutlineInputBorder()),
                         validator: (value) {
                           final message = _validateNonNegativeMoney(value);
                           if (message != null) return message;
                           final aiAmount = double.parse(value!);
                           final total = double.tryParse(_amountController.text);
-                          return total != null && aiAmount > total ? '不能超过总金额' : null;
+                          return total != null && aiAmount > total
+                              ? '不能超过总金额'
+                              : null;
                         },
                       ),
                     ),
@@ -717,14 +773,19 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _purposeController,
-                decoration: const InputDecoration(labelText: '事项', hintText: '例如：7 月 API 套餐', border: OutlineInputBorder()),
-                validator: (value) => value == null || value.trim().isEmpty ? '写一下这笔钱是什么' : null,
+                decoration: const InputDecoration(
+                    labelText: '事项',
+                    hintText: '例如：7 月 API 套餐',
+                    border: OutlineInputBorder()),
+                validator: (value) =>
+                    value == null || value.trim().isEmpty ? '写一下这笔钱是什么' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _notesController,
                 maxLines: 2,
-                decoration: const InputDecoration(labelText: '备注（可选）', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: '备注（可选）', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 8),
               ListTile(
@@ -739,7 +800,8 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _submit,
-                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                  style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14)),
                   child: Text(_isEditing ? '保存修改' : '保存到共同账本'),
                 ),
               ),
@@ -771,7 +833,9 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
         totalAmount: amount,
         aiAmount: _isShared ? double.parse(_aiAmountController.text) : amount,
         purpose: _purposeController.text.trim(),
-        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
         transferDirection: _isTransfer ? _transferDirection : null,
         occurredAt: _occurredAt,
       ),
@@ -789,16 +853,21 @@ String? _validateNonNegativeMoney(String? value) {
   return parsed == null || parsed < 0 ? '请输入有效金额' : null;
 }
 
-BoxDecoration _cardDecoration({Color color = AppColors.cardBackground}) => BoxDecoration(
+BoxDecoration _cardDecoration({Color color = _ledgerFog}) => BoxDecoration(
       color: color,
-      borderRadius: BorderRadius.circular(20),
-      boxShadow: const [BoxShadow(color: AppColors.shadowCard, blurRadius: 18, offset: Offset(0, 5))],
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xB8FFFFFF), width: .8),
+      boxShadow: const [
+        BoxShadow(
+            color: Color(0x22000000), blurRadius: 16, offset: Offset(0, 5)),
+      ],
     );
 
 double _number(dynamic value) => (value as num?)?.toDouble() ?? 0;
 
 String _money(double value, {bool signed = false}) {
-  final formatter = NumberFormat.currency(locale: 'zh_CN', symbol: '¥', decimalDigits: 2);
+  final formatter =
+      NumberFormat.currency(locale: 'zh_CN', symbol: '¥', decimalDigits: 2);
   final formatted = formatter.format(value.abs());
   if (!signed || value == 0) return formatted;
   return '${value > 0 ? '+' : '-'}$formatted';
@@ -829,9 +898,8 @@ IconData _entryIcon(String type) => switch (type) {
     };
 
 Color _entryColor(String type) => switch (type) {
-      'income' || 'reward' || 'repayment' => AppColors.success,
-      'expense' || 'cost' => AppColors.danger,
-      'transfer' => AppColors.primary,
-      'penalty' => AppColors.warning,
-      _ => AppColors.primary,
+      'income' || 'reward' || 'repayment' => _ledgerIncome,
+      'expense' || 'cost' => _ledgerExpense,
+      'transfer' || 'penalty' => _ledgerTransfer,
+      _ => _ledgerAccent,
     };

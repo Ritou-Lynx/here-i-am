@@ -5,7 +5,6 @@ import 'package:memex/data/services/ai_finance_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/companion/view_models/ledger_view_model.dart';
 import 'package:memex/ui/companion/view_models/schedule_view_model.dart';
-import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:provider/provider.dart';
 
@@ -58,7 +57,6 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
       '日程',
       'Ledger',
       'Health',
-      UserStorage.l10n.personalCenter,
       '话题线索',
     ];
 
@@ -133,7 +131,6 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
           child: const CompanionLedgerPanel(),
         ),
       3 => const CompanionHealthPanel(),
-      4 => const PersonalCenterScreen(),
       _ => const TopicThreadBrowserScreen(),
     };
   }
@@ -181,6 +178,7 @@ class _LifeSpaceTopBar extends StatelessWidget {
                 height: 44,
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
                   padding: const EdgeInsets.all(4),
                   child: Row(
                     children: List.generate(labels.length, (i) {
@@ -263,13 +261,17 @@ class _FrostedControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0x4DFFFFFF),
-        borderRadius: borderRadius,
-        border: Border.all(color: const Color(0x66FFFFFF), width: 0.8),
+    return ClipRRect(
+      borderRadius: borderRadius,
+      clipBehavior: Clip.antiAlias,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0x4DFFFFFF),
+          borderRadius: borderRadius,
+          border: Border.all(color: const Color(0x66FFFFFF), width: 0.8),
+        ),
+        child: child,
       ),
-      child: child,
     );
   }
 }

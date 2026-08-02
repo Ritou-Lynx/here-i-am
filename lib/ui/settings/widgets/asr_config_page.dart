@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/asr/asr_config.dart';
+import 'package:memex/data/services/voice_session_router.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 
 /// Configure Alibaba NLS credentials for voice input.
@@ -47,6 +48,8 @@ class _AsrConfigPageState extends State<AsrConfigPage> {
   Future<void> _setUseMediaKeys(bool value) async {
     setState(() => _useMediaKeys = value);
     await AsrConfig.setUseMediaKeys(value);
+    // 开关变化即时生效：开启时接管媒体键，关闭时释放。
+    await VoiceSessionRouter.instance.syncFromSettings();
   }
 
   Future<void> _save() async {
@@ -180,9 +183,9 @@ class _AsrConfigPageState extends State<AsrConfigPage> {
                     value: _useMediaKeys,
                     onChanged: _setUseMediaKeys,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('启用蓝牙媒体键控制'),
+                    title: const Text('启用媒体键语音对话'),
                     subtitle: const Text(
-                      '开启后进入 companion 聊天会接管媒体键（耳机中键 = 录音开关），离开聊天后自动释放。',
+                      '开启后：聊天页内耳机中键 = 录音开关；离开聊天页或 App 退到后台后，点按耳机键开始录音、再点按发送并收到语音回复（半双工语音对话）。上一曲键取消。',
                     ),
                   ),
                   const SizedBox(height: 16),

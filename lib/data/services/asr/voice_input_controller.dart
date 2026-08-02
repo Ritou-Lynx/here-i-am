@@ -18,7 +18,7 @@ enum VoiceInputState { idle, recording, processing }
 const _voiceEndpointPollInterval = Duration(milliseconds: 200);
 const _voiceEndpointInitialSilenceTimeout = Duration(seconds: 4);
 const _voiceEndpointTrailingSilenceTimeout = Duration(milliseconds: 1500);
-const _voiceEndpointMaxRecordingDuration = Duration(seconds: 60);
+const _voiceEndpointMaxRecordingDuration = Duration(seconds: 180);
 const _voiceEndpointSpeechThresholdDb = -45.0;
 
 /// Drives the press-to-talk recording -> ASR pipeline.
@@ -75,6 +75,13 @@ class VoiceInputController extends ChangeNotifier {
   Timer? _bargeInPollTimer;
   bool _bargeInPollInProgress = false;
 
+  // Press-to-talk streaming state ----------------------------------------
+  bool _pressToTalkActive = false;
+  final StringBuffer _pressToTalkBuffer = StringBuffer();
+  Timer? _pressToTalkWatchdog;
+
+  static const Duration _pressToTalkMaxDuration = Duration(minutes: 5);
+
   static const double _bargeInThresholdDb = -25.0;
   static const Duration _bargeInPollInterval = Duration(milliseconds: 150);
 
@@ -112,6 +119,20 @@ class VoiceInputController extends ChangeNotifier {
   bool get isRecording => _state == VoiceInputState.recording;
   bool get isProcessing => _state == VoiceInputState.processing;
   bool get isStreaming => _streamingClient != null;
+
+  /// Whether a press-to-talk streaming session is active.
+  bool get isPressToTalk => _pressToTalkActive;
+
+  /// Intermediate text accumulated so far during press-to-talk (for UI display).
+  String get pressToTalkPartialText => _pressToTalkBuffer.toString().trim();
+
+  /// Called during press-to-talk when a new sentence is finalized, with the
+  /// full accumulated text so far. Use for live transcription display.
+  void Function(String accumulatedText)? onPressToTalkUpdate;
+
+  /// Called when press-to-talk auto-stops (watchdog timeout). The screen
+  /// should treat this like a manual stop: send the text as a message.
+  Future<void> Function(String? text)? onPressToTalkAutoComplete;
 
   /// Toggle recording. From idle -> start; from recording -> stop & recognize.
   /// While processing, calls are ignored.
@@ -174,6 +195,72 @@ class VoiceInputController extends ChangeNotifier {
     _logger.info('Recording cancelled');
   }
 
+  // ── Press-to-talk streaming ─────────────────────────────────────────────
+
+  /// Start a press-to-talk streaming session. Uses streaming ASR (same NLS
+  /// engine as voice-call mode) but with normal mic routing (no VoIP/AEC)
+  /// and sentence accumulation instead of per-sentence dispatch.
+  ///
+  /// Call [stopPressToTalk] to end and get the combined text.
+  Future<void> startPressToTalk() async {
+    if (_pressToTalkActive || _streamingClient != null) return;
+    _pressToTalkActive = true;
+    _pressToTalkBuffer.clear();
+
+    await startStreaming(useVoiceCommunication: false);
+
+    // If startStreaming failed (lastError set, state still idle), bail.
+    if (_streamingClient == null) {
+      _pressToTalkActive = false;
+      return;
+    }
+
+    // Safety watchdog: auto-stop after max duration.
+    _pressToTalkWatchdog?.cancel();
+    _pressToTalkWatchdog = Timer(_pressToTalkMaxDuration, () {
+      _logger.info('Press-to-talk watchdog: max duration reached, auto-stopping');
+      unawaited(() async {
+        final text = await stopPressToTalk();
+        await onPressToTalkAutoComplete?.call(text);
+      }());
+    });
+  }
+
+  /// Stop press-to-talk and return the accumulated recognized text.
+  /// Returns null if nothing was recognized.
+  Future<String?> stopPressToTalk() async {
+    if (!_pressToTalkActive) return null;
+    _pressToTalkWatchdog?.cancel();
+    _pressToTalkWatchdog = null;
+
+    await stopStreaming();
+
+    _pressToTalkActive = false;
+    final text = _pressToTalkBuffer.toString().trim();
+    _pressToTalkBuffer.clear();
+    return text.isEmpty ? null : text;
+  }
+
+  /// Cancel press-to-talk without returning text.
+  Future<void> cancelPressToTalk() async {
+    if (!_pressToTalkActive) return;
+    _pressToTalkWatchdog?.cancel();
+    _pressToTalkWatchdog = null;
+    _pressToTalkActive = false;
+    _pressToTalkBuffer.clear();
+    await cancelStreaming();
+  }
+
+  /// Internal: accumulate a finalized sentence during press-to-talk.
+  void _accumulatePressToTalkSentence(String text) {
+    if (!_pressToTalkActive) return;
+    if (_pressToTalkBuffer.isNotEmpty) {
+      _pressToTalkBuffer.write(' ');
+    }
+    _pressToTalkBuffer.write(text);
+    onPressToTalkUpdate?.call(pressToTalkPartialText);
+  }
+
   // ── Streaming mode ───────────────────────────────────────────────────────
 
   /// Start a streaming ASR session. The mic stays open until [stopStreaming]
@@ -183,7 +270,11 @@ class VoiceInputController extends ChangeNotifier {
   /// Uses `record.startStream` with `AudioEncoder.pcm16bits` + echo cancel +
   /// noise suppress. PCM chunks are forwarded directly to the NLS gateway
   /// without touching local storage.
-  Future<void> startStreaming() async {
+  ///
+  /// [useVoiceCommunication]: when true (default), routes the mic through
+  /// `VOICE_COMMUNICATION` audio source for platform AEC (voice-call mode).
+  /// When false, uses the default mic source (press-to-talk / normal recording).
+  Future<void> startStreaming({bool useVoiceCommunication = true}) async {
     if (_state != VoiceInputState.idle) {
       _logger.warning('startStreaming called in state $_state - ignoring');
       return;
@@ -236,6 +327,11 @@ class VoiceInputController extends ChangeNotifier {
         if (event is SentenceEndEvent) {
           _logger.info('Streaming sentence #${event.index}: '
               '"${event.text.length > 60 ? '${event.text.substring(0, 60)}...' : event.text}"');
+          // Accumulate for press-to-talk mode.
+          final sentenceText = event.text.trim();
+          if (sentenceText.isNotEmpty) {
+            _accumulatePressToTalkSentence(sentenceText);
+          }
         }
       },
       onError: (Object e, StackTrace st) {
@@ -251,7 +347,7 @@ class VoiceInputController extends ChangeNotifier {
 
     try {
       final audioStream = await _recorder.startStream(
-        const RecordConfig(
+        RecordConfig(
           encoder: AudioEncoder.pcm16bits,
           sampleRate: 16000,
           numChannels: 1,
@@ -261,10 +357,17 @@ class VoiceInputController extends ChangeNotifier {
           // VoIP call path: route mic through the voice-call audio source so
           // the platform AEC cancels speaker echo (TTS output) from the mic
           // signal, and set MODE_IN_COMMUNICATION so mic + speaker coexist.
-          androidConfig: AndroidRecordConfig(
-            audioSource: AndroidAudioSource.voiceCommunication,
-            audioManagerMode: AudioManagerMode.modeInCommunication,
-          ),
+          // For press-to-talk (useVoiceCommunication=false), use default mic
+          // source — no AEC needed since TTS is not playing simultaneously.
+          androidConfig: useVoiceCommunication
+              ? const AndroidRecordConfig(
+                  audioSource: AndroidAudioSource.voiceCommunication,
+                  audioManagerMode: AudioManagerMode.modeInCommunication,
+                )
+              : const AndroidRecordConfig(
+                  audioSource: AndroidAudioSource.mic,
+                  audioManagerMode: AudioManagerMode.modeNormal,
+                ),
         ),
       );
       _streamingAudioSub = audioStream.listen(
@@ -769,6 +872,9 @@ class VoiceInputController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _pressToTalkWatchdog?.cancel();
+    _pressToTalkWatchdog = null;
+    _pressToTalkActive = false;
     if (_streamingClient != null) {
       unawaited(_cancelStreamingInternal());
     }

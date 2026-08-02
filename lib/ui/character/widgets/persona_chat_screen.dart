@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:go_router/go_router.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/settings/widgets/task_model_assignment_page.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
@@ -550,6 +551,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   StreamSubscription<PlayerState>? _audioStateSub;
   StreamSubscription<PersonaChatOpenRequest>? _openRequestSub;
   Timer? _messageRefreshTimer;
+
   /// Throttled Dev Room active-runs poll, driven from the 2s message
   /// refresh timer so chat stays appraised of run progress without users
   /// ever having to open the Dev Room screen.
@@ -618,9 +620,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
   MarkdownStyleSheet get _messageMarkdownStyle {
     const c = SpringRainChatTokens.springRainDaydream;
-    final codeBackground = c.brightness == Brightness.dark
-        ? c.backgroundSoft
-        : c.glassFillSoft;
+    final codeBackground =
+        c.brightness == Brightness.dark ? c.backgroundSoft : c.glassFillSoft;
 
     return MarkdownStyleSheet(
       p: TextStyle(
@@ -754,6 +755,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _voiceController.onStreamingEvent = _onStreamingAsrEvent;
     _voiceController.onBargeInDetected = _onBargeInDetected;
     _voiceController.onStreamingSessionLost = _onStreamingSessionLost;
+    _voiceController.onPressToTalkAutoComplete = _onPressToTalkAutoComplete;
     WidgetsBinding.instance.addObserver(this);
     _textController.addListener(_onComposerTextChanged);
     unawaited(
@@ -866,9 +868,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       // SentenceBeginEvent -> _onStreamingAsrEvent.
       return;
     }
-    if (_isInlineVoiceMode &&
-        _isStreaming &&
-        !_voiceController.isRecording) {
+    if (_isInlineVoiceMode && _isStreaming && !_voiceController.isRecording) {
       return;
     }
     if (_isInlineVoiceMode &&
@@ -880,6 +880,33 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       return;
     }
 
+    // ── Normal chat: press-to-talk via streaming ASR ──────────────────────
+    if (!_isInlineVoiceMode) {
+      if (_voiceController.isPressToTalk) {
+        // Second press: stop and send.
+        unawaited(playRecordStopTone());
+        final result = await _voiceController.stopPressToTalk();
+        if (!mounted) return;
+        if (result != null && result.isNotEmpty) {
+          _textController.text = result;
+          await _sendMessage();
+        } else if (_voiceController.lastError != null) {
+          _showVoiceInputError(_voiceController.lastError!);
+        }
+      } else if (_voiceController.state == VoiceInputState.idle) {
+        // First press: start streaming recording.
+        unawaited(playRecordStartTone());
+        await _voiceController.startPressToTalk();
+        if (!mounted) return;
+        if (_voiceController.lastError != null &&
+            !_voiceController.isPressToTalk) {
+          _showVoiceInputError(_voiceController.lastError!);
+        }
+      }
+      return;
+    }
+
+    // ── Inline voice mode: file-mode fallback (autoStop endpoint) ─────────
     // Play start cue before the toggle so the user gets immediate feedback.
     // Stop cue plays AFTER toggle returns so it isn't captured in the recording.
     final aboutToStart = _voiceController.state == VoiceInputState.idle;
@@ -889,10 +916,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
     final result = await _voiceController.toggle(
       autoStop: true,
-      initialSilenceTimeout:
-          _isInlineVoiceMode ? _voiceModeIdleFollowUpSilenceTimeout : null,
-      maxRecordingDuration:
-          _isInlineVoiceMode ? _voiceModeMaxRecordingDuration : null,
+      initialSilenceTimeout: _voiceModeIdleFollowUpSilenceTimeout,
+      maxRecordingDuration: _voiceModeMaxRecordingDuration,
     );
 
     if (!aboutToStart) {
@@ -1054,6 +1079,17 @@ only after you have written the goodbye you want the user to hear.''',
     if (_isRoleVoiceActive || _isStreaming || _isAppInBackground) return;
     debugPrint('Streaming ASR session lost; re-arming mic');
     _queueVoiceModeStreamingStart(delay: const Duration(milliseconds: 400));
+  }
+
+  /// Press-to-talk watchdog auto-stopped (max duration reached). Send the
+  /// accumulated text as a message, same as if the user pressed the button.
+  Future<void> _onPressToTalkAutoComplete(String? text) async {
+    if (!mounted) return;
+    unawaited(playRecordStopTone());
+    if (text != null && text.isNotEmpty) {
+      _textController.text = text;
+      await _sendMessage();
+    }
   }
 
   Future<void> _runVoiceModeIdleFollowUp() async {
@@ -1973,46 +2009,46 @@ only after you have written the goodbye you want the user to hear.''',
     }
 
     try {
-    await _stopTtsPlayback();
+      await _stopTtsPlayback();
 
-    final userMessageTime = queuedMessage?.timestamp ?? DateTime.now();
+      final userMessageTime = queuedMessage?.timestamp ?? DateTime.now();
 
-    // Compress images for chat bubble display and DB storage.
-    List<Map<String, String>>? compressedAttachments;
-    if (hasImages && !isQueuedMessage) {
-      setState(() => _isCompressingImages = true);
-      compressedAttachments = <Map<String, String>>[];
-      for (final image in imagesToSend) {
-        compressedAttachments.add(await _compressImageForChat(image));
+      // Compress images for chat bubble display and DB storage.
+      List<Map<String, String>>? compressedAttachments;
+      if (hasImages && !isQueuedMessage) {
+        setState(() => _isCompressingImages = true);
+        compressedAttachments = <Map<String, String>>[];
+        for (final image in imagesToSend) {
+          compressedAttachments.add(await _compressImageForChat(image));
+        }
+        if (mounted) setState(() => _isCompressingImages = false);
       }
-      if (mounted) setState(() => _isCompressingImages = false);
-    }
 
-    // Persist user message with attachments (skip for synthetic inputs).
-    final userMessageId = isSynthetic
-        ? -(DateTime.now().millisecondsSinceEpoch)
-        : (queuedMessage?.messageId ??
-            await _chatService.addUserMessage(
-              sendCharacterId,
-              textToSend,
-              timestamp: userMessageTime,
-              attachments: compressedAttachments,
-              appendTimeline: false,
-            ));
-    final batch = _PendingBatch(
-      characterId: sendCharacterId,
-      character: sendCharacter,
-      drafts: [
-        _ComposeDraft(
-          text: textToSend,
-          images: imagesToSend,
-          timestamp: userMessageTime,
-        ),
-      ],
-      persistedMessageIds: isSynthetic ? const [] : [userMessageId],
-    );
+      // Persist user message with attachments (skip for synthetic inputs).
+      final userMessageId = isSynthetic
+          ? -(DateTime.now().millisecondsSinceEpoch)
+          : (queuedMessage?.messageId ??
+              await _chatService.addUserMessage(
+                sendCharacterId,
+                textToSend,
+                timestamp: userMessageTime,
+                attachments: compressedAttachments,
+                appendTimeline: false,
+              ));
+      final batch = _PendingBatch(
+        characterId: sendCharacterId,
+        character: sendCharacter,
+        drafts: [
+          _ComposeDraft(
+            text: textToSend,
+            images: imagesToSend,
+            timestamp: userMessageTime,
+          ),
+        ],
+        persistedMessageIds: isSynthetic ? const [] : [userMessageId],
+      );
 
-    await _runBatchSend(batch, primaryMessageId: userMessageId);
+      await _runBatchSend(batch, primaryMessageId: userMessageId);
     } catch (_) {
       // Backstop: release the synchronous lock if anything before/inside
       // _runBatchSend throws before its own exit paths reset _isStreaming, so a
@@ -3306,7 +3342,8 @@ only after you have written the goodbye you want the user to hear.''',
               if (att is! Map) continue;
               final attachment = Map<dynamic, dynamic>.from(att);
               if (!_personaChatAttachmentLooksLikeImage(attachment)) continue;
-              final mimeType = _personaChatImageMimeTypeForAttachment(attachment);
+              final mimeType =
+                  _personaChatImageMimeTypeForAttachment(attachment);
               final base64 = attachment['base64']?.toString();
               final recoveryPath = personaChatRecoverableImageAttachmentPath(
                 attachment,
@@ -3439,9 +3476,7 @@ only after you have written the goodbye you want the user to hear.''',
         if (cleanedContent.isNotEmpty) {
           buffer.writeln('$label: $cleanedContent');
         } else {
-          final usableMediaForMsg = allMedia
-              .where((m) => m.isUsable)
-              .toList();
+          final usableMediaForMsg = allMedia.where((m) => m.isUsable).toList();
           if (usableMediaForMsg.isNotEmpty) {
             final lastAnalysis = usableMediaForMsg.last.analysisText;
             if (lastAnalysis != null && lastAnalysis.isNotEmpty) {
@@ -4461,14 +4496,12 @@ only after you have written the goodbye you want the user to hear.''',
                     width: 1,
                   ),
                 ),
-                child: const Text(
-                  'i',
-                  style: TextStyle(
-                    fontFamily: 'LXGW WenKai',
-                    fontStyle: FontStyle.italic,
-                    fontSize: 23,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFF5EEE0),
+                child: ClipOval(
+                  child: CharacterAvatar(
+                    avatar: character.avatar,
+                    name: '林埃',
+                    size: 42,
+                    backgroundColor: Colors.transparent,
                   ),
                 ),
               ),
@@ -4526,15 +4559,6 @@ only after you have written the goodbye you want the user to hear.''',
     );
   }
 
-  bool _hasUsableHeaderAvatar(CharacterModel character) {
-    final avatar = character.avatar;
-    if (avatar == null || avatar.isEmpty || !isImageAvatar(avatar)) {
-      return false;
-    }
-    if (avatar.startsWith('/')) return File(avatar).existsSync();
-    return true;
-  }
-
   Widget _buildHeaderActionsOverlay() {
     final top = MediaQuery.paddingOf(context).top + 58;
     final actions = <Widget>[
@@ -4547,11 +4571,26 @@ only after you have written the goodbye you want the user to hear.''',
         },
       ),
       _HeaderActionButton(
+        icon: Icons.swap_horiz_rounded,
+        label: _chatUiText(zh: '切换模型', en: 'Switch model'),
+        onTap: () {
+          setState(() => _isHeaderActionsOpen = false);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const TaskModelAssignmentPage(
+                initialMode: ModelAssignmentMode.agents,
+              ),
+            ),
+          );
+        },
+      ),
+      _HeaderActionButton(
         icon: _autoReadEnabled
             ? Icons.record_voice_over_rounded
             : Icons.record_voice_over_outlined,
         label: _autoReadEnabled
-            ? _chatUiText(zh: '鍏抽棴鑷姩鏈楄', en: 'Turn off auto read')
+            ? _chatUiText(zh: '关闭自动朗读', en: 'Turn off auto read')
             : _chatUiText(zh: '开启自动朗读', en: 'Turn on auto read'),
         active: _autoReadEnabled,
         onTap: () {
@@ -4561,12 +4600,28 @@ only after you have written the goodbye you want the user to hear.''',
       if (widget.onOpenSpaces != null)
         _HeaderActionButton(
           icon: Icons.grid_view_rounded,
-          label: _chatUiText(zh: '鐢熸椿绌洪棿', en: 'Life space'),
+          label: _chatUiText(zh: '生活空间', en: 'Life space'),
           onTap: () {
             setState(() => _isHeaderActionsOpen = false);
             widget.onOpenSpaces?.call();
           },
         ),
+      _HeaderActionButton(
+        icon: Icons.interests_outlined,
+        label: _chatUiText(zh: '兴趣', en: 'Interests'),
+        onTap: () {
+          setState(() => _isHeaderActionsOpen = false);
+          context.push(AppRoutes.interests);
+        },
+      ),
+      _HeaderActionButton(
+        icon: Icons.person_outline_rounded,
+        label: _chatUiText(zh: '个人中心', en: 'Personal center'),
+        onTap: () {
+          setState(() => _isHeaderActionsOpen = false);
+          context.push(AppRoutes.personalCenter);
+        },
+      ),
     ];
 
     return Positioned(
@@ -4798,8 +4853,7 @@ only after you have written the goodbye you want the user to hear.''',
                               ),
                             )
                           : Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.stretch,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 if (showDate) _buildDateDivider(msg.timestamp),
                                 if (msg.messageType == 'action')
@@ -5474,8 +5528,7 @@ only after you have written the goodbye you want the user to hear.''',
   }) {
     _dismissBubblePopup();
     final key = bubbleKey;
-    final renderBox =
-        key.currentContext?.findRenderObject() as RenderBox?;
+    final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
     final bubbleSize = renderBox.size;
     final bubblePosition = renderBox.localToGlobal(Offset.zero);
@@ -5568,8 +5621,7 @@ only after you have written the goodbye you want the user to hear.''',
   }) {
     _dismissBubblePopup();
     final key = bubbleKey;
-    final renderBox =
-        key.currentContext?.findRenderObject() as RenderBox?;
+    final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
     final bubbleSize = renderBox.size;
     final bubblePosition = renderBox.localToGlobal(Offset.zero);
@@ -6882,9 +6934,8 @@ class _HeaderActionButton extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: active
-                    ? c.glassFill.withValues(alpha: 0.14)
-                    : c.glassFill,
+                color:
+                    active ? c.glassFill.withValues(alpha: 0.14) : c.glassFill,
                 border: Border.all(
                   color: active
                       ? const Color(0xFFA3A866).withValues(alpha: 0.5)
@@ -7174,7 +7225,7 @@ class PersonaChatInputBar extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                           horizontal: 4,
                           vertical: 4,
-                      ),
+                        ),
                         child: Text(
                           '退出连发',
                           style: TextStyle(
@@ -7997,7 +8048,8 @@ class _RainRipplePainter extends CustomPainter {
   final Color ivory;
 
   // --- tunables, kept together so the feel is easy to adjust ---
-  static const double _dotCx = 12; // inset a touch so the outer ripple clears the anchor bar
+  static const double _dotCx =
+      12; // inset a touch so the outer ripple clears the anchor bar
   static const double _dotBaseR = 3.1; // resting droplet radius
   static const double _breathAmp = 0.30; // ±30% radius swing while breathing
   static const int _breathCycles = 2; // breaths per master loop (~2.4s each)

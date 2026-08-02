@@ -106,6 +106,20 @@ class RecentActivitySnapshot {
       _logger.warning('Failed to load user rhythm: $e');
     }
 
+    // --- Menstrual cycle status (if tracked) ---
+    try {
+      if (UserRhythmService.isInitialized) {
+        final cycleSection =
+            await UserRhythmService.instance.buildMenstrualSnapshotSection(now: now);
+        if (cycleSection.isNotEmpty) {
+          parts.add('');
+          parts.add(cycleSection);
+        }
+      }
+    } catch (e) {
+      _logger.warning('Failed to load menstrual cycle: $e');
+    }
+
     // --- Active growth pacts (goals/habits/agreements being tracked) ---
     try {
       if (GrowthPactService.isInitialized) {

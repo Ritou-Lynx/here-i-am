@@ -15,6 +15,9 @@ abstract final class AppRoutes {
   /// Personal center (settings).
   static const String personalCenter = '/personal-center';
 
+  /// Reading and games entry.
+  static const String interests = '/interests';
+
   /// Dev Room.
   static const String devRoom = '/dev-room';
 

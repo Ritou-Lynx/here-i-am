@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:memex/data/services/whisper_service.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/settings/widgets/model_stats_page.dart';
-import 'package:memex/ui/insight/widgets/insight_template_gallery_page.dart';
 import 'package:memex/ui/memory/widgets/memory_v3_lab_screen.dart';
-import 'package:memex/ui/comic/comic_library_screen.dart';
-import 'package:memex/ui/book/book_library_screen.dart';
 import 'package:memex/ui/settings/widgets/log_viewer_page.dart';
 import 'package:memex/ui/settings/widgets/async_task_list_page.dart';
 import 'package:memex/ui/settings/widgets/custom_agent_config_page.dart';
 import 'package:memex/ui/settings/widgets/skills_management_page.dart';
-import 'package:memex/utils/toast_helper.dart';
 
 class DebugSettingsPage extends StatelessWidget {
   final Future<void> Function() onClearToken;
@@ -40,52 +35,6 @@ class DebugSettingsPage extends StatelessWidget {
     required this.isReprocessingKnowledgeBase,
     required this.isRebuildingSearchIndex,
   });
-
-  Future<void> _deleteSpeechModel(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(UserStorage.l10n.deleteSpeechModel),
-        content: Text(UserStorage.l10n.confirmDeleteSpeechModelMessage),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(UserStorage.l10n.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(UserStorage.l10n.delete),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      final deleted = await WhisperService.instance.deleteDownloadedModel();
-      if (!context.mounted) return;
-
-      if (deleted) {
-        ToastHelper.showSuccess(
-          context,
-          UserStorage.l10n.speechModelDeletedSuccess,
-        );
-      } else {
-        ToastHelper.showInfo(
-          context,
-          UserStorage.l10n.speechModelNotDownloaded,
-        );
-      }
-    } catch (e) {
-      if (!context.mounted) return;
-      ToastHelper.showError(
-        context,
-        UserStorage.l10n.speechModelDeleteFailed(e),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,20 +108,6 @@ class DebugSettingsPage extends StatelessWidget {
           const SizedBox(height: 12),
           _buildFunctionTab(
             context: context,
-            icon: Icons.dashboard_customize_outlined,
-            title: UserStorage.l10n.insightCardTemplates,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const InsightTemplateGalleryPage(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildFunctionTab(
-            context: context,
             icon: Icons.science_outlined,
             title: 'Memory V3 Lab',
             onTap: () {
@@ -187,43 +122,9 @@ class DebugSettingsPage extends StatelessWidget {
           const SizedBox(height: 12),
           _buildFunctionTab(
             context: context,
-            icon: Icons.menu_book_outlined,
-            title: '漫画书架 (共读)',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ComicLibraryScreen(),
-                ),
-              );
-            },
-          ),
-          _buildFunctionTab(
-            context: context,
-            icon: Icons.auto_stories_outlined,
-            title: '共读书架 (读书)',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const BookLibraryScreen(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildFunctionTab(
-            context: context,
             icon: Icons.delete_outline,
             title: UserStorage.l10n.clearLocalToken,
             onTap: onClearToken,
-          ),
-          const SizedBox(height: 12),
-          _buildFunctionTab(
-            context: context,
-            icon: Icons.delete_sweep_outlined,
-            title: UserStorage.l10n.deleteSpeechModel,
-            onTap: () => _deleteSpeechModel(context),
           ),
           const SizedBox(height: 12),
           _buildFunctionTab(
@@ -232,30 +133,6 @@ class DebugSettingsPage extends StatelessWidget {
             title: UserStorage.l10n.clearData,
             onTap: onClearData,
             isLoading: isClearingData,
-          ),
-          const SizedBox(height: 12),
-          _buildFunctionTab(
-            context: context,
-            icon: Icons.credit_card_outlined,
-            title: UserStorage.l10n.reprocessCards,
-            onTap: onReprocessCards,
-            isLoading: isReprocessingCards,
-          ),
-          const SizedBox(height: 12),
-          _buildFunctionTab(
-            context: context,
-            icon: Icons.menu_book_outlined,
-            title: UserStorage.l10n.reprocessKnowledgeBase,
-            onTap: onReprocessKnowledgeBase,
-            isLoading: isReprocessingKnowledgeBase,
-          ),
-          const SizedBox(height: 12),
-          _buildFunctionTab(
-            context: context,
-            icon: Icons.chat_bubble_outline,
-            title: UserStorage.l10n.regenerateComments,
-            onTap: onReprocessComments,
-            isLoading: isReprocessingComments,
           ),
           const SizedBox(height: 12),
           _buildFunctionTab(

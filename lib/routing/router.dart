@@ -14,6 +14,7 @@ import 'package:memex/ui/chat/view_models/chat_viewmodel.dart';
 import 'package:memex/ui/chat/widgets/chat_history_screen.dart';
 import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
 import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
+import 'package:memex/ui/interest/widgets/interest_hub_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_room_screen.dart';
 import 'package:memex/ui/user_setup/widgets/user_setup_screen.dart';
 import 'package:memex/routing/routes.dart';
@@ -76,6 +77,10 @@ GoRouter createAppRouter(
       GoRoute(
         path: AppRoutes.personalCenter,
         builder: (_, __) => const PersonalCenterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.interests,
+        builder: (_, __) => const InterestHubScreen(),
       ),
       GoRoute(
         path: AppRoutes.devRoom,

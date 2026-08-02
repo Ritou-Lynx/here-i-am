@@ -70,8 +70,8 @@ class HereIamThemeTokens extends ThemeExtension<HereIamThemeTokens> {
   final double cardRadius;
   final double innerRadius;
 
-  /// Current default: Rose Mist's night-facing product skin.
-  static const HereIamThemeTokens current = duskyRoseRain;
+  /// Current and only active product skin.
+  static const HereIamThemeTokens current = springRainDaydream;
 
   /// 暮雨玫瑰 / Dusky Rose Rain.
   static const HereIamThemeTokens duskyRoseRain = HereIamThemeTokens(
@@ -141,12 +141,9 @@ class HereIamThemeTokens extends ThemeExtension<HereIamThemeTokens> {
   /// chat tokens: near-black green surface, warm-ivory text, moss-green accent
   /// (ADR-13 user color), warm-gold highlight, and dew-glass panels.
   ///
-  /// Intentionally NOT in [skins] yet: the global Material theme
-  /// (AppTheme.lightThemeFor) still hardcodes light scaffold/appbar colors and
-  /// does not follow these tokens, so exposing this as a globally switchable
-  /// skin would render other pages half-styled. Non-chat pages that adopt the
-  /// direction read this const directly (the same way Chat reads
-  /// SpringRainChatTokens) until AppTheme learns to follow the tokens.
+  /// This is the only active skin. The two earlier rose skins remain as named
+  /// constants solely so historical code and stored preferences can migrate;
+  /// [byId] no longer exposes them as selectable product themes.
   static const HereIamThemeTokens springRainDaydream = HereIamThemeTokens(
     id: 'springRainDaydream',
     nameZh: '春雨昼眠',
@@ -177,8 +174,7 @@ class HereIamThemeTokens extends ThemeExtension<HereIamThemeTokens> {
   );
 
   static const List<HereIamThemeTokens> skins = [
-    duskyRoseRain,
-    roseMistDay,
+    springRainDaydream,
   ];
 
   static HereIamThemeTokens byId(String id) {

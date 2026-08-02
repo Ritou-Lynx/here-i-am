@@ -12,7 +12,7 @@ import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/domain/models/presentation_module.dart';
-import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 import 'package:memex/data/services/current_context_service.dart';
 
@@ -78,10 +78,17 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
           id: widget.cardId,
           title: detail.card.title,
         ));
-        setState(() { _detail = detail; _loading = false; });
+        setState(() {
+          _detail = detail;
+          _loading = false;
+        });
       }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted)
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
     }
   }
 
@@ -126,6 +133,10 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
 
   @override
   Widget build(BuildContext context) {
+    return SpringRainUiScope(child: Builder(builder: _buildPage));
+  }
+
+  Widget _buildPage(BuildContext context) {
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: const Text('加载中…')),
@@ -144,114 +155,115 @@ class _MemoryCardDetailScreenV3State extends State<MemoryCardDetailScreenV3> {
     final presentation = PresentationModule.tryParse(card.presentationModule);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(card.dropletLabel),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: '删除',
-            onPressed: _deleteCard,
-          ),
-        ],
-      ),
-      body: Builder(builder: (context) {
-        final imageAnalysis = _extractImageAnalysis(card.retrievalText);
-        final cleanFallback = imageAnalysis != null
-            ? card.retrievalText.replaceFirst(imageAnalysis, '').trim()
-            : card.retrievalText;
-        return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Type + status
-              _TypeStatusRow(card: card),
-              const SizedBox(height: 20),
-
-              // 2. Content blocks
-              V3CardBlocks(
-                presentation: presentation,
-                dropletLabel: card.dropletLabel,
-                fallbackText: cleanFallback,
-              ),
-              if (imageAnalysis != null) ...[
-                const SizedBox(height: 16),
-                _CollapsibleSection(
-                  title: '图片描述',
-                  expanded: _imageDescExpanded,
-                  onToggle: () =>
-                      setState(() => _imageDescExpanded = !_imageDescExpanded),
-                  child: _ImageDescription(text: imageAnalysis),
-                ),
-              ],
-              const SizedBox(height: 24),
-
-            // 3. Source evidence
-            if (detail.source != null) ...[
-              _CollapsibleSection(
-                title: '来源证据',
-                expanded: _sourceExpanded,
-                onToggle: () =>
-                    setState(() => _sourceExpanded = !_sourceExpanded),
-                child: _SourceEvidence(
-                  source: detail.source!,
-                  assets: detail.assets,
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // 4. Entity links
-            if (detail.entityLinks.isNotEmpty) ...[
-              _SectionLabel('关联人物/事物'),
-              const SizedBox(height: 8),
-              _EntityLinks(links: detail.entityLinks),
-              const SizedBox(height: 16),
-            ],
-
-            // 5. Related cards
-            if (detail.relations.isNotEmpty) ...[
-              _SectionLabel('关联卡片'),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 160,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: detail.relations.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (ctx, i) => SizedBox(
-                    width: 240,
-                    child: MemorySummaryCardV3(card: detail.relations[i]),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // 6. Operation history
-            if (detail.operations.isNotEmpty) ...[
-              _CollapsibleSection(
-                title: '操作历史',
-                expanded: _operationsExpanded,
-                onToggle: () =>
-                    setState(() => _operationsExpanded = !_operationsExpanded),
-                child: _OperationHistory(operations: detail.operations),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // 7. Emotion coordinates
-            _CollapsibleSection(
-              title: '情绪坐标',
-              expanded: _emotionExpanded,
-              onToggle: () =>
-                  setState(() => _emotionExpanded = !_emotionExpanded),
-              child: _EmotionCoords(valence: card.valence, arousal: card.arousal),
+        appBar: AppBar(
+          title: Text(card.dropletLabel),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: '删除',
+              onPressed: _deleteCard,
             ),
           ],
         ),
-      );
-    }));
+        body: Builder(builder: (context) {
+          final imageAnalysis = _extractImageAnalysis(card.retrievalText);
+          final cleanFallback = imageAnalysis != null
+              ? card.retrievalText.replaceFirst(imageAnalysis, '').trim()
+              : card.retrievalText;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Type + status
+                _TypeStatusRow(card: card),
+                const SizedBox(height: 20),
+
+                // 2. Content blocks
+                V3CardBlocks(
+                  presentation: presentation,
+                  dropletLabel: card.dropletLabel,
+                  fallbackText: cleanFallback,
+                ),
+                if (imageAnalysis != null) ...[
+                  const SizedBox(height: 16),
+                  _CollapsibleSection(
+                    title: '图片描述',
+                    expanded: _imageDescExpanded,
+                    onToggle: () => setState(
+                        () => _imageDescExpanded = !_imageDescExpanded),
+                    child: _ImageDescription(text: imageAnalysis),
+                  ),
+                ],
+                const SizedBox(height: 24),
+
+                // 3. Source evidence
+                if (detail.source != null) ...[
+                  _CollapsibleSection(
+                    title: '来源证据',
+                    expanded: _sourceExpanded,
+                    onToggle: () =>
+                        setState(() => _sourceExpanded = !_sourceExpanded),
+                    child: _SourceEvidence(
+                      source: detail.source!,
+                      assets: detail.assets,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // 4. Entity links
+                if (detail.entityLinks.isNotEmpty) ...[
+                  _SectionLabel('关联人物/事物'),
+                  const SizedBox(height: 8),
+                  _EntityLinks(links: detail.entityLinks),
+                  const SizedBox(height: 16),
+                ],
+
+                // 5. Related cards
+                if (detail.relations.isNotEmpty) ...[
+                  _SectionLabel('关联卡片'),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 160,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: detail.relations.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (ctx, i) => SizedBox(
+                        width: 240,
+                        child: MemorySummaryCardV3(card: detail.relations[i]),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // 6. Operation history
+                if (detail.operations.isNotEmpty) ...[
+                  _CollapsibleSection(
+                    title: '操作历史',
+                    expanded: _operationsExpanded,
+                    onToggle: () => setState(
+                        () => _operationsExpanded = !_operationsExpanded),
+                    child: _OperationHistory(operations: detail.operations),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // 7. Emotion coordinates
+                _CollapsibleSection(
+                  title: '情绪坐标',
+                  expanded: _emotionExpanded,
+                  onToggle: () =>
+                      setState(() => _emotionExpanded = !_emotionExpanded),
+                  child: _EmotionCoords(
+                      valence: card.valence, arousal: card.arousal),
+                ),
+              ],
+            ),
+          );
+        }));
   }
 }
 
@@ -265,7 +277,7 @@ class _TypeStatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = HereIamThemeTokens.roseMistDay;
+    final tokens = context.springRainUi;
     return Row(
       children: [
         Container(
@@ -315,7 +327,7 @@ class _SectionLabel extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) {
-    const tokens = HereIamThemeTokens.roseMistDay;
+    final tokens = context.springRainUi;
     return Text(
       text,
       style: TextStyle(
@@ -343,7 +355,7 @@ class _CollapsibleSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = HereIamThemeTokens.roseMistDay;
+    final tokens = context.springRainUi;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -357,7 +369,7 @@ class _CollapsibleSection extends StatelessWidget {
                 Icon(
                   expanded ? Icons.expand_less : Icons.expand_more,
                   size: 18,
-                  color: tokens.textMuted,
+                  color: tokens.textTertiary,
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -397,7 +409,7 @@ class _SourceEvidence extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = HereIamThemeTokens.roseMistDay;
+    final tokens = context.springRainUi;
     final imageAssets = assets.where((a) => a.isImage).toList();
 
     return Container(
@@ -405,8 +417,8 @@ class _SourceEvidence extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: tokens.surfaceDeep.withValues(alpha: 0.30),
-        border: Border.all(color: tokens.textMuted.withValues(alpha: 0.12)),
+        color: tokens.surfaceMuted.withValues(alpha: 0.72),
+        border: Border.all(color: tokens.textTertiary.withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -434,12 +446,12 @@ class _SourceEvidence extends StatelessWidget {
           // recordedAt
           Row(
             children: [
-              Icon(Icons.access_time, size: 13, color: tokens.textMuted),
+              Icon(Icons.access_time, size: 13, color: tokens.textTertiary),
               const SizedBox(width: 6),
               Text(
                 '记录于 ${_fmtTime(source.recordedAt)}',
                 style: TextStyle(
-                  color: tokens.textMuted,
+                  color: tokens.textTertiary,
                   fontSize: 12,
                 ),
               ),
@@ -452,12 +464,12 @@ class _SourceEvidence extends StatelessWidget {
             Row(
               children: [
                 Icon(Icons.location_on_outlined,
-                    size: 13, color: tokens.textMuted),
+                    size: 13, color: tokens.textTertiary),
                 const SizedBox(width: 6),
                 Text(
                   source.recordedPlace!,
                   style: TextStyle(
-                    color: tokens.textMuted,
+                    color: tokens.textTertiary,
                     fontSize: 12,
                   ),
                 ),
@@ -503,7 +515,7 @@ class _EntityLinks extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = HereIamThemeTokens.roseMistDay;
+    final tokens = context.springRainUi;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -588,7 +600,7 @@ class _OperationHistory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = HereIamThemeTokens.roseMistDay;
+    final tokens = context.springRainUi;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -613,7 +625,7 @@ class _OperationHistory extends StatelessWidget {
                   child: Text(
                     _fmtTime(op.createdAt),
                     style: TextStyle(
-                      color: tokens.textMuted,
+                      color: tokens.textTertiary,
                       fontSize: 11,
                     ),
                   ),
@@ -639,14 +651,14 @@ class _EmotionCoords extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = HereIamThemeTokens.roseMistDay;
+    final tokens = context.springRainUi;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: tokens.surfaceDeep.withValues(alpha: 0.30),
-        border: Border.all(color: tokens.textMuted.withValues(alpha: 0.12)),
+        color: tokens.surfaceMuted.withValues(alpha: 0.72),
+        border: Border.all(color: tokens.textTertiary.withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -687,7 +699,7 @@ class _CoordRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = HereIamThemeTokens.roseMistDay;
+    final tokens = context.springRainUi;
     // valence clamped [-1,1], arousal [0,1]
     final fraction = value.clamp(-1.0, 1.0);
     // Map [-1,1] or [0,1] to [0,1] for visual bar
@@ -751,14 +763,14 @@ class _ImageDescription extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = HereIamThemeTokens.roseMistDay;
+    final tokens = context.springRainUi;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: tokens.surfaceDeep.withValues(alpha: 0.30),
-        border: Border.all(color: tokens.textMuted.withValues(alpha: 0.12)),
+        color: tokens.surfaceMuted.withValues(alpha: 0.72),
+        border: Border.all(color: tokens.textTertiary.withValues(alpha: 0.12)),
       ),
       child: Text(
         text,

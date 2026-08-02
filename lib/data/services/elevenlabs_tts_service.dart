@@ -128,7 +128,7 @@ class ElevenLabsTtsService {
   }
 
   static String _prepareTextForSpeech(String text) {
-    final normalized = text.trim();
+    final normalized = normalizeSpokenText(text.trim());
     if (normalized.isEmpty) return normalized;
 
     // Eleven v3 understands pause audio tags rather than SSML <break>. A small
@@ -152,6 +152,206 @@ class ElevenLabsTtsService {
       return withSentencePauses.trim();
     }
     return '[short pause] $withSentencePauses'.trim();
+  }
+
+  // ── Spoken-text normalization (pitfall #26: wash digits into spoken form) ─
+
+  static final RegExp _shortcutPattern =
+      RegExp(r'\b(?:ctrl|control)\s*\+\s*([a-z])', caseSensitive: false);
+
+  static final RegExp _latinLetter = RegExp(r'[A-Za-z]');
+
+  /// Digits, symbols, and keyboard shortcuts are read literally (or wrongly)
+  /// by the TTS engine. Convert them into natural spoken Chinese before
+  /// synthesis — e.g. `391` → `三百九十一`, `2026-06-18` → `二零二六年六月十八日`,
+  /// `￥39.9` → `三十九块九`, `Ctrl+C` → `复制`.
+  ///
+  /// Only affects the TTS request path; stored/displayed text stays untouched.
+  static String normalizeSpokenText(String text) {
+    var result = _normalizeShortcuts(text);
+    result = result.replaceAllMapped(_spokenNumberPattern, (m) {
+      // ￥/¥ amount
+      if (m.group(1) != null) return _spokenMoney(m.group(1)!);
+      // X元
+      if (m.group(2) != null) return _spokenMoney(m.group(2)!);
+      // X块 / X块钱
+      if (m.group(3) != null) return _spokenMoney(m.group(3)!);
+      // percent
+      if (m.group(4) != null) {
+        return '百分之${_spokenNumber(m.group(4)!)}';
+      }
+      // date (2026年6月18日 / 2026-06-18 / 2026/6/18)
+      if (m.group(5) != null) {
+        return '${_digitByDigit(m.group(5)!)}年'
+            '${_spokenNumber(m.group(6)!)}月'
+            '${_spokenNumber(m.group(7)!)}日';
+      }
+      // bare year
+      if (m.group(8) != null) return '${_digitByDigit(m.group(8)!)}年';
+      // clock time
+      if (m.group(9) != null) {
+        final hour = _spokenNumber(m.group(9)!);
+        final minute = int.parse(m.group(10)!);
+        if (minute == 0) return '$hour点';
+        final minuteText = minute < 10
+            ? '零${_spokenNumber('$minute')}分'
+            : '${_spokenNumber('$minute')}分';
+        return '$hour点$minuteText';
+      }
+      // fraction
+      if (m.group(11) != null) {
+        return '${_spokenNumber(m.group(12)!)}分之${_spokenNumber(m.group(11)!)}';
+      }
+      // phone number
+      if (m.group(13) != null) {
+        return m.group(13)!
+            .split('')
+            .map((c) => c == '1' ? '幺' : _speechDigits[int.parse(c)])
+            .join();
+      }
+      // range
+      if (m.group(14) != null) {
+        return '${_spokenNumber(m.group(14)!)}到${_spokenNumber(m.group(15)!)}';
+      }
+      // decimal
+      if (m.group(16) != null) {
+        return _spokenNumber('${m.group(16)}.${m.group(17)}');
+      }
+      // plain integer
+      if (m.group(18) != null) {
+        // Skip numbers glued to Latin letters (v3, 5G, H2O, iPhone15…).
+        final start = m.start;
+        final end = m.end;
+        if (start > 0 && _latinLetter.hasMatch(m.input[start - 1])) {
+          return m.group(18)!;
+        }
+        if (end < m.input.length && _latinLetter.hasMatch(m.input[end])) {
+          return m.group(18)!;
+        }
+        return _spokenNumber(m.group(18)!);
+      }
+      return m.group(0)!;
+    });
+    return result;
+  }
+
+  /// Ordered alternatives — specific patterns (money, date, time…) must win
+  /// over plain integers.
+  static final RegExp _spokenNumberPattern = RegExp(
+    r'[￥¥](\d+(?:\.\d+)?)' // 1: currency symbol + amount
+    r'|(\d+(?:\.\d+)?)元' // 2: amount + 元
+    r'|(\d+(?:\.\d+)?)块(?:钱)?' // 3: amount + 块/块钱
+    r'|(\d+(?:\.\d+)?)[%％]' // 4: percent
+    r'|(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})日?' // 5,6,7: date
+    r'|(\d{4})年' // 8: bare year
+    r'|(\d{1,2})[：:](\d{1,2})' // 9,10: clock time
+    r'|(\d+)/(\d+)' // 11,12: fraction
+    r'|(1\d{10})' // 13: phone number
+    r'|(\d+)-(\d+)' // 14,15: range
+    r'|(\d+)\.(\d+)' // 16,17: decimal
+    r'|(\d+)' // 18: integer
+  );
+
+  static const _speechDigits = [
+    '零', '一', '二', '三', '四', '五', '六', '七', '八', '九',
+  ];
+  static const _speechUnits = ['', '十', '百', '千'];
+
+  static String _normalizeShortcuts(String text) {
+    const map = {
+      'c': '复制',
+      'v': '粘贴',
+      'x': '剪切',
+      'z': '撤销',
+      's': '保存',
+      'a': '全选',
+      'f': '查找',
+    };
+    return text.replaceAllMapped(_shortcutPattern, (m) {
+      final letter = m.group(1)!.toLowerCase();
+      return map[letter] ?? 'control 加 ${m.group(1)!}';
+    });
+  }
+
+  /// Convert a number string to spoken Chinese; ≥5 digits are read digit by
+  /// digit (IDs, codes). Decimals become `X点Y`.
+  static String _spokenNumber(String numStr) {
+    if (numStr.contains('.')) {
+      final parts = numStr.split('.');
+      final intPart = parts[0].isEmpty ? '0' : parts[0];
+      final fracText = parts[1]
+          .split('')
+          .map((c) => _speechDigits[int.parse(c)])
+          .join();
+      return '${_spokenInteger(int.parse(intPart))}点$fracText';
+    }
+    final value = int.parse(numStr);
+    if (numStr.length >= 5) return _digitByDigit(numStr);
+    return _spokenInteger(value);
+  }
+
+  static String _digitByDigit(String s) =>
+      s.split('').map((c) => _speechDigits[int.parse(c)]).join();
+
+  /// Integer (0–9999) to spoken Chinese: 391 → 三百九十一, 15 → 十五, 1001 → 一千零一.
+  static String _spokenInteger(int value) {
+    if (value == 0) return '零';
+    if (value < 0) return '负${_spokenInteger(-value)}';
+    final digits = value.toString();
+    if (digits.length >= 5) return _digitByDigit(digits);
+    final buffer = StringBuffer();
+    var pendingZero = false;
+    final n = digits.length;
+    for (var i = 0; i < n; i++) {
+      final d = int.parse(digits[i]);
+      final unit = n - i - 1;
+      if (d == 0) {
+        if (buffer.isNotEmpty) pendingZero = true;
+      } else {
+        if (pendingZero) {
+          buffer.write('零');
+          pendingZero = false;
+        }
+        buffer
+          ..write(_speechDigits[d])
+          ..write(_speechUnits[unit]);
+      }
+    }
+    var result = buffer.toString();
+    if (result.startsWith('一十')) result = result.substring(1);
+    return result;
+  }
+
+  /// Money to colloquial spoken form: 39.9 → 三十九块九, 39.99 → 三十九块九毛九,
+  /// 0.5 → 五毛, 0.05 → 五分.
+  static String _spokenMoney(String numStr) {
+    if (!numStr.contains('.')) {
+      return '${_spokenNumber(numStr)}块';
+    }
+    final parts = numStr.split('.');
+    final intPart = parts[0];
+    final fracDigits = parts[1].replaceAll(RegExp(r'0+$'), '').split('');
+    if (fracDigits.isEmpty) return '${_spokenNumber(intPart)}块';
+    // 0.X → X毛
+    if (intPart == '0' && fracDigits.length == 1) {
+      return '${_speechDigits[int.parse(fracDigits[0])]}毛';
+    }
+    // 0.0X → X分
+    if (intPart == '0' &&
+        fracDigits.length == 2 &&
+        fracDigits[0] == '0') {
+      return '${_speechDigits[int.parse(fracDigits[1])]}分';
+    }
+    if (intPart == '0') return _spokenNumber(numStr);
+    if (fracDigits.length == 1) {
+      return '${_spokenNumber(intPart)}块${_speechDigits[int.parse(fracDigits[0])]}';
+    }
+    final d0 = _speechDigits[int.parse(fracDigits[0])];
+    final d1 = _speechDigits[int.parse(fracDigits[1])];
+    if (fracDigits[0] == '0') {
+      return '${_spokenNumber(intPart)}块零$d1分';
+    }
+    return '${_spokenNumber(intPart)}块$d0毛$d1';
   }
 
   static String _cacheKey(String text, String voiceId) {
