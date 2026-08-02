@@ -325,7 +325,7 @@ class RecordOrganizerServiceV3 {
         // Real-device lesson (2026-08-02): grouping by TYPE alone puts every
         // historical money card into one group, so the keeper is always the
         // oldest card ever recorded (e.g. a 07-14 bike ride) and no later
-        // duplicate ever falls inside its ±15 min window — removed stays 0
+        // duplicate ever falls inside its ±2h window — removed stays 0
         // forever while duplicates pile up. Title clusters ("猪杂粉外卖" vs
         // "猪杂粉外卖 27 元") are the actual comparison unit.
         final clusters = <List<({int createdAt, String id, String title})>>[];
@@ -367,7 +367,7 @@ class RecordOrganizerServiceV3 {
             final candidateAnchor = candidateMeta.anchor;
             if (keeperAnchor == null || candidateAnchor == null) continue;
             if ((candidateAnchor.difference(keeperAnchor).inMinutes).abs() >
-                15) {
+                120) {
               continue;
             }
             // Money cards: also require the same amount. Two REAL orders of
@@ -667,7 +667,15 @@ class RecordOrganizerServiceV3 {
     required String title,
     double? amountCny,
   }) async {
-    const windowMs = 15 * 60 * 1000; // ±15 min
+    const windowMs = 2 * 60 * 60 * 1000; // ±2h
+    // Real-device lesson (2026-08-02): an agent FALSELY re-recorded the same
+    // three dinners 50 min after the legit records (user message "去晒衣服啦"
+    // contained no record request). The LLM's time inference drifted between
+    // passes: the same 湖南米粉 bowl got paidAt 19:00 in one pass and 20:00 in
+    // the other, so a ±15 min window let the duplicate through. ±2h covers
+    // this LLM time-drift while keeping title+amount overlap as the real
+    // similarity gate (two true orders of the same dish at the same price
+    // within 2h are far rarer than a re-record).
     // No SQL-level title LIKE here: a one-way LIKE('%new%') misses the
     // common case where the EXISTING card has the SHORTER title
     // ("猪杂粉外卖" vs a re-stated "猪杂粉外卖 27 元"), so dedupe silently

@@ -846,6 +846,200 @@ void main() {
     final ops = await db.select(db.memoryCardOperations).get();
     expect(ops.map((o) => o.operationType), contains('delete'));
   });
+
+  test('dedupeExistingScheduleCards removes duplicate money pairs even when '
+      'older unrelated money cards share the type group', () async {
+    if (!fts5Available) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // 2026-08-02 real-device root cause: dedupe grouped by TYPE only, so the
+    // keeper was the OLDEST money card ever (a 07-14 bike ride) and no later
+    // duplicate ever fell inside its ±15 min window — removed stayed 0.
+    // Title clustering must make each pair its own comparison unit.
+    final rows = [
+      // Historical oldest money card (different title/time) — must NOT
+      // become the group keeper that blocks everything.
+      (
+        id: 'bike-old-$now',
+        title: '早上骑共享单车',
+        paidAt: '2026-07-14T08:00:00',
+        amount: 0.8,
+        created: now - 1000,
+      ),
+      // 猪杂粉 pair: keeper with SHORT title, duplicate with LONGER title
+      // (the exact case the old one-way SQL LIKE could never match).
+      (
+        id: 'zf-keeper-$now',
+        title: '猪杂粉外卖',
+        paidAt: '2026-08-02T12:00:00',
+        amount: 27,
+        created: now,
+      ),
+      (
+        id: 'zf-dup-$now',
+        title: '猪杂粉外卖 27 元',
+        paidAt: '2026-08-02T12:00:00',
+        amount: 27,
+        created: now + 1,
+      ),
+      // 冒菜 pair: identical titles, paidAt 4 min apart.
+      (
+        id: 'mc-keeper-$now',
+        title: '冒菜西施麻辣烫外卖 40.3元',
+        paidAt: '2026-08-02T19:56:00',
+        amount: 40.3,
+        created: now + 2,
+      ),
+      (
+        id: 'mc-dup-$now',
+        title: '冒菜西施麻辣烫外卖 40.3元',
+        paidAt: '2026-08-02T20:00:00',
+        amount: 40.3,
+        created: now + 3,
+      ),
+      // A single non-duplicated money card must survive untouched.
+      (
+        id: 'hn-single-$now',
+        title: '湖南米粉外卖26元',
+        paidAt: '2026-08-01T20:00:00',
+        amount: 26,
+        created: now + 4,
+      ),
+    ];
+    for (final row in rows) {
+      await db.into(db.memoryCards).insert(
+            MemoryCardsCompanion.insert(
+              id: row.id,
+              memoryScope: const Value('user_truth'),
+              type: 'event',
+              title: row.title,
+              dropletLabel: '测试',
+              presentationModule: jsonEncode({'blocks': []}),
+              retrievalText: row.title,
+              valence: 0.5,
+              arousal: 0.3,
+              createdAt: row.created,
+              updatedAt: row.created,
+            ),
+          );
+      await db.into(db.memoryCardStructuredFields).insert(
+            MemoryCardStructuredFieldsCompanion.insert(
+              cardId: row.id,
+              structuredFieldsType: 'expense_entry',
+              fieldsJson: jsonEncode({
+                'amount_cny': row.amount,
+                'merchant': row.title,
+                'paidAt': row.paidAt,
+              }),
+              generatedByVersion: const Value('test'),
+              createdAt: row.created,
+              updatedAt: row.created,
+            ),
+          );
+    }
+
+    final removed = await service.dedupeExistingScheduleCards();
+    expect(removed, 2);
+    final remaining = await db.select(db.memoryCards).get();
+    expect(remaining, hasLength(4));
+    expect(remaining.map((r) => r.id), contains('bike-old-$now'));
+    expect(remaining.map((r) => r.id), contains('zf-keeper-$now'));
+    expect(remaining.map((r) => r.id), contains('mc-keeper-$now'));
+    expect(remaining.map((r) => r.id), contains('hn-single-$now'));
+    expect(remaining.map((r) => r.id), isNot(contains('zf-dup-$now')));
+    expect(remaining.map((r) => r.id), isNot(contains('mc-dup-$now')));
+  });
+
+  test('dedupeExistingScheduleCards removes money duplicate whose paidAt '
+      'drifted 1h (LLM time drift) but keeps cards 3h apart', () async {
+    if (!fts5Available) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // 2026-08-02 real-device: the agent falsely re-recorded three dinners
+    // 50 min after the legit records. The SAME 湖南米粉 bowl got paidAt
+    // 19:00 in one pass and 20:00 in the other (1h LLM time drift), so the
+    // old ±15 min window let the duplicate through. ±2h must catch it.
+    Future<void> seed({
+      required String id,
+      required String title,
+      required String paidAt,
+      required double amount,
+      required int created,
+    }) async {
+      await db.into(db.memoryCards).insert(
+            MemoryCardsCompanion.insert(
+              id: id,
+              memoryScope: const Value('user_truth'),
+              type: 'event',
+              title: title,
+              dropletLabel: '测试',
+              presentationModule: jsonEncode({'blocks': []}),
+              retrievalText: title,
+              valence: 0.5,
+              arousal: 0.3,
+              createdAt: created,
+              updatedAt: created,
+            ),
+          );
+      await db.into(db.memoryCardStructuredFields).insert(
+            MemoryCardStructuredFieldsCompanion.insert(
+              cardId: id,
+              structuredFieldsType: 'expense_entry',
+              fieldsJson: jsonEncode({
+                'amount_cny': amount,
+                'merchant': title,
+                'paidAt': paidAt,
+              }),
+              generatedByVersion: const Value('test'),
+              createdAt: created,
+              updatedAt: created,
+            ),
+          );
+    }
+
+    // Scenario A: 1h paidAt drift on the same title + amount → dedupe.
+    await seed(
+      id: 'hn-a-keeper-$now',
+      title: '湖南米粉外卖26元',
+      paidAt: '2026-08-01T20:00:00',
+      amount: 26,
+      created: now,
+    );
+    await seed(
+      id: 'hn-a-dup-$now',
+      title: '8月1日晚湖南米粉外卖26元',
+      paidAt: '2026-08-01T19:00:00',
+      amount: 26,
+      created: now + 1,
+    );
+    var removed = await service.dedupeExistingScheduleCards();
+    expect(removed, 1, reason: '1h paidAt drift must be treated as duplicate');
+    var remaining = await db.select(db.memoryCards).get();
+    expect(remaining, hasLength(1));
+    expect(remaining.single.id, 'hn-a-keeper-$now');
+
+    // Scenario B: 3h apart on the same title + amount → both kept (could
+    // genuinely be two orders of the same dish in one day).
+    await seed(
+      id: 'hn-b-late-$now',
+      title: '湖南米粉外卖26元',
+      paidAt: '2026-08-02T12:00:00',
+      amount: 26,
+      created: now + 2,
+    );
+    await seed(
+      id: 'hn-b-early-$now',
+      title: '湖南米粉外卖26元',
+      paidAt: '2026-08-02T09:00:00',
+      amount: 26,
+      created: now + 3,
+    );
+    removed = await service.dedupeExistingScheduleCards();
+    expect(removed, 0, reason: '3h apart is outside the ±2h window');
+    remaining = await db.select(db.memoryCards).get();
+    expect(remaining, hasLength(3));
+    expect(remaining.map((r) => r.id), contains('hn-b-late-$now'));
+    expect(remaining.map((r) => r.id), contains('hn-b-early-$now'));
+  });
 }
 
 /// Agent that skips the LLM and returns a fixed income_entry card.
