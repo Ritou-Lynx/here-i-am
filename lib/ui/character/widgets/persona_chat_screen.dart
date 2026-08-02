@@ -3834,8 +3834,9 @@ only after you have written the goodbye you want the user to hear.''',
                   const SizedBox(width: 12),
                   GestureDetector(
                     onTap: () {
+                      final action = _retractToastAction;
                       _hideRetractToast();
-                      _retractToastAction?.call();
+                      action?.call();
                     },
                     child: Text(
                       _retractToastActionLabel!,
