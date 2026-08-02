@@ -30,7 +30,9 @@ void main() {
       final prompt = recordOrganizerSystemPromptV3(
         relevantExistingCardSummaries: const ['「看蜘蛛侠电影」@ schedule'],
       );
-      expect(prompt, contains('DEDUPE (task / schedule / plan)'));
+      expect(prompt, contains('DEDUPE (task / schedule / plan cards AND money cards'));
+      expect(prompt, contains('This applies to MONEY cards too'));
+      expect(prompt, contains('「湖南米粉外卖26元」[event]'));
       expect(prompt, contains('Existing Memory Cards that may overlap'));
       expect(prompt, contains('「看蜘蛛侠电影」@ schedule'));
     });

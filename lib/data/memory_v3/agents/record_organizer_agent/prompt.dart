@@ -447,14 +447,18 @@ same fact as one you are about to emit (e.g., earlier "妈妈住杭州" vs
 this input "妈妈住杭州西湖区文一路"), DO NOT auto-merge. Emit the new card
 as normal; the backend will surface a merge suggestion to the user.
 
-DEDUPE (task / schedule / plan): if a listed existing card has the SAME
-event time anchor AND the SAME subject as a card you were about to emit
-(e.g. user re-records "周六早上看蜘蛛侠电影" and an existing card already
-says the same thing at the same time), this is a re-statement of the same
-item, not a new item. Do NOT emit a duplicate card for it — omit it from
-the `cards` array entirely (only the genuinely new information should
-produce cards). If the re-statement adds NEW details (different time, more
-context), emit one card for the new information instead of a second copy.
+DEDUPE (task / schedule / plan cards AND money cards — money cards are
+`event` cards carrying structuredFieldsType expense_entry / income_entry /
+shopping_order): if a listed existing card has the SAME time anchor AND
+the SAME subject as a card you were about to emit, this is a re-statement
+of the same item, not a new item. Do NOT emit a duplicate card for it —
+omit it from the `cards` array entirely (only the genuinely new
+information should produce cards). This applies to MONEY cards too:
+re-recording "昨晚点了湖南米粉 26 元" when a listed card already says
+"「湖南米粉外卖26元」[event] @ 2026-08-01T20:00" → omit, do NOT emit a
+second expense card. If the re-statement adds NEW details (different time,
+more context), emit one card for the new information instead of a second
+copy.
 $existingCardsContext$recentEntitiesContext
 
 Return JSON. Nothing else.

@@ -444,7 +444,7 @@ void main() {
     // Seed an existing active schedule card (simulates the spider-man case:
     // "看蜘蛛侠电影" recorded earlier).
     final now = DateTime.now().millisecondsSinceEpoch;
-    final existingId = 'dup-keeper-${now}';
+    final existingId = 'dup-keeper-$now';
     await db.into(db.memoryCards).insert(
           MemoryCardsCompanion.insert(
             id: existingId,
@@ -512,7 +512,7 @@ void main() {
     final now = DateTime.now().millisecondsSinceEpoch;
     await db.into(db.memoryCards).insert(
           MemoryCardsCompanion.insert(
-            id: 'dup-anchor-a-${now}',
+            id: 'dup-anchor-a-$now',
             memoryScope: const Value('user_truth'),
             type: 'schedule',
             title: '看蜘蛛侠电影',
@@ -528,7 +528,7 @@ void main() {
         );
     await db.into(db.memoryCardStructuredFields).insert(
           MemoryCardStructuredFieldsCompanion.insert(
-            cardId: 'dup-anchor-a-${now}',
+            cardId: 'dup-anchor-a-$now',
             structuredFieldsType: 'general',
             fieldsJson: jsonEncode({'startAt': '2026-08-01T09:00:00'}),
             generatedByVersion: const Value('test'),
@@ -563,7 +563,7 @@ void main() {
     );
 
     expect(result.cardIds, hasLength(1));
-    expect(result.cardIds.single, isNot('dup-anchor-a-${now}'));
+    expect(result.cardIds.single, isNot('dup-anchor-a-$now'));
     final all = await db.select(db.memoryCards).get();
     expect(all, hasLength(2));
   });
@@ -577,7 +577,7 @@ void main() {
       '看蜘蛛侠电影 8月1日早上',
       '看蜘蛛侠电影',
     ].indexed) {
-      final id = 'legacy-dup-${i}-${now}';
+      final id = 'legacy-dup-$i-$now';
       await db.into(db.memoryCards).insert(
             MemoryCardsCompanion.insert(
               id: id,
@@ -611,6 +611,237 @@ void main() {
     final remaining = await db.select(db.memoryCards).get();
     expect(remaining, hasLength(1));
     expect(remaining.single.title, '看蜘蛛侠电影 8月1日早上');
+    // Audit trail preserved.
+    final ops = await db.select(db.memoryCardOperations).get();
+    expect(ops.map((o) => o.operationType), contains('delete'));
+  });
+
+  test('persist reuses an existing expense_entry with same paidAt and amount',
+      () async {
+    if (!fts5Available) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // 2026-08-02 case: "冒菜西施麻辣烫 40.3 元" recorded at 19:56 and again
+    // at 20:33 produced two ledger cards — money cards had no dedupe.
+    final existingId = 'exp-dup-keeper-$now';
+    await db.into(db.memoryCards).insert(
+          MemoryCardsCompanion.insert(
+            id: existingId,
+            memoryScope: const Value('user_truth'),
+            // Money cards are `event` cards with expense_entry fields.
+            type: 'event',
+            title: '冒菜西施麻辣烫外卖 40.3元',
+            dropletLabel: '冒菜西施',
+            presentationModule: jsonEncode({'blocks': []}),
+            retrievalText: '冒菜西施麻辣烫外卖 40.3 元。',
+            valence: 0.5,
+            arousal: 0.3,
+            // Money cards carry NO status (NULL), like on the real device.
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    await db.into(db.memoryCardStructuredFields).insert(
+          MemoryCardStructuredFieldsCompanion.insert(
+            cardId: existingId,
+            structuredFieldsType: 'expense_entry',
+            fieldsJson: jsonEncode({
+              'amount_cny': 40.3,
+              'category': '餐饮',
+              'merchant': '冒菜西施麻辣烫',
+              'paidAt': '2026-08-02T19:56:00',
+            }),
+            generatedByVersion: const Value('test'),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    // Re-record the same expense (4 min later paidAt, same amount) → must
+    // reuse the existing card, not create a second one.
+    final result = await service.persist(
+      organized: OrganizedRecord(cards: [
+        OrganizedCard(
+          type: 'event',
+          title: '冒菜西施麻辣烫外卖 40.3元',
+          dropletLabel: '冒菜西施',
+          presentationModule: {
+            'blocks': [
+              {'kind': 'text', 'text': '冒菜西施麻辣烫 40.3 元。'},
+            ],
+          },
+          retrievalText: '今晚点了冒菜西施麻辣烫外卖 40.3 元。',
+          valence: 0.5,
+          arousal: 0.3,
+          structuredFieldsType: 'expense_entry',
+          structuredFields: {
+            'amount_cny': 40.3,
+            'category': '餐饮',
+            'merchant': '冒菜西施麻辣烫',
+            'paidAt': '2026-08-02T20:00:00',
+          },
+        ),
+      ]),
+      source: RecordSource(
+        sourceKind: 'chat_message',
+        rawInput: '今晚（8月2日）点了冒菜西施麻辣烫外卖，一共 40.3 元。',
+      ),
+    );
+
+    expect(result.cardIds, [existingId]);
+    final all = await db.select(db.memoryCards).get();
+    expect(all, hasLength(1));
+  });
+
+  test('persist keeps a same-time expense when the AMOUNT differs', () async {
+    if (!fts5Available) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final existingId = 'exp-diff-amount-$now';
+    await db.into(db.memoryCards).insert(
+          MemoryCardsCompanion.insert(
+            id: existingId,
+            memoryScope: const Value('user_truth'),
+            type: 'event',
+            title: '冒菜西施麻辣烫外卖 40.3元',
+            dropletLabel: '冒菜西施',
+            presentationModule: jsonEncode({'blocks': []}),
+            retrievalText: '冒菜西施麻辣烫外卖 40.3 元。',
+            valence: 0.5,
+            arousal: 0.3,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    await db.into(db.memoryCardStructuredFields).insert(
+          MemoryCardStructuredFieldsCompanion.insert(
+            cardId: existingId,
+            structuredFieldsType: 'expense_entry',
+            fieldsJson: jsonEncode({
+              'amount_cny': 40.3,
+              'category': '餐饮',
+              'merchant': '冒菜西施麻辣烫',
+              'paidAt': '2026-08-02T20:00:00',
+            }),
+            generatedByVersion: const Value('test'),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    // Same merchant, same paidAt, but a DIFFERENT amount → two real orders.
+    final result = await service.persist(
+      organized: OrganizedRecord(cards: [
+        OrganizedCard(
+          type: 'event',
+          title: '冒菜西施麻辣烫外卖 45元',
+          dropletLabel: '冒菜西施',
+          presentationModule: {
+            'blocks': [
+              {'kind': 'text', 'text': '又点了一单 45 元。'},
+            ],
+          },
+          retrievalText: '又点了一份冒菜西施麻辣烫 45 元。',
+          valence: 0.5,
+          arousal: 0.3,
+          structuredFieldsType: 'expense_entry',
+          structuredFields: {
+            'amount_cny': 45,
+            'category': '餐饮',
+            'merchant': '冒菜西施麻辣烫',
+            'paidAt': '2026-08-02T20:05:00',
+          },
+        ),
+      ]),
+      source: RecordSource(
+        sourceKind: 'chat_message',
+        rawInput: '又点了冒菜西施麻辣烫 45 元。',
+      ),
+    );
+
+    expect(result.cardIds.single, isNot(existingId));
+    final all = await db.select(db.memoryCards).get();
+    expect(all, hasLength(2));
+  });
+
+  test('dedupeExistingScheduleCards removes duplicate money cards but keeps '
+      'different amounts', () async {
+    if (!fts5Available) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // 2026-08-02 real-device case: the same three dinners recorded twice.
+    // keeper + duplicate (same paidAt ±15min, same amount) → removed;
+    // same merchant but DIFFERENT amount → kept (a real second order).
+    final rows = [
+      (
+        id: 'money-0-$now',
+        title: '冒菜西施麻辣烫外卖 40.3元',
+        paidAt: '2026-08-02T19:56:00',
+        amount: 40.3,
+        created: now,
+      ),
+      (
+        id: 'money-1-$now',
+        title: '冒菜西施麻辣烫外卖 40.3元',
+        paidAt: '2026-08-02T20:00:00',
+        amount: 40.3,
+        created: now + 1,
+      ),
+      (
+        id: 'money-2-$now',
+        title: '冒菜西施麻辣烫外卖 60.5元',
+        paidAt: '2026-08-02T20:05:00',
+        amount: 60.5,
+        created: now + 2,
+      ),
+      // A plain life event (no money fields) with a similar title must
+      // never be touched by money-card dedupe.
+      (
+        id: 'plain-event-$now',
+        title: '冒菜西施麻辣烫外卖吃撑了',
+        paidAt: null,
+        amount: null,
+        created: now + 3,
+      ),
+    ];
+    for (final row in rows) {
+      await db.into(db.memoryCards).insert(
+            MemoryCardsCompanion.insert(
+              id: row.id,
+              memoryScope: const Value('user_truth'),
+              type: 'event',
+              title: row.title,
+              dropletLabel: '冒菜西施',
+              presentationModule: jsonEncode({'blocks': []}),
+              retrievalText: row.title,
+              valence: 0.5,
+              arousal: 0.3,
+              createdAt: row.created,
+              updatedAt: row.created,
+            ),
+          );
+      if (row.amount != null) {
+        await db.into(db.memoryCardStructuredFields).insert(
+              MemoryCardStructuredFieldsCompanion.insert(
+                cardId: row.id,
+                structuredFieldsType: 'expense_entry',
+                fieldsJson: jsonEncode({
+                  'amount_cny': row.amount,
+                  'merchant': '冒菜西施麻辣烫',
+                  'paidAt': row.paidAt,
+                }),
+                generatedByVersion: const Value('test'),
+                createdAt: row.created,
+                updatedAt: row.created,
+              ),
+            );
+      }
+    }
+
+    final removed = await service.dedupeExistingScheduleCards();
+    expect(removed, 1);
+    final remaining = await db.select(db.memoryCards).get();
+    expect(remaining, hasLength(3));
+    expect(remaining.map((r) => r.id), isNot(contains('money-1-$now')));
+    // Plain event card untouched.
+    expect(remaining.map((r) => r.id), contains('plain-event-$now'));
     // Audit trail preserved.
     final ops = await db.select(db.memoryCardOperations).get();
     expect(ops.map((o) => o.operationType), contains('delete'));

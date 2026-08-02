@@ -106,7 +106,10 @@ List<String> _splitIntoSentences(String text) {
   final trimmed = text.trim();
   if (trimmed.isEmpty) return const [];
   final regex = RegExp(r'[^。！？!?\.]+[。！？!?\.]|[^。！？!?\.]+$');
-  final matches = regex.allMatches(trimmed).map((m) => m.group(0)!.trim()).where((s) => s.isNotEmpty);
+  final matches = regex
+      .allMatches(trimmed)
+      .map((m) => m.group(0)!.trim())
+      .where((s) => s.isNotEmpty);
   final list = matches.toList();
   if (list.isEmpty) return [trimmed];
   return list;
@@ -223,38 +226,89 @@ class RecordOrganizerServiceV3 {
   /// created before persist-level dedupe existed (2026-08-02 spider-man
   /// ticket case: the same fact recorded twice produced two cards).
   ///
+  /// Also cleans duplicate MONEY cards (expense_entry / income_entry /
+  /// shopping_order) since 2026-08-02 — the same dinner recorded twice
+  /// (same merchant, same paidAt, same amount) produced duplicate ledger
+  /// cards because dedupe only covered to-dos. Money cards additionally
+  /// require the SAME amount; two real orders at nearly the same time with
+  /// different prices are different orders.
+  ///
   /// Groups active cards by (type, normalized title) and, when two cards
   /// share the same time anchor (within 15 min), keeps the OLDEST card and
   /// deletes the rest via [deleteCard] (preserving audit trail). Safe to
   /// call repeatedly — already-merged cards are gone, remaining cards are
   /// never identical.
+  ///
+  /// Money cards are `event` cards whose structuredFieldsType is a money
+  /// domain (expense_entry / income_entry / shopping_order) — the ledger's
+  /// card.type is 'event'. Plain life events never participate.
+  static const _moneyTypes = {
+    'expense_entry',
+    'income_entry',
+    'shopping_order'
+  };
+
+  static bool _isMoneyCard(String fieldsType) =>
+      _moneyTypes.contains(fieldsType);
+
+  static bool _isDedupeCard(OrganizedCard card) =>
+      card.type == 'task' ||
+      card.type == 'schedule' ||
+      card.type == 'plan' ||
+      (card.type == 'event' && _isMoneyCard(card.structuredFieldsType ?? ''));
+
   Future<int> dedupeExistingScheduleCards() async {
     var removed = 0;
     try {
       final activeRows = await (_db.select(_db.memoryCards)
             ..where((t) =>
-                t.type.isIn(const ['task', 'schedule', 'plan']) &
-                t.status.equals('active')))
+                t.type.isIn(const ['task', 'schedule', 'plan', 'event']) &
+                (t.status.equals('active') | t.status.isNull())))
           .get();
       if (activeRows.length < 2) return 0;
 
       // Load structured fields for all candidates in one pass.
       final sfRows = await (_db.select(_db.memoryCardStructuredFields)
-            ..where((t) =>
-                t.cardId.isIn(activeRows.map((r) => r.id).toList())))
+            ..where((t) => t.cardId.isIn(activeRows.map((r) => r.id).toList())))
           .get();
-      final sfByCard = <String, DateTime?>{};
+      final sfByCard = <String,
+          ({DateTime? anchor, double? amountCny, String? fieldsType})>{};
       for (final sf in sfRows) {
         final parsed = _safeParseJson(sf.fieldsJson);
-        sfByCard[sf.cardId] =
-            parsed is Map<String, dynamic> ? _firstTimeAnchor(parsed) : null;
+        if (parsed is! Map<String, dynamic>) {
+          sfByCard[sf.cardId] = (
+            anchor: null,
+            amountCny: null,
+            fieldsType: sf.structuredFieldsType
+          );
+          continue;
+        }
+        final amountRaw = parsed['amount_cny'];
+        sfByCard[sf.cardId] = (
+          anchor: _firstTimeAnchor(parsed),
+          amountCny: amountRaw is num ? amountRaw.toDouble() : null,
+          fieldsType: sf.structuredFieldsType,
+        );
       }
 
       // Group by TYPE first; within each type, use normalized-title
       // CONTAINMENT (not equality) so "看蜘蛛侠电影" and "看蜘蛛侠电影 8月1日
-      // 早上" are recognized as the same item.
-      final byType = <String, List<({int createdAt, String id, String title})>>{};
+      // 早上" are recognized as the same item. Plain life `event` cards
+      // (no money fields) never participate — only event cards carrying a
+      // money domain participate, otherwise the group's oldest card is
+      // usually a non-money event and the whole group is skipped
+      // (2026-08-02 real-device: the oldest event was "排查杯子归属问题bug"
+      // with no fields, so all money duplicates survived).
+      final byType =
+          <String, List<({int createdAt, String id, String title})>>{};
       for (final row in activeRows) {
+        final meta = sfByCard[row.id];
+        final isMoneyEvent = row.type == 'event' &&
+            meta != null &&
+            _isMoneyCard(meta.fieldsType ?? '');
+        if (row.type == 'event' && !isMoneyEvent) {
+          continue;
+        }
         byType.putIfAbsent(row.type, () => []).add((
           createdAt: row.createdAt,
           id: row.id,
@@ -262,32 +316,83 @@ class RecordOrganizerServiceV3 {
         ));
       }
 
-      for (final group in byType.values) {
-        if (group.length < 2) continue;
-        group.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-        final keeper = group.first;
-        final keeperAnchor = sfByCard[keeper.id];
-        final keeperTitle = keeper.title;
-        for (final candidate in group.skip(1)) {
-          if (keeperAnchor == null) continue;
-          final candidateAnchor = sfByCard[candidate.id];
-          if (candidateAnchor == null) continue;
-          if ((candidateAnchor.difference(keeperAnchor).inMinutes).abs() > 15) {
-            continue;
+      for (final entry in byType.entries) {
+        final type = entry.key;
+        final members = entry.value;
+        if (members.length < 2) continue;
+
+        // Cluster members by normalized-title CONTAINMENT before dedupe.
+        // Real-device lesson (2026-08-02): grouping by TYPE alone puts every
+        // historical money card into one group, so the keeper is always the
+        // oldest card ever recorded (e.g. a 07-14 bike ride) and no later
+        // duplicate ever falls inside its ±15 min window — removed stays 0
+        // forever while duplicates pile up. Title clusters ("猪杂粉外卖" vs
+        // "猪杂粉外卖 27 元") are the actual comparison unit.
+        final clusters = <List<({int createdAt, String id, String title})>>[];
+        for (final member in members) {
+          var placed = false;
+          for (final cluster in clusters) {
+            final clusterTitle = cluster.first.title;
+            if (clusterTitle.isNotEmpty &&
+                member.title.isNotEmpty &&
+                (clusterTitle.contains(member.title) ||
+                    member.title.contains(clusterTitle))) {
+              cluster.add(member);
+              placed = true;
+              break;
+            }
           }
-          // Title containment: either direction counts (the keeper may be
-          // the shorter or the longer title).
-          final candidateTitle = candidate.title;
-          final titlesOverlap = keeperTitle.isNotEmpty &&
-              candidateTitle.isNotEmpty &&
-              (keeperTitle.contains(candidateTitle) ||
-                  candidateTitle.contains(keeperTitle));
-          if (!titlesOverlap) continue;
-          await deleteCard(candidate.id, sourceKind: 'auto_dedupe');
-          removed++;
-          _logger.info(
-              'dedupeExistingScheduleCards: removed ${candidate.id} '
-              '(duplicate of ${keeper.id})');
+          if (!placed) clusters.add([member]);
+        }
+
+        for (final group in clusters) {
+          if (group.length < 2) continue;
+          group.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          final keeper = group.first;
+          final keeperMeta = sfByCard[keeper.id];
+          final keeperTitle = keeper.title;
+          for (final candidate in group.skip(1)) {
+            final candidateMeta = sfByCard[candidate.id];
+            if (keeperMeta == null || candidateMeta == null) continue;
+            // Event cards participate ONLY when both carry money fields;
+            // plain life events must never be merged by title overlap
+            // ("早上吃了一个偏硬的桃子" must not die next to a similar title).
+            final keeperIsMoney = _isMoneyCard(keeperMeta.fieldsType ?? '');
+            final candidateIsMoney =
+                _isMoneyCard(candidateMeta.fieldsType ?? '');
+            if (type == 'event' && (!keeperIsMoney || !candidateIsMoney)) {
+              continue;
+            }
+            final keeperAnchor = keeperMeta.anchor;
+            final candidateAnchor = candidateMeta.anchor;
+            if (keeperAnchor == null || candidateAnchor == null) continue;
+            if ((candidateAnchor.difference(keeperAnchor).inMinutes).abs() >
+                15) {
+              continue;
+            }
+            // Money cards: also require the same amount. Two REAL orders of
+            // the same dish at nearly the same time with different prices
+            // are different orders — never merge those silently.
+            final keeperAmount = keeperMeta.amountCny;
+            if (keeperIsMoney &&
+                keeperAmount != null &&
+                candidateMeta.amountCny != null &&
+                (keeperAmount - candidateMeta.amountCny!).abs() > 0.001) {
+              continue;
+            }
+            // Title containment: either direction counts (the keeper may be
+            // the shorter or the longer title).
+            final candidateTitle = candidate.title;
+            final titlesOverlap = keeperTitle.isNotEmpty &&
+                candidateTitle.isNotEmpty &&
+                (keeperTitle.contains(candidateTitle) ||
+                    candidateTitle.contains(keeperTitle));
+            if (!titlesOverlap) continue;
+            await deleteCard(candidate.id, sourceKind: 'auto_dedupe');
+            removed++;
+            _logger.info('dedupeExistingScheduleCards: removed ${candidate.id} '
+                '(duplicate of ${keeper.id})');
+          }
         }
       }
     } catch (e, s) {
@@ -358,29 +463,31 @@ class RecordOrganizerServiceV3 {
       final cardIds = <String>[];
       final entityIds = <String>[];
 
-      // ── Dedupe pass: reuse an existing active task/schedule/plan card that
-      // describes the same anchored event, instead of creating a duplicate.
-      // Root cause (2026-08-02): the same fact recorded twice (e.g. "买了蜘蛛侠
-      // 电影票周六早上去看" said at 16:51 and again at 19:15) produced two
-      // independent cards because persist() always INSERTed a fresh row. The
-      // organizer prompt's merge section is advisory only and callers never
-      // passed relevantExistingCardSummaries, so the LLM had no dedupe signal.
-      // This pass is the deterministic backstop: same type + same time anchor
-      // (within 15 min) + normalized-title containment → reuse existing card.
+      // ── Dedupe pass: reuse an existing active card that describes the
+      // same anchored event, instead of creating a duplicate. Covers
+      // task/schedule/plan AND money cards (expense_entry / income_entry /
+      // shopping_order — a re-stated expense is the most common duplicate;
+      // 2026-08-02: "冒菜西施麻辣烫 40.3 元" recorded at 19:56 and again at
+      // 20:33 with the same paidAt and amount produced two ledger cards).
+      // Money cards additionally require the SAME amount (two real orders at
+      // the same time with different prices are different orders).
       final dupLookup = <int, String>{}; // new card index -> existing card id
       for (var i = 0; i < organized.cards.length; i++) {
         final card = organized.cards[i];
-        if (card.type != 'task' &&
-            card.type != 'schedule' &&
-            card.type != 'plan') {
+        if (!_isDedupeCard(card)) {
           continue;
         }
         final anchor = _firstTimeAnchor(card.structuredFields);
         if (anchor == null) continue;
+        final amountRaw = card.structuredFields?['amount_cny'];
         final existingId = await _findDuplicateActiveCard(
           type: card.type,
           anchorMs: anchor.millisecondsSinceEpoch,
           title: card.title,
+          amountCny:
+              _isMoneyCard(card.structuredFieldsType ?? '') && amountRaw is num
+                  ? amountRaw.toDouble()
+                  : null,
         );
         if (existingId != null) {
           dupLookup[i] = existingId;
@@ -538,6 +645,8 @@ class RecordOrganizerServiceV3 {
       'nextActionAt',
       'occurredAt',
       'endAt',
+      'paidAt', // money cards: expense_entry / shopping_order
+      'receivedAt', // income_entry
     ]) {
       final raw = fields[name];
       if (raw == null) continue;
@@ -547,20 +656,28 @@ class RecordOrganizerServiceV3 {
     return null;
   }
 
-  /// Find an existing ACTIVE card of the same type whose time anchor is within
-  /// [dedupeWindow] of [anchorMs] AND whose normalized title overlaps.
+  /// Find an existing ACTIVE (or status-NULL — money cards have no status)
+  /// card of the same type whose time anchor is within [dedupeWindow] of
+  /// [anchorMs] AND whose normalized title overlaps.
   ///
   /// Returns the existing card id, or null when no match.
   Future<String?> _findDuplicateActiveCard({
     required String type,
     required int anchorMs,
     required String title,
+    double? amountCny,
   }) async {
     const windowMs = 15 * 60 * 1000; // ±15 min
+    // No SQL-level title LIKE here: a one-way LIKE('%new%') misses the
+    // common case where the EXISTING card has the SHORTER title
+    // ("猪杂粉外卖" vs a re-stated "猪杂粉外卖 27 元"), so dedupe silently
+    // fails. Load same-type cards and do bidirectional containment in
+    // memory (2026-08-02 real-device: the duplicate "猪杂粉外卖 27 元"
+    // card was created exactly because the LIKE filter never matched).
     final existingRows = await (_db.select(_db.memoryCards)
           ..where((t) =>
-              t.type.equals(type) & t.status.equals('active') &
-              t.title.lower().like('%${title.toLowerCase()}%')))
+              t.type.equals(type) &
+              (t.status.equals('active') | t.status.isNull())))
         .get();
     if (existingRows.isEmpty) return null;
 
@@ -582,9 +699,19 @@ class RecordOrganizerServiceV3 {
       final existingAnchor =
           fields is Map<String, dynamic> ? _firstTimeAnchor(fields) : null;
       if (existingAnchor == null) continue;
-      if ((existingAnchor.millisecondsSinceEpoch - anchorMs).abs() >
-          windowMs) {
+      if ((existingAnchor.millisecondsSinceEpoch - anchorMs).abs() > windowMs) {
         continue;
+      }
+      // Money cards: same amount required — two real orders at the same
+      // time with different prices are different orders.
+      if (amountCny != null) {
+        final raw =
+            fields is Map<String, dynamic> ? fields['amount_cny'] : null;
+        final existingAmount = raw is num ? raw.toDouble() : null;
+        if (existingAmount == null ||
+            (existingAmount - amountCny).abs() > 0.001) {
+          continue;
+        }
       }
       return row.id;
     }
@@ -627,24 +754,27 @@ class RecordOrganizerServiceV3 {
               ..where((t) => t.id.equals(cardId)))
             .getSingleOrNull();
         if (row == null) continue;
-        // Only surface cards that could plausibly collide with a new one:
-        // task/schedule/plan (schedule-visible) plus events.
-        if (row.type != 'task' &&
-            row.type != 'schedule' &&
-            row.type != 'plan' &&
-            row.type != 'event') {
-          continue;
-        }
-        var extra = '';
         final sf = await (_db.select(_db.memoryCardStructuredFields)
               ..where((t) => t.cardId.equals(cardId)))
             .getSingleOrNull();
+        // Only surface cards that could plausibly collide with a new one:
+        // schedule-visible to-dos, events, and money cards (a re-stated
+        // expense with the same merchant + time is the most common duplicate
+        // — 2026-08-02: three dinners recorded twice, money cards were
+        // missing here so the LLM never saw the existing cards).
+        final isToDo =
+            row.type == 'task' || row.type == 'schedule' || row.type == 'plan';
+        if (!isToDo && row.type != 'event') {
+          continue;
+        }
+        var extra = '';
         if (sf != null) {
           final fields = _safeParseJson(sf.fieldsJson);
           if (fields is Map<String, dynamic>) {
             final anchor = _firstTimeAnchor(fields);
             if (anchor != null) {
-              extra = ' @ ${anchor.toIso8601String()} (status: ${row.status ?? 'active'})';
+              extra =
+                  ' @ ${anchor.toIso8601String()} (status: ${row.status ?? 'active'})';
             }
           }
         }
@@ -909,7 +1039,9 @@ class RecordOrganizerServiceV3 {
         );
         continue;
       }
-      final amount = (amountRaw is num) ? amountRaw.toDouble() : double.tryParse('$amountRaw');
+      final amount = (amountRaw is num)
+          ? amountRaw.toDouble()
+          : double.tryParse('$amountRaw');
       if (amount == null || amount <= 0) {
         _logger.warning(
           '_bridgeToLedger: skipped card ${cardId ?? '?'} ($sfType) — '
@@ -924,8 +1056,8 @@ class RecordOrganizerServiceV3 {
       // Parse occurredAt from structured fields.
       // expense_entry/shopping_order use `paidAt`; income_entry uses `receivedAt`.
       DateTime? occurredAt;
-      final timeRaw = fields['paidAt'] as String? ??
-          fields['receivedAt'] as String?;
+      final timeRaw =
+          fields['paidAt'] as String? ?? fields['receivedAt'] as String?;
       if (timeRaw != null) {
         occurredAt = DateTime.tryParse(timeRaw);
       }
@@ -949,10 +1081,8 @@ class RecordOrganizerServiceV3 {
           if (ratio != null && ratio > 0 && ratio <= 1) {
             contributionRatio = ratio;
             aiAmount = (amount * ratio).clamp(0.0, amount).toDouble();
-            myContributionDesc =
-                fields['my_contribution'] as String?;
-            aiContributionDesc =
-                fields['ai_contribution'] as String?;
+            myContributionDesc = fields['my_contribution'] as String?;
+            aiContributionDesc = fields['ai_contribution'] as String?;
           }
         }
       }
@@ -975,7 +1105,8 @@ class RecordOrganizerServiceV3 {
           '($sfType, ¥$amount, aiShare ¥$aiAmount, "$purpose")',
         );
       } catch (e) {
-        _logger.warning('_bridgeToLedger: failed for card ${cardId ?? '?'}: $e');
+        _logger
+            .warning('_bridgeToLedger: failed for card ${cardId ?? '?'}: $e');
       }
     }
   }
@@ -1078,8 +1209,8 @@ class RecordOrganizerServiceV3 {
       final purpose = card.title;
 
       DateTime? occurredAt;
-      final timeRaw = fieldsMap['paidAt'] as String? ??
-          fieldsMap['receivedAt'] as String?;
+      final timeRaw =
+          fieldsMap['paidAt'] as String? ?? fieldsMap['receivedAt'] as String?;
       if (timeRaw != null) {
         occurredAt = DateTime.tryParse(timeRaw);
       }
@@ -1249,11 +1380,17 @@ class RecordOrganizerServiceV3 {
       }
       if (retrievalText != null && retrievalText != card.retrievalText) {
         newRetrievalText = retrievalText;
-        changes['retrievalText'] = {'old': card.retrievalText, 'new': retrievalText};
+        changes['retrievalText'] = {
+          'old': card.retrievalText,
+          'new': retrievalText
+        };
       }
       if (dropletLabel != null && dropletLabel != card.dropletLabel) {
         newDropletLabel = dropletLabel;
-        changes['dropletLabel'] = {'old': card.dropletLabel, 'new': dropletLabel};
+        changes['dropletLabel'] = {
+          'old': card.dropletLabel,
+          'new': dropletLabel
+        };
       }
       if (type != null && type != card.type) {
         newType = type;
@@ -1281,7 +1418,7 @@ class RecordOrganizerServiceV3 {
           }
         }
 
-if (structuredFields != null) {
+        if (structuredFields != null) {
           final filtered = Map<String, dynamic>.from(structuredFields);
           for (final key in _timeFieldNames) {
             filtered.remove(key);
@@ -1398,8 +1535,7 @@ if (structuredFields != null) {
       // list timestamp show the edit time instead of the event time.
       // Modifications are tracked in memory_card_operations (audit log).
       if (changes.isNotEmpty) {
-        await (_db.update(_db.memoryCards)
-              ..where((t) => t.id.equals(cardId)))
+        await (_db.update(_db.memoryCards)..where((t) => t.id.equals(cardId)))
             .write(MemoryCardsCompanion(
           title: newTitle != null ? Value(newTitle) : const Value.absent(),
           retrievalText: newRetrievalText != null
@@ -1441,7 +1577,8 @@ if (structuredFields != null) {
         } catch (e, s) {
           _logger.warning('updateCard: FTS re-index failed for $cardId', e, s);
         }
-        _logger.info('updateCard: updated $cardId, fields: ${changes.keys.join(", ")}');
+        _logger.info(
+            'updateCard: updated $cardId, fields: ${changes.keys.join(", ")}');
         return updatedCard;
       }
 
