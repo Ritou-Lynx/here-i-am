@@ -3,8 +3,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
+import 'package:memex/agent/companion_agent/companion_agent.dart';
+import 'package:memex/data/services/active_persona_chat_service.dart';
+import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/current_context_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/media_input_attachment.dart';
+import 'package:memex/data/services/persona_chat_service.dart';
+import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
@@ -13,12 +19,6 @@ import 'package:memex/ui/character/widgets/persona_chat_screen.dart'
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/utils/user_storage.dart';
-import 'package:go_router/go_router.dart';
-import 'package:memex/data/services/active_persona_chat_service.dart';
-import 'package:memex/data/services/character_service.dart';
-import 'package:memex/data/services/quick_chat_service.dart';
-import 'package:memex/routing/routes.dart';
-import 'package:memex/data/services/current_context_service.dart';
 
 /// Floating action ball that lets the user quickly save a fact, plan, or note
 /// to User-truth from any screen in the app.
@@ -67,7 +67,7 @@ class _FloatingRecordBallState extends State<FloatingRecordBall> {
       context: navContext,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _QuickChatSheet(navigatorKey: widget.navigatorKey),
+      builder: (_) => const _QuickChatSheet(),
     );
   }
 
@@ -448,19 +448,27 @@ Path _dropletPath(Size size) {
 // ─── Quick-chat sheet — send a message to the active companion ─────────────────
 
 class _QuickChatSheet extends StatefulWidget {
-  const _QuickChatSheet({required this.navigatorKey});
-
-  final GlobalKey<NavigatorState> navigatorKey;
+  const _QuickChatSheet({super.key});
 
   @override
   State<_QuickChatSheet> createState() => _QuickChatSheetState();
 }
 
+// A single message bubble in the inline chat.
+class _ChatBubble {
+  final bool isUser;
+  String text; // mutable — streamed in progressively
+  _ChatBubble({required this.isUser, required this.text});
+}
+
 class _QuickChatSheetState extends State<_QuickChatSheet> {
   final _controller = TextEditingController();
-  bool _sending = false;
+  final _scrollController = ScrollController();
+  final _bubbles = <_ChatBubble>[];
+  bool _streaming = false;
   String? _characterName;
   String? _characterId;
+  String? _userId;
   CurrentPageContext? _pageContext;
 
   @override
@@ -471,16 +479,16 @@ class _QuickChatSheetState extends State<_QuickChatSheet> {
   }
 
   Future<void> _resolveCharacter() async {
+    final userId = await UserStorage.getUserId();
+    _userId = userId;
+    if (userId == null) {
+      if (mounted) setState(() => _characterName = 'i');
+      return;
+    }
     final activeId =
         await ActivePersonaChatService.instance.getActiveCharacterId();
     String? resolvedId = activeId;
     String? resolvedName;
-
-    final userId = await UserStorage.getUserId();
-    if (userId == null) {
-      if (mounted) setState(() { _characterId = null; _characterName = 'i'; });
-      return;
-    }
 
     if (resolvedId == null) {
       try {
@@ -491,14 +499,11 @@ class _QuickChatSheetState extends State<_QuickChatSheet> {
         }
       } catch (_) {}
     }
-
     if (resolvedId != null && resolvedName == null) {
       try {
         final chars = await CharacterService.instance.getAllCharacters(userId);
-        resolvedName = chars
-            .where((c) => c.id == resolvedId)
-            .firstOrNull
-            ?.name;
+        resolvedName =
+            chars.where((c) => c.id == resolvedId).firstOrNull?.name;
       } catch (_) {}
     }
 
@@ -513,62 +518,130 @@ class _QuickChatSheetState extends State<_QuickChatSheet> {
   @override
   void dispose() {
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty || _streaming) return;
     final characterId = _characterId;
-    if (characterId == null) return;
+    final userId = _userId;
+    if (characterId == null || userId == null) return;
 
-    setState(() => _sending = true);
-    if (mounted) Navigator.pop(context);
+    _controller.clear();
 
-    // Prepend page context hint so the companion knows what is on screen
+    // Build user message with optional page context hint
     final hint = _pageContext?.messageHint ?? '';
-    final message = hint.isEmpty ? text : '$hint$text';
-    QuickChatService.queue(characterId: characterId, message: message);
+    final userMessage = hint.isEmpty ? text : '$hint$text';
 
-    final navContext = widget.navigatorKey.currentContext;
-    if (navContext != null && navContext.mounted) {
-      navContext.go(AppRoutes.home);
+    // Add user bubble (show hint + text together for clarity)
+    setState(() {
+      _bubbles.add(_ChatBubble(isUser: true, text: text));
+      _streaming = true;
+    });
+    _scrollToBottom();
+
+    // Add empty AI bubble that will stream in
+    final aiBubble = _ChatBubble(isUser: false, text: '');
+    setState(() => _bubbles.add(aiBubble));
+
+    try {
+      // Persist user message to chat history
+      final chatSvc = PersonaChatService.instance;
+      final userMsgId = await chatSvc.addUserMessage(
+        characterId,
+        userMessage,
+      );
+
+      // Fetch LLM resources
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.companionAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+
+      // Stream companion response
+      String lastChunk = '';
+      await for (final chunk in CompanionAgent.chat(
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+        userId: userId,
+        characterId: characterId,
+        userMessage: userMessage,
+        userMessageId: userMsgId,
+        userMessageTime: DateTime.now(),
+      )) {
+        lastChunk = chunk;
+        if (mounted) {
+          setState(() => aiBubble.text = chunk);
+          _scrollToBottom();
+        }
+      }
+
+      // Sanitize and persist character reply
+      final reply = PersonaReplySanitizer.stripLeakedReasoning(
+        lastChunk.trim(),
+      );
+      if (reply.isNotEmpty) {
+        await chatSvc.addCharacterMessage(
+          characterId,
+          reply,
+          isRead: true,
+          timestamp: DateTime.now(),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => aiBubble.text = '出错了：$e');
+      }
+    } finally {
+      if (mounted) setState(() => _streaming = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     final characterLabel = _characterName ?? 'i';
+    final hasMessages = _bubbles.isNotEmpty;
+
     return Padding(
       padding: EdgeInsets.only(bottom: keyboardHeight),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // ── Header ──────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.chat_bubble_outline, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      '发消息给 $characterLabel',
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                  ],
-                ),
+                Row(children: [
+                  const Icon(Icons.chat_bubble_outline, size: 16),
+                  const SizedBox(width: 6),
+                  Text('与 $characterLabel 聊',
+                      style: theme.textTheme.labelMedium),
+                ]),
                 if (_pageContext != null) ...[
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest
+                      color: theme.colorScheme.surfaceContainerHighest
                           .withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -576,25 +649,18 @@ class _QuickChatSheetState extends State<_QuickChatSheet> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          _pageContext!.type ==
-                                  CurrentContextType.memoryCard
+                          _pageContext!.type == CurrentContextType.memoryCard
                               ? Icons.bookmark_outline
                               : Icons.topic_outlined,
                           size: 12,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: theme.colorScheme.primary,
                         ),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
                             _pageContext!.label,
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelSmall
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primary,
-                                ),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.primary),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -605,9 +671,64 @@ class _QuickChatSheetState extends State<_QuickChatSheet> {
               ],
             ),
           ),
+          // ── Message list (only shown after first message) ───────────
+          if (hasMessages)
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.35,
+              ),
+              child: ListView.builder(
+                controller: _scrollController,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: _bubbles.length,
+                itemBuilder: (_, i) {
+                  final b = _bubbles[i];
+                  return Align(
+                    alignment: b.isUser
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      constraints: BoxConstraints(
+                        maxWidth:
+                            MediaQuery.of(context).size.width * 0.75,
+                      ),
+                      decoration: BoxDecoration(
+                        color: b.isUser
+                            ? theme.colorScheme.primary
+                                .withValues(alpha: 0.15)
+                            : theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: b.text.isEmpty && !b.isUser
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(b.text,
+                              style: theme.textTheme.bodySmall),
+                    ),
+                  );
+                },
+              ),
+            ),
+          // ── Input bar ───────────────────────────────────────────────
           PersonaChatInputBar(
             controller: _controller,
-            isStreaming: _sending,
+            isStreaming: _streaming,
             onSend: _send,
             hintText: '发消息给 $characterLabel……',
           ),
