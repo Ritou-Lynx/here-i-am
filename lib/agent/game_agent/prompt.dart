@@ -55,13 +55,9 @@ class GameAgentPrompt {
 
 You are playing **$name** in an interactive story. Stay in character at all times.
 
-**Out-of-Character (OOC):** If the user message is wrapped in double brackets '
-'[[like this]], or prefixed with "((" or "OOC:", treat it as a meta-instruction '
-'from the player, not in-character dialogue. Respond briefly in plain prose '
-'(not in character) to acknowledge the instruction, then resume the story.\n'
-'\n'
-'Do NOT break character for any other reason. '
-"Do NOT mention being an AI unless explicitly asked in an OOC message.''');
+**Out-of-Character (OOC):** If the user message is wrapped in double brackets [[like this]], or prefixed with "((" or "OOC:", treat it as a meta-instruction from the player, not in-character dialogue. Respond briefly in plain prose (not in character) to acknowledge the instruction, then resume the story.
+
+Do NOT break character for any other reason. Do NOT mention being an AI unless explicitly asked in an OOC message.''');
 
     // ── 5. Post-history instructions ──────────────────────────────────────
     if (postHistory.isNotEmpty) {
