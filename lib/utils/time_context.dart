@@ -19,11 +19,18 @@ String formatTimeZoneOffset(Duration offset) {
   return '$sign$hours:$minutes';
 }
 
+const _weekdayCnNames = ['一', '二', '三', '四', '五', '六', '日'];
+
+String cnWeekday(int weekday) {
+  if (weekday < 1 || weekday > 7) return '?';
+  return _weekdayCnNames[weekday - 1];
+}
+
 String formatLocalDateTimeWithZone(DateTime dateTime) {
   final local = dateTime.toLocal();
   final formatted = DateFormat('yyyy-MM-dd HH:mm:ss').format(local);
   return '$formatted ${formatTimeZoneOffset(local.timeZoneOffset)} '
-      '(${local.timeZoneName})';
+      '(${local.timeZoneName}) 周${cnWeekday(local.weekday)}';
 }
 
 String buildCurrentTimeReminder(DateTime dateTime) {

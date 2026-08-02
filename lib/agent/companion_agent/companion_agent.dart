@@ -98,12 +98,6 @@ class CompanionAgent {
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
       '${dt.day.toString().padLeft(2, '0')}';
 
-  static String _cnWeekday(int weekday) {
-    const names = ['一', '二', '三', '四', '五', '六', '日'];
-    if (weekday < 1 || weekday > 7) return '?';
-    return names[weekday - 1];
-  }
-
   /// Build the book co-reading system reminder if the user has been reading
   /// a book recently (within 60 minutes). Returns null if not active.
   ///
@@ -586,7 +580,7 @@ class CompanionAgent {
           final buf = StringBuffer();
           final now = DateTime.now();
           final todayStr = _fmtYmd(now);
-          final weekdayCn = _cnWeekday(now.weekday);
+          final weekdayCn = cnWeekday(now.weekday);
           buf.writeln('## Dreaming Context — 过去的关系记忆');
           buf.writeln('今天：$todayStr 周$weekdayCn。以下是你之前已经沉淀下来的');
           buf.writeln('记忆片段。每条前的日期是**事情实际发生的时间**，不是今');

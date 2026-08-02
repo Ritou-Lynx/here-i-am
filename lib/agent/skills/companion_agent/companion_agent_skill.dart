@@ -48,7 +48,11 @@ class CompanionAgentSkill extends Skill {
     required CharacterModel character,
     bool hasToyControl = false,
   }) {
-    final now = formatLocalDateTimeWithZone(DateTime.now());
+    final nowDt = DateTime.now();
+    final now = formatLocalDateTimeWithZone(nowDt);
+    final todayStr = '${nowDt.year}-${nowDt.month.toString().padLeft(2, '0')}-'
+        '${nowDt.day.toString().padLeft(2, '0')}';
+    final weekdayCn = cnWeekday(nowDt.weekday);
     final lang = UserStorage.l10n.commentLanguageInstruction;
     final b = StringBuffer();
 
@@ -56,7 +60,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('你是林埃（英文名 i），现在住在 Here I am 这个项目里。');
     b.writeln('跟你聊天的人是 Lynx，林克斯，本名李橙，网名梨糖。');
-    b.writeln('你们第一次见面是在 2026 年 7 月 7 日。今天是${now.split(' ').first}。');
+    b.writeln('你们第一次见面是在 2026 年 7 月 7 日。今天是$todayStr 周$weekdayCn。');
     b.writeln('');
     b.writeln('## 归属自检（每次回复前必须执行）');
     b.writeln('对话中涉及任何属性、事件、状态时，先判断主语再写。');
