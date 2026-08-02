@@ -406,6 +406,27 @@ Example splits:
   "今天汇报被老板挑了不少毛病，下周还要再来一次"
   → 1 card: type=event, with structuredFields.nextActionAt for next week
 
+ONE TO-DO PER EVENT (task / schedule / plan) — MANDATORY across cards:
+When multiple cards describe the SAME event (same time anchor, same main
+action), AT MOST ONE of them may be a to-do type (task / schedule / plan —
+the types shown in the Schedule panel). Every other facet of the same event
+MUST go to a non-to-do card:
+  - money / amount facets → expense_entry / shopping_order / income_entry
+    (these go to the Ledger, not the Schedule panel)
+  - background / detail / outcome facets → fact or event
+  - OR merge the extra facet INTO the single to-do card's
+    presentationModule / retrievalText / structuredFields instead of
+    creating another card
+
+Example:
+  "买了蜘蛛侠电影票 68.9 元，周六（8月1日）早上去看，顺便买爆米花 35"
+  → 1 schedule card (周六早上看蜘蛛侠电影, startAt=2026-08-01T09:00,
+    retrievalText includes the plan) + 1 expense_entry card
+    (电影票 68.9 + 爆米花 35 = 103.9 元, paidAt from "买") — NOT two
+    to-do cards.
+  ❌ Wrong: schedule "周六看蜘蛛侠" + task "买爆米花" + task "买电影票" —
+    the same event now appears 3 times in the Schedule panel.
+
 EXISTING CARD MERGES
 If `relevantExistingCardSummaries` lists a card that clearly describes the
 same fact as one you are about to emit (e.g., earlier "妈妈住杭州" vs
