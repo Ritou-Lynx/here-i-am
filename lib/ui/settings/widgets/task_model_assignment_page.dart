@@ -26,6 +26,7 @@ class TaskModelAssignmentPage extends StatefulWidget {
 
 class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   static const _inheritDefault = '__inherit_default__';
+  static const _gameAgentId = 'game_agent';
   static const _backgroundAsset = 'assets/images/雨玻璃.jpg';
   static const _warmSurface = Color(0xFFF8F6EB);
   static const _warmControl = Color(0xFFEDE9D8);
@@ -37,23 +38,30 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   static const _tasks = <_TaskModelDefinition>[
     _TaskModelDefinition(
       id: 'chat',
-      title: '聊天对话',
-      description: '林埃日常聊天与主动联系',
+      title: '聊天与互动',
+      description: '日常聊天、主动联系、澄清补全与游戏角色扮演',
+      membersLabel: '林埃聊天 · 主动联系 · 澄清补全 · 游戏跟随此项',
       agentIds: [
         AgentDefinitions.companionAgent,
         AgentDefinitions.checkinAgent,
+        AgentDefinitions.clarificationResolutionAgent,
       ],
     ),
     _TaskModelDefinition(
       id: 'memory',
       title: '记忆整理',
-      description: '记录整理、Fragment 与凝结流程',
-      agentIds: [AgentDefinitions.recordOrganizerAgent],
+      description: '记录整理、Fragment、凝结与角色记忆摘要',
+      membersLabel: '记录整理 · 角色记忆摘要',
+      agentIds: [
+        AgentDefinitions.recordOrganizerAgent,
+        AgentDefinitions.profileAgent,
+      ],
     ),
     _TaskModelDefinition(
       id: 'schedule',
       title: '日程分析',
       description: '日程识别与路由刷新',
+      membersLabel: '日程整理 · 日程路由',
       agentIds: [
         AgentDefinitions.scheduleAggregatorAgent,
         AgentDefinitions.scheduleRefreshRouterAgent,
@@ -62,19 +70,14 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
     _TaskModelDefinition(
       id: 'content',
       title: '内容分析',
-      description: '媒体分析、跨记录洞察与生活洞察',
+      description: '媒体、跨记录洞察、生活洞察与语义检索',
+      membersLabel: '媒体分析 · 跨记录洞察 · 生活洞察 · 语义检索',
       agentIds: [
         AgentDefinitions.analyzeAssets,
         AgentDefinitions.knowledgeInsightAgent,
         AgentDefinitions.lifeInsightAgent,
+        AgentDefinitions.embeddingAgent,
       ],
-    ),
-    _TaskModelDefinition(
-      id: 'game',
-      title: '游戏与角色扮演',
-      description: '独立游戏会话与角色卡演绎',
-      agentIds: [],
-      followsTaskId: 'chat',
     ),
   ];
 
@@ -88,6 +91,12 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
           id: AgentDefinitions.companionAgent,
           title: '林埃聊天',
           description: '主聊天、共读与悬浮球对话',
+        ),
+        _AgentModelDefinition(
+          id: _gameAgentId,
+          title: '游戏角色扮演',
+          description: 'SillyTavern 与后续游戏会话',
+          followsAgentId: AgentDefinitions.companionAgent,
         ),
         _AgentModelDefinition(
           id: AgentDefinitions.recordOrganizerAgent,
@@ -176,6 +185,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
     final agentSelected = <String, String?>{};
 
     for (final agent in _agents) {
+      if (agent.followsAgentId != null) continue;
       final config = await UserStorage.getAgentConfig(agent.id);
       agentSelected[agent.id] = config.llmConfigKey;
     }
@@ -205,7 +215,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   ) {
     final selected = <String, String?>{};
     final mixed = <String>{};
-    for (final task in _tasks.where((task) => task.followsTaskId == null)) {
+    for (final task in _tasks) {
       final keys = task.agentIds.map((id) => agentSelected[id]).toSet();
       selected[task.id] = keys.isEmpty ? null : keys.first;
       if (keys.length > 1) mixed.add(task.id);
@@ -214,7 +224,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   }
 
   Future<void> _saveTask(_TaskModelDefinition task, String value) async {
-    if (task.followsTaskId != null || _savingId != null) return;
+    if (_savingId != null) return;
     final savingId = 'task:${task.id}';
     setState(() => _savingId = savingId);
     final key = value == _inheritDefault ? null : value;
@@ -245,7 +255,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   }
 
   Future<void> _saveAgent(_AgentModelDefinition agent, String value) async {
-    if (_savingId != null) return;
+    if (_savingId != null || agent.followsAgentId != null) return;
     final savingId = 'agent:${agent.id}';
     setState(() => _savingId = savingId);
     final key = value == _inheritDefault ? null : value;
@@ -352,8 +362,8 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
                                 const SizedBox(height: 16),
                                 Text(
                                   _mode == ModelAssignmentMode.tasks
-                                      ? '按用途会同时切换一组相关 Agent；若某条路径单独失效，可切到“按 Agent”精确处理。'
-                                      : '这里只列仍在运行的路径。单独切换不会影响同一任务里的其他 Agent。',
+                                      ? '按用途会同时切换这一用途下的全部 Agent。游戏始终跟随聊天模型。'
+                                      : '这是同一套配置的逐 Agent 视图；可单独覆盖某条路径，也可看见明确的跟随关系。',
                                   style: const TextStyle(
                                     color: _secondary,
                                     height: 1.45,
@@ -408,7 +418,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
           ),
           const Expanded(
             child: Text(
-              '切换模型',
+              '模型分配',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Color(0xFFF8FBF8),
@@ -450,44 +460,45 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   }
 
   Widget _buildTask(_TaskModelDefinition task) {
-    final followsChat = task.followsTaskId != null;
-    final sourceId = task.followsTaskId ?? task.id;
-    final selected = _taskSelectedKeys[sourceId];
+    final selected = _taskSelectedKeys[task.id];
     final saving = _savingId == 'task:${task.id}';
     final mixed = _mixedTaskIds.contains(task.id);
     return _AssignmentRow(
       title: task.title,
       description: task.description,
-      technicalLabel: mixed ? '包含单独配置' : null,
+      technicalLabel:
+          mixed ? '包含单独配置 · ${task.membersLabel}' : task.membersLabel,
       saving: saving,
-      child: followsChat
-          ? _InheritedModelLabel(
-              text: '使用聊天模型 · ${_effectiveModelLabel(selected)}',
-            )
-          : _buildDropdown(
-              key:
-                  ValueKey('task-model-${task.id}-${_dropdownValue(selected)}'),
-              selected: selected,
-              enabled: _savingId == null,
-              onChanged: (value) => _saveTask(task, value),
-            ),
+      child: _buildDropdown(
+        key: ValueKey('task-model-${task.id}-${_dropdownValue(selected)}'),
+        selected: selected,
+        enabled: _savingId == null,
+        onChanged: (value) => _saveTask(task, value),
+      ),
     );
   }
 
   Widget _buildAgent(_AgentModelDefinition agent) {
-    final selected = _agentSelectedKeys[agent.id];
-    final saving = _savingId == 'agent:${agent.id}';
+    final followsAgentId = agent.followsAgentId;
+    final selected = _agentSelectedKeys[followsAgentId ?? agent.id];
+    final saving = followsAgentId == null && _savingId == 'agent:${agent.id}';
     return _AssignmentRow(
       title: agent.title,
       description: agent.description,
-      technicalLabel: agent.id,
+      technicalLabel:
+          followsAgentId == null ? agent.id : '${agent.id} · 不单独保存模型配置',
       saving: saving,
-      child: _buildDropdown(
-        key: ValueKey('agent-model-${agent.id}-${_dropdownValue(selected)}'),
-        selected: selected,
-        enabled: _savingId == null,
-        onChanged: (value) => _saveAgent(agent, value),
-      ),
+      child: followsAgentId != null
+          ? _InheritedModelLabel(
+              text: '跟随林埃聊天 · ${_effectiveModelLabel(selected)}',
+            )
+          : _buildDropdown(
+              key: ValueKey(
+                  'agent-model-${agent.id}-${_dropdownValue(selected)}'),
+              selected: selected,
+              enabled: _savingId == null,
+              onChanged: (value) => _saveAgent(agent, value),
+            ),
     );
   }
 
@@ -684,15 +695,15 @@ class _TaskModelDefinition {
     required this.id,
     required this.title,
     required this.description,
+    required this.membersLabel,
     required this.agentIds,
-    this.followsTaskId,
   });
 
   final String id;
   final String title;
   final String description;
+  final String membersLabel;
   final List<String> agentIds;
-  final String? followsTaskId;
 }
 
 class _AgentGroupDefinition {
@@ -707,9 +718,11 @@ class _AgentModelDefinition {
     required this.id,
     required this.title,
     required this.description,
+    this.followsAgentId,
   });
 
   final String id;
   final String title;
   final String description;
+  final String? followsAgentId;
 }

@@ -536,42 +536,14 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
     return switch (section) {
       PersonalCenterSection.ai => _SectionData(
           title: 'AI 与模型',
-          intro: '按真实任务选择模型，内部 Agent 名称不再暴露给普通使用。',
+          intro: '同一套模型分配可以按用途批量调整，也可以按 Agent 精确切换。',
           groups: [
-            _DestinationGroup('按任务分配', [
+            _DestinationGroup('模型分配', [
               _Destination(
-                icon: Icons.chat_bubble_outline_rounded,
-                title: '聊天对话',
-                subtitle: '林埃与你日常聊天时使用',
-                status: '可单独配置',
-                onTap: () => open(const TaskModelAssignmentPage()),
-              ),
-              _Destination(
-                icon: Icons.auto_awesome_outlined,
-                title: '记忆整理',
-                subtitle: '整理你明确要求记录的内容',
-                status: '可单独配置',
-                onTap: () => open(const TaskModelAssignmentPage()),
-              ),
-              _Destination(
-                icon: Icons.event_note_outlined,
-                title: '日程分析',
-                subtitle: '识别时间、提醒与安排',
-                status: '可单独配置',
-                onTap: () => open(const TaskModelAssignmentPage()),
-              ),
-              _Destination(
-                icon: Icons.image_search_outlined,
-                title: '内容分析',
-                subtitle: '图片、阅读与跨记录观察',
-                status: '可单独配置',
-                onTap: () => open(const TaskModelAssignmentPage()),
-              ),
-              _Destination(
-                icon: Icons.sports_esports_outlined,
-                title: '游戏与角色扮演',
-                subtitle: '独立游戏会话与角色卡演绎',
-                status: '使用聊天模型',
+                icon: Icons.account_tree_outlined,
+                title: '模型分配',
+                subtitle: '按用途批量设置，或按 Agent 精确切换',
+                status: '统一入口',
                 onTap: () => open(const TaskModelAssignmentPage()),
               ),
             ]),

@@ -54,11 +54,20 @@ void main() {
     await tester.tap(find.text('AI 与模型'));
     await tester.pumpAndSettle();
 
-    expect(find.text('聊天对话'), findsOneWidget);
+    expect(find.text('模型分配'), findsWidgets);
+    expect(find.text('聊天对话'), findsNothing);
+    expect(find.text('记忆整理'), findsNothing);
+    expect(find.text('日程分析'), findsNothing);
+    expect(find.text('内容分析'), findsNothing);
+
+    await tester.tap(find.text('模型分配').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('聊天与互动'), findsOneWidget);
     expect(find.text('记忆整理'), findsOneWidget);
     expect(find.text('日程分析'), findsOneWidget);
     expect(find.text('内容分析'), findsOneWidget);
-    expect(find.text('游戏与角色扮演'), findsOneWidget);
+    expect(find.text('游戏与角色扮演'), findsNothing);
   });
 
   testWidgets('image generation opens its focused spring-rain settings page',
@@ -118,6 +127,8 @@ void main() {
     expect(find.text('按用途'), findsOneWidget);
     expect(find.text('按 Agent'), findsOneWidget);
     expect(find.text('林埃聊天'), findsOneWidget);
+    expect(find.text('游戏角色扮演'), findsOneWidget);
+    expect(find.textContaining('跟随林埃聊天'), findsOneWidget);
     expect(find.text('记录整理'), findsOneWidget);
     expect(find.text('主动联系'), findsOneWidget);
     await tester.scrollUntilVisible(
