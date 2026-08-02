@@ -883,6 +883,7 @@ class RecordOrganizerServiceV3 {
     for (var i = 0; i < organized.cards.length; i++) {
       final card = organized.cards[i];
       final sfType = card.structuredFieldsType;
+      final cardId = i < cardIds.length ? cardIds[i] : null;
       if (sfType != 'expense_entry' &&
           sfType != 'shopping_order' &&
           sfType != 'income_entry') {
@@ -890,14 +891,34 @@ class RecordOrganizerServiceV3 {
       }
 
       final fields = card.structuredFields;
-      if (fields == null) continue;
+      if (fields == null) {
+        _logger.warning(
+          '_bridgeToLedger: skipped card ${cardId ?? '?'} ($sfType) — '
+          'no structuredFields extracted; card was saved to Memory Review '
+          'but will NOT appear in the ledger.',
+        );
+        continue;
+      }
 
       final amountRaw = fields['amount_cny'];
-      if (amountRaw == null) continue;
+      if (amountRaw == null) {
+        _logger.warning(
+          '_bridgeToLedger: skipped card ${cardId ?? '?'} ($sfType) — '
+          'amount_cny missing from structuredFields; card was saved to '
+          'Memory Review but will NOT appear in the ledger.',
+        );
+        continue;
+      }
       final amount = (amountRaw is num) ? amountRaw.toDouble() : double.tryParse('$amountRaw');
-      if (amount == null || amount <= 0) continue;
+      if (amount == null || amount <= 0) {
+        _logger.warning(
+          '_bridgeToLedger: skipped card ${cardId ?? '?'} ($sfType) — '
+          'amount_cny "$amountRaw" is not a valid positive number; card was '
+          'saved to Memory Review but will NOT appear in the ledger.',
+        );
+        continue;
+      }
 
-      final cardId = i < cardIds.length ? cardIds[i] : null;
       final purpose = card.title;
 
       // Parse occurredAt from structured fields.

@@ -330,6 +330,87 @@ class CompanionAgent {
       'call `generate_image` with a detailed Chinese prompt describing the '
       'image the user wants to see.';
 
+  // ── Record/ledger request detection & directive ─────────────────────────
+  // Prevents the failure mode where the agent says "记上了" / "已保存" without
+  // actually calling LifeMemoryCapture / AiFinanceRecord, or calls the tool
+  // but gets success:false back and claims success anyway, or picks the
+  // wrong tool (delegate_task card_ops) whose results never show up in the
+  // Memory Review tab (2026-08-02 记账 bug report).
+
+  static final List<RegExp> _recordRequestPatterns = [
+    RegExp(
+        r'(记一下|帮我记|记录一下|保存一下|存一下|加到记录|记住这个|帮我记账|把.{0,10}记上|记上账|记一笔|记个账|记下来|记下这个|你帮我记|给我记|帮我存)'),
+    RegExp(r'(write.{0,8}down|record.{0,8}this|save.{0,8}this|note.{0,8}down)',
+        caseSensitive: false),
+  ];
+
+  static bool _containsRecordRequest(String text) =>
+      _recordRequestPatterns.any((p) => p.hasMatch(text));
+
+  @visibleForTesting
+  static bool containsRecordRequestForTesting(String text) =>
+      _containsRecordRequest(text);
+
+  static const _recordRequestDirective =
+      '⛔ SYSTEM DIRECTIVE (enforced — not advice):\n'
+      'The user just explicitly asked you to record/save/log a fact, event, '
+      'expense, or income. You MUST call `LifeMemoryCapture` (general facts/'
+      'events/expenses) or `AiFinanceRecord` (money that belongs to the '
+      'shared AI ledger) in THIS turn to actually persist it.\n'
+      'Do NOT use `delegate_task` for this — that tool writes to a legacy '
+      'store the user cannot see in Memory Review.\n'
+      'Gather ALL relevant details from the recent conversation (who, what, '
+      'where, how much, when) into a self-contained summary before calling '
+      'the tool. Only say "记上了" / "记好了" / "已保存" AFTER the tool call '
+      'returns success — if it returns success:false, tell the user it '
+      'failed instead of claiming success.';
+
+  /// Patterns indicating the agent's text output claims a record/save was
+  /// completed.
+  static final List<RegExp> _recordCommitmentPatterns = [
+    RegExp(
+        r'(记上了|已经记上|记好了|保存至记录|已保存|记录好了|已经记住|记账完成|已经记账|存好了|记进账本了?|记到账本了?|已经存好|加到记录里了|已帮你记|可前往.{0,8}[Rr]eview)',
+        caseSensitive: false),
+  ];
+
+  static bool _containsRecordCommitment(String text) =>
+      _recordCommitmentPatterns.any((p) => p.hasMatch(text));
+
+  @visibleForTesting
+  static bool containsRecordCommitmentForTesting(String text) =>
+      _containsRecordCommitment(text);
+
+  /// Returns true if [history] contains a successful (non-error,
+  /// success != false) call to one of the record-writing tools.
+  static bool _hasSuccessfulRecordToolCall(List<LLMMessage> history) {
+    const recordToolNames = {
+      'LifeMemoryCapture',
+      'AiFinanceRecord',
+      'AiFinanceTransfer',
+      'AiFinanceCorrect',
+    };
+    for (final msg in history) {
+      if (msg is! FunctionExecutionResultMessage) continue;
+      for (final result in msg.results) {
+        if (!recordToolNames.contains(result.name)) continue;
+        if (result.isError) continue;
+        final content = result.content;
+        final text = (content.isNotEmpty && content.first is TextPart)
+            ? (content.first as TextPart).text
+            : '';
+        if (text.isEmpty) return true;
+        try {
+          final decoded = jsonDecode(text);
+          if (decoded is Map && decoded['success'] == false) continue;
+        } catch (_) {
+          // Not JSON — assume the non-error result means success.
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// 时间感知：计算距上一条用户消息的间隔并注入 systemReminder。
   ///
   /// 间隔极短（< 2 分钟）时返回 null 不注入，避免每轮都带噪声；
@@ -1339,6 +1420,16 @@ class CompanionAgent {
             '[ImageGen] Injected image_request_directive into systemReminders');
       }
 
+      // Detect explicit record/ledger requests and inject a hard directive.
+      // This prevents the agent from claiming "记上了" without actually
+      // calling LifeMemoryCapture/AiFinanceRecord (or ignoring a failed
+      // tool result).
+      final hasRecordRequest = _containsRecordRequest(userMessage);
+      if (hasRecordRequest) {
+        state.systemReminders['record_request_directive'] =
+            _recordRequestDirective;
+      }
+
       final historyTurns = await _loadChatHistoryTurns(
         characterId: characterId,
         excludeMessageId: userMessageId,
@@ -1430,6 +1521,43 @@ class CompanionAgent {
           _logger.info('Correction turn complete — reminder should now exist');
         } catch (e) {
           _logger.severe('Correction turn failed: $e');
+        }
+      }
+
+      // Post-processing: if the agent claimed a record/save was completed
+      // ("记上了"/"已保存") but never made a successful record-writing tool
+      // call, run a silent correction turn. This catches both "said it but
+      // never called the tool" and "called the tool, got success:false, but
+      // claimed success anyway" (2026-08-02 记账 bug report).
+      final madeRecordCommitment =
+          foundText.isNotEmpty && _containsRecordCommitment(foundText);
+      final hasSuccessfulRecordCall =
+          _hasSuccessfulRecordToolCall(resultHistory);
+      if (madeRecordCommitment && !hasSuccessfulRecordCall) {
+        _logger.severe(
+          'AGENT CLAIMED RECORD SAVED WITHOUT A SUCCESSFUL RECORD TOOL CALL. '
+          'User: "${userMessage.length > 80 ? '${userMessage.substring(0, 80)}…' : userMessage}". '
+          'Agent: "${foundText.length > 80 ? '${foundText.substring(0, 80)}…' : foundText}". '
+          'Running silent correction turn.',
+        );
+        try {
+          await agent.run([
+            UserMessage.text(
+              '⛔ CORRECTION (silent — user does not see this):\n'
+              'Your previous reply said: "$foundText"\n'
+              'But you did NOT successfully call `LifeMemoryCapture` or '
+              '`AiFinanceRecord`. The record was NOT saved.\n\n'
+              'The user\'s original request was: "$userMessage"\n\n'
+              'You MUST call `LifeMemoryCapture` (or `AiFinanceRecord` for '
+              'money/income) NOW with a self-contained summary of what to '
+              'record, gathered from the recent conversation.\n\n'
+              'IMPORTANT: Only call the tool. Do NOT produce any user-visible '
+              'text or chat reply. This is a silent system correction.',
+            ),
+          ], useStream: false);
+          _logger.info('Correction turn complete — record should now exist');
+        } catch (e) {
+          _logger.severe('Record correction turn failed: $e');
         }
       }
 

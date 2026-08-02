@@ -21,12 +21,15 @@ Tool buildDelegateTaskTool({
   return Tool(
     name: 'delegate_task',
     description:
-        '''Delegate a card/PKM/insight/query operation to a background agent.
+        '''Delegate a PKM archive/insight/query operation to a background agent.
 
 Choose `task_category` based on what the user wants:
 
-- **card_ops**: Modify, create, archive, or organize records/cards. Results land
-  in the Review tab as permanent cards. Use for "改卡片", "归档", "创建记录".
+- **card_ops**: Modify or archive EXISTING legacy PKM notes/files that were
+  NOT created via LifeMemoryCapture or AiFinanceRecord. This is a narrow,
+  rarely-needed legacy path — results do NOT appear in the Memory Review tab.
+  Use ONLY for "改一下那篇笔记", "把这份 PKM 文档归档" — i.e. explicit references
+  to old note/document files, never for new facts/events/expenses.
 - **insight**: Generate a one-shot analysis, summary, or chart. Results appear
   ONLY in chat — nothing is saved to the Review tab. Use for "总结这周",
   "分析我的睡眠模式", "这段时间我花了多少钱".
@@ -35,11 +38,14 @@ Choose `task_category` based on what the user wants:
   "帮我找ZZ".
 
 Examples:
-- "把外卖价格从25改成26" → card_ops
 - "总结这周干了什么" → insight
 - "最近三个月有哪些关于面试的记录" → query
-- "归档面试准备的资料" → card_ops
 
+⛔ Do NOT use `card_ops` for recording/saving new facts, events, expenses, or
+income — even if the user says "记一下"、"帮我记账"、"归档"、"创建记录". Those go
+through `LifeMemoryCapture` or `AiFinanceRecord` directly, which write to the
+store the user actually sees in Memory Review / the ledger. `card_ops` writes
+to a different legacy store that Memory Review cannot show.
 Do NOT use for memory writes, reminders, or shopping — those have dedicated tools.
 Always reply in text first, then call this tool.''',
     parameters: {
