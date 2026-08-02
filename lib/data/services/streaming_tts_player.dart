@@ -83,15 +83,30 @@ class StreamingTtsSession {
 
   Future<void> start() async {
     _splitter.onSentence = _onSentence;
+    _log.info('start: voiceId=$voiceId voiceMode=$voiceMode');
     _stateSub = _player.playerStateStream.listen((state) {
+      _log.fine('player state: ${state.processingState} playing=${state.playing} '
+          'done=${_source.isDone} queue=${_sentenceQueue.length} '
+          'proc=$_processingSentence completer=${_playbackCompleter?.isCompleted}');
       if (state.processingState == ProcessingState.completed &&
           _source.isDone &&
           _sentenceQueue.isEmpty &&
           !_processingSentence) {
+        _log.info('playback completed');
         _playbackCompleter?.complete();
+      } else if (state.processingState == ProcessingState.idle &&
+          !state.playing &&
+          _playbackCompleter != null &&
+          !_playbackCompleter!.isCompleted) {
+        // Playback failed (e.g. format probe error) or was stopped early.
+        // Complete the completer so the caller does not hang in the speaking
+        // phase until the 120s timeout.
+        _log.warning('playback stopped/failed before completion');
+        _playbackCompleter!.complete();
       }
     });
     await _player.setAudioSource(_source, preload: false);
+    _log.info('start: setAudioSource done');
     if (voiceMode) {
       // Pin the Android audio usage to voice-communication explicitly. Relying
       // on just_audio's configurationStream subscription is racy (broadcast
@@ -120,18 +135,37 @@ class StreamingTtsSession {
     if (_disposed) return;
     _llmDone = true;
     _splitter.finish();
-    _source.markDone();
-    if (_source._buffer.isEmpty &&
-        !_processingSentence &&
-        _sentenceQueue.isEmpty) {
+    _log.info('finishAndWait: waiting for TTS sentences...');
+
+    // Wait for every queued sentence to finish streaming its audio bytes into
+    // the buffer before marking the source done. Marking done too early (with
+    // an empty buffer) makes ExoPlayer's format probe read EOF and fail with
+    // UnrecognizedInputFormatException, so the reply is never heard — the
+    // bytes that arrive afterwards are also dropped by addBytes().
+    final deadline = DateTime.now().add(const Duration(seconds: 60));
+    while (_processingSentence ||
+        _sentenceQueue.isNotEmpty ||
+        _ttsSubscriptions.isNotEmpty) {
+      if (DateTime.now().isAfter(deadline)) {
+        _log.warning('finishAndWait: TTS sentences timed out');
+        break;
+      }
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+
+    _log.info('finishAndWait: sentences done, bufferBytes=${_source._buffer.length}');
+    if (_source._buffer.isEmpty) {
+      // Nothing was synthesized (e.g. all text filtered); nothing to play.
       await _dispose();
       return;
     }
+    _source.markDone();
     _playbackCompleter = Completer<void>();
+    _log.info('finishAndWait: play()');
     await _player.play();
     await _playbackCompleter!.future.timeout(
       const Duration(seconds: 120),
-      onTimeout: () {},
+      onTimeout: () => _log.warning('finishAndWait: playback timed out'),
     );
     await _dispose();
   }
@@ -176,7 +210,9 @@ class StreamingTtsSession {
     if (_sentenceQueue.isNotEmpty) {
       _processNextSentence();
     } else if (_llmDone && _ttsSubscriptions.isEmpty && _source.isDone) {
-      _playbackCompleter?.complete();
+      // Playback completion is owned by finishAndWait: the completer is only
+      // created after markDone()+play(), and completing it here races with
+      // play() and would cut the audio off (or hang the speaking phase).
     }
   }
 
@@ -187,6 +223,7 @@ class StreamingTtsSession {
   Future<void> _dispose() async {
     if (_disposed) return;
     _disposed = true;
+    _log.info('_dispose: bufferBytes=${_source._buffer.length}');
     for (final sub in _ttsSubscriptions) {
       await sub.cancel();
     }

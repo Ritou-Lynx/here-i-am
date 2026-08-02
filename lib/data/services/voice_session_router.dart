@@ -19,7 +19,12 @@ import 'package:memex/data/services/companion_foreground_task.dart';
 class VoiceSessionRouter {
   VoiceSessionRouter._() {
     FlutterForegroundTask.addTaskDataCallback((data) {
-      debugPrint('[VoiceSessionRouter] data from task: $data');
+      if (data is Map && data['type'] == 'task_ready') {
+        // Foreground-task isolate finished starting & pre-warming; flush any
+        // media-button event queued while the service was (re)starting.
+        _taskReady = true;
+        debugPrint('[VoiceSessionRouter] task ready');
+      }
     });
   }
 
@@ -27,11 +32,17 @@ class VoiceSessionRouter {
 
   static final Object _owner = Object();
   bool _activated = false;
+  bool _taskReady = false;
+  String? _pendingEvent;
 
   /// Wire up the router at app startup. Reads the media-key toggle from
   /// settings; also call [syncFromSettings] whenever the toggle changes.
   Future<void> init() async {
     await syncFromSettings();
+    // The service may already be up (started before this isolate, e.g. boot
+    // or START_STICKY restart). Treat it as ready; a fresh task_ready signal
+    // from onStart keeps the flag accurate afterwards.
+    _taskReady = await FlutterForegroundTask.isRunningService;
   }
 
   /// Re-reads the media-key setting and activates/deactivates accordingly.
@@ -83,10 +94,11 @@ class VoiceSessionRouter {
       final running = await FlutterForegroundTask.isRunningService;
       if (!running) {
         // Very early cold start: the persistent service may not be up yet.
-        // Start it — events sent before its isolate is ready are dropped.
+        // Start it — events sent before its isolate is ready would be
+        // dropped, so queue them until the task_ready handshake.
         await CompanionForegroundService.startPersistent();
       }
-      FlutterForegroundTask.sendDataToTask({'type': 'voice_toggle'});
+      unawaited(_queueOrSend('voice_toggle'));
     } catch (e) {
       debugPrint('[VoiceSessionRouter] toggle route failed: $e');
     }
@@ -94,9 +106,28 @@ class VoiceSessionRouter {
 
   Future<void> _routeCancel() async {
     try {
-      FlutterForegroundTask.sendDataToTask({'type': 'voice_cancel'});
+      unawaited(_queueOrSend('voice_cancel'));
     } catch (e) {
       debugPrint('[VoiceSessionRouter] cancel route failed: $e');
+    }
+  }
+
+  /// Queue a media-button event until the foreground-task isolate is ready
+  /// (task_ready handshake), then forward it. Drops the event after ~10s.
+  Future<void> _queueOrSend(String type) async {
+    if (!_taskReady) {
+      _pendingEvent = type;
+      for (var i = 0; i < 40; i++) {
+        if (_taskReady) break;
+        await Future.delayed(const Duration(milliseconds: 250));
+      }
+    }
+    final event = _pendingEvent ?? type;
+    _pendingEvent = null;
+    if (_taskReady) {
+      FlutterForegroundTask.sendDataToTask({'type': event});
+    } else {
+      debugPrint('[VoiceSessionRouter] task not ready within 10s; drop $event');
     }
   }
 }

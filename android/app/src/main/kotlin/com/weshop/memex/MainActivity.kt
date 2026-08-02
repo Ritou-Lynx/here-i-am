@@ -4,18 +4,13 @@ import android.content.Intent
 import com.memexlab.memex.channels.BackupImportChannelHandler
 import com.memexlab.memex.channels.BackupStorageChannelHandler
 import com.memexlab.memex.channels.ChannelRegistrar
-import com.pravera.flutter_foreground_task.FlutterForegroundTaskLifecycleListener
-import com.pravera.flutter_foreground_task.FlutterForegroundTaskStarter
-import com.pravera.flutter_foreground_task.service.ForegroundService
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugins.GeneratedPluginRegistrant
 import android.util.Log
 import android.view.KeyEvent
 
 class MainActivity : FlutterFragmentActivity() {
-    private var mediaButtonBridge: MediaButtonBridge? = null
     private var mediaButtonChannel: MethodChannel? = null
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
@@ -27,33 +22,6 @@ class MainActivity : FlutterFragmentActivity() {
         }
         super.onCreate(savedInstanceState)
         BackupImportChannelHandler.handleIntent(this, intent)
-        registerForegroundTaskPlugins()
-    }
-
-    /**
-     * The foreground task runs in its own FlutterEngine (separate Dart isolate).
-     * By default that engine registers NO plugins, so MethodChannel-based
-     * plugins (record / just_audio / path_provider / shared_preferences) are
-     * unavailable in the background isolate. Registering the generated plugin
-     * registrant here gives the background voice session the same plugin
-     * surface as the main engine.
-     */
-    private fun registerForegroundTaskPlugins() {
-        ForegroundService.addTaskLifecycleListener(
-            object : FlutterForegroundTaskLifecycleListener {
-                override fun onEngineCreate(flutterEngine: FlutterEngine?) {
-                    flutterEngine?.let { GeneratedPluginRegistrant.registerWith(it) }
-                }
-
-                override fun onTaskStart(starter: FlutterForegroundTaskStarter) {}
-
-                override fun onTaskRepeatEvent() {}
-
-                override fun onTaskDestroy() {}
-
-                override fun onEngineWillDestroy() {}
-            }
-        )
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
@@ -73,30 +41,21 @@ class MainActivity : FlutterFragmentActivity() {
     private fun registerMediaButtonChannel(flutterEngine: FlutterEngine) {
         val channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "com.memexlab.memex/media_buttons"
+            "com.memexlab.memex/media_buttons",
         )
         mediaButtonChannel = channel
-        mediaButtonBridge = MediaButtonBridge(
-            onToggle = {
-                runOnUiThread {
-                    mediaButtonChannel?.invokeMethod("voiceToggle", null)
-                }
-            },
-            onCancel = {
-                runOnUiThread {
-                    mediaButtonChannel?.invokeMethod("voiceCancel", null)
-                }
-            }
-        )
+        // The bridge is process-scoped: attach the channel here, detach on
+        // destroy, never release the MediaSession with the Activity.
+        MediaButtonBridge.attachChannel(channel)
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "activate" -> {
-                    mediaButtonBridge?.activate(applicationContext)
+                    MediaButtonBridge.activate(applicationContext)
                     result.success(null)
                 }
 
                 "deactivate" -> {
-                    mediaButtonBridge?.deactivate()
+                    MediaButtonBridge.deactivate()
                     result.success(null)
                 }
 
@@ -134,16 +93,21 @@ class MainActivity : FlutterFragmentActivity() {
             return true
         }
 
-        val method = when (event.keyCode) {
-            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> "voiceCancel"
-            else -> "voiceToggle"
+        if (event.keyCode == KeyEvent.KEYCODE_MEDIA_PREVIOUS) {
+            MediaButtonBridge.dispatchCancel()
+        } else {
+            MediaButtonBridge.dispatchToggle()
         }
-        mediaButtonChannel?.invokeMethod(method, null)
         return true
     }
 
     override fun onDestroy() {
-        mediaButtonBridge?.deactivate()
+        // Do NOT deactivate the MediaSession here: the bridge is process-scoped
+        // and must survive Activity destruction so headset keys keep working
+        // with the app backgrounded. Events are routed to the main isolate via
+        // the channel while it is alive, and fall back to the foreground-task
+        // isolate (ForegroundService.sendData) once the engine is gone.
+        MediaButtonBridge.detachChannel()
         super.onDestroy()
     }
 }

@@ -55,7 +55,7 @@
         tools:ignore="ProtectedPermissions" />
     <application
         android:label="${appLabel}"
-        android:name="${applicationName}"
+        android:name=".HereIAmApplication"
         android:icon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config">
@@ -64,7 +64,7 @@
              permission can be granted. mediaPlayback supports continuous reply. -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
-            android:foregroundServiceType="dataSync|mediaPlayback"
+            android:foregroundServiceType="dataSync|mediaPlayback|microphone"
             android:exported="false" />
         <service
             android:name="com.llfbandit.record.service.AudioRecordingService"

@@ -174,8 +174,17 @@ class BackgroundVoiceSession {
     if (!controller.isPressToTalk) {
       _phase = BackgroundVoicePhase.idle;
       final err = controller.lastError;
-      await _updateNotification(
-          (err == null || err.isEmpty) ? '语音不可用' : err);
+      // A missing mic permission can't be resolved from the background (no
+      // system dialog is shown for background apps), so surface an actionable
+      // hint instead of a bare error. Android 11+ "While in use" grants are
+      // auto-revoked when the app leaves the foreground — the fix is to pick
+      // "Allow all the time" in system settings.
+      final text = (err == null || err.isEmpty)
+          ? '语音不可用'
+          : (err.contains('麦克风') || err.contains('权限'))
+              ? '麦克风权限未授予：请到手机设置 → 应用 → 故我在 V3 → 权限 → 麦克风，选择「允许所有时间」'
+              : err;
+      await _updateNotification(text);
       return;
     }
     _phase = BackgroundVoicePhase.recording;

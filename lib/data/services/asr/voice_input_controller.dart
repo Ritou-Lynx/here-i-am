@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
 import 'package:memex/data/services/asr/alibaba_asr_client.dart';
@@ -50,6 +51,51 @@ class VoiceInputController extends ChangeNotifier {
   static final Logger _logger = getLogger('VoiceInputController');
 
   final AudioRecorder _recorder = AudioRecorder();
+
+  /// Ensures the RECORD_AUDIO permission is granted before recording starts.
+  ///
+  /// When the app is visible (foreground), a missing permission triggers the
+  /// system authorization dialog (so the user can pick the appropriate grant
+  /// mode); a user refusal is a hard stop.
+  ///
+  /// From the background no dialog can be shown: the request throws (no
+  /// Activity) and the check itself is unreliable — Samsung's One UI (and
+  /// Android 11+ in general) reports `while-in-use` grants as denied while
+  /// the app is backgrounded, even when a foreground service is running and
+  /// the system would actually allow recording. In that case we optimistically
+  /// proceed and let the OS arbitrate at AudioRecord time; a real denial
+  /// surfaces as a recorder start error handled by the caller.
+  Future<bool> _ensureMicPermission() async {
+    if (await _recorder.hasPermission()) return true;
+    try {
+      final status = await Permission.microphone
+          .request()
+          .timeout(const Duration(seconds: 10),
+              onTimeout: () => PermissionStatus.denied);
+      if (status.isGranted) return true;
+      // Foreground: the user refused the system dialog — hard stop.
+      return false;
+    } catch (e) {
+      _logger.warning(
+          'mic permission request unavailable ($e); proceeding ',
+          'optimistically — the system arbitrates at AudioRecord time');
+      return true;
+    }
+  }
+
+  /// Maps a recorder-start error to a user-facing message. Permission denial
+  /// errors (the OS refused AudioRecord — e.g. the grant is `while-in-use`
+  /// and the app is backgrounded without a foreground service) are translated
+  /// to an actionable hint; everything else keeps the raw detail.
+  static String _friendlyMicError(Object e) {
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('permission') ||
+        msg.contains('securityexception') ||
+        msg.contains('麦克风')) {
+      return '麦克风权限未授予：请到系统设置 → 应用 → 故我在 V3 → 权限 → 麦克风，确认已允许后重试';
+    }
+    return '启动录音失败: $e';
+  }
 
   VoiceInputState _state = VoiceInputState.idle;
   String? _currentPath;
@@ -297,7 +343,7 @@ class VoiceInputController extends ChangeNotifier {
       return;
     }
 
-    if (!await _recorder.hasPermission()) {
+    if (!await _ensureMicPermission()) {
       lastError = '麦克风权限未授予';
       notifyListeners();
       return;
@@ -382,7 +428,7 @@ class VoiceInputController extends ChangeNotifier {
       );
     } catch (e) {
       _logger.severe('Failed to start PCM stream: $e');
-      lastError = '启动录音失败: $e';
+      lastError = _friendlyMicError(e);
       await _cancelStreamingInternal();
       notifyListeners();
       return;
@@ -593,7 +639,7 @@ class VoiceInputController extends ChangeNotifier {
     }
     _asrClient = AlibabaAsrClient(config);
 
-    if (!await _recorder.hasPermission()) {
+    if (!await _ensureMicPermission()) {
       lastError = '麦克风权限未授予';
       notifyListeners();
       return;
@@ -634,7 +680,7 @@ class VoiceInputController extends ChangeNotifier {
       _logger.info('Recording started -> $path');
       notifyListeners();
     } catch (e) {
-      lastError = '启动录音失败: $e';
+      lastError = _friendlyMicError(e);
       _logger.severe('start error: $e');
       notifyListeners();
     }

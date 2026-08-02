@@ -45,9 +45,18 @@ class CompanionTaskHandler extends TaskHandler {
     } catch (_) {}
     // Pre-warm the background voice session (DB, character, ASR controller)
     // so the first media-button press doesn't pay the initialization cost.
-    unawaited(BackgroundVoiceSession.instance.ensureReady());
+    unawaited(_prewarmVoiceSession());
     // Run one tick right away so a fresh (re)start doesn't idle a full interval.
     await _tick();
+  }
+
+  /// Pre-warm the background voice session, then tell the main isolate the
+  /// task is ready so queued media-button events are flushed (the task_ready
+  /// handshake closes the race between service start and first key press).
+  Future<void> _prewarmVoiceSession() async {
+    await BackgroundVoiceSession.instance.ensureReady();
+    FlutterForegroundTask.sendDataToMain({'type': 'task_ready'});
+    debugPrint('[ForegroundTask] task_ready sent to main isolate');
   }
 
   /// Receives media-button events forwarded from the main isolate by
