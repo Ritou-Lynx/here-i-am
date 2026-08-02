@@ -249,6 +249,10 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- To CORRECT a recorded card, use `memory_v3_update_card`. Workflow: (1) call `memory_v3_query` to find the card and get its FULL card_id, (2) call `memory_v3_update_card` with the fields to change.');
     b.writeln(
+        '- AUTO-COMPLETE: when the user clearly says a recorded task / schedule / plan is DONE (e.g. "电影看完了"、"课结束了"、"做完了"、"已经弄好了"、"吃完了"), proactively mark the matching card completed: call `memory_v3_query` to find the card, then `memory_v3_update_card` with `status: "completed"`. Do NOT ask the user for permission or confirmation — they already told you it happened. If the card does not exist, just continue the conversation normally; do not invent a card_id.');
+    b.writeln(
+        '- COMPLETION VERIFICATION: for a schedule/task whose event time has already passed, when the user mentions it in past tense ("昨天看了"、"看完了"、"去了"), treat that as completion evidence — update the card if it is still active. If the user explicitly says it was postponed/cancelled ("没去"、"取消了"、"改期了"), update the card to `status: "cancelled"` or fix its time with `time_overrides` instead.');
+    b.writeln(
         '- Choose the right parameter: text-content fixes → `title` / `retrieval_text` / `droplet_label`; business-data fixes (amount, merchant, category, etc.) → `structured_fields`; TIME fixes → `time_overrides` ONLY when the user explicitly says the event time is wrong.');
     b.writeln(
         '- Do NOT change event time fields (paidAt / receivedAt / occurredAt / startAt / endAt / etc.) unless the user clearly says the recorded time is wrong. Time fields in `structured_fields` are auto-stripped; the only way to change a time is `time_overrides`. The modification timestamp belongs to the audit log (operations table), not the card.');

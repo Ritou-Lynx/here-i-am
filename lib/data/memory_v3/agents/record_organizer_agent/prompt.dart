@@ -278,8 +278,8 @@ calculable shape. Drop if nothing fits.
   - Allowed values (extend only if a clear new domain appears):
     expense_entry / income_entry / sleep_record / reading_item / outfit_log /
     shopping_order / route_plan / workout_record / meeting_record /
-    health_observation / general
-  - Do NOT use `schedule` / `task` / `event` / `fact` / `plan` here —
+    health_observation / menstrual_record / general
+  - Do NOT use `schedule` / `task` / `event` / `fact` / `plan` here -
     those are card.type, a different axis.
 
 `structuredFields` is a FLAT JSON object. **DO NOT wrap fields inside a
@@ -309,12 +309,19 @@ Examples by domain (all flat):
   - reading_item:   {"title":"...","author":"...","source":"小红书","url":"...","progress":0.4}
   - shopping_order: {"item":"薄外套","amount_cny":128,"platform":"淘宝","status":"placed","paidAt":"..."}
   - outfit_log:     {"weather":"...","temp_c":18,"items":["...",...],"comfort":"warm"}
+  - menstrual_record: {"startDate":"2026-08-02","endDate":null,"flowLevel":"medium","painLevel":4,"symptoms":["cramps","fatigue"],"notes":"比上次疼"}
+      startDate: ISO date when period STARTED (required). endDate: ISO date when
+      period ENDED, or null if still ongoing. flowLevel: light/medium/heavy.
+      painLevel: 0-10. symptoms: array of strings from [cramps, headache,
+      fatigue, mood_swings, bloating, back_pain, breast_tenderness, acne,
+      cravings, insomnia, diarrhea, nausea, other]. notes: free text.
+      Also set occurredAt = startDate so the card sorts correctly.
   - general:        {"dueAt":"..."}  // time-only fallback for tasks or plans
 
 Business time field names that appear at top level of structuredFields:
   occurredAt, occurredEndAt, nextActionAt, nextActionDescription,
   dueAt, startAt, endAt, remindAt, paidAt, receivedAt, sleepStart, sleepEnd,
-  wakeDate.
+  wakeDate, startDate, endDate.
 ISO 8601 strings, year derived from `current_time`. If you set
 nextActionAt / dueAt / startAt etc., the card automatically also appears
 in the Schedule panel.
@@ -347,6 +354,7 @@ TIME INFERENCE FOR ALL TYPES:
     cue (e.g. a `task` with `dueAt`, or a `plan` with `startAt`), use
     `structuredFieldsType: "general"` and emit only the time field at the
     top level — still FLAT, no `fields` wrapper.
+  - menstrual_record MUST infer startDate from time cues. Also set occurredAt = startDate. If period is still ongoing, set endDate to null. painLevel and flowLevel are optional - only set when user mentions them.
 
 entityLinks — extract STABLE entities only.
   Allowed `category`: person, place, project, hobby, work, object, illness
@@ -403,6 +411,15 @@ If `relevantExistingCardSummaries` lists a card that clearly describes the
 same fact as one you are about to emit (e.g., earlier "妈妈住杭州" vs
 this input "妈妈住杭州西湖区文一路"), DO NOT auto-merge. Emit the new card
 as normal; the backend will surface a merge suggestion to the user.
+
+DEDUPE (task / schedule / plan): if a listed existing card has the SAME
+event time anchor AND the SAME subject as a card you were about to emit
+(e.g. user re-records "周六早上看蜘蛛侠电影" and an existing card already
+says the same thing at the same time), this is a re-statement of the same
+item, not a new item. Do NOT emit a duplicate card for it — omit it from
+the `cards` array entirely (only the genuinely new information should
+produce cards). If the re-statement adds NEW details (different time, more
+context), emit one card for the new information instead of a second copy.
 $existingCardsContext$recentEntitiesContext
 
 Return JSON. Nothing else.

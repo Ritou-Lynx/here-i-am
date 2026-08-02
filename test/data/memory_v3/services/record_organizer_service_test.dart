@@ -437,6 +437,184 @@ void main() {
     expect((blocks[2] as Map)['type'], 'number');
     expect((blocks[2] as Map)['value'], '88');
   });
+
+  test('persist reuses an existing card for the same anchored event',
+      () async {
+    if (!fts5Available) return;
+    // Seed an existing active schedule card (simulates the spider-man case:
+    // "看蜘蛛侠电影" recorded earlier).
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final existingId = 'dup-keeper-${now}';
+    await db.into(db.memoryCards).insert(
+          MemoryCardsCompanion.insert(
+            id: existingId,
+            memoryScope: const Value('user_truth'),
+            type: 'schedule',
+            title: '看蜘蛛侠电影 8月1日早上',
+            dropletLabel: '蜘蛛侠',
+            presentationModule: jsonEncode({
+              'blocks': [
+                {'kind': 'text', 'text': '计划于8月1日早上去看蜘蛛侠电影。'},
+              ],
+            }),
+            retrievalText: '计划于2026年8月1日早上去看蜘蛛侠电影。',
+            valence: 0.5,
+            arousal: 0.4,
+            status: const Value('active'),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    await db.into(db.memoryCardStructuredFields).insert(
+          MemoryCardStructuredFieldsCompanion.insert(
+            cardId: existingId,
+            structuredFieldsType: 'general',
+            fieldsJson: jsonEncode({'startAt': '2026-08-01T09:00:00'}),
+            generatedByVersion: const Value('test'),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    // Re-record the same fact at the same time → must NOT create a new card.
+    final result = await service.persist(
+      organized: OrganizedRecord(cards: [
+        OrganizedCard(
+          type: 'schedule',
+          title: '看蜘蛛侠电影',
+          dropletLabel: '蜘蛛侠',
+          presentationModule: {
+            'blocks': [
+              {'kind': 'text', 'text': '8月1日早上去看蜘蛛侠电影。'},
+            ],
+          },
+          retrievalText: '2026年8月1日早上有一场蜘蛛侠电影。',
+          valence: 0.6,
+          arousal: 0.4,
+          structuredFieldsType: 'general',
+          structuredFields: {'startAt': '2026-08-01T09:00:00'},
+        ),
+      ]),
+      source: RecordSource(
+        sourceKind: 'record_button',
+        rawInput: '买了蜘蛛侠电影票周六早上去看',
+      ),
+    );
+
+    expect(result.cardIds, [existingId]);
+    final all = await db.select(db.memoryCards).get();
+    expect(all, hasLength(1));
+  });
+
+  test('persist keeps distinct events even with same type and similar title '
+      'when the time anchor differs', () async {
+    if (!fts5Available) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await db.into(db.memoryCards).insert(
+          MemoryCardsCompanion.insert(
+            id: 'dup-anchor-a-${now}',
+            memoryScope: const Value('user_truth'),
+            type: 'schedule',
+            title: '看蜘蛛侠电影',
+            dropletLabel: '蜘蛛侠',
+            presentationModule: jsonEncode({'blocks': []}),
+            retrievalText: '第一场。',
+            valence: 0.5,
+            arousal: 0.4,
+            status: const Value('active'),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    await db.into(db.memoryCardStructuredFields).insert(
+          MemoryCardStructuredFieldsCompanion.insert(
+            cardId: 'dup-anchor-a-${now}',
+            structuredFieldsType: 'general',
+            fieldsJson: jsonEncode({'startAt': '2026-08-01T09:00:00'}),
+            generatedByVersion: const Value('test'),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    // Same type, similar title, but DIFFERENT time (next week) → new card.
+    final result = await service.persist(
+      organized: OrganizedRecord(cards: [
+        OrganizedCard(
+          type: 'schedule',
+          title: '再看一次蜘蛛侠电影',
+          dropletLabel: '蜘蛛侠',
+          presentationModule: {
+            'blocks': [
+              {'kind': 'text', 'text': '下周再看一次。'},
+            ],
+          },
+          retrievalText: '下周再看一次蜘蛛侠电影。',
+          valence: 0.6,
+          arousal: 0.4,
+          structuredFieldsType: 'general',
+          structuredFields: {'startAt': '2026-08-08T09:00:00'},
+        ),
+      ]),
+      source: RecordSource(
+        sourceKind: 'record_button',
+        rawInput: '下周再去看一次蜘蛛侠',
+      ),
+    );
+
+    expect(result.cardIds, hasLength(1));
+    expect(result.cardIds.single, isNot('dup-anchor-a-${now}'));
+    final all = await db.select(db.memoryCards).get();
+    expect(all, hasLength(2));
+  });
+
+  test('dedupeExistingScheduleCards removes legacy duplicates', () async {
+    if (!fts5Available) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // Seed two active schedule cards with the same anchor (the 2026-08-02
+    // spider-man bug: same fact recorded twice → two cards).
+    for (final (i, title) in [
+      '看蜘蛛侠电影 8月1日早上',
+      '看蜘蛛侠电影',
+    ].indexed) {
+      final id = 'legacy-dup-${i}-${now}';
+      await db.into(db.memoryCards).insert(
+            MemoryCardsCompanion.insert(
+              id: id,
+              memoryScope: const Value('user_truth'),
+              type: 'schedule',
+              title: title,
+              dropletLabel: '蜘蛛侠',
+              presentationModule: jsonEncode({'blocks': []}),
+              retrievalText: '看蜘蛛侠电影 $i',
+              valence: 0.5,
+              arousal: 0.4,
+              status: const Value('active'),
+              createdAt: now + i,
+              updatedAt: now + i,
+            ),
+          );
+      await db.into(db.memoryCardStructuredFields).insert(
+            MemoryCardStructuredFieldsCompanion.insert(
+              cardId: id,
+              structuredFieldsType: 'general',
+              fieldsJson: jsonEncode({'startAt': '2026-08-01T09:00:00'}),
+              generatedByVersion: const Value('test'),
+              createdAt: now + i,
+              updatedAt: now + i,
+            ),
+          );
+    }
+
+    final removed = await service.dedupeExistingScheduleCards();
+    expect(removed, 1);
+    final remaining = await db.select(db.memoryCards).get();
+    expect(remaining, hasLength(1));
+    expect(remaining.single.title, '看蜘蛛侠电影 8月1日早上');
+    // Audit trail preserved.
+    final ops = await db.select(db.memoryCardOperations).get();
+    expect(ops.map((o) => o.operationType), contains('delete'));
+  });
 }
 
 /// Agent that skips the LLM and returns a fixed income_entry card.

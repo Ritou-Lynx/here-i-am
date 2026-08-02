@@ -204,6 +204,13 @@ class RecordOrganizerServiceV3 {
         final count = await _instance!.reindexAllCards();
         getLogger('RecordOrganizerServiceV3')
             .info('FTS backfill: $count card(s) indexed');
+        // One-time cleanup of duplicate active schedule/task/plan cards
+        // created before persist-level dedupe existed (2026-08-02).
+        final removed = await _instance!.dedupeExistingScheduleCards();
+        if (removed > 0) {
+          getLogger('RecordOrganizerServiceV3')
+              .info('Legacy dedupe: removed $removed duplicate card(s)');
+        }
       } catch (_) {
         // Backfill is best-effort; never fail init for it.
       }
@@ -211,6 +218,83 @@ class RecordOrganizerServiceV3 {
   }
 
   static void reset() => _instance = null;
+
+  /// One-time cleanup of duplicate ACTIVE task/schedule/plan cards that were
+  /// created before persist-level dedupe existed (2026-08-02 spider-man
+  /// ticket case: the same fact recorded twice produced two cards).
+  ///
+  /// Groups active cards by (type, normalized title) and, when two cards
+  /// share the same time anchor (within 15 min), keeps the OLDEST card and
+  /// deletes the rest via [deleteCard] (preserving audit trail). Safe to
+  /// call repeatedly — already-merged cards are gone, remaining cards are
+  /// never identical.
+  Future<int> dedupeExistingScheduleCards() async {
+    var removed = 0;
+    try {
+      final activeRows = await (_db.select(_db.memoryCards)
+            ..where((t) =>
+                t.type.isIn(const ['task', 'schedule', 'plan']) &
+                t.status.equals('active')))
+          .get();
+      if (activeRows.length < 2) return 0;
+
+      // Load structured fields for all candidates in one pass.
+      final sfRows = await (_db.select(_db.memoryCardStructuredFields)
+            ..where((t) =>
+                t.cardId.isIn(activeRows.map((r) => r.id).toList())))
+          .get();
+      final sfByCard = <String, DateTime?>{};
+      for (final sf in sfRows) {
+        final parsed = _safeParseJson(sf.fieldsJson);
+        sfByCard[sf.cardId] =
+            parsed is Map<String, dynamic> ? _firstTimeAnchor(parsed) : null;
+      }
+
+      // Group by TYPE first; within each type, use normalized-title
+      // CONTAINMENT (not equality) so "看蜘蛛侠电影" and "看蜘蛛侠电影 8月1日
+      // 早上" are recognized as the same item.
+      final byType = <String, List<({int createdAt, String id, String title})>>{};
+      for (final row in activeRows) {
+        byType.putIfAbsent(row.type, () => []).add((
+          createdAt: row.createdAt,
+          id: row.id,
+          title: _normalizeTitle(row.title),
+        ));
+      }
+
+      for (final group in byType.values) {
+        if (group.length < 2) continue;
+        group.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        final keeper = group.first;
+        final keeperAnchor = sfByCard[keeper.id];
+        final keeperTitle = keeper.title;
+        for (final candidate in group.skip(1)) {
+          if (keeperAnchor == null) continue;
+          final candidateAnchor = sfByCard[candidate.id];
+          if (candidateAnchor == null) continue;
+          if ((candidateAnchor.difference(keeperAnchor).inMinutes).abs() > 15) {
+            continue;
+          }
+          // Title containment: either direction counts (the keeper may be
+          // the shorter or the longer title).
+          final candidateTitle = candidate.title;
+          final titlesOverlap = keeperTitle.isNotEmpty &&
+              candidateTitle.isNotEmpty &&
+              (keeperTitle.contains(candidateTitle) ||
+                  candidateTitle.contains(keeperTitle));
+          if (!titlesOverlap) continue;
+          await deleteCard(candidate.id, sourceKind: 'auto_dedupe');
+          removed++;
+          _logger.info(
+              'dedupeExistingScheduleCards: removed ${candidate.id} '
+              '(duplicate of ${keeper.id})');
+        }
+      }
+    } catch (e, s) {
+      _logger.warning('dedupeExistingScheduleCards failed: $e', e, s);
+    }
+    return removed;
+  }
 
   /// Trigger a debounced LifeInsight analysis after new data is recorded.
   LifeInsightScheduler? _lifeInsightScheduler;
@@ -274,7 +358,46 @@ class RecordOrganizerServiceV3 {
       final cardIds = <String>[];
       final entityIds = <String>[];
 
-      for (final card in organized.cards) {
+      // ── Dedupe pass: reuse an existing active task/schedule/plan card that
+      // describes the same anchored event, instead of creating a duplicate.
+      // Root cause (2026-08-02): the same fact recorded twice (e.g. "买了蜘蛛侠
+      // 电影票周六早上去看" said at 16:51 and again at 19:15) produced two
+      // independent cards because persist() always INSERTed a fresh row. The
+      // organizer prompt's merge section is advisory only and callers never
+      // passed relevantExistingCardSummaries, so the LLM had no dedupe signal.
+      // This pass is the deterministic backstop: same type + same time anchor
+      // (within 15 min) + normalized-title containment → reuse existing card.
+      final dupLookup = <int, String>{}; // new card index -> existing card id
+      for (var i = 0; i < organized.cards.length; i++) {
+        final card = organized.cards[i];
+        if (card.type != 'task' &&
+            card.type != 'schedule' &&
+            card.type != 'plan') {
+          continue;
+        }
+        final anchor = _firstTimeAnchor(card.structuredFields);
+        if (anchor == null) continue;
+        final existingId = await _findDuplicateActiveCard(
+          type: card.type,
+          anchorMs: anchor.millisecondsSinceEpoch,
+          title: card.title,
+        );
+        if (existingId != null) {
+          dupLookup[i] = existingId;
+          _logger.info(
+            'persist: card "${card.title}" (${card.type}, $anchor) duplicates '
+            'existing active card $existingId — reusing instead of creating.',
+          );
+        }
+      }
+
+      for (var i = 0; i < organized.cards.length; i++) {
+        final card = organized.cards[i];
+        final reusedId = dupLookup[i];
+        if (reusedId != null) {
+          cardIds.add(reusedId);
+          continue;
+        }
         final cardId = _uuid.v4();
         cardIds.add(cardId);
 
@@ -401,6 +524,142 @@ class RecordOrganizerServiceV3 {
     });
   }
 
+  /// Extract the earliest time anchor from structured fields.
+  ///
+  /// Mirrors the event-time resolution used by the Schedule panel: only
+  /// future-looking / event anchors count for dedupe. Returns null when the
+  /// card has no usable time anchor (pure fact-style fields).
+  static DateTime? _firstTimeAnchor(Map<String, dynamic>? fields) {
+    if (fields == null) return null;
+    for (final name in const [
+      'startAt',
+      'dueAt',
+      'remindAt',
+      'nextActionAt',
+      'occurredAt',
+      'endAt',
+    ]) {
+      final raw = fields[name];
+      if (raw == null) continue;
+      final parsed = DateTime.tryParse(raw.toString());
+      if (parsed != null) return parsed;
+    }
+    return null;
+  }
+
+  /// Find an existing ACTIVE card of the same type whose time anchor is within
+  /// [dedupeWindow] of [anchorMs] AND whose normalized title overlaps.
+  ///
+  /// Returns the existing card id, or null when no match.
+  Future<String?> _findDuplicateActiveCard({
+    required String type,
+    required int anchorMs,
+    required String title,
+  }) async {
+    const windowMs = 15 * 60 * 1000; // ±15 min
+    final existingRows = await (_db.select(_db.memoryCards)
+          ..where((t) =>
+              t.type.equals(type) & t.status.equals('active') &
+              t.title.lower().like('%${title.toLowerCase()}%')))
+        .get();
+    if (existingRows.isEmpty) return null;
+
+    final normalized = _normalizeTitle(title);
+    for (final row in existingRows) {
+      final existingNormalized = _normalizeTitle(row.title);
+      final titleOverlaps = normalized.isNotEmpty &&
+          existingNormalized.isNotEmpty &&
+          (normalized.contains(existingNormalized) ||
+              existingNormalized.contains(normalized));
+      if (!titleOverlaps) continue;
+
+      // Compare time anchors from structured fields.
+      final sf = await (_db.select(_db.memoryCardStructuredFields)
+            ..where((t) => t.cardId.equals(row.id)))
+          .getSingleOrNull();
+      if (sf == null) continue;
+      final fields = _safeParseJson(sf.fieldsJson);
+      final existingAnchor =
+          fields is Map<String, dynamic> ? _firstTimeAnchor(fields) : null;
+      if (existingAnchor == null) continue;
+      if ((existingAnchor.millisecondsSinceEpoch - anchorMs).abs() >
+          windowMs) {
+        continue;
+      }
+      return row.id;
+    }
+    return null;
+  }
+
+  /// Strip whitespace / punctuation / digits for fuzzy title comparison.
+  static String _normalizeTitle(String s) {
+    var out = s.replaceAll(RegExp(r'[\s\u3000]+'), '');
+    out = out.replaceAll(RegExp(r'[^\p{L}\p{N}]', unicode: true), '');
+    return out.replaceAll(RegExp(r'\d+'), '').toLowerCase();
+  }
+
+  /// Auto-build `relevantExistingCardSummaries` for the organizer when the
+  /// caller did not pass any.
+  ///
+  /// Root cause (2026-08-02): none of the explicit write paths
+  /// (floating ball / record button / LifeMemoryCapture) passed
+  /// `relevantExistingCardSummaries`, so the LLM never saw existing cards
+  /// before creating new ones — the same fact recorded twice produced two
+  /// independent cards. This method closes that gap at the service level so
+  /// every caller gets dedupe context for free.
+  ///
+  /// Uses FTS5 on the raw input; returns up to 5 summaries of EXISTING
+  /// active task / schedule / plan / event cards (the types most likely to
+  /// collide), formatted compactly for the prompt.
+  Future<List<String>> _buildExistingCardSummaries(String rawInput) async {
+    if (rawInput.trim().isEmpty) return const [];
+    try {
+      final hits = await _db.searchDao.searchMemoryV3Cards(
+        rawInput,
+        limit: 8,
+      );
+      if (hits.isEmpty) return const [];
+      final summaries = <String>[];
+      for (final hit in hits) {
+        if (summaries.length >= 5) break;
+        final cardId = hit['card_id'] as String;
+        final row = await (_db.select(_db.memoryCards)
+              ..where((t) => t.id.equals(cardId)))
+            .getSingleOrNull();
+        if (row == null) continue;
+        // Only surface cards that could plausibly collide with a new one:
+        // task/schedule/plan (schedule-visible) plus events.
+        if (row.type != 'task' &&
+            row.type != 'schedule' &&
+            row.type != 'plan' &&
+            row.type != 'event') {
+          continue;
+        }
+        var extra = '';
+        final sf = await (_db.select(_db.memoryCardStructuredFields)
+              ..where((t) => t.cardId.equals(cardId)))
+            .getSingleOrNull();
+        if (sf != null) {
+          final fields = _safeParseJson(sf.fieldsJson);
+          if (fields is Map<String, dynamic>) {
+            final anchor = _firstTimeAnchor(fields);
+            if (anchor != null) {
+              extra = ' @ ${anchor.toIso8601String()} (status: ${row.status ?? 'active'})';
+            }
+          }
+        }
+        summaries.add(
+          '「${row.title}」[${row.type}]$extra — ${_extractTextBlocks(row.presentationModule).join(' / ')}',
+        );
+      }
+      return summaries;
+    } catch (e) {
+      _logger.warning(
+          '_buildExistingCardSummaries failed: $e (continuing without dedupe context)');
+      return const [];
+    }
+  }
+
   /// Idempotent insert into [memoryCardAssets]. No-op if link already exists.
   Future<void> _ensureAssetLink({
     required String cardId,
@@ -507,6 +766,19 @@ class RecordOrganizerServiceV3 {
     List<Map<String, String>>? inputMedia,
     RecordOrganizerAgentV3 agent = const RecordOrganizerAgentV3(),
   }) async {
+    // Auto-build dedupe context when the caller did not pass any. Without
+    // this, the organizer creates a fresh card for every write — recording
+    // the same fact twice yields two cards (2026-08-02 spider-man ticket bug).
+    if (relevantExistingCardSummaries.isEmpty) {
+      relevantExistingCardSummaries =
+          await _buildExistingCardSummaries(source.rawInput);
+      if (relevantExistingCardSummaries.isNotEmpty) {
+        _logger.info(
+            'organizeAndPersist: auto-built ${relevantExistingCardSummaries.length} '
+            'existing card summary(s) for dedupe context');
+      }
+    }
+
     // Register media files as Assets so the LLM can reference them by ID.
     List<Map<String, String>>? enrichedMedia;
     if (inputMedia != null && inputMedia.isNotEmpty) {
