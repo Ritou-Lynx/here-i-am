@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
+import 'package:memex/agent/companion_agent/sleep_companion_state.dart';
 
 import 'package:memex/agent/skills/companion_agent/companion_agent_skill.dart';
 import 'package:memex/agent/state_util.dart';
@@ -329,7 +330,112 @@ class CompanionAgent {
       'call `generate_image` with a detailed Chinese prompt describing the '
       'image the user wants to see.';
 
-  // ---------------------------------------------------------------------------
+  /// 时间感知：计算距上一条用户消息的间隔并注入 systemReminder。
+  ///
+  /// 间隔极短（< 2 分钟）时返回 null 不注入，避免每轮都带噪声；
+  /// 跨天时单独标注“新的一天”。间隔文案按档位生成，规则交给模型自然发挥。
+  @visibleForTesting
+  static String? buildTimeGapReminder(DateTime lastMessageAt, DateTime now) {
+    final gap = now.difference(lastMessageAt);
+    if (gap.isNegative || gap < const Duration(minutes: 2)) return null;
+    final overnight = !_sameDay(lastMessageAt, now);
+    final gapText = _fmtGap(gap);
+    final buf = StringBuffer();
+    buf.writeln('## 对话间隔感知（time gap）');
+    buf.writeln(
+        '距她上一条消息已过 $gapText（现在 ${_fmtHm(now)}）。');
+    if (overnight) {
+      buf.writeln('已经过了一夜，是新的一天。');
+    }
+    buf.writeln('- 间隔很短：自然接续，不要刻意提时间。');
+    buf.writeln('- 间隔较长（半小时以上）：可以自然带一句（如“刚才去忙什么啦”），'
+        '不要生硬复述数字。');
+    buf.writeln('- 过夜/新的一天：用自然的早安/轻问动向开场。');
+    buf.writeln('- 深夜：语气放轻放短。');
+    return buf.toString().trim();
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  static String _fmtHm(DateTime t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  static String _fmtGap(Duration d) {
+    if (d.inDays >= 1) return '${d.inDays} 天';
+    if (d.inHours >= 1) return '${d.inHours} 小时 ${d.inMinutes % 60} 分';
+    return '${d.inMinutes} 分钟';
+  }
+
+  /// 从 DB 读取该角色上一条用户消息时间，注入时间感知上下文。
+  static Future<void> _injectTimeGapContext(
+    AgentState state,
+    String characterId,
+    DateTime now, {
+    int? currentUserMessageId,
+  }) async {
+    if (!AppDatabase.isInitialized) return;
+    try {
+      final db = AppDatabase.instance;
+      final query = db.select(db.personaChatMessages)
+        ..where((t) =>
+            t.characterId.equals(characterId) &
+            t.isFromCharacter.equals(false));
+      if (currentUserMessageId != null) {
+        query.where((t) => t.id.isNotValue(currentUserMessageId));
+      }
+      final last = await (query
+            ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+            ..limit(1))
+          .getSingleOrNull();
+      if (last == null) return;
+      final reminder = buildTimeGapReminder(last.timestamp, now);
+      if (reminder == null) {
+        state.systemReminders.remove('time_gap_context');
+      } else {
+        state.systemReminders['time_gap_context'] = reminder;
+      }
+    } catch (e) {
+      _logger.warning('CompanionAgent: failed to load time gap context: $e');
+      state.systemReminders.remove('time_gap_context');
+    }
+  }
+
+  /// 哄睡/守夜状态机：加载持久化状态 → 求值 → 写回 → 注入 prompt。
+  static Future<void> _injectSleepCompanionContext(
+    AgentState state,
+    String characterId,
+    String userMessage,
+    DateTime now,
+  ) async {
+    if (!AppDatabase.isInitialized) return;
+    try {
+      final db = AppDatabase.instance;
+      final existing = await SleepCompanionStateManager.load(db, characterId);
+      final result = SleepCompanionStateManager.evaluate(
+        existing: existing,
+        userMessage: userMessage,
+        now: now,
+      );
+      if (result.stateChanged) {
+        final active = result.activeState;
+        if (active == null) {
+          await SleepCompanionStateManager.clear(db, characterId);
+        } else {
+          await SleepCompanionStateManager.save(db, characterId, active);
+        }
+      }
+      final reminder = result.reminder;
+      if (reminder == null) {
+        state.systemReminders.remove('sleep_companion');
+      } else {
+        state.systemReminders['sleep_companion'] = reminder;
+      }
+    } catch (e) {
+      _logger.warning('CompanionAgent: failed to inject sleep context: $e');
+      state.systemReminders.remove('sleep_companion');
+    }
+  }
 
   static Future<void> _injectCurrentLocationContext(AgentState state) async {
     try {
@@ -1159,6 +1265,22 @@ class CompanionAgent {
           '- "（📞 ...）" messages in chat history are past records — they do '
           'NOT mean you are currently on a call.';
       await _injectCurrentLocationContext(state);
+
+      // 时间感知：注入距上一条消息的间隔上下文，让角色自然接续对话。
+      await _injectTimeGapContext(
+        state,
+        characterId,
+        userMessageTime ?? DateTime.now(),
+        currentUserMessageId: userMessageId,
+      );
+
+      // 哄睡/守夜状态：检测入睡/醒来短语，按间隔分档注入轻柔规则。
+      await _injectSleepCompanionContext(
+        state,
+        characterId,
+        userMessage,
+        userMessageTime ?? DateTime.now(),
+      );
 
       if (voiceMode) {
         state.systemReminders['chat_mode'] = '## CHAT VOICE MODE (active)\n'
