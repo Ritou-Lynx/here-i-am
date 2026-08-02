@@ -9,6 +9,7 @@ import 'package:memex/data/services/coros_mcp_service.dart';
 import 'package:memex/data/services/coros_sync_service.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/ui/companion/widgets/insight_strip.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/memory/widgets/memory_card_detail_screen_v3.dart';
@@ -824,6 +825,9 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
 
   List<Widget> _buildCardList() {
     final items = <Widget>[];
+
+    // ── Insight strip (Life Insights for health domain) ──
+    items.add(const InsightStrip(domain: 'health'));
 
     // ── Section: COROS watch metrics ──
 

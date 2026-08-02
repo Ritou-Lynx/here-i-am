@@ -71,6 +71,11 @@ part 'app_database.g.dart';
     // Topic Thread tables — see docs/memory-research/TOPIC_THREAD_DESIGN.md
     memory_v3.TopicThreads,
     memory_v3.TopicThreadSessions,
+    // Life Insights + User Rhythms + Growth Pacts — companion proactive care layer
+    memory_v3.LifeInsights,
+    memory_v3.UserRhythms,
+    memory_v3.GrowthPacts,
+    memory_v3.GrowthPactChecks,
     // Comic co-reading tables — see docs/companion-first/COMIC_CO_READING_PLAN.md
     ComicMangas,
     ComicChapters,
@@ -83,7 +88,7 @@ part 'app_database.g.dart';
     BookReadingProgress,
     BookChapterNotes,
     // Game tables — see lib/db/game_tables.dart
-    GameCharacterCards,
+    GameDefinitions,
     GameSessions,
     GameMessages,
   ],
@@ -142,7 +147,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 50;
+  int get schemaVersion => 51;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -660,13 +665,45 @@ class AppDatabase extends _$AppDatabase {
             );
           }
           if (from < 50) {
-            // Game feature: SillyTavern-style character card roleplay sessions.
-            // Completely isolated from companion memory — GameMessages is never
-            // joined with PersonaChatMessages or SharedLife tables.
-            await m.createTable(gameCharacterCards);
+            // Game feature: generic game definitions (character cards, scenarios, etc.)
+            // and isolated game sessions. Completely isolated from companion memory —
+            // GameMessages is never joined with PersonaChatMessages or SharedLife tables.
+            await m.createTable(gameDefinitions);
             await m.createTable(gameSessions);
             await m.createTable(gameMessages);
             await _createGameIndices();
+          }
+          if (from < 51) {
+            // Life Insights + User Rhythms + Growth Pacts — companion proactive
+            // care layer. See lib/data/memory_v3/db/tables.dart sections 六/七/八.
+            await m.createTable(lifeInsights);
+            await m.createTable(userRhythms);
+            await m.createTable(growthPacts);
+            await m.createTable(growthPactChecks);
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_life_insights_domain_type_period '
+              'ON life_insights(domain, insight_type, period, period_start)',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_life_insights_updated '
+              'ON life_insights(updated_at)',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_user_rhythms_kind_valid '
+              'ON user_rhythms(kind, valid_until)',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_growth_pacts_status '
+              'ON growth_pacts(status)',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_growth_pacts_domain '
+              'ON growth_pacts(domain, status)',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_growth_pact_checks_pact_time '
+              'ON growth_pact_checks(pact_id, checked_at)',
+            );
           }
           if (from < 39) {
             await _addColumnIfMissing(
@@ -945,8 +982,11 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> _createGameIndices() async {
     await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_game_sessions_card_status '
-        'ON game_sessions(card_id, status)');
+        'CREATE INDEX IF NOT EXISTS idx_game_sessions_definition_status '
+        'ON game_sessions(definition_id, status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_game_sessions_game_type '
+        'ON game_sessions(game_type)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_game_sessions_last_played '
         'ON game_sessions(last_played_at)');

@@ -25,6 +25,7 @@ import 'package:uuid/uuid.dart';
 
 import '../agents/record_organizer_agent/agent.dart';
 import '../models/organized_record.dart';
+import 'life_insight_scheduler.dart';
 
 final _logger = getLogger('memory_v3.RecordOrganizerService');
 
@@ -210,6 +211,14 @@ class RecordOrganizerServiceV3 {
   }
 
   static void reset() => _instance = null;
+
+  /// Trigger a debounced LifeInsight analysis after new data is recorded.
+  LifeInsightScheduler? _lifeInsightScheduler;
+  Future<void> _triggerLifeInsightAnalysis() async {
+    if (!AppDatabase.isInitialized) return;
+    _lifeInsightScheduler ??= LifeInsightScheduler(db: AppDatabase.instance);
+    _lifeInsightScheduler!.scheduleEventDriven();
+  }
 
   /// Persist an [OrganizedRecord] into the V3 table family.
   ///
@@ -565,6 +574,14 @@ class RecordOrganizerServiceV3 {
             'organizeAndPersist: proactive outing refresh failed: $error',
           );
           return 0;
+        }),
+      );
+      // Trigger LifeInsight event-driven analysis after new data is recorded.
+      unawaited(
+        _triggerLifeInsightAnalysis().catchError((error) {
+          _logger.fine(
+            'organizeAndPersist: LifeInsight trigger failed: $error',
+          );
         }),
       );
     }

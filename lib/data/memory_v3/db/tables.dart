@@ -446,7 +446,298 @@ class ProjectMemorySources extends Table {
 }
 
 // ============================================================================
-// 六、Topic Thread 话题追踪层 — docs/memory-research/TOPIC_THREAD_DESIGN.md
+// 六、Life Insights — 跨 User-truth 聚合分析层
+// ============================================================================
+//
+// Life Insights 是 V3 的分析层：读已有的 Memory Cards / COROS / Ledger 等原始
+// 数据，产出结构化洞察（趋势/模式/基线/异常/预测），喂给三个消费者：
+//   1. 观察面板 Insight Strip（展示）
+//   2. Growth Pacts calibrate（推断合理目标）
+//   3. Check-in snapshot（"该不该介入"信号）
+//
+// 现有 Insights Agent 是 Memex 遗产（读 Facts/PKM 文件系统），与此表无关。
+// Dreaming 有意禁止下结论（NO CONCLUSIONS），不产出 insight。
+// Record Organizer 只处理单条输入，不做跨卡片聚合。
+// 这一层是全新的。
+
+/// 每个洞察一行。按 (domain, insightType, period) 覆盖更新——同一周期同一
+/// 类型重算时 overwrite，不 append。历史洞察通过 updatedAt 区间查询。
+class LifeInsights extends Table {
+  TextColumn get id => text()(); // UUID v4
+
+  /// health | finance | schedule | reading | social | general
+  TextColumn get domain => text()();
+
+  /// trend | pattern | streak | baseline | anomaly | projection
+  ///
+  /// trend      — 时间趋势（"入睡时间在变早"）
+  /// pattern    — 重复模式（"周日总超支"）
+  /// streak     — 连续记录（"已连续 12 天早于 00:30"）
+  /// baseline   — 能力基线（"稳定区间 23:45-00:45，极值 22:30"）
+  /// anomaly    — 异常（"今天消费是平日 3 倍"）
+  /// projection — 预测（"按当前速度月底读完 11 本，差目标 13 本"）
+  TextColumn get insightType => text()();
+
+  /// daily | weekly | monthly
+  ///
+  /// daily: 每天 1 条（如今日睡眠基线）
+  /// weekly: 每周 1 条（如本周消费模式）
+  /// monthly: 每月 1 条（如月度阅读进度预测）
+  TextColumn get period => text()();
+
+  /// 周期起始/结束，ms since epoch。
+  /// 重算同一周期时用 (domain, insightType, period, periodStart) 做 upsert key。
+  IntColumn get periodStart => integer()();
+  IntColumn get periodEnd => integer()();
+
+  /// 结构化数据点，JSON array[{date, value}]。
+  /// 面板可用来画 sparkline；check-in 可用来判断趋势方向。
+  /// 例：[{"date":"2026-07-20","value":"00:45"},{"date":"2026-07-21","value":"00:30"}]
+  TextColumn get dataPointsJson => text().withDefault(const Constant('[]'))();
+
+  /// 自然语言叙述，1-3 句。LLM 产出，给面板和 check-in 直接读。
+  /// 例："最近一周入睡时间从 00:45 逐步提前到 23:50，趋势在变好，
+  ///       但距离健康睡眠区间还有 20-50 分钟。"
+  TextColumn get narrative => text()();
+
+  /// 推断置信度 0.0-1.0。数据点少或矛盾时低。
+  RealColumn get confidence => real().withDefault(const Constant(0.5))();
+
+  /// 如果这条洞察暗示一个 Growth Pact（如"睡眠趋势→可建 habit pact"），
+  /// 填一个 hint，供 GrowthPactService 消费。
+  /// JSON: {suggestedKind, suggestedDomain, suggestedMetric}
+  /// null = 无 pact 信号。
+  TextColumn get pactSignalJson => text().nullable()();
+
+  /// agent_inferred（默认，全靠 LLM 从数据推断）
+  /// user_adjusted（用户看过后微调了 narrative 或 target）
+  TextColumn get authority =>
+      text().withDefault(const Constant('agent_inferred'))();
+
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// ============================================================================
+// 七、User Rhythms — 用户日常节律结构化层
+// ============================================================================
+//
+// 这是"用户的生活是怎样的"的事实层。不设目标、不做判断，只结构化记录用户
+// 当前阶段的作息、工作、课表等周期性节律。
+//
+// 来源：
+//   - 对话信号（"我 7 点下班""周二有课"）→ Dreaming/Insights 推断
+//   - COROS 数据（14 天睡眠中位数）→ 自动推断 sleep_pattern
+//   - Memory Cards（schedule/task）→ 补充/验证
+//
+// 消费者：
+//   - Check-in snapshot（"现在 06:00，用户通常 09:00 起，别打扰"）
+//   - Life Insights（作为 baseline 推断输入）
+//   - Growth Pacts（作为 target 的 dailyAdjust 依据，如"明天有早会→早点睡"）
+//
+// 中短期节律（实习 2-3 个月、兼职课表按学期）通过 validFrom/validUntil 管理
+// 生命周期，过期自动淡出，不需要用户手动删除。
+
+/// 每个节律一行。按星期几 + 时间段循环。
+class UserRhythms extends Table {
+  TextColumn get id => text()(); // UUID v4
+
+  /// work_schedule | class_schedule | sleep_pattern | meal_pattern |
+  /// exercise_pattern | commute_pattern | custom
+  TextColumn get kind => text()();
+
+  /// 自然语言描述，1 句话。
+  /// 例："实习上班"、"私人中文接单"、"日常睡眠"
+  TextColumn get description => text()();
+
+  /// iCalendar RRULE 风格的循环规则，代码解析而非第三方库。
+  /// 例：
+  ///   "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;10:00-19:00"  — 实习
+  ///   "FREQ=WEEKLY;BYDAY=TU,FR,SU;22:00-23:30"       — 私人课
+  ///   "FREQ=DAILY;01:00-09:00"                        — 睡眠窗口
+  /// 对于不按星期循环的节律（如"每天 3 餐 8/12/18"），用 FREQ=DAILY。
+  /// sleep_pattern 的 startTime/endTime 可跨午夜（如 23:30-07:00）。
+  TextColumn get rrule => text()();
+
+  /// home | office | remote | commute | unknown
+  /// "在家上课"→ home，check-in 不会问"下课回家要多久"。
+  TextColumn get location => text().withDefault(const Constant('unknown'))();
+
+  /// 节律生效/失效时间，ms since epoch。null = 仍然有效。
+  /// 用户说"实习结束了"→ validUntil 设为那天。新节律 validFrom 设为当天。
+  IntColumn get validFrom => integer()();
+  IntColumn get validUntil => integer().nullable()();
+
+  /// agent_inferred（默认，从对话/数据推断）
+  /// user_confirmed（用户明确确认过）
+  /// user_adjusted（用户微调了 rrule 或时间）
+  TextColumn get authority =>
+      text().withDefault(const Constant('agent_inferred'))();
+
+  /// 这个节律是怎么来的。
+  /// conversation — 用户在聊天里说的
+  /// data_pattern — 从 COROS/Ledger 数据模式推断的
+  /// mixed — 两者都有
+  TextColumn get origin => text().withDefault(const Constant('conversation'))();
+
+  /// 推断置信度 0.0-1.0。对话只提 1 次 → 0.3；提 3 次 → 0.7；数据验证 → 0.9。
+  RealColumn get confidence => real().withDefault(const Constant(0.5))();
+
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// ============================================================================
+// 八、Growth Pacts — 成长契约（教练模式的目标/习惯/约定追踪层）
+// ============================================================================
+//
+// Growth Pacts 是"用户对未来的自己有期待"的结构化载体。和 Topic Thread 一样
+// 是活文档 + append-only 执行日志的模式，但面向"目标/习惯/约定"。
+//
+// 核心设计：target 是 agent_inferred 且可变的，不是用户手设的固定值。
+// 林埃基于 Life Insights 推断的 baseline + dailyAdjust 形成当前生效目标，
+// 用户可以微调（user_adjusted）但不需要主动设定。
+//
+// 生命周期：
+//   emerging（开始注意模式）→ active（正式督促）→ calibrating（持续调整）
+//   → achieved（达成）/ faded（不再相关）
+//
+// authority 分层（和 Topic Thread 一致）：
+//   - target / baseline → agent_inferred（默认），user_adjusted（用户微调时）
+//   - stakes（罚款/奖励）→ user_confirmed（严格，用户必须同意才能罚）
+//   - check 记录 → agent_inferred（系统观察），user_confirmed（用户自报）
+
+/// 每个 pact 一行（活文档）。target 是活的，随 Life Insights 重新推断而变。
+class GrowthPacts extends Table {
+  TextColumn get id => text()(); // UUID v4
+
+  /// goal | habit | agreement
+  ///
+  /// goal      = 有终点的目标（"年底读 24 本""每天 10000 步"）
+  /// habit     = 无终点的习惯（"11 点前睡""不刷短视频超 30min"）
+  /// agreement = 用户和 AI 之间的约定（"连续 3 天没运动罚 10 元"）
+  TextColumn get kind => text()();
+
+  /// health | finance | schedule | reading | social | custom
+  TextColumn get domain => text()();
+
+  /// 1-2 句话描述这个 pact 是什么。
+  /// 例："每天 11 点前睡觉"、"每周支出控制在 500 以内"、"连续 3 天没运动罚 10 元"
+  TextColumn get description => text()();
+
+  /// 推断的目标 JSON，agent_inferred 且可变。
+  /// {
+  ///   "baseline": {metric, range, period, confidence},
+  ///   "current":  {metric, range, period},
+  ///   "dailyAdjust": [{"date","adjustedRange","reason"}],
+  ///   "confidence": 0.0-1.0
+  /// }
+  ///
+  /// baseline: Life Insights 推断的历史基线（如"稳定入睡 23:45-00:45"）
+  /// current:  当前生效目标（可能被 dailyAdjust 临时调整）
+  /// dailyAdjust: 每日动态调整记录（如"明天有早会→今晚 23:15"）
+  TextColumn get targetJson => text().withDefault(const Constant('{}'))();
+
+  /// 赏罚 JSON，user_confirmed（严格）。
+  /// {
+  ///   "penaltyPerMiss": 10,       // 每次 miss 罚多少 CNY
+  ///   "rewardPerHit": 0,          // 每次 hit 奖多少
+  ///   "maxPenaltyWeek": 50,       // 每周罚款上限
+  ///   "graceStreak": 3            // 连续 miss 多少次才开始罚
+  /// }
+  /// null = 无赏罚约定（纯习惯督促，不涉及钱）。
+  TextColumn get stakesJson => text().nullable()();
+
+  /// emerging | active | paused | achieved | faded | abandoned
+  ///
+  /// emerging  — 林埃注意到模式，pact 已创建但还没正式督促
+  /// active    — 正式督促中，check-in 会注入
+  /// paused    — 用户或 AI 暂停（如出差/生病）
+  /// achieved  — 达成（habit 不会 achieved，只有 goal 会）
+  /// faded     — 长期不相关，淡出
+  /// abandoned — 用户明确放弃
+  TextColumn get status =>
+      text().withDefault(const Constant('emerging'))();
+
+  /// agent_inferred（默认）| user_adjusted（用户微调过 target）
+  TextColumn get authority =>
+      text().withDefault(const Constant('agent_inferred'))();
+
+  /// 这个 pact 怎么来的。
+  /// conversation — 用户在聊天里表达了期待（"我想早睡"）
+  /// data_pattern — Life Insights 从数据模式发现的（"连续 14 天晚睡"）
+  /// mixed — 两者都有
+  TextColumn get origin => text().withDefault(const Constant('conversation'))();
+
+  /// 上次重新推断 target 的时间。Dreaming/Insights 跑时顺带 re-calibrate。
+  IntColumn get lastCalibratedAt => integer().nullable()();
+
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Pact 执行日志，append-only。每次 check-in 检查 pact 状态时追加一行。
+class GrowthPactChecks extends Table {
+  TextColumn get id => text()(); // UUID v4
+  TextColumn get pactId => text()(); // soft FK → growth_pacts.id
+
+  /// 检查时间，ms since epoch
+  IntColumn get checkedAt => integer()();
+
+  /// hit | miss | partial | skipped
+  ///
+  /// hit     — 达到目标（23:30 前睡了）
+  /// miss    — 未达到（01:40 才睡）
+  /// partial — 部分达到（23:45 睡，目标 23:30，差 15 分钟）
+  /// skipped — 本次跳过（用户暂停了 pact / 数据不足无法判断）
+  TextColumn get result => text()();
+
+  /// 实际值（自由格式，按 pact domain 约定）。
+  /// 例："01:40"（入睡时间）、"6800"（步数）、"520"（消费）
+  TextColumn get actualValue => text().nullable()();
+
+  /// 本次对比的目标值（可能被 dailyAdjust 调整过）。
+  /// 例："23:30"（原目标）、"23:15"（今日调整后）
+  TextColumn get targetValue => text().nullable()();
+
+  /// 证据 JSON，软引用 Memory Card。
+  /// [{"cardId":"...","note":"COROS sleep record"}]
+  TextColumn get evidenceJson =>
+      text().withDefault(const Constant('[]'))();
+
+  /// 如果本次 miss 触发了罚款，填 AiFinanceLedger 行的 ID。null = 无罚款。
+  TextColumn get penaltyLedgerId => text().nullable()();
+
+  /// 如果本次 hit 触发了奖励，填 AiFinanceLedger 行的 ID。null = 无奖励。
+  TextColumn get rewardLedgerId => text().nullable()();
+
+  /// checkin — check-in pulse 检查
+  /// user_report — 用户主动汇报
+  /// auto_detected — 系统自动检测（如 COROS 同步后）
+  TextColumn get sourceType =>
+      text().withDefault(const Constant('checkin'))();
+
+  /// agent_inferred（系统判断）| user_confirmed（用户确认）
+  TextColumn get authority =>
+      text().withDefault(const Constant('agent_inferred'))();
+
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// ============================================================================
+// 九、Topic Thread 话题追踪层 — docs/memory-research/TOPIC_THREAD_DESIGN.md
 // ============================================================================
 
 /// 长期话题追踪主文档（活文档）。

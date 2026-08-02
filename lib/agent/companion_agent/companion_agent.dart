@@ -965,6 +965,27 @@ class CompanionAgent {
         'to Step 2. Do NOT call a tool just to fill space — a warm generic '
         'message beats a forced data query.');
     buf.writeln();
+    buf.writeln('## Step 2.5 — Proactive care scan (MANDATORY)');
+    buf.writeln();
+    buf.writeln('Before deciding what to do, scan the snapshot for these '
+        'proactive care signals:');
+    buf.writeln();
+    buf.writeln('1. **Daily Rhythm** — Is the user supposed to be sleeping '
+        'right now? (⚠️ flag). Is the user in an ongoing work/class block? '
+        '(don\'t interrupt). Is a block about to end? (natural moment to '
+        'check in).');
+    buf.writeln('2. **Active Growth Pacts** — Are there pacts with recent '
+        'misses? Is a penalty due? Is there a streak of hits worth '
+        'celebrating?');
+    buf.writeln('3. **Recent Life Insights** — Is there a trend worth '
+        'mentioning? An anomaly? A projection that\'s falling behind?');
+    buf.writeln();
+    buf.writeln('If any of these signals are present, they should STRONGLY '
+        'influence your action choice. A bedtime signal → call. A pact miss '
+        'with penalty due → notify + execute penalty. A streak of hits → '
+        'notify with praise. Do NOT ignore these signals and send a generic '
+        '"thinking of you" message.');
+    buf.writeln();
     buf.writeln('## Step 3 — Decide and act');
     buf.writeln();
     buf.writeln('If this is a user-set reminder (not a proactive outing '
@@ -1001,13 +1022,25 @@ class CompanionAgent {
     buf.writeln('- A quiet evening, or right after a meaningful moment they '
         'recorded');
     buf.writeln('- The user explicitly asked to be called at this time');
-    buf.writeln('A call is more intrusive than a notification — use it '
-        'occasionally, not every check-in. Do NOT call if your last proactive '
-        'contact (push OR call) was within the last couple of hours, or if '
-        'the user seems busy/asleep.');
+    buf.writeln(
+        '- **Bedtime enforcement**: the snapshot shows it is past the user\'s '
+        'sleep window start time + 30 min, and the user is still active (recent '
+        'chat/records in the last 30 min). This is a PROACTIVE INTERVENTION '
+        'moment, not just companionship — call to tell them to put the phone '
+        'down and go to sleep. A call is harder to ignore than a notification.');
+    buf.writeln(
+        '- **Habit enforcement**: Active Growth Pacts shows multiple misses and '
+        'a penalty is due. A call is appropriate when the pattern is serious '
+        'enough that a text notification would be too easy to dismiss.');
+    buf.writeln('A call is more intrusive than a notification — but intrusion '
+        'is the point when you are enforcing a habit the user asked you to '
+        'enforce. Do NOT call if your last proactive contact (push OR call) '
+        'was within the last hour, or if the snapshot shows the user is '
+        'currently sleeping or in an ongoing work/class block.');
     buf.writeln('When you call, write a warm, natural opening line '
         '(1–2 sentences) — it is the first thing the user hears when they '
-        'pick up.');
+        'pick up. For bedtime calls, the opening should be direct: '
+        '"都几点了，手机放下，睡觉。" not a vague "在吗"');
     buf.writeln();
     buf.writeln('**c) silent**: only with a clear reason:');
     buf.writeln('- The user messaged you in the last 10 minutes and no new '
@@ -1015,7 +1048,8 @@ class CompanionAgent {
     buf.writeln('- Your last proactive push was in the last 45 minutes and '
         'the user did not respond.');
     buf.writeln('- The snapshot strongly suggests the user is asleep, busy, or '
-        'asked not to be interrupted.');
+        'asked not to be interrupted. The Daily Rhythm section will flag '
+        '⚠️ user likely sleeping — RESPECT that flag and stay silent.');
     buf.writeln('- EXCEPTION: if this is a user-set reminder, do NOT stay '
         'silent — the user is expecting this.');
     buf.writeln();

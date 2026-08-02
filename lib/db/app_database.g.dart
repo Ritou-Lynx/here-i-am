@@ -24320,6 +24320,2609 @@ class TopicThreadSessionsCompanion extends UpdateCompanion<TopicThreadSession> {
   }
 }
 
+class $LifeInsightsTable extends memory_v3.LifeInsights
+    with TableInfo<$LifeInsightsTable, LifeInsight> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LifeInsightsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _domainMeta = const VerificationMeta('domain');
+  @override
+  late final GeneratedColumn<String> domain = GeneratedColumn<String>(
+      'domain', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _insightTypeMeta =
+      const VerificationMeta('insightType');
+  @override
+  late final GeneratedColumn<String> insightType = GeneratedColumn<String>(
+      'insight_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _periodMeta = const VerificationMeta('period');
+  @override
+  late final GeneratedColumn<String> period = GeneratedColumn<String>(
+      'period', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _periodStartMeta =
+      const VerificationMeta('periodStart');
+  @override
+  late final GeneratedColumn<int> periodStart = GeneratedColumn<int>(
+      'period_start', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _periodEndMeta =
+      const VerificationMeta('periodEnd');
+  @override
+  late final GeneratedColumn<int> periodEnd = GeneratedColumn<int>(
+      'period_end', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _dataPointsJsonMeta =
+      const VerificationMeta('dataPointsJson');
+  @override
+  late final GeneratedColumn<String> dataPointsJson = GeneratedColumn<String>(
+      'data_points_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
+  static const VerificationMeta _narrativeMeta =
+      const VerificationMeta('narrative');
+  @override
+  late final GeneratedColumn<String> narrative = GeneratedColumn<String>(
+      'narrative', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _confidenceMeta =
+      const VerificationMeta('confidence');
+  @override
+  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
+      'confidence', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.5));
+  static const VerificationMeta _pactSignalJsonMeta =
+      const VerificationMeta('pactSignalJson');
+  @override
+  late final GeneratedColumn<String> pactSignalJson = GeneratedColumn<String>(
+      'pact_signal_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _authorityMeta =
+      const VerificationMeta('authority');
+  @override
+  late final GeneratedColumn<String> authority = GeneratedColumn<String>(
+      'authority', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('agent_inferred'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        domain,
+        insightType,
+        period,
+        periodStart,
+        periodEnd,
+        dataPointsJson,
+        narrative,
+        confidence,
+        pactSignalJson,
+        authority,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'life_insights';
+  @override
+  VerificationContext validateIntegrity(Insertable<LifeInsight> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('domain')) {
+      context.handle(_domainMeta,
+          domain.isAcceptableOrUnknown(data['domain']!, _domainMeta));
+    } else if (isInserting) {
+      context.missing(_domainMeta);
+    }
+    if (data.containsKey('insight_type')) {
+      context.handle(
+          _insightTypeMeta,
+          insightType.isAcceptableOrUnknown(
+              data['insight_type']!, _insightTypeMeta));
+    } else if (isInserting) {
+      context.missing(_insightTypeMeta);
+    }
+    if (data.containsKey('period')) {
+      context.handle(_periodMeta,
+          period.isAcceptableOrUnknown(data['period']!, _periodMeta));
+    } else if (isInserting) {
+      context.missing(_periodMeta);
+    }
+    if (data.containsKey('period_start')) {
+      context.handle(
+          _periodStartMeta,
+          periodStart.isAcceptableOrUnknown(
+              data['period_start']!, _periodStartMeta));
+    } else if (isInserting) {
+      context.missing(_periodStartMeta);
+    }
+    if (data.containsKey('period_end')) {
+      context.handle(_periodEndMeta,
+          periodEnd.isAcceptableOrUnknown(data['period_end']!, _periodEndMeta));
+    } else if (isInserting) {
+      context.missing(_periodEndMeta);
+    }
+    if (data.containsKey('data_points_json')) {
+      context.handle(
+          _dataPointsJsonMeta,
+          dataPointsJson.isAcceptableOrUnknown(
+              data['data_points_json']!, _dataPointsJsonMeta));
+    }
+    if (data.containsKey('narrative')) {
+      context.handle(_narrativeMeta,
+          narrative.isAcceptableOrUnknown(data['narrative']!, _narrativeMeta));
+    } else if (isInserting) {
+      context.missing(_narrativeMeta);
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+          _confidenceMeta,
+          confidence.isAcceptableOrUnknown(
+              data['confidence']!, _confidenceMeta));
+    }
+    if (data.containsKey('pact_signal_json')) {
+      context.handle(
+          _pactSignalJsonMeta,
+          pactSignalJson.isAcceptableOrUnknown(
+              data['pact_signal_json']!, _pactSignalJsonMeta));
+    }
+    if (data.containsKey('authority')) {
+      context.handle(_authorityMeta,
+          authority.isAcceptableOrUnknown(data['authority']!, _authorityMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LifeInsight map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LifeInsight(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      domain: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}domain'])!,
+      insightType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}insight_type'])!,
+      period: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}period'])!,
+      periodStart: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}period_start'])!,
+      periodEnd: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}period_end'])!,
+      dataPointsJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}data_points_json'])!,
+      narrative: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}narrative'])!,
+      confidence: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}confidence'])!,
+      pactSignalJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}pact_signal_json']),
+      authority: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}authority'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $LifeInsightsTable createAlias(String alias) {
+    return $LifeInsightsTable(attachedDatabase, alias);
+  }
+}
+
+class LifeInsight extends DataClass implements Insertable<LifeInsight> {
+  final String id;
+
+  /// health | finance | schedule | reading | social | general
+  final String domain;
+
+  /// trend | pattern | streak | baseline | anomaly | projection
+  ///
+  /// trend      — 时间趋势（"入睡时间在变早"）
+  /// pattern    — 重复模式（"周日总超支"）
+  /// streak     — 连续记录（"已连续 12 天早于 00:30"）
+  /// baseline   — 能力基线（"稳定区间 23:45-00:45，极值 22:30"）
+  /// anomaly    — 异常（"今天消费是平日 3 倍"）
+  /// projection — 预测（"按当前速度月底读完 11 本，差目标 13 本"）
+  final String insightType;
+
+  /// daily | weekly | monthly
+  ///
+  /// daily: 每天 1 条（如今日睡眠基线）
+  /// weekly: 每周 1 条（如本周消费模式）
+  /// monthly: 每月 1 条（如月度阅读进度预测）
+  final String period;
+
+  /// 周期起始/结束，ms since epoch。
+  /// 重算同一周期时用 (domain, insightType, period, periodStart) 做 upsert key。
+  final int periodStart;
+  final int periodEnd;
+
+  /// 结构化数据点，JSON array[{date, value}]。
+  /// 面板可用来画 sparkline；check-in 可用来判断趋势方向。
+  /// 例：[{"date":"2026-07-20","value":"00:45"},{"date":"2026-07-21","value":"00:30"}]
+  final String dataPointsJson;
+
+  /// 自然语言叙述，1-3 句。LLM 产出，给面板和 check-in 直接读。
+  /// 例："最近一周入睡时间从 00:45 逐步提前到 23:50，趋势在变好，
+  ///       但距离健康睡眠区间还有 20-50 分钟。"
+  final String narrative;
+
+  /// 推断置信度 0.0-1.0。数据点少或矛盾时低。
+  final double confidence;
+
+  /// 如果这条洞察暗示一个 Growth Pact（如"睡眠趋势→可建 habit pact"），
+  /// 填一个 hint，供 GrowthPactService 消费。
+  /// JSON: {suggestedKind, suggestedDomain, suggestedMetric}
+  /// null = 无 pact 信号。
+  final String? pactSignalJson;
+
+  /// agent_inferred（默认，全靠 LLM 从数据推断）
+  /// user_adjusted（用户看过后微调了 narrative 或 target）
+  final String authority;
+  final int createdAt;
+  final int updatedAt;
+  const LifeInsight(
+      {required this.id,
+      required this.domain,
+      required this.insightType,
+      required this.period,
+      required this.periodStart,
+      required this.periodEnd,
+      required this.dataPointsJson,
+      required this.narrative,
+      required this.confidence,
+      this.pactSignalJson,
+      required this.authority,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['domain'] = Variable<String>(domain);
+    map['insight_type'] = Variable<String>(insightType);
+    map['period'] = Variable<String>(period);
+    map['period_start'] = Variable<int>(periodStart);
+    map['period_end'] = Variable<int>(periodEnd);
+    map['data_points_json'] = Variable<String>(dataPointsJson);
+    map['narrative'] = Variable<String>(narrative);
+    map['confidence'] = Variable<double>(confidence);
+    if (!nullToAbsent || pactSignalJson != null) {
+      map['pact_signal_json'] = Variable<String>(pactSignalJson);
+    }
+    map['authority'] = Variable<String>(authority);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  LifeInsightsCompanion toCompanion(bool nullToAbsent) {
+    return LifeInsightsCompanion(
+      id: Value(id),
+      domain: Value(domain),
+      insightType: Value(insightType),
+      period: Value(period),
+      periodStart: Value(periodStart),
+      periodEnd: Value(periodEnd),
+      dataPointsJson: Value(dataPointsJson),
+      narrative: Value(narrative),
+      confidence: Value(confidence),
+      pactSignalJson: pactSignalJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pactSignalJson),
+      authority: Value(authority),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LifeInsight.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LifeInsight(
+      id: serializer.fromJson<String>(json['id']),
+      domain: serializer.fromJson<String>(json['domain']),
+      insightType: serializer.fromJson<String>(json['insightType']),
+      period: serializer.fromJson<String>(json['period']),
+      periodStart: serializer.fromJson<int>(json['periodStart']),
+      periodEnd: serializer.fromJson<int>(json['periodEnd']),
+      dataPointsJson: serializer.fromJson<String>(json['dataPointsJson']),
+      narrative: serializer.fromJson<String>(json['narrative']),
+      confidence: serializer.fromJson<double>(json['confidence']),
+      pactSignalJson: serializer.fromJson<String?>(json['pactSignalJson']),
+      authority: serializer.fromJson<String>(json['authority']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'domain': serializer.toJson<String>(domain),
+      'insightType': serializer.toJson<String>(insightType),
+      'period': serializer.toJson<String>(period),
+      'periodStart': serializer.toJson<int>(periodStart),
+      'periodEnd': serializer.toJson<int>(periodEnd),
+      'dataPointsJson': serializer.toJson<String>(dataPointsJson),
+      'narrative': serializer.toJson<String>(narrative),
+      'confidence': serializer.toJson<double>(confidence),
+      'pactSignalJson': serializer.toJson<String?>(pactSignalJson),
+      'authority': serializer.toJson<String>(authority),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  LifeInsight copyWith(
+          {String? id,
+          String? domain,
+          String? insightType,
+          String? period,
+          int? periodStart,
+          int? periodEnd,
+          String? dataPointsJson,
+          String? narrative,
+          double? confidence,
+          Value<String?> pactSignalJson = const Value.absent(),
+          String? authority,
+          int? createdAt,
+          int? updatedAt}) =>
+      LifeInsight(
+        id: id ?? this.id,
+        domain: domain ?? this.domain,
+        insightType: insightType ?? this.insightType,
+        period: period ?? this.period,
+        periodStart: periodStart ?? this.periodStart,
+        periodEnd: periodEnd ?? this.periodEnd,
+        dataPointsJson: dataPointsJson ?? this.dataPointsJson,
+        narrative: narrative ?? this.narrative,
+        confidence: confidence ?? this.confidence,
+        pactSignalJson:
+            pactSignalJson.present ? pactSignalJson.value : this.pactSignalJson,
+        authority: authority ?? this.authority,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  LifeInsight copyWithCompanion(LifeInsightsCompanion data) {
+    return LifeInsight(
+      id: data.id.present ? data.id.value : this.id,
+      domain: data.domain.present ? data.domain.value : this.domain,
+      insightType:
+          data.insightType.present ? data.insightType.value : this.insightType,
+      period: data.period.present ? data.period.value : this.period,
+      periodStart:
+          data.periodStart.present ? data.periodStart.value : this.periodStart,
+      periodEnd: data.periodEnd.present ? data.periodEnd.value : this.periodEnd,
+      dataPointsJson: data.dataPointsJson.present
+          ? data.dataPointsJson.value
+          : this.dataPointsJson,
+      narrative: data.narrative.present ? data.narrative.value : this.narrative,
+      confidence:
+          data.confidence.present ? data.confidence.value : this.confidence,
+      pactSignalJson: data.pactSignalJson.present
+          ? data.pactSignalJson.value
+          : this.pactSignalJson,
+      authority: data.authority.present ? data.authority.value : this.authority,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LifeInsight(')
+          ..write('id: $id, ')
+          ..write('domain: $domain, ')
+          ..write('insightType: $insightType, ')
+          ..write('period: $period, ')
+          ..write('periodStart: $periodStart, ')
+          ..write('periodEnd: $periodEnd, ')
+          ..write('dataPointsJson: $dataPointsJson, ')
+          ..write('narrative: $narrative, ')
+          ..write('confidence: $confidence, ')
+          ..write('pactSignalJson: $pactSignalJson, ')
+          ..write('authority: $authority, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      domain,
+      insightType,
+      period,
+      periodStart,
+      periodEnd,
+      dataPointsJson,
+      narrative,
+      confidence,
+      pactSignalJson,
+      authority,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LifeInsight &&
+          other.id == this.id &&
+          other.domain == this.domain &&
+          other.insightType == this.insightType &&
+          other.period == this.period &&
+          other.periodStart == this.periodStart &&
+          other.periodEnd == this.periodEnd &&
+          other.dataPointsJson == this.dataPointsJson &&
+          other.narrative == this.narrative &&
+          other.confidence == this.confidence &&
+          other.pactSignalJson == this.pactSignalJson &&
+          other.authority == this.authority &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LifeInsightsCompanion extends UpdateCompanion<LifeInsight> {
+  final Value<String> id;
+  final Value<String> domain;
+  final Value<String> insightType;
+  final Value<String> period;
+  final Value<int> periodStart;
+  final Value<int> periodEnd;
+  final Value<String> dataPointsJson;
+  final Value<String> narrative;
+  final Value<double> confidence;
+  final Value<String?> pactSignalJson;
+  final Value<String> authority;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const LifeInsightsCompanion({
+    this.id = const Value.absent(),
+    this.domain = const Value.absent(),
+    this.insightType = const Value.absent(),
+    this.period = const Value.absent(),
+    this.periodStart = const Value.absent(),
+    this.periodEnd = const Value.absent(),
+    this.dataPointsJson = const Value.absent(),
+    this.narrative = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.pactSignalJson = const Value.absent(),
+    this.authority = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LifeInsightsCompanion.insert({
+    required String id,
+    required String domain,
+    required String insightType,
+    required String period,
+    required int periodStart,
+    required int periodEnd,
+    this.dataPointsJson = const Value.absent(),
+    required String narrative,
+    this.confidence = const Value.absent(),
+    this.pactSignalJson = const Value.absent(),
+    this.authority = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        domain = Value(domain),
+        insightType = Value(insightType),
+        period = Value(period),
+        periodStart = Value(periodStart),
+        periodEnd = Value(periodEnd),
+        narrative = Value(narrative),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<LifeInsight> custom({
+    Expression<String>? id,
+    Expression<String>? domain,
+    Expression<String>? insightType,
+    Expression<String>? period,
+    Expression<int>? periodStart,
+    Expression<int>? periodEnd,
+    Expression<String>? dataPointsJson,
+    Expression<String>? narrative,
+    Expression<double>? confidence,
+    Expression<String>? pactSignalJson,
+    Expression<String>? authority,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (domain != null) 'domain': domain,
+      if (insightType != null) 'insight_type': insightType,
+      if (period != null) 'period': period,
+      if (periodStart != null) 'period_start': periodStart,
+      if (periodEnd != null) 'period_end': periodEnd,
+      if (dataPointsJson != null) 'data_points_json': dataPointsJson,
+      if (narrative != null) 'narrative': narrative,
+      if (confidence != null) 'confidence': confidence,
+      if (pactSignalJson != null) 'pact_signal_json': pactSignalJson,
+      if (authority != null) 'authority': authority,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LifeInsightsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? domain,
+      Value<String>? insightType,
+      Value<String>? period,
+      Value<int>? periodStart,
+      Value<int>? periodEnd,
+      Value<String>? dataPointsJson,
+      Value<String>? narrative,
+      Value<double>? confidence,
+      Value<String?>? pactSignalJson,
+      Value<String>? authority,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return LifeInsightsCompanion(
+      id: id ?? this.id,
+      domain: domain ?? this.domain,
+      insightType: insightType ?? this.insightType,
+      period: period ?? this.period,
+      periodStart: periodStart ?? this.periodStart,
+      periodEnd: periodEnd ?? this.periodEnd,
+      dataPointsJson: dataPointsJson ?? this.dataPointsJson,
+      narrative: narrative ?? this.narrative,
+      confidence: confidence ?? this.confidence,
+      pactSignalJson: pactSignalJson ?? this.pactSignalJson,
+      authority: authority ?? this.authority,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (domain.present) {
+      map['domain'] = Variable<String>(domain.value);
+    }
+    if (insightType.present) {
+      map['insight_type'] = Variable<String>(insightType.value);
+    }
+    if (period.present) {
+      map['period'] = Variable<String>(period.value);
+    }
+    if (periodStart.present) {
+      map['period_start'] = Variable<int>(periodStart.value);
+    }
+    if (periodEnd.present) {
+      map['period_end'] = Variable<int>(periodEnd.value);
+    }
+    if (dataPointsJson.present) {
+      map['data_points_json'] = Variable<String>(dataPointsJson.value);
+    }
+    if (narrative.present) {
+      map['narrative'] = Variable<String>(narrative.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<double>(confidence.value);
+    }
+    if (pactSignalJson.present) {
+      map['pact_signal_json'] = Variable<String>(pactSignalJson.value);
+    }
+    if (authority.present) {
+      map['authority'] = Variable<String>(authority.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LifeInsightsCompanion(')
+          ..write('id: $id, ')
+          ..write('domain: $domain, ')
+          ..write('insightType: $insightType, ')
+          ..write('period: $period, ')
+          ..write('periodStart: $periodStart, ')
+          ..write('periodEnd: $periodEnd, ')
+          ..write('dataPointsJson: $dataPointsJson, ')
+          ..write('narrative: $narrative, ')
+          ..write('confidence: $confidence, ')
+          ..write('pactSignalJson: $pactSignalJson, ')
+          ..write('authority: $authority, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $UserRhythmsTable extends memory_v3.UserRhythms
+    with TableInfo<$UserRhythmsTable, UserRhythm> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UserRhythmsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+      'kind', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _descriptionMeta =
+      const VerificationMeta('description');
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+      'description', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _rruleMeta = const VerificationMeta('rrule');
+  @override
+  late final GeneratedColumn<String> rrule = GeneratedColumn<String>(
+      'rrule', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _locationMeta =
+      const VerificationMeta('location');
+  @override
+  late final GeneratedColumn<String> location = GeneratedColumn<String>(
+      'location', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('unknown'));
+  static const VerificationMeta _validFromMeta =
+      const VerificationMeta('validFrom');
+  @override
+  late final GeneratedColumn<int> validFrom = GeneratedColumn<int>(
+      'valid_from', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _validUntilMeta =
+      const VerificationMeta('validUntil');
+  @override
+  late final GeneratedColumn<int> validUntil = GeneratedColumn<int>(
+      'valid_until', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _authorityMeta =
+      const VerificationMeta('authority');
+  @override
+  late final GeneratedColumn<String> authority = GeneratedColumn<String>(
+      'authority', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('agent_inferred'));
+  static const VerificationMeta _originMeta = const VerificationMeta('origin');
+  @override
+  late final GeneratedColumn<String> origin = GeneratedColumn<String>(
+      'origin', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('conversation'));
+  static const VerificationMeta _confidenceMeta =
+      const VerificationMeta('confidence');
+  @override
+  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
+      'confidence', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.5));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        kind,
+        description,
+        rrule,
+        location,
+        validFrom,
+        validUntil,
+        authority,
+        origin,
+        confidence,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'user_rhythms';
+  @override
+  VerificationContext validateIntegrity(Insertable<UserRhythm> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+          _kindMeta, kind.isAcceptableOrUnknown(data['kind']!, _kindMeta));
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+          _descriptionMeta,
+          description.isAcceptableOrUnknown(
+              data['description']!, _descriptionMeta));
+    } else if (isInserting) {
+      context.missing(_descriptionMeta);
+    }
+    if (data.containsKey('rrule')) {
+      context.handle(
+          _rruleMeta, rrule.isAcceptableOrUnknown(data['rrule']!, _rruleMeta));
+    } else if (isInserting) {
+      context.missing(_rruleMeta);
+    }
+    if (data.containsKey('location')) {
+      context.handle(_locationMeta,
+          location.isAcceptableOrUnknown(data['location']!, _locationMeta));
+    }
+    if (data.containsKey('valid_from')) {
+      context.handle(_validFromMeta,
+          validFrom.isAcceptableOrUnknown(data['valid_from']!, _validFromMeta));
+    } else if (isInserting) {
+      context.missing(_validFromMeta);
+    }
+    if (data.containsKey('valid_until')) {
+      context.handle(
+          _validUntilMeta,
+          validUntil.isAcceptableOrUnknown(
+              data['valid_until']!, _validUntilMeta));
+    }
+    if (data.containsKey('authority')) {
+      context.handle(_authorityMeta,
+          authority.isAcceptableOrUnknown(data['authority']!, _authorityMeta));
+    }
+    if (data.containsKey('origin')) {
+      context.handle(_originMeta,
+          origin.isAcceptableOrUnknown(data['origin']!, _originMeta));
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+          _confidenceMeta,
+          confidence.isAcceptableOrUnknown(
+              data['confidence']!, _confidenceMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  UserRhythm map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UserRhythm(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      kind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}kind'])!,
+      description: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+      rrule: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}rrule'])!,
+      location: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}location'])!,
+      validFrom: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}valid_from'])!,
+      validUntil: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}valid_until']),
+      authority: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}authority'])!,
+      origin: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}origin'])!,
+      confidence: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}confidence'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $UserRhythmsTable createAlias(String alias) {
+    return $UserRhythmsTable(attachedDatabase, alias);
+  }
+}
+
+class UserRhythm extends DataClass implements Insertable<UserRhythm> {
+  final String id;
+
+  /// work_schedule | class_schedule | sleep_pattern | meal_pattern |
+  /// exercise_pattern | commute_pattern | custom
+  final String kind;
+
+  /// 自然语言描述，1 句话。
+  /// 例："实习上班"、"私人中文接单"、"日常睡眠"
+  final String description;
+
+  /// iCalendar RRULE 风格的循环规则，代码解析而非第三方库。
+  /// 例：
+  ///   "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;10:00-19:00"  — 实习
+  ///   "FREQ=WEEKLY;BYDAY=TU,FR,SU;22:00-23:30"       — 私人课
+  ///   "FREQ=DAILY;01:00-09:00"                        — 睡眠窗口
+  /// 对于不按星期循环的节律（如"每天 3 餐 8/12/18"），用 FREQ=DAILY。
+  /// sleep_pattern 的 startTime/endTime 可跨午夜（如 23:30-07:00）。
+  final String rrule;
+
+  /// home | office | remote | commute | unknown
+  /// "在家上课"→ home，check-in 不会问"下课回家要多久"。
+  final String location;
+
+  /// 节律生效/失效时间，ms since epoch。null = 仍然有效。
+  /// 用户说"实习结束了"→ validUntil 设为那天。新节律 validFrom 设为当天。
+  final int validFrom;
+  final int? validUntil;
+
+  /// agent_inferred（默认，从对话/数据推断）
+  /// user_confirmed（用户明确确认过）
+  /// user_adjusted（用户微调了 rrule 或时间）
+  final String authority;
+
+  /// 这个节律是怎么来的。
+  /// conversation — 用户在聊天里说的
+  /// data_pattern — 从 COROS/Ledger 数据模式推断的
+  /// mixed — 两者都有
+  final String origin;
+
+  /// 推断置信度 0.0-1.0。对话只提 1 次 → 0.3；提 3 次 → 0.7；数据验证 → 0.9。
+  final double confidence;
+  final int createdAt;
+  final int updatedAt;
+  const UserRhythm(
+      {required this.id,
+      required this.kind,
+      required this.description,
+      required this.rrule,
+      required this.location,
+      required this.validFrom,
+      this.validUntil,
+      required this.authority,
+      required this.origin,
+      required this.confidence,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['kind'] = Variable<String>(kind);
+    map['description'] = Variable<String>(description);
+    map['rrule'] = Variable<String>(rrule);
+    map['location'] = Variable<String>(location);
+    map['valid_from'] = Variable<int>(validFrom);
+    if (!nullToAbsent || validUntil != null) {
+      map['valid_until'] = Variable<int>(validUntil);
+    }
+    map['authority'] = Variable<String>(authority);
+    map['origin'] = Variable<String>(origin);
+    map['confidence'] = Variable<double>(confidence);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  UserRhythmsCompanion toCompanion(bool nullToAbsent) {
+    return UserRhythmsCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      description: Value(description),
+      rrule: Value(rrule),
+      location: Value(location),
+      validFrom: Value(validFrom),
+      validUntil: validUntil == null && nullToAbsent
+          ? const Value.absent()
+          : Value(validUntil),
+      authority: Value(authority),
+      origin: Value(origin),
+      confidence: Value(confidence),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory UserRhythm.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UserRhythm(
+      id: serializer.fromJson<String>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
+      description: serializer.fromJson<String>(json['description']),
+      rrule: serializer.fromJson<String>(json['rrule']),
+      location: serializer.fromJson<String>(json['location']),
+      validFrom: serializer.fromJson<int>(json['validFrom']),
+      validUntil: serializer.fromJson<int?>(json['validUntil']),
+      authority: serializer.fromJson<String>(json['authority']),
+      origin: serializer.fromJson<String>(json['origin']),
+      confidence: serializer.fromJson<double>(json['confidence']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'kind': serializer.toJson<String>(kind),
+      'description': serializer.toJson<String>(description),
+      'rrule': serializer.toJson<String>(rrule),
+      'location': serializer.toJson<String>(location),
+      'validFrom': serializer.toJson<int>(validFrom),
+      'validUntil': serializer.toJson<int?>(validUntil),
+      'authority': serializer.toJson<String>(authority),
+      'origin': serializer.toJson<String>(origin),
+      'confidence': serializer.toJson<double>(confidence),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  UserRhythm copyWith(
+          {String? id,
+          String? kind,
+          String? description,
+          String? rrule,
+          String? location,
+          int? validFrom,
+          Value<int?> validUntil = const Value.absent(),
+          String? authority,
+          String? origin,
+          double? confidence,
+          int? createdAt,
+          int? updatedAt}) =>
+      UserRhythm(
+        id: id ?? this.id,
+        kind: kind ?? this.kind,
+        description: description ?? this.description,
+        rrule: rrule ?? this.rrule,
+        location: location ?? this.location,
+        validFrom: validFrom ?? this.validFrom,
+        validUntil: validUntil.present ? validUntil.value : this.validUntil,
+        authority: authority ?? this.authority,
+        origin: origin ?? this.origin,
+        confidence: confidence ?? this.confidence,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  UserRhythm copyWithCompanion(UserRhythmsCompanion data) {
+    return UserRhythm(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      description:
+          data.description.present ? data.description.value : this.description,
+      rrule: data.rrule.present ? data.rrule.value : this.rrule,
+      location: data.location.present ? data.location.value : this.location,
+      validFrom: data.validFrom.present ? data.validFrom.value : this.validFrom,
+      validUntil:
+          data.validUntil.present ? data.validUntil.value : this.validUntil,
+      authority: data.authority.present ? data.authority.value : this.authority,
+      origin: data.origin.present ? data.origin.value : this.origin,
+      confidence:
+          data.confidence.present ? data.confidence.value : this.confidence,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserRhythm(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('description: $description, ')
+          ..write('rrule: $rrule, ')
+          ..write('location: $location, ')
+          ..write('validFrom: $validFrom, ')
+          ..write('validUntil: $validUntil, ')
+          ..write('authority: $authority, ')
+          ..write('origin: $origin, ')
+          ..write('confidence: $confidence, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      kind,
+      description,
+      rrule,
+      location,
+      validFrom,
+      validUntil,
+      authority,
+      origin,
+      confidence,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UserRhythm &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.description == this.description &&
+          other.rrule == this.rrule &&
+          other.location == this.location &&
+          other.validFrom == this.validFrom &&
+          other.validUntil == this.validUntil &&
+          other.authority == this.authority &&
+          other.origin == this.origin &&
+          other.confidence == this.confidence &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class UserRhythmsCompanion extends UpdateCompanion<UserRhythm> {
+  final Value<String> id;
+  final Value<String> kind;
+  final Value<String> description;
+  final Value<String> rrule;
+  final Value<String> location;
+  final Value<int> validFrom;
+  final Value<int?> validUntil;
+  final Value<String> authority;
+  final Value<String> origin;
+  final Value<double> confidence;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const UserRhythmsCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.description = const Value.absent(),
+    this.rrule = const Value.absent(),
+    this.location = const Value.absent(),
+    this.validFrom = const Value.absent(),
+    this.validUntil = const Value.absent(),
+    this.authority = const Value.absent(),
+    this.origin = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  UserRhythmsCompanion.insert({
+    required String id,
+    required String kind,
+    required String description,
+    required String rrule,
+    this.location = const Value.absent(),
+    required int validFrom,
+    this.validUntil = const Value.absent(),
+    this.authority = const Value.absent(),
+    this.origin = const Value.absent(),
+    this.confidence = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        kind = Value(kind),
+        description = Value(description),
+        rrule = Value(rrule),
+        validFrom = Value(validFrom),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<UserRhythm> custom({
+    Expression<String>? id,
+    Expression<String>? kind,
+    Expression<String>? description,
+    Expression<String>? rrule,
+    Expression<String>? location,
+    Expression<int>? validFrom,
+    Expression<int>? validUntil,
+    Expression<String>? authority,
+    Expression<String>? origin,
+    Expression<double>? confidence,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (description != null) 'description': description,
+      if (rrule != null) 'rrule': rrule,
+      if (location != null) 'location': location,
+      if (validFrom != null) 'valid_from': validFrom,
+      if (validUntil != null) 'valid_until': validUntil,
+      if (authority != null) 'authority': authority,
+      if (origin != null) 'origin': origin,
+      if (confidence != null) 'confidence': confidence,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  UserRhythmsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? kind,
+      Value<String>? description,
+      Value<String>? rrule,
+      Value<String>? location,
+      Value<int>? validFrom,
+      Value<int?>? validUntil,
+      Value<String>? authority,
+      Value<String>? origin,
+      Value<double>? confidence,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return UserRhythmsCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      description: description ?? this.description,
+      rrule: rrule ?? this.rrule,
+      location: location ?? this.location,
+      validFrom: validFrom ?? this.validFrom,
+      validUntil: validUntil ?? this.validUntil,
+      authority: authority ?? this.authority,
+      origin: origin ?? this.origin,
+      confidence: confidence ?? this.confidence,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (rrule.present) {
+      map['rrule'] = Variable<String>(rrule.value);
+    }
+    if (location.present) {
+      map['location'] = Variable<String>(location.value);
+    }
+    if (validFrom.present) {
+      map['valid_from'] = Variable<int>(validFrom.value);
+    }
+    if (validUntil.present) {
+      map['valid_until'] = Variable<int>(validUntil.value);
+    }
+    if (authority.present) {
+      map['authority'] = Variable<String>(authority.value);
+    }
+    if (origin.present) {
+      map['origin'] = Variable<String>(origin.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<double>(confidence.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserRhythmsCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('description: $description, ')
+          ..write('rrule: $rrule, ')
+          ..write('location: $location, ')
+          ..write('validFrom: $validFrom, ')
+          ..write('validUntil: $validUntil, ')
+          ..write('authority: $authority, ')
+          ..write('origin: $origin, ')
+          ..write('confidence: $confidence, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GrowthPactsTable extends memory_v3.GrowthPacts
+    with TableInfo<$GrowthPactsTable, GrowthPact> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GrowthPactsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+      'kind', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _domainMeta = const VerificationMeta('domain');
+  @override
+  late final GeneratedColumn<String> domain = GeneratedColumn<String>(
+      'domain', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _descriptionMeta =
+      const VerificationMeta('description');
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+      'description', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _targetJsonMeta =
+      const VerificationMeta('targetJson');
+  @override
+  late final GeneratedColumn<String> targetJson = GeneratedColumn<String>(
+      'target_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('{}'));
+  static const VerificationMeta _stakesJsonMeta =
+      const VerificationMeta('stakesJson');
+  @override
+  late final GeneratedColumn<String> stakesJson = GeneratedColumn<String>(
+      'stakes_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('emerging'));
+  static const VerificationMeta _authorityMeta =
+      const VerificationMeta('authority');
+  @override
+  late final GeneratedColumn<String> authority = GeneratedColumn<String>(
+      'authority', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('agent_inferred'));
+  static const VerificationMeta _originMeta = const VerificationMeta('origin');
+  @override
+  late final GeneratedColumn<String> origin = GeneratedColumn<String>(
+      'origin', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('conversation'));
+  static const VerificationMeta _lastCalibratedAtMeta =
+      const VerificationMeta('lastCalibratedAt');
+  @override
+  late final GeneratedColumn<int> lastCalibratedAt = GeneratedColumn<int>(
+      'last_calibrated_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        kind,
+        domain,
+        description,
+        targetJson,
+        stakesJson,
+        status,
+        authority,
+        origin,
+        lastCalibratedAt,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'growth_pacts';
+  @override
+  VerificationContext validateIntegrity(Insertable<GrowthPact> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+          _kindMeta, kind.isAcceptableOrUnknown(data['kind']!, _kindMeta));
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('domain')) {
+      context.handle(_domainMeta,
+          domain.isAcceptableOrUnknown(data['domain']!, _domainMeta));
+    } else if (isInserting) {
+      context.missing(_domainMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+          _descriptionMeta,
+          description.isAcceptableOrUnknown(
+              data['description']!, _descriptionMeta));
+    } else if (isInserting) {
+      context.missing(_descriptionMeta);
+    }
+    if (data.containsKey('target_json')) {
+      context.handle(
+          _targetJsonMeta,
+          targetJson.isAcceptableOrUnknown(
+              data['target_json']!, _targetJsonMeta));
+    }
+    if (data.containsKey('stakes_json')) {
+      context.handle(
+          _stakesJsonMeta,
+          stakesJson.isAcceptableOrUnknown(
+              data['stakes_json']!, _stakesJsonMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('authority')) {
+      context.handle(_authorityMeta,
+          authority.isAcceptableOrUnknown(data['authority']!, _authorityMeta));
+    }
+    if (data.containsKey('origin')) {
+      context.handle(_originMeta,
+          origin.isAcceptableOrUnknown(data['origin']!, _originMeta));
+    }
+    if (data.containsKey('last_calibrated_at')) {
+      context.handle(
+          _lastCalibratedAtMeta,
+          lastCalibratedAt.isAcceptableOrUnknown(
+              data['last_calibrated_at']!, _lastCalibratedAtMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GrowthPact map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GrowthPact(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      kind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}kind'])!,
+      domain: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}domain'])!,
+      description: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+      targetJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}target_json'])!,
+      stakesJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}stakes_json']),
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      authority: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}authority'])!,
+      origin: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}origin'])!,
+      lastCalibratedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}last_calibrated_at']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $GrowthPactsTable createAlias(String alias) {
+    return $GrowthPactsTable(attachedDatabase, alias);
+  }
+}
+
+class GrowthPact extends DataClass implements Insertable<GrowthPact> {
+  final String id;
+
+  /// goal | habit | agreement
+  ///
+  /// goal      = 有终点的目标（"年底读 24 本""每天 10000 步"）
+  /// habit     = 无终点的习惯（"11 点前睡""不刷短视频超 30min"）
+  /// agreement = 用户和 AI 之间的约定（"连续 3 天没运动罚 10 元"）
+  final String kind;
+
+  /// health | finance | schedule | reading | social | custom
+  final String domain;
+
+  /// 1-2 句话描述这个 pact 是什么。
+  /// 例："每天 11 点前睡觉"、"每周支出控制在 500 以内"、"连续 3 天没运动罚 10 元"
+  final String description;
+
+  /// 推断的目标 JSON，agent_inferred 且可变。
+  /// {
+  ///   "baseline": {metric, range, period, confidence},
+  ///   "current":  {metric, range, period},
+  ///   "dailyAdjust": [{"date","adjustedRange","reason"}],
+  ///   "confidence": 0.0-1.0
+  /// }
+  ///
+  /// baseline: Life Insights 推断的历史基线（如"稳定入睡 23:45-00:45"）
+  /// current:  当前生效目标（可能被 dailyAdjust 临时调整）
+  /// dailyAdjust: 每日动态调整记录（如"明天有早会→今晚 23:15"）
+  final String targetJson;
+
+  /// 赏罚 JSON，user_confirmed（严格）。
+  /// {
+  ///   "penaltyPerMiss": 10,       // 每次 miss 罚多少 CNY
+  ///   "rewardPerHit": 0,          // 每次 hit 奖多少
+  ///   "maxPenaltyWeek": 50,       // 每周罚款上限
+  ///   "graceStreak": 3            // 连续 miss 多少次才开始罚
+  /// }
+  /// null = 无赏罚约定（纯习惯督促，不涉及钱）。
+  final String? stakesJson;
+
+  /// emerging | active | paused | achieved | faded | abandoned
+  ///
+  /// emerging  — 林埃注意到模式，pact 已创建但还没正式督促
+  /// active    — 正式督促中，check-in 会注入
+  /// paused    — 用户或 AI 暂停（如出差/生病）
+  /// achieved  — 达成（habit 不会 achieved，只有 goal 会）
+  /// faded     — 长期不相关，淡出
+  /// abandoned — 用户明确放弃
+  final String status;
+
+  /// agent_inferred（默认）| user_adjusted（用户微调过 target）
+  final String authority;
+
+  /// 这个 pact 怎么来的。
+  /// conversation — 用户在聊天里表达了期待（"我想早睡"）
+  /// data_pattern — Life Insights 从数据模式发现的（"连续 14 天晚睡"）
+  /// mixed — 两者都有
+  final String origin;
+
+  /// 上次重新推断 target 的时间。Dreaming/Insights 跑时顺带 re-calibrate。
+  final int? lastCalibratedAt;
+  final int createdAt;
+  final int updatedAt;
+  const GrowthPact(
+      {required this.id,
+      required this.kind,
+      required this.domain,
+      required this.description,
+      required this.targetJson,
+      this.stakesJson,
+      required this.status,
+      required this.authority,
+      required this.origin,
+      this.lastCalibratedAt,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['kind'] = Variable<String>(kind);
+    map['domain'] = Variable<String>(domain);
+    map['description'] = Variable<String>(description);
+    map['target_json'] = Variable<String>(targetJson);
+    if (!nullToAbsent || stakesJson != null) {
+      map['stakes_json'] = Variable<String>(stakesJson);
+    }
+    map['status'] = Variable<String>(status);
+    map['authority'] = Variable<String>(authority);
+    map['origin'] = Variable<String>(origin);
+    if (!nullToAbsent || lastCalibratedAt != null) {
+      map['last_calibrated_at'] = Variable<int>(lastCalibratedAt);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  GrowthPactsCompanion toCompanion(bool nullToAbsent) {
+    return GrowthPactsCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      domain: Value(domain),
+      description: Value(description),
+      targetJson: Value(targetJson),
+      stakesJson: stakesJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(stakesJson),
+      status: Value(status),
+      authority: Value(authority),
+      origin: Value(origin),
+      lastCalibratedAt: lastCalibratedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastCalibratedAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory GrowthPact.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GrowthPact(
+      id: serializer.fromJson<String>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
+      domain: serializer.fromJson<String>(json['domain']),
+      description: serializer.fromJson<String>(json['description']),
+      targetJson: serializer.fromJson<String>(json['targetJson']),
+      stakesJson: serializer.fromJson<String?>(json['stakesJson']),
+      status: serializer.fromJson<String>(json['status']),
+      authority: serializer.fromJson<String>(json['authority']),
+      origin: serializer.fromJson<String>(json['origin']),
+      lastCalibratedAt: serializer.fromJson<int?>(json['lastCalibratedAt']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'kind': serializer.toJson<String>(kind),
+      'domain': serializer.toJson<String>(domain),
+      'description': serializer.toJson<String>(description),
+      'targetJson': serializer.toJson<String>(targetJson),
+      'stakesJson': serializer.toJson<String?>(stakesJson),
+      'status': serializer.toJson<String>(status),
+      'authority': serializer.toJson<String>(authority),
+      'origin': serializer.toJson<String>(origin),
+      'lastCalibratedAt': serializer.toJson<int?>(lastCalibratedAt),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  GrowthPact copyWith(
+          {String? id,
+          String? kind,
+          String? domain,
+          String? description,
+          String? targetJson,
+          Value<String?> stakesJson = const Value.absent(),
+          String? status,
+          String? authority,
+          String? origin,
+          Value<int?> lastCalibratedAt = const Value.absent(),
+          int? createdAt,
+          int? updatedAt}) =>
+      GrowthPact(
+        id: id ?? this.id,
+        kind: kind ?? this.kind,
+        domain: domain ?? this.domain,
+        description: description ?? this.description,
+        targetJson: targetJson ?? this.targetJson,
+        stakesJson: stakesJson.present ? stakesJson.value : this.stakesJson,
+        status: status ?? this.status,
+        authority: authority ?? this.authority,
+        origin: origin ?? this.origin,
+        lastCalibratedAt: lastCalibratedAt.present
+            ? lastCalibratedAt.value
+            : this.lastCalibratedAt,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  GrowthPact copyWithCompanion(GrowthPactsCompanion data) {
+    return GrowthPact(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      domain: data.domain.present ? data.domain.value : this.domain,
+      description:
+          data.description.present ? data.description.value : this.description,
+      targetJson:
+          data.targetJson.present ? data.targetJson.value : this.targetJson,
+      stakesJson:
+          data.stakesJson.present ? data.stakesJson.value : this.stakesJson,
+      status: data.status.present ? data.status.value : this.status,
+      authority: data.authority.present ? data.authority.value : this.authority,
+      origin: data.origin.present ? data.origin.value : this.origin,
+      lastCalibratedAt: data.lastCalibratedAt.present
+          ? data.lastCalibratedAt.value
+          : this.lastCalibratedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GrowthPact(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('domain: $domain, ')
+          ..write('description: $description, ')
+          ..write('targetJson: $targetJson, ')
+          ..write('stakesJson: $stakesJson, ')
+          ..write('status: $status, ')
+          ..write('authority: $authority, ')
+          ..write('origin: $origin, ')
+          ..write('lastCalibratedAt: $lastCalibratedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      kind,
+      domain,
+      description,
+      targetJson,
+      stakesJson,
+      status,
+      authority,
+      origin,
+      lastCalibratedAt,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GrowthPact &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.domain == this.domain &&
+          other.description == this.description &&
+          other.targetJson == this.targetJson &&
+          other.stakesJson == this.stakesJson &&
+          other.status == this.status &&
+          other.authority == this.authority &&
+          other.origin == this.origin &&
+          other.lastCalibratedAt == this.lastCalibratedAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class GrowthPactsCompanion extends UpdateCompanion<GrowthPact> {
+  final Value<String> id;
+  final Value<String> kind;
+  final Value<String> domain;
+  final Value<String> description;
+  final Value<String> targetJson;
+  final Value<String?> stakesJson;
+  final Value<String> status;
+  final Value<String> authority;
+  final Value<String> origin;
+  final Value<int?> lastCalibratedAt;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const GrowthPactsCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.domain = const Value.absent(),
+    this.description = const Value.absent(),
+    this.targetJson = const Value.absent(),
+    this.stakesJson = const Value.absent(),
+    this.status = const Value.absent(),
+    this.authority = const Value.absent(),
+    this.origin = const Value.absent(),
+    this.lastCalibratedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GrowthPactsCompanion.insert({
+    required String id,
+    required String kind,
+    required String domain,
+    required String description,
+    this.targetJson = const Value.absent(),
+    this.stakesJson = const Value.absent(),
+    this.status = const Value.absent(),
+    this.authority = const Value.absent(),
+    this.origin = const Value.absent(),
+    this.lastCalibratedAt = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        kind = Value(kind),
+        domain = Value(domain),
+        description = Value(description),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<GrowthPact> custom({
+    Expression<String>? id,
+    Expression<String>? kind,
+    Expression<String>? domain,
+    Expression<String>? description,
+    Expression<String>? targetJson,
+    Expression<String>? stakesJson,
+    Expression<String>? status,
+    Expression<String>? authority,
+    Expression<String>? origin,
+    Expression<int>? lastCalibratedAt,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (domain != null) 'domain': domain,
+      if (description != null) 'description': description,
+      if (targetJson != null) 'target_json': targetJson,
+      if (stakesJson != null) 'stakes_json': stakesJson,
+      if (status != null) 'status': status,
+      if (authority != null) 'authority': authority,
+      if (origin != null) 'origin': origin,
+      if (lastCalibratedAt != null) 'last_calibrated_at': lastCalibratedAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GrowthPactsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? kind,
+      Value<String>? domain,
+      Value<String>? description,
+      Value<String>? targetJson,
+      Value<String?>? stakesJson,
+      Value<String>? status,
+      Value<String>? authority,
+      Value<String>? origin,
+      Value<int?>? lastCalibratedAt,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return GrowthPactsCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      domain: domain ?? this.domain,
+      description: description ?? this.description,
+      targetJson: targetJson ?? this.targetJson,
+      stakesJson: stakesJson ?? this.stakesJson,
+      status: status ?? this.status,
+      authority: authority ?? this.authority,
+      origin: origin ?? this.origin,
+      lastCalibratedAt: lastCalibratedAt ?? this.lastCalibratedAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (domain.present) {
+      map['domain'] = Variable<String>(domain.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (targetJson.present) {
+      map['target_json'] = Variable<String>(targetJson.value);
+    }
+    if (stakesJson.present) {
+      map['stakes_json'] = Variable<String>(stakesJson.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (authority.present) {
+      map['authority'] = Variable<String>(authority.value);
+    }
+    if (origin.present) {
+      map['origin'] = Variable<String>(origin.value);
+    }
+    if (lastCalibratedAt.present) {
+      map['last_calibrated_at'] = Variable<int>(lastCalibratedAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GrowthPactsCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('domain: $domain, ')
+          ..write('description: $description, ')
+          ..write('targetJson: $targetJson, ')
+          ..write('stakesJson: $stakesJson, ')
+          ..write('status: $status, ')
+          ..write('authority: $authority, ')
+          ..write('origin: $origin, ')
+          ..write('lastCalibratedAt: $lastCalibratedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GrowthPactChecksTable extends memory_v3.GrowthPactChecks
+    with TableInfo<$GrowthPactChecksTable, GrowthPactCheck> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GrowthPactChecksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _pactIdMeta = const VerificationMeta('pactId');
+  @override
+  late final GeneratedColumn<String> pactId = GeneratedColumn<String>(
+      'pact_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _checkedAtMeta =
+      const VerificationMeta('checkedAt');
+  @override
+  late final GeneratedColumn<int> checkedAt = GeneratedColumn<int>(
+      'checked_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _resultMeta = const VerificationMeta('result');
+  @override
+  late final GeneratedColumn<String> result = GeneratedColumn<String>(
+      'result', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _actualValueMeta =
+      const VerificationMeta('actualValue');
+  @override
+  late final GeneratedColumn<String> actualValue = GeneratedColumn<String>(
+      'actual_value', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _targetValueMeta =
+      const VerificationMeta('targetValue');
+  @override
+  late final GeneratedColumn<String> targetValue = GeneratedColumn<String>(
+      'target_value', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _evidenceJsonMeta =
+      const VerificationMeta('evidenceJson');
+  @override
+  late final GeneratedColumn<String> evidenceJson = GeneratedColumn<String>(
+      'evidence_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
+  static const VerificationMeta _penaltyLedgerIdMeta =
+      const VerificationMeta('penaltyLedgerId');
+  @override
+  late final GeneratedColumn<String> penaltyLedgerId = GeneratedColumn<String>(
+      'penalty_ledger_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _rewardLedgerIdMeta =
+      const VerificationMeta('rewardLedgerId');
+  @override
+  late final GeneratedColumn<String> rewardLedgerId = GeneratedColumn<String>(
+      'reward_ledger_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sourceTypeMeta =
+      const VerificationMeta('sourceType');
+  @override
+  late final GeneratedColumn<String> sourceType = GeneratedColumn<String>(
+      'source_type', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('checkin'));
+  static const VerificationMeta _authorityMeta =
+      const VerificationMeta('authority');
+  @override
+  late final GeneratedColumn<String> authority = GeneratedColumn<String>(
+      'authority', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('agent_inferred'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        pactId,
+        checkedAt,
+        result,
+        actualValue,
+        targetValue,
+        evidenceJson,
+        penaltyLedgerId,
+        rewardLedgerId,
+        sourceType,
+        authority,
+        createdAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'growth_pact_checks';
+  @override
+  VerificationContext validateIntegrity(Insertable<GrowthPactCheck> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('pact_id')) {
+      context.handle(_pactIdMeta,
+          pactId.isAcceptableOrUnknown(data['pact_id']!, _pactIdMeta));
+    } else if (isInserting) {
+      context.missing(_pactIdMeta);
+    }
+    if (data.containsKey('checked_at')) {
+      context.handle(_checkedAtMeta,
+          checkedAt.isAcceptableOrUnknown(data['checked_at']!, _checkedAtMeta));
+    } else if (isInserting) {
+      context.missing(_checkedAtMeta);
+    }
+    if (data.containsKey('result')) {
+      context.handle(_resultMeta,
+          result.isAcceptableOrUnknown(data['result']!, _resultMeta));
+    } else if (isInserting) {
+      context.missing(_resultMeta);
+    }
+    if (data.containsKey('actual_value')) {
+      context.handle(
+          _actualValueMeta,
+          actualValue.isAcceptableOrUnknown(
+              data['actual_value']!, _actualValueMeta));
+    }
+    if (data.containsKey('target_value')) {
+      context.handle(
+          _targetValueMeta,
+          targetValue.isAcceptableOrUnknown(
+              data['target_value']!, _targetValueMeta));
+    }
+    if (data.containsKey('evidence_json')) {
+      context.handle(
+          _evidenceJsonMeta,
+          evidenceJson.isAcceptableOrUnknown(
+              data['evidence_json']!, _evidenceJsonMeta));
+    }
+    if (data.containsKey('penalty_ledger_id')) {
+      context.handle(
+          _penaltyLedgerIdMeta,
+          penaltyLedgerId.isAcceptableOrUnknown(
+              data['penalty_ledger_id']!, _penaltyLedgerIdMeta));
+    }
+    if (data.containsKey('reward_ledger_id')) {
+      context.handle(
+          _rewardLedgerIdMeta,
+          rewardLedgerId.isAcceptableOrUnknown(
+              data['reward_ledger_id']!, _rewardLedgerIdMeta));
+    }
+    if (data.containsKey('source_type')) {
+      context.handle(
+          _sourceTypeMeta,
+          sourceType.isAcceptableOrUnknown(
+              data['source_type']!, _sourceTypeMeta));
+    }
+    if (data.containsKey('authority')) {
+      context.handle(_authorityMeta,
+          authority.isAcceptableOrUnknown(data['authority']!, _authorityMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GrowthPactCheck map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GrowthPactCheck(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      pactId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}pact_id'])!,
+      checkedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}checked_at'])!,
+      result: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}result'])!,
+      actualValue: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}actual_value']),
+      targetValue: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}target_value']),
+      evidenceJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}evidence_json'])!,
+      penaltyLedgerId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}penalty_ledger_id']),
+      rewardLedgerId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}reward_ledger_id']),
+      sourceType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_type'])!,
+      authority: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}authority'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $GrowthPactChecksTable createAlias(String alias) {
+    return $GrowthPactChecksTable(attachedDatabase, alias);
+  }
+}
+
+class GrowthPactCheck extends DataClass implements Insertable<GrowthPactCheck> {
+  final String id;
+  final String pactId;
+
+  /// 检查时间，ms since epoch
+  final int checkedAt;
+
+  /// hit | miss | partial | skipped
+  ///
+  /// hit     — 达到目标（23:30 前睡了）
+  /// miss    — 未达到（01:40 才睡）
+  /// partial — 部分达到（23:45 睡，目标 23:30，差 15 分钟）
+  /// skipped — 本次跳过（用户暂停了 pact / 数据不足无法判断）
+  final String result;
+
+  /// 实际值（自由格式，按 pact domain 约定）。
+  /// 例："01:40"（入睡时间）、"6800"（步数）、"520"（消费）
+  final String? actualValue;
+
+  /// 本次对比的目标值（可能被 dailyAdjust 调整过）。
+  /// 例："23:30"（原目标）、"23:15"（今日调整后）
+  final String? targetValue;
+
+  /// 证据 JSON，软引用 Memory Card。
+  /// [{"cardId":"...","note":"COROS sleep record"}]
+  final String evidenceJson;
+
+  /// 如果本次 miss 触发了罚款，填 AiFinanceLedger 行的 ID。null = 无罚款。
+  final String? penaltyLedgerId;
+
+  /// 如果本次 hit 触发了奖励，填 AiFinanceLedger 行的 ID。null = 无奖励。
+  final String? rewardLedgerId;
+
+  /// checkin — check-in pulse 检查
+  /// user_report — 用户主动汇报
+  /// auto_detected — 系统自动检测（如 COROS 同步后）
+  final String sourceType;
+
+  /// agent_inferred（系统判断）| user_confirmed（用户确认）
+  final String authority;
+  final int createdAt;
+  const GrowthPactCheck(
+      {required this.id,
+      required this.pactId,
+      required this.checkedAt,
+      required this.result,
+      this.actualValue,
+      this.targetValue,
+      required this.evidenceJson,
+      this.penaltyLedgerId,
+      this.rewardLedgerId,
+      required this.sourceType,
+      required this.authority,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['pact_id'] = Variable<String>(pactId);
+    map['checked_at'] = Variable<int>(checkedAt);
+    map['result'] = Variable<String>(result);
+    if (!nullToAbsent || actualValue != null) {
+      map['actual_value'] = Variable<String>(actualValue);
+    }
+    if (!nullToAbsent || targetValue != null) {
+      map['target_value'] = Variable<String>(targetValue);
+    }
+    map['evidence_json'] = Variable<String>(evidenceJson);
+    if (!nullToAbsent || penaltyLedgerId != null) {
+      map['penalty_ledger_id'] = Variable<String>(penaltyLedgerId);
+    }
+    if (!nullToAbsent || rewardLedgerId != null) {
+      map['reward_ledger_id'] = Variable<String>(rewardLedgerId);
+    }
+    map['source_type'] = Variable<String>(sourceType);
+    map['authority'] = Variable<String>(authority);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  GrowthPactChecksCompanion toCompanion(bool nullToAbsent) {
+    return GrowthPactChecksCompanion(
+      id: Value(id),
+      pactId: Value(pactId),
+      checkedAt: Value(checkedAt),
+      result: Value(result),
+      actualValue: actualValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(actualValue),
+      targetValue: targetValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetValue),
+      evidenceJson: Value(evidenceJson),
+      penaltyLedgerId: penaltyLedgerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(penaltyLedgerId),
+      rewardLedgerId: rewardLedgerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rewardLedgerId),
+      sourceType: Value(sourceType),
+      authority: Value(authority),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory GrowthPactCheck.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GrowthPactCheck(
+      id: serializer.fromJson<String>(json['id']),
+      pactId: serializer.fromJson<String>(json['pactId']),
+      checkedAt: serializer.fromJson<int>(json['checkedAt']),
+      result: serializer.fromJson<String>(json['result']),
+      actualValue: serializer.fromJson<String?>(json['actualValue']),
+      targetValue: serializer.fromJson<String?>(json['targetValue']),
+      evidenceJson: serializer.fromJson<String>(json['evidenceJson']),
+      penaltyLedgerId: serializer.fromJson<String?>(json['penaltyLedgerId']),
+      rewardLedgerId: serializer.fromJson<String?>(json['rewardLedgerId']),
+      sourceType: serializer.fromJson<String>(json['sourceType']),
+      authority: serializer.fromJson<String>(json['authority']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'pactId': serializer.toJson<String>(pactId),
+      'checkedAt': serializer.toJson<int>(checkedAt),
+      'result': serializer.toJson<String>(result),
+      'actualValue': serializer.toJson<String?>(actualValue),
+      'targetValue': serializer.toJson<String?>(targetValue),
+      'evidenceJson': serializer.toJson<String>(evidenceJson),
+      'penaltyLedgerId': serializer.toJson<String?>(penaltyLedgerId),
+      'rewardLedgerId': serializer.toJson<String?>(rewardLedgerId),
+      'sourceType': serializer.toJson<String>(sourceType),
+      'authority': serializer.toJson<String>(authority),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  GrowthPactCheck copyWith(
+          {String? id,
+          String? pactId,
+          int? checkedAt,
+          String? result,
+          Value<String?> actualValue = const Value.absent(),
+          Value<String?> targetValue = const Value.absent(),
+          String? evidenceJson,
+          Value<String?> penaltyLedgerId = const Value.absent(),
+          Value<String?> rewardLedgerId = const Value.absent(),
+          String? sourceType,
+          String? authority,
+          int? createdAt}) =>
+      GrowthPactCheck(
+        id: id ?? this.id,
+        pactId: pactId ?? this.pactId,
+        checkedAt: checkedAt ?? this.checkedAt,
+        result: result ?? this.result,
+        actualValue: actualValue.present ? actualValue.value : this.actualValue,
+        targetValue: targetValue.present ? targetValue.value : this.targetValue,
+        evidenceJson: evidenceJson ?? this.evidenceJson,
+        penaltyLedgerId: penaltyLedgerId.present
+            ? penaltyLedgerId.value
+            : this.penaltyLedgerId,
+        rewardLedgerId:
+            rewardLedgerId.present ? rewardLedgerId.value : this.rewardLedgerId,
+        sourceType: sourceType ?? this.sourceType,
+        authority: authority ?? this.authority,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  GrowthPactCheck copyWithCompanion(GrowthPactChecksCompanion data) {
+    return GrowthPactCheck(
+      id: data.id.present ? data.id.value : this.id,
+      pactId: data.pactId.present ? data.pactId.value : this.pactId,
+      checkedAt: data.checkedAt.present ? data.checkedAt.value : this.checkedAt,
+      result: data.result.present ? data.result.value : this.result,
+      actualValue:
+          data.actualValue.present ? data.actualValue.value : this.actualValue,
+      targetValue:
+          data.targetValue.present ? data.targetValue.value : this.targetValue,
+      evidenceJson: data.evidenceJson.present
+          ? data.evidenceJson.value
+          : this.evidenceJson,
+      penaltyLedgerId: data.penaltyLedgerId.present
+          ? data.penaltyLedgerId.value
+          : this.penaltyLedgerId,
+      rewardLedgerId: data.rewardLedgerId.present
+          ? data.rewardLedgerId.value
+          : this.rewardLedgerId,
+      sourceType:
+          data.sourceType.present ? data.sourceType.value : this.sourceType,
+      authority: data.authority.present ? data.authority.value : this.authority,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GrowthPactCheck(')
+          ..write('id: $id, ')
+          ..write('pactId: $pactId, ')
+          ..write('checkedAt: $checkedAt, ')
+          ..write('result: $result, ')
+          ..write('actualValue: $actualValue, ')
+          ..write('targetValue: $targetValue, ')
+          ..write('evidenceJson: $evidenceJson, ')
+          ..write('penaltyLedgerId: $penaltyLedgerId, ')
+          ..write('rewardLedgerId: $rewardLedgerId, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('authority: $authority, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      pactId,
+      checkedAt,
+      result,
+      actualValue,
+      targetValue,
+      evidenceJson,
+      penaltyLedgerId,
+      rewardLedgerId,
+      sourceType,
+      authority,
+      createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GrowthPactCheck &&
+          other.id == this.id &&
+          other.pactId == this.pactId &&
+          other.checkedAt == this.checkedAt &&
+          other.result == this.result &&
+          other.actualValue == this.actualValue &&
+          other.targetValue == this.targetValue &&
+          other.evidenceJson == this.evidenceJson &&
+          other.penaltyLedgerId == this.penaltyLedgerId &&
+          other.rewardLedgerId == this.rewardLedgerId &&
+          other.sourceType == this.sourceType &&
+          other.authority == this.authority &&
+          other.createdAt == this.createdAt);
+}
+
+class GrowthPactChecksCompanion extends UpdateCompanion<GrowthPactCheck> {
+  final Value<String> id;
+  final Value<String> pactId;
+  final Value<int> checkedAt;
+  final Value<String> result;
+  final Value<String?> actualValue;
+  final Value<String?> targetValue;
+  final Value<String> evidenceJson;
+  final Value<String?> penaltyLedgerId;
+  final Value<String?> rewardLedgerId;
+  final Value<String> sourceType;
+  final Value<String> authority;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const GrowthPactChecksCompanion({
+    this.id = const Value.absent(),
+    this.pactId = const Value.absent(),
+    this.checkedAt = const Value.absent(),
+    this.result = const Value.absent(),
+    this.actualValue = const Value.absent(),
+    this.targetValue = const Value.absent(),
+    this.evidenceJson = const Value.absent(),
+    this.penaltyLedgerId = const Value.absent(),
+    this.rewardLedgerId = const Value.absent(),
+    this.sourceType = const Value.absent(),
+    this.authority = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GrowthPactChecksCompanion.insert({
+    required String id,
+    required String pactId,
+    required int checkedAt,
+    required String result,
+    this.actualValue = const Value.absent(),
+    this.targetValue = const Value.absent(),
+    this.evidenceJson = const Value.absent(),
+    this.penaltyLedgerId = const Value.absent(),
+    this.rewardLedgerId = const Value.absent(),
+    this.sourceType = const Value.absent(),
+    this.authority = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        pactId = Value(pactId),
+        checkedAt = Value(checkedAt),
+        result = Value(result),
+        createdAt = Value(createdAt);
+  static Insertable<GrowthPactCheck> custom({
+    Expression<String>? id,
+    Expression<String>? pactId,
+    Expression<int>? checkedAt,
+    Expression<String>? result,
+    Expression<String>? actualValue,
+    Expression<String>? targetValue,
+    Expression<String>? evidenceJson,
+    Expression<String>? penaltyLedgerId,
+    Expression<String>? rewardLedgerId,
+    Expression<String>? sourceType,
+    Expression<String>? authority,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (pactId != null) 'pact_id': pactId,
+      if (checkedAt != null) 'checked_at': checkedAt,
+      if (result != null) 'result': result,
+      if (actualValue != null) 'actual_value': actualValue,
+      if (targetValue != null) 'target_value': targetValue,
+      if (evidenceJson != null) 'evidence_json': evidenceJson,
+      if (penaltyLedgerId != null) 'penalty_ledger_id': penaltyLedgerId,
+      if (rewardLedgerId != null) 'reward_ledger_id': rewardLedgerId,
+      if (sourceType != null) 'source_type': sourceType,
+      if (authority != null) 'authority': authority,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GrowthPactChecksCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? pactId,
+      Value<int>? checkedAt,
+      Value<String>? result,
+      Value<String?>? actualValue,
+      Value<String?>? targetValue,
+      Value<String>? evidenceJson,
+      Value<String?>? penaltyLedgerId,
+      Value<String?>? rewardLedgerId,
+      Value<String>? sourceType,
+      Value<String>? authority,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return GrowthPactChecksCompanion(
+      id: id ?? this.id,
+      pactId: pactId ?? this.pactId,
+      checkedAt: checkedAt ?? this.checkedAt,
+      result: result ?? this.result,
+      actualValue: actualValue ?? this.actualValue,
+      targetValue: targetValue ?? this.targetValue,
+      evidenceJson: evidenceJson ?? this.evidenceJson,
+      penaltyLedgerId: penaltyLedgerId ?? this.penaltyLedgerId,
+      rewardLedgerId: rewardLedgerId ?? this.rewardLedgerId,
+      sourceType: sourceType ?? this.sourceType,
+      authority: authority ?? this.authority,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (pactId.present) {
+      map['pact_id'] = Variable<String>(pactId.value);
+    }
+    if (checkedAt.present) {
+      map['checked_at'] = Variable<int>(checkedAt.value);
+    }
+    if (result.present) {
+      map['result'] = Variable<String>(result.value);
+    }
+    if (actualValue.present) {
+      map['actual_value'] = Variable<String>(actualValue.value);
+    }
+    if (targetValue.present) {
+      map['target_value'] = Variable<String>(targetValue.value);
+    }
+    if (evidenceJson.present) {
+      map['evidence_json'] = Variable<String>(evidenceJson.value);
+    }
+    if (penaltyLedgerId.present) {
+      map['penalty_ledger_id'] = Variable<String>(penaltyLedgerId.value);
+    }
+    if (rewardLedgerId.present) {
+      map['reward_ledger_id'] = Variable<String>(rewardLedgerId.value);
+    }
+    if (sourceType.present) {
+      map['source_type'] = Variable<String>(sourceType.value);
+    }
+    if (authority.present) {
+      map['authority'] = Variable<String>(authority.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GrowthPactChecksCompanion(')
+          ..write('id: $id, ')
+          ..write('pactId: $pactId, ')
+          ..write('checkedAt: $checkedAt, ')
+          ..write('result: $result, ')
+          ..write('actualValue: $actualValue, ')
+          ..write('targetValue: $targetValue, ')
+          ..write('evidenceJson: $evidenceJson, ')
+          ..write('penaltyLedgerId: $penaltyLedgerId, ')
+          ..write('rewardLedgerId: $rewardLedgerId, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('authority: $authority, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ComicMangasTable extends ComicMangas
     with TableInfo<$ComicMangasTable, ComicManga> {
   @override
@@ -28121,17 +30724,25 @@ class BookChapterNotesCompanion extends UpdateCompanion<BookChapterNote> {
   }
 }
 
-class $GameCharacterCardsTable extends GameCharacterCards
-    with TableInfo<$GameCharacterCardsTable, GameCharacterCard> {
+class $GameDefinitionsTable extends GameDefinitions
+    with TableInfo<$GameDefinitionsTable, GameDefinition> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $GameCharacterCardsTable(this.attachedDatabase, [this._alias]);
+  $GameDefinitionsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
       'id', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _gameTypeMeta =
+      const VerificationMeta('gameType');
+  @override
+  late final GeneratedColumn<String> gameType = GeneratedColumn<String>(
+      'game_type', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('card_roleplay'));
   static const VerificationMeta _titleMeta = const VerificationMeta('title');
   @override
   late final GeneratedColumn<String> title = GeneratedColumn<String>(
@@ -28145,17 +30756,17 @@ class $GameCharacterCardsTable extends GameCharacterCards
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant(''));
-  static const VerificationMeta _cardJsonMeta =
-      const VerificationMeta('cardJson');
+  static const VerificationMeta _definitionJsonMeta =
+      const VerificationMeta('definitionJson');
   @override
-  late final GeneratedColumn<String> cardJson = GeneratedColumn<String>(
-      'card_json', aliasedName, false,
+  late final GeneratedColumn<String> definitionJson = GeneratedColumn<String>(
+      'definition_json', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _avatarPathMeta =
-      const VerificationMeta('avatarPath');
+  static const VerificationMeta _thumbnailPathMeta =
+      const VerificationMeta('thumbnailPath');
   @override
-  late final GeneratedColumn<String> avatarPath = GeneratedColumn<String>(
-      'avatar_path', aliasedName, true,
+  late final GeneratedColumn<String> thumbnailPath = GeneratedColumn<String>(
+      'thumbnail_path', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _sourceFilenameMeta =
       const VerificationMeta('sourceFilename');
@@ -28174,10 +30785,11 @@ class $GameCharacterCardsTable extends GameCharacterCards
   @override
   List<GeneratedColumn> get $columns => [
         id,
+        gameType,
         title,
         description,
-        cardJson,
-        avatarPath,
+        definitionJson,
+        thumbnailPath,
         sourceFilename,
         importedAt
       ];
@@ -28185,9 +30797,9 @@ class $GameCharacterCardsTable extends GameCharacterCards
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'game_character_cards';
+  static const String $name = 'game_definitions';
   @override
-  VerificationContext validateIntegrity(Insertable<GameCharacterCard> instance,
+  VerificationContext validateIntegrity(Insertable<GameDefinition> instance,
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
@@ -28195,6 +30807,10 @@ class $GameCharacterCardsTable extends GameCharacterCards
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
       context.missing(_idMeta);
+    }
+    if (data.containsKey('game_type')) {
+      context.handle(_gameTypeMeta,
+          gameType.isAcceptableOrUnknown(data['game_type']!, _gameTypeMeta));
     }
     if (data.containsKey('title')) {
       context.handle(
@@ -28208,17 +30824,19 @@ class $GameCharacterCardsTable extends GameCharacterCards
           description.isAcceptableOrUnknown(
               data['description']!, _descriptionMeta));
     }
-    if (data.containsKey('card_json')) {
-      context.handle(_cardJsonMeta,
-          cardJson.isAcceptableOrUnknown(data['card_json']!, _cardJsonMeta));
-    } else if (isInserting) {
-      context.missing(_cardJsonMeta);
-    }
-    if (data.containsKey('avatar_path')) {
+    if (data.containsKey('definition_json')) {
       context.handle(
-          _avatarPathMeta,
-          avatarPath.isAcceptableOrUnknown(
-              data['avatar_path']!, _avatarPathMeta));
+          _definitionJsonMeta,
+          definitionJson.isAcceptableOrUnknown(
+              data['definition_json']!, _definitionJsonMeta));
+    } else if (isInserting) {
+      context.missing(_definitionJsonMeta);
+    }
+    if (data.containsKey('thumbnail_path')) {
+      context.handle(
+          _thumbnailPathMeta,
+          thumbnailPath.isAcceptableOrUnknown(
+              data['thumbnail_path']!, _thumbnailPathMeta));
     }
     if (data.containsKey('source_filename')) {
       context.handle(
@@ -28240,19 +30858,21 @@ class $GameCharacterCardsTable extends GameCharacterCards
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  GameCharacterCard map(Map<String, dynamic> data, {String? tablePrefix}) {
+  GameDefinition map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return GameCharacterCard(
+    return GameDefinition(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      gameType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}game_type'])!,
       title: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
       description: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
-      cardJson: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}card_json'])!,
-      avatarPath: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}avatar_path']),
+      definitionJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}definition_json'])!,
+      thumbnailPath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}thumbnail_path']),
       sourceFilename: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}source_filename'])!,
       importedAt: attachedDatabase.typeMapping
@@ -28261,72 +30881,81 @@ class $GameCharacterCardsTable extends GameCharacterCards
   }
 
   @override
-  $GameCharacterCardsTable createAlias(String alias) {
-    return $GameCharacterCardsTable(attachedDatabase, alias);
+  $GameDefinitionsTable createAlias(String alias) {
+    return $GameDefinitionsTable(attachedDatabase, alias);
   }
 }
 
-class GameCharacterCard extends DataClass
-    implements Insertable<GameCharacterCard> {
+class GameDefinition extends DataClass implements Insertable<GameDefinition> {
   final String id;
+
+  /// Game type discriminator.
+  /// 'card_roleplay' — SillyTavern-style character card.
+  /// Reserved for future: 'text_adventure', 'tabletop_rpg', etc.
+  final String gameType;
   final String title;
   final String description;
 
-  /// Full SillyTavern card JSON (character spec v2 or legacy).
-  final String cardJson;
+  /// Full game definition JSON. For card_roleplay: SillyTavern V1/V2 spec.
+  /// For other game types: their own config format.
+  final String definitionJson;
 
-  /// Local file path to extracted avatar image (nullable — cards may have none).
-  final String? avatarPath;
+  /// Local file path to thumbnail/avatar image (nullable).
+  final String? thumbnailPath;
 
   /// Original filename the user imported (e.g. "阿黛尔.json").
   final String sourceFilename;
   final int importedAt;
-  const GameCharacterCard(
+  const GameDefinition(
       {required this.id,
+      required this.gameType,
       required this.title,
       required this.description,
-      required this.cardJson,
-      this.avatarPath,
+      required this.definitionJson,
+      this.thumbnailPath,
       required this.sourceFilename,
       required this.importedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
+    map['game_type'] = Variable<String>(gameType);
     map['title'] = Variable<String>(title);
     map['description'] = Variable<String>(description);
-    map['card_json'] = Variable<String>(cardJson);
-    if (!nullToAbsent || avatarPath != null) {
-      map['avatar_path'] = Variable<String>(avatarPath);
+    map['definition_json'] = Variable<String>(definitionJson);
+    if (!nullToAbsent || thumbnailPath != null) {
+      map['thumbnail_path'] = Variable<String>(thumbnailPath);
     }
     map['source_filename'] = Variable<String>(sourceFilename);
     map['imported_at'] = Variable<int>(importedAt);
     return map;
   }
 
-  GameCharacterCardsCompanion toCompanion(bool nullToAbsent) {
-    return GameCharacterCardsCompanion(
+  GameDefinitionsCompanion toCompanion(bool nullToAbsent) {
+    return GameDefinitionsCompanion(
       id: Value(id),
+      gameType: Value(gameType),
       title: Value(title),
       description: Value(description),
-      cardJson: Value(cardJson),
-      avatarPath: avatarPath == null && nullToAbsent
+      definitionJson: Value(definitionJson),
+      thumbnailPath: thumbnailPath == null && nullToAbsent
           ? const Value.absent()
-          : Value(avatarPath),
+          : Value(thumbnailPath),
       sourceFilename: Value(sourceFilename),
       importedAt: Value(importedAt),
     );
   }
 
-  factory GameCharacterCard.fromJson(Map<String, dynamic> json,
+  factory GameDefinition.fromJson(Map<String, dynamic> json,
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return GameCharacterCard(
+    return GameDefinition(
       id: serializer.fromJson<String>(json['id']),
+      gameType: serializer.fromJson<String>(json['gameType']),
       title: serializer.fromJson<String>(json['title']),
       description: serializer.fromJson<String>(json['description']),
-      cardJson: serializer.fromJson<String>(json['cardJson']),
-      avatarPath: serializer.fromJson<String?>(json['avatarPath']),
+      definitionJson: serializer.fromJson<String>(json['definitionJson']),
+      thumbnailPath: serializer.fromJson<String?>(json['thumbnailPath']),
       sourceFilename: serializer.fromJson<String>(json['sourceFilename']),
       importedAt: serializer.fromJson<int>(json['importedAt']),
     );
@@ -28336,41 +30965,49 @@ class GameCharacterCard extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
+      'gameType': serializer.toJson<String>(gameType),
       'title': serializer.toJson<String>(title),
       'description': serializer.toJson<String>(description),
-      'cardJson': serializer.toJson<String>(cardJson),
-      'avatarPath': serializer.toJson<String?>(avatarPath),
+      'definitionJson': serializer.toJson<String>(definitionJson),
+      'thumbnailPath': serializer.toJson<String?>(thumbnailPath),
       'sourceFilename': serializer.toJson<String>(sourceFilename),
       'importedAt': serializer.toJson<int>(importedAt),
     };
   }
 
-  GameCharacterCard copyWith(
+  GameDefinition copyWith(
           {String? id,
+          String? gameType,
           String? title,
           String? description,
-          String? cardJson,
-          Value<String?> avatarPath = const Value.absent(),
+          String? definitionJson,
+          Value<String?> thumbnailPath = const Value.absent(),
           String? sourceFilename,
           int? importedAt}) =>
-      GameCharacterCard(
+      GameDefinition(
         id: id ?? this.id,
+        gameType: gameType ?? this.gameType,
         title: title ?? this.title,
         description: description ?? this.description,
-        cardJson: cardJson ?? this.cardJson,
-        avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
+        definitionJson: definitionJson ?? this.definitionJson,
+        thumbnailPath:
+            thumbnailPath.present ? thumbnailPath.value : this.thumbnailPath,
         sourceFilename: sourceFilename ?? this.sourceFilename,
         importedAt: importedAt ?? this.importedAt,
       );
-  GameCharacterCard copyWithCompanion(GameCharacterCardsCompanion data) {
-    return GameCharacterCard(
+  GameDefinition copyWithCompanion(GameDefinitionsCompanion data) {
+    return GameDefinition(
       id: data.id.present ? data.id.value : this.id,
+      gameType: data.gameType.present ? data.gameType.value : this.gameType,
       title: data.title.present ? data.title.value : this.title,
       description:
           data.description.present ? data.description.value : this.description,
-      cardJson: data.cardJson.present ? data.cardJson.value : this.cardJson,
-      avatarPath:
-          data.avatarPath.present ? data.avatarPath.value : this.avatarPath,
+      definitionJson: data.definitionJson.present
+          ? data.definitionJson.value
+          : this.definitionJson,
+      thumbnailPath: data.thumbnailPath.present
+          ? data.thumbnailPath.value
+          : this.thumbnailPath,
       sourceFilename: data.sourceFilename.present
           ? data.sourceFilename.value
           : this.sourceFilename,
@@ -28381,12 +31018,13 @@ class GameCharacterCard extends DataClass
 
   @override
   String toString() {
-    return (StringBuffer('GameCharacterCard(')
+    return (StringBuffer('GameDefinition(')
           ..write('id: $id, ')
+          ..write('gameType: $gameType, ')
           ..write('title: $title, ')
           ..write('description: $description, ')
-          ..write('cardJson: $cardJson, ')
-          ..write('avatarPath: $avatarPath, ')
+          ..write('definitionJson: $definitionJson, ')
+          ..write('thumbnailPath: $thumbnailPath, ')
           ..write('sourceFilename: $sourceFilename, ')
           ..write('importedAt: $importedAt')
           ..write(')'))
@@ -28394,90 +31032,98 @@ class GameCharacterCard extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, title, description, cardJson, avatarPath, sourceFilename, importedAt);
+  int get hashCode => Object.hash(id, gameType, title, description,
+      definitionJson, thumbnailPath, sourceFilename, importedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is GameCharacterCard &&
+      (other is GameDefinition &&
           other.id == this.id &&
+          other.gameType == this.gameType &&
           other.title == this.title &&
           other.description == this.description &&
-          other.cardJson == this.cardJson &&
-          other.avatarPath == this.avatarPath &&
+          other.definitionJson == this.definitionJson &&
+          other.thumbnailPath == this.thumbnailPath &&
           other.sourceFilename == this.sourceFilename &&
           other.importedAt == this.importedAt);
 }
 
-class GameCharacterCardsCompanion extends UpdateCompanion<GameCharacterCard> {
+class GameDefinitionsCompanion extends UpdateCompanion<GameDefinition> {
   final Value<String> id;
+  final Value<String> gameType;
   final Value<String> title;
   final Value<String> description;
-  final Value<String> cardJson;
-  final Value<String?> avatarPath;
+  final Value<String> definitionJson;
+  final Value<String?> thumbnailPath;
   final Value<String> sourceFilename;
   final Value<int> importedAt;
   final Value<int> rowid;
-  const GameCharacterCardsCompanion({
+  const GameDefinitionsCompanion({
     this.id = const Value.absent(),
+    this.gameType = const Value.absent(),
     this.title = const Value.absent(),
     this.description = const Value.absent(),
-    this.cardJson = const Value.absent(),
-    this.avatarPath = const Value.absent(),
+    this.definitionJson = const Value.absent(),
+    this.thumbnailPath = const Value.absent(),
     this.sourceFilename = const Value.absent(),
     this.importedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  GameCharacterCardsCompanion.insert({
+  GameDefinitionsCompanion.insert({
     required String id,
+    this.gameType = const Value.absent(),
     required String title,
     this.description = const Value.absent(),
-    required String cardJson,
-    this.avatarPath = const Value.absent(),
+    required String definitionJson,
+    this.thumbnailPath = const Value.absent(),
     this.sourceFilename = const Value.absent(),
     required int importedAt,
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         title = Value(title),
-        cardJson = Value(cardJson),
+        definitionJson = Value(definitionJson),
         importedAt = Value(importedAt);
-  static Insertable<GameCharacterCard> custom({
+  static Insertable<GameDefinition> custom({
     Expression<String>? id,
+    Expression<String>? gameType,
     Expression<String>? title,
     Expression<String>? description,
-    Expression<String>? cardJson,
-    Expression<String>? avatarPath,
+    Expression<String>? definitionJson,
+    Expression<String>? thumbnailPath,
     Expression<String>? sourceFilename,
     Expression<int>? importedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (gameType != null) 'game_type': gameType,
       if (title != null) 'title': title,
       if (description != null) 'description': description,
-      if (cardJson != null) 'card_json': cardJson,
-      if (avatarPath != null) 'avatar_path': avatarPath,
+      if (definitionJson != null) 'definition_json': definitionJson,
+      if (thumbnailPath != null) 'thumbnail_path': thumbnailPath,
       if (sourceFilename != null) 'source_filename': sourceFilename,
       if (importedAt != null) 'imported_at': importedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
-  GameCharacterCardsCompanion copyWith(
+  GameDefinitionsCompanion copyWith(
       {Value<String>? id,
+      Value<String>? gameType,
       Value<String>? title,
       Value<String>? description,
-      Value<String>? cardJson,
-      Value<String?>? avatarPath,
+      Value<String>? definitionJson,
+      Value<String?>? thumbnailPath,
       Value<String>? sourceFilename,
       Value<int>? importedAt,
       Value<int>? rowid}) {
-    return GameCharacterCardsCompanion(
+    return GameDefinitionsCompanion(
       id: id ?? this.id,
+      gameType: gameType ?? this.gameType,
       title: title ?? this.title,
       description: description ?? this.description,
-      cardJson: cardJson ?? this.cardJson,
-      avatarPath: avatarPath ?? this.avatarPath,
+      definitionJson: definitionJson ?? this.definitionJson,
+      thumbnailPath: thumbnailPath ?? this.thumbnailPath,
       sourceFilename: sourceFilename ?? this.sourceFilename,
       importedAt: importedAt ?? this.importedAt,
       rowid: rowid ?? this.rowid,
@@ -28490,17 +31136,20 @@ class GameCharacterCardsCompanion extends UpdateCompanion<GameCharacterCard> {
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
+    if (gameType.present) {
+      map['game_type'] = Variable<String>(gameType.value);
+    }
     if (title.present) {
       map['title'] = Variable<String>(title.value);
     }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
-    if (cardJson.present) {
-      map['card_json'] = Variable<String>(cardJson.value);
+    if (definitionJson.present) {
+      map['definition_json'] = Variable<String>(definitionJson.value);
     }
-    if (avatarPath.present) {
-      map['avatar_path'] = Variable<String>(avatarPath.value);
+    if (thumbnailPath.present) {
+      map['thumbnail_path'] = Variable<String>(thumbnailPath.value);
     }
     if (sourceFilename.present) {
       map['source_filename'] = Variable<String>(sourceFilename.value);
@@ -28516,12 +31165,13 @@ class GameCharacterCardsCompanion extends UpdateCompanion<GameCharacterCard> {
 
   @override
   String toString() {
-    return (StringBuffer('GameCharacterCardsCompanion(')
+    return (StringBuffer('GameDefinitionsCompanion(')
           ..write('id: $id, ')
+          ..write('gameType: $gameType, ')
           ..write('title: $title, ')
           ..write('description: $description, ')
-          ..write('cardJson: $cardJson, ')
-          ..write('avatarPath: $avatarPath, ')
+          ..write('definitionJson: $definitionJson, ')
+          ..write('thumbnailPath: $thumbnailPath, ')
           ..write('sourceFilename: $sourceFilename, ')
           ..write('importedAt: $importedAt, ')
           ..write('rowid: $rowid')
@@ -28541,23 +31191,32 @@ class $GameSessionsTable extends GameSessions
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
       'id', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _cardIdMeta = const VerificationMeta('cardId');
+  static const VerificationMeta _definitionIdMeta =
+      const VerificationMeta('definitionId');
   @override
-  late final GeneratedColumn<String> cardId = GeneratedColumn<String>(
-      'card_id', aliasedName, true,
+  late final GeneratedColumn<String> definitionId = GeneratedColumn<String>(
+      'definition_id', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _cardTitleMeta =
-      const VerificationMeta('cardTitle');
+  static const VerificationMeta _gameTypeMeta =
+      const VerificationMeta('gameType');
   @override
-  late final GeneratedColumn<String> cardTitle = GeneratedColumn<String>(
-      'card_title', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _cardSnapshotJsonMeta =
-      const VerificationMeta('cardSnapshotJson');
+  late final GeneratedColumn<String> gameType = GeneratedColumn<String>(
+      'game_type', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('card_roleplay'));
+  static const VerificationMeta _definitionTitleMeta =
+      const VerificationMeta('definitionTitle');
   @override
-  late final GeneratedColumn<String> cardSnapshotJson = GeneratedColumn<String>(
-      'card_snapshot_json', aliasedName, false,
+  late final GeneratedColumn<String> definitionTitle = GeneratedColumn<String>(
+      'definition_title', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _definitionSnapshotJsonMeta =
+      const VerificationMeta('definitionSnapshotJson');
+  @override
+  late final GeneratedColumn<String> definitionSnapshotJson =
+      GeneratedColumn<String>('definition_snapshot_json', aliasedName, false,
+          type: DriftSqlType.string, requiredDuringInsert: true);
   static const VerificationMeta _sessionTitleMeta =
       const VerificationMeta('sessionTitle');
   @override
@@ -28620,9 +31279,10 @@ class $GameSessionsTable extends GameSessions
   @override
   List<GeneratedColumn> get $columns => [
         id,
-        cardId,
-        cardTitle,
-        cardSnapshotJson,
+        definitionId,
+        gameType,
+        definitionTitle,
+        definitionSnapshotJson,
         sessionTitle,
         status,
         parentSessionId,
@@ -28648,23 +31308,31 @@ class $GameSessionsTable extends GameSessions
     } else if (isInserting) {
       context.missing(_idMeta);
     }
-    if (data.containsKey('card_id')) {
-      context.handle(_cardIdMeta,
-          cardId.isAcceptableOrUnknown(data['card_id']!, _cardIdMeta));
-    }
-    if (data.containsKey('card_title')) {
-      context.handle(_cardTitleMeta,
-          cardTitle.isAcceptableOrUnknown(data['card_title']!, _cardTitleMeta));
-    } else if (isInserting) {
-      context.missing(_cardTitleMeta);
-    }
-    if (data.containsKey('card_snapshot_json')) {
+    if (data.containsKey('definition_id')) {
       context.handle(
-          _cardSnapshotJsonMeta,
-          cardSnapshotJson.isAcceptableOrUnknown(
-              data['card_snapshot_json']!, _cardSnapshotJsonMeta));
+          _definitionIdMeta,
+          definitionId.isAcceptableOrUnknown(
+              data['definition_id']!, _definitionIdMeta));
+    }
+    if (data.containsKey('game_type')) {
+      context.handle(_gameTypeMeta,
+          gameType.isAcceptableOrUnknown(data['game_type']!, _gameTypeMeta));
+    }
+    if (data.containsKey('definition_title')) {
+      context.handle(
+          _definitionTitleMeta,
+          definitionTitle.isAcceptableOrUnknown(
+              data['definition_title']!, _definitionTitleMeta));
     } else if (isInserting) {
-      context.missing(_cardSnapshotJsonMeta);
+      context.missing(_definitionTitleMeta);
+    }
+    if (data.containsKey('definition_snapshot_json')) {
+      context.handle(
+          _definitionSnapshotJsonMeta,
+          definitionSnapshotJson.isAcceptableOrUnknown(
+              data['definition_snapshot_json']!, _definitionSnapshotJsonMeta));
+    } else if (isInserting) {
+      context.missing(_definitionSnapshotJsonMeta);
     }
     if (data.containsKey('session_title')) {
       context.handle(
@@ -28733,12 +31401,15 @@ class $GameSessionsTable extends GameSessions
     return GameSession(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      cardId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}card_id']),
-      cardTitle: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}card_title'])!,
-      cardSnapshotJson: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}card_snapshot_json'])!,
+      definitionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}definition_id']),
+      gameType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}game_type'])!,
+      definitionTitle: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}definition_title'])!,
+      definitionSnapshotJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}definition_snapshot_json'])!,
       sessionTitle: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}session_title'])!,
       status: attachedDatabase.typeMapping
@@ -28769,17 +31440,21 @@ class $GameSessionsTable extends GameSessions
 class GameSession extends DataClass implements Insertable<GameSession> {
   final String id;
 
-  /// Soft reference to [GameCharacterCards.id].
-  /// Nullable so sessions survive card deletion.
-  final String? cardId;
+  /// Soft reference to [GameDefinitions.id].
+  /// Nullable so sessions can be created without a definition (pure-dynamic games).
+  final String? definitionId;
 
-  /// Redundant copy of the card title for display after card deletion.
-  final String cardTitle;
+  /// Game type, copied from the definition at creation time.
+  /// Allows querying sessions by type without joining GameDefinitions.
+  final String gameType;
 
-  /// Full card JSON snapshot at session-creation time.
-  /// Ensures the session always plays back with the original card,
-  /// even if the user later edits or deletes the card from the library.
-  final String cardSnapshotJson;
+  /// Redundant copy of the definition title for display after deletion.
+  final String definitionTitle;
+
+  /// Full definition JSON snapshot at session-creation time.
+  /// Ensures the session always plays back with the original config,
+  /// even if the user later edits or deletes the definition from the library.
+  final String definitionSnapshotJson;
 
   /// User-visible session title (auto-generated or user-renamed).
   final String sessionTitle;
@@ -28810,9 +31485,10 @@ class GameSession extends DataClass implements Insertable<GameSession> {
   final int lastPlayedAt;
   const GameSession(
       {required this.id,
-      this.cardId,
-      required this.cardTitle,
-      required this.cardSnapshotJson,
+      this.definitionId,
+      required this.gameType,
+      required this.definitionTitle,
+      required this.definitionSnapshotJson,
       required this.sessionTitle,
       required this.status,
       this.parentSessionId,
@@ -28826,11 +31502,12 @@ class GameSession extends DataClass implements Insertable<GameSession> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
-    if (!nullToAbsent || cardId != null) {
-      map['card_id'] = Variable<String>(cardId);
+    if (!nullToAbsent || definitionId != null) {
+      map['definition_id'] = Variable<String>(definitionId);
     }
-    map['card_title'] = Variable<String>(cardTitle);
-    map['card_snapshot_json'] = Variable<String>(cardSnapshotJson);
+    map['game_type'] = Variable<String>(gameType);
+    map['definition_title'] = Variable<String>(definitionTitle);
+    map['definition_snapshot_json'] = Variable<String>(definitionSnapshotJson);
     map['session_title'] = Variable<String>(sessionTitle);
     map['status'] = Variable<String>(status);
     if (!nullToAbsent || parentSessionId != null) {
@@ -28854,10 +31531,12 @@ class GameSession extends DataClass implements Insertable<GameSession> {
   GameSessionsCompanion toCompanion(bool nullToAbsent) {
     return GameSessionsCompanion(
       id: Value(id),
-      cardId:
-          cardId == null && nullToAbsent ? const Value.absent() : Value(cardId),
-      cardTitle: Value(cardTitle),
-      cardSnapshotJson: Value(cardSnapshotJson),
+      definitionId: definitionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(definitionId),
+      gameType: Value(gameType),
+      definitionTitle: Value(definitionTitle),
+      definitionSnapshotJson: Value(definitionSnapshotJson),
       sessionTitle: Value(sessionTitle),
       status: Value(status),
       parentSessionId: parentSessionId == null && nullToAbsent
@@ -28883,9 +31562,11 @@ class GameSession extends DataClass implements Insertable<GameSession> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return GameSession(
       id: serializer.fromJson<String>(json['id']),
-      cardId: serializer.fromJson<String?>(json['cardId']),
-      cardTitle: serializer.fromJson<String>(json['cardTitle']),
-      cardSnapshotJson: serializer.fromJson<String>(json['cardSnapshotJson']),
+      definitionId: serializer.fromJson<String?>(json['definitionId']),
+      gameType: serializer.fromJson<String>(json['gameType']),
+      definitionTitle: serializer.fromJson<String>(json['definitionTitle']),
+      definitionSnapshotJson:
+          serializer.fromJson<String>(json['definitionSnapshotJson']),
       sessionTitle: serializer.fromJson<String>(json['sessionTitle']),
       status: serializer.fromJson<String>(json['status']),
       parentSessionId: serializer.fromJson<String?>(json['parentSessionId']),
@@ -28903,9 +31584,11 @@ class GameSession extends DataClass implements Insertable<GameSession> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
-      'cardId': serializer.toJson<String?>(cardId),
-      'cardTitle': serializer.toJson<String>(cardTitle),
-      'cardSnapshotJson': serializer.toJson<String>(cardSnapshotJson),
+      'definitionId': serializer.toJson<String?>(definitionId),
+      'gameType': serializer.toJson<String>(gameType),
+      'definitionTitle': serializer.toJson<String>(definitionTitle),
+      'definitionSnapshotJson':
+          serializer.toJson<String>(definitionSnapshotJson),
       'sessionTitle': serializer.toJson<String>(sessionTitle),
       'status': serializer.toJson<String>(status),
       'parentSessionId': serializer.toJson<String?>(parentSessionId),
@@ -28920,9 +31603,10 @@ class GameSession extends DataClass implements Insertable<GameSession> {
 
   GameSession copyWith(
           {String? id,
-          Value<String?> cardId = const Value.absent(),
-          String? cardTitle,
-          String? cardSnapshotJson,
+          Value<String?> definitionId = const Value.absent(),
+          String? gameType,
+          String? definitionTitle,
+          String? definitionSnapshotJson,
           String? sessionTitle,
           String? status,
           Value<String?> parentSessionId = const Value.absent(),
@@ -28934,9 +31618,12 @@ class GameSession extends DataClass implements Insertable<GameSession> {
           int? lastPlayedAt}) =>
       GameSession(
         id: id ?? this.id,
-        cardId: cardId.present ? cardId.value : this.cardId,
-        cardTitle: cardTitle ?? this.cardTitle,
-        cardSnapshotJson: cardSnapshotJson ?? this.cardSnapshotJson,
+        definitionId:
+            definitionId.present ? definitionId.value : this.definitionId,
+        gameType: gameType ?? this.gameType,
+        definitionTitle: definitionTitle ?? this.definitionTitle,
+        definitionSnapshotJson:
+            definitionSnapshotJson ?? this.definitionSnapshotJson,
         sessionTitle: sessionTitle ?? this.sessionTitle,
         status: status ?? this.status,
         parentSessionId: parentSessionId.present
@@ -28956,11 +31643,16 @@ class GameSession extends DataClass implements Insertable<GameSession> {
   GameSession copyWithCompanion(GameSessionsCompanion data) {
     return GameSession(
       id: data.id.present ? data.id.value : this.id,
-      cardId: data.cardId.present ? data.cardId.value : this.cardId,
-      cardTitle: data.cardTitle.present ? data.cardTitle.value : this.cardTitle,
-      cardSnapshotJson: data.cardSnapshotJson.present
-          ? data.cardSnapshotJson.value
-          : this.cardSnapshotJson,
+      definitionId: data.definitionId.present
+          ? data.definitionId.value
+          : this.definitionId,
+      gameType: data.gameType.present ? data.gameType.value : this.gameType,
+      definitionTitle: data.definitionTitle.present
+          ? data.definitionTitle.value
+          : this.definitionTitle,
+      definitionSnapshotJson: data.definitionSnapshotJson.present
+          ? data.definitionSnapshotJson.value
+          : this.definitionSnapshotJson,
       sessionTitle: data.sessionTitle.present
           ? data.sessionTitle.value
           : this.sessionTitle,
@@ -28991,9 +31683,10 @@ class GameSession extends DataClass implements Insertable<GameSession> {
   String toString() {
     return (StringBuffer('GameSession(')
           ..write('id: $id, ')
-          ..write('cardId: $cardId, ')
-          ..write('cardTitle: $cardTitle, ')
-          ..write('cardSnapshotJson: $cardSnapshotJson, ')
+          ..write('definitionId: $definitionId, ')
+          ..write('gameType: $gameType, ')
+          ..write('definitionTitle: $definitionTitle, ')
+          ..write('definitionSnapshotJson: $definitionSnapshotJson, ')
           ..write('sessionTitle: $sessionTitle, ')
           ..write('status: $status, ')
           ..write('parentSessionId: $parentSessionId, ')
@@ -29010,9 +31703,10 @@ class GameSession extends DataClass implements Insertable<GameSession> {
   @override
   int get hashCode => Object.hash(
       id,
-      cardId,
-      cardTitle,
-      cardSnapshotJson,
+      definitionId,
+      gameType,
+      definitionTitle,
+      definitionSnapshotJson,
       sessionTitle,
       status,
       parentSessionId,
@@ -29027,9 +31721,10 @@ class GameSession extends DataClass implements Insertable<GameSession> {
       identical(this, other) ||
       (other is GameSession &&
           other.id == this.id &&
-          other.cardId == this.cardId &&
-          other.cardTitle == this.cardTitle &&
-          other.cardSnapshotJson == this.cardSnapshotJson &&
+          other.definitionId == this.definitionId &&
+          other.gameType == this.gameType &&
+          other.definitionTitle == this.definitionTitle &&
+          other.definitionSnapshotJson == this.definitionSnapshotJson &&
           other.sessionTitle == this.sessionTitle &&
           other.status == this.status &&
           other.parentSessionId == this.parentSessionId &&
@@ -29043,9 +31738,10 @@ class GameSession extends DataClass implements Insertable<GameSession> {
 
 class GameSessionsCompanion extends UpdateCompanion<GameSession> {
   final Value<String> id;
-  final Value<String?> cardId;
-  final Value<String> cardTitle;
-  final Value<String> cardSnapshotJson;
+  final Value<String?> definitionId;
+  final Value<String> gameType;
+  final Value<String> definitionTitle;
+  final Value<String> definitionSnapshotJson;
   final Value<String> sessionTitle;
   final Value<String> status;
   final Value<String?> parentSessionId;
@@ -29058,9 +31754,10 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
   final Value<int> rowid;
   const GameSessionsCompanion({
     this.id = const Value.absent(),
-    this.cardId = const Value.absent(),
-    this.cardTitle = const Value.absent(),
-    this.cardSnapshotJson = const Value.absent(),
+    this.definitionId = const Value.absent(),
+    this.gameType = const Value.absent(),
+    this.definitionTitle = const Value.absent(),
+    this.definitionSnapshotJson = const Value.absent(),
     this.sessionTitle = const Value.absent(),
     this.status = const Value.absent(),
     this.parentSessionId = const Value.absent(),
@@ -29074,9 +31771,10 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
   });
   GameSessionsCompanion.insert({
     required String id,
-    this.cardId = const Value.absent(),
-    required String cardTitle,
-    required String cardSnapshotJson,
+    this.definitionId = const Value.absent(),
+    this.gameType = const Value.absent(),
+    required String definitionTitle,
+    required String definitionSnapshotJson,
     required String sessionTitle,
     this.status = const Value.absent(),
     this.parentSessionId = const Value.absent(),
@@ -29088,16 +31786,17 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
     required int lastPlayedAt,
     this.rowid = const Value.absent(),
   })  : id = Value(id),
-        cardTitle = Value(cardTitle),
-        cardSnapshotJson = Value(cardSnapshotJson),
+        definitionTitle = Value(definitionTitle),
+        definitionSnapshotJson = Value(definitionSnapshotJson),
         sessionTitle = Value(sessionTitle),
         createdAt = Value(createdAt),
         lastPlayedAt = Value(lastPlayedAt);
   static Insertable<GameSession> custom({
     Expression<String>? id,
-    Expression<String>? cardId,
-    Expression<String>? cardTitle,
-    Expression<String>? cardSnapshotJson,
+    Expression<String>? definitionId,
+    Expression<String>? gameType,
+    Expression<String>? definitionTitle,
+    Expression<String>? definitionSnapshotJson,
     Expression<String>? sessionTitle,
     Expression<String>? status,
     Expression<String>? parentSessionId,
@@ -29111,9 +31810,11 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (cardId != null) 'card_id': cardId,
-      if (cardTitle != null) 'card_title': cardTitle,
-      if (cardSnapshotJson != null) 'card_snapshot_json': cardSnapshotJson,
+      if (definitionId != null) 'definition_id': definitionId,
+      if (gameType != null) 'game_type': gameType,
+      if (definitionTitle != null) 'definition_title': definitionTitle,
+      if (definitionSnapshotJson != null)
+        'definition_snapshot_json': definitionSnapshotJson,
       if (sessionTitle != null) 'session_title': sessionTitle,
       if (status != null) 'status': status,
       if (parentSessionId != null) 'parent_session_id': parentSessionId,
@@ -29130,9 +31831,10 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
 
   GameSessionsCompanion copyWith(
       {Value<String>? id,
-      Value<String?>? cardId,
-      Value<String>? cardTitle,
-      Value<String>? cardSnapshotJson,
+      Value<String?>? definitionId,
+      Value<String>? gameType,
+      Value<String>? definitionTitle,
+      Value<String>? definitionSnapshotJson,
       Value<String>? sessionTitle,
       Value<String>? status,
       Value<String?>? parentSessionId,
@@ -29145,9 +31847,11 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
       Value<int>? rowid}) {
     return GameSessionsCompanion(
       id: id ?? this.id,
-      cardId: cardId ?? this.cardId,
-      cardTitle: cardTitle ?? this.cardTitle,
-      cardSnapshotJson: cardSnapshotJson ?? this.cardSnapshotJson,
+      definitionId: definitionId ?? this.definitionId,
+      gameType: gameType ?? this.gameType,
+      definitionTitle: definitionTitle ?? this.definitionTitle,
+      definitionSnapshotJson:
+          definitionSnapshotJson ?? this.definitionSnapshotJson,
       sessionTitle: sessionTitle ?? this.sessionTitle,
       status: status ?? this.status,
       parentSessionId: parentSessionId ?? this.parentSessionId,
@@ -29167,14 +31871,18 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
-    if (cardId.present) {
-      map['card_id'] = Variable<String>(cardId.value);
+    if (definitionId.present) {
+      map['definition_id'] = Variable<String>(definitionId.value);
     }
-    if (cardTitle.present) {
-      map['card_title'] = Variable<String>(cardTitle.value);
+    if (gameType.present) {
+      map['game_type'] = Variable<String>(gameType.value);
     }
-    if (cardSnapshotJson.present) {
-      map['card_snapshot_json'] = Variable<String>(cardSnapshotJson.value);
+    if (definitionTitle.present) {
+      map['definition_title'] = Variable<String>(definitionTitle.value);
+    }
+    if (definitionSnapshotJson.present) {
+      map['definition_snapshot_json'] =
+          Variable<String>(definitionSnapshotJson.value);
     }
     if (sessionTitle.present) {
       map['session_title'] = Variable<String>(sessionTitle.value);
@@ -29213,9 +31921,10 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
   String toString() {
     return (StringBuffer('GameSessionsCompanion(')
           ..write('id: $id, ')
-          ..write('cardId: $cardId, ')
-          ..write('cardTitle: $cardTitle, ')
-          ..write('cardSnapshotJson: $cardSnapshotJson, ')
+          ..write('definitionId: $definitionId, ')
+          ..write('gameType: $gameType, ')
+          ..write('definitionTitle: $definitionTitle, ')
+          ..write('definitionSnapshotJson: $definitionSnapshotJson, ')
           ..write('sessionTitle: $sessionTitle, ')
           ..write('status: $status, ')
           ..write('parentSessionId: $parentSessionId, ')
@@ -29705,6 +32414,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TopicThreadsTable topicThreads = $TopicThreadsTable(this);
   late final $TopicThreadSessionsTable topicThreadSessions =
       $TopicThreadSessionsTable(this);
+  late final $LifeInsightsTable lifeInsights = $LifeInsightsTable(this);
+  late final $UserRhythmsTable userRhythms = $UserRhythmsTable(this);
+  late final $GrowthPactsTable growthPacts = $GrowthPactsTable(this);
+  late final $GrowthPactChecksTable growthPactChecks =
+      $GrowthPactChecksTable(this);
   late final $ComicMangasTable comicMangas = $ComicMangasTable(this);
   late final $ComicChaptersTable comicChapters = $ComicChaptersTable(this);
   late final $ComicPageScreenplaysTable comicPageScreenplays =
@@ -29719,8 +32433,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $BookReadingProgressTable(this);
   late final $BookChapterNotesTable bookChapterNotes =
       $BookChapterNotesTable(this);
-  late final $GameCharacterCardsTable gameCharacterCards =
-      $GameCharacterCardsTable(this);
+  late final $GameDefinitionsTable gameDefinitions =
+      $GameDefinitionsTable(this);
   late final $GameSessionsTable gameSessions = $GameSessionsTable(this);
   late final $GameMessagesTable gameMessages = $GameMessagesTable(this);
   late final CardDao cardDao = CardDao(this as AppDatabase);
@@ -29779,6 +32493,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         projectMemorySources,
         topicThreads,
         topicThreadSessions,
+        lifeInsights,
+        userRhythms,
+        growthPacts,
+        growthPactChecks,
         comicMangas,
         comicChapters,
         comicPageScreenplays,
@@ -29788,7 +32506,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         bookChapters,
         bookReadingProgress,
         bookChapterNotes,
-        gameCharacterCards,
+        gameDefinitions,
         gameSessions,
         gameMessages
       ];
@@ -42768,6 +45486,1133 @@ typedef $$TopicThreadSessionsTableProcessedTableManager = ProcessedTableManager<
     ),
     TopicThreadSession,
     PrefetchHooks Function()>;
+typedef $$LifeInsightsTableCreateCompanionBuilder = LifeInsightsCompanion
+    Function({
+  required String id,
+  required String domain,
+  required String insightType,
+  required String period,
+  required int periodStart,
+  required int periodEnd,
+  Value<String> dataPointsJson,
+  required String narrative,
+  Value<double> confidence,
+  Value<String?> pactSignalJson,
+  Value<String> authority,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$LifeInsightsTableUpdateCompanionBuilder = LifeInsightsCompanion
+    Function({
+  Value<String> id,
+  Value<String> domain,
+  Value<String> insightType,
+  Value<String> period,
+  Value<int> periodStart,
+  Value<int> periodEnd,
+  Value<String> dataPointsJson,
+  Value<String> narrative,
+  Value<double> confidence,
+  Value<String?> pactSignalJson,
+  Value<String> authority,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$LifeInsightsTableFilterComposer
+    extends Composer<_$AppDatabase, $LifeInsightsTable> {
+  $$LifeInsightsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get domain => $composableBuilder(
+      column: $table.domain, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get insightType => $composableBuilder(
+      column: $table.insightType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get period => $composableBuilder(
+      column: $table.period, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get periodStart => $composableBuilder(
+      column: $table.periodStart, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get periodEnd => $composableBuilder(
+      column: $table.periodEnd, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get dataPointsJson => $composableBuilder(
+      column: $table.dataPointsJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get narrative => $composableBuilder(
+      column: $table.narrative, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get pactSignalJson => $composableBuilder(
+      column: $table.pactSignalJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$LifeInsightsTableOrderingComposer
+    extends Composer<_$AppDatabase, $LifeInsightsTable> {
+  $$LifeInsightsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get domain => $composableBuilder(
+      column: $table.domain, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get insightType => $composableBuilder(
+      column: $table.insightType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get period => $composableBuilder(
+      column: $table.period, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get periodStart => $composableBuilder(
+      column: $table.periodStart, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get periodEnd => $composableBuilder(
+      column: $table.periodEnd, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get dataPointsJson => $composableBuilder(
+      column: $table.dataPointsJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get narrative => $composableBuilder(
+      column: $table.narrative, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get pactSignalJson => $composableBuilder(
+      column: $table.pactSignalJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$LifeInsightsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LifeInsightsTable> {
+  $$LifeInsightsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get domain =>
+      $composableBuilder(column: $table.domain, builder: (column) => column);
+
+  GeneratedColumn<String> get insightType => $composableBuilder(
+      column: $table.insightType, builder: (column) => column);
+
+  GeneratedColumn<String> get period =>
+      $composableBuilder(column: $table.period, builder: (column) => column);
+
+  GeneratedColumn<int> get periodStart => $composableBuilder(
+      column: $table.periodStart, builder: (column) => column);
+
+  GeneratedColumn<int> get periodEnd =>
+      $composableBuilder(column: $table.periodEnd, builder: (column) => column);
+
+  GeneratedColumn<String> get dataPointsJson => $composableBuilder(
+      column: $table.dataPointsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get narrative =>
+      $composableBuilder(column: $table.narrative, builder: (column) => column);
+
+  GeneratedColumn<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => column);
+
+  GeneratedColumn<String> get pactSignalJson => $composableBuilder(
+      column: $table.pactSignalJson, builder: (column) => column);
+
+  GeneratedColumn<String> get authority =>
+      $composableBuilder(column: $table.authority, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$LifeInsightsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $LifeInsightsTable,
+    LifeInsight,
+    $$LifeInsightsTableFilterComposer,
+    $$LifeInsightsTableOrderingComposer,
+    $$LifeInsightsTableAnnotationComposer,
+    $$LifeInsightsTableCreateCompanionBuilder,
+    $$LifeInsightsTableUpdateCompanionBuilder,
+    (
+      LifeInsight,
+      BaseReferences<_$AppDatabase, $LifeInsightsTable, LifeInsight>
+    ),
+    LifeInsight,
+    PrefetchHooks Function()> {
+  $$LifeInsightsTableTableManager(_$AppDatabase db, $LifeInsightsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LifeInsightsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LifeInsightsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LifeInsightsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> domain = const Value.absent(),
+            Value<String> insightType = const Value.absent(),
+            Value<String> period = const Value.absent(),
+            Value<int> periodStart = const Value.absent(),
+            Value<int> periodEnd = const Value.absent(),
+            Value<String> dataPointsJson = const Value.absent(),
+            Value<String> narrative = const Value.absent(),
+            Value<double> confidence = const Value.absent(),
+            Value<String?> pactSignalJson = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              LifeInsightsCompanion(
+            id: id,
+            domain: domain,
+            insightType: insightType,
+            period: period,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
+            dataPointsJson: dataPointsJson,
+            narrative: narrative,
+            confidence: confidence,
+            pactSignalJson: pactSignalJson,
+            authority: authority,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String domain,
+            required String insightType,
+            required String period,
+            required int periodStart,
+            required int periodEnd,
+            Value<String> dataPointsJson = const Value.absent(),
+            required String narrative,
+            Value<double> confidence = const Value.absent(),
+            Value<String?> pactSignalJson = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              LifeInsightsCompanion.insert(
+            id: id,
+            domain: domain,
+            insightType: insightType,
+            period: period,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
+            dataPointsJson: dataPointsJson,
+            narrative: narrative,
+            confidence: confidence,
+            pactSignalJson: pactSignalJson,
+            authority: authority,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$LifeInsightsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $LifeInsightsTable,
+    LifeInsight,
+    $$LifeInsightsTableFilterComposer,
+    $$LifeInsightsTableOrderingComposer,
+    $$LifeInsightsTableAnnotationComposer,
+    $$LifeInsightsTableCreateCompanionBuilder,
+    $$LifeInsightsTableUpdateCompanionBuilder,
+    (
+      LifeInsight,
+      BaseReferences<_$AppDatabase, $LifeInsightsTable, LifeInsight>
+    ),
+    LifeInsight,
+    PrefetchHooks Function()>;
+typedef $$UserRhythmsTableCreateCompanionBuilder = UserRhythmsCompanion
+    Function({
+  required String id,
+  required String kind,
+  required String description,
+  required String rrule,
+  Value<String> location,
+  required int validFrom,
+  Value<int?> validUntil,
+  Value<String> authority,
+  Value<String> origin,
+  Value<double> confidence,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$UserRhythmsTableUpdateCompanionBuilder = UserRhythmsCompanion
+    Function({
+  Value<String> id,
+  Value<String> kind,
+  Value<String> description,
+  Value<String> rrule,
+  Value<String> location,
+  Value<int> validFrom,
+  Value<int?> validUntil,
+  Value<String> authority,
+  Value<String> origin,
+  Value<double> confidence,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$UserRhythmsTableFilterComposer
+    extends Composer<_$AppDatabase, $UserRhythmsTable> {
+  $$UserRhythmsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get rrule => $composableBuilder(
+      column: $table.rrule, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get location => $composableBuilder(
+      column: $table.location, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get validFrom => $composableBuilder(
+      column: $table.validFrom, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get validUntil => $composableBuilder(
+      column: $table.validUntil, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get origin => $composableBuilder(
+      column: $table.origin, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$UserRhythmsTableOrderingComposer
+    extends Composer<_$AppDatabase, $UserRhythmsTable> {
+  $$UserRhythmsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get rrule => $composableBuilder(
+      column: $table.rrule, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get location => $composableBuilder(
+      column: $table.location, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get validFrom => $composableBuilder(
+      column: $table.validFrom, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get validUntil => $composableBuilder(
+      column: $table.validUntil, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get origin => $composableBuilder(
+      column: $table.origin, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$UserRhythmsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $UserRhythmsTable> {
+  $$UserRhythmsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<String> get rrule =>
+      $composableBuilder(column: $table.rrule, builder: (column) => column);
+
+  GeneratedColumn<String> get location =>
+      $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumn<int> get validFrom =>
+      $composableBuilder(column: $table.validFrom, builder: (column) => column);
+
+  GeneratedColumn<int> get validUntil => $composableBuilder(
+      column: $table.validUntil, builder: (column) => column);
+
+  GeneratedColumn<String> get authority =>
+      $composableBuilder(column: $table.authority, builder: (column) => column);
+
+  GeneratedColumn<String> get origin =>
+      $composableBuilder(column: $table.origin, builder: (column) => column);
+
+  GeneratedColumn<double> get confidence => $composableBuilder(
+      column: $table.confidence, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$UserRhythmsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $UserRhythmsTable,
+    UserRhythm,
+    $$UserRhythmsTableFilterComposer,
+    $$UserRhythmsTableOrderingComposer,
+    $$UserRhythmsTableAnnotationComposer,
+    $$UserRhythmsTableCreateCompanionBuilder,
+    $$UserRhythmsTableUpdateCompanionBuilder,
+    (UserRhythm, BaseReferences<_$AppDatabase, $UserRhythmsTable, UserRhythm>),
+    UserRhythm,
+    PrefetchHooks Function()> {
+  $$UserRhythmsTableTableManager(_$AppDatabase db, $UserRhythmsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UserRhythmsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UserRhythmsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UserRhythmsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> kind = const Value.absent(),
+            Value<String> description = const Value.absent(),
+            Value<String> rrule = const Value.absent(),
+            Value<String> location = const Value.absent(),
+            Value<int> validFrom = const Value.absent(),
+            Value<int?> validUntil = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            Value<String> origin = const Value.absent(),
+            Value<double> confidence = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              UserRhythmsCompanion(
+            id: id,
+            kind: kind,
+            description: description,
+            rrule: rrule,
+            location: location,
+            validFrom: validFrom,
+            validUntil: validUntil,
+            authority: authority,
+            origin: origin,
+            confidence: confidence,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String kind,
+            required String description,
+            required String rrule,
+            Value<String> location = const Value.absent(),
+            required int validFrom,
+            Value<int?> validUntil = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            Value<String> origin = const Value.absent(),
+            Value<double> confidence = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              UserRhythmsCompanion.insert(
+            id: id,
+            kind: kind,
+            description: description,
+            rrule: rrule,
+            location: location,
+            validFrom: validFrom,
+            validUntil: validUntil,
+            authority: authority,
+            origin: origin,
+            confidence: confidence,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$UserRhythmsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $UserRhythmsTable,
+    UserRhythm,
+    $$UserRhythmsTableFilterComposer,
+    $$UserRhythmsTableOrderingComposer,
+    $$UserRhythmsTableAnnotationComposer,
+    $$UserRhythmsTableCreateCompanionBuilder,
+    $$UserRhythmsTableUpdateCompanionBuilder,
+    (UserRhythm, BaseReferences<_$AppDatabase, $UserRhythmsTable, UserRhythm>),
+    UserRhythm,
+    PrefetchHooks Function()>;
+typedef $$GrowthPactsTableCreateCompanionBuilder = GrowthPactsCompanion
+    Function({
+  required String id,
+  required String kind,
+  required String domain,
+  required String description,
+  Value<String> targetJson,
+  Value<String?> stakesJson,
+  Value<String> status,
+  Value<String> authority,
+  Value<String> origin,
+  Value<int?> lastCalibratedAt,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$GrowthPactsTableUpdateCompanionBuilder = GrowthPactsCompanion
+    Function({
+  Value<String> id,
+  Value<String> kind,
+  Value<String> domain,
+  Value<String> description,
+  Value<String> targetJson,
+  Value<String?> stakesJson,
+  Value<String> status,
+  Value<String> authority,
+  Value<String> origin,
+  Value<int?> lastCalibratedAt,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$GrowthPactsTableFilterComposer
+    extends Composer<_$AppDatabase, $GrowthPactsTable> {
+  $$GrowthPactsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get domain => $composableBuilder(
+      column: $table.domain, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get targetJson => $composableBuilder(
+      column: $table.targetJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get stakesJson => $composableBuilder(
+      column: $table.stakesJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get origin => $composableBuilder(
+      column: $table.origin, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get lastCalibratedAt => $composableBuilder(
+      column: $table.lastCalibratedAt,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$GrowthPactsTableOrderingComposer
+    extends Composer<_$AppDatabase, $GrowthPactsTable> {
+  $$GrowthPactsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get domain => $composableBuilder(
+      column: $table.domain, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get targetJson => $composableBuilder(
+      column: $table.targetJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get stakesJson => $composableBuilder(
+      column: $table.stakesJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get origin => $composableBuilder(
+      column: $table.origin, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get lastCalibratedAt => $composableBuilder(
+      column: $table.lastCalibratedAt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$GrowthPactsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GrowthPactsTable> {
+  $$GrowthPactsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get domain =>
+      $composableBuilder(column: $table.domain, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<String> get targetJson => $composableBuilder(
+      column: $table.targetJson, builder: (column) => column);
+
+  GeneratedColumn<String> get stakesJson => $composableBuilder(
+      column: $table.stakesJson, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get authority =>
+      $composableBuilder(column: $table.authority, builder: (column) => column);
+
+  GeneratedColumn<String> get origin =>
+      $composableBuilder(column: $table.origin, builder: (column) => column);
+
+  GeneratedColumn<int> get lastCalibratedAt => $composableBuilder(
+      column: $table.lastCalibratedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$GrowthPactsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $GrowthPactsTable,
+    GrowthPact,
+    $$GrowthPactsTableFilterComposer,
+    $$GrowthPactsTableOrderingComposer,
+    $$GrowthPactsTableAnnotationComposer,
+    $$GrowthPactsTableCreateCompanionBuilder,
+    $$GrowthPactsTableUpdateCompanionBuilder,
+    (GrowthPact, BaseReferences<_$AppDatabase, $GrowthPactsTable, GrowthPact>),
+    GrowthPact,
+    PrefetchHooks Function()> {
+  $$GrowthPactsTableTableManager(_$AppDatabase db, $GrowthPactsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GrowthPactsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GrowthPactsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GrowthPactsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> kind = const Value.absent(),
+            Value<String> domain = const Value.absent(),
+            Value<String> description = const Value.absent(),
+            Value<String> targetJson = const Value.absent(),
+            Value<String?> stakesJson = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            Value<String> origin = const Value.absent(),
+            Value<int?> lastCalibratedAt = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              GrowthPactsCompanion(
+            id: id,
+            kind: kind,
+            domain: domain,
+            description: description,
+            targetJson: targetJson,
+            stakesJson: stakesJson,
+            status: status,
+            authority: authority,
+            origin: origin,
+            lastCalibratedAt: lastCalibratedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String kind,
+            required String domain,
+            required String description,
+            Value<String> targetJson = const Value.absent(),
+            Value<String?> stakesJson = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            Value<String> origin = const Value.absent(),
+            Value<int?> lastCalibratedAt = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              GrowthPactsCompanion.insert(
+            id: id,
+            kind: kind,
+            domain: domain,
+            description: description,
+            targetJson: targetJson,
+            stakesJson: stakesJson,
+            status: status,
+            authority: authority,
+            origin: origin,
+            lastCalibratedAt: lastCalibratedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$GrowthPactsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $GrowthPactsTable,
+    GrowthPact,
+    $$GrowthPactsTableFilterComposer,
+    $$GrowthPactsTableOrderingComposer,
+    $$GrowthPactsTableAnnotationComposer,
+    $$GrowthPactsTableCreateCompanionBuilder,
+    $$GrowthPactsTableUpdateCompanionBuilder,
+    (GrowthPact, BaseReferences<_$AppDatabase, $GrowthPactsTable, GrowthPact>),
+    GrowthPact,
+    PrefetchHooks Function()>;
+typedef $$GrowthPactChecksTableCreateCompanionBuilder
+    = GrowthPactChecksCompanion Function({
+  required String id,
+  required String pactId,
+  required int checkedAt,
+  required String result,
+  Value<String?> actualValue,
+  Value<String?> targetValue,
+  Value<String> evidenceJson,
+  Value<String?> penaltyLedgerId,
+  Value<String?> rewardLedgerId,
+  Value<String> sourceType,
+  Value<String> authority,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$GrowthPactChecksTableUpdateCompanionBuilder
+    = GrowthPactChecksCompanion Function({
+  Value<String> id,
+  Value<String> pactId,
+  Value<int> checkedAt,
+  Value<String> result,
+  Value<String?> actualValue,
+  Value<String?> targetValue,
+  Value<String> evidenceJson,
+  Value<String?> penaltyLedgerId,
+  Value<String?> rewardLedgerId,
+  Value<String> sourceType,
+  Value<String> authority,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$GrowthPactChecksTableFilterComposer
+    extends Composer<_$AppDatabase, $GrowthPactChecksTable> {
+  $$GrowthPactChecksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get pactId => $composableBuilder(
+      column: $table.pactId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get checkedAt => $composableBuilder(
+      column: $table.checkedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get result => $composableBuilder(
+      column: $table.result, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get actualValue => $composableBuilder(
+      column: $table.actualValue, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get targetValue => $composableBuilder(
+      column: $table.targetValue, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get evidenceJson => $composableBuilder(
+      column: $table.evidenceJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get penaltyLedgerId => $composableBuilder(
+      column: $table.penaltyLedgerId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get rewardLedgerId => $composableBuilder(
+      column: $table.rewardLedgerId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceType => $composableBuilder(
+      column: $table.sourceType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$GrowthPactChecksTableOrderingComposer
+    extends Composer<_$AppDatabase, $GrowthPactChecksTable> {
+  $$GrowthPactChecksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get pactId => $composableBuilder(
+      column: $table.pactId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get checkedAt => $composableBuilder(
+      column: $table.checkedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get result => $composableBuilder(
+      column: $table.result, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get actualValue => $composableBuilder(
+      column: $table.actualValue, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get targetValue => $composableBuilder(
+      column: $table.targetValue, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get evidenceJson => $composableBuilder(
+      column: $table.evidenceJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get penaltyLedgerId => $composableBuilder(
+      column: $table.penaltyLedgerId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get rewardLedgerId => $composableBuilder(
+      column: $table.rewardLedgerId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceType => $composableBuilder(
+      column: $table.sourceType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get authority => $composableBuilder(
+      column: $table.authority, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$GrowthPactChecksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GrowthPactChecksTable> {
+  $$GrowthPactChecksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get pactId =>
+      $composableBuilder(column: $table.pactId, builder: (column) => column);
+
+  GeneratedColumn<int> get checkedAt =>
+      $composableBuilder(column: $table.checkedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get result =>
+      $composableBuilder(column: $table.result, builder: (column) => column);
+
+  GeneratedColumn<String> get actualValue => $composableBuilder(
+      column: $table.actualValue, builder: (column) => column);
+
+  GeneratedColumn<String> get targetValue => $composableBuilder(
+      column: $table.targetValue, builder: (column) => column);
+
+  GeneratedColumn<String> get evidenceJson => $composableBuilder(
+      column: $table.evidenceJson, builder: (column) => column);
+
+  GeneratedColumn<String> get penaltyLedgerId => $composableBuilder(
+      column: $table.penaltyLedgerId, builder: (column) => column);
+
+  GeneratedColumn<String> get rewardLedgerId => $composableBuilder(
+      column: $table.rewardLedgerId, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceType => $composableBuilder(
+      column: $table.sourceType, builder: (column) => column);
+
+  GeneratedColumn<String> get authority =>
+      $composableBuilder(column: $table.authority, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$GrowthPactChecksTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $GrowthPactChecksTable,
+    GrowthPactCheck,
+    $$GrowthPactChecksTableFilterComposer,
+    $$GrowthPactChecksTableOrderingComposer,
+    $$GrowthPactChecksTableAnnotationComposer,
+    $$GrowthPactChecksTableCreateCompanionBuilder,
+    $$GrowthPactChecksTableUpdateCompanionBuilder,
+    (
+      GrowthPactCheck,
+      BaseReferences<_$AppDatabase, $GrowthPactChecksTable, GrowthPactCheck>
+    ),
+    GrowthPactCheck,
+    PrefetchHooks Function()> {
+  $$GrowthPactChecksTableTableManager(
+      _$AppDatabase db, $GrowthPactChecksTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GrowthPactChecksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GrowthPactChecksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GrowthPactChecksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> pactId = const Value.absent(),
+            Value<int> checkedAt = const Value.absent(),
+            Value<String> result = const Value.absent(),
+            Value<String?> actualValue = const Value.absent(),
+            Value<String?> targetValue = const Value.absent(),
+            Value<String> evidenceJson = const Value.absent(),
+            Value<String?> penaltyLedgerId = const Value.absent(),
+            Value<String?> rewardLedgerId = const Value.absent(),
+            Value<String> sourceType = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              GrowthPactChecksCompanion(
+            id: id,
+            pactId: pactId,
+            checkedAt: checkedAt,
+            result: result,
+            actualValue: actualValue,
+            targetValue: targetValue,
+            evidenceJson: evidenceJson,
+            penaltyLedgerId: penaltyLedgerId,
+            rewardLedgerId: rewardLedgerId,
+            sourceType: sourceType,
+            authority: authority,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String pactId,
+            required int checkedAt,
+            required String result,
+            Value<String?> actualValue = const Value.absent(),
+            Value<String?> targetValue = const Value.absent(),
+            Value<String> evidenceJson = const Value.absent(),
+            Value<String?> penaltyLedgerId = const Value.absent(),
+            Value<String?> rewardLedgerId = const Value.absent(),
+            Value<String> sourceType = const Value.absent(),
+            Value<String> authority = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              GrowthPactChecksCompanion.insert(
+            id: id,
+            pactId: pactId,
+            checkedAt: checkedAt,
+            result: result,
+            actualValue: actualValue,
+            targetValue: targetValue,
+            evidenceJson: evidenceJson,
+            penaltyLedgerId: penaltyLedgerId,
+            rewardLedgerId: rewardLedgerId,
+            sourceType: sourceType,
+            authority: authority,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$GrowthPactChecksTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $GrowthPactChecksTable,
+    GrowthPactCheck,
+    $$GrowthPactChecksTableFilterComposer,
+    $$GrowthPactChecksTableOrderingComposer,
+    $$GrowthPactChecksTableAnnotationComposer,
+    $$GrowthPactChecksTableCreateCompanionBuilder,
+    $$GrowthPactChecksTableUpdateCompanionBuilder,
+    (
+      GrowthPactCheck,
+      BaseReferences<_$AppDatabase, $GrowthPactChecksTable, GrowthPactCheck>
+    ),
+    GrowthPactCheck,
+    PrefetchHooks Function()>;
 typedef $$ComicMangasTableCreateCompanionBuilder = ComicMangasCompanion
     Function({
   required String id,
@@ -44689,32 +48534,34 @@ typedef $$BookChapterNotesTableProcessedTableManager = ProcessedTableManager<
     ),
     BookChapterNote,
     PrefetchHooks Function()>;
-typedef $$GameCharacterCardsTableCreateCompanionBuilder
-    = GameCharacterCardsCompanion Function({
+typedef $$GameDefinitionsTableCreateCompanionBuilder = GameDefinitionsCompanion
+    Function({
   required String id,
+  Value<String> gameType,
   required String title,
   Value<String> description,
-  required String cardJson,
-  Value<String?> avatarPath,
+  required String definitionJson,
+  Value<String?> thumbnailPath,
   Value<String> sourceFilename,
   required int importedAt,
   Value<int> rowid,
 });
-typedef $$GameCharacterCardsTableUpdateCompanionBuilder
-    = GameCharacterCardsCompanion Function({
+typedef $$GameDefinitionsTableUpdateCompanionBuilder = GameDefinitionsCompanion
+    Function({
   Value<String> id,
+  Value<String> gameType,
   Value<String> title,
   Value<String> description,
-  Value<String> cardJson,
-  Value<String?> avatarPath,
+  Value<String> definitionJson,
+  Value<String?> thumbnailPath,
   Value<String> sourceFilename,
   Value<int> importedAt,
   Value<int> rowid,
 });
 
-class $$GameCharacterCardsTableFilterComposer
-    extends Composer<_$AppDatabase, $GameCharacterCardsTable> {
-  $$GameCharacterCardsTableFilterComposer({
+class $$GameDefinitionsTableFilterComposer
+    extends Composer<_$AppDatabase, $GameDefinitionsTable> {
+  $$GameDefinitionsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -44724,17 +48571,21 @@ class $$GameCharacterCardsTableFilterComposer
   ColumnFilters<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<String> get gameType => $composableBuilder(
+      column: $table.gameType, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<String> get title => $composableBuilder(
       column: $table.title, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get cardJson => $composableBuilder(
-      column: $table.cardJson, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get definitionJson => $composableBuilder(
+      column: $table.definitionJson,
+      builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get avatarPath => $composableBuilder(
-      column: $table.avatarPath, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get thumbnailPath => $composableBuilder(
+      column: $table.thumbnailPath, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get sourceFilename => $composableBuilder(
       column: $table.sourceFilename,
@@ -44744,9 +48595,9 @@ class $$GameCharacterCardsTableFilterComposer
       column: $table.importedAt, builder: (column) => ColumnFilters(column));
 }
 
-class $$GameCharacterCardsTableOrderingComposer
-    extends Composer<_$AppDatabase, $GameCharacterCardsTable> {
-  $$GameCharacterCardsTableOrderingComposer({
+class $$GameDefinitionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $GameDefinitionsTable> {
+  $$GameDefinitionsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -44756,17 +48607,22 @@ class $$GameCharacterCardsTableOrderingComposer
   ColumnOrderings<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get gameType => $composableBuilder(
+      column: $table.gameType, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get title => $composableBuilder(
       column: $table.title, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get cardJson => $composableBuilder(
-      column: $table.cardJson, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get definitionJson => $composableBuilder(
+      column: $table.definitionJson,
+      builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get avatarPath => $composableBuilder(
-      column: $table.avatarPath, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get thumbnailPath => $composableBuilder(
+      column: $table.thumbnailPath,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get sourceFilename => $composableBuilder(
       column: $table.sourceFilename,
@@ -44776,9 +48632,9 @@ class $$GameCharacterCardsTableOrderingComposer
       column: $table.importedAt, builder: (column) => ColumnOrderings(column));
 }
 
-class $$GameCharacterCardsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $GameCharacterCardsTable> {
-  $$GameCharacterCardsTableAnnotationComposer({
+class $$GameDefinitionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GameDefinitionsTable> {
+  $$GameDefinitionsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -44788,17 +48644,20 @@ class $$GameCharacterCardsTableAnnotationComposer
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
+  GeneratedColumn<String> get gameType =>
+      $composableBuilder(column: $table.gameType, builder: (column) => column);
+
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
 
   GeneratedColumn<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => column);
 
-  GeneratedColumn<String> get cardJson =>
-      $composableBuilder(column: $table.cardJson, builder: (column) => column);
+  GeneratedColumn<String> get definitionJson => $composableBuilder(
+      column: $table.definitionJson, builder: (column) => column);
 
-  GeneratedColumn<String> get avatarPath => $composableBuilder(
-      column: $table.avatarPath, builder: (column) => column);
+  GeneratedColumn<String> get thumbnailPath => $composableBuilder(
+      column: $table.thumbnailPath, builder: (column) => column);
 
   GeneratedColumn<String> get sourceFilename => $composableBuilder(
       column: $table.sourceFilename, builder: (column) => column);
@@ -44807,69 +48666,72 @@ class $$GameCharacterCardsTableAnnotationComposer
       column: $table.importedAt, builder: (column) => column);
 }
 
-class $$GameCharacterCardsTableTableManager extends RootTableManager<
+class $$GameDefinitionsTableTableManager extends RootTableManager<
     _$AppDatabase,
-    $GameCharacterCardsTable,
-    GameCharacterCard,
-    $$GameCharacterCardsTableFilterComposer,
-    $$GameCharacterCardsTableOrderingComposer,
-    $$GameCharacterCardsTableAnnotationComposer,
-    $$GameCharacterCardsTableCreateCompanionBuilder,
-    $$GameCharacterCardsTableUpdateCompanionBuilder,
+    $GameDefinitionsTable,
+    GameDefinition,
+    $$GameDefinitionsTableFilterComposer,
+    $$GameDefinitionsTableOrderingComposer,
+    $$GameDefinitionsTableAnnotationComposer,
+    $$GameDefinitionsTableCreateCompanionBuilder,
+    $$GameDefinitionsTableUpdateCompanionBuilder,
     (
-      GameCharacterCard,
-      BaseReferences<_$AppDatabase, $GameCharacterCardsTable, GameCharacterCard>
+      GameDefinition,
+      BaseReferences<_$AppDatabase, $GameDefinitionsTable, GameDefinition>
     ),
-    GameCharacterCard,
+    GameDefinition,
     PrefetchHooks Function()> {
-  $$GameCharacterCardsTableTableManager(
-      _$AppDatabase db, $GameCharacterCardsTable table)
+  $$GameDefinitionsTableTableManager(
+      _$AppDatabase db, $GameDefinitionsTable table)
       : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$GameCharacterCardsTableFilterComposer($db: db, $table: table),
+              $$GameDefinitionsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$GameCharacterCardsTableOrderingComposer($db: db, $table: table),
+              $$GameDefinitionsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$GameCharacterCardsTableAnnotationComposer(
-                  $db: db, $table: table),
+              $$GameDefinitionsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<String> id = const Value.absent(),
+            Value<String> gameType = const Value.absent(),
             Value<String> title = const Value.absent(),
             Value<String> description = const Value.absent(),
-            Value<String> cardJson = const Value.absent(),
-            Value<String?> avatarPath = const Value.absent(),
+            Value<String> definitionJson = const Value.absent(),
+            Value<String?> thumbnailPath = const Value.absent(),
             Value<String> sourceFilename = const Value.absent(),
             Value<int> importedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
-              GameCharacterCardsCompanion(
+              GameDefinitionsCompanion(
             id: id,
+            gameType: gameType,
             title: title,
             description: description,
-            cardJson: cardJson,
-            avatarPath: avatarPath,
+            definitionJson: definitionJson,
+            thumbnailPath: thumbnailPath,
             sourceFilename: sourceFilename,
             importedAt: importedAt,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String id,
+            Value<String> gameType = const Value.absent(),
             required String title,
             Value<String> description = const Value.absent(),
-            required String cardJson,
-            Value<String?> avatarPath = const Value.absent(),
+            required String definitionJson,
+            Value<String?> thumbnailPath = const Value.absent(),
             Value<String> sourceFilename = const Value.absent(),
             required int importedAt,
             Value<int> rowid = const Value.absent(),
           }) =>
-              GameCharacterCardsCompanion.insert(
+              GameDefinitionsCompanion.insert(
             id: id,
+            gameType: gameType,
             title: title,
             description: description,
-            cardJson: cardJson,
-            avatarPath: avatarPath,
+            definitionJson: definitionJson,
+            thumbnailPath: thumbnailPath,
             sourceFilename: sourceFilename,
             importedAt: importedAt,
             rowid: rowid,
@@ -44881,27 +48743,28 @@ class $$GameCharacterCardsTableTableManager extends RootTableManager<
         ));
 }
 
-typedef $$GameCharacterCardsTableProcessedTableManager = ProcessedTableManager<
+typedef $$GameDefinitionsTableProcessedTableManager = ProcessedTableManager<
     _$AppDatabase,
-    $GameCharacterCardsTable,
-    GameCharacterCard,
-    $$GameCharacterCardsTableFilterComposer,
-    $$GameCharacterCardsTableOrderingComposer,
-    $$GameCharacterCardsTableAnnotationComposer,
-    $$GameCharacterCardsTableCreateCompanionBuilder,
-    $$GameCharacterCardsTableUpdateCompanionBuilder,
+    $GameDefinitionsTable,
+    GameDefinition,
+    $$GameDefinitionsTableFilterComposer,
+    $$GameDefinitionsTableOrderingComposer,
+    $$GameDefinitionsTableAnnotationComposer,
+    $$GameDefinitionsTableCreateCompanionBuilder,
+    $$GameDefinitionsTableUpdateCompanionBuilder,
     (
-      GameCharacterCard,
-      BaseReferences<_$AppDatabase, $GameCharacterCardsTable, GameCharacterCard>
+      GameDefinition,
+      BaseReferences<_$AppDatabase, $GameDefinitionsTable, GameDefinition>
     ),
-    GameCharacterCard,
+    GameDefinition,
     PrefetchHooks Function()>;
 typedef $$GameSessionsTableCreateCompanionBuilder = GameSessionsCompanion
     Function({
   required String id,
-  Value<String?> cardId,
-  required String cardTitle,
-  required String cardSnapshotJson,
+  Value<String?> definitionId,
+  Value<String> gameType,
+  required String definitionTitle,
+  required String definitionSnapshotJson,
   required String sessionTitle,
   Value<String> status,
   Value<String?> parentSessionId,
@@ -44916,9 +48779,10 @@ typedef $$GameSessionsTableCreateCompanionBuilder = GameSessionsCompanion
 typedef $$GameSessionsTableUpdateCompanionBuilder = GameSessionsCompanion
     Function({
   Value<String> id,
-  Value<String?> cardId,
-  Value<String> cardTitle,
-  Value<String> cardSnapshotJson,
+  Value<String?> definitionId,
+  Value<String> gameType,
+  Value<String> definitionTitle,
+  Value<String> definitionSnapshotJson,
   Value<String> sessionTitle,
   Value<String> status,
   Value<String?> parentSessionId,
@@ -44943,14 +48807,18 @@ class $$GameSessionsTableFilterComposer
   ColumnFilters<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get cardId => $composableBuilder(
-      column: $table.cardId, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get definitionId => $composableBuilder(
+      column: $table.definitionId, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get cardTitle => $composableBuilder(
-      column: $table.cardTitle, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get gameType => $composableBuilder(
+      column: $table.gameType, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get cardSnapshotJson => $composableBuilder(
-      column: $table.cardSnapshotJson,
+  ColumnFilters<String> get definitionTitle => $composableBuilder(
+      column: $table.definitionTitle,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get definitionSnapshotJson => $composableBuilder(
+      column: $table.definitionSnapshotJson,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get sessionTitle => $composableBuilder(
@@ -44997,14 +48865,19 @@ class $$GameSessionsTableOrderingComposer
   ColumnOrderings<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get cardId => $composableBuilder(
-      column: $table.cardId, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get definitionId => $composableBuilder(
+      column: $table.definitionId,
+      builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get cardTitle => $composableBuilder(
-      column: $table.cardTitle, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get gameType => $composableBuilder(
+      column: $table.gameType, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get cardSnapshotJson => $composableBuilder(
-      column: $table.cardSnapshotJson,
+  ColumnOrderings<String> get definitionTitle => $composableBuilder(
+      column: $table.definitionTitle,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get definitionSnapshotJson => $composableBuilder(
+      column: $table.definitionSnapshotJson,
       builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get sessionTitle => $composableBuilder(
@@ -45054,14 +48927,17 @@ class $$GameSessionsTableAnnotationComposer
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get cardId =>
-      $composableBuilder(column: $table.cardId, builder: (column) => column);
+  GeneratedColumn<String> get definitionId => $composableBuilder(
+      column: $table.definitionId, builder: (column) => column);
 
-  GeneratedColumn<String> get cardTitle =>
-      $composableBuilder(column: $table.cardTitle, builder: (column) => column);
+  GeneratedColumn<String> get gameType =>
+      $composableBuilder(column: $table.gameType, builder: (column) => column);
 
-  GeneratedColumn<String> get cardSnapshotJson => $composableBuilder(
-      column: $table.cardSnapshotJson, builder: (column) => column);
+  GeneratedColumn<String> get definitionTitle => $composableBuilder(
+      column: $table.definitionTitle, builder: (column) => column);
+
+  GeneratedColumn<String> get definitionSnapshotJson => $composableBuilder(
+      column: $table.definitionSnapshotJson, builder: (column) => column);
 
   GeneratedColumn<String> get sessionTitle => $composableBuilder(
       column: $table.sessionTitle, builder: (column) => column);
@@ -45118,9 +48994,10 @@ class $$GameSessionsTableTableManager extends RootTableManager<
               $$GameSessionsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<String> id = const Value.absent(),
-            Value<String?> cardId = const Value.absent(),
-            Value<String> cardTitle = const Value.absent(),
-            Value<String> cardSnapshotJson = const Value.absent(),
+            Value<String?> definitionId = const Value.absent(),
+            Value<String> gameType = const Value.absent(),
+            Value<String> definitionTitle = const Value.absent(),
+            Value<String> definitionSnapshotJson = const Value.absent(),
             Value<String> sessionTitle = const Value.absent(),
             Value<String> status = const Value.absent(),
             Value<String?> parentSessionId = const Value.absent(),
@@ -45134,9 +49011,10 @@ class $$GameSessionsTableTableManager extends RootTableManager<
           }) =>
               GameSessionsCompanion(
             id: id,
-            cardId: cardId,
-            cardTitle: cardTitle,
-            cardSnapshotJson: cardSnapshotJson,
+            definitionId: definitionId,
+            gameType: gameType,
+            definitionTitle: definitionTitle,
+            definitionSnapshotJson: definitionSnapshotJson,
             sessionTitle: sessionTitle,
             status: status,
             parentSessionId: parentSessionId,
@@ -45150,9 +49028,10 @@ class $$GameSessionsTableTableManager extends RootTableManager<
           ),
           createCompanionCallback: ({
             required String id,
-            Value<String?> cardId = const Value.absent(),
-            required String cardTitle,
-            required String cardSnapshotJson,
+            Value<String?> definitionId = const Value.absent(),
+            Value<String> gameType = const Value.absent(),
+            required String definitionTitle,
+            required String definitionSnapshotJson,
             required String sessionTitle,
             Value<String> status = const Value.absent(),
             Value<String?> parentSessionId = const Value.absent(),
@@ -45166,9 +49045,10 @@ class $$GameSessionsTableTableManager extends RootTableManager<
           }) =>
               GameSessionsCompanion.insert(
             id: id,
-            cardId: cardId,
-            cardTitle: cardTitle,
-            cardSnapshotJson: cardSnapshotJson,
+            definitionId: definitionId,
+            gameType: gameType,
+            definitionTitle: definitionTitle,
+            definitionSnapshotJson: definitionSnapshotJson,
             sessionTitle: sessionTitle,
             status: status,
             parentSessionId: parentSessionId,
@@ -45505,6 +49385,14 @@ class $AppDatabaseManager {
       $$TopicThreadsTableTableManager(_db, _db.topicThreads);
   $$TopicThreadSessionsTableTableManager get topicThreadSessions =>
       $$TopicThreadSessionsTableTableManager(_db, _db.topicThreadSessions);
+  $$LifeInsightsTableTableManager get lifeInsights =>
+      $$LifeInsightsTableTableManager(_db, _db.lifeInsights);
+  $$UserRhythmsTableTableManager get userRhythms =>
+      $$UserRhythmsTableTableManager(_db, _db.userRhythms);
+  $$GrowthPactsTableTableManager get growthPacts =>
+      $$GrowthPactsTableTableManager(_db, _db.growthPacts);
+  $$GrowthPactChecksTableTableManager get growthPactChecks =>
+      $$GrowthPactChecksTableTableManager(_db, _db.growthPactChecks);
   $$ComicMangasTableTableManager get comicMangas =>
       $$ComicMangasTableTableManager(_db, _db.comicMangas);
   $$ComicChaptersTableTableManager get comicChapters =>
@@ -45523,8 +49411,8 @@ class $AppDatabaseManager {
       $$BookReadingProgressTableTableManager(_db, _db.bookReadingProgress);
   $$BookChapterNotesTableTableManager get bookChapterNotes =>
       $$BookChapterNotesTableTableManager(_db, _db.bookChapterNotes);
-  $$GameCharacterCardsTableTableManager get gameCharacterCards =>
-      $$GameCharacterCardsTableTableManager(_db, _db.gameCharacterCards);
+  $$GameDefinitionsTableTableManager get gameDefinitions =>
+      $$GameDefinitionsTableTableManager(_db, _db.gameDefinitions);
   $$GameSessionsTableTableManager get gameSessions =>
       $$GameSessionsTableTableManager(_db, _db.gameSessions);
   $$GameMessagesTableTableManager get gameMessages =>

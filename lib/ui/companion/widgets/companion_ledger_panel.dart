@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:memex/ui/companion/view_models/ledger_view_model.dart';
+import 'package:memex/ui/companion/widgets/insight_strip.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/result.dart';
 import 'package:provider/provider.dart';
@@ -25,6 +26,7 @@ class CompanionLedgerPanel extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
         children: [
+          const InsightStrip(domain: 'finance'),
           _Header(onAdd: () => _showEntrySheet(context)),
           const SizedBox(height: 16),
           _CashSummary(overview: viewModel.overview),

@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:logging/logging.dart';
+import 'package:memex/data/memory_v3/services/life_insight_scheduler.dart';
 import 'package:memex/data/services/coros_mcp_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
+import 'package:memex/db/app_database.dart';
 
 /// Syncs COROS health/fitness data to local files so the insight agent can
 /// discover and analyze it alongside other workspace data.
@@ -130,6 +132,16 @@ class CorosSyncService {
     }
 
     _logger.info('COROS sync ${anySuccess ? 'completed' : 'failed'}');
+
+    // Trigger LifeInsight analysis after fresh health data is available.
+    if (anySuccess && AppDatabase.isInitialized) {
+      try {
+        LifeInsightScheduler(db: AppDatabase.instance).scheduleEventDriven();
+      } catch (e) {
+        _logger.fine('COROS sync: LifeInsight trigger failed: $e');
+      }
+    }
+
     return CorosSyncResult(
       synced: anySuccess,
       message: anySuccess ? 'COROS MCP 数据已同步' : 'COROS MCP 已连接，但这次没有取到可写入的数据',

@@ -18,6 +18,10 @@ import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/data/services/sync/memory_data_sync_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
+import 'package:memex/data/memory_v3/services/life_insight_service.dart';
+import 'package:memex/data/memory_v3/services/life_insight_scheduler.dart';
+import 'package:memex/data/memory_v3/services/user_rhythm_service.dart';
+import 'package:memex/data/memory_v3/services/growth_pact_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/services/reading/fetchers/web_fetcher.dart';
 import 'package:memex/data/services/reading/fetchers/xiaohongshu_fetcher.dart';
@@ -134,10 +138,23 @@ class MemexRouter {
           }),
         );
         DreamingOrchestratorServiceV3.init(AppDatabase.instance);
+        LifeInsightService.init(AppDatabase.instance);
+        UserRhythmService.init(AppDatabase.instance);
+        GrowthPactService.init(AppDatabase.instance);
         unawaited(
           DreamingSchedulerService.scheduleExistingBacklog(
             AppDatabase.instance,
           ),
+        );
+        // Life Insight: run a weekly analysis on startup so the companion
+        // has fresh insights for check-in and the observation panel.
+        unawaited(
+          LifeInsightScheduler(db: AppDatabase.instance)
+              .runWeeklyAnalysis()
+              .catchError((e) {
+            _logger.warning(
+                'MemexRouter: LifeInsight startup analysis failed: $e');
+          }),
         );
         // Project Memory is policy-filtered and idempotent. Refresh configured
         // Bridges on startup so normal companion chat does not depend on the

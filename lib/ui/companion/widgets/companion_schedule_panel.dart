@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/ui/companion/view_models/schedule_view_model.dart';
+import 'package:memex/ui/companion/widgets/insight_strip.dart';
 import 'package:memex/ui/memory/widgets/memory_card_detail_screen_v3.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
@@ -50,6 +51,7 @@ class CompanionSchedulePanel extends StatelessWidget {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
             children: [
+              const InsightStrip(domain: 'schedule'),
               _buildOverviewBadges(vm),
               const SizedBox(height: 14),
               for (final section in vm.sections) ...[

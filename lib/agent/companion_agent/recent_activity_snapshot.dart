@@ -7,6 +7,9 @@ import 'package:yaml/yaml.dart';
 
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/proactive_outing_service.dart';
+import 'package:memex/data/memory_v3/services/life_insight_service.dart';
+import 'package:memex/data/memory_v3/services/user_rhythm_service.dart';
+import 'package:memex/data/memory_v3/services/growth_pact_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 
@@ -87,6 +90,48 @@ class RecentActivitySnapshot {
       } catch (e) {
         _logger.warning('Failed to load chat info: $e');
       }
+    }
+
+    // --- User's daily rhythm (work/class/sleep schedule) ---
+    try {
+      if (UserRhythmService.isInitialized) {
+        final rhythmSection =
+            await UserRhythmService.instance.buildSnapshotSection(now: now);
+        if (rhythmSection.isNotEmpty) {
+          parts.add('');
+          parts.add(rhythmSection);
+        }
+      }
+    } catch (e) {
+      _logger.warning('Failed to load user rhythm: $e');
+    }
+
+    // --- Active growth pacts (goals/habits/agreements being tracked) ---
+    try {
+      if (GrowthPactService.isInitialized) {
+        final pactSection =
+            await GrowthPactService.instance.buildSnapshotSection(now: now);
+        if (pactSection.isNotEmpty) {
+          parts.add('');
+          parts.add(pactSection);
+        }
+      }
+    } catch (e) {
+      _logger.warning('Failed to load growth pacts: $e');
+    }
+
+    // --- Recent life insights (trends/patterns/anomalies) ---
+    try {
+      if (LifeInsightService.isInitialized) {
+        final insightSection =
+            await LifeInsightService.instance.buildSnapshotSection(now: now);
+        if (insightSection.isNotEmpty) {
+          parts.add('');
+          parts.add(insightSection);
+        }
+      }
+    } catch (e) {
+      _logger.warning('Failed to load life insights: $e');
     }
 
     // --- Last proactive push ---

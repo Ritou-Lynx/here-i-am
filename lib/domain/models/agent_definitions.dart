@@ -14,6 +14,7 @@ class AgentDefinitions {
   static const String clarificationResolutionAgent =
       'clarification_resolution_agent';
   static const String recordOrganizerAgent = 'record_organizer_agent';
+  static const String lifeInsightAgent = 'life_insight_agent';
   static const String embeddingAgent = 'embedding_agent';
 
   static const Map<String, String> displayNames = {
@@ -30,6 +31,7 @@ class AgentDefinitions {
     analyzeAssets: 'Media analysis',
     clarificationResolutionAgent: 'Ask resolution',
     recordOrganizerAgent: 'Record organizer',
+    lifeInsightAgent: 'Life insights',
     embeddingAgent: 'Embedding',
   };
 
