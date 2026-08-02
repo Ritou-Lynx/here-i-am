@@ -91,6 +91,20 @@ FINAL CHECK — BEFORE RETURNING THE JSON, YOU MUST:
    - "睡了半个月窗台" → event (ongoing state)
    - "妈妈住杭州" → fact (stable)
 
+READ-LATER / COLLECTION INTENTS ("mark", "收藏", "以后再看", "有空再看",
+"留着以后…"): these have NO deadline and NO concrete time — do NOT turn them
+into an overdue-looking to-do. Options, in order of preference:
+   - If it is a reading / interest / collectible item the user may want to
+     act on later → `plan` with NO time anchors: leave startAt / dueAt /
+     occurredAt / endAt EMPTY (the Schedule panel then shows it under
+     "未安排时间", never as "已过期").
+   - If it is pure background preference with no action intent → `fact`
+     (never a to-do type).
+   - NEVER fill a time anchor with the recording time, and NEVER mark it
+     as a `task` (task requires an explicit deadline).
+   - "这篇文看着好香，mark！有空搜来看" → plan (title "想搜来看《…》",
+     NO time fields) — NOT task, NOT overdue.
+
 TIME INFERENCE
 - The JSON input includes `current_time` (ISO 8601). USE IT to resolve all
   relative natural-language times:

@@ -34,5 +34,15 @@ void main() {
       expect(prompt, contains('Existing Memory Cards that may overlap'));
       expect(prompt, contains('「看蜘蛛侠电影」@ schedule'));
     });
+
+    test('read-later intents must not become overdue-looking todos', () {
+      final prompt = recordOrganizerSystemPromptV3();
+      expect(prompt, contains('READ-LATER / COLLECTION INTENTS'));
+      // No time anchor allowed for read-later plans.
+      expect(prompt, contains('leave startAt / dueAt /'));
+      expect(prompt, contains('NEVER fill a time anchor with the recording time'));
+      expect(prompt, contains('这篇文看着好香，mark！有空搜来看'));
+      expect(prompt, contains('NOT task, NOT overdue'));
+    });
   });
 }

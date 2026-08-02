@@ -339,7 +339,9 @@ class _CalendarView extends StatelessWidget {
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
   bool _isOverdue(MemoryCardViewData card) {
-    final ms = card.eventTimeMs;
+    // Business anchor only — a card without a time is "unscheduled",
+    // not overdue (recording time must not masquerade as a due time).
+    final ms = card.structuredEventTimeMs;
     if (ms == null) return false;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -581,7 +583,8 @@ class _ScheduleCardTile extends StatelessWidget {
   }
 
   String? _formatTime(MemoryCardViewData card) {
-    final ms = card.eventTimeMs;
+    // Business anchor only: unscheduled cards show no time at all.
+    final ms = card.structuredEventTimeMs;
     if (ms == null) return null;
     final dt = DateTime.fromMillisecondsSinceEpoch(ms);
     final now = DateTime.now();

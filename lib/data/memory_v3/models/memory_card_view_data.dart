@@ -197,6 +197,21 @@ class MemoryCardViewData {
     return recordedAt ?? createdAt;
   }
 
+  /// Business time anchor from structured fields ONLY — no recordedAt /
+  /// createdAt fallback. Null when the card carries no explicit business
+  /// time.
+  ///
+  /// The Schedule panel uses this instead of [eventTimeMs] so that a
+  /// task / schedule / plan recorded without a time ("mark，有空再看"
+  /// read-later intent) lands in the "unscheduled" bucket instead of being
+  /// shown as overdue with the recording time as its due time.
+  int? get structuredEventTimeMs {
+    final fields = structuredFieldsMap;
+    final type = structuredFieldsType;
+    if (fields == null || type == null) return null;
+    return _resolveEventAnchor(type, fields);
+  }
+
   /// Display-friendly label for the event-time anchor source. UI uses this
   /// to optionally annotate that the timestamp comes from a business field
   /// vs. a recording time vs. a creation time.

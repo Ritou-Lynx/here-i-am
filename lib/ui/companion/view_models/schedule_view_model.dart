@@ -78,18 +78,19 @@ class ScheduleViewModel extends ChangeNotifier {
       sections.any((s) => s.cards.isNotEmpty) || completedCards.isNotEmpty;
 
   int get unscheduledCount =>
-      activeCards.where((card) => card.eventTimeMs == null).length;
+      activeCards.where((card) => card.structuredEventTimeMs == null).length;
 
   List<MemoryCardViewData> cardsForDate(DateTime date) =>
       activeCards.where((card) {
-        final ms = card.eventTimeMs;
+        final ms = card.structuredEventTimeMs;
         if (ms == null) return false;
         final value = DateTime.fromMillisecondsSinceEpoch(ms);
         return value.year == date.year &&
             value.month == date.month &&
             value.day == date.day;
       }).toList()
-        ..sort((a, b) => (a.eventTimeMs ?? 0).compareTo(b.eventTimeMs ?? 0));
+        ..sort((a, b) => (a.structuredEventTimeMs ?? 0)
+            .compareTo(b.structuredEventTimeMs ?? 0));
 
   bool hasCardsOnDate(DateTime date) => cardsForDate(date).isNotEmpty;
 
@@ -191,7 +192,10 @@ class ScheduleViewModel extends ChangeNotifier {
     };
 
     for (final card in cards) {
-      final ms = card.eventTimeMs;
+      // Business time anchor only: cards recorded without an explicit
+      // time (e.g. "mark，有空再看") belong to "unscheduled", never
+      // "overdue" with the recording time shown as the due time.
+      final ms = card.structuredEventTimeMs;
       if (ms == null) {
         buckets[ScheduleBucket.unscheduled]!.add(card);
         continue;

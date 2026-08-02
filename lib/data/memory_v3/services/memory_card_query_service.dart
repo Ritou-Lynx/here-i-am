@@ -397,10 +397,12 @@ class MemoryCardQueryService {
     await _attachStructuredFields(cards);
     await _attachSourceInfo(cards);
 
-    // Sort by event time ascending; nulls (unscheduled) go last.
+    // Sort by business event time ascending; nulls (unscheduled) go last.
+    // Uses structuredEventTimeMs (not eventTimeMs) so cards recorded without
+    // a time anchor sort as unscheduled instead of by their recording time.
     cards.sort((a, b) {
-      final aMs = a.eventTimeMs;
-      final bMs = b.eventTimeMs;
+      final aMs = a.structuredEventTimeMs;
+      final bMs = b.structuredEventTimeMs;
       if (aMs == null && bMs == null) return 0;
       if (aMs == null) return 1;
       if (bMs == null) return -1;
@@ -422,7 +424,7 @@ class MemoryCardQueryService {
     var unscheduled = 0;
 
     for (final card in cards) {
-      final ms = card.eventTimeMs;
+      final ms = card.structuredEventTimeMs;
       if (ms == null) {
         unscheduled++;
       } else {
