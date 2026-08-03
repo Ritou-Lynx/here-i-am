@@ -70,7 +70,7 @@ class LifeInsightAgent {
 
     final mc = ModelConfig(
       model: modelConfig.model,
-      maxTokens: 4096,
+      maxTokens: 8192,
       extra: modelConfig.extra,
     );
 
@@ -146,7 +146,19 @@ class LifeInsightAgent {
     }
     var jsonPart = trimmed.substring(start, end + 1);
     jsonPart = _repairLLMJson(jsonPart);
-    final decoded = jsonDecode(jsonPart);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(jsonPart);
+    } catch (_) {
+      // LLM output was truncated mid-array (common with reasoning models that
+      // spend tokens on <think> blocks). Try to recover the portion of the
+      // insights array that parsed completely.
+      final recovered = _recoverTruncatedInsights(trimmed.substring(start));
+      if (recovered == null) rethrow;
+      decoded = recovered;
+      _logger.info('LifeInsight: recovered ${recovered['insights'].length} '
+          'insights from truncated response');
+    }
     if (decoded is! Map) {
       throw const FormatException('LifeInsight JSON root must be an object');
     }
@@ -164,6 +176,60 @@ class LifeInsightAgent {
       }
     }
     return LifeInsightBatch(insights: insights, period: period);
+  }
+
+  /// Attempt to recover complete insight objects from a truncated LLM JSON
+  /// response. Reasoning models often spend tokens on `<think>` blocks and
+  /// get cut off mid-array, leaving JSON like:
+  ///   {"insights":[{"domain":"health",...},{"domain":"finance","insightType":"anomaly",
+  /// This method scans the insights array, extracts each top-level object
+  /// that has a balanced `{`..`}` structure, and rebuilds a valid JSON
+  /// document containing only the complete objects.
+  Map<String, dynamic>? _recoverTruncatedInsights(String partial) {
+    final insightsIdx = partial.indexOf('"insights"');
+    if (insightsIdx < 0) return null;
+    final arrStart = partial.indexOf('[', insightsIdx);
+    if (arrStart < 0) return null;
+
+    final objects = <Map<String, dynamic>>[];
+    var depth = 0;
+    var objStart = -1;
+    var inString = false;
+    var escape = false;
+    for (var i = arrStart + 1; i < partial.length; i++) {
+      final ch = partial[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch == '\\' && inString) {
+        escape = true;
+        continue;
+      }
+      if (ch == '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch == '{') {
+        if (depth == 0) objStart = i;
+        depth++;
+      } else if (ch == '}') {
+        depth--;
+        if (depth == 0 && objStart >= 0) {
+          final objJson = partial.substring(objStart, i + 1);
+          try {
+            final obj = jsonDecode(objJson) as Map<String, dynamic>;
+            objects.add(obj);
+          } catch (_) {
+            // incomplete object, skip
+          }
+          objStart = -1;
+        }
+      }
+    }
+    if (objects.isEmpty) return null;
+    return {'insights': objects};
   }
 
   String _repairLLMJson(String json) {
