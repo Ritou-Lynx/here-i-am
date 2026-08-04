@@ -99,25 +99,11 @@ class RhythmSignalExtractor {
           continue;
         }
 
-        // Menstrual cycle signals use a special persistence path (cycle
-        // prediction JSON, not rrule). Detect period start mentions and
-        // route to recordMenstrualCycle.
-        if (signal.kind == 'menstrual_cycle') {
-          final periodDate = _tryExtractPeriodDate(signal.description);
-          if (periodDate != null) {
-            await UserRhythmService.instance.recordMenstrualCycle(
-              startDate: periodDate,
-              flowLevel: signal.extra?['flowLevel'] as String?,
-              painLevel: signal.extra?['painLevel'] as int?,
-              symptoms: (signal.extra?['symptoms'] as List?)
-                  ?.cast<String>(),
-              notes: signal.extra?['notes'] as String?,
-            );
-            created++;
-            _logger.info('Menstrual cycle recorded: start=$periodDate');
-            continue;
-          }
-        }
+        // Note: menstrual_cycle signals are intentionally NOT handled here.
+        // Period tracking is driven by menstrual_record Memory Cards via
+        // UserRhythmService.rebuildMenstrualRhythmFromCards(), not by chat
+        // signal extraction. This avoids double-writes and respects the
+        // memory contract (User-truth only via explicit record actions).
 
         await UserRhythmService.instance.createRhythm(
           kind: signal.kind,
@@ -163,10 +149,6 @@ $existingContext
 - **meal_pattern**: "我一般12点吃午饭", "晚上7点吃饭"
 - **exercise_pattern**: "我每周三跑步", "每天走路上班"
 - **commute_pattern**: "坐地铁40分钟", "骑车15分钟到公司"
-- **menstrual_cycle**: "大姨妈来了", "月经", "来例假", "生理期", "经期", "肚子疼"(经期语境).
-  For menstrual_cycle, put the start date in extra.startDate (ISO yyyy-MM-dd)
-  and optional extra fields: flowLevel (light/medium/heavy), painLevel (0-10),
-  symptoms (array). The rrule field can be empty for this kind.
 
 ## What NOT to detect
 
@@ -174,35 +156,20 @@ $existingContext
 - Emotional states ("最近很累") - not a rhythm
 - Preferences ("我喜欢晚睡") - not a concrete schedule
 - Things the user is asking about, not stating ("我是不是该早点睡？")
+- Menstrual cycle / period mentions - these are tracked via explicit
+  menstrual_record Memory Cards, not rhythm signals
 
 ## Output format
 
 Return a JSON array ONLY. Each item:
 ```json
 {
-  "kind": "work_schedule|class_schedule|sleep_pattern|meal_pattern|exercise_pattern|commute_pattern|menstrual_cycle",
+  "kind": "work_schedule|class_schedule|sleep_pattern|meal_pattern|exercise_pattern|commute_pattern",
   "description": "short Chinese description, e.g. 实习上班",
   "rrule": "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;10:00-19:00",
   "location": "home|office|remote|commute|unknown",
   "confidence": 0.0-1.0,
   "extra": null
-}
-```
-
-For menstrual_cycle, use this format instead:
-```json
-{
-  "kind": "menstrual_cycle",
-  "description": "经期 2026-08-02",
-  "rrule": "",
-  "location": "unknown",
-  "confidence": 0.8,
-  "extra": {
-    "startDate": "2026-08-02",
-    "flowLevel": "medium",
-    "painLevel": 4,
-    "symptoms": ["cramps", "fatigue"]
-  }
 }
 ```
 
@@ -276,39 +243,6 @@ Return ONLY the JSON array. No markdown, no explanation.
       if (bChars.contains(c)) overlap++;
     }
     return overlap / aChars.length > 0.6;
-  }
-
-  /// Try to extract a date from a menstrual cycle signal description.
-  /// Returns null if no date can be inferred (LLM should put the date in
-  /// extra.startDate as ISO string when possible).
-  DateTime? _tryExtractPeriodDate(String description) {
-    // Check for ISO date in description
-    final isoMatch = RegExp(r'(\d{4}-\d{2}-\d{2})').firstMatch(description);
-    if (isoMatch != null) {
-      return DateTime.tryParse(isoMatch.group(1)!);
-    }
-
-    // Check for relative date keywords
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    if (description.contains('今天') || description.contains('刚来')) {
-      return today;
-    }
-    if (description.contains('昨天')) {
-      return today.subtract(const Duration(days: 1));
-    }
-    if (description.contains('前天')) {
-      return today.subtract(const Duration(days: 2));
-    }
-
-    // If no date found, but signal is present, assume today
-    // (the LLM was asked to detect period mentions, so "来了" without
-    // explicit date usually means today)
-    if (description.contains('来了') || description.contains('大姨妈')) {
-      return today;
-    }
-
-    return null;
   }
 }
 

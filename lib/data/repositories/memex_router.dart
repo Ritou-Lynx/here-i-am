@@ -139,7 +139,33 @@ class MemexRouter {
         );
         DreamingOrchestratorServiceV3.init(AppDatabase.instance);
         LifeInsightService.init(AppDatabase.instance);
+        // One-shot cleanup: remove legacy duplicate rows left by the old
+        // periodStart-based upsert (which inserted a new row every run because
+        // periodStart drifted with `now`). Idempotent.
+        unawaited(
+          LifeInsightService.instance
+              .deduplicateLegacyRows()
+              .catchError((e) {
+            _logger.warning(
+                'MemexRouter: LifeInsight legacy dedup failed (non-fatal): $e');
+            return 0;
+          }),
+        );
         UserRhythmService.init(AppDatabase.instance);
+        // Rebuild the menstrual_cycle rhythm from surviving menstrual_record
+        // cards on every startup. This is the backfill path for devices that
+        // recorded period cards while the card->rhythm bridge was not wired,
+        // and also resyncs the rhythm if any card was edited outside the
+        // normal write path. Idempotent (rebuild-from-cards).
+        unawaited(
+          UserRhythmService.instance
+              .rebuildMenstrualRhythmFromCards()
+              .catchError((error) {
+            _logger.warning(
+                'MemexRouter: menstrual rhythm rebuild failed (non-fatal): $error');
+            return 0;
+          }),
+        );
         GrowthPactService.init(AppDatabase.instance);
         unawaited(
           DreamingSchedulerService.scheduleExistingBacklog(

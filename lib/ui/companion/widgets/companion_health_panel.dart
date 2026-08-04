@@ -11,6 +11,8 @@ import 'package:memex/data/services/coros_mcp_service.dart';
 import 'package:memex/data/services/coros_sync_service.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/models/agent_definitions.dart';
+import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/ui/companion/widgets/insight_strip.dart';
 import 'package:memex/ui/memory/widgets/memory_card_detail_screen_v3.dart';
 import 'package:memex/ui/memory/widgets/memory_summary_card_v3.dart';
@@ -79,6 +81,7 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
   DateTime? _cyclePredictedNext;
   String? _cycleUpcomingAlert;
   int? _cycleCount;
+  bool _recordingPeriod = false;
 
   MemoryCardQueryService? get _query {
     if (!AppDatabase.isInitialized) return null;
@@ -1034,11 +1037,16 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
 
     // ── Section: Menstrual cycle ──
 
+    // Always show the menstrual section: either the cycle status card
+    // (when data exists) or an empty-state prompt with a record button.
+    items.add(_sectionHeader('经期'));
     if (_cyclePhase != null) {
-      items.add(_sectionHeader('经期'));
       items.add(_buildCycleCard());
-      items.add(const SizedBox(height: 8));
+    } else {
+      items.add(_buildCycleEmptyPrompt());
     }
+    items.add(_buildCycleRecordButton());
+    items.add(const SizedBox(height: 8));
 
     // ── Section: Health memory cards ──
 
@@ -1161,6 +1169,115 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
         ],
       ),
     );
+  }
+
+  Widget _buildCycleEmptyPrompt() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFFAB47BC).withValues(alpha: 0.2),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.spa_outlined, size: 20, color: Color(0xFFAB47BC)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '尚无经期记录。来月经时点下方按钮记录，林埃会学习你的周期。',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: _healthMuted,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCycleRecordButton() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: _recordingPeriod ? null : _recordMenstrualPeriod,
+          icon: _recordingPeriod
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add_circle_outline, size: 18),
+          label: Text(_recordingPeriod ? '记录中…' : '记录经期'),
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFFAB47BC),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Record a menstrual period via the Record Organizer natural-language
+  /// path. Opens a date picker for the start date, then feeds a natural
+  /// sentence into organizeAndPersist so the LLM extracts a structured
+  /// menstrual_record card. The card->rhythm bridge then syncs the cycle
+  /// projection automatically.
+  Future<void> _recordMenstrualPeriod() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now.subtract(const Duration(days: 90)),
+      lastDate: now,
+      helpText: '选择经期开始日期',
+    );
+    if (picked == null) return;
+    if (!mounted) return;
+
+    setState(() => _recordingPeriod = true);
+    try {
+      final dateStr =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      final rawInput = '大姨妈 $dateStr 来了';
+
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.recordOrganizerAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+      final result =
+          await RecordOrganizerServiceV3.instance.organizeAndPersist(
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+        source: RecordSource(sourceKind: 'fab', rawInput: rawInput),
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.isEmpty ? '未能生成经期记录，请重试' : '已记录经期'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      await _loadCycleStatus();
+    } catch (e) {
+      _logger.warning('Failed to record menstrual period: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('记录失败：$e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _recordingPeriod = false);
+    }
   }
 
   Widget _buildConnectPrompt() {

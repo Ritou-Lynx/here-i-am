@@ -26,6 +26,7 @@ import 'package:uuid/uuid.dart';
 import '../agents/record_organizer_agent/agent.dart';
 import '../models/organized_record.dart';
 import 'life_insight_scheduler.dart';
+import 'user_rhythm_service.dart';
 
 final _logger = getLogger('memory_v3.RecordOrganizerService');
 
@@ -381,13 +382,24 @@ class RecordOrganizerServiceV3 {
               continue;
             }
             // Title containment: either direction counts (the keeper may be
-            // the shorter or the longer title).
-            final candidateTitle = candidate.title;
-            final titlesOverlap = keeperTitle.isNotEmpty &&
-                candidateTitle.isNotEmpty &&
-                (keeperTitle.contains(candidateTitle) ||
-                    candidateTitle.contains(keeperTitle));
-            if (!titlesOverlap) continue;
+            // the shorter or the longer title). expense_entry / shopping_order
+            // skip this gate - the LLM rephrases the same expense on every pass
+            // so titles diverge ("西塔老太太式样烤肉 335元AA" vs "西塔老太太烤肉
+            // 335元AA顺便更新记录了"), and amount+time already uniquely identify
+            // the order (2026-08-04 real-device duplicate case). income_entry
+            // keeps the title gate: same-amount income from different sources
+            // must not merge.
+            final keeperAmountKeyed = keeperIsMoney &&
+                (keeperMeta.fieldsType == 'expense_entry' ||
+                    keeperMeta.fieldsType == 'shopping_order');
+            if (!keeperAmountKeyed) {
+              final candidateTitle = candidate.title;
+              final titlesOverlap = keeperTitle.isNotEmpty &&
+                  candidateTitle.isNotEmpty &&
+                  (keeperTitle.contains(candidateTitle) ||
+                      candidateTitle.contains(keeperTitle));
+              if (!titlesOverlap) continue;
+            }
             await deleteCard(candidate.id, sourceKind: 'auto_dedupe');
             removed++;
             _logger.info('dedupeExistingScheduleCards: removed ${candidate.id} '
@@ -484,6 +496,7 @@ class RecordOrganizerServiceV3 {
           type: card.type,
           anchorMs: anchor.millisecondsSinceEpoch,
           title: card.title,
+          structuredFieldsType: card.structuredFieldsType,
           amountCny:
               _isMoneyCard(card.structuredFieldsType ?? '') && amountRaw is num
                   ? amountRaw.toDouble()
@@ -657,8 +670,12 @@ class RecordOrganizerServiceV3 {
   }
 
   /// Find an existing ACTIVE (or status-NULL — money cards have no status)
-  /// card of the same type whose time anchor is within [dedupeWindow] of
-  /// [anchorMs] AND whose normalized title overlaps.
+  /// card of the same type whose time anchor is within ±2h. For
+  /// expense_entry / shopping_order the key is `type` + `amount_cny` + time
+  /// (title ignored - LLM rephrasing breaks title containment, 2026-08-04
+  /// 西塔老太太 case). For income_entry and non-money cards the key is
+  /// `type` + normalized-title containment + time (same-amount income from
+  /// different sources must not merge).
   ///
   /// Returns the existing card id, or null when no match.
   Future<String?> _findDuplicateActiveCard({
@@ -666,6 +683,7 @@ class RecordOrganizerServiceV3 {
     required int anchorMs,
     required String title,
     double? amountCny,
+    String? structuredFieldsType,
   }) async {
     const windowMs = 2 * 60 * 60 * 1000; // ±2h
     // Real-device lesson (2026-08-02): an agent FALSELY re-recorded the same
@@ -682,6 +700,14 @@ class RecordOrganizerServiceV3 {
     // fails. Load same-type cards and do bidirectional containment in
     // memory (2026-08-02 real-device: the duplicate "猪杂粉外卖 27 元"
     // card was created exactly because the LIKE filter never matched).
+    // Amount-keyed dedupe (title skipped) applies only to expense_entry and
+    // shopping_order - these describe a single spending event whose title the
+    // LLM rephrases on every pass. income_entry keeps the title gate: two
+    // same-amount income events from different sources are common and must
+    // not merge (2026-08-04: article 1000 + video 1000 within 36h).
+    final amountKeyedDedupe = amountCny != null &&
+        (structuredFieldsType == 'expense_entry' ||
+            structuredFieldsType == 'shopping_order');
     final existingRows = await (_db.select(_db.memoryCards)
           ..where((t) =>
               t.type.equals(type) &
@@ -691,12 +717,18 @@ class RecordOrganizerServiceV3 {
 
     final normalized = _normalizeTitle(title);
     for (final row in existingRows) {
-      final existingNormalized = _normalizeTitle(row.title);
-      final titleOverlaps = normalized.isNotEmpty &&
-          existingNormalized.isNotEmpty &&
-          (normalized.contains(existingNormalized) ||
-              existingNormalized.contains(normalized));
-      if (!titleOverlaps) continue;
+      // Money cards skip the title gate entirely; non-money cards require
+      // bidirectional title containment (real-device 2026-08-02: a one-way
+      // SQL LIKE('%new%') missed the case where the EXISTING card had the
+      // SHORTER title "猪杂粉外卖" vs a re-stated "猪杂粉外卖 27 元").
+      if (!amountKeyedDedupe) {
+        final existingNormalized = _normalizeTitle(row.title);
+        final titleOverlaps = normalized.isNotEmpty &&
+            existingNormalized.isNotEmpty &&
+            (normalized.contains(existingNormalized) ||
+                existingNormalized.contains(normalized));
+        if (!titleOverlaps) continue;
+      }
 
       // Compare time anchors from structured fields.
       final sf = await (_db.select(_db.memoryCardStructuredFields)
@@ -712,12 +744,13 @@ class RecordOrganizerServiceV3 {
       }
       // Money cards: same amount required — two real orders at the same
       // time with different prices are different orders.
-      if (amountCny != null) {
+      if (amountKeyedDedupe) {
+        final targetAmount = amountCny;
         final raw =
             fields is Map<String, dynamic> ? fields['amount_cny'] : null;
         final existingAmount = raw is num ? raw.toDouble() : null;
         if (existingAmount == null ||
-            (existingAmount - amountCny).abs() > 0.001) {
+            (existingAmount - targetAmount).abs() > 0.001) {
           continue;
         }
       }
@@ -994,8 +1027,29 @@ class RecordOrganizerServiceV3 {
           );
         }),
       );
+      // Rebuild menstrual cycle rhythm if any card is a menstrual_record.
+      if (organized.cards.any((c) =>
+          c.structuredFieldsType == 'menstrual_record')) {
+        unawaited(
+          _rebuildMenstrualRhythm().catchError((error) {
+            _logger.warning(
+              'organizeAndPersist: menstrual rhythm rebuild failed: $error',
+            );
+          }),
+        );
+      }
     }
     return result;
+  }
+
+  /// Rebuild the `menstrual_cycle` rhythm from surviving `menstrual_record`
+  /// cards. Safe to call repeatedly - idempotent.
+  Future<void> _rebuildMenstrualRhythm() async {
+    if (!UserRhythmService.isInitialized) return;
+    final count =
+        await UserRhythmService.instance.rebuildMenstrualRhythmFromCards();
+    _logger.info(
+        'organizeAndPersist: menstrual rhythm rebuilt ($count cycles)');
   }
 
   /// Bridge financial memory cards to the shared AI finance ledger.
@@ -1290,6 +1344,15 @@ class RecordOrganizerServiceV3 {
   /// filter by row existence (no row = deleted = invisible).
   Future<void> deleteCard(String cardId,
       {String sourceKind = 'user_action'}) async {
+    // Check card type BEFORE deleting (need to read structured fields).
+    bool wasMenstrual = false;
+    if (UserRhythmService.isInitialized) {
+      final sfRow = await (_db.select(_db.memoryCardStructuredFields)
+            ..where((t) => t.cardId.equals(cardId)))
+          .getSingleOrNull();
+      wasMenstrual = sfRow?.structuredFieldsType == 'menstrual_record';
+    }
+
     await _db.transaction(() async {
       final card = await (_db.select(_db.memoryCards)
             ..where((t) => t.id.equals(cardId)))
@@ -1339,6 +1402,12 @@ class RecordOrganizerServiceV3 {
         _logger.warning('Failed to remove FTS index for $cardId', e, s);
       }
     });
+
+    if (wasMenstrual) {
+      unawaited(_rebuildMenstrualRhythm().catchError((error) {
+        _logger.warning('deleteCard: menstrual rhythm rebuild failed: $error');
+      }));
+    }
   }
 
   /// Update one or more fields of an existing memory card.
@@ -1365,7 +1434,21 @@ class RecordOrganizerServiceV3 {
     Map<String, dynamic>? presentationModule,
     String sourceKind = 'companion_edit',
   }) async {
-    return _db.transaction(() async {
+    // Snapshot the card's structured-field type before the update so we can
+    // detect a menstrual_record card (whether it's being edited or repurposed).
+    String? previousSfType;
+    if (UserRhythmService.isInitialized) {
+      final sfRow = await (_db.select(_db.memoryCardStructuredFields)
+            ..where((t) => t.cardId.equals(cardId)))
+          .getSingleOrNull();
+      previousSfType = sfRow?.structuredFieldsType;
+    }
+    final wasPreviouslyMenstrual = previousSfType == 'menstrual_record';
+    final touchedFields = structuredFields != null ||
+        timeOverrides != null ||
+        structuredFieldsType != null;
+
+    final result = await _db.transaction(() async {
       final card = await (_db.select(_db.memoryCards)
             ..where((t) => t.id.equals(cardId)))
           .getSingleOrNull();
@@ -1593,6 +1676,27 @@ class RecordOrganizerServiceV3 {
       _logger.info('updateCard: no changes for $cardId');
       return card;
     });
+
+    // If the card was or is now a menstrual_record and its structured fields
+    // or type changed, rebuild the cycle rhythm so the derived projection
+    // stays in sync with the (now-corrected) source-of-truth card.
+    if (result != null && UserRhythmService.isInitialized) {
+      String? currentSfType;
+      try {
+        final sfRow = await (_db.select(_db.memoryCardStructuredFields)
+              ..where((t) => t.cardId.equals(cardId)))
+            .getSingleOrNull();
+        currentSfType = sfRow?.structuredFieldsType;
+      } catch (_) {}
+      final isMenstrual = currentSfType == 'menstrual_record';
+      if (isMenstrual ||
+          (wasPreviouslyMenstrual && touchedFields)) {
+        unawaited(_rebuildMenstrualRhythm().catchError((error) {
+          _logger.warning('updateCard: menstrual rhythm rebuild failed: $error');
+        }));
+      }
+    }
+    return result;
   }
 
   /// Rebuild FTS indexes for all existing memory cards.

@@ -1166,12 +1166,17 @@ class CompanionAgent {
         'celebrating?');
     buf.writeln('3. **Recent Life Insights** — Is there a trend worth '
         'mentioning? An anomaly? A projection that\'s falling behind?');
+    buf.writeln('4. **Menstrual Cycle** - Is the period ongoing (be gentle, '
+        'ask about pain, don\'t suggest intense exercise)? Is it predicted '
+        'to start within 3 days (remind to prepare supplies, avoid cold '
+        'food)? Is it late (ask if everything is okay, don\'t alarm)?');
     buf.writeln();
     buf.writeln('If any of these signals are present, they should STRONGLY '
         'influence your action choice. A bedtime signal → call. A pact miss '
         'with penalty due → notify + execute penalty. A streak of hits → '
-        'notify with praise. Do NOT ignore these signals and send a generic '
-        '"thinking of you" message.');
+        'notify with praise. A period-coming-soon or late signal -> notify '
+        'with a caring, practical reminder. Do NOT ignore these signals and '
+        'send a generic "thinking of you" message.');
     buf.writeln();
     buf.writeln('## Step 3 — Decide and act');
     buf.writeln();

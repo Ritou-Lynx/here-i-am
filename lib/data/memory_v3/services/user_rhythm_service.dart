@@ -21,6 +21,7 @@ import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../db/app_database.dart';
+import 'memory_card_query_service.dart';
 
 final _log = Logger('UserRhythmService');
 const _uuid = Uuid();
@@ -365,7 +366,6 @@ class UserRhythmService {
   }) async {
     // Find existing menstrual_cycle rhythm
     final existing = await getActiveRhythmsByKind('menstrual_cycle');
-    final now = DateTime.now().millisecondsSinceEpoch;
 
     // Parse cycle history from existing rhythm
     List<Map<String, dynamic>> cycleHistory = [];
@@ -482,7 +482,7 @@ class UserRhythmService {
       phaseDescription = '黄体期（经前阶段）';
     } else {
       phase = 'late';
-      phaseDescription = '可能推迟了（已过 ${daysSinceStart} 天）';
+      phaseDescription = '可能推迟了（已过 $daysSinceStart 天）';
     }
 
     // Check if period is predicted to start soon
@@ -543,6 +543,136 @@ class UserRhythmService {
     }
 
     return lines.join('\n');
+  }
+
+  /// Rebuild the `menstrual_cycle` rhythm from all surviving
+  /// `menstrual_record` Memory Cards.
+  ///
+  /// Card is the source of truth; the rhythm row is a derived projection.
+  /// Called after every card create / update / delete that touches a
+  /// `menstrual_record` card, and once on backfill. Idempotent: running it
+  /// twice with the same cards yields the same rhythm state.
+  ///
+  /// Dedupe rule: multiple cards with the same `startDate` are merged into a
+  /// single cycle entry; the entry with the richest data (earliest `endDate`,
+  /// non-null flow/pain/symptoms) wins per field. If two cards disagree on
+  /// `endDate`, the earlier one is taken (periods can be re-recorded but the
+  /// user's "it ended on X" statement is authoritative).
+  Future<int> rebuildMenstrualRhythmFromCards() async {
+    // Lazy-import to avoid a service-layer cycle (query service -> db).
+    final queryService = MemoryCardQueryService(_db);
+    final cards = await queryService.listCardsByStructuredFieldTypes(
+      const {'menstrual_record'},
+      limit: 60,
+    );
+
+    if (cards.isEmpty) {
+      // No cards: expire any existing rhythm so the UI panel hides.
+      final existing = await getActiveRhythmsByKind('menstrual_cycle');
+      for (final r in existing) {
+        await expireRhythm(r.id);
+      }
+      _log.info('rebuildMenstrualRhythmFromCards: 0 cards, expired '
+          '${existing.length} rhythm(s)');
+      return 0;
+    }
+
+    // Aggregate cards into per-startDate cycle entries.
+    // Map<startDateStr, Map<field, value>>
+    final byStart = <String, Map<String, dynamic>>{};
+    for (final card in cards) {
+      final fields = card.structuredFieldsMap;
+      if (fields == null) continue;
+      final startRaw = fields['startDate'] as String?;
+      if (startRaw == null) continue;
+      final startDate = DateTime.tryParse(startRaw);
+      if (startDate == null) continue;
+      final key = _dateStr(startDate);
+
+      final existing = byStart[key];
+      if (existing == null) {
+        byStart[key] = {
+          'start': key,
+          'end': fields['endDate'] as String?,
+          'flow': fields['flowLevel'] as String?,
+          'pain': fields['painLevel'] is num
+              ? (fields['painLevel'] as num).toInt()
+              : int.tryParse('${fields['painLevel']}'),
+          'symptoms': (fields['symptoms'] as List?)?.cast<String>(),
+          'notes': fields['notes'] as String?,
+        };
+      } else {
+        // Merge: prefer non-null / richer values.
+        if (existing['end'] == null && fields['endDate'] != null) {
+          existing['end'] = fields['endDate'] as String;
+        } else if (fields['endDate'] != null &&
+            existing['end'] != null) {
+          // Both have end: take the earlier one.
+          final a = DateTime.tryParse(existing['end'] as String);
+          final b = DateTime.tryParse(fields['endDate'] as String);
+          if (b != null && (a == null || b.isBefore(a))) {
+            existing['end'] = fields['endDate'] as String;
+          }
+        }
+        existing['flow'] ??= fields['flowLevel'] as String?;
+        if (existing['pain'] == null) {
+          existing['pain'] = fields['painLevel'] is num
+              ? (fields['painLevel'] as num).toInt()
+              : int.tryParse('${fields['painLevel']}');
+        }
+        if (existing['symptoms'] == null) {
+          existing['symptoms'] = (fields['symptoms'] as List?)?.cast<String>();
+        }
+        existing['notes'] ??= fields['notes'] as String?;
+      }
+    }
+
+    if (byStart.isEmpty) {
+      // Cards exist but none had a parseable startDate - expire rhythm.
+      final existing = await getActiveRhythmsByKind('menstrual_cycle');
+      for (final r in existing) {
+        await expireRhythm(r.id);
+      }
+      _log.warning('rebuildMenstrualRhythmFromCards: ${cards.length} card(s) '
+          'but 0 had a valid startDate; expired ${existing.length} rhythm(s)');
+      return 0;
+    }
+
+    var cycleHistory = byStart.values.toList();
+    cycleHistory.sort((a, b) =>
+        (b['start'] as String).compareTo(a['start'] as String));
+    if (cycleHistory.length > 12) {
+      cycleHistory = cycleHistory.sublist(0, 12);
+    }
+
+    final latestStart = _parseDate(cycleHistory.first['start'] as String)!;
+    final cycleData = _calculateCycleMetrics(cycleHistory, latestStart);
+    final rruleJson = _encodeCycleData(cycleData);
+
+    final existing = await getActiveRhythmsByKind('menstrual_cycle');
+    if (existing.isNotEmpty) {
+      await updateRhythm(
+        existing.first.id,
+        rrule: rruleJson,
+        confidence: cycleData.confidence,
+      );
+      _log.info('rebuildMenstrualRhythmFromCards: updated rhythm '
+          '${existing.first.id}, cycles=${cycleHistory.length}, '
+          'predictedNext=${cycleData.predictedNextStart}');
+    } else {
+      await createRhythm(
+        kind: 'menstrual_cycle',
+        description: '经期周期追踪',
+        rrule: rruleJson,
+        authority: 'agent_inferred',
+        origin: 'memory_card',
+        confidence: cycleData.confidence,
+      );
+      _log.info('rebuildMenstrualRhythmFromCards: created rhythm, '
+          'cycles=${cycleHistory.length}, '
+          'predictedNext=${cycleData.predictedNextStart}');
+    }
+    return cycleHistory.length;
   }
 
   // ── Cycle data helpers ──
