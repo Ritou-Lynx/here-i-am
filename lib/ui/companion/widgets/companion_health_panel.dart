@@ -1175,17 +1175,17 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _healthSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: const Color(0xFFAB47BC).withValues(alpha: 0.2),
+          color: _healthAccent.withValues(alpha: 0.2),
           width: 0.8,
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.spa_outlined, size: 20, color: Color(0xFFAB47BC)),
+          Icon(Icons.spa_outlined, size: 20, color: _healthAccent),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -1211,15 +1211,20 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
           onPressed: _recordingPeriod ? null : _recordMenstrualPeriod,
           icon: _recordingPeriod
               ? const SizedBox(
-                  width: 16,
-                  height: 16,
+                  width: 14,
+                  height: 14,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(Icons.add_circle_outline, size: 18),
+              : const Icon(Icons.add_circle_outline, size: 16),
           label: Text(_recordingPeriod ? '记录中…' : '记录经期'),
           style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFFAB47BC),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            foregroundColor: _healthAccent,
+            backgroundColor: _healthSurface,
+            disabledForegroundColor: _healthMuted,
+            disabledBackgroundColor: _healthSurface.withValues(alpha: 0.72),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            minimumSize: const Size(72, 36),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ),
       ),
