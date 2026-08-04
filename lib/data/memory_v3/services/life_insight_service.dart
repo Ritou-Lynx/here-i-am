@@ -48,6 +48,11 @@ class LifeInsightService {
   // ──────────────────────────────────────────────────────────────────────
 
   /// 写入或覆盖一条洞察。同一周期同一类型重算时 overwrite。
+  ///
+  /// 查重粒度为 (domain, insightType, period)——忽略 periodStart，因为
+  /// weekly/monthly 的 periodStart 随 now 漂移，按精确 periodStart 匹配会
+  /// 导致每次重算都 INSERT 新行、旧行永久累积。先删除同三元组的旧行，
+  /// 再插入新行，保证新 insight 取代旧的。
   Future<String> upsertInsight({
     required String domain,
     required String insightType,
@@ -60,36 +65,17 @@ class LifeInsightService {
     Map<String, dynamic>? pactSignal,
     String authority = 'agent_inferred',
   }) async {
-    // 查找是否已有同一周期的同一类型
-    final existing = await (_db.select(_db.lifeInsights)
-          ..where((t) =>
-              t.domain.equals(domain) &
-              t.insightType.equals(insightType) &
-              t.period.equals(period) &
-              t.periodStart.equals(periodStart))
-          ..limit(1))
-        .getSingleOrNull();
-
     final now = DateTime.now().millisecondsSinceEpoch;
     final dataPointsJson = jsonEncode(dataPoints);
     final pactSignalJson = pactSignal != null ? jsonEncode(pactSignal) : null;
 
-    if (existing != null) {
-      await (_db.update(_db.lifeInsights)
-            ..where((t) => t.id.equals(existing.id)))
-          .write(LifeInsightsCompanion(
-        narrative: Value(narrative),
-        dataPointsJson: Value(dataPointsJson),
-        confidence: Value(confidence),
-        pactSignalJson: Value(pactSignalJson),
-        authority: Value(authority),
-        periodEnd: Value(periodEnd),
-        updatedAt: Value(now),
-      ));
-      _log.info('Insight updated: $domain/$insightType/$period '
-          '${DateTime.fromMillisecondsSinceEpoch(periodStart)}');
-      return existing.id;
-    }
+    // 删除同 (domain, insightType, period) 的旧行（忽略 periodStart 漂移）。
+    await (_db.delete(_db.lifeInsights)
+          ..where((t) =>
+              t.domain.equals(domain) &
+              t.insightType.equals(insightType) &
+              t.period.equals(period)))
+        .go();
 
     final id = _uuid.v4();
     await _db.into(_db.lifeInsights).insert(
@@ -116,6 +102,32 @@ class LifeInsightService {
   // ──────────────────────────────────────────────────────────────────────
   // Query
   // ──────────────────────────────────────────────────────────────────────
+
+  /// 一次性清理：保留每个 (domain, insightType, period) 最新的一行，
+  /// 删除因 periodStart 漂移导致的历史累积旧行。幂等，重复调用安全。
+  /// 在 app 启动时执行一次，回收旧版本遗留的重复行。
+  Future<int> deduplicateLegacyRows() async {
+    // 取所有行，按 (domain, insightType, period) 分组，每组保留 updatedAt 最大的一行。
+    final all = await (_db.select(_db.lifeInsights)
+          ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
+        .get();
+    final keepIds = <String>{};
+    final seenKeys = <String>{};
+    for (final row in all) {
+      final key = '${row.domain}|${row.insightType}|${row.period}';
+      if (seenKeys.add(key)) {
+        keepIds.add(row.id);
+      }
+    }
+    if (all.length <= keepIds.length) return 0;
+    final deleteCount = all.length - keepIds.length;
+    await (_db.delete(_db.lifeInsights)
+          ..where((t) => t.id.isNotIn(keepIds.toList())))
+        .go();
+    _log.info('Insight dedup: removed $deleteCount legacy rows, '
+        'kept ${keepIds.length}');
+    return deleteCount;
+  }
 
   /// 某个 domain 的最新洞察（所有 insightType）。
   Future<List<LifeInsight>> getLatestByDomain(String domain,

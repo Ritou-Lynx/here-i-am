@@ -56,6 +56,7 @@ import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/themes/spring_rain_chat_tokens.dart';
 import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
@@ -3563,21 +3564,38 @@ only after you have written the goodbye you want the user to hear.''',
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(_chatUiText(zh: '删除消息', en: 'Delete messages')),
+        backgroundColor: SpringRainUiTokens.daylight.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+              SpringRainUiTokens.daylight.radius14),
+        ),
+        title: Text(_chatUiText(zh: '删除消息', en: 'Delete messages'),
+            style: TextStyle(
+              color: SpringRainUiTokens.daylight.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+            )),
         content: Text(_chatUiText(
           zh: '确定要删除选中的 ${_selectedMessageIds.length} 条消息吗？删除后将不会被提取到记忆中。',
           en: 'Delete ${_selectedMessageIds.length} selected message(s)? They will not be extracted into memory.',
-        )),
+        ),
+            style: TextStyle(
+              color: SpringRainUiTokens.daylight.textSecondary,
+              fontSize: 14,
+              height: 1.5,
+            )),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(_chatUiText(zh: '取消', en: 'Cancel')),
+            child: Text(_chatUiText(zh: '取消', en: 'Cancel'),
+                style: TextStyle(
+                    color: SpringRainUiTokens.daylight.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               _chatUiText(zh: '删除', en: 'Delete'),
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: SpringRainUiTokens.daylight.error),
             ),
           ),
         ],
@@ -4204,15 +4222,36 @@ only after you have written the goodbye you want the user to hear.''',
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('删除这条消息？'),
-        content: const Text('删除后无法恢复。'),
+        backgroundColor: SpringRainUiTokens.daylight.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+              SpringRainUiTokens.daylight.radius14),
+        ),
+        title: Text('删除这条消息？',
+            style: TextStyle(
+              color: SpringRainUiTokens.daylight.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+            )),
+        content: Text('删除后无法恢复。',
+            style: TextStyle(
+              color: SpringRainUiTokens.daylight.textSecondary,
+              fontSize: 14,
+              height: 1.5,
+            )),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('取消',
+                style: TextStyle(
+                    color: SpringRainUiTokens.daylight.textSecondary)),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('删除', style: TextStyle(color: Colors.red))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('删除',
+                style:
+                    TextStyle(color: SpringRainUiTokens.daylight.error)),
+          ),
         ],
       ),
     );
@@ -6483,27 +6522,9 @@ class _ChatAtmosphereBackgroundState extends State<_ChatAtmosphereBackground> {
           ),
         ],
         if (hasCustomBg)
-          // Bottom-up dark gradient: solid dark at bottom (input bar area),
-          // fades to transparent around the first message zone so the
-          // background image emerges naturally upward. No top overlay.
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    chat.backgroundSoft,
-                    chat.backgroundSoft.withValues(alpha: 0.92),
-                    chat.backgroundSoft.withValues(alpha: 0.55),
-                    Colors.transparent,
-                    Colors.transparent,
-                  ],
-                  stops: const [0, 0.10, 0.30, 0.50, 1],
-                ),
-              ),
-            ),
-          )
+          // Background image shows through fully; no dark overlay so the
+          // custom image is not masked at the bottom.
+          const SizedBox.shrink()
         else
           Positioned.fill(
             child: DecoratedBox(
