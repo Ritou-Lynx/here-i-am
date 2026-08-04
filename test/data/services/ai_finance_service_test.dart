@@ -273,5 +273,57 @@ void main() {
         occurredAt.millisecondsSinceEpoch ~/ 1000,
       );
     });
+
+    // Regression: 2026-08-04 real-device bug - the same 西塔老太太 dinner was
+    // written once via card bridge (linked_fact_id set, purpose "西塔老太太
+    // 烤肉 335元AA") and once via agent AiFinanceRecord (linked_fact_id null,
+    // purpose "西塔老太太烤肉 AA"). Context-based dedupe missed them because
+    // purpose text differed; result was 3 ledger rows for one dinner. expense
+    // now dedupes by amount within 36h regardless of purpose/linked_fact_id.
+    test('expense dedupes by amount within 36h even when purpose differs', () async {
+      await service.recordEntry(
+        characterId: 'system:card_bridge',
+        entryType: 'expense',
+        totalAmount: 167.5,
+        aiAmount: 0,
+        purpose: '西塔老太太烤肉 335元AA',
+        linkedFactId: 'card-1',
+      );
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'expense',
+        totalAmount: 167.5,
+        aiAmount: 0,
+        purpose: '西塔老太太烤肉 AA',
+      );
+
+      final entries = await service.getRecentEntries(limit: 10);
+      expect(entries, hasLength(1));
+      expect(entries.single['total_amount'], 167.5);
+    });
+
+    // Companion guard: income must NOT amount-dedupe - two 1000-元 income
+    // events for different projects within 36h are real and distinct.
+    test('income does NOT dedupe by amount when purpose differs', () async {
+      await service.recordEntry(
+        characterId: 'char-a',
+        entryType: 'income',
+        totalAmount: 1000,
+        aiAmount: 300,
+        contributionRatio: 0.3,
+        purpose: 'article project',
+      );
+      await service.recordEntry(
+        characterId: 'char-a',
+        entryType: 'income',
+        totalAmount: 1000,
+        aiAmount: 300,
+        contributionRatio: 0.3,
+        purpose: 'video project',
+      );
+
+      final entries = await service.getRecentEntries(limit: 10);
+      expect(entries, hasLength(2));
+    });
   });
 }

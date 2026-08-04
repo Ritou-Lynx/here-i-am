@@ -416,11 +416,24 @@ class AiFinanceService {
       sinceEpoch: sinceEpoch,
       limit: 200,
     );
+    // expense uses amount as the business key within the 36h window - the same
+    // real spending is often written via two paths (card bridge with
+    // linked_fact_id set + agent AiFinanceRecord with linked_fact_id null)
+    // whose purpose text differs ("西塔老太太烤肉 335元AA" vs "西塔老太太烤肉
+    // AA"), so context-based dedupe misses them (2026-08-04 real-device case
+    // produced 3 ledger rows for one dinner). income keeps the context gate:
+    // two 1000-元 income events for different projects in the same window are
+    // common and must not merge. Other types (transfer/cost/loan/repayment/
+    // reward/penalty) likewise keep the context gate.
+    final amountOnlyDedupe = entryType == 'expense';
     for (final row in recentRows) {
       if (!_sameMoney(row.totalAmount, totalAmount) ||
           !_sameMoney(row.aiAmount, aiAmount) ||
           !_sameRatio(row.contributionRatio, contributionRatio)) {
         continue;
+      }
+      if (amountOnlyDedupe) {
+        return row;
       }
 
       final existingContext = _normalizedContext(
@@ -536,6 +549,13 @@ bool _isDuplicateLedgerRow(
   }
 
   final deltaSeconds = (candidate.recordedAt - existing.recordedAt).abs();
+  // expense: amount is the business key - merge within 36h regardless of
+  // purpose/notes text (two write paths produce different purpose strings for
+  // the same spending, 2026-08-04 西塔老太太 case). income and other types
+  // keep the context gate so same-amount different-reason entries stay distinct.
+  if (existing.entryType == 'expense') {
+    return deltaSeconds <= AiFinanceService._duplicateWindow.inSeconds;
+  }
   final existingContext = _normalizedContext(
     existing.purpose,
     existing.notes,
