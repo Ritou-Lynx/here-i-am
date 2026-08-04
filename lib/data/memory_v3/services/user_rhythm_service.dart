@@ -153,8 +153,21 @@ class UserRhythmService {
     String? startTime;
     String? endTime;
 
+    final timeRangePattern = RegExp(r'^\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*$');
+
     for (final part in parts) {
       final eqIdx = part.indexOf('=');
+
+      // Bare time range segment ("22:00-23:30") — no KEY= prefix. This is
+      // the format the rhythm extractor prompt teaches; historically it was
+      // dropped here because eqIdx < 0, making every parsed rrule empty.
+      final rangeMatch = timeRangePattern.firstMatch(part);
+      if (rangeMatch != null) {
+        startTime = _normalizeHhMm(rangeMatch.group(1)!);
+        endTime = _normalizeHhMm(rangeMatch.group(2)!);
+        continue;
+      }
+
       if (eqIdx < 0) continue;
       final key = part.substring(0, eqIdx).trim().toUpperCase();
       final value = part.substring(eqIdx + 1).trim();
@@ -183,7 +196,7 @@ class UserRhythmService {
           }
         }).where((d) => d > 0).toList();
       } else if (value.contains('-')) {
-        // 时间段 HH:MM-HH:MM
+        // 兼容 KEY=HH:MM-HH:MM 形式的时间段
         final dash = value.indexOf('-');
         if (dash > 0) {
           startTime = value.substring(0, dash).trim();
@@ -231,17 +244,17 @@ class UserRhythmService {
   }
 
   /// 判断当前时间是否在某个节律的活跃时段内（如"现在在工作时间内"）。
-  /// 对于跨午夜的睡眠节律，startTime > endTime 表示跨午夜。
+  /// 对于跨午夜的睡眠节律，startTime > endTime 表示跨午夜，此时
+  /// 晚间一侧（>= start）和次日早晨一侧（<= end）都算在时段内。
   static bool isWithinSlot(String currentTime, RhythmTimeSlot slot) {
-    final cmp = _compareTime(currentTime, slot.startTime);
-    if (cmp < 0) return false;
-
-    if (slot.startTime.compareTo(slot.endTime) > 0) {
-      // 跨午夜：如 23:00-07:00
-      // currentTime >= startTime（今天）或 currentTime < endTime（明天早上）
-      return true; // 已经过 startTime，且 endTime 在明天
+    final crossesMidnight = slot.startTime.compareTo(slot.endTime) > 0;
+    if (!crossesMidnight) {
+      return _compareTime(currentTime, slot.startTime) >= 0 &&
+          _compareTime(currentTime, slot.endTime) <= 0;
     }
-    return _compareTime(currentTime, slot.endTime) <= 0;
+    // 跨午夜：如 23:30-07:00。23:50（晚间）与 06:30（次日早晨）都在时段内。
+    return _compareTime(currentTime, slot.startTime) >= 0 ||
+        _compareTime(currentTime, slot.endTime) <= 0;
   }
 
   /// 判断当前时间是否在某个节律时段开始前的 N 分钟内。
@@ -330,6 +343,15 @@ class UserRhythmService {
   // ──────────────────────────────────────────────────────────────────────
   // Time helpers
   // ──────────────────────────────────────────────────────────────────────
+
+  /// "7:00" → "07:00"，保证字符串时间比较的位序一致。
+  static String _normalizeHhMm(String t) {
+    final parts = t.split(':');
+    if (parts.length != 2) return t;
+    final hh = parts[0].padLeft(2, '0');
+    final mm = parts[1].padLeft(2, '0');
+    return '$hh:$mm';
+  }
 
   static int _compareTime(String a, String b) {
     final pa = a.split(':').map(int.parse).toList();

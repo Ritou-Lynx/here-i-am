@@ -1,9 +1,12 @@
 /// Rhythm Signal Extractor — detects recurring schedule/routine mentions
 /// in chat messages and writes them as UserRhythms.
 ///
-/// Runs alongside LifeInsight analysis. Reads recent chat messages, uses a
-/// lightweight LLM call to detect rhythm signals (work hours, class schedule,
-/// sleep patterns, etc.), and upserts them into UserRhythmService.
+/// Runs alongside LifeInsight analysis. Two extraction layers:
+/// 1. **Deterministic regex layer** (always runs, no LLM): catches
+///    well-formed routine statements ("我7点下班", "周二五日晚上10点到
+///    11点半上网课", "一般1点才睡") reliably and cheaply.
+/// 2. **LLM layer** (runs only when the deterministic layer found
+///    nothing): detects looser phrasings.
 ///
 /// This is the "conversation → structured rhythm" bridge that solves the
 /// "told you 100 times I get off work at 7pm but you still ask at 5pm" problem.
@@ -47,13 +50,26 @@ class RhythmSignalExtractor {
 
     if (messages.isEmpty) return 0;
 
-    // 2. Load existing rhythms for dedup context
+    // 2. Deterministic extraction first — regex-based, no LLM. Covers the
+    // canonical routine phrasings reliably even when the configured model
+    // is unavailable / rejects the payload (observed: 422 on large inputs).
+    final deterministicSignals = extractDeterministicSignals(messages);
+    if (deterministicSignals.isNotEmpty) {
+      final created = await _persistSignals(deterministicSignals);
+      _logger.info('Rhythm deterministic extraction created/updated '
+          '$created rhythm(s)');
+      return created;
+    }
+
+    // 3. Load existing rhythms for dedup context (mutable — the upsert
+    // loop below replaces consumed entries so later signals in the same
+    // batch dedup against the freshly-updated state).
     final existingRhythms =
         await UserRhythmService.instance.getActiveRhythms();
     final existingDescriptions =
         existingRhythms.map((r) => '${r.kind}: ${r.description}').toList();
 
-    // 3. Build LLM prompt
+    // 4. Build LLM prompt
     final chatText = messages.reversed.map((m) {
       final speaker = m.isFromCharacter ? 'I' : 'user';
       final ts = m.timestamp;
@@ -82,20 +98,59 @@ class RhythmSignalExtractor {
     final text = response.textOutput?.trim();
     if (text == null || text.isEmpty) return 0;
 
-    // 4. Parse and persist
+    // 5. Parse and persist
     final signals = _parseSignals(text);
     if (signals.isEmpty) return 0;
+
+    return _persistSignals(signals);
+  }
+
+  /// Shared upsert path for both extraction layers.
+  Future<int> _persistSignals(List<RhythmSignal> signals) async {
+    final existingRhythms =
+        await UserRhythmService.instance.getActiveRhythms();
 
     var created = 0;
     for (final signal in signals) {
       try {
-        // Check if a similar rhythm already exists (by kind + description overlap)
-        final isDuplicate = existingRhythms.any((r) =>
+        // Upsert semantics: if a rhythm of the same kind with an
+        // overlapping description already exists, UPDATE it instead of
+        // skipping — the user's routine can change ("7点下班" → "8点下班"),
+        // and the newer extraction must win. Only skip when both the
+        // rrule and location already match (true no-op duplicate).
+        final existing = existingRhythms.where((r) =>
             r.kind == signal.kind &&
             _descriptionsOverlap(r.description, signal.description));
-        if (isDuplicate) {
-          _logger.fine('Rhythm signal skipped (duplicate): '
-              '${signal.kind} ${signal.description}');
+        if (existing.isNotEmpty) {
+          final target = existing.first;
+          final unchanged =
+              target.rrule == signal.rrule && target.location == signal.location;
+          if (unchanged) {
+            _logger.fine('Rhythm signal skipped (identical): '
+                '${signal.kind} ${signal.description}');
+            continue;
+          }
+          await UserRhythmService.instance.updateRhythm(
+            target.id,
+            description: signal.description,
+            rrule: signal.rrule,
+            location: signal.location,
+            confidence: signal.confidence,
+          );
+          // Keep the in-memory view consistent for subsequent signals:
+          // replace the consumed entry with its updated form.
+          final idx = existingRhythms.indexOf(target);
+          if (idx >= 0) {
+            existingRhythms[idx] = target.copyWith(
+              description: signal.description,
+              rrule: signal.rrule,
+              location: signal.location,
+              confidence: signal.confidence,
+            );
+          }
+          created++;
+          _logger.info('Rhythm signal updated: ${signal.kind} '
+              '"${signal.description}" rrule=${signal.rrule}');
           continue;
         }
 
@@ -124,6 +179,188 @@ class RhythmSignalExtractor {
 
     return created;
   }
+
+  // ────────────────────────────────────────────────────────────────────
+  // Deterministic extraction layer (no LLM)
+  // ────────────────────────────────────────────────────────────────────
+
+  static final _weekdayMap = {
+    '一': 'MO', '二': 'TU', '三': 'WE', '四': 'TH',
+    '五': 'FR', '六': 'SA', '日': 'SU', '天': 'SU',
+  };
+
+  static final _cnDigitMap = {
+    '零': 0, '一': 1, '两': 2, '二': 2, '三': 3, '四': 4,
+    '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+    '十一': 11, '十二': 12,
+  };
+
+  /// Parse a time-of-day token: "10:00" / "22:30" / "7点" / "十点半" / "8点半".
+  /// Returns (hour, minute) or null.
+  static (int, int)? _parseTimeToken(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    // HH:MM / HH：MM
+    final colon = RegExp(r'^(\d{1,2})[:：](\d{2})$').firstMatch(raw);
+    if (colon != null) {
+      return (int.parse(colon.group(1)!), int.parse(colon.group(2)!));
+    }
+    // N点[半|M分] — Arabic or Chinese numerals
+    final dian = RegExp(r'^([0-9一二两三四五六七八九十]+)点(半|[0-9一二两三四五六七八九十]+分?)?$')
+        .firstMatch(raw);
+    if (dian != null) {
+      final h = _parseNumber(dian.group(1)!);
+      if (h == null) return null;
+      final mRaw = dian.group(2);
+      var m = 0;
+      if (mRaw == '半') {
+        m = 30;
+      } else if (mRaw != null && mRaw.isNotEmpty) {
+        m = _parseNumber(mRaw.replaceAll('分', '')) ?? 0;
+      }
+      return (h, m);
+    }
+    return null;
+  }
+
+  static int? _parseNumber(String raw) {
+    final arabic = int.tryParse(raw);
+    if (arabic != null) return arabic;
+    // Chinese numeral ≤ 12 (十 / 十一 / 十二 / 一…九)
+    final mapped = _cnDigitMap[raw];
+    if (mapped != null) return mapped;
+    if (raw.startsWith('十')) {
+      final rest = raw.substring(1);
+      if (rest.isEmpty) return 10;
+      final unit = _cnDigitMap[rest];
+      if (unit != null && unit <= 9) return 10 + unit;
+    }
+    return null;
+  }
+
+  /// Detect canonical routine statements in user messages via regex.
+  /// Returns at most one signal per kind (latest mention wins).
+  /// Patterns are tuned against the user's real phrasings:
+  /// "七点才下班" / "我晚上七点才下班" /
+  /// "周日周五周二晚上是 10:00 到 11:30（上网课/兼职）" /
+  /// "我一般1点才睡".
+  static List<RhythmSignal> extractDeterministicSignals(
+      List<PersonaChatMessage> messages) {
+    final results = <String, RhythmSignal>{};
+
+    // Only read what the USER stated, not the character's own utterances.
+    for (final m in messages) {
+      if (m.isFromCharacter) continue;
+      final text = m.content;
+
+      // 1) work_schedule: "七点才下班" / "我晚上七点才下班" / "每天7点下班"。
+      //    疑问句（"我几点下班？"）不算声明。
+      final offWork = RegExp(
+              r'(?:每天|每日)?(?:我)?(?:晚上|下午|傍晚)?([0-9一二两三四五六七八九十]+)[点時时:：](?:[0-9]{1,2}分?|半)?(?:才|就|左右)?下班')
+          .firstMatch(text);
+      if (offWork != null && !text.contains('?') && !text.contains('？')) {
+        final parsed = _parseTimeToken('${offWork.group(1)}点');
+        if (parsed != null) {
+          var hour = parsed.$1;
+          // 下班语境：1-8 点按 12h 制（晚 7 点 ≫ 凌晨 7 点下班常见）
+          if (hour >= 1 && hour <= 8) hour += 12;
+          final end = _hhmm(hour, parsed.$2);
+          results['work_schedule'] = RhythmSignal(
+            kind: 'work_schedule',
+            description: '工作日上班，$end 下班',
+            rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;10:00-$end',
+            location: 'office',
+            confidence: 0.85,
+          );
+        }
+      }
+
+      // 2) class_schedule: 周几列表 + 时间段，两者顺序可互换，允许间隔
+      //    少量文字（"周日周五周二晚上是 10:00 到 11:30"后接兼职/网课/上课）。
+      final daysRe = RegExp(
+          r'((?:周|星期|礼拜)[一二三四五六日天](?:(?:、|和|与|,|，)?(?:周|星期|礼拜)?[一二三四五六日天])*)');
+      final rangeRe = RegExp(
+          r'([0-9一二两三四五六七八九十]+[点時时:：]?(?:[0-9]{1,2}分?|半)?|\d{1,2}[:：]\d{2})'
+          r'\s*(?:到|至|-|~|—)\s*'
+          r'([0-9一二两三四五六七八九十]+[点時时:：]?(?:[0-9]{1,2}分?|半)?|\d{1,2}[:：]\d{2})');
+      final daysMatch = daysRe.firstMatch(text);
+      final rangeMatch = rangeRe.firstMatch(text);
+      final classContext =
+          RegExp(r'(上课|网课|兼职|教课|授课|学生的课)').hasMatch(text);
+      if (daysMatch != null &&
+          rangeMatch != null &&
+          classContext &&
+          (daysMatch.start - rangeMatch.end).abs() <= 30) {
+        final days = <String>{};
+        for (final ch in daysMatch.group(1)!.split('')) {
+          final mapped = _weekdayMap[ch];
+          if (mapped != null) days.add(mapped);
+        }
+        final startParsed = _parseTimeToken(rangeMatch.group(1));
+        final endParsed = _parseTimeToken(rangeMatch.group(2));
+        if (days.isNotEmpty && startParsed != null && endParsed != null) {
+          var (startH, startM) = startParsed;
+          var (endH, endM) = endParsed;
+          // 晚上语境：1-11 点按 12h 制
+          final eveningContext =
+              RegExp(r'(晚上|晚间|夜里|下午)').hasMatch(text);
+          if (eveningContext) {
+            if (startH >= 1 && startH <= 11) startH += 12;
+            if (endH >= 1 && endH <= 11) endH += 12;
+          }
+          final daysStr = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
+              .where(days.contains)
+              .join(',');
+          results['class_schedule'] = RhythmSignal(
+            kind: 'class_schedule',
+            description: '固定课程（兼职/网课）',
+            rrule:
+                'FREQ=WEEKLY;BYDAY=$daysStr;${_hhmm(startH, startM)}-${_hhmm(endH, endM)}',
+            location: text.contains('在家') ? 'home' : 'unknown',
+            confidence: 0.85,
+          );
+        }
+      }
+
+      // 3) sleep_pattern: "我一般1点才睡" / "最近都2点睡" / "通常12点半睡"。
+      //    需要习惯性标记（一般/通常/都/最近…）才算 routine。
+      final sleep = RegExp(
+              r'(?:一般|通常|都|基本|平时|最近)?(?:我)?(?:要|会)?(?:凌晨|夜里|晚上)?([0-9一二两三四五六七八九十]+)[点時时](半)?(?:才|就|左右)?(?:睡|入睡|上床)')
+          .firstMatch(text);
+      final habitMarker =
+          RegExp(r'(一般|通常|都|基本|平时|最近|每天|每日)').hasMatch(text);
+      if (sleep != null && habitMarker) {
+        final parsed = _parseTimeToken('${sleep.group(1)}点');
+        if (parsed != null) {
+          var hour = parsed.$1;
+          final minute = sleep.group(2) == '半' ? 30 : parsed.$2;
+          // 睡眠语境：1-8 点 = 凌晨；9-11 点 = 晚上
+          if (hour >= 1 && hour <= 8) {
+            results['sleep_pattern'] = RhythmSignal(
+              kind: 'sleep_pattern',
+              description: '晚睡作息（凌晨$hour 点左右入睡）',
+              rrule: 'FREQ=DAILY;${_hhmm(hour, minute)}-09:00',
+              location: 'home',
+              confidence: 0.7,
+            );
+          } else if (hour >= 9 && hour <= 11) {
+            hour += 12;
+            results['sleep_pattern'] = RhythmSignal(
+              kind: 'sleep_pattern',
+              description: '作息（$hour 点左右入睡）',
+              rrule: 'FREQ=DAILY;${_hhmm(hour, minute)}-07:30',
+              location: 'home',
+              confidence: 0.7,
+            );
+          }
+        }
+      }
+    }
+
+    return results.values.toList();
+  }
+
+  static String _hhmm(int h, int m) =>
+      '${(h % 24).toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
 
   String _buildPrompt({required List<String> existingRhythms}) {
     final existingContext = existingRhythms.isEmpty

@@ -56,15 +56,25 @@ class LifeInsightScheduler {
 
   /// Run weekly analysis (last 7 days). This is the primary analysis —
   /// produces trends, patterns, streaks, baselines.
+  ///
+  /// Also drives rhythm signal extraction (conversation → user_rhythms).
+  /// This is the ONLY production trigger path for rhythm extraction —
+  /// startup, event-driven (card recorded / COROS sync) and manual refresh
+  /// all funnel through here, so routines like "我7点下班"/"周二有课" get
+  /// picked up on every route. The extractor has its own 6h rate limit.
   Future<void> runWeeklyAnalysis() async {
     await _runAnalysis(LifeInsightPeriod.weekly);
+    await _extractRhythmSignals();
   }
 
   /// Force a weekly analysis, bypassing the rate limit. Used by the manual
   /// refresh button in the observation panels so the user can pull fresh
-  /// insights on demand.
+  /// insights on demand. Rhythm extraction is forced too, so a user who
+  /// just corrected the companion ("我说了我 7 点下班！") can trigger an
+  /// immediate re-extraction from the panel.
   Future<void> forceRunWeeklyAnalysis() async {
     await _runAnalysis(LifeInsightPeriod.weekly, force: true);
+    await _extractRhythmSignals(force: true);
   }
 
   /// Run daily analysis (today). Produces baseline and anomaly insights.
@@ -97,7 +107,9 @@ class LifeInsightScheduler {
       _logger.warning('LifeInsight: pact signal consumption failed: $e');
     }
 
-    // Extract rhythm signals from recent chat → user_rhythms
+    // Extract rhythm signals from recent chat → user_rhythms.
+    // NOTE: runFullAnalysis has no periodic caller today; the production
+    // trigger path is runWeeklyAnalysis(), which runs extraction itself.
     await _extractRhythmSignals();
   }
 
@@ -197,13 +209,16 @@ class LifeInsightScheduler {
 
   Future<void> _markRunComplete(LifeInsightPeriod period) async {
     final key = 'life_insight_last_run_${period.name}';
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    // Store MILLISECONDS — _shouldRun compares against
+    // DateTime.now().millisecondsSinceEpoch. (Previously stored seconds,
+    // which made the 30-min rate limit a no-op.)
+    final now = DateTime.now().millisecondsSinceEpoch;
     await _db.into(_db.kvStore).insertOnConflictUpdate(
           KvStoreCompanion.insert(
             key: key,
             bucket: const Value('life_insight'),
             value: Value(now.toString()),
-            updatedAt: Value(now),
+            updatedAt: Value(now ~/ 1000),
           ),
         );
   }
@@ -229,15 +244,18 @@ class LifeInsightScheduler {
   // Rhythm signal extraction
   // ──────────────────────────────────────────────────────────────────────
 
-  Future<void> _extractRhythmSignals() async {
+  Future<void> _extractRhythmSignals({bool force = false}) async {
     if (!UserRhythmService.isInitialized) return;
 
-    // Rate-limit: rhythm extraction runs at most once per 6 hours
+    // Rate-limit: rhythm extraction runs at most once per 6 hours.
+    // Values are MILLISECONDS since epoch (legacy devices may hold a
+    // seconds value from a previous build — that parses as a tiny
+    // millisecond timestamp, elapsed is huge, we just run once more).
     const rhythmKey = 'life_insight_last_rhythm_extraction';
     final row = await (_db.select(_db.kvStore)
           ..where((t) => t.key.equals(rhythmKey)))
         .getSingleOrNull();
-    if (row?.value != null) {
+    if (!force && row?.value != null) {
       final lastRun = int.tryParse(row!.value!);
       if (lastRun != null) {
         final elapsed = DateTime.now().millisecondsSinceEpoch - lastRun;
@@ -247,6 +265,12 @@ class LifeInsightScheduler {
         }
       }
     }
+
+    // First-ever run (no kv marker): read a much larger chat window so
+    // routines stated weeks ago ("我每天7点下班", "周二五日晚上网课") are
+    // backfilled, not just the last 100 messages.
+    final isFirstRun = row?.value == null;
+    final messageLimit = isFirstRun ? 500 : 100;
 
     try {
       final userId = await UserStorage.getUserId();
@@ -275,20 +299,21 @@ class LifeInsightScheduler {
         modelConfig: resources.modelConfig,
         db: _db,
         characterId: character.id,
+        messageLimit: messageLimit,
       );
 
       if (created > 0) {
         _logger.info('LifeInsight: extracted $created new rhythm(s) from chat');
       }
 
-      // Mark completion
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      // Mark completion (MILLISECONDS — see rate-limit check above).
+      final now = DateTime.now().millisecondsSinceEpoch;
       await _db.into(_db.kvStore).insertOnConflictUpdate(
             KvStoreCompanion.insert(
               key: rhythmKey,
               bucket: const Value('life_insight'),
               value: Value(now.toString()),
-              updatedAt: Value(now),
+              updatedAt: Value(now ~/ 1000),
             ),
           );
     } catch (e, stack) {
