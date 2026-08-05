@@ -61,7 +61,6 @@ import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
 import 'package:memex/utils/tavern_macro.dart';
-import 'package:memex/utils/time_context.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/data/services/notification_service.dart';
@@ -2543,9 +2542,7 @@ only after you have written the goodbye you want the user to hear.''',
     for (var i = 0; i < drafts.length; i++) {
       final draft = drafts[i];
       final analysis = perDraftAnalysis[i];
-      final timePrefix = buildMessageTimePrefix(draft.timestamp);
       buffer.writeln('--- message ${i + 1} ---');
-      buffer.write(timePrefix);
       if (analysis != null && analysis.isNotEmpty) {
         buffer.writeln('[Image analysis: $analysis]');
       } else if (draft.images.isNotEmpty) {

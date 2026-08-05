@@ -75,9 +75,17 @@ class StreamingTtsSession {
   final _splitter = SentenceSplitter();
   final _ttsSubscriptions = <StreamSubscription<List<int>>>[];
   final _sentenceQueue = <String>[];
+  final _pendingSentences = <String>[];
   bool _processingSentence = false;
   bool _llmDone = false;
   bool _disposed = false;
+
+  /// Minimum rune count before a batch of sentences is sent to the TTS API.
+  /// Short sentences ("嗯。", "好。", "然后呢。") are buffered until they
+  /// accumulate past this threshold, then merged and sent as a single request.
+  /// This avoids per-call minimum billing and reduces total API round-trips.
+  /// The threshold is low enough that first-audio latency stays acceptable.
+  static const int _minSentenceRunes = 24;
   Completer<void>? _playbackCompleter;
   StreamSubscription<PlayerState>? _stateSub;
 
@@ -135,6 +143,7 @@ class StreamingTtsSession {
     if (_disposed) return;
     _llmDone = true;
     _splitter.finish();
+    _flushPendingSentences();
     _log.info('finishAndWait: waiting for TTS sentences...');
 
     // Wait for every queued sentence to finish streaming its audio bytes into
@@ -172,7 +181,29 @@ class StreamingTtsSession {
 
   void _onSentence(String sentence) {
     if (_disposed) return;
-    _sentenceQueue.add(sentence);
+    _pendingSentences.add(sentence);
+    _tryFlushPending();
+  }
+
+  /// Merge buffered short sentences once they exceed [_minSentenceRunes] and
+  /// enqueue the merged text for TTS. Long sentences are enqueued immediately
+  /// (with any pending short prefix batched in front of them).
+  void _tryFlushPending() {
+    if (_pendingSentences.isEmpty) return;
+    final merged = _pendingSentences.join('\n');
+    if (merged.runes.length >= _minSentenceRunes || _llmDone) {
+      _pendingSentences.clear();
+      _sentenceQueue.add(merged);
+      _processNextSentence();
+    }
+  }
+
+  /// Flush any remaining short sentences after the LLM stream finishes.
+  void _flushPendingSentences() {
+    if (_pendingSentences.isEmpty) return;
+    final merged = _pendingSentences.join('\n');
+    _pendingSentences.clear();
+    _sentenceQueue.add(merged);
     _processNextSentence();
   }
 
@@ -229,6 +260,7 @@ class StreamingTtsSession {
     }
     _ttsSubscriptions.clear();
     _sentenceQueue.clear();
+    _pendingSentences.clear();
     await _stateSub?.cancel();
     _stateSub = null;
     await _player.stop();

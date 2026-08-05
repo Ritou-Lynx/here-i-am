@@ -542,6 +542,21 @@ class CompanionAgent {
     }
   }
 
+  /// 注入当前时间/日期/星期到 systemReminders。
+  ///
+  /// 这些动态时间信息不能写进 system prompt（会破坏 provider 前缀缓存），
+  /// 通过 per-turn reminder 注入，让 system prompt 保持字节稳定。
+  static void _injectCurrentTimeContext(AgentState state, DateTime now) {
+    final nowStr = formatLocalDateTimeWithZone(now);
+    final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+    final weekdayCn = cnWeekday(now.weekday);
+    state.systemReminders['current_time_context'] =
+        '## Current Time\n'
+        'Current Local Time: $nowStr\n'
+        '今天是 $todayStr 周$weekdayCn。';
+  }
+
   static Future<StatefulAgent?> _createAgent({
     required LLMClient client,
     required ModelConfig modelConfig,
@@ -1317,9 +1332,7 @@ class CompanionAgent {
       yield 'Sorry, character not found.';
       return;
     }
-    final timedUserMessage = userMessageTime == null
-        ? userMessage
-        : '${buildMessageTimePrefix(userMessageTime)}$userMessage';
+    final timedUserMessage = userMessage;
     _logger.info('CompanionAgent run for character $characterId');
     final runStartedAt = DateTime.now().microsecondsSinceEpoch;
     try {
@@ -1351,6 +1364,11 @@ class CompanionAgent {
           '- "（📞 ...）" messages in chat history are past records — they do '
           'NOT mean you are currently on a call.';
       await _injectCurrentLocationContext(state);
+
+      // 当前时间/日期通过 systemReminder 注入，而不是写死在 system prompt 里。
+      // system prompt 必须是字节稳定的，否则破坏 provider 的前缀缓存（DeepSeek 等
+      // OpenAI 兼容 provider 按 messages 数组前缀严格匹配缓存）。
+      _injectCurrentTimeContext(state, userMessageTime ?? DateTime.now());
 
       // 时间感知：注入距上一条消息的间隔上下文，让角色自然接续对话。
       await _injectTimeGapContext(

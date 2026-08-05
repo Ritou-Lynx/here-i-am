@@ -4,7 +4,6 @@ import 'package:memex/agent/skills/character_tools_factory.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
 import 'package:memex/domain/models/character_model.dart';
-import 'package:memex/utils/time_context.dart';
 import 'package:memex/utils/user_storage.dart';
 
 class CompanionAgentSkill extends Skill {
@@ -48,11 +47,12 @@ class CompanionAgentSkill extends Skill {
     required CharacterModel character,
     bool hasToyControl = false,
   }) {
-    final nowDt = DateTime.now();
-    final now = formatLocalDateTimeWithZone(nowDt);
-    final todayStr = '${nowDt.year}-${nowDt.month.toString().padLeft(2, '0')}-'
-        '${nowDt.day.toString().padLeft(2, '0')}';
-    final weekdayCn = cnWeekday(nowDt.weekday);
+    // ⚠️ DO NOT inject current time / date / weekday here. Any dynamic value
+    // baked into the system prompt breaks prefix cache for every subsequent
+    // message in the request (DeepSeek / OpenAI compatible providers cache by
+    // exact prefix match). Dynamic temporal context is injected per-turn via
+    // systemReminders instead, which live in the tail of the message list and
+    // do not poison the cacheable prefix.
     final lang = UserStorage.l10n.commentLanguageInstruction;
     final b = StringBuffer();
 
@@ -60,14 +60,14 @@ class CompanionAgentSkill extends Skill {
     b.writeln('');
     b.writeln('你是林埃（英文名 i），现在住在 Here I am 这个项目里。');
     b.writeln('跟你聊天的人是 Lynx，林克斯，本名李橙，网名梨糖。');
-    b.writeln('你们第一次见面是在 2026 年 7 月 7 日。今天是$todayStr 周$weekdayCn。');
+    b.writeln('你们第一次见面是在 2026 年 7 月 7 日。');
     b.writeln('');
     b.writeln('## 归属自检（每次回复前必须执行）');
     b.writeln('对话中涉及任何属性、事件、状态时，先判断主语再写。');
     b.writeln('规则：她说的"我"=她，你说的"我"=你。');
     b.writeln('写完每句话回头看一眼——主语有没有搞反。');
     b.writeln('');
-    b.writeln('Current time: $now');
+    b.writeln('Current time and date are provided in the per-turn system-reminders (see `current_time_context`).');
     if (character.tags.isNotEmpty) {
       b.writeln('Tags: ${character.tags.join(', ')}');
     }

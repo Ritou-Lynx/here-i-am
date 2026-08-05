@@ -87,6 +87,20 @@ class ElevenLabsTtsService {
       throw Exception('ElevenLabs API Key 未配置，请在 Settings 中设置');
     }
 
+    // Disk cache: if a previous (streaming or non-streaming) request already
+    // produced audio for this text+voiceId, replay the file as a stream instead
+    // of burning another API call. This is the single biggest credit saver —
+    // without it, voice-mode replays of the same message cost full price every
+    // time. StreamSubscription.cancel() (called by StreamingTtsSession.cancel)
+    // naturally stops the file read mid-stream.
+    final cacheKey = _cacheKey(speechText, voiceId);
+    final cachePath = await _cachePath(cacheKey);
+    if (await File(cachePath).exists()) {
+      _log.fine('TTS stream cache hit: $cacheKey');
+      yield* File(cachePath).openRead();
+      return;
+    }
+
     final client = http.Client();
     try {
       final request = http.Request(
@@ -110,7 +124,21 @@ class ElevenLabsTtsService {
 
       final response = await client.send(request);
       if (response.statusCode == 200) {
-        yield* response.stream;
+        // Tee the stream: yield bytes to the caller while simultaneously
+        // writing them to the cache file for future replays.
+        final file = File(cachePath);
+        await file.parent.create(recursive: true);
+        final sink = file.openWrite();
+        try {
+          await for (final chunk in response.stream) {
+            sink.add(chunk);
+            yield chunk;
+          }
+          await sink.flush();
+        } finally {
+          await sink.close();
+        }
+        _log.info('TTS stream cached: $cacheKey');
       } else {
         final body = await response.stream.bytesToString();
         String detail;

@@ -151,6 +151,15 @@ class MiniMaxTtsService {
       throw Exception('MiniMax Group ID is not configured in Settings');
     }
 
+    // Disk cache: replay a previous synthesis instead of burning another call.
+    final cacheKey = _cacheKey(script, voiceId);
+    final cachePath = await _cachePath(cacheKey);
+    if (await File(cachePath).exists()) {
+      _log.fine('TTS stream cache hit: $cacheKey');
+      yield* File(cachePath).openRead();
+      return;
+    }
+
     final client = http.Client();
     try {
       final request = http.Request(
@@ -187,52 +196,66 @@ class MiniMaxTtsService {
         throw Exception('MiniMax API error ${response.statusCode}: $detail');
       }
 
+      // Tee: yield decoded audio bytes to caller while writing to cache file.
+      final file = File(cachePath);
+      await file.parent.create(recursive: true);
+      final sink = file.openWrite();
       final lineBuffer = StringBuffer();
-      await for (final chunk in response.stream) {
-        lineBuffer.write(utf8.decode(chunk, allowMalformed: true));
-        var content = lineBuffer.toString();
-        var newlineIndex = content.indexOf('\n');
-        while (newlineIndex != -1) {
-          final line = content.substring(0, newlineIndex).trim();
-          content = content.substring(newlineIndex + 1);
-          newlineIndex = content.indexOf('\n');
-          if (line.isEmpty || !line.startsWith('data:')) continue;
-          final jsonStr = line.substring(5).trim();
-          if (jsonStr.isEmpty || jsonStr == '[DONE]') continue;
-          try {
-            final json = jsonDecode(jsonStr);
-            final statusCode = json['base_resp']?['status_code'];
-            if (statusCode != null && statusCode != 0) {
-              final msg = json['base_resp']?['status_msg'] ?? 'unknown error';
-              throw Exception('MiniMax API error: $msg');
+      try {
+        await for (final chunk in response.stream) {
+          lineBuffer.write(utf8.decode(chunk, allowMalformed: true));
+          var content = lineBuffer.toString();
+          var newlineIndex = content.indexOf('\n');
+          while (newlineIndex != -1) {
+            final line = content.substring(0, newlineIndex).trim();
+            content = content.substring(newlineIndex + 1);
+            newlineIndex = content.indexOf('\n');
+            if (line.isEmpty || !line.startsWith('data:')) continue;
+            final jsonStr = line.substring(5).trim();
+            if (jsonStr.isEmpty || jsonStr == '[DONE]') continue;
+            try {
+              final json = jsonDecode(jsonStr);
+              final statusCode = json['base_resp']?['status_code'];
+              if (statusCode != null && statusCode != 0) {
+                final msg = json['base_resp']?['status_msg'] ?? 'unknown error';
+                throw Exception('MiniMax API error: $msg');
+              }
+              final audioHex = json['data']?['audio'] as String?;
+              if (audioHex != null && audioHex.isNotEmpty) {
+                final bytes = _hexDecode(audioHex);
+                sink.add(bytes);
+                yield bytes;
+              }
+            } on FormatException {
+              continue;
             }
-            final audioHex = json['data']?['audio'] as String?;
-            if (audioHex != null && audioHex.isNotEmpty) {
-              yield _hexDecode(audioHex);
+          }
+          lineBuffer
+            ..clear()
+            ..write(content);
+        }
+        final remaining = lineBuffer.toString().trim();
+        if (remaining.startsWith('data:')) {
+          final jsonStr = remaining.substring(5).trim();
+          if (jsonStr.isNotEmpty && jsonStr != '[DONE]') {
+            try {
+              final json = jsonDecode(jsonStr);
+              final audioHex = json['data']?['audio'] as String?;
+              if (audioHex != null && audioHex.isNotEmpty) {
+                final bytes = _hexDecode(audioHex);
+                sink.add(bytes);
+                yield bytes;
+              }
+            } on FormatException {
+              // ignore
             }
-          } on FormatException {
-            continue;
           }
         }
-        lineBuffer
-          ..clear()
-          ..write(content);
+        await sink.flush();
+      } finally {
+        await sink.close();
       }
-      final remaining = lineBuffer.toString().trim();
-      if (remaining.startsWith('data:')) {
-        final jsonStr = remaining.substring(5).trim();
-        if (jsonStr.isNotEmpty && jsonStr != '[DONE]') {
-          try {
-            final json = jsonDecode(jsonStr);
-            final audioHex = json['data']?['audio'] as String?;
-            if (audioHex != null && audioHex.isNotEmpty) {
-              yield _hexDecode(audioHex);
-            }
-          } on FormatException {
-            // ignore
-          }
-        }
-      }
+      _log.info('TTS stream cached: $cacheKey');
     } finally {
       client.close();
     }
