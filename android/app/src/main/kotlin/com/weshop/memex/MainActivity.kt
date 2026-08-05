@@ -101,6 +101,16 @@ class MainActivity : FlutterFragmentActivity() {
         return true
     }
 
+    override fun onResume() {
+        super.onResume()
+        MediaButtonBridge.setAppBackground(false)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        MediaButtonBridge.setAppBackground(true)
+    }
+
     override fun onDestroy() {
         // Do NOT deactivate the MediaSession here: the bridge is process-scoped
         // and must survive Activity destruction so headset keys keep working

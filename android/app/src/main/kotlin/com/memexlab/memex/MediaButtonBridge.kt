@@ -41,11 +41,51 @@ object MediaButtonBridge {
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
     private var receiverComponent: ComponentName? = null
+    private var isBackground = false
 
     private val focusChangeListener =
         AudioManager.OnAudioFocusChangeListener { change ->
             Log.d(TAG, "audio focus changed: $change")
         }
+
+    /**
+     * Switch between foreground (MAY_DUCK - other music keeps playing) and
+     * background (GAIN - win key routing from music apps) focus modes.
+     */
+    fun setAppBackground(background: Boolean) {
+        if (isBackground == background) return
+        isBackground = background
+        Log.d(TAG, "setAppBackground=$background")
+        reapplyAudioFocus()
+    }
+
+    private fun reapplyAudioFocus() {
+        audioFocusRequest?.let { request ->
+            audioManager?.abandonAudioFocusRequest(request)
+        }
+        val manager = audioManager
+        if (manager != null) {
+            val focusType = if (isBackground) {
+                AudioManager.AUDIOFOCUS_GAIN
+            } else {
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+            }
+            val request =
+                AudioFocusRequest.Builder(focusType)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build(),
+                    )
+                    .setAcceptsDelayedFocusGain(false)
+                    .setOnAudioFocusChangeListener(focusChangeListener)
+                    .build()
+            val result = manager.requestAudioFocus(request)
+            audioFocusRequest = request
+            Log.d(TAG, "reapplyAudioFocus focusType=$focusType result=$result")
+        }
+    }
 
     /** Attach the live main-isolate channel (called by MainActivity). */
     fun attachChannel(channel: MethodChannel) {
@@ -183,7 +223,7 @@ object MediaButtonBridge {
     private fun requestAudioFocus(context: Context) {
         val manager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val request =
-            AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
                 .setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
