@@ -586,6 +586,11 @@ class UserRhythms extends Table {
   /// 推断置信度 0.0-1.0。对话只提 1 次 → 0.3；提 3 次 → 0.7；数据验证 → 0.9。
   RealColumn get confidence => real().withDefault(const Constant(0.5))();
 
+  /// 单次取消的日期列表，JSON 数组 ["2026-08-04", ...]，null = 无例外。
+  /// 用户说"今天这节课不上了"→ 追加当天日期；snapshot 当天跳过该节律，
+  /// 节律本身（rrule）不动。这是日历里的"删除单次事件"。
+  TextColumn get exceptionsJson => text().nullable()();
+
   IntColumn get createdAt => integer()();
   IntColumn get updatedAt => integer()();
 

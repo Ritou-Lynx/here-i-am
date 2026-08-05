@@ -25073,6 +25073,12 @@ class $UserRhythmsTable extends memory_v3.UserRhythms
       type: DriftSqlType.double,
       requiredDuringInsert: false,
       defaultValue: const Constant(0.5));
+  static const VerificationMeta _exceptionsJsonMeta =
+      const VerificationMeta('exceptionsJson');
+  @override
+  late final GeneratedColumn<String> exceptionsJson = GeneratedColumn<String>(
+      'exceptions_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -25097,6 +25103,7 @@ class $UserRhythmsTable extends memory_v3.UserRhythms
         authority,
         origin,
         confidence,
+        exceptionsJson,
         createdAt,
         updatedAt
       ];
@@ -25165,6 +25172,12 @@ class $UserRhythmsTable extends memory_v3.UserRhythms
           confidence.isAcceptableOrUnknown(
               data['confidence']!, _confidenceMeta));
     }
+    if (data.containsKey('exceptions_json')) {
+      context.handle(
+          _exceptionsJsonMeta,
+          exceptionsJson.isAcceptableOrUnknown(
+              data['exceptions_json']!, _exceptionsJsonMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -25206,6 +25219,8 @@ class $UserRhythmsTable extends memory_v3.UserRhythms
           .read(DriftSqlType.string, data['${effectivePrefix}origin'])!,
       confidence: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}confidence'])!,
+      exceptionsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}exceptions_json']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -25261,6 +25276,11 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
 
   /// 推断置信度 0.0-1.0。对话只提 1 次 → 0.3；提 3 次 → 0.7；数据验证 → 0.9。
   final double confidence;
+
+  /// 单次取消的日期列表，JSON 数组 ["2026-08-04", ...]，null = 无例外。
+  /// 用户说"今天这节课不上了"→ 追加当天日期；snapshot 当天跳过该节律，
+  /// 节律本身（rrule）不动。这是日历里的"删除单次事件"。
+  final String? exceptionsJson;
   final int createdAt;
   final int updatedAt;
   const UserRhythm(
@@ -25274,6 +25294,7 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
       required this.authority,
       required this.origin,
       required this.confidence,
+      this.exceptionsJson,
       required this.createdAt,
       required this.updatedAt});
   @override
@@ -25291,6 +25312,9 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
     map['authority'] = Variable<String>(authority);
     map['origin'] = Variable<String>(origin);
     map['confidence'] = Variable<double>(confidence);
+    if (!nullToAbsent || exceptionsJson != null) {
+      map['exceptions_json'] = Variable<String>(exceptionsJson);
+    }
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
     return map;
@@ -25310,6 +25334,9 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
       authority: Value(authority),
       origin: Value(origin),
       confidence: Value(confidence),
+      exceptionsJson: exceptionsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(exceptionsJson),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -25329,6 +25356,7 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
       authority: serializer.fromJson<String>(json['authority']),
       origin: serializer.fromJson<String>(json['origin']),
       confidence: serializer.fromJson<double>(json['confidence']),
+      exceptionsJson: serializer.fromJson<String?>(json['exceptionsJson']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
     );
@@ -25347,6 +25375,7 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
       'authority': serializer.toJson<String>(authority),
       'origin': serializer.toJson<String>(origin),
       'confidence': serializer.toJson<double>(confidence),
+      'exceptionsJson': serializer.toJson<String?>(exceptionsJson),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
     };
@@ -25363,6 +25392,7 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
           String? authority,
           String? origin,
           double? confidence,
+          Value<String?> exceptionsJson = const Value.absent(),
           int? createdAt,
           int? updatedAt}) =>
       UserRhythm(
@@ -25376,6 +25406,8 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
         authority: authority ?? this.authority,
         origin: origin ?? this.origin,
         confidence: confidence ?? this.confidence,
+        exceptionsJson:
+            exceptionsJson.present ? exceptionsJson.value : this.exceptionsJson,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
@@ -25394,6 +25426,9 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
       origin: data.origin.present ? data.origin.value : this.origin,
       confidence:
           data.confidence.present ? data.confidence.value : this.confidence,
+      exceptionsJson: data.exceptionsJson.present
+          ? data.exceptionsJson.value
+          : this.exceptionsJson,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -25412,6 +25447,7 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
           ..write('authority: $authority, ')
           ..write('origin: $origin, ')
           ..write('confidence: $confidence, ')
+          ..write('exceptionsJson: $exceptionsJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -25430,6 +25466,7 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
       authority,
       origin,
       confidence,
+      exceptionsJson,
       createdAt,
       updatedAt);
   @override
@@ -25446,6 +25483,7 @@ class UserRhythm extends DataClass implements Insertable<UserRhythm> {
           other.authority == this.authority &&
           other.origin == this.origin &&
           other.confidence == this.confidence &&
+          other.exceptionsJson == this.exceptionsJson &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -25461,6 +25499,7 @@ class UserRhythmsCompanion extends UpdateCompanion<UserRhythm> {
   final Value<String> authority;
   final Value<String> origin;
   final Value<double> confidence;
+  final Value<String?> exceptionsJson;
   final Value<int> createdAt;
   final Value<int> updatedAt;
   final Value<int> rowid;
@@ -25475,6 +25514,7 @@ class UserRhythmsCompanion extends UpdateCompanion<UserRhythm> {
     this.authority = const Value.absent(),
     this.origin = const Value.absent(),
     this.confidence = const Value.absent(),
+    this.exceptionsJson = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -25490,6 +25530,7 @@ class UserRhythmsCompanion extends UpdateCompanion<UserRhythm> {
     this.authority = const Value.absent(),
     this.origin = const Value.absent(),
     this.confidence = const Value.absent(),
+    this.exceptionsJson = const Value.absent(),
     required int createdAt,
     required int updatedAt,
     this.rowid = const Value.absent(),
@@ -25511,6 +25552,7 @@ class UserRhythmsCompanion extends UpdateCompanion<UserRhythm> {
     Expression<String>? authority,
     Expression<String>? origin,
     Expression<double>? confidence,
+    Expression<String>? exceptionsJson,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
     Expression<int>? rowid,
@@ -25526,6 +25568,7 @@ class UserRhythmsCompanion extends UpdateCompanion<UserRhythm> {
       if (authority != null) 'authority': authority,
       if (origin != null) 'origin': origin,
       if (confidence != null) 'confidence': confidence,
+      if (exceptionsJson != null) 'exceptions_json': exceptionsJson,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -25543,6 +25586,7 @@ class UserRhythmsCompanion extends UpdateCompanion<UserRhythm> {
       Value<String>? authority,
       Value<String>? origin,
       Value<double>? confidence,
+      Value<String?>? exceptionsJson,
       Value<int>? createdAt,
       Value<int>? updatedAt,
       Value<int>? rowid}) {
@@ -25557,6 +25601,7 @@ class UserRhythmsCompanion extends UpdateCompanion<UserRhythm> {
       authority: authority ?? this.authority,
       origin: origin ?? this.origin,
       confidence: confidence ?? this.confidence,
+      exceptionsJson: exceptionsJson ?? this.exceptionsJson,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -25596,6 +25641,9 @@ class UserRhythmsCompanion extends UpdateCompanion<UserRhythm> {
     if (confidence.present) {
       map['confidence'] = Variable<double>(confidence.value);
     }
+    if (exceptionsJson.present) {
+      map['exceptions_json'] = Variable<String>(exceptionsJson.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -25621,6 +25669,7 @@ class UserRhythmsCompanion extends UpdateCompanion<UserRhythm> {
           ..write('authority: $authority, ')
           ..write('origin: $origin, ')
           ..write('confidence: $confidence, ')
+          ..write('exceptionsJson: $exceptionsJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -45795,6 +45844,7 @@ typedef $$UserRhythmsTableCreateCompanionBuilder = UserRhythmsCompanion
   Value<String> authority,
   Value<String> origin,
   Value<double> confidence,
+  Value<String?> exceptionsJson,
   required int createdAt,
   required int updatedAt,
   Value<int> rowid,
@@ -45811,6 +45861,7 @@ typedef $$UserRhythmsTableUpdateCompanionBuilder = UserRhythmsCompanion
   Value<String> authority,
   Value<String> origin,
   Value<double> confidence,
+  Value<String?> exceptionsJson,
   Value<int> createdAt,
   Value<int> updatedAt,
   Value<int> rowid,
@@ -45854,6 +45905,10 @@ class $$UserRhythmsTableFilterComposer
 
   ColumnFilters<double> get confidence => $composableBuilder(
       column: $table.confidence, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get exceptionsJson => $composableBuilder(
+      column: $table.exceptionsJson,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -45901,6 +45956,10 @@ class $$UserRhythmsTableOrderingComposer
   ColumnOrderings<double> get confidence => $composableBuilder(
       column: $table.confidence, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get exceptionsJson => $composableBuilder(
+      column: $table.exceptionsJson,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -45947,6 +46006,9 @@ class $$UserRhythmsTableAnnotationComposer
   GeneratedColumn<double> get confidence => $composableBuilder(
       column: $table.confidence, builder: (column) => column);
 
+  GeneratedColumn<String> get exceptionsJson => $composableBuilder(
+      column: $table.exceptionsJson, builder: (column) => column);
+
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -45987,6 +46049,7 @@ class $$UserRhythmsTableTableManager extends RootTableManager<
             Value<String> authority = const Value.absent(),
             Value<String> origin = const Value.absent(),
             Value<double> confidence = const Value.absent(),
+            Value<String?> exceptionsJson = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<int> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -46002,6 +46065,7 @@ class $$UserRhythmsTableTableManager extends RootTableManager<
             authority: authority,
             origin: origin,
             confidence: confidence,
+            exceptionsJson: exceptionsJson,
             createdAt: createdAt,
             updatedAt: updatedAt,
             rowid: rowid,
@@ -46017,6 +46081,7 @@ class $$UserRhythmsTableTableManager extends RootTableManager<
             Value<String> authority = const Value.absent(),
             Value<String> origin = const Value.absent(),
             Value<double> confidence = const Value.absent(),
+            Value<String?> exceptionsJson = const Value.absent(),
             required int createdAt,
             required int updatedAt,
             Value<int> rowid = const Value.absent(),
@@ -46032,6 +46097,7 @@ class $$UserRhythmsTableTableManager extends RootTableManager<
             authority: authority,
             origin: origin,
             confidence: confidence,
+            exceptionsJson: exceptionsJson,
             createdAt: createdAt,
             updatedAt: updatedAt,
             rowid: rowid,

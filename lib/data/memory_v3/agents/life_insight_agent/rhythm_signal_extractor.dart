@@ -39,21 +39,45 @@ class RhythmSignalExtractor {
   }) async {
     if (!UserRhythmService.isInitialized) return 0;
 
-    // 1. Load recent chat messages
+    // 1. Load recent chat messages. Two windows:
+    //   - [messages] (wide): 7 days ∩ 2000 cap, used by lifecycle actions and
+    //     the deterministic layer. Heavy chatters can burn through 100
+    //     messages in a day, which pushed canonical routine declarations
+    //     ("7点下班", "周二五日10点到11点半上课") out of the old count-only
+    //     window before they were ever extracted. Regex scanning is cheap,
+    //     so the wide window is free.
+    //   - [llmMessages] (narrow): the same window capped at [messageLimit]
+    //     for the LLM layer, keeping prompt size/cost bounded.
+    // Timestamps are stored in seconds (drift dateTime() default).
+    final since = DateTime.now().subtract(const Duration(days: 7));
     final messages = await (db.select(db.personaChatMessages)
           ..where((t) =>
               t.characterId.equals(characterId) &
-              t.messageType.equals('chat'))
+              t.messageType.equals('chat') &
+              t.timestamp.isBiggerOrEqualValue(since))
           ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
-          ..limit(messageLimit))
+          ..limit(2000))
         .get();
 
     if (messages.isEmpty) return 0;
+    final llmMessages =
+        messages.length <= messageLimit ? messages : messages.sublist(0, messageLimit);
 
-    // 2. Deterministic extraction first — regex-based, no LLM. Covers the
+    // 2. Load existing rhythms once — shared by lifecycle actions, the
+    // freshness filter and the upsert dedup path below.
+    final existingRhythms =
+        await UserRhythmService.instance.getActiveRhythms();
+
+    // 3. Lifecycle actions first — terminations ("实习结束了") and one-off
+    //    cancellations ("今天这节课不上了"). Always applied regardless of
+    //    freshness: they are explicit user actions on existing rhythms.
+    await _applyLifecycleActions(messages, existingRhythms);
+
+    // 4. Deterministic extraction — regex-based, no LLM. Covers the
     // canonical routine phrasings reliably even when the configured model
     // is unavailable / rejects the payload (observed: 422 on large inputs).
-    final deterministicSignals = extractDeterministicSignals(messages);
+    final deterministicSignals =
+        extractDeterministicSignals(messages, existingRhythms);
     if (deterministicSignals.isNotEmpty) {
       final created = await _persistSignals(deterministicSignals);
       _logger.info('Rhythm deterministic extraction created/updated '
@@ -61,16 +85,17 @@ class RhythmSignalExtractor {
       return created;
     }
 
-    // 3. Load existing rhythms for dedup context (mutable — the upsert
-    // loop below replaces consumed entries so later signals in the same
-    // batch dedup against the freshly-updated state).
-    final existingRhythms =
-        await UserRhythmService.instance.getActiveRhythms();
-    final existingDescriptions =
-        existingRhythms.map((r) => '${r.kind}: ${r.description}').toList();
-
-    // 4. Build LLM prompt
-    final chatText = messages.reversed.map((m) {
+    // 5. Build LLM prompt — only messages newer than the newest rhythm
+    // update, so old statements can't resurrect stale values via the LLM.
+    final threshold = existingRhythms.isEmpty
+        ? 0
+        : existingRhythms
+            .map((r) => r.updatedAt)
+            .reduce((a, b) => a > b ? a : b);
+    final chatText = llmMessages.reversed
+        .where((m) => !m.isFromCharacter)
+        .where((m) => m.timestamp.millisecondsSinceEpoch > threshold)
+        .map((m) {
       final speaker = m.isFromCharacter ? 'I' : 'user';
       final ts = m.timestamp;
       final dateStr = '${ts.month}/${ts.day} ${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}';
@@ -78,7 +103,8 @@ class RhythmSignalExtractor {
     }).join('\n');
 
     final systemPrompt = _buildPrompt(
-      existingRhythms: existingDescriptions,
+      existingRhythms:
+          existingRhythms.map((r) => '${r.kind}: ${r.description}').toList(),
     );
 
     final mc = ModelConfig(
@@ -181,6 +207,135 @@ class RhythmSignalExtractor {
   }
 
   // ────────────────────────────────────────────────────────────────────
+  // Lifecycle actions — termination & one-off cancellation
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /// Test entry point for the lifecycle action scan (termination +
+  /// one-off cancellation). Production callers go through
+  /// [extractAndPersist]; tests use this directly to avoid needing an
+  /// LLM client.
+  static Future<void> applyLifecycleActionsForTest(
+          List<PersonaChatMessage> messages, List<UserRhythm> existing) =>
+      const RhythmSignalExtractor()._applyLifecycleActions(messages, existing);
+
+  /// Test entry point for [_resolveDayToken].
+  static String? resolveDayTokenForTest(String token, DateTime msgTime) =>
+      _resolveDayToken(token, msgTime);
+
+  /// Detect and apply rhythm lifecycle actions from user messages:
+  /// - **Termination** ("实习结束了"/"课上完了"/"离职了") → expireRhythm。
+  ///   行保留、validUntil=now：历史还在，但不再注入 snapshot。只在确实
+  ///   存在匹配的活跃节律时才执行——避免误杀。
+  /// - **One-off cancellation** ("今天这节课不上了"/"明天的课取消了") →
+  ///   addException(rhythmId, date)。节律本身不动，只是那天跳过。
+  ///
+  /// 歧义消解：日期词 + 取消标记 = 单次例外；"不上了/不干了"且无日期词
+  /// = 终止。日常"下班"永不触发终止（"班"前的"下"被排除）。
+  Future<void> _applyLifecycleActions(List<PersonaChatMessage> messages,
+      List<UserRhythm> existingRhythms) async {
+    final dayTokenRe = RegExp(
+        r'(今天|今日|明天|明日|后天|(?:这|下)?(?:周|星期|礼拜)[一二三四五六日天])');
+    final cancelMarkerRe =
+        RegExp(r'(不上|不去了|取消|停了|请假|调休|临时有事|没课|没班)');
+    final termRe = RegExp(
+        r'(课|实习|兼职|工作|班).{0,6}(?:结束了|上完了|结课了|完了|停了|不上了|不干了|离职了|辞职了)');
+
+    for (final m in messages) {
+      if (m.isFromCharacter) continue;
+      final text = m.content;
+      if (text.contains('?') || text.contains('？')) continue;
+
+      // 1) 单次取消：日期词 + 取消标记。
+      final dayMatch = dayTokenRe.firstMatch(text);
+      if (dayMatch != null && cancelMarkerRe.hasMatch(text)) {
+        final dateStr = _resolveDayToken(dayMatch.group(1)!, m.timestamp);
+        if (dateStr == null) continue;
+        final kind = _rhythmKindFromContext(text);
+        final candidates = existingRhythms
+            .where((r) => r.kind == kind && r.validUntil == null)
+            .toList();
+        if (candidates.isEmpty) continue;
+        // 多个候选（少见）：应用于最近更新的那个。
+        final target =
+            candidates.reduce((a, b) => a.updatedAt > b.updatedAt ? a : b);
+        if (UserRhythmService.parseExceptions(target.exceptionsJson)
+            .contains(dateStr)) {
+          continue; // idempotent
+        }
+        await UserRhythmService.instance.addException(target.id, dateStr);
+        _logger.info('Rhythm one-off cancellation applied: '
+            '${target.kind} "${target.description}" date=$dateStr');
+        continue;
+      }
+
+      // 2) 终止：结束表述 + 上下文词。
+      final termMatch = termRe.firstMatch(text);
+      if (termMatch == null) continue;
+      final ctx = termMatch.group(1)!;
+      if (ctx == '班' &&
+          termMatch.start > 0 &&
+          text[termMatch.start - 1] == '下') {
+        continue; // 下班 = 日常下班，不是终止
+      }
+      final kinds = ctx == '课'
+          ? {'class_schedule'}
+          : ctx == '班' || ctx == '实习' || ctx == '工作'
+              ? {'work_schedule'}
+              : {'work_schedule', 'class_schedule'}; // 兼职：两边都可能
+      var victims = existingRhythms
+          .where((r) => kinds.contains(r.kind) && r.validUntil == null)
+          .toList();
+      // 兼职类表述：优先只结束描述里提到同一上下文词的节律，避免
+      // "兼职结束了"误杀同类的另一个节律。
+      if (ctx == '兼职' && victims.length > 1) {
+        final described =
+            victims.where((r) => r.description.contains('兼职')).toList();
+        if (described.isNotEmpty) victims = described;
+      }
+      for (final v in victims) {
+        await UserRhythmService.instance.expireRhythm(v.id);
+        _logger.info('Rhythm terminated: ${v.kind} '
+            '"${v.description}" (user said it ended)');
+      }
+      if (victims.isNotEmpty) {
+        existingRhythms.removeWhere(victims.contains);
+      }
+    }
+  }
+
+  /// 取消上下文 → 节律 kind：含"课" → class，其余（班/上班/无上下文）→ work。
+  static String _rhythmKindFromContext(String text) {
+    if (text.contains('课')) return 'class_schedule';
+    return 'work_schedule';
+  }
+
+  /// 日期词 → yyyy-MM-dd，相对**消息时间**（不是提取时间——批处理是
+  /// 事后跑的）。"周三" = 从消息当天起的下一个周三（当天是周三就是
+  /// 当天）；"下周X" 永远跳到下周。
+  static String? _resolveDayToken(String token, DateTime msgTime) {
+    DateTime day;
+    if (token == '今天' || token == '今日') {
+      day = msgTime;
+    } else if (token == '明天' || token == '明日') {
+      day = msgTime.add(const Duration(days: 1));
+    } else if (token == '后天') {
+      day = msgTime.add(const Duration(days: 2));
+    } else {
+      final wdChar = token.substring(token.length - 1);
+      const isoMap = {
+        '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7,
+      };
+      final iso = isoMap[wdChar];
+      if (iso == null) return null;
+      var delta = iso - msgTime.weekday;
+      if (delta < 0) delta += 7;
+      if (token.contains('下') && delta < 7) delta += 7;
+      day = msgTime.add(Duration(days: delta));
+    }
+    return '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
   // Deterministic extraction layer (no LLM)
   // ────────────────────────────────────────────────────────────────────
 
@@ -238,26 +393,49 @@ class RhythmSignalExtractor {
   }
 
   /// Detect canonical routine statements in user messages via regex.
-  /// Returns at most one signal per kind (latest mention wins).
+  /// Returns at most one signal per kind; **newest mention wins** (messages
+  /// are expected newest-first, so the first match per kind is kept).
+  ///
+  /// **Freshness rule**: a statement older than the matched rhythm's
+  /// `updatedAt` is skipped — old statements can never override a newer
+  /// routine value. This is what makes routine *changes* trackable:
+  /// "从下周开始8点下班" wins over fifty older "七点才下班" complaints.
+  ///
   /// Patterns are tuned against the user's real phrasings:
   /// "七点才下班" / "我晚上七点才下班" /
   /// "周日周五周二晚上是 10:00 到 11:30（上网课/兼职）" /
   /// "我一般1点才睡".
   static List<RhythmSignal> extractDeterministicSignals(
-      List<PersonaChatMessage> messages) {
+      List<PersonaChatMessage> messages,
+      [List<UserRhythm> existingRhythms = const []]) {
     final results = <String, RhythmSignal>{};
+    // Newest updatedAt per kind — the freshness gate for that kind.
+    final kindUpdatedAt = <String, int>{};
+    for (final r in existingRhythms) {
+      final prev = kindUpdatedAt[r.kind];
+      if (prev == null || r.updatedAt > prev) kindUpdatedAt[r.kind] = r.updatedAt;
+    }
 
     // Only read what the USER stated, not the character's own utterances.
     for (final m in messages) {
       if (m.isFromCharacter) continue;
       final text = m.content;
 
+      bool freshFor(String kind) {
+        final ts = kindUpdatedAt[kind];
+        return ts == null || m.timestamp.millisecondsSinceEpoch > ts;
+      }
+
       // 1) work_schedule: "七点才下班" / "我晚上七点才下班" / "每天7点下班"。
       //    疑问句（"我几点下班？"）不算声明。
       final offWork = RegExp(
               r'(?:每天|每日)?(?:我)?(?:晚上|下午|傍晚)?([0-9一二两三四五六七八九十]+)[点時时:：](?:[0-9]{1,2}分?|半)?(?:才|就|左右)?下班')
           .firstMatch(text);
-      if (offWork != null && !text.contains('?') && !text.contains('？')) {
+      if (offWork != null &&
+          !text.contains('?') &&
+          !text.contains('？') &&
+          freshFor('work_schedule') &&
+          !results.containsKey('work_schedule')) {
         final parsed = _parseTimeToken('${offWork.group(1)}点');
         if (parsed != null) {
           var hour = parsed.$1;
@@ -284,12 +462,18 @@ class RhythmSignalExtractor {
           r'([0-9一二两三四五六七八九十]+[点時时:：]?(?:[0-9]{1,2}分?|半)?|\d{1,2}[:：]\d{2})');
       final daysMatch = daysRe.firstMatch(text);
       final rangeMatch = rangeRe.firstMatch(text);
-      final classContext =
-          RegExp(r'(上课|网课|兼职|教课|授课|学生的课)').hasMatch(text);
+      // 作息表句式（"周日周五周二晚上是 10:00 到 11:30"）无"课/兼职"
+      // 字，也算课程上下文——真实语料里这是紧随"我的兼职课是从8点半到
+      // 10点半"的补全句。
+      final classContext = RegExp(
+              r'(上课|网课|兼职|教课|授课|学生的课|晚上是|白天是|点是|时间)')
+          .hasMatch(text);
       if (daysMatch != null &&
           rangeMatch != null &&
           classContext &&
-          (daysMatch.start - rangeMatch.end).abs() <= 30) {
+          (daysMatch.start - rangeMatch.end).abs() <= 30 &&
+          freshFor('class_schedule') &&
+          !results.containsKey('class_schedule')) {
         final days = <String>{};
         for (final ch in daysMatch.group(1)!.split('')) {
           final mapped = _weekdayMap[ch];
@@ -328,7 +512,10 @@ class RhythmSignalExtractor {
           .firstMatch(text);
       final habitMarker =
           RegExp(r'(一般|通常|都|基本|平时|最近|每天|每日)').hasMatch(text);
-      if (sleep != null && habitMarker) {
+      if (sleep != null &&
+          habitMarker &&
+          freshFor('sleep_pattern') &&
+          !results.containsKey('sleep_pattern')) {
         final parsed = _parseTimeToken('${sleep.group(1)}点');
         if (parsed != null) {
           var hour = parsed.$1;

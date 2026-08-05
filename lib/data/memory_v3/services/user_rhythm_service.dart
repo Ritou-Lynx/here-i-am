@@ -87,13 +87,17 @@ class UserRhythmService {
       String? rrule,
       String? location,
       String? authority,
-      double? confidence}) async {
+      double? confidence,
+      String? exceptionsJson}) async {
     final companion = UserRhythmsCompanion(
       description: description != null ? Value(description) : const Value.absent(),
       rrule: rrule != null ? Value(rrule) : const Value.absent(),
       location: location != null ? Value(location) : const Value.absent(),
       authority: authority != null ? Value(authority) : const Value.absent(),
       confidence: confidence != null ? Value(confidence) : const Value.absent(),
+      exceptionsJson: exceptionsJson != null
+          ? Value(exceptionsJson)
+          : const Value.absent(),
       updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
     );
     await (_db.update(_db.userRhythms)
@@ -108,6 +112,38 @@ class UserRhythmService {
       validUntil: Value(DateTime.now().millisecondsSinceEpoch),
       updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
     ));
+  }
+
+  /// 追加一次单次取消（日历里的"删除单次事件"）。
+  /// [dateStr] 格式 yyyy-MM-dd。幂等：重复日期不会重复写入。
+  /// 节律本身（rrule）不动，只是 [dateStr] 当天 snapshot 不再展示该节律。
+  Future<void> addException(String id, String dateStr) async {
+    final rows = await (_db.select(_db.userRhythms)
+          ..where((t) => t.id.equals(id)))
+        .get();
+    if (rows.isEmpty) return;
+    final exceptions = parseExceptions(rows.first.exceptionsJson);
+    if (exceptions.contains(dateStr)) return;
+    exceptions.add(dateStr);
+    await updateRhythm(id, exceptionsJson: jsonEncode(exceptions));
+    _log.info('Rhythm exception added: $id date=$dateStr');
+  }
+
+  /// 解析 exceptionsJson → 日期列表（容错：空/坏 JSON 返回空列表）。
+  static List<String> parseExceptions(String? exceptionsJson) {
+    if (exceptionsJson == null || exceptionsJson.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(exceptionsJson);
+      if (decoded is List) return decoded.cast<String>();
+    } catch (_) {}
+    return [];
+  }
+
+  /// 该节律在 [day] 当天是否被单次取消。
+  static bool isExceptedOn(UserRhythm rhythm, DateTime day) {
+    final dateStr =
+        '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    return parseExceptions(rhythm.exceptionsJson).contains(dateStr);
   }
 
   // ──────────────────────────────────────────────────────────────────────
@@ -230,6 +266,8 @@ class UserRhythmService {
 
     final slots = <ActiveRhythmSlot>[];
     for (final r in rhythms) {
+      // 单次取消（"今天这节课不上了"）：当天跳过，节律本身仍在。
+      if (isExceptedOn(r, moment)) continue;
       final parsed = parseRrule(r.rrule);
       for (final slot in parsed) {
         if (slot.weekdays.contains(weekday)) {
@@ -292,6 +330,7 @@ class UserRhythmService {
 
       final lines = <String>['## User\'s Daily Rhythm (active today)'];
       for (final r in sleepRhythms) {
+        if (isExceptedOn(r, moment)) continue;
         final parsed = parseRrule(r.rrule);
         for (final slot in parsed) {
           final within = isWithinSlot(currentTimeStr, slot);
@@ -301,7 +340,7 @@ class UserRhythmService {
               '${within ? ' — ⚠️ user likely sleeping right now' : ''}');
         }
       }
-      return lines.join('\n');
+      return lines.length > 1 ? lines.join('\n') : '';
     }
 
     final lines = <String>['## User\'s Daily Rhythm (active today)'];
@@ -327,6 +366,7 @@ class UserRhythmService {
     // 检查睡眠状态
     final sleepRhythms = await getActiveRhythmsByKind('sleep_pattern');
     for (final r in sleepRhythms) {
+      if (isExceptedOn(r, moment)) continue;
       final parsed = parseRrule(r.rrule);
       for (final slot in parsed) {
         if (isWithinSlot(currentTimeStr, slot)) {

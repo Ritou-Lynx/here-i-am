@@ -183,6 +183,48 @@ void main() {
           now: DateTime(2026, 8, 4, 17, 0));
       expect(section, isEmpty);
     });
+
+    test('one-off exception hides the rhythm for that date only', () async {
+      final service = await seedUserRoutines();
+      // Cancel Tuesday's class once: "今天这节课不上了".
+      final classRhythm = (await service.getActiveRhythmsByKind(
+              'class_schedule'))
+          .first;
+      await service.addException(classRhythm.id, '2026-08-04');
+      // Idempotent: adding the same date again stays a single entry.
+      await service.addException(classRhythm.id, '2026-08-04');
+      expect(
+          UserRhythmService.parseExceptions(
+              (await service.getActiveRhythmsByKind('class_schedule'))
+                  .first
+                  .exceptionsJson),
+          hasLength(1));
+
+      final tuesdayNight = DateTime(2026, 8, 4, 22, 10);
+      final section = await service.buildSnapshotSection(now: tuesdayNight);
+      expect(section, isNot(contains('兼职中文网课')),
+          reason: 'cancelled date must not be injected');
+      expect(section, isNot(contains('ongoing')));
+
+      // Friday the class is back — exception is per-date, not per-rhythm.
+      final fridayNight = DateTime(2026, 8, 7, 22, 10);
+      final fridaySection =
+          await service.buildSnapshotSection(now: fridayNight);
+      expect(fridaySection, contains('兼职中文网课'));
+      expect(fridaySection, contains('ongoing'));
+    });
+
+    test('expired rhythm is never injected (termination)', () async {
+      final service = await seedUserRoutines();
+      final work =
+          (await service.getActiveRhythmsByKind('work_schedule')).first;
+      await service.expireRhythm(work.id);
+
+      final section = await service.buildSnapshotSection(
+          now: DateTime(2026, 8, 5, 17, 0));
+      expect(section, isNot(contains('实习上班')),
+          reason: '"实习结束了" must stop injection entirely');
+    });
   }, skip: !fts5Available ? 'FTS5 unavailable on this platform' : null);
 }
 

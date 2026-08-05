@@ -147,7 +147,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 51;
+  int get schemaVersion => 52;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -730,6 +730,13 @@ class AppDatabase extends _$AppDatabase {
               "WHERE primary_entity_id NOT IN ("
               "SELECT id FROM memory_entities"
               ")",
+            );
+          }
+          if (from < 52) {
+            // user_rhythms.exceptions_json — one-off cancellations
+            // ("今天这节课不上了"), JSON array of yyyy-MM-dd dates.
+            await _addColumnIfMissing(
+              'user_rhythms ADD COLUMN exceptions_json TEXT',
             );
           }
         },
