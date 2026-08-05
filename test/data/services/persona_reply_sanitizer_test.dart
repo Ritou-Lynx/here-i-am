@@ -156,7 +156,7 @@ void main() {
       expect(bubbles, ['First.', 'Second. Third.']);
     });
 
-    test('spokenTextOnly removes action and leaked thinking blocks', () {
+    test('spokenTextOnly narrates action and removes leaked thinking blocks', () {
       const source = '''
 <thinking>The user is upset. I should comfort them.</thinking>
 *she leans closer and lowers her voice*
@@ -165,15 +165,15 @@ I am here.
 
       final spoken = PersonaReplySanitizer.spokenTextOnly(source);
 
-      expect(spoken, 'I am here.');
+      expect(spoken, 'she leans closer and lowers her voice\nI am here.');
     });
 
-    test('spokenTextOnly returns empty for action-only text', () {
+    test('spokenTextOnly narrates action-only text without asterisks', () {
       const source = '*she nods quietly*';
 
       final spoken = PersonaReplySanitizer.spokenTextOnly(source);
 
-      expect(spoken, isEmpty);
+      expect(spoken, 'she nods quietly');
     });
 
     test('strips English response planning leaked as visible text', () {

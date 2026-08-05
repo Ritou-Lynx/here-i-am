@@ -156,6 +156,10 @@ class PersonaReplySanitizer {
     return _mergeAdjacent(segments);
   }
 
+  /// Returns text suitable for TTS, keeping both spoken dialogue and
+  /// action / inner-monologue segments so the voice also narrates stage
+  /// directions (e.g. `*轻轻笑了笑*` is read aloud as `轻轻笑了笑`).
+  /// Italic markers (`*`/`_`) wrapping action segments are stripped.
   static String spokenTextOnly(
     String text, {
     String? characterName,
@@ -169,12 +173,21 @@ class PersonaReplySanitizer {
     if (segments.isEmpty) {
       var raw = stripLeakedReasoning(text).trim();
       if (stripTtsTags) raw = PersonaReplySanitizer.stripTtsTags(raw);
-      return raw;
+      return _stripEmphasisMarkers(raw);
     }
     return segments
-        .where((segment) => segment.type == PersonaReplySegmentType.chat)
-        .map((segment) => segment.text)
+        .map((segment) => segment.type == PersonaReplySegmentType.action
+            ? _stripEmphasisMarkers(segment.text)
+            : segment.text)
         .join('\n')
+        .trim();
+  }
+
+  /// Remove Markdown emphasis wrappers (`*`/`_`) so TTS engines do not
+  /// synthesize literal asterisks. Inline markers are removed too.
+  static String _stripEmphasisMarkers(String text) {
+    return text
+        .replaceAll(RegExp(r'\*{1,3}|_{1,3}'), '')
         .trim();
   }
 
