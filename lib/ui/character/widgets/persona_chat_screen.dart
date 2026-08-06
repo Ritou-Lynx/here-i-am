@@ -2371,6 +2371,13 @@ only after you have written the goodbye you want the user to hear.''',
             _streamingTtsSession = null;
             final playingId = _playingMessageId;
             final reqSerial = _ttsRequestSerial;
+            // Advance the auto-read watermark past the just-saved character
+            // message. The streaming TTS session already played this reply
+            // aloud; without advancing the watermark, _handleTtsPlaybackCompleted
+            // → _autoReadNextMessageIfAny would find the just-saved message
+            // still "unread" and re-play it through the non-streaming
+            // _audioPlayer — producing a delayed echo (two overlapping voices).
+            _advanceAutoReadWatermark(updated);
             unawaited(ttsSession.finishAndWait().then((_) {
               if (mounted && playingId != null) {
                 _handleTtsPlaybackCompleted(reqSerial, playingId);
@@ -4366,6 +4373,8 @@ only after you have written the goodbye you want the user to hear.''',
           await _stopTtsPlayback();
           return;
         }
+        // Ensure the player plays the whole file and doesn't loop.
+        await _audioPlayer.setReleaseMode(ReleaseMode.stop);
         _audioCompleteSub?.cancel();
         _audioCompleteSub = _audioPlayer.onPlayerComplete.listen((_) {
           _handleTtsPlaybackCompleted(requestSerial, messageId);

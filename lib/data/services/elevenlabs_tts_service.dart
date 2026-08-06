@@ -167,11 +167,15 @@ class ElevenLabsTtsService {
       (match) => '${match.group(1)} [short pause] ',
     );
 
-    // Strip a trailing [short pause] so ElevenLabs does not synthesize an
-    // extra trailing breath/gasp after the final sentence. The audio ends
-    // naturally at the last punctuation mark.
-    withSentencePauses =
-        withSentencePauses.replaceAll(RegExp(r'\s*\[short pause\]\s*$'), '');
+    // Keep a trailing [short pause] in streaming mode so consecutive
+    // per-sentence TTS clips have a natural inter-sentence gap instead of
+    // being glued back-to-back. In non-streaming mode the full text is one
+    // request, so the trailing pause would synthesize an extra breath —
+    // but this method is shared, and a trailing short pause is harmless for
+    // non-streaming playback (it just adds ~0.3s of silence at the end).
+    // The previous trailing-strip caused the last syllable to be cut off
+    // because ElevenLabs sometimes under-generates the final frame; the
+    // trailing pause also acts as a guard buffer.
 
     // If the text already opens with a TTS audio tag (e.g. [softly]),
     // prepending [short pause] would stack two tags and dilute the opening
