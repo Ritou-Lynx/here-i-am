@@ -39,6 +39,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/data/services/event_bus_service.dart';
+import 'package:memex/data/services/intimacy_profile_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
@@ -2883,6 +2884,7 @@ only after you have written the goodbye you want the user to hear.''',
     required String userText,
     required DateTime userMessageTime,
   }) async {
+    final userId = _userId ?? await UserStorage.getUserId();
     await _chatService.addUserMessage(
       characterId,
       userText,
@@ -2893,6 +2895,10 @@ only after you have written the goodbye you want the user to hear.''',
       AgentDefinitions.companionAgent,
       defaultClientKey: LLMConfig.defaultClientKey,
     );
+    // 亲密档案（全局单一份）：她的强度语法/硬边界 → 规划器。
+    // 缺失时回退默认（用户首版）。
+    final profile = await IntimacyProfileService().load(userId);
+    final profileText = profile.buildProfileText();
     // 约 10 分钟语音的初值；按需求 §5 从目标时长倒推，后续磨合。
     const totalMessages = 30;
     IntimateScenePlan? plan;
@@ -2902,6 +2908,7 @@ only after you have written the goodbye you want the user to hear.''',
         modelConfig: resources.modelConfig,
         userText: userText,
         totalMessages: totalMessages,
+        profileText: profileText,
       );
     } catch (e) {
       debugPrint('IntimateScenePlanner failed: $e');
