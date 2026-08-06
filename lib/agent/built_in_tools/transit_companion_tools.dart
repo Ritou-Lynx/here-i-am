@@ -33,8 +33,10 @@ for the city first. If the user says "home" or "company", resolve that from
 memory first when possible; otherwise ask a short clarification.
 
 After this tool succeeds, tell the user the first leg, the key transfer/get-off
-station, and that you will ask them where they are later. Do not say you know
-their live location unless they explicitly report it.''',
+station, and that you will check in on their progress. Call `GetCurrentLocation`
+when you need to know where they are along the route; only if it is unavailable
+should you ask them directly. Do not say you know their live location unless
+they explicitly report it or `GetCurrentLocation` returns a fresh result.''',
     parameters: {
       'type': 'object',
       'properties': {

@@ -16,6 +16,7 @@ import 'package:memex/data/services/companion_foreground_task.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/services/morning_weather_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/data/services/sqlite_retry.dart';
 import 'package:memex/db/app_database.dart';
@@ -922,6 +923,13 @@ Future<void> alarmCheckinCallback(int alarmId) async {
       debugPrint('AlarmCheckin: next alarm scheduled');
     } catch (e) {
       debugPrint('AlarmCheckin: failed to reschedule alarm: $e');
+    }
+    // Reconcile the morning weather checkpoint so tomorrow's wake-up trigger
+    // is armed even if the app is never reopened. Cheap when already scheduled.
+    try {
+      await MorningWeatherService.instance.refreshSchedule();
+    } catch (e) {
+      debugPrint('AlarmCheckin: failed to refresh morning weather: $e');
     }
   }
 }

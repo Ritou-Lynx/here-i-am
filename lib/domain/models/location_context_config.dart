@@ -199,7 +199,14 @@ class CurrentLocationContext {
 
   String? toAgentSystemReminderContent() {
     if (isFresh && address == null) {
-      return null;
+      return '''current_location_context:
+- status: fresh
+- source: $source
+- latitude: ${latitude?.toStringAsFixed(6) ?? 'unknown'}
+- longitude: ${longitude?.toStringAsFixed(6) ?? 'unknown'}
+- updated_at: ${updatedAt.toIso8601String()}
+- note: Device GPS obtained but reverse geocode could not resolve an address (${reason ?? 'geocoding unavailable'}). Call `GetCurrentLocation` with force_refresh=true if you need a retry; otherwise ask the user a short question only if a place name is required.
+instruction: The user's coordinates are available but no place name was resolved. Do not invent a city, district, or venue. If a place name is needed, call `GetCurrentLocation` first, then ask the user only if that also fails.''';
     }
     return toSystemReminderContent();
   }

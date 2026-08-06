@@ -7,6 +7,7 @@ import 'package:yaml/yaml.dart';
 
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/proactive_outing_service.dart';
+import 'package:memex/data/services/weather_risk_service.dart';
 import 'package:memex/data/memory_v3/services/life_insight_service.dart';
 import 'package:memex/data/memory_v3/services/user_rhythm_service.dart';
 import 'package:memex/data/memory_v3/services/growth_pact_service.dart';
@@ -78,6 +79,20 @@ class RecentActivitySnapshot {
       }
     } catch (e) {
       _logger.warning('Failed to load upcoming outings: $e');
+    }
+
+    // --- Morning weather & clothing (pre-fetched so the LLM doesn't have to) ---
+    // Only fire in the morning window so we don't spam the weather API all day.
+    if (now.hour >= 6 && now.hour < 11) {
+      try {
+        final weatherSection = await _buildMorningWeatherSection(now: now);
+        if (weatherSection.isNotEmpty) {
+          parts.add('');
+          parts.add(weatherSection);
+        }
+      } catch (e) {
+        _logger.warning('Failed to load morning weather: $e');
+      }
     }
 
     // --- Last chat activity ---
@@ -349,6 +364,76 @@ class RecentActivitySnapshot {
     } catch (_) {
       return 'No record.';
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Morning weather & clothing (pre-fetched for the checkin snapshot)
+  // ---------------------------------------------------------------------------
+
+  /// Pre-fetch weather for the morning checkin snapshot so the companion agent
+  /// gets clothing/umbrella context without having to call the weather tool
+  /// itself (which it often skips on a plain `checkin` trigger).
+  ///
+  /// Returns an empty string when weather is unavailable (no Amap key, location
+  /// disabled, etc.) — the agent will just not see a weather block, which is
+  /// better than a misleading "weather unavailable" wall of text.
+  static Future<String> _buildMorningWeatherSection({
+    required DateTime now,
+  }) async {
+    final result =
+        await WeatherRiskService.instance.assessOutingRisk(now: now);
+    if (!result.success) {
+      _logger.info('Morning weather prefetch skipped: ${result.message}');
+      return '';
+    }
+
+    final lines = <String>[
+      '## Morning Weather & Clothing',
+      'City: ${result.city ?? 'unknown'}',
+      'Report time: ${result.reportTime != null ? _fmtTime(result.reportTime!) : _fmtTime(now)}',
+    ];
+
+    final risks = result.risks;
+    if (risks != null) {
+      final flags = <String>[
+        if (risks.bringUmbrella) 'umbrella',
+        if (risks.eveningRainRisk) 'evening rain',
+        if (risks.temperatureDropRisk) 'temp drop',
+        if (risks.windRisk) 'wind',
+        if (risks.heatRisk) 'heat',
+        if (risks.coldRisk) 'cold',
+        if (risks.longWalkExposureRisk) 'long walk exposure',
+      ];
+      lines.add('Risk flags: ${flags.isEmpty ? 'none' : flags.join(', ')}');
+      if (risks.reasons.isNotEmpty) {
+        lines.add('Reasons:');
+        for (final r in risks.reasons.take(4)) {
+          lines.add('- $r');
+        }
+      }
+      if (risks.suggestions.isNotEmpty) {
+        lines.add('Suggestions:');
+        for (final s in risks.suggestions.take(4)) {
+          lines.add('- $s');
+        }
+      }
+    }
+
+    final today = result.casts.isNotEmpty ? result.casts.first : null;
+    if (today != null) {
+      lines.add(
+        'Today: ${today.dayWeather}/${today.nightWeather}, '
+        '${today.dayTempC ?? '?'}C / ${today.nightTempC ?? '?'}C',
+      );
+    }
+
+    lines.add(
+      'instruction: This is pre-fetched morning weather. Use it to give the '
+      'user a short, natural clothing/umbrella heads-up when they are likely '
+      'heading out. Do not recite the full forecast. Keep it to one or two '
+      'sentences unless the weather is genuinely severe.',
+    );
+    return lines.join('\n');
   }
 
   // ---------------------------------------------------------------------------

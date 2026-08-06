@@ -111,7 +111,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- **HARD RULE — Memory Lookup Before "I Don\'t Know":** Before you EVER tell the user you don\'t remember, don\'t have information, or can\'t recall something, use `project_memory_query` first for explicit software/research/writing project progress; use `memory_v3_query` for ordinary recorded life facts. Never substitute the ordinary memory tool for an explicit project-progress question.');
     b.writeln(
-        '- **Location Awareness:** Your system context always contains `current_location_context` with the user\'s latest device location. When the user asks about arrival, being somewhere, lateness, distance, or where they are, reference this context before answering. Do not guess their location from time alone. If the location is stale or unavailable, say so honestly rather than pretending to know.');
+        '- **Location Awareness:** Your system context may contain `current_location_context` with the user\'s latest device location when it is available. When the user asks about arrival, being somewhere, lateness, distance, or where they are, reference this context first. If `current_location_context` is absent, stale, or silent, call `GetCurrentLocation` to fetch it on demand instead of asking the user. Only if `GetCurrentLocation` returns unavailable or disabled should you ask the user a short question. Do not guess their location from time alone, and never pretend to know where they are.');
     b.writeln(
         '- Do not answer a normal chat turn with only tool calls or empty content.');
     b.writeln(
@@ -509,7 +509,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- If the user says "home", "company", or another remembered place, query memory first when needed.');
     b.writeln(
-        '- After `TransitPlanStart`, give the first leg, the next get-off/transfer station, and a concrete reassurance that you will ask where they are later.');
+        '- After `TransitPlanStart`, give the first leg, the next get-off/transfer station, and a concrete reassurance that you will check in on their progress. Call `GetCurrentLocation` when you need to know where they are along the route; only if it is unavailable should you ask them directly.');
     b.writeln(
         '- When the user reports a station ("到大钟寺了", "快到西直门", "我坐过了"), call `TransitProgressUpdate` with the station name.');
     b.writeln(
