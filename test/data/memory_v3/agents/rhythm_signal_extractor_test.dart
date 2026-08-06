@@ -348,6 +348,89 @@ void main() {
       expect(UserRhythmService.parseExceptions(cls.exceptionsJson),
           hasLength(1));
     });
+
+    // ── 真机误判回归（2026-08-06 事故：work_schedule 被误加“今天”例外，
+    //    林埃在上班时段问“下班了没”）──
+
+    test('routine phrasing "周四周六的班级…请假了" adds no exception',
+        () async {
+      final (workId, classId) = await seedWorkAndClass();
+      final rhythms = await UserRhythmService(db: db).getActiveRhythms();
+      await RhythmSignalExtractor.applyLifecycleActionsForTest([
+        userMsgAt('请假了，我先把周四周六的班级的作业改了，然后我去晒衣服，'
+            '然后我收拾房间洗碗然后才能睡觉', DateTime(2026, 8, 2, 21, 47)),
+      ], rhythms);
+      final work = (await UserRhythmService(db: db).getActiveRhythms())
+          .firstWhere((r) => r.id == workId);
+      final cls = (await UserRhythmService(db: db).getActiveRhythms())
+          .firstWhere((r) => r.id == classId);
+      expect(UserRhythmService.parseExceptions(work.exceptionsJson), isEmpty,
+          reason: 'routine 班次描述不能变成单日取消');
+      expect(UserRhythmService.parseExceptions(cls.exceptionsJson), isEmpty);
+    });
+
+    test('weather "雨已经停了…待在家里" adds no exception', () async {
+      final (workId, _) = await seedWorkAndClass();
+      final rhythms = await UserRhythmService(db: db).getActiveRhythms();
+      await RhythmSignalExtractor.applyLifecycleActionsForTest([
+        userMsgAt('这是封起来的啦，别担心，而且雨已经停了，今天下午下大雨来着，'
+            '但是我今天一天都待在家里，所以就还好', DateTime(2026, 8, 2, 20, 34)),
+      ], rhythms);
+      final work = (await UserRhythmService(db: db).getActiveRhythms())
+          .firstWhere((r) => r.id == workId);
+      expect(UserRhythmService.parseExceptions(work.exceptionsJson), isEmpty,
+          reason: '"停了"不是取消词');
+    });
+
+    test('"我明天请假" adds a work exception for tomorrow', () async {
+      final (workId, classId) = await seedWorkAndClass();
+      final rhythms = await UserRhythmService(db: db).getActiveRhythms();
+      await RhythmSignalExtractor.applyLifecycleActionsForTest([
+        userMsgAt('我明天请假，在家休息', DateTime(2026, 8, 5, 20, 0)),
+      ], rhythms);
+      final work = (await UserRhythmService(db: db).getActiveRhythms())
+          .firstWhere((r) => r.id == workId);
+      expect(UserRhythmService.parseExceptions(work.exceptionsJson),
+          contains('2026-08-06'));
+      final cls = (await UserRhythmService(db: db).getActiveRhythms())
+          .firstWhere((r) => r.id == classId);
+      expect(UserRhythmService.parseExceptions(cls.exceptionsJson), isEmpty);
+    });
+
+    test('"今天的课学生请假了，不用上了" still adds class exception',
+        () async {
+      final (workId, classId) = await seedWorkAndClass();
+      final rhythms = await UserRhythmService(db: db).getActiveRhythms();
+      await RhythmSignalExtractor.applyLifecycleActionsForTest([
+        userMsgAt('今天的课学生请假了，不用上了，可以早睡哦',
+            DateTime(2026, 8, 4, 22, 29)),
+      ], rhythms);
+      final cls = (await UserRhythmService(db: db).getActiveRhythms())
+          .firstWhere((r) => r.id == classId);
+      expect(UserRhythmService.parseExceptions(cls.exceptionsJson),
+          contains('2026-08-04'),
+          reason: '强标记"不用上了"优先，学生请假语境仍算取消');
+      final work = (await UserRhythmService(db: db).getActiveRhythms())
+          .firstWhere((r) => r.id == workId);
+      expect(UserRhythmService.parseExceptions(work.exceptionsJson), isEmpty);
+    });
+
+    test('self-heal: stale "today" exception without a matching declaration '
+        'is removed', () async {
+      final (workId, _) = await seedWorkAndClass();
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
+          '${now.day.toString().padLeft(2, '0')}';
+      await UserRhythmService(db: db).addException(workId, todayStr);
+
+      // 窗口内没有任何“今天取消”声明 → 例外应被自愈清除。
+      await RhythmSignalExtractor.applyLifecycleActionsForTest(
+          [], await UserRhythmService(db: db).getActiveRhythms());
+      final work = (await UserRhythmService(db: db).getActiveRhythms())
+          .firstWhere((r) => r.id == workId);
+      expect(UserRhythmService.parseExceptions(work.exceptionsJson), isEmpty,
+          reason: '没有取消声明的“今天”例外是历史误判，必须撤销');
+    });
   }, skip: !fts5Available ? 'FTS5 unavailable on this platform' : null);
 }
 

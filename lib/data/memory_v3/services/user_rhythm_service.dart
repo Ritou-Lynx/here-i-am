@@ -129,6 +129,23 @@ class UserRhythmService {
     _log.info('Rhythm exception added: $id date=$dateStr');
   }
 
+  /// 移除一次单次取消（自愈用：当天没有取消声明时撤销误加的例外）。
+  /// 幂等：日期不存在时无操作。
+  Future<void> removeException(String id, String dateStr) async {
+    final rows = await (_db.select(_db.userRhythms)
+          ..where((t) => t.id.equals(id)))
+        .get();
+    if (rows.isEmpty) return;
+    final exceptions = parseExceptions(rows.first.exceptionsJson);
+    if (!exceptions.contains(dateStr)) return;
+    exceptions.remove(dateStr);
+    await updateRhythm(
+      id,
+      exceptionsJson: exceptions.isEmpty ? '[]' : jsonEncode(exceptions),
+    );
+    _log.info('Rhythm exception removed: $id date=$dateStr');
+  }
+
   /// 解析 exceptionsJson → 日期列表（容错：空/坏 JSON 返回空列表）。
   static List<String> parseExceptions(String? exceptionsJson) {
     if (exceptionsJson == null || exceptionsJson.isEmpty) return [];

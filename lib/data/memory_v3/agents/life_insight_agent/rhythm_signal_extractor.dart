@@ -235,10 +235,24 @@ class RhythmSignalExtractor {
       List<UserRhythm> existingRhythms) async {
     final dayTokenRe = RegExp(
         r'(今天|今日|明天|明日|后天|(?:这|下)?(?:周|星期|礼拜)[一二三四五六日天])');
-    final cancelMarkerRe =
-        RegExp(r'(不上|不去了|取消|停了|请假|调休|临时有事|没课|没班)');
+    // 强标记：明确的取消表述。弱标记：请假/调休，需要用户主语且不是 routine
+    // 描述才生效（真机误判："请假了，我先把周四周六的班级的作业改了"把
+    // "周四"解析成下个周四、把 routine 班次当单日取消；"雨已经停了"把
+    // 天气"停了"当取消词——“停了”已从强标记移除）。
+    final strongCancelRe =
+        RegExp(r'(不上|不去了|取消了|不用上|停课|没课|没班)');
+    final weakCancelRe = RegExp(r'(请假|调休|临时有事)');
+    // 两个及以上周X日期词 = routine 班次描述（"周四周六的班级"），不是单日。
+    final weekdayTokenRe = RegExp(r'(?:周|星期|礼拜)[一二三四五六日天]');
     final termRe = RegExp(
         r'(课|实习|兼职|工作|班).{0,6}(?:结束了|上完了|结课了|完了|停了|不上了|不干了|离职了|辞职了)');
+
+    // 自愈：本次扫描确认过“今天有取消声明”的 rhythm；其余带“今天”例外的
+    // rhythm 视为历史误判，撤销——防止昨天的误判影响今天的 snapshot。
+    final today = DateTime.now();
+    final todayStr =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final todayCancelled = <String>{};
 
     for (final m in messages) {
       if (m.isFromCharacter) continue;
@@ -247,25 +261,41 @@ class RhythmSignalExtractor {
 
       // 1) 单次取消：日期词 + 取消标记。
       final dayMatch = dayTokenRe.firstMatch(text);
-      if (dayMatch != null && cancelMarkerRe.hasMatch(text)) {
-        final dateStr = _resolveDayToken(dayMatch.group(1)!, m.timestamp);
-        if (dateStr == null) continue;
-        final kind = _rhythmKindFromContext(text);
-        final candidates = existingRhythms
-            .where((r) => r.kind == kind && r.validUntil == null)
-            .toList();
-        if (candidates.isEmpty) continue;
-        // 多个候选（少见）：应用于最近更新的那个。
-        final target =
-            candidates.reduce((a, b) => a.updatedAt > b.updatedAt ? a : b);
-        if (UserRhythmService.parseExceptions(target.exceptionsJson)
-            .contains(dateStr)) {
-          continue; // idempotent
+      if (dayMatch != null) {
+        final strong = strongCancelRe.hasMatch(text);
+        final weak = weakCancelRe.hasMatch(text);
+        if (strong || weak) {
+          final routinePhrasing =
+              weekdayTokenRe.allMatches(text).length >= 2;
+          // 弱标记（请假/调休）：要求用户主语“我”、不是“学生请假”、
+          // 且不是 routine 班次描述。
+          final weakOk = weak &&
+              !routinePhrasing &&
+              text.contains('我') &&
+              !text.contains('学生');
+          final strongOk = strong && !routinePhrasing;
+          if (strongOk || weakOk) {
+            final dateStr = _resolveDayToken(dayMatch.group(1)!, m.timestamp);
+            if (dateStr == null) continue;
+            final kind = _rhythmKindFromContext(text);
+            final candidates = existingRhythms
+                .where((r) => r.kind == kind && r.validUntil == null)
+                .toList();
+            if (candidates.isEmpty) continue;
+            // 多个候选（少见）：应用于最近更新的那个。
+            final target =
+                candidates.reduce((a, b) => a.updatedAt > b.updatedAt ? a : b);
+            if (UserRhythmService.parseExceptions(target.exceptionsJson)
+                .contains(dateStr)) {
+              continue; // idempotent
+            }
+            await UserRhythmService.instance.addException(target.id, dateStr);
+            if (dateStr == todayStr) todayCancelled.add(target.id);
+            _logger.info('Rhythm one-off cancellation applied: '
+                '${target.kind} "${target.description}" date=$dateStr');
+            continue;
+          }
         }
-        await UserRhythmService.instance.addException(target.id, dateStr);
-        _logger.info('Rhythm one-off cancellation applied: '
-            '${target.kind} "${target.description}" date=$dateStr');
-        continue;
       }
 
       // 2) 终止：结束表述 + 上下文词。
@@ -277,7 +307,12 @@ class RhythmSignalExtractor {
           text[termMatch.start - 1] == '下') {
         continue; // 下班 = 日常下班，不是终止
       }
-      final kinds = ctx == '课'
+      // "班级结束了"：上下文词是"班"，但"班"后紧跟"级"= 班级语境 → class。
+      final classCtx = ctx == '课' ||
+          (ctx == '班' &&
+              termMatch.start + 1 < text.length &&
+              text[termMatch.start + 1] == '级');
+      final kinds = classCtx
           ? {'class_schedule'}
           : ctx == '班' || ctx == '实习' || ctx == '工作'
               ? {'work_schedule'}
@@ -300,6 +335,17 @@ class RhythmSignalExtractor {
       if (victims.isNotEmpty) {
         existingRhythms.removeWhere(victims.contains);
       }
+    }
+
+    // 3) 自愈：已有“今天”例外但没有对应取消声明 → 撤销。
+    //    误判来源如“周四周六的班级…请假了”把 routine 班次解析成单日。
+    for (final r in existingRhythms) {
+      if (r.validUntil != null) continue;
+      if (!UserRhythmService.isExceptedOn(r, DateTime.now())) continue;
+      if (todayCancelled.contains(r.id)) continue;
+      await UserRhythmService.instance.removeException(r.id, todayStr);
+      _logger.info('Rhythm exception self-healed (no cancellation today): '
+          '${r.kind} "${r.description}" date=$todayStr');
     }
   }
 
