@@ -17,6 +17,8 @@ import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
 import 'package:memex/agent/built_in_tools/continuous_reply_tool.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
+import 'package:memex/agent/companion_agent/intimate_scene_planner.dart';
+import 'package:memex/agent/companion_agent/intimate_scene_state.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/asr/asr_config.dart';
 import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
@@ -332,6 +334,7 @@ class _PendingBatch {
     required this.drafts,
     List<int>? persistedMessageIds,
     this.isContinuous = false,
+    this.sceneDirective,
   }) : persistedMessageIds = persistedMessageIds ?? <int>[];
 
   final String characterId;
@@ -343,6 +346,10 @@ class _PendingBatch {
   /// something the user typed. Drives the continuous-mode system reminder and
   /// keeps the synthetic sentinel out of the visible message list.
   final bool isContinuous;
+
+  /// Per-turn intimate-scene directive (current beat), injected into the
+  /// model's context via `CompanionAgent.chat(sceneDirective:)`.
+  final String? sceneDirective;
 }
 
 class _VoiceModeOpening {
@@ -1718,6 +1725,7 @@ only after you have written the goodbye you want the user to hear.''',
     _devRunPollTimer?.cancel();
     _continuousTimer?.cancel();
     ContinuousModeState.instance.cancel();
+    IntimateSceneState.instance.end();
     _hideRememberedNotice();
     _audioPlayer.dispose();
     _voiceController.dispose();
@@ -1954,6 +1962,7 @@ only after you have written the goodbye you want the user to hear.''',
     _PendingPersonaChatMessage? queuedMessage,
     String? syntheticInput,
     bool isContinuous = false,
+    String? sceneDirective,
   }) async {
     final isQueuedMessage = queuedMessage != null;
     final isSynthetic = syntheticInput != null;
@@ -1969,6 +1978,34 @@ only after you have written the goodbye you want the user to hear.''',
         queuedMessage?.characterId ?? forcedCharacterId ?? _currentCharacterId;
     final sendCharacter = queuedMessage?.character ??
         (forcedCharacterId == null ? _character : forcedCharacter);
+    final userMessageTime = queuedMessage?.timestamp ?? DateTime.now();
+
+    // 亲密场景开场：确定性触发词 → 规划器产出节拍 → 启动连续 run。
+    // 必须是真实用户消息（非 synthetic/队列），且当前没有同角色场景在进行。
+    if (!isSynthetic &&
+        !isQueuedMessage &&
+        !IntimateSceneState.instance.isActiveFor(sendCharacterId) &&
+        IntimateScenePhrases.matchesStart(text)) {
+      await _startIntimateScene(
+        characterId: sendCharacterId,
+        character: sendCharacter,
+        userText: textToSend,
+        userMessageTime: userMessageTime,
+      );
+      return;
+    }
+
+    // 场景进行中：真实用户消息是故事材料（不接管）。高潮信号 → 转 aftercare。
+    if (!isSynthetic &&
+        !isQueuedMessage &&
+        IntimateSceneState.instance.isActiveFor(sendCharacterId) &&
+        IntimateScenePhrases.matchesOrgasm(text)) {
+      IntimateSceneState.instance.enterAftercare();
+      // 延长 run，让 aftercare 持续到她说停或睡着。
+      ContinuousModeState.instance
+          .startRun(characterId: sendCharacterId, count: 25);
+      if (mounted) setState(() {});
+    }
 
     // While the character is still typing, queue the message; it will be sent
     // automatically when the current response finishes streaming.
@@ -2025,8 +2062,6 @@ only after you have written the goodbye you want the user to hear.''',
     try {
       await _stopTtsPlayback();
 
-      final userMessageTime = queuedMessage?.timestamp ?? DateTime.now();
-
       // Compress images for chat bubble display and DB storage.
       List<Map<String, String>>? compressedAttachments;
       if (hasImages && !isQueuedMessage) {
@@ -2061,6 +2096,7 @@ only after you have written the goodbye you want the user to hear.''',
         ],
         persistedMessageIds: isSynthetic ? const [] : [userMessageId],
         isContinuous: isContinuous,
+        sceneDirective: sceneDirective,
       );
 
       await _runBatchSend(batch, primaryMessageId: userMessageId);
@@ -2100,8 +2136,10 @@ only after you have written the goodbye you want the user to hear.''',
     final isMulti = drafts.length > 1;
 
     // A real user turn (not a system-driven continuous turn) ends any active
-    // continuous run — the user has taken over the conversation.
-    if (!batch.isContinuous) {
+    // continuous run — the user has taken over the conversation. Exception:
+    // mid-scene the user's messages are story material, not takeovers.
+    if (!batch.isContinuous &&
+        !IntimateSceneState.instance.isActiveFor(sendCharacterId)) {
       _continuousTimer?.cancel();
       ContinuousModeState.instance.stopRun();
     }
@@ -2312,6 +2350,7 @@ only after you have written the goodbye you want the user to hear.''',
         debugErrorOutput: true,
         voiceMode: _isInlineVoiceMode,
         continuousModeInput: batch.isContinuous,
+        sceneDirective: batch.sceneDirective,
         toyControlService: toyControlService,
         extraTools: _isInlineVoiceMode ? [_buildEndVoiceModeTool()] : const [],
         turnImageAnalyses: perDraftAnalysis
@@ -2789,8 +2828,25 @@ only after you have written the goodbye you want the user to hear.''',
       if (mounted) setState(() {});
     }
     if (_pendingBatches.isNotEmpty) return;
-    if (!ContinuousModeState.instance.isActiveFor(_currentCharacterId)) return;
-    if (!ContinuousModeState.instance.tick(_currentCharacterId)) return;
+    if (!ContinuousModeState.instance.isActiveFor(_currentCharacterId)) {
+      // run 结束（条数耗尽或已停止）→ 若正在场景中，一并结束场景。
+      if (IntimateSceneState.instance.isActiveFor(_currentCharacterId)) {
+        IntimateSceneState.instance.end();
+        if (mounted) setState(() {});
+      }
+      return;
+    }
+    if (IntimateSceneState.instance.isActiveFor(_currentCharacterId)) {
+      IntimateSceneState.instance.turnCompleted();
+    }
+    if (!ContinuousModeState.instance.tick(_currentCharacterId)) {
+      // 最后一条已经发完：场景随 run 一起收束。
+      if (IntimateSceneState.instance.isActiveFor(_currentCharacterId)) {
+        IntimateSceneState.instance.end();
+        if (mounted) setState(() {});
+      }
+      return;
+    }
     _scheduleNextContinuousTick();
   }
 
@@ -2807,11 +2863,62 @@ only after you have written the goodbye you want the user to hear.''',
         _scheduleNextContinuousTick();
         return;
       }
+      final sceneDirective =
+          IntimateSceneState.instance.isActiveFor(_currentCharacterId)
+              ? IntimateSceneState.instance.currentDirective()
+              : null;
       unawaited(_sendMessage(
         syntheticInput: kContinuousAdvanceSentinel,
         isContinuous: true,
+        sceneDirective: sceneDirective,
       ));
     });
+  }
+
+  /// 亲密场景开场：持久化触发消息 → 规划器产出节拍表 → 启动连续 run。
+  /// 规划失败时降级为单 beat 平铺 run，不让开场卡死。
+  Future<void> _startIntimateScene({
+    required String characterId,
+    required CharacterModel? character,
+    required String userText,
+    required DateTime userMessageTime,
+  }) async {
+    await _chatService.addUserMessage(
+      characterId,
+      userText,
+      timestamp: userMessageTime,
+      appendTimeline: false,
+    );
+    final resources = await UserStorage.getAgentLLMResources(
+      AgentDefinitions.companionAgent,
+      defaultClientKey: LLMConfig.defaultClientKey,
+    );
+    // 约 10 分钟语音的初值；按需求 §5 从目标时长倒推，后续磨合。
+    const totalMessages = 30;
+    IntimateScenePlan? plan;
+    try {
+      plan = await IntimateScenePlanner.plan(
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+        userText: userText,
+        totalMessages: totalMessages,
+      );
+    } catch (e) {
+      debugPrint('IntimateScenePlanner failed: $e');
+    }
+    plan ??= const IntimateScenePlan(beats: [
+      IntimateSceneBeat(
+        intent: '推进场景',
+        targetMessageCount: 30,
+        notes: '维持激烈高位，变化推进，不要收束',
+        escalationLevel: 4,
+      ),
+    ]);
+    IntimateSceneState.instance.start(characterId: characterId, plan: plan);
+    ContinuousModeState.instance
+        .startRun(characterId: characterId, count: plan.totalMessages);
+    if (mounted) setState(() {});
+    _scheduleNextContinuousTick();
   }
 
   /// Visible affordance shown while a continuous run is active.
@@ -2847,6 +2954,7 @@ only after you have written the goodbye you want the user to hear.''',
   void _stopContinuousMode() {
     _continuousTimer?.cancel();
     ContinuousModeState.instance.stopRun();
+    IntimateSceneState.instance.end();
     if (mounted) setState(() {});
   }
 

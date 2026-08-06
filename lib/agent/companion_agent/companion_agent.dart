@@ -1088,6 +1088,7 @@ class CompanionAgent {
       } catch (_) {}
     }
     final isProactiveOuting = triggerContext?['kind'] == 'proactive_outing';
+    final isMorningWeather = triggerContext?['kind'] == 'morning_weather';
     buf.writeln('SYSTEM DIRECTIVE (background task, single turn):');
     buf.writeln();
     buf.writeln('## Why you were woken up');
@@ -1108,6 +1109,15 @@ class CompanionAgent {
         buf.writeln(
             'Outdoor walking estimate: ${triggerContext?['walking_minutes']} minutes');
       }
+    } else if (trigger.triggerType == 'reminder' && isMorningWeather) {
+      buf.writeln(
+          'This is a MORNING WEATHER CHECKPOINT. It was scheduled from the '
+          'user\'s inferred wake-up time (sleep_pattern rhythm). The user is '
+          'likely about to start their day and head out soon. It is not a '
+          'user-set reminder, so you may stay silent if there is no useful '
+          'weather action.');
+      buf.writeln('Checkpoint: ${trigger.body}');
+      buf.writeln('Wake time: ${triggerContext?['wake_time'] ?? 'unknown'}');
     } else if (trigger.triggerType == 'reminder') {
       buf.writeln(
           'This is a USER-SET REMINDER. The user explicitly asked to be '
@@ -1177,6 +1187,13 @@ class CompanionAgent {
           '`WeatherOutingRiskCheck` once before deciding. If configuration or '
           'location is unavailable, do not send a generic weather guess. Only '
           'notify when the saved plan itself still supports a useful reminder.');
+    }
+    if (isMorningWeather) {
+      buf.writeln('  For this morning weather checkpoint, call '
+          '`WeatherOutingRiskCheck` once before deciding. If configuration or '
+          'location is unavailable, do not send a generic weather guess. Only '
+          'notify with a concrete clothing/umbrella heads-up the user can act '
+          'on right now.');
     }
     buf.writeln();
     buf.writeln('If it\'s not relevant right now, skip it and go straight '
@@ -1326,6 +1343,7 @@ class CompanionAgent {
     bool debugErrorOutput = false,
     bool voiceMode = false,
     bool continuousModeInput = false,
+    String? sceneDirective,
     ToyController? toyControlService,
     List<Tool> extraTools = const [],
     List<String>? turnImageAnalyses,
@@ -1418,6 +1436,11 @@ class CompanionAgent {
             '- If the user asks to hang up/end the call, or you naturally '
             'decide to end the voice conversation, say a brief spoken goodbye '
             'and call `end_voice_mode` in the same turn.';
+      }
+
+      if (sceneDirective != null && sceneDirective.trim().isNotEmpty) {
+        state.systemReminders['scene_directive'] =
+            '## 场景节拍（导演指令）\n$sceneDirective';
       }
 
       if (continuousModeInput) {
