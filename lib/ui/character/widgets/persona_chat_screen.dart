@@ -14,6 +14,7 @@ import 'package:memex/ui/settings/widgets/task_model_assignment_page.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
+import 'package:memex/agent/built_in_tools/continuous_reply_tool.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/repositories/memex_router.dart';
@@ -330,12 +331,18 @@ class _PendingBatch {
     required this.character,
     required this.drafts,
     List<int>? persistedMessageIds,
+    this.isContinuous = false,
   }) : persistedMessageIds = persistedMessageIds ?? <int>[];
 
   final String characterId;
   final CharacterModel? character;
   final List<_ComposeDraft> drafts;
   final List<int> persistedMessageIds;
+
+  /// True when this batch is a system-driven continuous-mode turn rather than
+  /// something the user typed. Drives the continuous-mode system reminder and
+  /// keeps the synthetic sentinel out of the visible message list.
+  final bool isContinuous;
 }
 
 class _VoiceModeOpening {
@@ -380,6 +387,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   // ends. Single-message sends also use this queue (one draft per batch) so
   // the cancel/retract logic stays uniform.
   final List<_PendingBatch> _pendingBatches = [];
+
+  // Continuous mode: schedules the next system-driven turn after a reply
+  // finishes. Held so it can be canceled on stop / character switch / dispose.
+  Timer? _continuousTimer;
 
   // Compose mode: user has long-pressed the send button and subsequent taps
   // stage drafts instead of sending immediately. Exits after a batch send.
@@ -1705,6 +1716,8 @@ only after you have written the goodbye you want the user to hear.''',
     _streamingTtsSession?.cancel();
     _messageRefreshTimer?.cancel();
     _devRunPollTimer?.cancel();
+    _continuousTimer?.cancel();
+    ContinuousModeState.instance.cancel();
     _hideRememberedNotice();
     _audioPlayer.dispose();
     _voiceController.dispose();
@@ -1940,6 +1953,7 @@ only after you have written the goodbye you want the user to hear.''',
     CharacterModel? forcedCharacter,
     _PendingPersonaChatMessage? queuedMessage,
     String? syntheticInput,
+    bool isContinuous = false,
   }) async {
     final isQueuedMessage = queuedMessage != null;
     final isSynthetic = syntheticInput != null;
@@ -2046,6 +2060,7 @@ only after you have written the goodbye you want the user to hear.''',
           ),
         ],
         persistedMessageIds: isSynthetic ? const [] : [userMessageId],
+        isContinuous: isContinuous,
       );
 
       await _runBatchSend(batch, primaryMessageId: userMessageId);
@@ -2083,6 +2098,13 @@ only after you have written the goodbye you want the user to hear.''',
     final sendCharacter = batch.character;
     final drafts = batch.drafts;
     final isMulti = drafts.length > 1;
+
+    // A real user turn (not a system-driven continuous turn) ends any active
+    // continuous run — the user has taken over the conversation.
+    if (!batch.isContinuous) {
+      _continuousTimer?.cancel();
+      ContinuousModeState.instance.stopRun();
+    }
 
     final sendSerial = ++_sendSerial;
     _activeSendSerial = sendSerial;
@@ -2289,8 +2311,13 @@ only after you have written the goodbye you want the user to hear.''',
         userMessageTime: drafts.first.timestamp,
         debugErrorOutput: true,
         voiceMode: _isInlineVoiceMode,
+        continuousModeInput: batch.isContinuous,
         toyControlService: toyControlService,
         extraTools: _isInlineVoiceMode ? [_buildEndVoiceModeTool()] : const [],
+        turnImageAnalyses: perDraftAnalysis
+            .whereType<String>()
+            .where((s) => s.trim().isNotEmpty)
+            .toList(),
       )) {
         if (_isSendCanceled(sendSerial, primaryMessageId)) {
           break;
@@ -2404,6 +2431,7 @@ only after you have written the goodbye you want the user to hear.''',
           );
         }
         _sendPendingMessage();
+        _maybeAdvanceContinuousMode();
         // Fire-and-forget lightweight dreaming tick after each reply.
         if (AppDatabase.isInitialized) {
           unawaited(DreamingSchedulerService.triggerLightweightTickStatic(
@@ -2412,6 +2440,10 @@ only after you have written the goodbye you want the user to hear.''',
         }
       }
     } on CompanionApiException catch (e) {
+      // A failed turn ends any active continuous run cleanly (no zombie
+      // "still narrating" state with nothing driving it).
+      _continuousTimer?.cancel();
+      ContinuousModeState.instance.stopRun();
       unawaited(ttsSession?.cancel());
       _streamingTtsSession = null;
       if (_isInlineVoiceMode && _voiceController.isStreaming) {
@@ -2742,6 +2774,80 @@ only after you have written the goodbye you want the user to hear.''',
     if (_pendingBatches.isEmpty) return;
     final batch = _pendingBatches.removeAt(0);
     unawaited(_sendBatch(batch));
+  }
+
+  /// Continuous-mode driver: called after a reply finishes streaming. Starts a
+  /// run when the agent requested one during this turn, then schedules the next
+  /// synthetic turn until the run drains or the user stops it.
+  void _maybeAdvanceContinuousMode() {
+    final pending = ContinuousModeState.instance.consumePending();
+    if (pending != null) {
+      ContinuousModeState.instance.startRun(
+        characterId: _currentCharacterId,
+        count: pending,
+      );
+      if (mounted) setState(() {});
+    }
+    if (_pendingBatches.isNotEmpty) return;
+    if (!ContinuousModeState.instance.isActiveFor(_currentCharacterId)) return;
+    if (!ContinuousModeState.instance.tick(_currentCharacterId)) return;
+    _scheduleNextContinuousTick();
+  }
+
+  /// (Re)schedules the next synthetic continuous turn without consuming a tick.
+  /// Defer-and-retry while a concurrent turn is streaming.
+  void _scheduleNextContinuousTick() {
+    _continuousTimer?.cancel();
+    _continuousTimer = Timer(ContinuousModeState.interTurnDelay, () {
+      if (!mounted ||
+          !ContinuousModeState.instance.isActiveFor(_currentCharacterId)) {
+        return;
+      }
+      if (_isStreaming) {
+        _scheduleNextContinuousTick();
+        return;
+      }
+      unawaited(_sendMessage(
+        syntheticInput: kContinuousAdvanceSentinel,
+        isContinuous: true,
+      ));
+    });
+  }
+
+  /// Visible affordance shown while a continuous run is active.
+  Widget _buildContinuousModeStopChip() {
+    final remaining = ContinuousModeState.instance.remaining;
+    return Material(
+      color: Colors.black54,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: _stopContinuousMode,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.stop_circle_outlined, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                _chatUiText(
+                  zh: '连续叙述中 · 剩余 $remaining 条 · 点按停止',
+                  en: 'Narrating… $remaining left · tap to stop',
+                ),
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _stopContinuousMode() {
+    _continuousTimer?.cancel();
+    ContinuousModeState.instance.stopRun();
+    if (mounted) setState(() {});
   }
 
   // 鈹€鈹€ Image selection management 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
@@ -4490,6 +4596,14 @@ only after you have written the goodbye you want the user to hear.''',
                     right: 0,
                     bottom: jumpToLatestBottom,
                     child: _buildJumpToLatestPill(),
+                  ),
+                if (ContinuousModeState.instance
+                    .isActiveFor(_currentCharacterId))
+                  Positioned(
+                    top: mediaQuery.padding.top + 108,
+                    left: 0,
+                    right: 0,
+                    child: Center(child: _buildContinuousModeStopChip()),
                   ),
                 Positioned(
                   left: 0,

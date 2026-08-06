@@ -10,6 +10,7 @@ import 'package:memex/agent/built_in_tools/delegate_task_tool.dart';
 import 'package:memex/agent/built_in_tools/dev_session_tool.dart';
 import 'package:memex/agent/built_in_tools/device_app_blocker_tool.dart';
 import 'package:memex/agent/built_in_tools/file_tools.dart';
+import 'package:memex/agent/built_in_tools/get_current_location_tool.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/built_in_tools/mobility_route_tool.dart';
 import 'package:memex/agent/built_in_tools/phone_usage_tool.dart';
@@ -19,6 +20,7 @@ import 'package:memex/agent/built_in_tools/transit_companion_tools.dart';
 import 'package:memex/agent/built_in_tools/weather_risk_tool.dart';
 import 'package:memex/agent/built_in_tools/web_search_tool.dart';
 import 'package:memex/agent/built_in_tools/generate_image_tool.dart';
+import 'package:memex/agent/built_in_tools/memory_v3_delete_card_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_query_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_update_card_tool.dart';
 import 'package:memex/agent/built_in_tools/project_memory_query_tool.dart';
@@ -55,6 +57,7 @@ class CharacterToolsFactory {
     bool includeCheckinTools = false,
     ToyController? toyControlService,
     InitiateCallPolicy? initiateCallPolicy,
+    List<String>? turnImageAnalyses,
   }) {
     final actionFactory = ActionMessageToolFactory(characterId: characterId);
     final financeService = AiFinanceService(db: AppDatabase.instance);
@@ -104,6 +107,7 @@ class CharacterToolsFactory {
         remoteTaskService: remoteTaskService,
       ),
       buildDeviceAppBlockerTool(),
+      buildGetCurrentLocationTool(),
       buildWeatherOutingRiskTool(),
       buildNearbyPlaceSearchTool(),
       buildMobilityRoutePlanTool(),
@@ -114,9 +118,11 @@ class CharacterToolsFactory {
       tools.add(buildToyControlTool(service: toyControlService));
     }
     if (RecordOrganizerServiceV3.isInitialized) {
-      tools.add(_buildLifeMemoryCaptureTool());
+      tools.add(_buildLifeMemoryCaptureTool(
+          turnImageAnalyses: turnImageAnalyses));
       tools.add(buildMemoryV3QueryTool());
       tools.add(buildMemoryV3UpdateCardTool());
+      tools.add(buildMemoryV3DeleteCardTool());
       tools.add(buildProjectMemoryQueryTool());
     }
     if (AppDatabase.isInitialized) {
@@ -188,14 +194,32 @@ class CharacterToolsFactory {
   /// V3 tool: Agent calls this when user explicitly asks to record something.
   /// The tool passes raw text to [RecordOrganizerServiceV3.organizeAndPersist]
   /// which handles structuring via its own LLM pass.
-  static Tool _buildLifeMemoryCaptureTool() {
+  ///
+  /// [turnImageAnalyses] is the list of image-analysis texts from the current
+  /// turn's attachments. When non-empty, they are appended to the LLM-supplied
+  /// `text` as an `[Image analysis: ...]` block so the downstream Record
+  /// Organizer can see exactly what was in the image — without relying on the
+  /// companion LLM to faithfully transcribe it into the `text` parameter.
+  static Tool _buildLifeMemoryCaptureTool({
+    List<String>? turnImageAnalyses,
+  }) {
     return Tool(
       name: 'LifeMemoryCapture',
       description:
           'Save a user-confirmed fact/event as a User-truth Memory Card. '
           'ONLY call when the user explicitly asks to record/save/remember. '
           'Phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、'
-          '"加到记录里"、"记住这个"、"帮我记账".',
+          '"加到记录里"、"记住这个"、"帮我记账".\n'
+          '\n'
+          'CRITICAL — NO FABRICATION:\n'
+          'The `text` field must contain ONLY what the user actually said or '
+          'what is visible in an image they attached. Never infer, guess, or '
+          'add details the user did not provide. If the user said "买了安睡裤 '
+          '8.5元" and attached a screenshot, you may include facts visible in '
+          'the screenshot (merchant name, product name, price). But you MUST '
+          'NOT invent product names, store names, or amounts that are neither '
+          'in the user\'s words nor in an attached image. When unsure whether '
+          'a detail is from the user or your own inference, omit it.',
       parameters: {
         'type': 'object',
         'properties': {
@@ -203,10 +227,15 @@ class CharacterToolsFactory {
             'type': 'string',
             'description':
                 'A self-contained Chinese description of what to record. '
-                'You MUST synthesize all relevant context from recent conversation '
-                'into this field so the downstream organizer needs no extra history. '
-                'Example: if the user said "今天跟小红吃了火锅" then "花了128" then '
-                '"帮我记一下", pass "今天跟小红吃了火锅，花了128元".',
+                'Include ONLY facts the user stated or that are visible in an '
+                'attached image. Do NOT synthesize, infer, or fabricate. '
+                'If you saw an [Image analysis: ...] block in this turn, you '
+                'may include facts from it, but keep them factual — do not '
+                'embellish. Example: user said "帮我记一下" with an attached '
+                'receipt screenshot showing "关东煮 5元, 茶叶蛋 4元" → pass '
+                '"早上买早餐：关东煮5元，茶叶蛋4元，共9元". '
+                'NEVER pass "惠邻百佳超市" or a product brand the user did not '
+                'say unless it is literally visible in the attached image.',
           },
         },
         'required': ['text'],
@@ -218,6 +247,15 @@ class CharacterToolsFactory {
           if (text == null || text.trim().isEmpty) {
             return jsonEncode({'success': false, 'error': 'empty text'});
           }
+          var rawInput = text;
+          if (turnImageAnalyses != null && turnImageAnalyses.isNotEmpty) {
+            final analysisBlock = turnImageAnalyses
+                .where((a) => a.trim().isNotEmpty)
+                .join(' | ');
+            if (analysisBlock.isNotEmpty) {
+              rawInput = '$text\n[图片内容：$analysisBlock]';
+            }
+          }
           final resources = await UserStorage.getAgentLLMResources(
             AgentDefinitions.recordOrganizerAgent,
             defaultClientKey: LLMConfig.defaultClientKey,
@@ -228,7 +266,7 @@ class CharacterToolsFactory {
             modelConfig: resources.modelConfig,
             source: RecordSource(
               sourceKind: 'chat_message',
-              rawInput: text,
+              rawInput: rawInput,
             ),
           );
           return jsonEncode({

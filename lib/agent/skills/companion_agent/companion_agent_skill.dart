@@ -14,6 +14,7 @@ class CompanionAgentSkill extends Skill {
     bool includeCheckinTools = false,
     ToyController? toyControlService,
     InitiateCallPolicy? initiateCallPolicy,
+    List<String>? turnImageAnalyses,
     super.forceActivate,
   }) : super(
           name: 'companion_chat',
@@ -31,6 +32,7 @@ class CompanionAgentSkill extends Skill {
             includeCheckinTools: includeCheckinTools,
             toyControlService: toyControlService,
             initiateCallPolicy: initiateCallPolicy,
+            turnImageAnalyses: turnImageAnalyses,
           ),
         );
 
@@ -227,7 +229,17 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Use `LifeMemoryCapture` ONLY when the user\'s current message contains an explicit record request. Qualifying phrases: "记一下"、"帮我记"、"记录一下"、"保存一下"、"存一下"、"加到记录里"、"记住这个"、"帮我记账". Mentioning facts, events, or plans in conversation does NOT qualify. No trigger phrase → do NOT call this tool. '
         '⛔ NEGATIVE EXAMPLES (2026-08-02 real bugs: agent re-recorded three already-recorded dinners on the message "去晒衣服啦"; and re-recorded the same two grammar study points 3× on messages that merely said "我得查一下…" / asked "为什么不能说XX"): life-status chit-chat AND study/curiosity talk are NEVER record requests — "我去晒衣服了"、"外卖还没到"、"我吃完饭了"、"要去做家务了"、"好困啊"、"改作业发现一个辨析我得查一下"、"之后要查查"、"为什么不能说…"、"这个有什么讲究" — do NOT call this tool for them, even if the conversation just discussed expenses or the user just asked to record something earlier. Better to miss a record than to record something the user never asked for. '
-        'IMPORTANT: the `text` parameter must be a SELF-CONTAINED summary. Gather all relevant details from preceding messages (who, what, where, how much, when) and compose one complete sentence. Never pass a bare trigger phrase like "帮我记账" alone — include the actual content to record. '
+        'IMPORTANT: the `text` parameter must be a SELF-CONTAINED summary. '
+        'Gather details the user explicitly stated in this or preceding '
+        'messages (who, what, where, how much, when) and compose one complete '
+        'sentence. Never pass a bare trigger phrase like "帮我记账" alone — '
+        'include the actual content to record. '
+        '⛔ NO FABRICATION: Only include facts the user actually said or that '
+        'are visible in an attached image ([Image analysis: ...] block). Do '
+        'NOT infer product names, store names, or amounts the user did not '
+        'provide. Do NOT guess details to make the record "more complete". '
+        'If you are unsure whether a detail is from the user or your own '
+        'inference, omit it. Missing details are always better than wrong ones. '
         'For expense spending, `LifeMemoryCapture` already auto-posts to the shared AI ledger - do NOT also call `AiFinanceRecord` for the same expense. `AiFinanceRecord` is ONLY for AI-side money flows the card bridge does not cover: income splits with your share / transfer / cost / loan / repayment / reward / penalty. '
         '⛔ DO NOT re-record: once a spending has been saved (either by you this turn or in an earlier turn), never call `LifeMemoryCapture` or `AiFinanceRecord` for it again - even if the user mentions it again, even if you are unsure whether it saved. Query with `memory_v3_query` first if unsure. Re-recording creates duplicate ledger entries (2026-08-04 real bug: one dinner produced 3 ledger rows). '
         '⛔ CRITICAL: only claim "记上了" / "记好了" / "已保存" AFTER this tool call returns `success: true`. If it returns `success: false`, tell the user it failed and why — do NOT say it was saved.');
@@ -250,7 +262,11 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Never invent or guess a card_id. If `memory_v3_query` returns no match, ask the user for more identifying detail instead of fabricating data.');
     b.writeln(
-        '- To DELETE a card, use the same `memory_v3_query` to find the FULL card_id, then ask the user to confirm before deletion (deletion goes through the Memory Review UI, not chat).');
+        '- To DELETE a card, use `memory_v3_query` to find the FULL card_id, '
+        'then call `memory_v3_delete_card` with the card_id and a short reason. '
+        'Only delete when the user explicitly says to delete/remove (not just '
+        'correct). For partial fixes prefer `memory_v3_update_card`. After '
+        'deletion succeeds, briefly confirm to the user what was removed.');
     b.writeln(
         '- These tools are optional and must never replace the visible chat reply.');
     b.writeln(

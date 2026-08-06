@@ -454,7 +454,15 @@ class CompanionAgent {
     String characterId,
     DateTime now, {
     int? currentUserMessageId,
+    bool continuousModeInput = false,
   }) async {
+    if (continuousModeInput) {
+      // 连续叙述的合成轮次不该触发"隔了多久没说话"的提示：真实用户消息停在
+      // 场景开头，间隔会随轮次增长而失真。连续模式下节奏由 continuous_mode
+      // reminder 主导。
+      state.systemReminders.remove('time_gap_context');
+      return;
+    }
     if (!AppDatabase.isInitialized) return;
     try {
       final db = AppDatabase.instance;
@@ -487,8 +495,9 @@ class CompanionAgent {
     AgentState state,
     String characterId,
     String userMessage,
-    DateTime now,
-  ) async {
+    DateTime now, {
+    bool continuousModeInput = false,
+  }) async {
     if (!AppDatabase.isInitialized) return;
     try {
       final db = AppDatabase.instance;
@@ -507,7 +516,12 @@ class CompanionAgent {
         }
       }
       final reminder = result.reminder;
-      if (reminder == null) {
+      if (continuousModeInput) {
+        // 连续叙述时，哄睡 reminder 的"短、柔、一两句/不要讲长故事"指令与
+        // 持续讲述冲突。状态机照常更新（她确实说了要睡），但 prompt 指令
+        // 交给 continuous_mode reminder，否则模型会一边想收尾一边被要求继续。
+        state.systemReminders.remove('sleep_companion');
+      } else if (reminder == null) {
         state.systemReminders.remove('sleep_companion');
       } else {
         state.systemReminders['sleep_companion'] = reminder;
@@ -570,6 +584,7 @@ class CompanionAgent {
     ToyController? toyControlService,
     Future<String?> Function()? initiateCallPolicy,
     List<Tool> extraTools = const [],
+    List<String>? turnImageAnalyses,
   }) async {
     final character =
         await CharacterService.instance.getCharacter(userId, characterId);
@@ -599,6 +614,7 @@ class CompanionAgent {
       toyControlService: toyControlService,
       initiateCallPolicy: initiateCallPolicy,
       forceActivate: true,
+      turnImageAnalyses: turnImageAnalyses,
     );
 
     state.systemReminders.remove('character_world');
@@ -1312,6 +1328,7 @@ class CompanionAgent {
     bool continuousModeInput = false,
     ToyController? toyControlService,
     List<Tool> extraTools = const [],
+    List<String>? turnImageAnalyses,
   }) async* {
     final agent = await _createAgent(
       client: client,
@@ -1327,6 +1344,7 @@ class CompanionAgent {
       forceNewSession: true,
       toyControlService: toyControlService,
       extraTools: extraTools,
+      turnImageAnalyses: turnImageAnalyses,
     );
     if (agent == null) {
       yield 'Sorry, character not found.';
@@ -1376,6 +1394,7 @@ class CompanionAgent {
         characterId,
         userMessageTime ?? DateTime.now(),
         currentUserMessageId: userMessageId,
+        continuousModeInput: continuousModeInput,
       );
 
       // 哄睡/守夜状态：检测入睡/醒来短语，按间隔分档注入轻柔规则。
@@ -1384,6 +1403,7 @@ class CompanionAgent {
         characterId,
         userMessage,
         userMessageTime ?? DateTime.now(),
+        continuousModeInput: continuousModeInput,
       );
 
       if (voiceMode) {
