@@ -3829,7 +3829,22 @@ only after you have written the goodbye you want the user to hear.''',
       ),
       actionLabel: _chatUiText(zh: '重新编辑', en: 'Edit'),
       onAction: () {
-        _textController.text = message.content;
+        // The retract toast restores the original sent text into the composer.
+        // The stale guard is still armed with that same sent text (the message
+        // we just retracted was the most recent send), so a plain assignment
+        // would trip `_clearComposerIfStaleText` and wipe the field. Disarm the
+        // guard and use the programmatic-clear flag to suppress the listener,
+        // mirroring `_setComposerTextEmpty`.
+        _composerStaleGuard.disarm();
+        _isProgrammaticComposerClear = true;
+        try {
+          _textController.text = message.content;
+          _textController.selection = TextSelection.collapsed(
+            offset: message.content.length,
+          );
+        } finally {
+          _isProgrammaticComposerClear = false;
+        }
         _composerFocus.requestFocus();
       },
     );
