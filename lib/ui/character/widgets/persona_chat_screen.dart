@@ -1990,7 +1990,7 @@ only after you have written the goodbye you want the user to hear.''',
       await _startIntimateScene(
         characterId: sendCharacterId,
         character: sendCharacter,
-        userText: textToSend,
+        userText: text,
         userMessageTime: userMessageTime,
       );
       return;
@@ -2897,7 +2897,9 @@ only after you have written the goodbye you want the user to hear.''',
     );
     // 亲密档案（全局单一份）：她的强度语法/硬边界 → 规划器。
     // 缺失时回退默认（用户首版）。
-    final profile = await IntimacyProfileService().load(userId);
+    final profile = userId == null
+        ? IntimacyProfile.defaultProfile()
+        : await IntimacyProfileService().load(userId);
     final profileText = profile.buildProfileText();
     // 约 10 分钟语音的初值；按需求 §5 从目标时长倒推，后续磨合。
     const totalMessages = 30;
