@@ -54,6 +54,9 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
   List<DreamingRecallLogEntry> _dreamingRecallLogEntries = const [];
   int _zeroResultCount = 0;
   int _zeroDreamingRecallCount = 0;
+  List<DreamingSkipRecord> _skipRecords = const [];
+  int _skipPendingMessageCount = 0;
+  int _skipWatermark = 0;
 
   @override
   void initState() {
@@ -64,6 +67,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     unawaited(_loadRecentSagas());
     unawaited(_loadQueryLog());
     unawaited(_loadDreamingRecallLog());
+    unawaited(_loadSkipRecords());
   }
 
   @override
@@ -362,6 +366,125 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       _logger.warning('resetFragmentWatermark failed', e, stack);
       if (!mounted) return;
       setState(() => _lastError = '重置失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _loadSkipRecords() async {
+    if (!DreamingOrchestratorServiceV3.isInitialized) return;
+    final characterId = await _latestChatCharacterId();
+    if (characterId == null) return;
+    List<DreamingSkipRecord> records = const [];
+    var pending = 0;
+    var watermark = 0;
+    try {
+      records = await DreamingOrchestratorServiceV3.instance
+          .getSkipRecords(characterId);
+      watermark = await _dreamingWatermark(characterId);
+      // Same filter as the batch query: id > watermark, chat, non-empty.
+      final pendingExpr = AppDatabase.instance.personaChatMessages.id.count();
+      final pendingRow = await (AppDatabase.instance.selectOnly(
+        AppDatabase.instance.personaChatMessages,
+      )..addColumns([pendingExpr])
+            ..where(AppDatabase.instance.personaChatMessages.characterId
+                    .equals(characterId) &
+                AppDatabase.instance.personaChatMessages.id
+                    .isBiggerThanValue(watermark) &
+                AppDatabase.instance.personaChatMessages.messageType
+                    .equals('chat') &
+                AppDatabase.instance.personaChatMessages.content
+                    .isNotValue('')))
+          .getSingle();
+      pending = pendingRow.read(pendingExpr) ?? 0;
+    } catch (e, stack) {
+      _logger.warning('_loadSkipRecords failed', e, stack);
+    }
+    if (!mounted) return;
+    setState(() {
+      _skipRecords = records;
+      _skipPendingMessageCount = pending;
+      _skipWatermark = watermark;
+    });
+  }
+
+  Future<void> _retrySkipRecord(DreamingSkipRecord record) async {
+    if (_busy || !DreamingOrchestratorServiceV3.isInitialized) return;
+    final characterId = await _latestChatCharacterId();
+    if (characterId == null) {
+      if (!mounted) return;
+      setState(() => _lastError = '未找到最近的 characterId');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    try {
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.recordOrganizerAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+      final result = await DreamingOrchestratorServiceV3.instance
+          .retrySkippedRange(
+        characterId: characterId,
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+        fromId: record.fromId,
+        toId: record.toId,
+      );
+      await _loadRecentFragments();
+      await _loadSkipRecords();
+      if (!mounted) return;
+      setState(() {
+        _lastSuccess = '补跑 #${record.fromId}–#${record.toId}：${result.message}';
+      });
+    } catch (e, stack) {
+      _logger.warning('retrySkippedRange failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '补跑失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _retryAllSkipped() async {
+    if (_busy || !DreamingOrchestratorServiceV3.isInitialized) return;
+    final characterId = await _latestChatCharacterId();
+    if (characterId == null) {
+      if (!mounted) return;
+      setState(() => _lastError = '未找到最近的 characterId');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    try {
+      final resources = await UserStorage.getAgentLLMResources(
+        AgentDefinitions.recordOrganizerAgent,
+        defaultClientKey: LLMConfig.defaultClientKey,
+      );
+      final results = await DreamingOrchestratorServiceV3.instance
+          .retryAllSkipped(
+        characterId: characterId,
+        client: resources.client,
+        modelConfig: resources.modelConfig,
+      );
+      await _loadRecentFragments();
+      await _loadSkipRecords();
+      if (!mounted) return;
+      final ok = results.where((r) => r.fragmentCount > 0).length;
+      setState(() {
+        _lastSuccess =
+            '补跑 ${results.length} 个区间完成，其中 $ok 个产生了新碎片';
+      });
+    } catch (e, stack) {
+      _logger.warning('retryAllSkipped failed', e, stack);
+      if (!mounted) return;
+      setState(() => _lastError = '补跑全部失败：$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1644,6 +1767,72 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                             label: const Text('clear sagas',
                                 style: TextStyle(color: Colors.red)),
                           ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.zero,
+                  initiallyExpanded: true,
+                  title: const Text('跳过/未处理记录'),
+                  subtitle: Text(
+                    'error ${_skipRecords.where((r) => r.reason == 'error').length}'
+                    ' · empty ${_skipRecords.where((r) => r.reason == 'empty').length}'
+                    ' · 未处理 $_skipPendingMessageCount',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '水位线 #$_skipWatermark · 待扫描 $_skipPendingMessageCount 条 chat',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          if (_skipRecords.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Text('无跳过记录',
+                                  style: TextStyle(fontSize: 12)),
+                            )
+                          else
+                            ..._skipRecords.map(
+                              (r) => ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: CircleAvatar(
+                                  radius: 8,
+                                  backgroundColor: r.reason == 'error'
+                                      ? Colors.red
+                                      : Colors.grey,
+                                ),
+                                title: Text(
+                                  '消息 #${r.fromId}–#${r.toId}',
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                                subtitle: Text(
+                                  '${r.reason == 'error' ? '提取失败' : '零片段'}'
+                                  ' · ${DateTime.fromMillisecondsSinceEpoch(r.at).toIso8601String()}'
+                                  '${r.error != null ? '\n${r.error}' : ''}',
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                                trailing: TextButton(
+                                  onPressed:
+                                      _busy ? null : () => _retrySkipRecord(r),
+                                  child: const Text('补跑'),
+                                ),
+                              ),
+                            ),
+                          if (_skipRecords.isNotEmpty)
+                            OutlinedButton.icon(
+                              onPressed: _busy ? null : _retryAllSkipped,
+                              icon: const Icon(Icons.play_arrow),
+                              label: const Text('补跑全部'),
+                            ),
                         ],
                       ),
                     ),

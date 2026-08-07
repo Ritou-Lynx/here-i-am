@@ -50,6 +50,8 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/media_input_attachment.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/services/topic_thread_backfill_service.dart';
+import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/reading/reading_share_parser.dart';
 import 'package:memex/data/services/reading/transient_fetch_cache.dart';
@@ -375,6 +377,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   List<PersonaChatMessage> _messages = [];
   bool _isSelecting = false;
   final Set<int> _selectedMessageIds = {};
+  bool _topicBackfillRunning = false;
   int? _lastBadCaseSaved;
   bool _isLoading = true;
   bool _isStreaming = false;
@@ -3798,6 +3801,122 @@ only after you have written the goodbye you want the user to hear.''',
     _exitSelectMode();
   }
 
+  Future<void> _batchAddToTopicThread() async {
+    if (_topicBackfillRunning || _selectedMessageIds.isEmpty) return;
+    final selected = _messages
+        .where((m) => _selectedMessageIds.contains(m.id))
+        .toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    if (selected.isEmpty || !mounted) return;
+
+    final threads =
+        await TopicThreadService(db: AppDatabase.instance).getThreads();
+    if (!mounted) return;
+    if (threads.isEmpty) {
+      ScaffoldMessenger.of(context).showToast(
+        _chatUiText(
+          zh: '还没有话题线索，先在聊天里说"想追踪这个话题"创建',
+          en: 'No topic threads yet',
+        ),
+        duration: const Duration(seconds: 2),
+      );
+      return;
+    }
+
+    final thread = await showModalBottomSheet<TopicThread>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _TopicThreadPickerSheet(
+        threads: threads,
+        onSelected: (t) => Navigator.pop(ctx, t),
+      ),
+    );
+    if (thread == null || !mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: SpringRainUiTokens.daylight.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+              SpringRainUiTokens.daylight.radius14),
+        ),
+        title: Text(
+          _chatUiText(zh: '加入话题线索？', en: 'Add to topic thread?'),
+          style: TextStyle(
+            color: SpringRainUiTokens.daylight.textPrimary,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          _chatUiText(
+            zh: '将选中 ${selected.length} 条消息的摘要加入话题「${thread.title}」（AI 生成，≤200 字）。',
+            en: 'Summarize ${selected.length} selected message(s) into '
+                '"${thread.title}" (AI, ≤200 chars).',
+          ),
+          style: TextStyle(
+            color: SpringRainUiTokens.daylight.textSecondary,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(_chatUiText(zh: '取消', en: 'Cancel'),
+                style: TextStyle(
+                    color: SpringRainUiTokens.daylight.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(_chatUiText(zh: '加入', en: 'Add'),
+                style: TextStyle(color: _personaAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _topicBackfillRunning = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final progress = messenger.showToast(
+      _chatUiText(zh: '正在生成话题摘要…', en: 'Summarizing…'),
+      duration: const Duration(seconds: 30),
+    );
+    try {
+      await TopicThreadBackfillService(db: AppDatabase.instance)
+          .summarizeAndAppend(
+        threadId: thread.id,
+        messages: selected,
+        characterName: _character?.name ?? '林埃',
+      );
+      progress.close();
+      if (!mounted) return;
+      messenger.showToast(
+        _chatUiText(
+          zh: '已加入话题「${thread.title}」',
+          en: 'Added to "${thread.title}"',
+        ),
+        duration: const Duration(seconds: 3),
+      );
+    } catch (e, stack) {
+      progress.close();
+      debugPrint('[AddToThread] failed: $e\n$stack');
+      if (mounted) {
+        messenger.showToast(
+          _chatUiText(zh: '加入话题失败：$e', en: 'Failed: $e'),
+          duration: const Duration(seconds: 3),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _topicBackfillRunning = false);
+      _exitSelectMode();
+    }
+  }
+
   Future<void> _batchDeleteSelectedMessages() async {
     if (_selectedMessageIds.isEmpty) return;
 
@@ -5316,6 +5435,40 @@ only after you have written the goodbye you want the user to hear.''',
                       ),
                       child: Text(
                         '记录为卡片${_selectedMessageIds.isNotEmpty ? ' (${_selectedMessageIds.length})' : ''}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Add to topic thread button
+                  GestureDetector(
+                    onTap: _selectedMessageIds.isNotEmpty
+                        ? _batchAddToTopicThread
+                        : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _selectedMessageIds.isNotEmpty
+                            ? _personaAccent.withValues(alpha: 0.85)
+                            : _personaAccent.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _personaAccent.withValues(alpha: 0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '加入话题${_selectedMessageIds.isNotEmpty ? ' (${_selectedMessageIds.length})' : ''}',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -8549,4 +8702,48 @@ class _RainRipplePainter extends CustomPainter {
   @override
   bool shouldRepaint(_RainRipplePainter oldDelegate) =>
       oldDelegate.t != t || oldDelegate.ivory != ivory;
+}
+
+class _TopicThreadPickerSheet extends StatelessWidget {
+  const _TopicThreadPickerSheet({
+    required this.threads,
+    required this.onSelected,
+  });
+
+  final List<TopicThread> threads;
+  final ValueChanged<TopicThread> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.all(16),
+        constraints: const BoxConstraints(maxHeight: 420),
+        decoration: BoxDecoration(
+          color: _personaPanel,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: threads.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, i) {
+            final t = threads[i];
+            return ListTile(
+              title: Text(t.title,
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text(
+                '${t.currentStage.isEmpty ? '暂无阶段' : t.currentStage}'
+                '${t.tags.isNotEmpty ? ' · ${t.tags}' : ''}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12),
+              ),
+              onTap: () => onSelected(t),
+            );
+          },
+        ),
+      ),
+    );
+  }
 }

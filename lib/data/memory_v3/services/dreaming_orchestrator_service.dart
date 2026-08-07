@@ -75,6 +75,64 @@ class SagaWeavingRunResult {
   bool get isEmpty => sagaIds.isEmpty && updatedSagaIds.isEmpty;
 }
 
+/// Audit record of a Dreaming batch window that produced no memory.
+///
+/// reason 'error': extraction threw; the window never reached memory and
+/// can be re-run via [retrySkippedRange].
+/// reason 'empty': the LLM evaluated the window and returned zero drafts.
+/// Also re-runnable — the model may have under-extracted.
+class DreamingSkipRecord {
+  const DreamingSkipRecord({
+    required this.fromId,
+    required this.toId,
+    required this.reason,
+    required this.at,
+    this.error,
+  });
+
+  final int fromId;
+  final int toId;
+  final String reason; // 'error' | 'empty'
+  final int at; // ms epoch
+  final String? error; // truncated error text, error records only
+
+  Map<String, dynamic> toJson() => {
+        'fromId': fromId,
+        'toId': toId,
+        'reason': reason,
+        'at': at,
+        if (error != null) 'error': error,
+      };
+
+  static DreamingSkipRecord? fromJson(Object? raw) {
+    try {
+      final map = raw as Map;
+      return DreamingSkipRecord(
+        fromId: (map['fromId'] as num).toInt(),
+        toId: (map['toId'] as num).toInt(),
+        reason: map['reason'] as String,
+        at: (map['at'] as num).toInt(),
+        error: map['error'] as String?,
+      );
+    } catch (_) {
+      return null; // corrupted entry — skip it, don't abort the list
+    }
+  }
+}
+
+/// Outcome of [retrySkippedRange] for Lab display.
+class DreamingRetryResult {
+  const DreamingRetryResult({
+    required this.processedMessageCount,
+    required this.fragmentCount,
+    required this.message,
+  });
+
+  final int processedMessageCount;
+  final int fragmentCount;
+  final String message;
+}
+
 class DreamingContextQueryResult {
   const DreamingContextQueryResult({
     required this.episodeHits,
@@ -188,11 +246,12 @@ class DreamingOrchestratorServiceV3 {
     required LLMClient client,
     required ModelConfig modelConfig,
     int batchSize = 30,
+    int? startAfterId,
     String sourceScope = 'main_chat',
     DreamingFragmentExtractorV3 agent = const DreamingFragmentExtractorV3(),
   }) async {
     final cappedBatchSize = batchSize.clamp(1, 30).toInt();
-    final lastMessageId = await _readWatermark(characterId);
+    final lastMessageId = startAfterId ?? await _readWatermark(characterId);
     final rows = await (_db.select(_db.personaChatMessages)
           ..where((t) =>
               t.characterId.equals(characterId) &
@@ -246,7 +305,19 @@ class DreamingOrchestratorServiceV3 {
         e,
         s,
       );
-      await _writeWatermark(characterId, rows.last.id);
+      // Never regress the watermark: a manual retry of an OLD range that
+      // fails again must not pull the scheduler back over already-processed
+      // messages. The failure window itself is audited so it can be retried.
+      await _advanceWatermark(characterId, rows.last.id);
+      await _appendSkipRecord(
+        characterId: characterId,
+        fromId: lastMessageId + 1,
+        toId: rows.last.id,
+        reason: 'error',
+        error: e.toString().length > 200
+            ? e.toString().substring(0, 200)
+            : e.toString(),
+      );
       rethrow;
     }
     final result = await persistFragments(
@@ -278,12 +349,23 @@ class DreamingOrchestratorServiceV3 {
       // Model returned empty (all evaluated, no evidence) or all fragments
       // were dropped by dedupe. Advance past the whole batch.
       newWatermark = rows.last.id;
+      // Audit only genuine zero-draft evaluations (nothing was skipped there
+      // — but the user deserves to know the window produced no memory).
+      // All-deduped batches (content already in memory) are NOT recorded.
+      if (extracted.fragments.isEmpty) {
+        await _appendSkipRecord(
+          characterId: characterId,
+          fromId: lastMessageId + 1,
+          toId: rows.last.id,
+          reason: 'empty',
+        );
+      }
     } else {
       // Advance to the last covered message, but never beyond the batch.
       final maxCovered = coveredInBatch.reduce((a, b) => a > b ? a : b);
       newWatermark = maxCovered < rows.last.id ? maxCovered : rows.last.id;
     }
-    await _writeWatermark(characterId, newWatermark);
+    await _advanceWatermark(characterId, newWatermark);
 
     if (newWatermark < rows.last.id) {
       _logger.warning(
@@ -788,8 +870,126 @@ class DreamingOrchestratorServiceV3 {
         );
   }
 
+  /// Advance the watermark only forward. Re-reads the stored value at write
+  /// time so a manual retry of an OLD range (below the stored watermark) can
+  /// never regress it. Residual race: two concurrent batches could still
+  /// both read-then-write; worst case is a few messages re-scanned next run,
+  /// which persistFragments dedupe makes harmless.
+  Future<void> _advanceWatermark(String characterId, int candidate) async {
+    final stored = await _readWatermark(characterId);
+    if (candidate > stored) {
+      await _writeWatermark(characterId, candidate);
+    }
+  }
+
   String _watermarkKey(String characterId) =>
       'dreaming.fragment.last_message_id.$characterId';
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Skip-window audit (kvStore JSON, per character)
+  // ──────────────────────────────────────────────────────────────────────
+
+  static const _maxSkipRecords = 50;
+  String _skipRecordsKey(String characterId) =>
+      'dreaming.skip.records.$characterId';
+
+  /// Read audit records for the Lab/About UIs, oldest first.
+  /// Corrupted JSON degrades to an empty list; the next write replaces it.
+  Future<List<DreamingSkipRecord>> getSkipRecords(String characterId) async {
+    final row = await (_db.select(_db.kvStore)
+          ..where((t) =>
+              t.key.equals(_skipRecordsKey(characterId)) &
+              t.bucket.equals(_bucket)))
+        .getSingleOrNull();
+    if (row?.value == null || row!.value!.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(row.value!);
+      if (decoded is! List) return const [];
+      return decoded
+          .map(DreamingSkipRecord.fromJson)
+          .whereType<DreamingSkipRecord>()
+          .toList();
+    } catch (_) {
+      _logger.warning(
+          'Skip records corrupted for $characterId; treating as empty');
+      return const [];
+    }
+  }
+
+  Future<void> _writeSkipRecords(
+    String characterId,
+    List<DreamingSkipRecord> records,
+  ) async {
+    await _db.into(_db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: _skipRecordsKey(characterId),
+            value: Value(jsonEncode(records.map((r) => r.toJson()).toList())),
+            bucket: const Value(_bucket),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+  }
+
+  Future<void> _appendSkipRecord({
+    required String characterId,
+    required int fromId,
+    required int toId,
+    required String reason,
+    String? error,
+  }) async {
+    if (toId < fromId) return;
+    final records = await getSkipRecords(characterId);
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Identical record already present (e.g. the same window was re-run and
+    // skipped again) — replace instead of duplicating.
+    records.removeWhere((r) =>
+        r.fromId == fromId && r.toId == toId && r.reason == reason);
+
+    // Merge a new 'empty' record into a consecutive trailing 'empty' record
+    // so sequential zero-draft batches collapse into one window.
+    if (reason == 'empty' && records.isNotEmpty) {
+      final last = records.last;
+      if (last.reason == 'empty' && last.toId + 1 >= fromId) {
+        records[records.length - 1] = DreamingSkipRecord(
+          fromId: last.fromId < fromId ? last.fromId : fromId,
+          toId: toId,
+          reason: 'empty',
+          at: now,
+        );
+        await _writeSkipRecords(characterId, records);
+        return;
+      }
+    }
+
+    records.add(DreamingSkipRecord(
+      fromId: fromId,
+      toId: toId,
+      reason: reason,
+      at: now,
+      error: error,
+    ));
+    if (records.length > _maxSkipRecords) {
+      records.removeRange(0, records.length - _maxSkipRecords); // drop oldest
+    }
+    await _writeSkipRecords(characterId, records);
+  }
+
+  /// Remove a skip record (either reason) matching [fromId]/[toId]. Used at
+  /// retry start: the fresh evaluation re-audits its own outcome, so a stale
+  /// record must not linger after a successful re-run.
+  Future<void> _removeSkipRecord(
+    String characterId, {
+    required int fromId,
+    required int toId,
+  }) async {
+    final records = await getSkipRecords(characterId);
+    final before = records.length;
+    records.removeWhere((r) => r.fromId == fromId && r.toId == toId);
+    if (records.length != before) {
+      await _writeSkipRecords(characterId, records);
+    }
+  }
 
   /// Reset the fragment-extraction watermark for [characterId] so the next
   /// batch re-scans messages from id 0. Used when the user switches to a
@@ -813,6 +1013,124 @@ class DreamingOrchestratorServiceV3 {
       );
     }
     return deleted;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Manual re-extraction of skipped windows (audit-driven retry)
+  // ──────────────────────────────────────────────────────────────────────
+
+  /// Re-run Dreaming extraction over a previously skipped message range.
+  ///
+  /// Does NOT reset or move the global watermark backwards: batches run with
+  /// [startAfterId] and the watermark write is max-guarded, so the
+  /// scheduler's position is untouched (dedupe in persistFragments makes
+  /// re-reading already-covered messages harmless).
+  ///
+  /// The record is removed up-front; each sub-batch re-audits its own
+  /// outcome (zero drafts → 'empty' record, throw → 'error' record), so
+  /// failures never lose their trail. Throws propagate to the caller (UI
+  /// shows the error); the inner catch has already recorded the failure.
+  Future<DreamingRetryResult> retrySkippedRange({
+    required String characterId,
+    required LLMClient client,
+    required ModelConfig modelConfig,
+    required int fromId,
+    required int toId,
+    int batchSize = 30,
+    DreamingFragmentExtractorV3 agent = const DreamingFragmentExtractorV3(),
+  }) async {
+    // 1) Range sanity: last extractable chat message inside [fromId, toId].
+    final tail = await (_db.select(_db.personaChatMessages)
+          ..where((t) =>
+              t.characterId.equals(characterId) &
+              t.id.isBetweenValues(fromId, toId) &
+              t.content.isNotValue('') &
+              t.messageType.equals('chat'))
+          ..orderBy([(t) => OrderingTerm.desc(t.id)])
+          ..limit(1))
+        .get();
+    final lastChatId = tail.isEmpty ? null : tail.single.id;
+    if (lastChatId == null) {
+      await _removeSkipRecord(characterId, fromId: fromId, toId: toId);
+      return const DreamingRetryResult(
+        processedMessageCount: 0,
+        fragmentCount: 0,
+        message: '区间内没有可补提取的聊天消息，已清除该记录',
+      );
+    }
+
+    // 2) Remove the record up-front; per-iteration audits below recreate it
+    //    for any sub-range that still yields zero drafts.
+    await _removeSkipRecord(characterId, fromId: fromId, toId: toId);
+
+    // 3) Loop batches over the window. The cursor mirrors the coverage-aware
+    //    watermark semantics: advance only past the last message a persisted
+    //    fragment actually referenced, so a partially-evaluated tail is
+    //    re-read on the next iteration. Do NOT read the stored watermark as
+    //    the cursor — it is max-guarded and will not move below itself.
+    var cursor = fromId - 1;
+    var lastAdvanced = cursor;
+    var processed = 0;
+    var fragments = 0;
+    while (true) {
+      final result = await runDailyFragmentBatch(
+        characterId: characterId,
+        client: client,
+        modelConfig: modelConfig,
+        batchSize: batchSize,
+        startAfterId: cursor,
+        agent: agent,
+      );
+      if (result.isEmpty && result.processedMessageCount == 0) {
+        break; // no more rows
+      }
+      processed += result.processedMessageCount;
+      fragments += result.fragmentIds.length;
+      final covered = result.coveredMessageIds
+          .where((id) => id <= result.lastProcessedMessageId);
+      cursor = covered.isEmpty
+          ? result.lastProcessedMessageId
+          : covered.reduce((a, b) => a > b ? a : b);
+      if (cursor <= lastAdvanced) break; // no-progress guard
+      lastAdvanced = cursor;
+      if (cursor >= lastChatId) break;
+    }
+    return DreamingRetryResult(
+      processedMessageCount: processed,
+      fragmentCount: fragments,
+      message: '补提取完成：处理 $processed 条消息，产生 $fragments 个片段',
+    );
+  }
+
+  /// Convenience: retry every recorded range sequentially. One failure does
+  /// not abort the rest; per-range results are returned for the Lab to show.
+  Future<List<DreamingRetryResult>> retryAllSkipped({
+    required String characterId,
+    required LLMClient client,
+    required ModelConfig modelConfig,
+  }) async {
+    final snapshot = await getSkipRecords(characterId);
+    final results = <DreamingRetryResult>[];
+    for (final r in snapshot) {
+      try {
+        results.add(await retrySkippedRange(
+          characterId: characterId,
+          client: client,
+          modelConfig: modelConfig,
+          fromId: r.fromId,
+          toId: r.toId,
+        ));
+      } catch (e, s) {
+        _logger.warning(
+            'retryAllSkipped: range ${r.fromId}..${r.toId} failed', e, s);
+        results.add(DreamingRetryResult(
+          processedMessageCount: 0,
+          fragmentCount: 0,
+          message: '补跑 ${r.fromId}–${r.toId} 失败：$e',
+        ));
+      }
+    }
+    return results;
   }
 
   Future<List<String>> _recentFragmentSummaries({int limit = 120}) async {

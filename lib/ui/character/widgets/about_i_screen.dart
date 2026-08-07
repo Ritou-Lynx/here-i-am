@@ -44,6 +44,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
   bool _loading = true;
   bool _busy = false;
   int _recentPage = 0;
+  int _skipErrorCount = 0;
 
   @override
   void initState() {
@@ -75,6 +76,16 @@ class _AboutIScreenState extends State<AboutIScreen> {
           .get(),
       DreamingRecallLogService.readAll(),
     ]);
+    var skipErrorCount = 0;
+    if (character != null && DreamingOrchestratorServiceV3.isInitialized) {
+      try {
+        final records = await DreamingOrchestratorServiceV3.instance
+            .getSkipRecords(character.id);
+        skipErrorCount = records.where((r) => r.reason == 'error').length;
+      } catch (_) {
+        // Non-fatal: the row just shows zero when skip records are unreadable.
+      }
+    }
     if (!mounted) return;
     setState(() {
       _character = character;
@@ -82,6 +93,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
       _episodes = results[1] as List<MemoryEpisode>;
       _sagas = results[2] as List<MemorySaga>;
       _recalls = results[3] as List<DreamingRecallLogEntry>;
+      _skipErrorCount = skipErrorCount;
       _loading = false;
     });
   }
@@ -268,6 +280,20 @@ class _AboutIScreenState extends State<AboutIScreen> {
                                 MaterialPageRoute(
                                     builder: (_) => const MemoryV3LabScreen())),
                           ),
+                          _memoryRow(
+                              '跳过补提取',
+                              _skipErrorCount > 0
+                                  ? '有 $_skipErrorCount 个失败区间待补跑'
+                                  : '查看被跳过的提取区间',
+                              _skipErrorCount,
+                              () async {
+                                await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const MemoryV3LabScreen()));
+                                await _load();
+                              }),
                         ],
                       ),
                     ),

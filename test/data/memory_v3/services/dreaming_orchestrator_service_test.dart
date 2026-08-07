@@ -895,6 +895,394 @@ void main() {
     final newId = second.fragmentIds.first;
     expect(newId, isNot(firstId));
   });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Skip-window audit + manual re-extraction (retrySkippedRange)
+  // ──────────────────────────────────────────────────────────────────────
+
+  test('failure-skip writes an error audit record; watermark still advances',
+      () async {
+    if (!fts5Available) return;
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '第一条会失败的批',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '第二条会失败的批',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 7, 5, 20, 1),
+    );
+
+    await expectLater(
+      () => service.runDailyFragmentBatch(
+        characterId: 'i',
+        client: _FakeLLMClient(),
+        modelConfig: ModelConfig(model: 'fake'),
+        agent: const _FailingDreamingExtractor(),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+
+    final records = await service.getSkipRecords('i');
+    expect(records, hasLength(1));
+    expect(records.single.reason, 'error');
+    expect(records.single.fromId, 1);
+    expect(records.single.toId, 2);
+    expect(records.single.error, contains('simulated'));
+
+    // The failure window is still consumed: a plain batch reads nothing.
+    final next = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(DreamingFragmentExtraction(fragments: const [])),
+    );
+    expect(next.processedMessageCount, 0);
+  });
+
+  test('zero-draft batches are audited as empty; consecutive ones merge',
+      () async {
+    if (!fts5Available) return;
+    for (var i = 0; i < 3; i++) {
+      await _insertMessage(
+        db,
+        characterId: 'i',
+        content: '日常闲聊 $i',
+        isFromCharacter: i % 2 == 0,
+        timestamp: DateTime(2026, 7, 5, 20, i),
+      );
+    }
+    await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(DreamingFragmentExtraction(fragments: const [])),
+    );
+    var records = await service.getSkipRecords('i');
+    expect(records, hasLength(1));
+    expect(records.single.reason, 'empty');
+    expect(records.single.fromId, 1);
+    expect(records.single.toId, 3);
+
+    // Two more messages; the next empty batch merges into the same window.
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '日常闲聊 4',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20, 5),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '日常闲聊 5',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 7, 5, 20, 6),
+    );
+    await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(DreamingFragmentExtraction(fragments: const [])),
+    );
+    records = await service.getSkipRecords('i');
+    expect(records, hasLength(1));
+    expect(records.single.toId, 5);
+  });
+
+  test('fully-deduped batches do not create empty audit records', () async {
+    if (!fts5Available) return;
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '讲被老板骂的事',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '我安慰了她',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 7, 5, 20, 1),
+    );
+    final draft = DreamingFragmentDraft(
+      content: '她讲被老板骂的事，我安慰了她。',
+      sourceMessageIds: const [1, 2],
+      emotionalWeight: 0.6,
+      isUserTruthCandidate: false,
+    );
+    final first = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+          DreamingFragmentExtraction(fragments: [draft])),
+    );
+    expect(first.fragmentIds, hasLength(1));
+
+    // New message, same draft again → dedupe drops it. That is NOT an empty
+    // evaluation: the LLM produced drafts, they were just already in memory.
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '第三天继续讲',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 21),
+    );
+    final second = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(
+          DreamingFragmentExtraction(fragments: [draft])),
+    );
+    expect(second.fragmentIds, isEmpty);
+    expect(await service.getSkipRecords('i'), isEmpty);
+  });
+
+  test('startAfterId retries an old range without regressing the watermark',
+      () async {
+    if (!fts5Available) return;
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '旧消息 A',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '旧消息 B',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 7, 5, 20, 1),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '旧消息 C',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20, 2),
+    );
+    // Scheduler is far ahead of these messages.
+    await _insertWatermark(db, 'i', 100);
+
+    final result = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      startAfterId: 0,
+      agent: _FakeDreamingExtractor(DreamingFragmentExtraction(fragments: [
+        DreamingFragmentDraft(
+          content: '从旧区间补提取的碎片',
+          sourceMessageIds: const [1, 2],
+          emotionalWeight: 0.5,
+          isUserTruthCandidate: false,
+        ),
+      ])),
+    );
+    expect(result.processedMessageCount, 3);
+    expect(result.fragmentIds, hasLength(1));
+
+    // Stored watermark unchanged (100): a plain batch must read nothing.
+    final next = await service.runDailyFragmentBatch(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      agent: _FakeDreamingExtractor(DreamingFragmentExtraction(fragments: const [])),
+    );
+    expect(next.processedMessageCount, 0);
+  });
+
+  test('retrySkippedRange re-extracts the window and clears the error record',
+      () async {
+    if (!fts5Available) return;
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '求职讨论 1',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '求职讨论 2',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 7, 5, 20, 1),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '求职讨论 3',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20, 2),
+    );
+    await _insertWatermark(db, 'i', 100);
+    await _insertSkipRecord(db, 'i', fromId: 1, toId: 40, reason: 'error');
+
+    final retry = await service.retrySkippedRange(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      fromId: 1,
+      toId: 40,
+      agent: _FakeDreamingExtractor(DreamingFragmentExtraction(fragments: [
+        DreamingFragmentDraft(
+          content: '补提取出的求职碎片',
+          sourceMessageIds: const [1, 2],
+          emotionalWeight: 0.6,
+          isUserTruthCandidate: false,
+        ),
+      ])),
+    );
+
+    expect(retry.processedMessageCount, greaterThan(0));
+    expect(retry.fragmentCount, 1);
+    // Error record removed; nothing new skipped (the duplicate draft on the
+    // second pass was deduped, not an empty evaluation).
+    expect(await service.getSkipRecords('i'), isEmpty);
+    final fragments = await db.select(db.memoryFragments).get();
+    expect(fragments, hasLength(1));
+    expect(fragments.single.content, contains('求职'));
+  });
+
+  test('retrySkippedRange with zero drafts converts error record to empty',
+      () async {
+    if (!fts5Available) return;
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '求职讨论 1',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '求职讨论 2',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 7, 5, 20, 1),
+    );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '求职讨论 3',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20, 2),
+    );
+    await _insertWatermark(db, 'i', 100);
+    await _insertSkipRecord(db, 'i', fromId: 1, toId: 40, reason: 'error');
+
+    final retry = await service.retrySkippedRange(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      fromId: 1,
+      toId: 40,
+      agent: _FakeDreamingExtractor(
+          DreamingFragmentExtraction(fragments: const [])),
+    );
+
+    expect(retry.fragmentCount, 0);
+    final records = await service.getSkipRecords('i');
+    expect(records, hasLength(1));
+    expect(records.single.reason, 'empty');
+    expect(records.single.fromId, 1);
+    expect(records.single.toId, 3);
+  });
+
+  test('skip records are capped at 50, dropping the oldest', () async {
+    if (!fts5Available) return;
+    final existing = List.generate(55, (i) {
+      final from = (i + 1) * 10;
+      return '{"fromId":$from,"toId":${from + 9},"reason":"error",'
+          '"at":${1700000000000 + i}}';
+    }).join(',');
+    await db.into(db.kvStore).insert(
+          KvStoreCompanion.insert(
+            key: 'dreaming.skip.records.i',
+            value: Value('[$existing]'),
+            bucket: const Value('memory_v3.dreaming'),
+          ),
+        );
+    await _insertMessage(
+      db,
+      characterId: 'i',
+      content: '会失败的批',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 7, 5, 20),
+    );
+    await expectLater(
+      () => service.runDailyFragmentBatch(
+        characterId: 'i',
+        client: _FakeLLMClient(),
+        modelConfig: ModelConfig(model: 'fake'),
+        agent: const _FailingDreamingExtractor(),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+
+    final records = await service.getSkipRecords('i');
+    expect(records, hasLength(50));
+    expect(records.first.fromId, 70); // oldest six windows dropped
+    expect(records.last.fromId, 1); // the new failure window
+    expect(records.last.reason, 'error');
+  });
+
+  test('retrySkippedRange clears a record with no extractable chat messages',
+      () async {
+    if (!fts5Available) return;
+    // No chat messages at all in the recorded window.
+    await _insertSkipRecord(db, 'i', fromId: 100, toId: 200, reason: 'error');
+
+    final retry = await service.retrySkippedRange(
+      characterId: 'i',
+      client: _FakeLLMClient(),
+      modelConfig: ModelConfig(model: 'fake'),
+      fromId: 100,
+      toId: 200,
+      agent: _FakeDreamingExtractor(
+          DreamingFragmentExtraction(fragments: const [])),
+    );
+
+    expect(retry.processedMessageCount, 0);
+    expect(retry.message, contains('没有可补提取'));
+    expect(await service.getSkipRecords('i'), isEmpty);
+  });
+}
+
+Future<void> _insertWatermark(AppDatabase db, String characterId, int value) {
+  return db.into(db.kvStore).insert(
+        KvStoreCompanion.insert(
+          key: 'dreaming.fragment.last_message_id.$characterId',
+          value: Value('$value'),
+          bucket: const Value('memory_v3.dreaming'),
+        ),
+      );
+}
+
+Future<void> _insertSkipRecord(
+  AppDatabase db,
+  String characterId, {
+  required int fromId,
+  required int toId,
+  required String reason,
+}) {
+  return db.into(db.kvStore).insert(
+        KvStoreCompanion.insert(
+          key: 'dreaming.skip.records.$characterId',
+          value: Value(
+              '[{"fromId":$fromId,"toId":$toId,"reason":"$reason","at":1789000000000}]'),
+          bucket: const Value('memory_v3.dreaming'),
+        ),
+      );
 }
 
 class _FailingDreamingExtractor extends DreamingFragmentExtractorV3 {
