@@ -13,6 +13,7 @@ import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/companion/widgets/companion_life_space_screen.dart';
 import 'package:memex/ui/memory/widgets/memory_v3_lab_screen.dart';
+import 'package:memex/ui/memory/widgets/lab/skip_retry_page.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/core/widgets/avatar_picker.dart';
@@ -291,7 +292,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
                                     context,
                                     MaterialPageRoute(
                                         builder: (_) =>
-                                            const MemoryV3LabScreen()));
+                                            const LabSkipRetryPage()));
                                 await _load();
                               }),
                         ],
