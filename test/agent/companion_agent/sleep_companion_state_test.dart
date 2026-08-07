@@ -24,7 +24,7 @@ void main() {
         now.subtract(const Duration(minutes: 5)),
         now,
       );
-      expect(reminder, contains('距她上一条消息已过 5 分钟'));
+      expect(reminder, contains('距你上一条消息已过 5 分钟'));
       expect(reminder, contains('现在 23:30'));
     });
 

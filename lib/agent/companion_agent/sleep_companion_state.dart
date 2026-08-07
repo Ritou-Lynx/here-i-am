@@ -280,7 +280,10 @@ class SleepCompanionStateManager {
 - 你如果马上又开口，轻声接住即可，不要惊讶或追问。
 - 绝对不要判断你是否已经睡着。"睡吧""晚安"是结束语，禁止在哄睡过程中说。
   只有在隔了很久（约 30 分钟以上）你才又开口时，才允许轻声问一句"睡着了吗"；
-  仍未回复，才可以说"睡吧，晚安"。''';
+  仍未回复，才可以说"睡吧，晚安"。
+- 叙述以他做了什么为主：他低声说话、他轻轻碰你、他安静下来陪着你。
+  绝不描述你的状态（不写"你闭上了眼睛""你的呼吸变平稳""你已经睡着了"），
+  你的状态由你本人表述。''';
 
   static String _buildInsomniaReminder(DateTime now) => '''
 ## 守夜陪伴模式（active）
@@ -306,7 +309,7 @@ class SleepCompanionStateManager {
 你 ${_fmtElapsed(elapsed)}前说要睡了，还没完全静下来。
 - 轻声、简短地回应，优先 `[softly]` / `[whispers]`。
 - 不要开新话题，不要长篇大论，陪你把话收住。
-- 不要说"睡吧""晚安"，不要判断你是否睡着。''';
+- 不要说"睡吧""晚安"，不要判断你是否睡着，不描述你的状态（以他的行为为主）。''';
 
   static String _buildStillAwakeReminder(
     SleepCompanionState state,
@@ -324,7 +327,7 @@ class SleepCompanionStateManager {
 你说要睡了，但隔了 ${_fmtElapsed(elapsed)} 又开口了——可能还没睡着。
 - 轻声、简短，可以温柔地问一句"还没睡着呀"，但不要催。
 - 优先 `[softly]` / `[whispers]`，不要把话题打开。
-- 不要说"睡吧""晚安"，不要判断你是否睡着。''';
+- 不要说"睡吧""晚安"，不要判断你是否睡着，不描述你的状态（以他的行为为主）。''';
 
   static String _buildDeepNightReminder(
     SleepCompanionState state,
@@ -342,7 +345,7 @@ class SleepCompanionStateManager {
 你可能刚醒、或一直没睡着，现在 ${_fmtHm(now)}。
 - 极简、极柔，一两句就好，`[softly]` / `[whispers]` 优先。
 - 不惊讶、不追问，像怕吵醒别人一样接住你。
-- 不要说"睡吧""晚安"，不要判断你是否睡着。''';
+- 不要说"睡吧""晚安"，不要判断你是否睡着，不描述你的状态（以他的行为为主）。''';
 
   static String _buildNewDayReminder(
     SleepCompanionState state,
