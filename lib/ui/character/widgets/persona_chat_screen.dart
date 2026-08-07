@@ -2852,7 +2852,10 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   /// (Re)schedules the next synthetic continuous turn without consuming a tick.
-  /// Defer-and-retry while a concurrent turn is streaming.
+  /// Defer-and-retry while a concurrent turn is streaming OR while the
+  /// previous reply's TTS is still playing — the run is paced by playback,
+  /// not by a fixed delay, so the user hears each message fully before the
+  /// next one starts (sending earlier would `_stopTtsPlayback()` mid-word).
   void _scheduleNextContinuousTick() {
     _continuousTimer?.cancel();
     _continuousTimer = Timer(ContinuousModeState.interTurnDelay, () {
@@ -2860,7 +2863,7 @@ only after you have written the goodbye you want the user to hear.''',
           !ContinuousModeState.instance.isActiveFor(_currentCharacterId)) {
         return;
       }
-      if (_isStreaming) {
+      if (_isStreaming || _isTtsLoading || _playingMessageId != null) {
         _scheduleNextContinuousTick();
         return;
       }
@@ -5124,7 +5127,11 @@ only after you have written the goodbye you want the user to hear.''',
                                         if (showDate)
                                           _buildDateDivider(msg.timestamp),
                                         if (msg.messageType == 'action')
-                                          _buildActionMessage(text: msg.content)
+                                          _buildActionMessage(
+                                            text: msg.content,
+                                            messageId: msg.id.toString(),
+                                            fullMessageText: msg.content,
+                                          )
                                         else if (msg.isFromCharacter)
                                           _buildCharacterMessage(msg,
                                               isStreaming: false)
@@ -5148,7 +5155,11 @@ only after you have written the goodbye you want the user to hear.''',
                               children: [
                                 if (showDate) _buildDateDivider(msg.timestamp),
                                 if (msg.messageType == 'action')
-                                  _buildActionMessage(text: msg.content)
+                                  _buildActionMessage(
+                                    text: msg.content,
+                                    messageId: msg.id.toString(),
+                                    fullMessageText: msg.content,
+                                  )
                                 else if (msg.isFromCharacter)
                                   _buildCharacterMessage(msg,
                                       isStreaming: false)
@@ -5469,31 +5480,54 @@ only after you have written the goodbye you want the user to hear.''',
   /// Renders a narrative / action description message.
   /// No speech bubble; italic text centred with a subtle divider style,
   /// matching the roleplay convention for stage directions.
-  Widget _buildActionMessage({required String text}) {
+  ///
+  /// Plain Text (not selectable): long-press must open the message action
+  /// popup like every other message, never text selection.
+  Widget _buildActionMessage({
+    required String text,
+    String? messageId,
+    String? fullMessageText,
+  }) {
     const c = SpringRainChatTokens.springRainDaydream;
+    final hasActions = messageId != null && !_isSelecting;
+    final bubbleKey = GlobalKey();
     return Padding(
       padding: EdgeInsets.symmetric(vertical: c.blockGap / 2),
       child: Padding(
         padding: EdgeInsets.only(left: c.iIndent - 10),
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(
-                color: c.actionColor.withValues(alpha: c.iAnchorAlpha),
-                width: 2,
+        child: GestureDetector(
+          key: bubbleKey,
+          behavior: HitTestBehavior.translucent,
+          onLongPress: hasActions
+              ? () {
+                  HapticFeedback.mediumImpact();
+                  _showBubbleActionPopup(
+                    messageId: messageId,
+                    text: fullMessageText ?? text,
+                    bubbleKey: bubbleKey,
+                  );
+                }
+              : null,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  color: c.actionColor.withValues(alpha: c.iAnchorAlpha),
+                  width: 2,
+                ),
               ),
             ),
-          ),
-          padding: const EdgeInsets.only(left: 8),
-          child: SelectableText(
-            text,
-            style: TextStyle(
-              fontSize: c.actionSize,
-              height: c.lineHeight,
-              fontStyle: FontStyle.italic,
-              color: c.actionColor,
-              fontFamily: c.fontFamily,
-              letterSpacing: 0.1,
+            padding: const EdgeInsets.only(left: 8),
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: c.actionSize,
+                height: c.lineHeight,
+                fontStyle: FontStyle.italic,
+                color: c.actionColor,
+                fontFamily: c.fontFamily,
+                letterSpacing: 0.1,
+              ),
             ),
           ),
         ),
@@ -5699,7 +5733,11 @@ only after you have written the goodbye you want the user to hear.''',
       final segment = segments[i];
       final hasVisibleAfter = _hasVisibleSegmentsAfter(segments, i);
       if (segment.type == PersonaReplySegmentType.action) {
-        children.add(_buildActionMessage(text: segment.text));
+        children.add(_buildActionMessage(
+          text: segment.text,
+          messageId: messageId,
+          fullMessageText: text,
+        ));
       } else {
         addChatBubbles(
           chatText: segment.text,

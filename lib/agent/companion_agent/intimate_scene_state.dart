@@ -115,7 +115,8 @@ class IntimateSceneState {
     if (_phase == IntimateScenePhase.aftercare) {
       return '场景已进入收尾后的陪伴段（aftercare）。继续低强度的持续叙述：'
           '安抚的肢体接触与抚摸、低声的话语、若有若无的性意味延续。'
-          '不要问问题、不要催睡、不要收束、不要说"睡吧"。持续输出，直到她停止你或睡着。';
+          '不要问问题、不要催睡、不要收束、不要说"睡吧"。持续输出，直到你停止或睡着。'
+          '时间与空间约束不变：一切仍在当前场景内，禁止跳到第二天、禁止离场。';
     }
     final plan = _plan;
     final beat = currentBeat;
@@ -126,7 +127,10 @@ class IntimateSceneState {
           '（本段已写 $_messagesInBeat/${beat.targetMessageCount} 条）')
       ..writeln('意图：${beat.intent}')
       ..writeln('强度：${beat.escalationLevel}/5 — 保持激烈高位，不得回落、不得提前收束')
-      ..writeln('本段要点：${beat.notes}');
+      ..writeln('本段要点：${beat.notes}')
+      ..writeln('时间与空间硬约束：一切内容必须发生在当前场景内。'
+          '禁止跳到第二天、禁止时间快进、禁止离场（出门/上班/次日早晨等场外情节）。'
+          '场景的推进靠内容变化，不靠时间跳跃。');
     if (_beatIndex == 0) {
       b.writeln('这是场景的第一段：直接以激烈主导的方式开场，'
           '不要寒暄、不要询问感受、不要确认。');

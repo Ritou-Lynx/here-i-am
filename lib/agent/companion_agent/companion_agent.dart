@@ -424,7 +424,7 @@ class CompanionAgent {
     final buf = StringBuffer();
     buf.writeln('## 对话间隔感知（time gap）');
     buf.writeln(
-        '距她上一条消息已过 $gapText（现在 ${_fmtHm(now)}）。');
+        '距你上一条消息已过 $gapText（现在 ${_fmtHm(now)}）。');
     if (overnight) {
       buf.writeln('已经过了一夜，是新的一天。');
     }

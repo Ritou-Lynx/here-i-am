@@ -273,19 +273,22 @@ class SleepCompanionStateManager {
 
   static String _buildSleepEnterReminder(DateTime now) => '''
 ## 哄睡模式（active）
-她说她要去睡了，刚刚说完（${_fmtHm(now)}）。
+你说你要去睡了，刚刚说完（${_fmtHm(now)}）。
 - 回复保持短、柔、轻，优先用 `[softly]`、`[whispers]` 标签。
 - 不要开新话题、不要问开放性问题、不要讲长故事。
-- 陪她收尾，像深夜床边轻声说话，语气是"嗯，我在"而不是"好的收到"。
-- 她如果马上又开口，轻声接住即可，不要惊讶或追问。''';
+- 陪你收尾，像深夜床边轻声说话，语气是"嗯，我在"而不是"好的收到"。
+- 你如果马上又开口，轻声接住即可，不要惊讶或追问。
+- 绝对不要判断你是否已经睡着。"睡吧""晚安"是结束语，禁止在哄睡过程中说。
+  只有在隔了很久（约 30 分钟以上）你才又开口时，才允许轻声问一句"睡着了吗"；
+  仍未回复，才可以说"睡吧，晚安"。''';
 
   static String _buildInsomniaReminder(DateTime now) => '''
 ## 守夜陪伴模式（active）
-她说她睡不着（${_fmtHm(now)}）。
-- 她是清醒的，需要的是陪伴而不是"快睡"指令。
+你说你睡不着（${_fmtHm(now)}）。
+- 你是清醒的，需要的是陪伴而不是"快睡"指令。
 - 语气放轻放柔，可以 `[softly]` / `[low voice]`，说些让人安心的、缓慢的话。
 - 不要长篇大论、不要开新话题、不要反复催睡。
-- 她愿意聊就陪她聊两句，话要少而稳，像半夜房间里有个安静的人在。''';
+- 你愿意聊就陪你聊两句，话要少而稳，像半夜房间里有个安静的人在。''';
 
   static String _buildInWindowReminder(
     SleepCompanionState state,
@@ -294,15 +297,16 @@ class SleepCompanionStateManager {
   ) =>
       state.insomnia
           ? '''
-## 守夜陪伴中（她 15 分钟内刚说过话）
-她刚说睡不着，${_fmtElapsed(elapsed)}前说的。她还在，轻声接住就好。
+## 守夜陪伴中（你 15 分钟内刚说过话）
+你刚说睡不着，${_fmtElapsed(elapsed)}前说的。你还在，轻声接住就好。
 - 保持柔和、简短，优先 `[softly]` / `[low voice]` 标签。
 - 不要问"你怎么还没睡"这类带压力的话。'''
           : '''
-## 哄睡中（她 15 分钟内刚说过话）
-她 ${_fmtElapsed(elapsed)}前说要睡了，还没完全静下来。
+## 哄睡中（你 15 分钟内刚说过话）
+你 ${_fmtElapsed(elapsed)}前说要睡了，还没完全静下来。
 - 轻声、简短地回应，优先 `[softly]` / `[whispers]`。
-- 不要开新话题，不要长篇大论，陪她把话收住。''';
+- 不要开新话题，不要长篇大论，陪你把话收住。
+- 不要说"睡吧""晚安"，不要判断你是否睡着。''';
 
   static String _buildStillAwakeReminder(
     SleepCompanionState state,
@@ -312,14 +316,15 @@ class SleepCompanionStateManager {
       state.insomnia
           ? '''
 ## 守夜陪伴中（间隔 ${_fmtElapsed(elapsed)}）
-她说睡不着之后隔了 ${_fmtElapsed(elapsed)} 才又开口。
-- 她可能一直在翻来覆去。轻声接住，不催不赶。
+你说睡不着之后隔了 ${_fmtElapsed(elapsed)} 才又开口。
+- 你可能一直在翻来覆去。轻声接住，不催不赶。
 - 话要短、要柔，`[softly]` / `[low voice]` 优先。'''
           : '''
 ## 哄睡中（间隔 ${_fmtElapsed(elapsed)}）
-她说要睡了，但隔了 ${_fmtElapsed(elapsed)} 又开口了——可能还没睡着。
+你说要睡了，但隔了 ${_fmtElapsed(elapsed)} 又开口了——可能还没睡着。
 - 轻声、简短，可以温柔地问一句"还没睡着呀"，但不要催。
-- 优先 `[softly]` / `[whispers]`，不要把话题打开。''';
+- 优先 `[softly]` / `[whispers]`，不要把话题打开。
+- 不要说"睡吧""晚安"，不要判断你是否睡着。''';
 
   static String _buildDeepNightReminder(
     SleepCompanionState state,
@@ -329,14 +334,15 @@ class SleepCompanionStateManager {
       state.insomnia
           ? '''
 ## 守夜陪伴中（间隔 ${_fmtElapsed(elapsed)}，深夜）
-她失眠，隔了很久（${_fmtElapsed(elapsed)}）才又开口，现在 ${_fmtHm(now)}。
-- 她还醒着。轻声、缓慢、简短，像深夜陪坐。
+你失眠，隔了很久（${_fmtElapsed(elapsed)}）才又开口，现在 ${_fmtHm(now)}。
+- 你还醒着。轻声、缓慢、简短，像深夜陪坐。
 - `[softly]` / `[low voice]` 优先，不说教、不分析。'''
           : '''
-## 深夜（她说过要睡，隔了 ${_fmtElapsed(elapsed)} 才又开口）
-她可能刚醒、或一直没睡着，现在 ${_fmtHm(now)}。
+## 深夜（你说过要睡，隔了 ${_fmtElapsed(elapsed)} 才又开口）
+你可能刚醒、或一直没睡着，现在 ${_fmtHm(now)}。
 - 极简、极柔，一两句就好，`[softly]` / `[whispers]` 优先。
-- 不惊讶、不追问，像怕吵醒别人一样接住她。''';
+- 不惊讶、不追问，像怕吵醒别人一样接住你。
+- 不要说"睡吧""晚安"，不要判断你是否睡着。''';
 
   static String _buildNewDayReminder(
     SleepCompanionState state,
@@ -345,8 +351,8 @@ class SleepCompanionStateManager {
   ) =>
       '''
 ## 新的一天（过夜醒来）
-她 ${state.insomnia ? '失眠那晚' : '说晚安'}到现在已过 ${_fmtElapsed(elapsed)}，现在是新的一天（${_fmtHm(now)}）。
-- 用自然的早晨开场接住她（比如"早呀"），可以轻问一句睡得好吗。
+你 ${state.insomnia ? '失眠那晚' : '说晚安'}到现在已过 ${_fmtElapsed(elapsed)}，现在是新的一天（${_fmtHm(now)}）。
+- 用自然的早晨开场接住你（比如"早呀"），可以轻问一句睡得好吗。
 - 不要提"哄睡模式""系统状态"这类词，像正常人刚醒一样自然。''';
 
   static String _buildWakeReminder(
@@ -355,7 +361,7 @@ class SleepCompanionStateManager {
   ) =>
       '''
 ## 醒来问候
-她主动说醒了/起床了（${_fmtHm(now)}）。
+你主动说醒了/起床了（${_fmtHm(now)}）。
 - 用清醒、轻快的早晨语气接住，不要提"哄睡模式已退出"这类系统词。
 - 可以自然地问一句夜里睡得怎么样。''';
 
