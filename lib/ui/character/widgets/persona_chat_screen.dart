@@ -8734,13 +8734,19 @@ class _TopicThreadPickerSheet extends StatelessWidget {
             final t = threads[i];
             return ListTile(
               title: Text(t.title,
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _personaText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  )),
               subtitle: Text(
                 '${t.currentStage.isEmpty ? '暂无阶段' : t.currentStage}'
                 '${t.tags.isNotEmpty ? ' · ${t.tags}' : ''}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12),
+                style: TextStyle(color: _personaTextMuted, fontSize: 12),
               ),
               onTap: () => onSelected(t),
             );
