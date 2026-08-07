@@ -60,6 +60,23 @@ void main() {
       s.end();
     });
 
+    test('profile text is injected into every turn directive', () {
+      final s = IntimateSceneState.instance;
+      s.end();
+      s.start(
+        characterId: 'a',
+        plan: planWith([2, 2]),
+        profileText: '用词档位：粗俗直白\n反抗处理：更用力压住',
+      );
+      final d = s.currentDirective();
+      expect(d, contains('用词档位：粗俗直白'));
+      expect(d, contains('禁止软化、含蓄化'));
+      // Aftercare keeps the profile in scope too.
+      s.enterAftercare();
+      expect(s.currentDirective(), contains('用词档位：粗俗直白'));
+      s.end();
+    });
+
     test('turnCompleted advances beat on quota and not before', () {
       final s = IntimateSceneState.instance;
       s.end();

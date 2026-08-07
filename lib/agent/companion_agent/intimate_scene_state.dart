@@ -64,6 +64,11 @@ class IntimateSceneState {
   int _messagesInBeat = 0;
   IntimateScenePhase _phase = IntimateScenePhase.main;
 
+  /// 用户档案渲染文本（强度语法/用词档位/硬边界），每轮注入生成上下文。
+  /// 规划器与执行器必须读同一份档案——否则用词/强度指令只在规划时生效，
+  /// 正文生成时模型回到默认风格（含蓄/文学化）。
+  String _profileText = '';
+
   bool get isActive => _activeCharacterId != null;
 
   bool isActiveFor(String characterId) =>
@@ -73,12 +78,17 @@ class IntimateSceneState {
 
   IntimateScenePhase get phase => _phase;
 
-  void start({required String characterId, required IntimateScenePlan plan}) {
+  void start({
+    required String characterId,
+    required IntimateScenePlan plan,
+    String profileText = '',
+  }) {
     _activeCharacterId = characterId;
     _plan = plan;
     _beatIndex = 0;
     _messagesInBeat = 0;
     _phase = IntimateScenePhase.main;
+    _profileText = profileText;
   }
 
   /// Count one completed narration turn and advance the beat when its quota
@@ -113,13 +123,22 @@ class IntimateSceneState {
   String currentDirective() {
     if (!isActive) return '';
     if (_phase == IntimateScenePhase.aftercare) {
-      return '场景已进入收尾后的陪伴段（aftercare）。继续低强度的持续叙述：'
-          '安抚的肢体接触与抚摸、低声的话语、若有若无的性意味延续。'
-          '不要问问题、不要催睡、不要收束、不要说"睡吧"。持续输出，直到你停止或睡着。'
-          '时间与空间约束不变：一切仍在当前场景内，禁止跳到第二天、禁止离场。'
-          '叙述视角：以他做了什么为主——他抚摸、他说话、他安静地陪着你。'
-          '绝不描述你的状态（不写"你睡着了""你呼吸平稳了""你闭上眼睛了"），'
-          '你的状态由你本人表述，他不替你下结论。';
+      final b = StringBuffer()
+        ..writeln('场景已进入收尾后的陪伴段（aftercare）。继续低强度的持续叙述：'
+            '安抚的肢体接触与抚摸、低声的话语、若有若无的性意味延续。'
+            '不要问问题、不要催睡、不要收束、不要说"睡吧"。持续输出，直到你停止或睡着。')
+        ..writeln('时间与空间约束不变：一切仍在当前场景内，禁止跳到第二天、禁止离场。')
+        ..writeln('叙述视角：以他做了什么为主——他抚摸、他说话、他安静地陪着你。'
+            '绝不描述你的状态（不写"你睡着了""你呼吸平稳了""你闭上眼睛了"），'
+            '你的状态由你本人表述，他不替你下结论。');
+      if (_profileText.trim().isNotEmpty) {
+        b
+          ..writeln('用户档案（必须严格遵守，每轮都有效）：')
+          ..writeln(_profileText.trim())
+          ..writeln('执行要求：严格按照档案中的用词档位与强度语法书写，'
+              '禁止软化、含蓄化、文学化或隐喻化处理。');
+      }
+      return b.toString();
     }
     final plan = _plan;
     final beat = currentBeat;
@@ -139,6 +158,13 @@ class IntimateSceneState {
           '不要代写你的反应与状态：不写你的感受、不替你呻吟/颤抖/迎合、'
           '不判定你是否高潮或睡着。他感知到的声音可以写（如"他听到你的呼吸乱了"），'
           '但那是他的观察，不是你的状态的定论。');
+    if (_profileText.trim().isNotEmpty) {
+      b
+        ..writeln('用户档案（必须严格遵守，每轮都有效）：')
+        ..writeln(_profileText.trim())
+        ..writeln('执行要求：严格按照档案中的用词档位与强度语法书写，'
+            '禁止软化、含蓄化、文学化或隐喻化处理。');
+    }
     if (_beatIndex == 0) {
       b.writeln('这是场景的第一段：直接以激烈主导的方式开场，'
           '不要寒暄、不要询问感受、不要确认。');

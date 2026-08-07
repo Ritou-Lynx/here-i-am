@@ -584,6 +584,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   int? _autoReadWatermarkId;
   bool _isTtsLoading = false;
   bool _autoReadEnabled = false;
+  /// Which TTS provider the auto-read button activates. 'elevenlabs' or
+  /// 'minimax'. Controlled by the two auto-read buttons in the header; manual
+  /// play and inline voice mode both follow this.
+  String _activeTtsProvider = 'elevenlabs';
   bool _isInlineVoiceMode = false;
   bool _voiceModeStartQueued = false;
   bool _voiceModeOpeningInProgress = false;
@@ -1536,6 +1540,7 @@ only after you have written the goodbye you want the user to hear.''',
       _currentCharacterId,
     );
     final autoReadEnabled = await UserStorage.getCompanionAutoReadEnabled();
+    final activeProvider = await UserStorage.getTtsProvider();
 
     final messages = await _chatService.getMessages(
       _currentCharacterId,
@@ -1571,6 +1576,7 @@ only after you have written the goodbye you want the user to hear.''',
           _userAvatar = userAvatar;
           _messages = updatedMessages;
           _autoReadEnabled = autoReadEnabled;
+          _activeTtsProvider = activeProvider;
           _hasMoreHistory = updatedMessages.length >= _pageSize;
           _isLoading = false;
         });
@@ -2311,7 +2317,7 @@ only after you have written the goodbye you want the user to hear.''',
       }
 
       if (_isInlineVoiceMode) {
-        final voiceId = _character?.ttsVoiceId;
+        final voiceId = await UserStorage.getActiveTtsVoiceId();
         if (voiceId != null && voiceId.isNotEmpty) {
           final requestSerial = ++_ttsRequestSerial;
           ttsSession = StreamingTtsSession(
@@ -2926,7 +2932,11 @@ only after you have written the goodbye you want the user to hear.''',
         escalationLevel: 4,
       ),
     ]);
-    IntimateSceneState.instance.start(characterId: characterId, plan: plan);
+    IntimateSceneState.instance.start(
+      characterId: characterId,
+      plan: plan,
+      profileText: profileText,
+    );
     ContinuousModeState.instance
         .startRun(characterId: characterId, count: plan.totalMessages);
     if (mounted) setState(() {});
@@ -4261,19 +4271,37 @@ only after you have written the goodbye you want the user to hear.''',
     _autoReadWatermarkId = newest.id;
   }
 
-  Future<void> _setAutoReadEnabled(bool enabled) async {
-    if (enabled) {
-      _advanceAutoReadWatermark(_messages);
-    }
-    setState(() => _autoReadEnabled = enabled);
-    try {
-      await UserStorage.setCompanionAutoReadEnabled(enabled);
-      if (!enabled) {
+  /// Toggle auto-read for [provider] ('elevenlabs' or 'minimax').
+  ///
+  /// If the tapped provider is already active and auto-read is on, turn it
+  /// off. If a different provider is active (or auto-read is off), switch to
+  /// this provider and turn auto-read on. The active provider is persisted so
+  /// manual play and inline voice mode follow the last auto-read choice.
+  Future<void> _toggleAutoRead(String provider) async {
+    if (_autoReadEnabled && _activeTtsProvider == provider) {
+      // Same provider, auto-read is on → turn off.
+      setState(() => _autoReadEnabled = false);
+      try {
+        await UserStorage.setCompanionAutoReadEnabled(false);
         await _stopTtsPlayback();
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _autoReadEnabled = true);
       }
+      return;
+    }
+    // Switch provider and enable auto-read.
+    await UserStorage.setTtsProvider(provider);
+    _advanceAutoReadWatermark(_messages);
+    setState(() {
+      _activeTtsProvider = provider;
+      _autoReadEnabled = true;
+    });
+    try {
+      await UserStorage.setCompanionAutoReadEnabled(true);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _autoReadEnabled = !enabled);
+      setState(() => _autoReadEnabled = false);
     }
   }
 
@@ -4578,12 +4606,12 @@ only after you have written the goodbye you want the user to hear.''',
     await _audioPlayer.stop();
     final requestSerial = ++_ttsRequestSerial;
 
-    final voiceId = _character?.ttsVoiceId;
+    final voiceId = await UserStorage.getActiveTtsVoiceId();
     if (voiceId == null || voiceId.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('请先在角色设置中配置 TTS 语音 ID')));
+        ).showSnackBar(const SnackBar(content: Text('请先在声音与互动中配置 TTS Voice ID')));
       }
       return;
     }
@@ -4880,16 +4908,24 @@ only after you have written the goodbye you want the user to hear.''',
         },
       ),
       _HeaderActionButton(
-        icon: _autoReadEnabled
+        icon: _autoReadEnabled && _activeTtsProvider == 'elevenlabs'
             ? Icons.record_voice_over_rounded
             : Icons.record_voice_over_outlined,
-        label: _autoReadEnabled
-            ? _chatUiText(zh: '关闭自动朗读', en: 'Turn off auto read')
-            : _chatUiText(zh: '开启自动朗读', en: 'Turn on auto read'),
-        active: _autoReadEnabled,
-        onTap: () {
-          unawaited(_setAutoReadEnabled(!_autoReadEnabled));
-        },
+        label: _autoReadEnabled && _activeTtsProvider == 'elevenlabs'
+            ? _chatUiText(zh: '关闭 ElevenLabs 朗读', en: 'Stop ElevenLabs')
+            : _chatUiText(zh: 'ElevenLabs 朗读', en: 'ElevenLabs read'),
+        active: _autoReadEnabled && _activeTtsProvider == 'elevenlabs',
+        onTap: () => unawaited(_toggleAutoRead('elevenlabs')),
+      ),
+      _HeaderActionButton(
+        icon: _autoReadEnabled && _activeTtsProvider == 'minimax'
+            ? Icons.record_voice_over_rounded
+            : Icons.record_voice_over_outlined,
+        label: _autoReadEnabled && _activeTtsProvider == 'minimax'
+            ? _chatUiText(zh: '关闭 MiniMax 朗读', en: 'Stop MiniMax')
+            : _chatUiText(zh: 'MiniMax 朗读', en: 'MiniMax read'),
+        active: _autoReadEnabled && _activeTtsProvider == 'minimax',
+        onTap: () => unawaited(_toggleAutoRead('minimax')),
       ),
       if (widget.onOpenSpaces != null)
         _HeaderActionButton(
