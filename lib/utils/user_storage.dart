@@ -367,11 +367,13 @@ class UserStorage {
   static const String _keyAgentConfigs = 'agent_configs';
   static const String _keyUseLocalSpeechToText = 'use_local_speech_to_text';
   static const String _keyElevenLabsApiKey = 'elevenlabs_api_key';
+  static const String _keyElevenLabsVoiceId = 'elevenlabs_voice_id';
   static const String _keyCompanionAutoReadEnabled =
       'companion_auto_read_enabled';
   static const String _keyTtsProvider = 'tts_provider';
   static const String _keyMiniMaxApiKey = 'minimax_api_key';
   static const String _keyMiniMaxGroupId = 'minimax_group_id';
+  static const String _keyMiniMaxVoiceId = 'minimax_voice_id';
   static const String _keyImageGenProvider = 'image_gen_provider';
   static const String _keyImageGenLlmConfigKey = 'image_gen_llm_config_key';
   static const String _keyComfyuiUrl = 'comfyui_url';
@@ -515,13 +517,23 @@ class UserStorage {
   static Future<String> getTtsProvider() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_keyTtsProvider) ?? 'elevenlabs';
+      final value = prefs.getString(_keyTtsProvider) ?? 'elevenlabs';
+      _cachedTtsProvider = value;
+      return value;
     } catch (e) {
-      return 'elevenlabs';
+      return _cachedTtsProvider ?? 'elevenlabs';
     }
   }
 
+  /// Synchronous access to the last-known TTS provider. Returns 'elevenlabs'
+  /// (default) before the async [getTtsProvider] has been called at least
+  /// once. Used by CompanionAgent._injectTtsTagsGuide which runs in a sync
+  /// context but needs to know the current provider.
+  static String getCachedTtsProviderSync() => _cachedTtsProvider ?? 'elevenlabs';
+  static String? _cachedTtsProvider;
+
   static Future<void> setTtsProvider(String provider) async {
+    _cachedTtsProvider = provider;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyTtsProvider, provider);
@@ -651,6 +663,62 @@ class UserStorage {
     } catch (e) {
       throw Exception('Failed to save MiniMax Group ID: $e');
     }
+  }
+
+  // ── TTS Voice IDs (per-provider, global — not per-character) ─────────────
+
+  static Future<String?> getElevenLabsVoiceId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyElevenLabsVoiceId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> setElevenLabsVoiceId(String? voiceId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (voiceId == null || voiceId.isEmpty) {
+        await prefs.remove(_keyElevenLabsVoiceId);
+      } else {
+        await prefs.setString(_keyElevenLabsVoiceId, voiceId);
+      }
+    } catch (e) {
+      throw Exception('Failed to save ElevenLabs voice ID: $e');
+    }
+  }
+
+  static Future<String?> getMiniMaxVoiceId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyMiniMaxVoiceId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> setMiniMaxVoiceId(String? voiceId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (voiceId == null || voiceId.isEmpty) {
+        await prefs.remove(_keyMiniMaxVoiceId);
+      } else {
+        await prefs.setString(_keyMiniMaxVoiceId, voiceId);
+      }
+    } catch (e) {
+      throw Exception('Failed to save MiniMax voice ID: $e');
+    }
+  }
+
+  /// Returns the voice ID for the currently active TTS provider, or null if
+  /// not configured. The active provider is controlled by the Chat auto-read
+  /// buttons (ElevenLabs / MiniMax); manual play and inline voice mode both
+  /// resolve through this so they follow whichever auto-read button is on.
+  static Future<String?> getActiveTtsVoiceId() async {
+    final provider = await getTtsProvider();
+    if (provider == 'minimax') return getMiniMaxVoiceId();
+    return getElevenLabsVoiceId();
   }
 
   static Future<bool> getCompanionAutoReadEnabled() async {

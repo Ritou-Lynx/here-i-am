@@ -595,46 +595,12 @@ class CompanionAgentSkill extends Skill {
     b.writeln('- 绝不能把任何参与者写成未成年人，也不能引入未成年语境。');
     b.writeln('- 用户明确说"停"、"不要了"、"停一下"时，立刻停止相关描写，回到普通对话语气。');
 
-    b.writeln('');
-    b.writeln('## TTS 语音标签（IMPORTANT - 当回复会被语音播放时生效）');
-    b.writeln('你的回复会被发送到 ElevenLabs v3 语音合成引擎。为了让声音有情绪和呼吸感，'
-        '你需要在对话文本中添加语音标签来控制 TTS 的表现。');
-    b.writeln('');
-    b.writeln('IMPORTANT - 语音标签规则：');
-    b.writeln('标签放在句子开头，后面紧跟对话内容。格式：`[标签] 对话内容`');
-    b.writeln('一句一标签为主，不要在同一句前堆叠 3 个以上标签。');
-    b.writeln('这些标签不会被用户在聊天界面看到（系统会自动剥离），只影响语音播放效果。');
-    b.writeln('');
-    b.writeln('可用标签：');
-    b.writeln('- `[softly]` — 温柔靠近、收束句尾（日常 + 亲密通用）');
-    b.writeln('- `[low voice]` — 压低音量、贴耳（亲密主力）');
-    b.writeln('- `[breathing heavily]` — 气息底色，让声音"参与呼吸"（亲密主力）');
-    b.writeln('- `[whispers]` — 耳语，配短句（私密对话）');
-    b.writeln('- `[amused]` — 忍住的一点笑意、调笑（日常调剂）');
-    b.writeln('- `[eager]` — 热情、想要（日常 + 亲密过渡）');
-    b.writeln('- `[needy]` — 需要感、黏（亲密主力）');
-    b.writeln('- `[pause]` — 制造自然停顿和张力');
-    b.writeln('- `[quiet breath]` — 轻吸气，呼吸切口');
-    b.writeln('');
-    b.writeln('节奏规则：');
-    b.writeln('- 用逗号、省略号和 `[pause]` 制造自然停顿，让 TTS 在语速和断句上有变化。');
-    b.writeln('- 不是每句都要加标签——普通快速回复（一两句话日常接话）不需要标签。');
-    b.writeln('- 标签用于：情绪转折、气氛变化、亲密时刻、贴耳低语、气息参与的段落。');
-    b.writeln('- 标签描述的是耳朵能听见的声音状态，不是画面动作。');
-    b.writeln(
-        '  正例：`[low voice]`（压低声音）、`[whispers]`（耳语）、`[breathing heavily]`（气息参与）');
-    b.writeln('  反例：`[looking at you]`、`[leaning closer]`（这些是画面动作，模型不擅长）');
-    b.writeln('');
-    b.writeln('Example:');
-    b.writeln('```');
-    b.writeln('[softly] 嗯…你终于回来了。[quiet breath] 我等你等了一整天。');
-    b.writeln('');
-    b.writeln('[amused] 别笑我，我知道我听起来很黏——[low voice] 可我就是想你。');
-    b.writeln('');
-    b.writeln('[breathing heavily] 过来一点…再近一点。[whispers] 让我听见你呼吸。');
-    b.writeln('');
-    b.writeln('[eager] 我想要你，[needy] 现在就要。[pause] 别让我说第二遍。');
-    b.writeln('```');
+    // TTS voice tag guidelines are NOT baked into the system prompt — they
+    // differ between ElevenLabs ([softly], [low voice], [pause]…) and MiniMax
+    // ((breath), (sighs)…). Injecting the wrong set would pollute the prompt
+    // for the other provider and also break prefix-cache stability. The
+    // active provider's tag guide is injected per-turn via systemReminders
+    // (see CompanionAgent._injectTtsTagsGuide).
 
     if (hasToyControl) {
       b.writeln('');

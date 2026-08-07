@@ -95,15 +95,35 @@ class PersonaReplySanitizer {
     dotAll: true,
   );
 
-  /// ElevenLabs v3 audio tags that the companion agent may emit to steer TTS
-  /// delivery (emotion, breath, pacing). Whitelisted so we never strip
-  /// markdown links or unrelated bracketed text. Tags are case-insensitive
-  /// and may contain spaces (e.g. `[low voice]`, `[breathing heavily]`).
+  /// TTS audio tags that the companion agent may emit to steer TTS delivery
+  /// (emotion, breath, pacing). Two provider-specific sets are recognized:
+  ///
+  /// - **ElevenLabs v3** — square brackets, English tone words:
+  ///   `[softly]`, `[low voice]`, `[breathing heavily]`, `[whispers]`,
+  ///   `[amused]`, `[eager]`, `[needy]`, `[pause]`, `[short pause]`,
+  ///   `[quiet breath]`, `[long pause]`.
+  ///
+  /// - **MiniMax Speech 2.8** — parentheses, lowercase sound events (19):
+  ///   `(breath)`, `(pant)`, `(inhale)`, `(exhale)`, `(gasps)`,
+  ///   `(laughs)`, `(chuckle)`, `(sniffs)`, `(sighs)`, `(coughs)`,
+  ///   `(snorts)`, `(clear-throat)`, `(burps)`, `(groans)`, `(sneezes)`,
+  ///   `(hissing)`, `(lip-smacking)`, `(humming)`, `(emm)`.
+  ///
+  /// Both sets are stripped from chat UI text so the user never sees raw
+  /// control tags. The TTS path keeps whichever tags match its provider.
   static final RegExp _ttsAudioTag = RegExp(
+    r'(?:'
     r'\[\s*(?:'
     r'softly|low voice|breathing heavily|whispers|amused|eager|needy|'
     r'pause|short pause|quiet breath|long pause'
-    r')\s*\]',
+    r')\s*\]'
+    r'|'
+    r'\(\s*(?:'
+    r'breath|pant|inhale|exhale|gasps|laughs|chuckle|sniffs|sighs|coughs|'
+    r'snorts|clear-throat|burps|groans|sneezes|hissing|lip-smacking|'
+    r'humming|emm'
+    r')\s*\)'
+    r')',
     caseSensitive: false,
   );
 

@@ -537,8 +537,10 @@ class VoicePlaybackSettingsPage extends StatefulWidget {
 
 class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   final _elevenLabsController = TextEditingController();
+  final _elevenLabsVoiceIdController = TextEditingController();
   final _miniMaxController = TextEditingController();
   final _miniMaxGroupController = TextEditingController();
+  final _miniMaxVoiceIdController = TextEditingController();
   String? _provider;
 
   @override
@@ -553,19 +555,25 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       UserStorage.getElevenLabsApiKey(),
       UserStorage.getMiniMaxApiKey(),
       UserStorage.getMiniMaxGroupId(),
+      UserStorage.getElevenLabsVoiceId(),
+      UserStorage.getMiniMaxVoiceId(),
     ]);
     if (!mounted) return;
     _elevenLabsController.text = values[1] as String? ?? '';
     _miniMaxController.text = values[2] as String? ?? '';
     _miniMaxGroupController.text = values[3] as String? ?? '';
+    _elevenLabsVoiceIdController.text = values[4] as String? ?? '';
+    _miniMaxVoiceIdController.text = values[5] as String? ?? '';
     setState(() => _provider = values[0]! as String);
   }
 
   @override
   void dispose() {
     _elevenLabsController.dispose();
+    _elevenLabsVoiceIdController.dispose();
     _miniMaxController.dispose();
     _miniMaxGroupController.dispose();
+    _miniMaxVoiceIdController.dispose();
     super.dispose();
   }
 
@@ -579,9 +587,13 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     if (_provider == 'minimax') {
       await UserStorage.setMiniMaxApiKey(_miniMaxController.text.trim());
       await UserStorage.setMiniMaxGroupId(_miniMaxGroupController.text.trim());
+      await UserStorage.setMiniMaxVoiceId(_miniMaxVoiceIdController.text.trim());
     } else {
       await UserStorage.setElevenLabsApiKey(
         _elevenLabsController.text.trim(),
+      );
+      await UserStorage.setElevenLabsVoiceId(
+        _elevenLabsVoiceIdController.text.trim(),
       );
     }
     if (mounted) _showSaved(context, '语音播放设置已保存');
@@ -594,7 +606,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       children: [
         const _PageIntro(
           title: 'TTS 服务',
-          body: '这里只配置全局语音服务与凭证；林埃自己的 Voice ID 仍在“关于林埃”里编辑。',
+          body: '两个语音服务各自需要 API Key 和 Voice ID。Chat 界面的两个自动朗读按钮分别对应 ElevenLabs 和 MiniMax，点一下开启对应服务的自动朗读，再点一下关闭。',
         ),
         const SizedBox(height: 20),
         if (_provider == null)
@@ -620,39 +632,73 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          // ElevenLabs config — always visible so switching providers never
+          // hides the other provider's saved values.
           _SettingsSurface(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (_provider == 'elevenlabs')
-                  TextField(
-                    controller: _elevenLabsController,
-                    obscureText: true,
-                    decoration:
-                        const InputDecoration(labelText: 'ElevenLabs API Key'),
-                  )
-                else ...[
-                  TextField(
-                    controller: _miniMaxController,
-                    obscureText: true,
-                    decoration:
-                        const InputDecoration(labelText: 'MiniMax API Key'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _miniMaxGroupController,
-                    decoration:
-                        const InputDecoration(labelText: 'MiniMax Group ID'),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _save,
-                    child: const Text('保存'),
+                Text(
+                  'ElevenLabs',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _elevenLabsController,
+                  obscureText: true,
+                  decoration:
+                      const InputDecoration(labelText: 'ElevenLabs API Key'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _elevenLabsVoiceIdController,
+                  decoration: const InputDecoration(
+                    labelText: 'ElevenLabs Voice ID',
+                    hintText: '20 位字符的 voice ID',
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingsSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'MiniMax',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _miniMaxController,
+                  obscureText: true,
+                  decoration:
+                      const InputDecoration(labelText: 'MiniMax API Key'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _miniMaxGroupController,
+                  decoration:
+                      const InputDecoration(labelText: 'MiniMax Group ID'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _miniMaxVoiceIdController,
+                  decoration: const InputDecoration(
+                    labelText: 'MiniMax Voice ID',
+                    hintText: '数字 voice ID',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _save,
+              child: const Text('保存'),
             ),
           ),
         ],

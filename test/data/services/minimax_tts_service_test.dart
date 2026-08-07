@@ -16,7 +16,8 @@ void main() {
         '\u4eca\u5929\u5148\u8fd9\u6837\u5427\uff0c'
         '\u597d\u5417\uff1f',
       );
-      expect(speechText, startsWith('<#0.20#> '));
+      // No leading <#0.20#> — pause tags must not be at the start.
+      expect(speechText, isNot(startsWith('<#')));
       expect(speechText, contains('<#0.24#>'));
       expect(speechText, contains('<#0.42#>'));
       expect(speechText, contains(source.substring(0, 1)));
@@ -43,6 +44,7 @@ void main() {
       final script = MiniMaxTtsService.buildSpeechScript(source);
 
       expect(script.scene, MiniMaxTtsScene.strictCommand);
+      expect(script.emotion, MiniMaxEmotion.angry);
       expect(script.speed, 0.82);
       expect(script.vol, 1.0);
       expect(script.pitch, 0);
@@ -57,10 +59,12 @@ void main() {
       final script = MiniMaxTtsService.buildSpeechScript(source);
 
       expect(script.scene, MiniMaxTtsScene.vulnerable);
+      expect(script.emotion, MiniMaxEmotion.sad);
       expect(script.speed, 0.70);
       expect(script.vol, 0.82);
       expect(script.pitch, 0);
-      expect(RegExp(r'\(sniffs\)').allMatches(script.text), hasLength(1));
+      // Only the first tag survives (max 3, but source has 2 — both kept).
+      expect(RegExp(r'\(sniffs\)').allMatches(script.text), hasLength(2));
       expect(script.text, contains('<#0.50#>'));
     });
 
@@ -70,11 +74,24 @@ void main() {
       final script = MiniMaxTtsService.buildSpeechScript(source);
 
       expect(script.scene, MiniMaxTtsScene.flirt);
+      expect(script.emotion, MiniMaxEmotion.happy);
       expect(script.speed, 0.76);
       expect(script.vol, 0.78);
       expect(script.pitch, 0);
-      expect(script.text, startsWith('<#0.20#> (breath)'));
+      // No leading <#0.20#> (tag must not be at start).
+      expect(script.text, isNot(startsWith('<#')));
+      // Breath tag is injected after the first punctuation (not at start).
+      expect(script.text, contains('(breath)'));
       expect(script.text, contains('<#0.45#>'));
+    });
+
+    test('neutral scene has null emotion (auto-detect)', () {
+      const source = '你好，今天天气不错。';
+
+      final script = MiniMaxTtsService.buildSpeechScript(source);
+
+      expect(script.scene, MiniMaxTtsScene.neutral);
+      expect(script.emotion, isNull);
     });
   });
 }

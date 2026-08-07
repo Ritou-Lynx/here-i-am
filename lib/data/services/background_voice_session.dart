@@ -108,7 +108,7 @@ class BackgroundVoiceSession {
       _userId = userId;
       _characterId = character.id;
       _characterName = character.name;
-      _voiceId = character.ttsVoiceId;
+      _voiceId = await UserStorage.getActiveTtsVoiceId();
       _ready = true;
       _log.info(
           'ready: character=${character.id} voiceId=${_voiceId ?? 'none'}');

@@ -4919,8 +4919,8 @@ only after you have written the goodbye you want the user to hear.''',
       ),
       _HeaderActionButton(
         icon: _autoReadEnabled && _activeTtsProvider == 'minimax'
-            ? Icons.record_voice_over_rounded
-            : Icons.record_voice_over_outlined,
+            ? Icons.graphic_eq_rounded
+            : Icons.graphic_eq_outlined,
         label: _autoReadEnabled && _activeTtsProvider == 'minimax'
             ? _chatUiText(zh: '关闭 MiniMax 朗读', en: 'Stop MiniMax')
             : _chatUiText(zh: 'MiniMax 朗读', en: 'MiniMax read'),

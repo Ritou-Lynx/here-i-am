@@ -15,10 +15,23 @@ enum MiniMaxTtsScene {
   flirt,
 }
 
+/// MiniMax T2A v2 emotion 枚举（speech-2.8-hd / 2.8-turbo）。
+/// @see https://platform.minimax.io/docs (T2A v2 — emotion)
+enum MiniMaxEmotion {
+  happy,
+  sad,
+  angry,
+  fearful,
+  disgusted,
+  surprised,
+  calm, // 2.6+ 的中性；02 系列用 neutral（不传 emotion 时自动判断）
+}
+
 class MiniMaxSpeechScript {
   const MiniMaxSpeechScript({
     required this.text,
     required this.scene,
+    required this.emotion,
     required this.speed,
     required this.vol,
     required this.pitch,
@@ -26,6 +39,7 @@ class MiniMaxSpeechScript {
 
   final String text;
   final MiniMaxTtsScene scene;
+  final MiniMaxEmotion? emotion; // null = 不传，让模型自动判断
   final double speed;
   final double vol;
   final int pitch;
@@ -35,10 +49,11 @@ class MiniMaxSpeechScript {
         'speed': speed,
         'vol': vol,
         'pitch': pitch,
+        if (emotion != null) 'emotion': emotion!.name,
       };
 
   String get cacheSignature =>
-      '${scene.name}:speed=$speed:vol=$vol:pitch=$pitch:text=$text';
+      'emotion=${emotion?.name ?? 'auto'}:speed=$speed:vol=$vol:pitch=$pitch:text=$text';
 }
 
 class MiniMaxTtsService {
@@ -47,14 +62,33 @@ class MiniMaxTtsService {
   static const _stablePitch = 0;
   static final _log = getLogger('MiniMaxTts');
 
+  /// 19 种官方支持的语气词标签（speech-2.8-hd / 2.8-turbo）。
+  /// 标签用英文圆括号，小写，大小写敏感。
+  /// @see https://platform.minimax.io/docs (T2A v2 — Sound Tags)
   static const _allowedSoundTags = {
-    'sniffs',
-    'breath',
-    'sighs',
-    'laughs',
-    'gasps',
-    'chuckle',
-    'emm',
+    // 笑/哭类
+    'laughs',      // 笑声
+    'chuckle',     // 轻笑
+    'sniffs',      // 吸鼻子
+    'sighs',       // 叹气
+    // 呼吸类
+    'breath',      // 正常换气
+    'pant',        // 喘气
+    'inhale',      // 吸气
+    'exhale',      // 呼气
+    'gasps',       // 倒吸气
+    // 生理类
+    'coughs',      // 咳嗽
+    'snorts',      // 喷鼻息
+    'clear-throat',// 清嗓子
+    'burps',       // 打嗝
+    'groans',      // 呻吟
+    'sneezes',    // 喷嚏
+    'hissing',     // 嘶嘶声
+    'lip-smacking',// 咂嘴
+    // 声音类
+    'humming',     // 哼唱
+    'emm',         // 嗯
   };
 
   /// Generate speech for [text] using [voiceId]. Returns path to local audio file.
@@ -280,6 +314,7 @@ class MiniMaxTtsService {
       return const MiniMaxSpeechScript(
         text: '',
         scene: MiniMaxTtsScene.neutral,
+        emotion: null,
         speed: 0.94,
         vol: 1.0,
         pitch: _stablePitch,
@@ -291,13 +326,14 @@ class MiniMaxTtsService {
     speechText = _normalizeSoundTags(speechText);
     speechText = _insertMiniMaxPauses(speechText, scene);
     speechText = _applySceneSoundEvent(speechText, scene);
-    speechText =
-        '<#0.20#> ${speechText.trim()}'.replaceAll(RegExp(r'\s+'), ' ').trim();
+    // 不在开头加 <#0.20#>——官方规则：停顿标签不能放在开头或结尾。
+    speechText = speechText.replaceAll(RegExp(r'\s+'), ' ').trim();
 
     final setting = _voiceSettingForScene(scene);
     return MiniMaxSpeechScript(
       text: speechText,
       scene: scene,
+      emotion: setting.emotion,
       speed: setting.speed,
       vol: setting.vol,
       pitch: setting.pitch,
@@ -328,15 +364,17 @@ class MiniMaxTtsService {
   }
 
   static String _normalizeSoundTags(String text) {
-    var usedTag = false;
+    // 官方允许最多 3 个语气词标签；超过会被非法字符占比限制拒绝。
+    // 保留前 3 个有效标签，多余的全部删除。
+    var tagCount = 0;
     return text
         .replaceAllMapped(
           RegExp(r'\(([^)\r\n]{1,40})\)'),
           (match) {
             final raw = match.group(1)!.trim();
             final tag = raw.toLowerCase();
-            if (_allowedSoundTags.contains(tag) && !usedTag) {
-              usedTag = true;
+            if (_allowedSoundTags.contains(tag) && tagCount < 3) {
+              tagCount++;
               return '($tag)';
             }
             return '';
@@ -446,16 +484,24 @@ class MiniMaxTtsService {
 
   static String _applySceneSoundEvent(String text, MiniMaxTtsScene scene) {
     if (_containsAllowedSoundTag(text)) return text;
-    return switch (scene) {
-      MiniMaxTtsScene.vulnerable => '(sniffs) $text',
-      MiniMaxTtsScene.flirt => '(breath) $text',
-      MiniMaxTtsScene.strictCommand || MiniMaxTtsScene.neutral => text,
+    // 官方规则：标签不能放句首第一个字符。插在第一个标点后。
+    final tag = switch (scene) {
+      MiniMaxTtsScene.vulnerable => '(sniffs)',
+      MiniMaxTtsScene.flirt => '(breath)',
+      _ => null,
     };
+    if (tag == null) return text;
+    final punctMatch = RegExp(r'^([^，。！？!?;；,.\s]+[，。！？!?;；,.\s])').firstMatch(text);
+    if (punctMatch == null) return '$text $tag';
+    final splitAt = punctMatch.end;
+    return '${text.substring(0, splitAt)}$tag ${text.substring(splitAt)}';
   }
 
   static bool _containsAllowedSoundTag(String text) {
     return RegExp(
-      r'\((sniffs|breath|sighs|laughs|gasps|chuckle|emm)\)',
+      r'\((sniffs|breath|sighs|laughs|gasps|chuckle|emm|clear-throat|'
+      r'coughs|snorts|burps|groans|sneezes|hissing|lip-smacking|'
+      r'humming|pant|inhale|exhale)\)',
       caseSensitive: false,
     ).hasMatch(text);
   }
@@ -465,6 +511,7 @@ class MiniMaxTtsService {
       MiniMaxTtsScene.strictCommand => const MiniMaxSpeechScript(
           text: '',
           scene: MiniMaxTtsScene.strictCommand,
+          emotion: MiniMaxEmotion.angry,
           speed: 0.82,
           vol: 1.0,
           pitch: _stablePitch,
@@ -472,6 +519,7 @@ class MiniMaxTtsService {
       MiniMaxTtsScene.vulnerable => const MiniMaxSpeechScript(
           text: '',
           scene: MiniMaxTtsScene.vulnerable,
+          emotion: MiniMaxEmotion.sad,
           speed: 0.70,
           vol: 0.82,
           pitch: _stablePitch,
@@ -479,6 +527,7 @@ class MiniMaxTtsService {
       MiniMaxTtsScene.flirt => const MiniMaxSpeechScript(
           text: '',
           scene: MiniMaxTtsScene.flirt,
+          emotion: MiniMaxEmotion.happy,
           speed: 0.76,
           vol: 0.78,
           pitch: _stablePitch,
@@ -486,6 +535,7 @@ class MiniMaxTtsService {
       MiniMaxTtsScene.neutral => const MiniMaxSpeechScript(
           text: '',
           scene: MiniMaxTtsScene.neutral,
+          emotion: null, // 自动判断
           speed: 0.94,
           vol: 1.0,
           pitch: _stablePitch,

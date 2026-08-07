@@ -527,11 +527,6 @@ class _IEditScreenState extends State<_IEditScreen> {
   CharacterModel? _character;
   String? _avatarPreview;
 
-  final _ttsVoiceIdController = TextEditingController();
-  final _ttsVoiceIdFocusNode = FocusNode();
-  Timer? _ttsVoiceIdSaveDebounce;
-  String? _lastPersistedTtsVoiceId;
-
   @override
   void initState() {
     super.initState();
@@ -551,8 +546,6 @@ class _IEditScreenState extends State<_IEditScreen> {
       setState(() {
         _character = primary;
         _avatarPreview = primary?.avatar;
-        _ttsVoiceIdController.text = primary?.ttsVoiceId ?? '';
-        _lastPersistedTtsVoiceId = primary?.ttsVoiceId;
         _isLoading = false;
       });
     } catch (e, s) {
@@ -563,34 +556,7 @@ class _IEditScreenState extends State<_IEditScreen> {
 
   @override
   void dispose() {
-    _ttsVoiceIdSaveDebounce?.cancel();
-    if (_isTtsVoiceIdDirty()) {
-      _flushTtsVoiceIdSave();
-    }
-    _ttsVoiceIdController.dispose();
-    _ttsVoiceIdFocusNode.dispose();
     super.dispose();
-  }
-
-  bool _isTtsVoiceIdDirty() {
-    final current = _ttsVoiceIdController.text.trim();
-    final saved = _lastPersistedTtsVoiceId ?? '';
-    return current != saved;
-  }
-
-  void _onTtsVoiceIdChanged(String _) {
-    _ttsVoiceIdSaveDebounce?.cancel();
-    _ttsVoiceIdSaveDebounce = Timer(
-      const Duration(milliseconds: 600),
-      _saveTtsVoiceId,
-    );
-  }
-
-  void _flushTtsVoiceIdSave() {
-    _ttsVoiceIdSaveDebounce?.cancel();
-    if (_isTtsVoiceIdDirty()) {
-      _saveTtsVoiceId();
-    }
   }
 
   Future<void> _pickAvatar() async {
@@ -630,38 +596,6 @@ class _IEditScreenState extends State<_IEditScreen> {
         );
       }
       return null;
-    }
-  }
-
-  Future<void> _saveTtsVoiceId() async {
-    final value = _ttsVoiceIdController.text.trim();
-    final next = value.isEmpty ? null : value;
-    if ((_lastPersistedTtsVoiceId ?? '') == (next ?? '')) return;
-    final character = _character;
-    if (character == null) return;
-    try {
-      final userId = await UserStorage.getUserId();
-      if (userId == null) return;
-      final updated = await CharacterService.instance.updateCharacter(
-        userId: userId,
-        characterId: character.id,
-        updates: {'tts_voice_id': next},
-      );
-      if (!mounted) return;
-      if (updated != null) {
-        setState(() {
-          _character = updated;
-          _lastPersistedTtsVoiceId = next;
-        });
-      }
-    } catch (e, s) {
-      _logger.warning('Failed to persist tts_voice_id', e, s);
-      if (mounted) {
-        ToastHelper.showError(
-          context,
-          UserStorage.l10n.saveFailed(e.toString()),
-        );
-      }
     }
   }
 
@@ -730,62 +664,9 @@ class _IEditScreenState extends State<_IEditScreen> {
                     children: [
                       Center(child: _buildAvatar()),
                       const SizedBox(height: 32),
-                      _sectionLabel('林埃的声音'),
-                      const SizedBox(height: 4),
-                      Text(
-                        '使用“语音播放”中已经配置的服务，为林埃指定对应的声音标识。',
-                        style: TextStyle(fontSize: 12, color: skin.textMuted),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _ttsVoiceIdController,
-                        focusNode: _ttsVoiceIdFocusNode,
-                        style: TextStyle(fontSize: 16, color: skin.textPrimary),
-                        decoration: InputDecoration(
-                          labelText: '声音标识',
-                          hintText: '例如 Voice ID',
-                          hintStyle: TextStyle(
-                            color: skin.textMuted,
-                            fontSize: 14,
-                          ),
-                          filled: true,
-                          fillColor: skin.glassFill,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 16,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: skin.glassStroke),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: skin.glassStroke),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: skin.accent),
-                          ),
-                        ),
-                        onChanged: _onTtsVoiceIdChanged,
-                        onSubmitted: (_) => _flushTtsVoiceIdSave(),
-                        onTapOutside: (_) => _flushTtsVoiceIdSave(),
-                      ),
                     ],
                   ),
                 ),
-    );
-  }
-
-  Widget _sectionLabel(String text) {
-    const skin = HereIamThemeTokens.springRainDaydream;
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: skin.textMuted,
-      ),
     );
   }
 
