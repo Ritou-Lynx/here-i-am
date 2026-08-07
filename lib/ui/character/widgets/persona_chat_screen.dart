@@ -5341,143 +5341,146 @@ only after you have written the goodbye you want the user to hear.''',
             left: 16,
             right: 16,
             child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Cancel button
-                  GestureDetector(
-                    onTap: _exitSelectMode,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _personaPanel,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: _personaTextMuted.withValues(alpha: 0.25),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Cancel button
+                    GestureDetector(
+                      onTap: _exitSelectMode,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 12,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
+                        decoration: BoxDecoration(
+                          color: _personaPanel,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: _personaTextMuted.withValues(alpha: 0.25),
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        '取消',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: _personaTextMuted,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          '取消',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _personaTextMuted,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Delete button
-                  GestureDetector(
-                    onTap: _selectedMessageIds.isNotEmpty
-                        ? _batchDeleteSelectedMessages
-                        : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _selectedMessageIds.isNotEmpty
-                            ? Colors.red.withValues(alpha: 0.8)
-                            : Colors.red.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.red.withValues(alpha: 0.2),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
+                    const SizedBox(width: 12),
+                    // Delete button
+                    GestureDetector(
+                      onTap: _selectedMessageIds.isNotEmpty
+                          ? _batchDeleteSelectedMessages
+                          : null,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _selectedMessageIds.isNotEmpty
+                              ? Colors.red.withValues(alpha: 0.8)
+                              : Colors.red.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withValues(alpha: 0.2),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          _chatUiText(zh: '删除', en: 'Delete'),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        _chatUiText(zh: '删除', en: 'Delete'),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Record button
-                  GestureDetector(
-                    onTap: _selectedMessageIds.isNotEmpty
-                        ? _batchRecordSelectedMessages
-                        : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _selectedMessageIds.isNotEmpty
-                            ? _personaAccent
-                            : _personaAccent.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _personaAccent.withValues(alpha: 0.35),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
+                    const SizedBox(width: 12),
+                    // Record button
+                    GestureDetector(
+                      onTap: _selectedMessageIds.isNotEmpty
+                          ? _batchRecordSelectedMessages
+                          : null,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _selectedMessageIds.isNotEmpty
+                              ? _personaAccent
+                              : _personaAccent.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _personaAccent.withValues(alpha: 0.35),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          '记录为卡片${_selectedMessageIds.isNotEmpty ? ' (${_selectedMessageIds.length})' : ''}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        '记录为卡片${_selectedMessageIds.isNotEmpty ? ' (${_selectedMessageIds.length})' : ''}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Add to topic thread button
-                  GestureDetector(
-                    onTap: _selectedMessageIds.isNotEmpty
-                        ? _batchAddToTopicThread
-                        : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _selectedMessageIds.isNotEmpty
-                            ? _personaAccent.withValues(alpha: 0.85)
-                            : _personaAccent.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _personaAccent.withValues(alpha: 0.35),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
+                    const SizedBox(width: 12),
+                    // Add to topic thread button
+                    GestureDetector(
+                      onTap: _selectedMessageIds.isNotEmpty
+                          ? _batchAddToTopicThread
+                          : null,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _selectedMessageIds.isNotEmpty
+                              ? _personaAccent.withValues(alpha: 0.85)
+                              : _personaAccent.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _personaAccent.withValues(alpha: 0.35),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          '加入话题${_selectedMessageIds.isNotEmpty ? ' (${_selectedMessageIds.length})' : ''}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        '加入话题${_selectedMessageIds.isNotEmpty ? ' (${_selectedMessageIds.length})' : ''}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
