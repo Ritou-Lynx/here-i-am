@@ -222,6 +222,7 @@ class CompanionTaskHandler extends TaskHandler {
         await FlutterForegroundTask.updateService(
           notificationTitle: character.name,
           notificationText: '在后台陪着你',
+          notificationIcon: CompanionForegroundService._notificationIcon,
         );
       } catch (e) {
         debugPrint('[ForegroundTask] failed to update notification: $e');
@@ -294,13 +295,18 @@ class CompanionForegroundService {
   // Channel ID rev'd to v2 to force-recreate with LOW importance.
   // MIN importance causes Android to deprioritize the foreground service,
   // leading to suspended ticks and delayed notifications on Samsung devices.
-  static const String notificationChannelId = 'companion_foreground_v2';
+  static const String notificationChannelId = 'companion_foreground_v3';
   static const String notificationChannelName = 'Companion';
   static const String _ownerPrefsKey = 'foreground_task_owner';
   static const String _versionPrefsKey = 'companion_foreground_config_version';
   static const String _ownerCompanion = 'companion';
   static const String _ownerVoiceCall = 'voice_call';
   static const int _configVersion = 2;
+
+  /// Notification icon for the persistent companion foreground service.
+  /// Points to manifest meta-data "ic_stat_here_i_am" -> @drawable/ic_stat_here_i_am.
+  static final NotificationIcon _notificationIcon =
+      const NotificationIcon(metaDataName: 'ic_stat_here_i_am');
 
   // Tick cadence. The interval gate (CheckinService.dueForCheckin) decides when
   // a tick actually performs a checkin.
@@ -315,8 +321,8 @@ class CompanionForegroundService {
         channelId: notificationChannelId,
         channelName: notificationChannelName,
         channelDescription: 'Keeps your companion present in the background',
-        channelImportance: NotificationChannelImportance.LOW,
-        priority: NotificationPriority.LOW,
+        channelImportance: NotificationChannelImportance.DEFAULT,
+        priority: NotificationPriority.DEFAULT,
         onlyAlertOnce: true,
       ),
       iosNotificationOptions: const IOSNotificationOptions(
@@ -356,6 +362,7 @@ class CompanionForegroundService {
         await FlutterForegroundTask.updateService(
           notificationTitle: title,
           notificationText: '在后台陪着你',
+          notificationIcon: _notificationIcon,
         );
         debugPrint('[ForegroundTask] persistent service already running, '
             'notification updated to "$title"');
@@ -372,6 +379,7 @@ class CompanionForegroundService {
     await FlutterForegroundTask.startService(
       notificationTitle: title,
       notificationText: '在后台陪着你',
+      notificationIcon: _notificationIcon,
       callback: companionForegroundTaskEntry,
     );
     debugPrint('[ForegroundTask] persistent service started');

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Here I am logo adaptive-icon background (rain-blue v2: #CCD5D2 浅冷雾色) -->
-    <color name="launcher_background">#CCD5D2</color>
+    <!-- Here I am logo adaptive-icon background (mist-green v2: #DDD8CC 暖雾米色) -->
+    <color name="launcher_background">#DDD8CC</color>
 </resources>
