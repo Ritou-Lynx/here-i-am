@@ -1,19 +1,47 @@
 package com.memexlab.memex
 
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.SurfaceTexture
+import android.media.MediaPlayer
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.view.KeyEvent
+import android.view.Surface
+import android.view.TextureView
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
 import com.memexlab.memex.channels.BackupImportChannelHandler
 import com.memexlab.memex.channels.BackupStorageChannelHandler
 import com.memexlab.memex.channels.ChannelRegistrar
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import android.util.Log
-import android.view.KeyEvent
 
 class MainActivity : FlutterFragmentActivity() {
-    private var mediaButtonChannel: MethodChannel? = null
+    companion object {
+        private const val OPENING_SPLASH_CHANNEL = "com.memexlab.memex/opening_splash"
+        private const val HERE_I_AM_V3_PACKAGE = "com.memexlab.hereiam.v3"
+        private const val NATIVE_SPLASH_ASSET =
+            "flutter_assets/assets/images/spring_rain_daydream_splash_v6_native.mp4"
+        private const val SPLASH_FAILSAFE_MS = 20_000L
+    }
 
-    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+    private var mediaButtonChannel: MethodChannel? = null
+    private var openingSplashChannel: MethodChannel? = null
+    private var openingSplashOverlay: FrameLayout? = null
+    private var openingSplashTexture: TextureView? = null
+    private var openingSplashPlayer: MediaPlayer? = null
+    private var openingSplashSurface: Surface? = null
+    private var openingSplashPrepared = false
+    private val openingSplashHandler = Handler(Looper.getMainLooper())
+    private val openingSplashFailsafe = Runnable { dismissNativeOpeningSplash() }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
         // If the Activity is being recreated (system killed it in background),
         // clear the stale shortcut extra so the quick_actions plugin won't
         // re-deliver an already-consumed action on the next attach cycle.
@@ -22,6 +50,9 @@ class MainActivity : FlutterFragmentActivity() {
         }
         super.onCreate(savedInstanceState)
         BackupImportChannelHandler.handleIntent(this, intent)
+        if (packageName == HERE_I_AM_V3_PACKAGE && savedInstanceState == null) {
+            showNativeOpeningSplash()
+        }
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
@@ -36,6 +67,7 @@ class MainActivity : FlutterFragmentActivity() {
         // Register all MethodChannel handlers
         ChannelRegistrar.registerAll(flutterEngine, this)
         registerMediaButtonChannel(flutterEngine)
+        registerOpeningSplashChannel(flutterEngine)
     }
 
     private fun registerMediaButtonChannel(flutterEngine: FlutterEngine) {
@@ -62,6 +94,158 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    private fun registerOpeningSplashChannel(flutterEngine: FlutterEngine) {
+        val channel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            OPENING_SPLASH_CHANNEL,
+        )
+        openingSplashChannel = channel
+        channel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "dismiss" -> {
+                    dismissNativeOpeningSplash()
+                    result.success(null)
+                }
+
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun showNativeOpeningSplash() {
+        if (openingSplashOverlay != null) return
+
+        val overlay = FrameLayout(this).apply {
+            setBackgroundColor(Color.rgb(243, 243, 236))
+            isClickable = true
+            isFocusable = true
+            elevation = 10_000f
+        }
+        val poster = ImageView(this).apply {
+            setImageResource(R.drawable.spring_rain_daydream_launch)
+            scaleType = ImageView.ScaleType.FIT_XY
+        }
+        val texture = TextureView(this).apply {
+            alpha = 0f
+            isOpaque = true
+        }
+
+        overlay.addView(
+            poster,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        overlay.addView(
+            texture,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        addContentView(
+            overlay,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+
+        openingSplashOverlay = overlay
+        openingSplashTexture = texture
+        texture.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(
+                surfaceTexture: SurfaceTexture,
+                width: Int,
+                height: Int,
+            ) {
+                prepareNativeOpeningVideo(surfaceTexture)
+            }
+
+            override fun onSurfaceTextureSizeChanged(
+                surfaceTexture: SurfaceTexture,
+                width: Int,
+                height: Int,
+            ) = Unit
+
+            override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
+                releaseNativeOpeningPlayer()
+                return true
+            }
+
+            override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) = Unit
+        }
+        openingSplashHandler.postDelayed(openingSplashFailsafe, SPLASH_FAILSAFE_MS)
+    }
+
+    private fun prepareNativeOpeningVideo(surfaceTexture: SurfaceTexture) {
+        releaseNativeOpeningPlayer()
+        val surface = Surface(surfaceTexture)
+        openingSplashSurface = surface
+        val player = MediaPlayer()
+        openingSplashPlayer = player
+        try {
+            assets.openFd(NATIVE_SPLASH_ASSET).use { descriptor ->
+                player.setDataSource(
+                    descriptor.fileDescriptor,
+                    descriptor.startOffset,
+                    descriptor.length,
+                )
+            }
+            player.setSurface(surface)
+            player.isLooping = true
+            player.setVolume(0f, 0f)
+            player.setOnPreparedListener {
+                openingSplashPrepared = true
+                it.start()
+            }
+            player.setOnInfoListener { _, what, _ ->
+                if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                    openingSplashTexture?.animate()?.alpha(1f)?.setDuration(80L)?.start()
+                }
+                false
+            }
+            player.setOnErrorListener { _, what, extra ->
+                Log.e("NativeOpeningSplash", "MediaPlayer error what=$what extra=$extra")
+                openingSplashPrepared = false
+                openingSplashTexture?.visibility = View.INVISIBLE
+                true
+            }
+            player.prepareAsync()
+        } catch (error: Exception) {
+            Log.e("NativeOpeningSplash", "Unable to prepare native opening video", error)
+            releaseNativeOpeningPlayer()
+        }
+    }
+
+    private fun dismissNativeOpeningSplash() {
+        openingSplashHandler.removeCallbacks(openingSplashFailsafe)
+        val overlay = openingSplashOverlay ?: return
+        openingSplashOverlay = null
+        overlay.animate()
+            .alpha(0f)
+            .setDuration(120L)
+            .withEndAction {
+                (overlay.parent as? ViewGroup)?.removeView(overlay)
+                releaseNativeOpeningPlayer()
+                openingSplashTexture = null
+            }
+            .start()
+    }
+
+    private fun releaseNativeOpeningPlayer() {
+        openingSplashPrepared = false
+        val player = openingSplashPlayer
+        openingSplashPlayer = null
+        player?.runCatching { setSurface(null) }
+        player?.runCatching { stop() }
+        player?.runCatching { reset() }
+        player?.runCatching { release() }
+        openingSplashSurface?.release()
+        openingSplashSurface = null
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -104,14 +288,30 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onResume() {
         super.onResume()
         MediaButtonBridge.setAppBackground(false)
+        val player = openingSplashPlayer
+        if (openingSplashPrepared && player != null) {
+            player.runCatching {
+                if (!isPlaying) start()
+            }
+        }
     }
 
     override fun onPause() {
+        val player = openingSplashPlayer
+        if (openingSplashPrepared && player != null) {
+            player.runCatching {
+                if (isPlaying) pause()
+            }
+        }
         super.onPause()
         MediaButtonBridge.setAppBackground(true)
     }
 
     override fun onDestroy() {
+        openingSplashHandler.removeCallbacks(openingSplashFailsafe)
+        openingSplashChannel?.setMethodCallHandler(null)
+        openingSplashChannel = null
+        releaseNativeOpeningPlayer()
         // Do NOT deactivate the MediaSession here: the bridge is process-scoped
         // and must survive Activity destruction so headset keys keep working
         // with the app backgrounded. Events are routed to the main isolate via

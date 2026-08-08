@@ -43,7 +43,7 @@ void main() {
   testWidgets('startup loading uses the opening animation, not a spinner',
       (tester) async {
     await tester.pumpWidget(
-      MaterialApp(home: personaChatStartupLoadingView()),
+      MaterialApp(home: personaChatStartupLoadingView(playVideo: false)),
     );
 
     expect(
@@ -51,6 +51,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  test('startup animation has a restrained minimum display duration', () {
+    expect(
+      personaChatMinimumStartupSplashDuration,
+      const Duration(milliseconds: 1800),
+    );
   });
 
   Widget buildSubject({

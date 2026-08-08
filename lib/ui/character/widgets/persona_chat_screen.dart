@@ -274,7 +274,11 @@ class PersonaChatComposerStaleGuard {
 }
 
 @visibleForTesting
-Widget personaChatStartupLoadingView() => const AppOpeningSplash();
+Widget personaChatStartupLoadingView({bool playVideo = true}) =>
+    AppOpeningSplash(playVideo: playVideo);
+
+@visibleForTesting
+const personaChatMinimumStartupSplashDuration = Duration(milliseconds: 1800);
 
 /// 1-on-1 chat screen with an AI companion character.
 class PersonaChatScreen extends StatefulWidget {
@@ -389,6 +393,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _readyNotificationScheduled = false;
   bool _didNotifyReady = false;
   bool _isStreaming = false;
+  late final DateTime _startupSplashStartedAt = DateTime.now();
   String _streamingText = '';
   int _sendSerial = 0;
   int? _activeSendSerial;
@@ -1537,6 +1542,14 @@ only after you have written the goodbye you want the user to hear.''',
     );
   }
 
+  Future<void> _waitForMinimumStartupSplash() async {
+    final elapsed = DateTime.now().difference(_startupSplashStartedAt);
+    final remaining = personaChatMinimumStartupSplashDuration - elapsed;
+    if (remaining.inMilliseconds > 0) {
+      await Future<void>.delayed(remaining);
+    }
+  }
+
   Future<void> _init() async {
     final userId = await UserStorage.getUserId();
     if (userId == null) return;
@@ -1579,6 +1592,7 @@ only after you have written the goodbye you want the user to hear.''',
         _currentCharacterId,
         limit: _pageSize,
       );
+      await _waitForMinimumStartupSplash();
       if (mounted) {
         _advanceAutoReadWatermark(updatedMessages);
         setState(() {
@@ -1596,6 +1610,7 @@ only after you have written the goodbye you want the user to hear.''',
       return;
     }
 
+    await _waitForMinimumStartupSplash();
     if (mounted) {
       _advanceAutoReadWatermark(messages);
       setState(() {

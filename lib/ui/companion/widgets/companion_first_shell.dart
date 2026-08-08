@@ -199,6 +199,9 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
 
     final characterId = _characterId;
     if (characterId == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AppStartupVisibilityController.dismissNativeSplash();
+      });
       return _NoCompanionView(
         error: _loadError,
         onRetry: () => unawaited(_loadInitialCharacter()),

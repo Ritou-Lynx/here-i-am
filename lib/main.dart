@@ -427,6 +427,9 @@ class RootShellState extends State<RootShell> {
       );
     }
     if (!_hasUser || !_onboardingComplete) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AppStartupVisibilityController.dismissNativeSplash();
+      });
       return UserSetupScreen(onUserCreated: _onUserCreated);
     }
     return MultiProvider(

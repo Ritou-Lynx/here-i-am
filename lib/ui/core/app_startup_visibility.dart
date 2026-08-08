@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 /// Coordinates chrome that must stay hidden until the primary app surface is
 /// genuinely interactive.
@@ -9,6 +12,10 @@ import 'package:flutter/foundation.dart';
 class AppStartupVisibilityController {
   AppStartupVisibilityController._();
 
+  static const _nativeSplashChannel =
+      MethodChannel('com.memexlab.memex/opening_splash');
+  static bool _nativeSplashDismissed = false;
+
   static final ValueNotifier<bool> isAppInteractive =
       ValueNotifier<bool>(false);
 
@@ -18,9 +25,26 @@ class AppStartupVisibilityController {
     }
   }
 
+  static void dismissNativeSplash() {
+    if (_nativeSplashDismissed) return;
+    _nativeSplashDismissed = true;
+    unawaited(_dismissNativeSplash());
+  }
+
+  static Future<void> _dismissNativeSplash() async {
+    try {
+      await _nativeSplashChannel.invokeMethod<void>('dismiss');
+    } on MissingPluginException {
+      // Non-Android platforms and widget tests do not install this channel.
+    } on PlatformException catch (error) {
+      debugPrint('Unable to dismiss native opening splash: $error');
+    }
+  }
+
   static void markInteractive() {
     if (!isAppInteractive.value) {
       isAppInteractive.value = true;
     }
+    dismissNativeSplash();
   }
 }
