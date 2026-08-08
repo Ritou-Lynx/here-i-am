@@ -19,6 +19,7 @@ import com.memexlab.memex.channels.BackupImportChannelHandler
 import com.memexlab.memex.channels.BackupStorageChannelHandler
 import com.memexlab.memex.channels.ChannelRegistrar
 import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.android.RenderMode
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
@@ -40,6 +41,14 @@ class MainActivity : FlutterFragmentActivity() {
     private var openingSplashPrepared = false
     private val openingSplashHandler = Handler(Looper.getMainLooper())
     private val openingSplashFailsafe = Runnable { dismissNativeOpeningSplash() }
+
+    override fun getRenderMode(): RenderMode {
+        // A SurfaceView keeps Android's system splash visible until Flutter's
+        // first raster frame. Texture mode lets this Activity draw the native
+        // video immediately while Flutter continues booting underneath it.
+        return if (packageName == HERE_I_AM_V3_PACKAGE) RenderMode.texture
+        else super.getRenderMode()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // If the Activity is being recreated (system killed it in background),
