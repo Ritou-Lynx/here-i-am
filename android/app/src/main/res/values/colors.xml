@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Here I am logo adaptive-icon background (rain-blue variant: #37453D) -->
+    <color name="launcher_background">#37453D</color>
+</resources>

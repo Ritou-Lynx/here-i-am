@@ -25,17 +25,35 @@ class NotificationService {
   bool _initialized = false;
   NotificationTapCallback? _onTap;
 
+  // Payload captured when a notification tap arrives before setTapHandler()
+  // has been wired (cold start: initialize() fires the callback immediately,
+  // but the app-level handler isn't set yet).  Replay once the handler is set.
+  String? _pendingPayload;
+
+  /// True if a cold-start payload was buffered and replayed via [setTapHandler].
+  /// Callers use this to skip [getLaunchPayload()] and avoid double-processing.
+  bool _consumedPendingPayload = false;
+
   /// Register a handler called when the user taps a notification.
   /// [payload] is the characterId (or null for non-character notifications).
   void setTapHandler(NotificationTapCallback handler) {
     _onTap = handler;
+    if (_pendingPayload != null) {
+      _consumedPendingPayload = true;
+      final payload = _pendingPayload;
+      _pendingPayload = null;
+      handler(payload);
+    }
   }
+
+  /// Whether [setTapHandler] already replayed a buffered cold-start payload.
+  bool get consumedPendingPayload => _consumedPendingPayload;
 
   Future<void> initialize() async {
     if (_initialized) return;
 
     const androidSettings =
-        AndroidInitializationSettings('@mipmap/launcher_icon');
+        AndroidInitializationSettings('@drawable/ic_stat_here_i_am');
     const initSettings = InitializationSettings(
       android: androidSettings,
     );
@@ -43,7 +61,13 @@ class NotificationService {
     await _plugin.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        _onTap?.call(response.payload);
+        final payload = response.payload;
+        if (payload == null || payload.isEmpty) return;
+        if (_onTap != null) {
+          _onTap!(payload);
+        } else {
+          _pendingPayload = payload;
+        }
       },
     );
 
@@ -74,6 +98,16 @@ class NotificationService {
 
     _initialized = true;
     _logger.info('NotificationService initialized');
+  }
+
+  /// Returns the payload that launched the app on cold start, or null if the
+  /// app was not launched from a notification tap.  Call once after
+  /// [initialize()] to recover cold-start notification taps that bypass
+  /// [onDidReceiveNotificationResponse].
+  Future<String?> getLaunchPayload() async {
+    final details = await _plugin.getNotificationAppLaunchDetails();
+    if (details == null || !details.didNotificationLaunchApp) return null;
+    return details.notificationResponse?.payload;
   }
 
   /// Show a local notification from the agent.
@@ -115,6 +149,7 @@ class NotificationService {
           category: AndroidNotificationCategory.message,
           autoCancel: true,
           styleInformation: BigTextStyleInformation(body),
+          icon: '@drawable/ic_stat_here_i_am',
         ),
       ),
       payload: payload,
@@ -151,6 +186,7 @@ class NotificationService {
           fullScreenIntent: true,
           category: AndroidNotificationCategory.call,
           autoCancel: true,
+          icon: '@drawable/ic_stat_here_i_am',
         ),
       ),
       payload: payload,
