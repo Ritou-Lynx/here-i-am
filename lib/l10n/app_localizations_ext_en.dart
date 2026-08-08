@@ -162,9 +162,7 @@ class AppLocalizationsExtEn extends AppLocalizationsEn
   String get commentLanguageInstruction =>
       'All output must be in English language.';
 
-  @override
-  String get knowledgeInsightLanguageInstruction =>
-      '**Important**: All output text must be in **English**.';
+
 
   @override
   String get scheduleAggregatorLanguageInstruction =>

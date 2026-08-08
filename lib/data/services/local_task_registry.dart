@@ -7,7 +7,6 @@ import 'package:memex/data/services/task_handlers/conversation_capture_handler.d
 import 'package:memex/data/services/task_handlers/custom_agent_task_handler.dart';
 import 'package:memex/data/services/task_handlers/dev_session_followup_handler.dart';
 import 'package:memex/data/services/task_handlers/fts_index_handler.dart';
-import 'package:memex/data/services/task_handlers/knowledge_insight_handler.dart';
 import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/data/services/task_handlers/reprocess_cards_handler.dart';
 import 'package:memex/data/services/task_handlers/reprocess_comments_handler.dart';
@@ -33,7 +32,6 @@ void registerLocalTaskHandlers() {
     handleReprocessKnowledgeBaseImpl,
   );
   executor.registerHandler('process_ai_reply', handleProcessAiReplyImpl);
-  executor.registerHandler('knowledge_insight_task', handleKnowledgeInsight);
   executor.registerHandler(
     'clarification_resolution_task',
     handleClarificationResolution,
@@ -61,7 +59,6 @@ void registerLocalTaskHandlers() {
   );
   for (final taskType in [
     'comment_agent_task',
-    'knowledge_insight_task',
     'clarification_resolution_task',
     'reprocess_cards_task',
     'reprocess_comments_task',

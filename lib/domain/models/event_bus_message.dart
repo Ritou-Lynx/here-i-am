@@ -5,7 +5,6 @@ enum EventBusMessageType {
   cardUpdated('card_updated'),
   cardAdded('card_added'),
   cardDetailUpdated('card_detail_updated'),
-  newInsight('new_insight'),
   scheduleAggregationDirty('schedule_aggregation_dirty'),
   scheduleAggregationUpdated('schedule_aggregation_updated'),
   newSystemAction('new_system_action'),
@@ -47,8 +46,6 @@ abstract class EventBusMessage {
         return CardAddedMessage.fromJson(json);
       case EventBusMessageType.cardDetailUpdated:
         return CardDetailUpdatedMessage.fromJson(json);
-      case EventBusMessageType.newInsight:
-        return NewInsightMessage.fromJson(json);
       case EventBusMessageType.scheduleAggregationDirty:
         return ScheduleAggregationDirtyMessage.fromJson(json);
       case EventBusMessageType.scheduleAggregationUpdated:
@@ -230,30 +227,6 @@ class CardDetailUpdatedMessage extends EventBusMessage {
     final data = json['data'] as Map<String, dynamic>;
     return CardDetailUpdatedMessage(
       cardId: data['card_id'] as String,
-    );
-  }
-}
-
-class NewInsightMessage extends EventBusMessage {
-  final String insightId;
-  final String html;
-
-  NewInsightMessage({
-    required this.insightId,
-    required this.html,
-  }) : super(
-          type: EventBusMessageType.newInsight,
-          data: {
-            'insight_id': insightId,
-            'html': html,
-          },
-        );
-
-  factory NewInsightMessage.fromJson(Map<String, dynamic> json) {
-    final data = json['data'] as Map<String, dynamic>;
-    return NewInsightMessage(
-      insightId: data['insight_id'] as String,
-      html: data['html'] as String,
     );
   }
 }

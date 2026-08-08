@@ -154,9 +154,7 @@ class AppLocalizationsExtZh extends AppLocalizationsZh
   String get commentLanguageInstruction =>
       'All output must be in zh-CN (Simplified Chinese) language.';
 
-  @override
-  String get knowledgeInsightLanguageInstruction =>
-      '**Important**: All output text must be in **zh-CN (Simplified Chinese)**.';
+
 
   @override
   String get scheduleAggregatorLanguageInstruction =>

@@ -257,13 +257,16 @@ class LabNavRow extends StatelessWidget {
                 ),
               ),
             if (status != null)
-              Padding(
-                padding: EdgeInsets.only(left: t.space4),
-                child: Text(
-                  status!,
-                  style: TextStyle(
-                    color: warning ? t.warning : t.textTertiary,
-                    fontSize: 11,
+              Flexible(
+                child: Padding(
+                  padding: EdgeInsets.only(left: t.space4),
+                  child: Text(
+                    status!,
+                    style: TextStyle(
+                      color: warning ? t.warning : t.textTertiary,
+                      fontSize: 11,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),

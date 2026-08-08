@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/settings/widgets/model_stats_page.dart';
-import 'package:memex/ui/memory/widgets/memory_v3_lab_screen.dart';
 import 'package:memex/ui/settings/widgets/log_viewer_page.dart';
 import 'package:memex/ui/settings/widgets/async_task_list_page.dart';
 import 'package:memex/ui/settings/widgets/custom_agent_config_page.dart';
@@ -101,20 +100,6 @@ class DebugSettingsPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const SkillsManagementPage(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildFunctionTab(
-            context: context,
-            icon: Icons.science_outlined,
-            title: 'Memory V3 Lab',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const MemoryV3LabScreen(),
                 ),
               );
             },

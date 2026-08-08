@@ -13,7 +13,6 @@ import 'package:memex/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:memex/config/dependencies.dart';
 import 'package:memex/config/app_flavor.dart';
-import 'package:memex/ui/insight/view_models/insight_viewmodel.dart';
 import 'package:memex/ui/user_setup/widgets/user_setup_screen.dart';
 import 'package:memex/ui/app_lock/widgets/lock_screen_page.dart';
 import 'package:memex/ui/core/app_startup_visibility.dart';
@@ -432,16 +431,7 @@ class RootShellState extends State<RootShell> {
       });
       return UserSetupScreen(onUserCreated: _onUserCreated);
     }
-    return MultiProvider(
-      key: ValueKey(_mainScreenEpoch),
-      providers: [
-        ChangeNotifierProvider<InsightViewModel>(
-          create: (c) =>
-              InsightViewModel(router: c.read<MemexRouter>())..loadData(),
-        ),
-      ],
-      child: const MainScreen(),
-    );
+    return const MainScreen();
   }
 }
 

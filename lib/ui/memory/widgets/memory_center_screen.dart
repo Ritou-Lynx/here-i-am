@@ -1,13 +1,19 @@
-/// Memory V3 Lab - hub page.
+/// Memory Center - unified entry for browsing, organizing and diagnosing
+/// the Memory V3 system.
 ///
-/// Entry from AboutIScreen ("高级记忆检查"). Slimmed from the old 2828-line
-/// monolith into a grouped navigation surface that follows the 春雨昼眠
-/// daylight tokens. Each former section now lives in its own sub-page under
-/// `lab/`.
+/// Replaces the old `MemoryV3LabScreen` hub and absorbs the memory-management
+/// slice that used to live on `AboutIScreen` (manual organize, skip badge,
+/// recent browse entries). Sub-pages under `lab/` are reused unchanged.
 ///
-/// Still a backend test rig (no ViewModel), but no longer a wall of
-/// ExpansionTiles: the hub shows a compact status strip + grouped rows,
-/// and the 维护与导出 group keeps export / reindex as inline actions.
+/// Three groups, ordered by audience:
+///  1. 「我的记忆」- read/browse entries for cards + fragments + episodes +
+///     sagas, named with user-facing labels.
+///  2. 「整理」- the one-tap "organize now" action plus the skip/retry entry
+///     (badge surfaces failures without leaking pipeline internals onto the
+///     profile page).
+///  3. 「高级」- diagnostic tools (step organize, logs, export, reindex),
+///     kept behind a single clearly-labeled section instead of a separate
+///     debug-only route.
 library;
 
 import 'dart:async';
@@ -17,46 +23,43 @@ import 'dart:io';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_recall_log_service.dart';
+import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
-import 'package:memex/ui/memory/widgets/lab/cards_page.dart';
-import 'package:memex/ui/memory/widgets/lab/dreaming_debug_page.dart';
-import 'package:memex/ui/memory/widgets/lab/episodes_page.dart';
-import 'package:memex/ui/memory/widgets/lab/fragments_page.dart';
 import 'package:memex/ui/memory/widgets/lab/lab_shared.dart';
-import 'package:memex/ui/memory/widgets/lab/query_log_page.dart';
-import 'package:memex/ui/memory/widgets/lab/recall_log_page.dart';
-import 'package:memex/ui/memory/widgets/lab/sagas_page.dart';
-import 'package:memex/ui/memory/widgets/lab/skip_retry_page.dart';
+import 'package:memex/routing/routes.dart';
 import 'package:memex/utils/logger.dart';
+import 'package:memex/utils/toast_helper.dart';
 import 'package:path_provider/path_provider.dart';
 
-final _logger = getLogger('MemoryV3LabScreen');
+final _logger = getLogger('MemoryCenterScreen');
 
-class MemoryV3LabScreen extends StatefulWidget {
-  const MemoryV3LabScreen({super.key});
+class MemoryCenterScreen extends StatefulWidget {
+  const MemoryCenterScreen({super.key});
 
   @override
-  State<MemoryV3LabScreen> createState() => _MemoryV3LabScreenState();
+  State<MemoryCenterScreen> createState() => _MemoryCenterScreenState();
 }
 
-class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
+class _MemoryCenterScreenState extends State<MemoryCenterScreen> {
   static const _backgroundAsset = 'assets/images/雨玻璃.jpg';
 
   bool _busy = false;
   String? _lastError;
   String? _lastSuccess;
 
-  // Compact counts for the status strip.
+  // Compact counts for the status strip + row subtitles.
   int _cardCount = 0;
   int _fragmentCount = 0;
   int _episodeCount = 0;
   int _sagaCount = 0;
   int _recallCount = 0;
   int _zeroQueryCount = 0;
+  int _skipErrorCount = 0;
   bool _loadingCounts = true;
 
   @override
@@ -72,20 +75,22 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     var sagas = 0;
     var recall = 0;
     var zeroQuery = 0;
+    var skipError = 0;
     try {
       cards = RecordOrganizerServiceV3.isInitialized
           ? await tableCount('memory_cards')
           : 0;
-      fragments =
-          DreamingOrchestratorServiceV3.isInitialized
-              ? await tableCount('memory_fragments')
-              : 0;
-      episodes = DreamingOrchestratorServiceV3.isInitialized
-          ? await tableCount('memory_episodes')
-          : 0;
-      sagas = DreamingOrchestratorServiceV3.isInitialized
-          ? await tableCount('memory_sagas')
-          : 0;
+      if (DreamingOrchestratorServiceV3.isInitialized) {
+        fragments = await tableCount('memory_fragments');
+        episodes = await tableCount('memory_episodes');
+        sagas = await tableCount('memory_sagas');
+        final characterId = await latestChatCharacterId();
+        if (characterId != null) {
+          final records = await DreamingOrchestratorServiceV3.instance
+              .getSkipRecords(characterId);
+          skipError = records.where((r) => r.reason == 'error').length;
+        }
+      }
       recall = (await DreamingRecallLogService.readAll()).length;
       zeroQuery = await DreamingRecallLogService.zeroResultCount();
     } catch (e, st) {
@@ -99,16 +104,52 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
       _sagaCount = sagas;
       _recallCount = recall;
       _zeroQueryCount = zeroQuery;
+      _skipErrorCount = skipError;
       _loadingCounts = false;
     });
   }
 
-  Future<T?> _push<T>(Widget page) {
-    return Navigator.push<T>(
-      context,
-      MaterialPageRoute(builder: (_) => page),
-    );
+  Future<T?> _push<T>(String route) {
+    return context.push<T>(route);
   }
+
+  // ---- Organize now ------------------------------------------------------
+
+  Future<void> _organizeNow() async {
+    if (_busy || !DreamingOrchestratorServiceV3.isInitialized) {
+      if (!DreamingOrchestratorServiceV3.isInitialized && mounted) {
+        ToastHelper.showInfo(context, '记忆整理服务尚未初始化');
+      }
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _lastError = null;
+      _lastSuccess = null;
+    });
+    try {
+      final characterId = await latestChatCharacterId();
+      if (characterId == null) {
+        throw StateError('还没有可以整理的聊天');
+      }
+      await DreamingSchedulerService.runDailyDreamingFromBackground(
+        db: AppDatabase.instance,
+        characterId: characterId,
+        forceRun: true,
+      );
+      if (!mounted) return;
+      setState(() => _lastSuccess = '整理已完成');
+      await _loadCounts();
+    } catch (e, st) {
+      _logger.warning('organizeNow failed', e, st);
+      if (!mounted) return;
+      setState(() => _lastError = '整理没有完成：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  // ---- Export ------------------------------------------------------------
 
   Object? _decode(String? raw) {
     if (raw == null || raw.isEmpty) return null;
@@ -119,8 +160,6 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
     }
   }
 
-  /// Dump all current memory_cards + dreaming fragments + episodes to a JSON
-  /// file in the app's external dir. Returns the path on success.
   Future<({String path, int cardCount, int fragmentCount, int episodeCount})?>
       _dumpAllToFile() async {
     final db = AppDatabase.instance;
@@ -355,7 +394,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                               ),
                               Expanded(
                                 child: Text(
-                                  '高级记忆检查',
+                                  '记忆中心',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: t.textOnAccent,
@@ -409,76 +448,85 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                                   loading: _loadingCounts,
                                 ),
                                 SizedBox(height: t.space16),
-                                const LabSectionLabel('数据浏览'),
+                                const LabSectionLabel('我的记忆'),
                                 LabNavRow(
                                   icon: Icons.style_outlined,
                                   title: '记忆卡片',
-                                  subtitle: '$_cardCount 张 · 真实记录入口写入',
+                                  subtitle: '$_cardCount 张 · 主动记录写入',
                                   status: '$_cardCount',
-                                  onTap: () =>
-                                      _push(const LabCardsPage()),
+                                  onTap: () => _push(AppRoutes.memoryCenterCards),
+                                ),
+                                LabNavRow(
+                                  icon: Icons.scatter_plot_outlined,
+                                  title: '记忆碎片',
+                                  subtitle: '$_fragmentCount 条 · 从聊天提取',
+                                  status: '$_fragmentCount',
+                                  onTap: () => _push(AppRoutes.memoryCenterFragments),
                                 ),
                                 LabNavRow(
                                   icon: Icons.auto_awesome_outlined,
-                                  title: '梦境碎片',
-                                  subtitle: '$_fragmentCount 条 · Dreaming 抽取',
-                                  status: '$_fragmentCount',
-                                  onTap: () =>
-                                      _push(const LabFragmentsPage()),
-                                ),
-                                LabNavRow(
-                                  icon: Icons.auto_awesome,
-                                  title: '情节片段',
+                                  title: '我们的经历',
                                   subtitle: '$_episodeCount 条 · 碎片凝结',
                                   status: '$_episodeCount',
-                                  onTap: () =>
-                                      _push(const LabEpisodesPage()),
+                                  onTap: () => _push(AppRoutes.memoryCenterEpisodes),
                                 ),
                                 LabNavRow(
-                                  icon: Icons.auto_stories_outlined,
-                                  title: '长期弧线',
-                                  subtitle: '$_sagaCount 条 · Saga 编织',
+                                  icon: Icons.timeline_rounded,
+                                  title: '长期记忆',
+                                  subtitle: '$_sagaCount 条 · 长期弧线',
                                   status: '$_sagaCount',
-                                  onTap: () =>
-                                      _push(const LabSagasPage()),
+                                  onTap: () => _push(AppRoutes.memoryCenterSagas),
                                 ),
-                                const LabSectionLabel('运行日志'),
+                                const LabSectionLabel('整理'),
+                                LabNavRow(
+                                  icon: Icons.sync_rounded,
+                                  title: _busy ? '正在整理…' : '手动整理一次',
+                                  subtitle: '立即跑一次完整 Dreaming',
+                                  onTap: _busy ? null : _organizeNow,
+                                ),
+                                LabNavRow(
+                                  icon: Icons.skip_next_outlined,
+                                  title: '被跳过的提取',
+                                  subtitle: _skipErrorCount > 0
+                                      ? '有 $_skipErrorCount 个失败区间待补跑'
+                                      : '查看被跳过的提取区间',
+                                  warning: _skipErrorCount > 0,
+                                  status: _skipErrorCount > 0
+                                      ? '失败 $_skipErrorCount'
+                                      : null,
+                                  onTap: () async {
+                                    await _push(AppRoutes.memoryCenterSkipRetry);
+                                    await _loadCounts();
+                                  },
+                                ),
+                                const LabSectionLabel('高级'),
+                                LabNavRow(
+                                  icon: Icons.construction_outlined,
+                                  title: '分步整理与重置',
+                                  subtitle: '单独跑碎片/经历/弧线、重置水位线、清空',
+                                  diagnostic: true,
+                                  onTap: () =>
+                                      _push(AppRoutes.memoryCenterDreaming),
+                                ),
                                 LabNavRow(
                                   icon: Icons.query_stats,
                                   title: '查询日志',
-                                  subtitle: 'memory_cards 检索与命中策略',
+                                  subtitle: '记忆卡片检索与命中策略',
                                   warning: _zeroQueryCount > 0,
                                   status: _zeroQueryCount > 0
                                       ? '零结果 $_zeroQueryCount'
                                       : null,
-                                  onTap: () =>
-                                      _push(const LabQueryLogPage()),
+                                  diagnostic: true,
+                                  onTap: () => _push(AppRoutes.memoryCenterQueryLog),
                                 ),
                                 LabNavRow(
                                   icon: Icons.auto_awesome_motion_outlined,
                                   title: '召回日志',
                                   subtitle: 'Dreaming context 注入记录',
                                   status: '$_recallCount',
-                                  onTap: () =>
-                                      _push(const LabRecallLogPage()),
-                                ),
-                                LabNavRow(
-                                  icon: Icons.skip_next_outlined,
-                                  title: '跳过与补跑',
-                                  subtitle: '被跳过的提取区间与水位线',
-                                  onTap: () =>
-                                      _push(const LabSkipRetryPage()),
-                                ),
-                                const LabSectionLabel('Dreaming 调度'),
-                                LabNavRow(
-                                  icon: Icons.construction_outlined,
-                                  title: '批处理与重置',
-                                  subtitle: '手动跑 Dreaming、凝结、Saga、清空',
                                   diagnostic: true,
-                                  onTap: () =>
-                                      _push(const LabDreamingDebugPage()),
+                                  onTap: () => _push(AppRoutes.memoryCenterRecallLog),
                                 ),
-                                const LabSectionLabel('维护与导出'),
                                 LabNavRow(
                                   icon: Icons.file_download_outlined,
                                   title: '导出全部数据',
@@ -489,7 +537,7 @@ class _MemoryV3LabScreenState extends State<MemoryV3LabScreen> {
                                 LabNavRow(
                                   icon: Icons.search,
                                   title: '重建搜索索引',
-                                  subtitle: '重建 memory_cards FTS 索引',
+                                  subtitle: '重建记忆卡片 FTS 索引',
                                   diagnostic: true,
                                   onTap: _busy ? null : _onReindex,
                                 ),
@@ -556,33 +604,47 @@ class _StatusStrip extends StatelessWidget {
         borderRadius: BorderRadius.circular(t.radius18),
         border: Border.all(color: t.divider),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: serviceReady ? t.success : t.error,
-              shape: BoxShape.circle,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: serviceReady ? t.success : t.error,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              SizedBox(width: t.space8),
+              Flexible(
+                child: Text(
+                  loading
+                      ? '加载中…'
+                      : (serviceReady ? 'service ready' : 'service 未初始化'),
+                  style: TextStyle(
+                    color: t.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-          SizedBox(width: t.space8),
-          Text(
-            loading
-                ? '加载中…'
-                : (serviceReady ? 'service ready' : 'service 未初始化'),
-            style: TextStyle(
-              color: t.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
+          SizedBox(height: t.space8),
+          Wrap(
+            spacing: t.space12,
+            runSpacing: t.space4,
+            children: [
+              _CountChip(label: 'cards', value: cardCount),
+              _CountChip(label: 'frag', value: fragmentCount),
+              _CountChip(label: 'ep', value: episodeCount),
+              _CountChip(label: 'saga', value: sagaCount),
+              _CountChip(label: 'recall', value: recallCount),
+            ],
           ),
-          const Spacer(),
-          _CountChip(label: 'cards', value: cardCount),
-          _CountChip(label: 'frag', value: fragmentCount),
-          _CountChip(label: 'ep', value: episodeCount),
-          _CountChip(label: 'saga', value: sagaCount),
-          _CountChip(label: 'recall', value: recallCount),
         ],
       ),
     );

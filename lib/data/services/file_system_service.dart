@@ -1316,16 +1316,6 @@ class FileSystemService {
     return path.join(getSystemPath(userId), 'Templates');
   }
 
-  /// Knowledge insights card templates directory path
-  String getKnowledgeInsightsCardTemplatesPath(String userId) {
-    return path.join(getSystemPath(userId), 'KnowledgeInsightsCardTemplates');
-  }
-
-  /// Chart templates path (legacy name, points to new path)
-  String getChartTemplatesPath(String userId) {
-    return getKnowledgeInsightsCardTemplatesPath(userId);
-  }
-
   /// Template directory path
   String getTemplatePath(String userId, String templateId) {
     return path.join(getTemplatesPath(userId), templateId);
@@ -1668,20 +1658,6 @@ class FileSystemService {
     return path.join(getWorkspacePath(userId), 'ChatSessions');
   }
 
-  /// GetKnowledgeInsightsdirectory path
-  String getKnowledgeInsightsPath(String userId) {
-    return path.join(getWorkspacePath(userId), 'KnowledgeInsights');
-  }
-
-  /// GetKnowledgeInsights Cardsdirectory path
-  String getKnowledgeInsightsCardsPath(String userId) {
-    return path.join(getKnowledgeInsightsPath(userId), 'Cards');
-  }
-
-  String getInsightTagsPath(String userId) {
-    return path.join(getSystemPath(userId), 'insight_tags.md');
-  }
-
   /// Get ScheduleAggregations directory path
   String getScheduleAggregationsPath(String userId) {
     return path.join(getWorkspacePath(userId), 'ScheduleAggregations');
@@ -1774,12 +1750,6 @@ class FileSystemService {
     final filename =
         aggregationId.endsWith('.yaml') ? aggregationId : '$aggregationId.yaml';
     return path.join(getScheduleAggregationsPath(userId), filename);
-  }
-
-  /// Knowledge insight card file path
-  String getKnowledgeInsightCardPath(String userId, String cardId) {
-    final filename = cardId.endsWith('.yaml') ? cardId : '$cardId.yaml';
-    return path.join(getKnowledgeInsightsCardsPath(userId), filename);
   }
 
   Future<void> updateDailyFactYamlData(
@@ -1885,30 +1855,6 @@ class FileSystemService {
       _logger.severe('Failed to read template HTML $viewPath: $e');
       return null;
     }
-  }
-
-  /// Read chart template HTML file
-  Future<String?> readChartTemplateHtml(
-      String userId, String templateId) async {
-    final chartTemplatesPath = getChartTemplatesPath(userId);
-    final templatePath = path.join(chartTemplatesPath, templateId);
-    final viewPath = path.join(templatePath, 'view.html');
-
-    if (!await _baseService.exists(viewPath)) {
-      return null;
-    }
-
-    try {
-      return await _baseService.readFile(viewPath);
-    } catch (e) {
-      _logger.severe('Failed to read chart template HTML $viewPath: $e');
-      return null;
-    }
-  }
-
-  Future<String?> readKnowledgeInsightCardTemplateHtml(
-      String userId, String templateId) async {
-    return readChartTemplateHtml(userId, templateId);
   }
 
   /// Read tags file, return list of tags (name, icon, icon_type)
@@ -2025,169 +1971,6 @@ class FileSystemService {
     } catch (e) {
       _logger.severe('Failed to write tags file $tagsPath: $e');
       rethrow;
-    }
-  }
-
-  /// Read knowledge insight card file (YAML)
-  Future<Map<String, dynamic>?> readKnowledgeInsightCard(
-      String userId, String cardId) async {
-    final filePath = getKnowledgeInsightCardPath(userId, cardId);
-
-    if (!await _baseService.exists(filePath)) {
-      return null;
-    }
-
-    try {
-      final content = await _baseService.readFile(filePath);
-      final data = _parseYaml(content);
-      return data.isEmpty ? null : data;
-    } catch (e) {
-      _logger.severe('Failed to read knowledge insight card $filePath: $e');
-      return null;
-    }
-  }
-
-  /// Write knowledge insight card file (YAML)
-  Future<void> writeKnowledgeInsightCard(
-    String userId,
-    String cardId,
-    Map<String, dynamic> data,
-  ) async {
-    final filePath = getKnowledgeInsightCardPath(userId, cardId);
-    final parentDir = path.dirname(filePath);
-    await ensureDirectory(parentDir);
-
-    try {
-      final yamlContent = _mapToYaml(data);
-      await _baseService.writeFile(filePath, yamlContent);
-      _logger.info('Knowledge insight card written: $filePath');
-    } catch (e) {
-      _logger.severe('Failed to write knowledge insight card $filePath: $e');
-      rethrow;
-    }
-  }
-
-  /// Delete knowledge insight card
-  Future<bool> deleteKnowledgeInsightCard(String userId, String cardId) async {
-    final filePath = getKnowledgeInsightCardPath(userId, cardId);
-    if (!await _baseService.exists(filePath)) {
-      return false;
-    }
-    try {
-      await _baseService.remove(filePath, recursive: false);
-      _logger.info('Knowledge insight card deleted: $filePath');
-      return true;
-    } catch (e) {
-      _logger.severe('Failed to delete knowledge insight card $cardId: $e');
-      return false;
-    }
-  }
-
-  /// List all knowledge insight cards
-  Future<List<Map<String, dynamic>>> listKnowledgeInsightCards(
-      String userId) async {
-    final dirPath = getKnowledgeInsightsCardsPath(userId);
-    if (!await _baseService.exists(dirPath)) {
-      return [];
-    }
-
-    final cards = <Map<String, dynamic>>[];
-    try {
-      final items = await _baseService.listDirectory(dirPath);
-      for (final item in items) {
-        if (item.endsWith('.yaml')) {
-          final cardId = path.basename(item);
-          final data = await readKnowledgeInsightCard(userId, cardId);
-          if (data != null) {
-            // Ensure card has ID
-            if (!data.containsKey('id')) {
-              data['id'] = path.basenameWithoutExtension(cardId);
-            }
-            // Ensure field exists, default false
-            if (!data.containsKey('pinned')) {
-              data['pinned'] = false;
-            }
-            cards.add(data);
-          }
-        }
-      }
-    } catch (e) {
-      _logger.warning('Failed to list knowledge insight cards: $e');
-    }
-    return cards;
-  }
-
-  /// Read all insight tags
-  Future<List<String>> readInsightTags(String userId) async {
-    final filePath = getInsightTagsPath(userId);
-    if (!await _baseService.exists(filePath)) {
-      return [];
-    }
-    try {
-      final content = await _baseService.readFile(filePath);
-      // Assuming tags are stored one per line or comma separated?
-      // User requested "insight_tags.md", maybe markdown list?
-      // Let's assume one tag per line for simplicity or comma separated.
-      // Or maybe a simple text file. Let's use lines.
-      // Wait, "md" suggests markdown. Let's assume "- tag" format or just text.
-      // Let's stick to simple lines for now, trimming whitespace.
-      final lines = content.split('\n');
-      return lines
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty && !e.startsWith('#')) // Ignore comments
-          .map((e) =>
-              e.replaceAll(RegExp(r'^-\s*'), '')) // Remove bullet if present
-          .toSet() // Unique
-          .toList();
-    } catch (e) {
-      _logger.warning('Failed to read insight tags: $e');
-      return [];
-    }
-  }
-
-  /// Save and merge insight tags
-  Future<void> saveInsightTags(String userId, List<String> newTags) async {
-    final filePath = getInsightTagsPath(userId);
-    final currentTags = await readInsightTags(userId);
-    final tagSet = currentTags.toSet();
-    tagSet.addAll(newTags); // Add new unique tags
-
-    // Sort?
-    final sortedTags = tagSet.toList()..sort();
-
-    final content = sortedTags.map((t) => '- $t').join('\n');
-
-    try {
-      final parentDir = path.dirname(filePath);
-      await ensureDirectory(parentDir);
-      await _baseService.writeFile(filePath, content);
-    } catch (e) {
-      _logger.severe('Failed to save insight tags: $e');
-    }
-  }
-
-  /// Delete specified insight tags
-  Future<void> deleteInsightTags(
-      String userId, List<String> tagsToDelete) async {
-    final filePath = getInsightTagsPath(userId);
-    final currentTags = await readInsightTags(userId);
-    final tagSet = currentTags.toSet();
-
-    // Remove specified tags
-    tagSet.removeAll(tagsToDelete);
-
-    // Sort
-    final sortedTags = tagSet.toList()..sort();
-
-    final content = sortedTags.map((t) => '- $t').join('\n');
-
-    try {
-      final parentDir = path.dirname(filePath);
-      await ensureDirectory(parentDir);
-      await _baseService.writeFile(filePath, content);
-      _logger.info('Deleted insight tags: ${tagsToDelete.join(", ")}');
-    } catch (e) {
-      _logger.severe('Failed to delete insight tags: $e');
     }
   }
 

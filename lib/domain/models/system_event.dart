@@ -19,8 +19,6 @@ class SystemEventTypes {
   static const String userInputSubmitted = 'user_input_submitted';
   static const String cardCommentPosted = 'card_comment_posted';
   static const String cardUiConfigUpdated = 'card_ui_config_updated';
-  static const String knowledgeInsightRefreshRequested =
-      'knowledge_insight_refresh_requested';
   static const String scheduleAggregationRequested =
       'schedule_aggregation_requested';
   static const String clarificationAnswered = 'clarification_answered';
@@ -30,7 +28,6 @@ class SystemEventTypes {
     userInputSubmitted,
     cardCommentPosted,
     cardUiConfigUpdated,
-    knowledgeInsightRefreshRequested,
     scheduleAggregationRequested,
     clarificationAnswered,
     dataChanged,

@@ -74,7 +74,6 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
       membersLabel: '媒体分析 · 跨记录洞察 · 生活洞察 · 语义检索',
       agentIds: [
         AgentDefinitions.analyzeAssets,
-        AgentDefinitions.knowledgeInsightAgent,
         AgentDefinitions.lifeInsightAgent,
         AgentDefinitions.embeddingAgent,
       ],
@@ -122,11 +121,6 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
           id: AgentDefinitions.analyzeAssets,
           title: '媒体分析',
           description: '图片、语音与附件分析',
-        ),
-        _AgentModelDefinition(
-          id: AgentDefinitions.knowledgeInsightAgent,
-          title: '跨记录洞察',
-          description: 'User-truth 聚合观察',
         ),
         _AgentModelDefinition(
           id: AgentDefinitions.lifeInsightAgent,

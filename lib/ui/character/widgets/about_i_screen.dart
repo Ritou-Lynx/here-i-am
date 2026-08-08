@@ -2,18 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:drift/drift.dart' as drift;
-import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
-import 'package:memex/data/memory_v3/services/dreaming_recall_log_service.dart';
-import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
+import 'package:go_router/go_router.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/media_service.dart';
 import 'package:memex/domain/models/character_model.dart';
-import 'package:memex/domain/models/agent_definitions.dart';
-import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/companion/widgets/companion_life_space_screen.dart';
-import 'package:memex/ui/memory/widgets/memory_v3_lab_screen.dart';
-import 'package:memex/ui/memory/widgets/lab/skip_retry_page.dart';
+import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/core/widgets/avatar_picker.dart';
@@ -22,7 +17,11 @@ import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 
-/// User-facing companion profile and Dreaming health surface.
+/// User-facing companion profile surface.
+///
+/// Slimmed to identity + a read-only "最近整理" carousel + two entry rows:
+/// 「管理记忆」-> [MemoryCenterScreen] and 「你主动记录的内容」-> Life Space.
+/// All memory-management / diagnostic concerns live in Memory Center now.
 class AboutIScreen extends StatefulWidget {
   const AboutIScreen({super.key});
 
@@ -41,11 +40,8 @@ class _AboutIScreenState extends State<AboutIScreen> {
   List<MemoryFragment> _fragments = const [];
   List<MemoryEpisode> _episodes = const [];
   List<MemorySaga> _sagas = const [];
-  List<DreamingRecallLogEntry> _recalls = const [];
   bool _loading = true;
-  bool _busy = false;
   int _recentPage = 0;
-  int _skipErrorCount = 0;
 
   @override
   void initState() {
@@ -75,104 +71,15 @@ class _AboutIScreenState extends State<AboutIScreen> {
             ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)])
             ..limit(20))
           .get(),
-      DreamingRecallLogService.readAll(),
     ]);
-    var skipErrorCount = 0;
-    if (character != null && DreamingOrchestratorServiceV3.isInitialized) {
-      try {
-        final records = await DreamingOrchestratorServiceV3.instance
-            .getSkipRecords(character.id);
-        skipErrorCount = records.where((r) => r.reason == 'error').length;
-      } catch (_) {
-        // Non-fatal: the row just shows zero when skip records are unreadable.
-      }
-    }
     if (!mounted) return;
     setState(() {
       _character = character;
       _fragments = results[0] as List<MemoryFragment>;
       _episodes = results[1] as List<MemoryEpisode>;
       _sagas = results[2] as List<MemorySaga>;
-      _recalls = results[3] as List<DreamingRecallLogEntry>;
-      _skipErrorCount = skipErrorCount;
       _loading = false;
     });
-  }
-
-  Future<String?> _latestCharacterId() async {
-    final row = await (AppDatabase.instance
-            .select(AppDatabase.instance.personaChatMessages)
-          ..orderBy([
-            (t) => drift.OrderingTerm.desc(t.timestamp),
-            (t) => drift.OrderingTerm.desc(t.id),
-          ])
-          ..limit(1))
-        .getSingleOrNull();
-    return row?.characterId ?? _character?.id;
-  }
-
-  Future<void> _runMaintenance(_MemoryMaintenance action) async {
-    if (_busy || !DreamingOrchestratorServiceV3.isInitialized) {
-      if (!DreamingOrchestratorServiceV3.isInitialized && mounted) {
-        _toast('记忆整理服务尚未初始化');
-      }
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      final resources = await UserStorage.getAgentLLMResources(
-        AgentDefinitions.recordOrganizerAgent,
-        defaultClientKey: LLMConfig.defaultClientKey,
-      );
-      final orchestrator = DreamingOrchestratorServiceV3.instance;
-      switch (action) {
-        case _MemoryMaintenance.fragments:
-          final characterId = await _latestCharacterId();
-          if (characterId == null) throw StateError('还没有可以整理的聊天');
-          final result = await orchestrator.runDailyFragmentBatch(
-            characterId: characterId,
-            client: resources.client,
-            modelConfig: resources.modelConfig,
-          );
-          _toast(result.processedMessageCount == 0
-              ? '没有新的聊天需要提取'
-              : '已从 ${result.processedMessageCount} 条聊天提取 ${result.fragmentIds.length} 个碎片');
-        case _MemoryMaintenance.episodes:
-          final result = await orchestrator.runEpisodeConsolidation(
-            client: resources.client,
-            modelConfig: resources.modelConfig,
-          );
-          _toast(result.isEmpty
-              ? '暂时没有足够的碎片可以凝结'
-              : '已凝结 ${result.episodeIds.length} 段经历');
-        case _MemoryMaintenance.sagas:
-          final result = await orchestrator.runSagaWeaving(
-            client: resources.client,
-            modelConfig: resources.modelConfig,
-            forceRun: true,
-          );
-          _toast(result.isEmpty ? '长期记忆暂时没有变化' : '长期记忆检查完成');
-        case _MemoryMaintenance.all:
-          final characterId = await _latestCharacterId();
-          if (characterId == null) throw StateError('还没有可以整理的聊天');
-          await DreamingSchedulerService.runDailyDreamingFromBackground(
-            db: AppDatabase.instance,
-            characterId: characterId,
-            forceRun: true,
-          );
-          _toast('完整整理已完成');
-      }
-      await _load();
-    } catch (e) {
-      _toast('整理没有完成：$e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  void _toast(String text) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   List<_RecentMemoryItem> get _recentItems {
@@ -214,44 +121,20 @@ class _AboutIScreenState extends State<AboutIScreen> {
                         children: [
                           _recentMemories(),
                           const SizedBox(height: 22),
-                          _sectionTitle('记忆系统'),
-                          const SizedBox(height: 8),
-                          _memoryRow(
-                              '记忆碎片',
-                              'Fragment',
-                              _fragments.length,
-                              () => _showMemoryList('记忆碎片',
-                                  _fragments.map((e) => e.content).toList())),
-                          _memoryRow(
-                              '我们的经历',
-                              'Episode',
-                              _episodes.length,
-                              () => _showMemoryList('我们的经历',
-                                  _episodes.map((e) => e.narrative).toList())),
-                          _memoryRow(
-                              '长期记忆',
-                              'Saga',
-                              _sagas.length,
-                              () => _showMemoryList(
-                                  '长期记忆',
-                                  _sagas
-                                      .map(
-                                          (e) => '${e.title}\n${e.description}')
-                                      .toList())),
-                          _memoryRow(
-                              '最近想起',
-                              'Recall Log',
-                              _recalls.length,
-                              () => _showMemoryList(
-                                  '最近想起',
-                                  _recalls
-                                      .map((e) => e.actualSummary)
-                                      .toList())),
-                          const SizedBox(height: 22),
-                          _sectionTitle('手动整理'),
-                          const SizedBox(height: 8),
-                          _maintenanceGrid(),
-                          const SizedBox(height: 18),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading:
+                                const Icon(Icons.psychology, color: _accent),
+                            title: const Text('管理记忆',
+                                style: TextStyle(
+                                    color: _ink,
+                                    fontWeight: FontWeight.w600)),
+                            subtitle: const Text('浏览与整理记忆系统',
+                                style: TextStyle(color: _muted, fontSize: 12)),
+                            trailing: const Icon(Icons.chevron_right_rounded,
+                                color: _muted),
+                            onTap: () => context.push(AppRoutes.memoryCenter),
+                          ),
                           ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading: const Icon(Icons.water_drop_outlined,
@@ -266,35 +149,6 @@ class _AboutIScreenState extends State<AboutIScreen> {
                                     builder: (_) =>
                                         const CompanionLifeSpaceScreen())),
                           ),
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.science_outlined,
-                                color: _muted),
-                            title: const Text('高级记忆检查',
-                                style: TextStyle(color: _ink)),
-                            subtitle: const Text('原始数据、危险操作与完整日志',
-                                style: TextStyle(color: _muted, fontSize: 12)),
-                            trailing: const Icon(Icons.chevron_right_rounded,
-                                color: _muted),
-                            onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => const MemoryV3LabScreen())),
-                          ),
-                          _memoryRow(
-                              '跳过补提取',
-                              _skipErrorCount > 0
-                                  ? '有 $_skipErrorCount 个失败区间待补跑'
-                                  : '查看被跳过的提取区间',
-                              _skipErrorCount,
-                              () async {
-                                await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const LabSkipRetryPage()));
-                                await _load();
-                              }),
                         ],
                       ),
                     ),
@@ -343,20 +197,27 @@ class _AboutIScreenState extends State<AboutIScreen> {
         const SizedBox(width: 24),
         CharacterAvatar(avatar: _character?.avatar, name: '林埃', size: 82),
         const SizedBox(width: 16),
-        const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('林埃',
-              style: TextStyle(
-                  color: Color(0xFFF7F2E7),
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  shadows: [Shadow(color: Colors.black45, blurRadius: 5)])),
-          SizedBox(height: 4),
-          Text('与你一起生活，也会重新想起',
-              style: TextStyle(
-                  color: Color(0xE8F7F2E7),
-                  fontSize: 13,
-                  shadows: [Shadow(color: Colors.black45, blurRadius: 5)])),
-        ]),
+        const Expanded(
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('林埃',
+                    style: TextStyle(
+                        color: Color(0xFFF7F2E7),
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        shadows: [Shadow(color: Colors.black45, blurRadius: 5)])),
+                SizedBox(height: 4),
+                Text('与你一起生活，也会重新想起',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Color(0xE8F7F2E7),
+                        fontSize: 13,
+                        shadows: [Shadow(color: Colors.black45, blurRadius: 5)])),
+              ],
+            ),
+        ),
+        const SizedBox(width: 24),
       ]);
 
   Widget _recentMemories() {
@@ -438,98 +299,7 @@ class _AboutIScreenState extends State<AboutIScreen> {
             border: Border.all(color: Colors.white70)),
         child: child,
       );
-
-  Widget _memoryRow(
-          String title, String technical, int count, VoidCallback onTap) =>
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(title,
-            style: const TextStyle(color: _ink, fontWeight: FontWeight.w600)),
-        subtitle: Text(technical,
-            style: const TextStyle(color: _muted, fontSize: 11)),
-        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text('$count', style: const TextStyle(color: _muted)),
-          const SizedBox(width: 6),
-          const Icon(Icons.chevron_right_rounded, color: _muted),
-        ]),
-        onTap: onTap,
-      );
-
-  Widget _maintenanceGrid() {
-    final actions = [
-      ('提取记忆碎片', Icons.scatter_plot_outlined, _MemoryMaintenance.fragments),
-      ('凝结我们的经历', Icons.auto_awesome_outlined, _MemoryMaintenance.episodes),
-      ('检查长期记忆', Icons.timeline_rounded, _MemoryMaintenance.sagas),
-      ('完整整理一次', Icons.sync_rounded, _MemoryMaintenance.all),
-    ];
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 2.35,
-      children: [
-        for (final item in actions)
-          OutlinedButton.icon(
-            onPressed: _busy ? null : () => _runMaintenance(item.$3),
-            icon: _busy && item.$3 == _MemoryMaintenance.all
-                ? const SizedBox(
-                    width: 15,
-                    height: 15,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : Icon(item.$2, size: 17),
-            label: Text(item.$1, maxLines: 1, overflow: TextOverflow.ellipsis),
-            style: OutlinedButton.styleFrom(
-                foregroundColor: _ink,
-                side: const BorderSide(color: Color(0x55737B46)),
-                backgroundColor: const Color(0xB8FBF9F1),
-                padding: const EdgeInsets.symmetric(horizontal: 10)),
-          ),
-      ],
-    );
-  }
-
-  void _showMemoryList(String title, List<String> values) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFF7F6ED),
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: .72,
-        maxChildSize: .92,
-        builder: (context, controller) => Column(children: [
-          const SizedBox(height: 10),
-          Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: const Color(0x55737B46),
-                  borderRadius: BorderRadius.circular(4))),
-          Padding(
-              padding: const EdgeInsets.all(18),
-              child: Text(title,
-                  style: const TextStyle(
-                      color: _ink, fontSize: 18, fontWeight: FontWeight.w700))),
-          Expanded(
-              child: values.isEmpty
-                  ? const Center(
-                      child: Text('暂时没有内容', style: TextStyle(color: _muted)))
-                  : ListView.separated(
-                      controller: controller,
-                      padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
-                      itemCount: values.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => _softCard(Text(values[i],
-                          style: const TextStyle(color: _ink, height: 1.45))))),
-        ]),
-      ),
-    );
-  }
 }
-
-enum _MemoryMaintenance { fragments, episodes, sagas, all }
 
 class _RecentMemoryItem {
   const _RecentMemoryItem(this.type, this.text, this.timestamp);
@@ -726,5 +496,4 @@ class _IEditScreenState extends State<_IEditScreen> {
       ),
     );
   }
-
 }

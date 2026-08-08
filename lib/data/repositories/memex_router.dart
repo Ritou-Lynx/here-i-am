@@ -42,20 +42,17 @@ import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/data/repositories/get_timeline_card.dart'; // Import for fetchTimelineCard
 import 'package:logging/logging.dart';
-import 'package:memex/data/services/card_renderer.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/domain/models/card_detail_model.dart';
 import 'package:memex/domain/models/tag_model.dart';
-import 'package:memex/domain/models/insight_detail_model.dart';
+import 'package:memex/utils/logger.dart';
+import 'package:memex/utils/user_storage.dart';
+import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/domain/models/agent_config.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/utils/logger.dart';
-import 'package:memex/utils/user_storage.dart';
-import 'package:memex/data/services/chat_service.dart';
-import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/local_task_registry.dart';
 import 'package:memex/data/services/global_event_bus.dart';
@@ -70,16 +67,12 @@ import 'package:memex/data/repositories/get_cards_by_ids.dart';
 import 'package:memex/data/repositories/get_calendar_data.dart';
 import 'package:memex/data/repositories/card.dart';
 import 'package:memex/data/repositories/post_comment.dart';
-import 'package:memex/data/repositories/pin_insight.dart';
 import 'package:memex/data/repositories/character.dart';
 import 'package:memex/data/repositories/health.dart' as health_endpoint;
 import 'package:memex/data/repositories/pkm.dart' as pkm_endpoint;
-import 'package:memex/domain/models/knowledge_insight_card.dart';
-import 'package:memex/data/repositories/get_knowledge_insight_detail.dart';
 import 'package:memex/data/repositories/chat.dart' as chat_endpoint;
 import 'package:memex/data/services/llm_call_record_service.dart';
 import 'package:memex/data/services/agent_activity_service.dart';
-import 'package:memex/agent/skills/knowledge_insight/native_widgets.dart';
 import 'package:memex/utils/result.dart';
 import 'package:memex/domain/models/system_event.dart';
 
@@ -317,7 +310,6 @@ class MemexRouter {
     final dirsToWipe = [
       fs.getFactsPath(userId),
       fs.getCardsPath(userId),
-      fs.getKnowledgeInsightsPath(userId),
       fs.getPkmPath(userId),
     ];
     for (final dirPath in dirsToWipe) {
@@ -476,15 +468,6 @@ class MemexRouter {
             'location_context_reminder': p.locationContextReminder,
           });
         },
-      ),
-    );
-
-    eventBus.subscribe(
-      eventType: SystemEventTypes.knowledgeInsightRefreshRequested,
-      subscription: EventTaskSubscription(
-        subscriptionId: 'knowledge_insight_refresh',
-        taskType: 'knowledge_insight_task',
-        payloadBuilder: (_, event) => Future.value(const {}),
       ),
     );
 
@@ -898,206 +881,6 @@ class MemexRouter {
     }
   }
 
-  // Native widget IDs are now dynamically loaded from nativeWidgets definition
-
-  Future<Result<List<KnowledgeInsightCard>>> fetchKnowledgeInsights() async {
-    return runResult(() async {
-      await _ensureInitialized();
-      _logger.info('LocalMode: fetchKnowledgeInsights called');
-
-      final userId = await UserStorage.getUserId();
-      if (userId == null) return [];
-
-      final cardsData = await fileSystemService.listKnowledgeInsightCards(
-        userId,
-      );
-      final insights = <KnowledgeInsightCard>[];
-
-      for (final card in cardsData) {
-        final id = card['id'] as String? ?? 'unknown';
-        final templateId = card['template_id'] as String? ?? '';
-        final isNative = nativeWidgets.any((w) => w.id == templateId);
-
-        final title = card['title'] as String?;
-
-        int createdAt = DateTime.now().millisecondsSinceEpoch;
-        if (card.containsKey('updated_at')) {
-          createdAt = DateTime.parse(card['updated_at']).millisecondsSinceEpoch;
-        }
-
-        String? chartHtml;
-        if (!isNative) {
-          chartHtml = await _renderInsightCardHtml(userId, card);
-        }
-
-        Map<String, dynamic>? widgetData;
-        if (isNative) {
-          widgetData = Map<String, dynamic>.from(card);
-          if (card['data'] is Map) {
-            widgetData.addAll((card['data'] as Map).cast<String, dynamic>());
-          }
-          widgetData.remove('data');
-          widgetData = await replaceFsInData(widgetData, userId);
-        }
-
-        insights.add(
-          KnowledgeInsightCard(
-            id: id,
-            title: title,
-            html: chartHtml ?? '',
-            createdAt: createdAt,
-            isPinned: card['pinned'] == true,
-            sortOrder: (card['sort_order'] as num? ?? 0).toInt(),
-            tags: (card['tags'] as List?)?.cast<String>() ?? const [],
-            widgetType: isNative ? 'native' : 'html',
-            widgetTemplate: isNative ? templateId : null,
-            widgetData: widgetData,
-          ),
-        );
-      }
-
-      insights.sort((a, b) {
-        final sortCompare = a.sortOrder.compareTo(b.sortOrder);
-        if (sortCompare != 0) return sortCompare;
-        return b.createdAt.compareTo(a.createdAt);
-      });
-
-      return insights;
-    });
-  }
-
-  Future<String> _renderInsightCardHtml(
-    String userId,
-    Map<String, dynamic> card,
-  ) async {
-    final templateId = card['template_id'] as String? ?? '';
-    final title = card['title'] as String? ?? '';
-    final insight = card['insight'] as String? ?? '';
-    final data = card['data'] as Map<String, dynamic>? ?? {};
-
-    final htmlTemplate = await fileSystemService
-        .readKnowledgeInsightCardTemplateHtml(userId, templateId);
-
-    if (htmlTemplate != null && htmlTemplate.isNotEmpty) {
-      try {
-        final templateData = <String, dynamic>{
-          'title': title,
-          'insight': insight,
-        };
-        templateData.addAll(data);
-
-        final renderedHtml = fileSystemService.renderHtmlTemplate(
-          htmlTemplate,
-          templateData,
-        );
-        return await fileSystemService.replaceFsInHtml(renderedHtml, userId);
-      } catch (e) {
-        _logger.warning(
-          'Failed to render insight card template $templateId: $e',
-        );
-      }
-    }
-    // Fallback? Currently returns empty if failed or no template
-    return '';
-  }
-
-  Future<Result<bool>> unpinInsight(String id) async {
-    return runResult(() async {
-      await _ensureInitialized();
-      _logger.info('LocalMode: unpinInsight called: id=$id');
-      return await unpinInsightEndpoint(id);
-    });
-  }
-
-  Future<Result<bool>> pinInsight(String id) async {
-    return runResult(() async {
-      await _ensureInitialized();
-      _logger.info('LocalMode: pinInsight called: id=$id');
-      return await pinInsightEndpoint(id);
-    });
-  }
-
-  Future<Result<bool>> deleteKnowledgeInsight(String id) async {
-    return runResult(() async {
-      await _ensureInitialized();
-      _logger.info('LocalMode: deleteKnowledgeInsight called: id=$id');
-      final userId = await UserStorage.getUserId();
-      if (userId == null) {
-        _logger.warning('No user logged in, cannot delete insight');
-        return false;
-      }
-      final cardFileName = '$id.yaml';
-      final success = await fileSystemService.deleteKnowledgeInsightCard(
-        userId,
-        cardFileName,
-      );
-      if (success) {
-        try {
-          final cardPath = 'KnowledgeInsights/Cards/$cardFileName';
-          await fileSystemService.eventLogService.logEvent(
-            userId: userId,
-            eventType: 'user_action',
-            description: 'User deleted knowledge insight card',
-            filePath: cardPath,
-            metadata: {'action': 'delete', 'card_id': id},
-          );
-        } catch (e) {
-          _logger.warning('Failed to log delete insight event: $e');
-        }
-      }
-      return success;
-    });
-  }
-
-  Future<Result<bool>> updateInsightCardSortOrder(
-    List<String> sortedIds,
-  ) async {
-    return runResult(() async {
-      await _ensureInitialized();
-      _logger.info(
-        'LocalMode: updateInsightCardSortOrder called with ${sortedIds.length} ids',
-      );
-      final userId = await UserStorage.getUserId();
-      if (userId == null) return false;
-      for (int i = 0; i < sortedIds.length; i++) {
-        final id = sortedIds[i];
-        try {
-          final cardData = await fileSystemService.readKnowledgeInsightCard(
-            userId,
-            id,
-          );
-          if (cardData != null) {
-            final currentSortOrder =
-                (cardData['sort_order'] as num? ?? 0).toInt();
-            if (currentSortOrder != i) {
-              cardData['sort_order'] = i;
-              await fileSystemService.writeKnowledgeInsightCard(
-                userId,
-                id,
-                cardData,
-              );
-            }
-          }
-        } catch (e) {
-          _logger.warning('Failed to update sort order for card $id: $e');
-        }
-      }
-      return true;
-    });
-  }
-
-  Future<List<String>> fetchInsightTags() async {
-    await _ensureInitialized();
-    try {
-      final userId = await UserStorage.getUserId();
-      if (userId == null) return [];
-      return await fileSystemService.readInsightTags(userId);
-    } catch (e) {
-      _logger.severe('Failed to fetch insight tags: $e');
-      return [];
-    }
-  }
-
   Future<bool> deleteCard(String id) async {
     await _ensureInitialized();
     _logger.info('LocalMode: deleteCard called: id=$id');
@@ -1162,19 +945,6 @@ class MemexRouter {
     } catch (e) {
       _logger.severe('Failed to update card location for $cardId: $e');
       return false;
-    }
-  }
-
-  Future<InsightDetailModel> fetchInsightDetail(String insightId) async {
-    await _ensureInitialized();
-    _logger.info('LocalMode: fetchInsightDetail called: insightId=$insightId');
-
-    try {
-      // Knowledge insight
-      return await getKnowledgeInsightDetail(insightId);
-    } catch (e) {
-      _logger.severe('Failed to fetch insight detail $insightId: $e');
-      rethrow;
     }
   }
 
@@ -1315,26 +1085,6 @@ class MemexRouter {
       );
       return await setCharacterPrimaryEndpoint(characterId);
     });
-  }
-
-  Stream<ChatEvent> sendMessage(
-    String message, {
-    String? sessionId,
-    String? agentName = 'memex_agent',
-    String? scene = 'assistant',
-    String? sceneId,
-    List<Map<String, String>>? refs,
-    bool isQuickQuery = false,
-  }) {
-    return ChatService.instance.sendMessage(
-      message,
-      sessionId: sessionId,
-      agentName: agentName,
-      scene: scene,
-      sceneId: sceneId,
-      refs: refs,
-      isQuickQuery: isQuickQuery,
-    );
   }
 
   Future<bool> reportDailyHealthSummary(
@@ -1636,23 +1386,6 @@ class MemexRouter {
   }
 
   Future<void> resetAllAgentConfigs() => UserStorage.resetAllAgentConfigs();
-
-  Future<Result<void>> updateKnowledgeInsights() => runResultVoid(() async {
-        await _ensureInitialized();
-        final userId = await UserStorage.getUserId();
-        if (userId == null) {
-          throw Exception('User not logged in');
-        }
-
-        await GlobalEventBus.instance.publish(
-          userId: userId,
-          event: SystemEvent(
-            type: SystemEventTypes.knowledgeInsightRefreshRequested,
-            source: 'memex_router.updateKnowledgeInsights',
-            payload: const {},
-          ),
-        );
-      });
 
   Future<Result<void>> refreshScheduleAggregation() => runResultVoid(() async {
         await _ensureInitialized();
