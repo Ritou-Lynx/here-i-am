@@ -125,13 +125,6 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
         _isLoading = false;
         _loadError = null;
       });
-      if (primary != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !_isLoading && _characterId != null) {
-            AppStartupVisibilityController.markInteractive();
-          }
-        });
-      }
     } catch (e, stackTrace) {
       _logger.severe('Failed to load the I', e, stackTrace);
       if (attempt < 2) {
@@ -193,6 +186,11 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
     );
   }
 
+  void _handleChatReady() {
+    if (!mounted || _isLoading || _characterId == null) return;
+    AppStartupVisibilityController.markInteractive();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -213,6 +211,7 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
       enableRichCapture: true,
       initialVoiceMode: _startVoiceMode,
       onOpenSpaces: _openLifeSpace,
+      onReady: _handleChatReady,
     );
   }
 }

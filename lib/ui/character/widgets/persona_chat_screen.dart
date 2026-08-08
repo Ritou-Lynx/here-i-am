@@ -66,6 +66,7 @@ import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
+import 'package:memex/ui/core/widgets/app_opening_splash.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
@@ -272,6 +273,9 @@ class PersonaChatComposerStaleGuard {
   }
 }
 
+@visibleForTesting
+Widget personaChatStartupLoadingView() => const AppOpeningSplash();
+
 /// 1-on-1 chat screen with an AI companion character.
 class PersonaChatScreen extends StatefulWidget {
   final String characterId;
@@ -279,6 +283,7 @@ class PersonaChatScreen extends StatefulWidget {
   final bool enableRichCapture;
   final bool initialVoiceMode;
   final VoidCallback? onOpenSpaces;
+  final VoidCallback? onReady;
 
   const PersonaChatScreen({
     super.key,
@@ -287,6 +292,7 @@ class PersonaChatScreen extends StatefulWidget {
     this.enableRichCapture = false,
     this.initialVoiceMode = false,
     this.onOpenSpaces,
+    this.onReady,
   });
 
   @override
@@ -380,6 +386,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   bool _topicBackfillRunning = false;
   int? _lastBadCaseSaved;
   bool _isLoading = true;
+  bool _readyNotificationScheduled = false;
+  bool _didNotifyReady = false;
   bool _isStreaming = false;
   String _streamingText = '';
   int _sendSerial = 0;
@@ -1607,6 +1615,23 @@ only after you have written the goodbye you want the user to hear.''',
       // direct BLE controllers; Intiface is only used for Buttplug devices.
       unawaited(_tryConnectToy());
     }
+  }
+
+  void _scheduleReadyNotification() {
+    final onReady = widget.onReady;
+    if (_isLoading ||
+        onReady == null ||
+        _readyNotificationScheduled ||
+        _didNotifyReady) {
+      return;
+    }
+    _readyNotificationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _readyNotificationScheduled = false;
+      if (!mounted || _isLoading || _didNotifyReady) return;
+      _didNotifyReady = true;
+      onReady();
+    });
   }
 
   Future<ToyController?> _ensureToyConnected({
@@ -4795,6 +4820,9 @@ only after you have written the goodbye you want the user to hear.''',
 
   @override
   Widget build(BuildContext context) {
+    if (!_isLoading) {
+      _scheduleReadyNotification();
+    }
     final mediaQuery = MediaQuery.of(context);
     final viewInsetsBottom = mediaQuery.viewInsets.bottom;
     final hasVisibleMediaTray = widget.enableRichCapture && _isMediaTrayOpen;
@@ -4806,7 +4834,7 @@ only after you have written the goodbye you want the user to hear.''',
       resizeToAvoidBottomInset: false,
       backgroundColor: _personaStageInk,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? personaChatStartupLoadingView()
           : Stack(
               children: [
                 Positioned.fill(

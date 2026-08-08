@@ -40,6 +40,19 @@ void main() {
     );
   });
 
+  testWidgets('startup loading uses the opening animation, not a spinner',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(home: personaChatStartupLoadingView()),
+    );
+
+    expect(
+      find.byKey(const ValueKey('app_opening_animation')),
+      findsOneWidget,
+    );
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
   Widget buildSubject({
     required TextEditingController controller,
     required bool isStreaming,
