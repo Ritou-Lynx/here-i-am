@@ -211,6 +211,18 @@ void main() async {
     handleNotificationPayload(payload);
   });
 
+  // Cold-start recovery: if the notification tap bypassed
+  // onDidReceiveNotificationResponse entirely (some plugin/platform
+  // combinations don't fire it on cold start), use
+  // getNotificationAppLaunchDetails() to recover the payload.
+  // Skip if setTapHandler already replayed a buffered payload.
+  if (!NotificationService.instance.consumedPendingPayload) {
+    final launchPayload = await NotificationService.instance.getLaunchPayload();
+    if (launchPayload != null && launchPayload.isNotEmpty) {
+      handleNotificationPayload(launchPayload);
+    }
+  }
+
   // Always register a post-frame hook: the notification callback may fire
   // before OR after runApp() creates the navigator. This catches both cases.
   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -243,6 +255,15 @@ void main() async {
       isRead: false,
     );
   };
+
+  // Cold-start recovery: if the user accepted a call while the Flutter
+  // engine was not yet attached (app was killed), the accept event was
+  // silently dropped.  Check activeCalls() for an accepted-but-unhandled
+  // call and trigger voice mode.
+  final recoveredCall = await CallkitService.instance.recoverAcceptedCall();
+  if (recoveredCall != null) {
+    _openPersonaChatVoiceModeFromRoot(recoveredCall);
+  }
 
   // Cancel any previously registered pedometer background tasks on iOS
   // (iOS now uses HealthKit only, not CMPedometer)
@@ -536,11 +557,16 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
       try {
         final pending = await readPendingCall();
         if (pending == null) return;
-        // If CallKit already rang (notified flag set), the user accepted via
-        // the system screen and onAccept handles the navigation. Opening a
-        // second voice-mode request here would create conflicting audio.
-        // Only open directly when CallKit never showed.
-        if (await isPendingCallAlreadyNotified()) return;
+        if (await isPendingCallAlreadyNotified()) {
+          // CallKit already rang.  If the accept was handled (warm start
+          // via onAccept, or cold start via recoverAcceptedCall), skip.
+          // If not handled, the event was lost on cold start (decline or
+          // timeout).  Clean up the stale pending call so it doesn't
+          // re-trigger on the next resume.
+          if (CallkitService.instance.acceptHandled) return;
+          await clearPendingCall(characterId: pending.characterId);
+          return;
+        }
         _openPersonaChatVoiceModeFromRoot(pending.characterId);
       } catch (_) {}
     });

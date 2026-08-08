@@ -28,8 +28,14 @@ class CallkitService {
   void Function(String characterId)? onDecline;
 
   StreamSubscription<CallEvent?>? _sub;
-  // callId → characterId (in-memory; lost if the process is killed).
+  // callId -> characterId (in-memory; lost if the process is killed).
   final Map<String, String> _callToCharacter = {};
+
+  // True once an accept event has been processed (either from the live
+  // EventChannel or from activeCalls() cold-start recovery).  Used by
+  // main.dart's _checkPendingCallOnResume() to distinguish "accept handled,
+  // skip" from "event lost on cold start, need fallback".
+  bool _acceptHandled = false;
 
   /// Start listening for CallKit events. Call once at app startup.
   void init() {
@@ -43,6 +49,7 @@ class CallkitService {
       case CallEventActionCallAccept(:final id):
         final cid = await _resolveCharacter(id);
         _log.info('CallKit accept: callId=$id characterId=$cid');
+        _acceptHandled = true;
         if (cid != null) onAccept?.call(cid);
         break;
       case CallEventActionCallDecline(:final id):
@@ -89,6 +96,7 @@ class CallkitService {
   }) async {
     final id = _uuid.v4();
     _callToCharacter[id] = characterId;
+    _acceptHandled = false;
 
     final resolvedAvatar = _resolveAvatar(avatarUrl);
 
@@ -187,6 +195,42 @@ class CallkitService {
       return File(avatar).existsSync() ? 'file://$avatar' : null;
     }
     // DiceBear seed or anything we can't turn into an image file.
+    return null;
+  }
+
+  /// Whether an accept event has been processed since the service started.
+  bool get acceptHandled => _acceptHandled;
+
+  /// Cold-start recovery: check if the user accepted a call while the Flutter
+  /// engine was not yet attached (app process was killed).  On Android the
+  /// vendored plugin persists accepted calls in SharedPreferences and returns
+  /// them via [FlutterCallkitIncoming.activeCalls()].
+  ///
+  /// Returns the characterId of the accepted call, or null if no accepted
+  /// call is pending.  Also calls [endAll] to clean up the stale call record
+  /// so subsequent launches don't re-trigger.
+  Future<String?> recoverAcceptedCall() async {
+    try {
+      final calls = await FlutterCallkitIncoming.activeCalls();
+      if (calls.isEmpty) return null;
+
+      for (final call in calls) {
+        final extra = call.extra;
+        final characterId = extra?['characterId'] as String?;
+        if (characterId == null || characterId.isEmpty) continue;
+        if (call.isAccepted) {
+          _log.info(
+            'Cold-start recovery: found accepted call '
+            'callId=${call.id} characterId=$characterId',
+          );
+          _acceptHandled = true;
+          await endAll();
+          return characterId;
+        }
+      }
+    } catch (e) {
+      _log.warning('recoverAcceptedCall failed: $e');
+    }
     return null;
   }
 
