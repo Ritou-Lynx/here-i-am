@@ -7,8 +7,10 @@ import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/ui/core/app_startup_visibility.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/widgets/app_opening_splash.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/result.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -59,6 +61,7 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
   @override
   void initState() {
     super.initState();
+    AppStartupVisibilityController.markLoading();
     _pendingOpenRequest = PersonaChatOpenService.instance.consumePending();
     _openChatSub = PersonaChatOpenService.instance.requests.listen(
       _handleOpenChatRequest,
@@ -76,6 +79,7 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
 
   @override
   void dispose() {
+    AppStartupVisibilityController.markLoading();
     _dreamingScheduler?.stopForegroundTick();
     _retryTimer?.cancel();
     _openChatSub?.cancel();
@@ -83,6 +87,7 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
   }
 
   Future<void> _loadInitialCharacter({int attempt = 0}) async {
+    AppStartupVisibilityController.markLoading();
     _retryTimer?.cancel();
     if (mounted) {
       setState(() {
@@ -120,6 +125,13 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
         _isLoading = false;
         _loadError = null;
       });
+      if (primary != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_isLoading && _characterId != null) {
+            AppStartupVisibilityController.markInteractive();
+          }
+        });
+      }
     } catch (e, stackTrace) {
       _logger.severe('Failed to load the I', e, stackTrace);
       if (attempt < 2) {
@@ -184,9 +196,7 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: AgentLogoLoading()),
-      );
+      return const AppOpeningSplash();
     }
 
     final characterId = _characterId;

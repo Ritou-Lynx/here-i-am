@@ -16,9 +16,10 @@ import 'package:memex/config/app_flavor.dart';
 import 'package:memex/ui/insight/view_models/insight_viewmodel.dart';
 import 'package:memex/ui/user_setup/widgets/user_setup_screen.dart';
 import 'package:memex/ui/app_lock/widgets/lock_screen_page.dart';
-import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/app_startup_visibility.dart';
 import 'package:memex/ui/core/themes/app_theme.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_controller.dart';
+import 'package:memex/ui/core/widgets/app_opening_splash.dart';
 import 'dart:io';
 import 'package:memex/data/services/reading/xhs/xhs_hidden_webview_host.dart';
 import 'package:memex/ui/main_screen/widgets/radial_menu.dart';
@@ -305,6 +306,7 @@ class RootShellState extends State<RootShell> {
   @override
   void initState() {
     super.initState();
+    AppStartupVisibilityController.markLoading();
     _checkUser();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(
@@ -347,6 +349,7 @@ class RootShellState extends State<RootShell> {
   }
 
   void _onUserCreated() async {
+    AppStartupVisibilityController.markLoading();
     // Check iCloud BEFORE any other awaits to avoid timing issues
     final userId = await UserStorage.getUserId();
     bool isICloud = false;
@@ -382,6 +385,7 @@ class RootShellState extends State<RootShell> {
 
   /// Reset state and re-check user. Called after account deletion or storage switch.
   void resetAndRecheck() {
+    AppStartupVisibilityController.markLoading();
     setState(() {
       _hasUser = false;
       _onboardingComplete = false;
@@ -394,29 +398,11 @@ class RootShellState extends State<RootShell> {
   @override
   Widget build(BuildContext context) {
     if (_isChecking) {
-      return const Scaffold(
-        body: Center(child: AgentLogoLoading()),
-      );
+      return const AppOpeningSplash();
     }
     if (_isLoadingFromICloud) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const AgentLogoLoading(),
-              const SizedBox(height: 16),
-              Text(
-                UserStorage.l10n.loadingFromICloud,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF6366F1),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
+      return AppOpeningSplash(
+        statusText: UserStorage.l10n.loadingFromICloud,
       );
     }
     if (!_hasUser || !_onboardingComplete) {
@@ -682,8 +668,19 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
                 height: 1,
                 child: XhsHiddenWebViewHost(),
               ),
-            if (AppFlavor.isHereIAm && !(_isLocked && _hasUser))
-              FloatingRecordBall(navigatorKey: rootNavigatorKey),
+            if (AppFlavor.isHereIAm)
+              ValueListenableBuilder<bool>(
+                valueListenable:
+                    AppStartupVisibilityController.isAppInteractive,
+                builder: (context, isAppInteractive, _) {
+                  if (!isAppInteractive ||
+                      !_hasUser ||
+                      (_isLocked && _hasUser)) {
+                    return const SizedBox.shrink();
+                  }
+                  return FloatingRecordBall(navigatorKey: rootNavigatorKey);
+                },
+              ),
           ],
         );
       },
