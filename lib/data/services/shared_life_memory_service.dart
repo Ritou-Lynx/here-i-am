@@ -961,6 +961,7 @@ const _supportedEntityTypes = {
   'schedule',
   'fact',
   'reading_item',
+  'outfit_log',
 };
 
 /// Extracts reserved `_*` fields from a patch, returning a map of promoted values.

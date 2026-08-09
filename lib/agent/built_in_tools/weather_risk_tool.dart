@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:memex/data/services/daily_outing_learning_service.dart';
 import 'package:memex/data/services/weather_risk_service.dart';
+import 'package:memex/db/app_database.dart';
 
 Tool buildWeatherOutingRiskTool({WeatherRiskService? service}) {
   final weatherService = service ?? WeatherRiskService.instance;
@@ -40,7 +42,21 @@ location. If that fails, ask one short question for the city.''',
           cityOrAdcode: _string(args['city']),
           walkingMinutes: _int(args['walking_minutes']),
         );
-        return jsonEncode(result.toJson());
+        final payload = result.toJson();
+        if (result.success && AppDatabase.isInitialized) {
+          try {
+            final guidance =
+                await DailyOutingLearningService(AppDatabase.instance)
+                    .buildLearnedGuidance(currentWeather: result);
+            if (guidance.isNotEmpty) {
+              payload['learned_outfit_guidance'] = guidance;
+            }
+          } catch (_) {
+            // Personalization is additive; never hide usable weather data if
+            // the local learning projection is temporarily unavailable.
+          }
+        }
+        return jsonEncode(payload);
       } catch (e) {
         return jsonEncode({'success': false, 'error': e.toString()});
       }

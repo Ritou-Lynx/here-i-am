@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:yaml/yaml.dart';
 
 import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/services/daily_outing_learning_service.dart';
 import 'package:memex/data/services/proactive_outing_service.dart';
 import 'package:memex/data/services/weather_risk_service.dart';
 import 'package:memex/data/memory_v3/services/life_insight_service.dart';
@@ -420,6 +421,20 @@ class RecentActivitySnapshot {
     }
 
     final today = result.casts.isNotEmpty ? result.casts.first : null;
+    final current = result.current;
+    if (current != null) {
+      final currentParts = <String>[
+        if (current.temperatureC != null)
+          '${current.temperatureC!.toStringAsFixed(1)}C',
+        if (current.humidityPct != null) '${current.humidityPct}% humidity',
+        if (current.weather.isNotEmpty) current.weather,
+        if (current.windPower.isNotEmpty)
+          '${current.windDirection}${current.windPower} wind',
+      ];
+      if (currentParts.isNotEmpty) {
+        lines.add('Current: ${currentParts.join(', ')}');
+      }
+    }
     if (today != null) {
       lines.add(
         'Today: ${today.dayWeather}/${today.nightWeather}, '
@@ -427,11 +442,22 @@ class RecentActivitySnapshot {
       );
     }
 
+    if (AppDatabase.isInitialized) {
+      final learned = await DailyOutingLearningService(AppDatabase.instance)
+          .buildLearnedGuidance(currentWeather: result, now: now);
+      if (learned.isNotEmpty) {
+        lines.add('');
+        lines.add(learned);
+      }
+    }
+
     lines.add(
       'instruction: This is pre-fetched morning weather. Use it to give the '
       'user a short, natural clothing/umbrella heads-up when they are likely '
-      'heading out. Do not recite the full forecast. Keep it to one or two '
-      'sentences unless the weather is genuinely severe.',
+      'heading out. Apply Learned Outfit Preference when present, phrasing it '
+      'as a relative correction from the user\'s own feedback. Do not recite '
+      'the full forecast. Keep it to one or two sentences unless the weather '
+      'is genuinely severe.',
     );
     return lines.join('\n');
   }

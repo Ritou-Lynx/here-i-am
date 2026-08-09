@@ -70,10 +70,18 @@ class WeatherRiskService {
       );
     }
 
-    final forecast = await _fetchAmapForecast(
-      apiKey: apiKey,
-      adcode: resolved.adcode,
-    );
+    final results = await Future.wait([
+      _fetchAmapForecast(
+        apiKey: apiKey,
+        adcode: resolved.adcode,
+      ),
+      _fetchAmapLiveWeather(
+        apiKey: apiKey,
+        adcode: resolved.adcode,
+      ),
+    ]);
+    final forecast = results[0] as _AmapWeatherForecast?;
+    final current = results[1] as WeatherCurrentConditions?;
     if (forecast == null || forecast.casts.isEmpty) {
       return WeatherRiskResult.error(
         'Amap weather returned no usable forecast for ${resolved.name}.',
@@ -94,9 +102,40 @@ class WeatherRiskService {
       reportTime: forecast.reportTime,
       generatedAt: generatedAt,
       walkingMinutes: walkingMinutes,
+      current: current,
       casts: forecast.casts,
       risks: risks,
     );
+  }
+
+  Future<WeatherCurrentConditions?> _fetchAmapLiveWeather({
+    required String apiKey,
+    required String adcode,
+  }) async {
+    final uri = Uri.parse(_amapWeatherUrl).replace(queryParameters: {
+      'key': apiKey,
+      'city': adcode,
+      'extensions': 'base',
+      'output': 'json',
+    });
+
+    try {
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return null;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['status'] != '1') return null;
+      final lives = data['lives'];
+      if (lives is! List || lives.isEmpty || lives.first is! Map) return null;
+      return WeatherCurrentConditions.fromAmap(
+        Map<String, dynamic>.from(lives.first as Map),
+      );
+    } catch (e) {
+      // Live conditions enrich the learning loop, but forecast risk remains
+      // useful when this secondary request is unavailable.
+      _logger.warning('Amap live weather failed: $e');
+      return null;
+    }
   }
 
   Future<String?> _inferCityFromCurrentLocation() async {
@@ -222,6 +261,7 @@ class WeatherRiskResult {
     this.reportTime,
     this.generatedAt,
     this.walkingMinutes,
+    this.current,
     this.casts = const [],
     this.risks,
   });
@@ -234,6 +274,7 @@ class WeatherRiskResult {
   final DateTime? reportTime;
   final DateTime? generatedAt;
   final int? walkingMinutes;
+  final WeatherCurrentConditions? current;
   final List<WeatherDailyForecast> casts;
   final WeatherActionRisks? risks;
 
@@ -250,8 +291,52 @@ class WeatherRiskResult {
         if (reportTime != null) 'report_time': reportTime!.toIso8601String(),
         if (generatedAt != null) 'generated_at': generatedAt!.toIso8601String(),
         if (walkingMinutes != null) 'walking_minutes': walkingMinutes,
+        if (current != null) 'current': current!.toJson(),
         if (risks != null) 'risks': risks!.toJson(),
         'forecast': casts.map((cast) => cast.toJson()).toList(),
+      };
+}
+
+class WeatherCurrentConditions {
+  const WeatherCurrentConditions({
+    required this.weather,
+    required this.temperature,
+    required this.humidity,
+    required this.windDirection,
+    required this.windPower,
+    this.reportTime,
+  });
+
+  final String weather;
+  final String temperature;
+  final String humidity;
+  final String windDirection;
+  final String windPower;
+  final DateTime? reportTime;
+
+  double? get temperatureC => double.tryParse(temperature);
+  int? get humidityPct => int.tryParse(humidity);
+
+  factory WeatherCurrentConditions.fromAmap(Map<String, dynamic> json) {
+    return WeatherCurrentConditions(
+      weather: WeatherRiskService._string(json['weather']) ?? '',
+      temperature: WeatherRiskService._string(json['temperature']) ?? '',
+      humidity: WeatherRiskService._string(json['humidity']) ?? '',
+      windDirection: WeatherRiskService._string(json['winddirection']) ?? '',
+      windPower: WeatherRiskService._string(json['windpower']) ?? '',
+      reportTime: DateTime.tryParse(
+        WeatherRiskService._string(json['reporttime']) ?? '',
+      ),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'weather': weather,
+        'temperature_c': temperatureC,
+        'humidity_pct': humidityPct,
+        'wind_direction': windDirection,
+        'wind_power': windPower,
+        if (reportTime != null) 'report_time': reportTime!.toIso8601String(),
       };
 }
 

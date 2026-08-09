@@ -14,6 +14,7 @@ import 'package:memex/data/services/location_context_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/services/daily_outing_learning_service.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/retrieval/project_memory_intent_classifier.dart';
 import 'package:memex/data/memory_v3/services/project_memory_service.dart';
@@ -1308,7 +1309,8 @@ class CompanionAgent {
           '`WeatherOutingRiskCheck` once before deciding. If configuration or '
           'location is unavailable, do not send a generic weather guess. Only '
           'notify with a concrete clothing/umbrella heads-up the user can act '
-          'on right now.');
+          'on right now. If the tool returns `learned_outfit_guidance`, apply '
+          'that evidence before generic temperature rules.');
     }
     buf.writeln();
     buf.writeln('If it\'s not relevant right now, skip it and go straight '
@@ -1351,7 +1353,9 @@ class CompanionAgent {
     buf.writeln('If this is a proactive outing checkpoint: notify only with '
         'an action the user can take now, such as taking an umbrella, adding a '
         'layer, leaving earlier, or avoiding a long exposed walk. If there is '
-        'no action-relevant risk, choose silent. Never recite a forecast.');
+        'no action-relevant risk, choose silent. Never recite a forecast. If '
+        'the weather tool returns `learned_outfit_guidance`, use the user\'s '
+        'prior comfort feedback as the clothing anchor.');
     buf.writeln();
     buf.writeln('If this is a discretionary check-in: decide naturally based '
         'on all context. Bias toward warm, useful contact.');
@@ -1468,6 +1472,28 @@ class CompanionAgent {
     // populate its enum. If loaded after _createAgent, the enum is empty.
     if (StickerLibrary.instance.isEmpty && !StickerLibrary.instance.isLoaded) {
       await StickerLibrary.instance.load();
+    }
+
+    // Dedicated outing-learning loop. This is deliberately deterministic and
+    // context-gated: ordinary chat still does not auto-create User-truth.
+    if (!continuousModeInput &&
+        userMessageId != null &&
+        userMessageId > 0 &&
+        AppDatabase.isInitialized) {
+      unawaited(
+        DailyOutingLearningService(AppDatabase.instance)
+            .captureUserTurn(
+              characterId: characterId,
+              userMessageId: userMessageId,
+              userMessage: userMessage,
+              userMessageTime: userMessageTime,
+            )
+            .then<void>((_) {})
+            .catchError((Object e) {
+          // Network/database enrichment must never delay or block chat.
+          _logger.warning('CompanionAgent: outing feedback capture failed: $e');
+        }),
+      );
     }
 
     final agent = await _createAgent(

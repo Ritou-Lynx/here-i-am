@@ -27,6 +27,23 @@ void main() {
 
           if (request.url.toString().contains('/v3/weather/weatherInfo')) {
             expect(request.url.queryParameters['city'], '110000');
+            if (request.url.queryParameters['extensions'] == 'base') {
+              return _jsonResponse(
+                jsonEncode({
+                  'status': '1',
+                  'lives': [
+                    {
+                      'weather': '多云',
+                      'temperature': '27.5',
+                      'humidity': '71',
+                      'winddirection': '北',
+                      'windpower': '3',
+                      'reporttime': '2026-07-04 08:10:00',
+                    }
+                  ],
+                }),
+              );
+            }
             expect(request.url.queryParameters['extensions'], 'all');
             return _jsonResponse(
               jsonEncode({
@@ -76,12 +93,18 @@ void main() {
       expect(result.risks?.longWalkExposureRisk, isTrue);
       expect(result.risks?.uvRiskAvailable, isFalse);
       expect(result.risks?.suggestions, isNotEmpty);
+      expect(result.current?.temperatureC, 27.5);
+      expect(result.current?.humidityPct, 71);
+      expect(result.toJson()['current']['wind_power'], '3');
     });
 
     test('accepts an Amap adcode directly', () async {
       final service = WeatherRiskService(
         client: MockClient((request) async {
           expect(request.url.toString().contains('/v3/geocode/geo'), isFalse);
+          if (request.url.queryParameters['extensions'] == 'base') {
+            return _jsonResponse(jsonEncode({'status': '1', 'lives': []}));
+          }
           return _jsonResponse(
             jsonEncode({
               'status': '1',
