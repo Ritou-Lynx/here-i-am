@@ -1,8 +1,14 @@
 /// Insight Strip — reusable widget that displays Life Insights for a domain
 /// at the top of an observation panel.
 ///
-/// Each insight renders as a left-chart / right-text card with a type-specific
-/// visualization:
+/// The newest insight is presented as an editorial lead: conclusion first,
+/// optional evidence below. Remaining insights stay compact until selected.
+/// Visual evidence adapts to the available data:
+/// - 2+ numeric points → full-width chart
+/// - 1 numeric point   → single-value evidence block
+/// - no numeric points → narrative only (never an empty chart)
+///
+/// Type-specific charts:
 /// - trend      → directional sparkline with arrow
 /// - streak     → big count + dot row
 /// - baseline   → min-max range bar
@@ -10,9 +16,8 @@
 /// - pattern    → 7-day dot heatmap
 /// - projection → solid line + dashed projection
 ///
-/// The visual language follows the Spring Rain Daydream palette: dark glass
-/// containers on the rain-glass background, warm-ivory text, moss accent,
-/// warm-gold highlight.
+/// The lead uses an opaque mist-paper surface and the chart uses an opaque
+/// deep-moss surface so both remain legible over the rain-glass background.
 library;
 
 import 'dart:convert';
@@ -20,6 +25,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:memex/data/memory_v3/services/life_insight_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Palette — aligned with HereIamThemeTokens springRainDaydream
@@ -32,12 +38,9 @@ const _accentSoft = Color(0xFF878C56);
 const _highlight = Color(0xFFF2CA70); // warm gold
 const _warn = Color(0xFFE0A05A);
 
-const _glassFill = Color(0x14FFFFFF);
-const _glassFillSoft = Color(0x0AFFFFFF);
 const _glassStroke = Color(0x2EFFFFFF);
 
-const _chartW = 112.0;
-const _chartH = 56.0;
+const _chartH = 116.0;
 
 class InsightStrip extends StatefulWidget {
   const InsightStrip({
@@ -45,11 +48,15 @@ class InsightStrip extends StatefulWidget {
     required this.domain,
     this.maxItems = 3,
     this.onRefresh,
+    this.initialInsights,
   });
 
   final String domain;
   final int maxItems;
   final Future<void> Function()? onRefresh;
+
+  @visibleForTesting
+  final List<LifeInsight>? initialInsights;
 
   @override
   State<InsightStrip> createState() => _InsightStripState();
@@ -57,13 +64,22 @@ class InsightStrip extends StatefulWidget {
 
 class _InsightStripState extends State<InsightStrip> {
   List<LifeInsight> _insights = [];
+  String? _featuredInsightId;
   bool _loading = true;
   bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
-    _loadInsights();
+    final initialInsights = widget.initialInsights;
+    if (initialInsights != null) {
+      _insights = initialInsights;
+      _featuredInsightId =
+          initialInsights.isEmpty ? null : initialInsights.first.id;
+      _loading = false;
+    } else {
+      _loadInsights();
+    }
   }
 
   Future<void> _loadInsights() async {
@@ -78,6 +94,10 @@ class _InsightStripState extends State<InsightStrip> {
       if (mounted) {
         setState(() {
           _insights = insights;
+          if (insights.isEmpty ||
+              !insights.any((insight) => insight.id == _featuredInsightId)) {
+            _featuredInsightId = insights.isEmpty ? null : insights.first.id;
+          }
           _loading = false;
         });
       }
@@ -99,7 +119,13 @@ class _InsightStripState extends State<InsightStrip> {
         final insights = await LifeInsightService.instance
             .getLatestByDomain(widget.domain, limit: widget.maxItems);
         if (mounted) {
-          setState(() => _insights = insights);
+          setState(() {
+            _insights = insights;
+            if (insights.isEmpty ||
+                !insights.any((insight) => insight.id == _featuredInsightId)) {
+              _featuredInsightId = insights.isEmpty ? null : insights.first.id;
+            }
+          });
         }
       } catch (_) {}
     }
@@ -108,14 +134,8 @@ class _InsightStripState extends State<InsightStrip> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      decoration: BoxDecoration(
-        color: _glassFill,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _glassStroke, width: 0.8),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -129,33 +149,55 @@ class _InsightStripState extends State<InsightStrip> {
 
   Widget _buildHeader() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Icon(Icons.auto_awesome_outlined, size: 15, color: _accent),
-        const SizedBox(width: 6),
-        const Text(
-          '洞察',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: _accent,
-            letterSpacing: 0.3,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'i 的观察',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _accent,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              if (_insights.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  _insights.length == 1 ? '最近有一件事值得留意' : '最近有几件事值得留意',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: _inkPrimary,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-        const Spacer(),
         if (_refreshing)
           const SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: _accent,
+            width: 32,
+            height: 32,
+            child: Padding(
+              padding: EdgeInsets.all(8),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: _accent,
+              ),
             ),
           )
         else
-          GestureDetector(
-            onTap: _loading ? null : _refresh,
-            child: const Icon(Icons.refresh_rounded,
-                size: 16, color: _inkMuted),
+          IconButton(
+            onPressed: _loading ? null : _refresh,
+            tooltip: '刷新洞察',
+            visualDensity: VisualDensity.compact,
+            iconSize: 17,
+            color: _inkMuted,
+            icon: const Icon(Icons.refresh_rounded),
           ),
       ],
     );
@@ -181,118 +223,274 @@ class _InsightStripState extends State<InsightStrip> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var i = 0; i < _insights.length; i++) ...[
-          if (i > 0) _divider(),
-          _buildInsightItem(_insights[i]),
+        _buildLeadInsight(_featuredInsight),
+        if (_compactInsights.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildCompactInsights(),
         ],
       ],
     );
   }
 
-  Widget _divider() => Container(
-        margin: const EdgeInsets.symmetric(vertical: 10),
-        height: 0.6,
-        color: _glassStroke,
+  LifeInsight get _featuredInsight => _insights.firstWhere(
+        (insight) => insight.id == _featuredInsightId,
+        orElse: () => _insights.first,
       );
 
-  Widget _buildInsightItem(LifeInsight ins) {
+  List<LifeInsight> get _compactInsights => _insights
+      .where((insight) => insight.id != _featuredInsight.id)
+      .toList(growable: false);
+
+  Widget _buildLeadInsight(LifeInsight ins) {
+    final tokens = context.hereIamTheme;
     final points = _parsePoints(ins.dataPointsJson);
     final viz = _InsightViz(type: ins.insightType, points: points);
+    final mode = _visualMode(points);
+    final paper = Color.alphaBlend(
+      tokens.accent.withValues(alpha: 0.10),
+      tokens.textPrimary,
+    );
+    final paperInk = tokens.background;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Left: type-specific visualization
-        Container(
-          width: _chartW,
-          height: _chartH,
-          margin: const EdgeInsets.only(top: 18),
-          decoration: BoxDecoration(
-            color: _glassFillSoft,
-            borderRadius: BorderRadius.circular(10),
+    return Container(
+      key: const ValueKey('insight_lead_card'),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+      decoration: BoxDecoration(
+        color: paper,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x3D000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: CustomPaint(
-              painter: _InsightPainter(viz),
-              child: const SizedBox.expand(),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        // Right: type pill + narrative
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              _typePill(ins.insightType, ins.confidence),
-              const SizedBox(height: 6),
               Text(
-                ins.narrative,
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  height: 1.5,
-                  color: _inkPrimary,
+                _leadMeta(ins),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: paperInk.withValues(alpha: 0.60),
+                  letterSpacing: 0.25,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _updatedLabel(ins.updatedAt),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: paperInk.withValues(alpha: 0.45),
                 ),
               ),
             ],
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _typePill(String type, double confidence) {
-    final (label, color) = _typePillSpec(type);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: color.withValues(alpha: 0.4), width: 0.6),
-          ),
-          child: Text(
-            label,
+          const SizedBox(height: 9),
+          Text(
+            ins.narrative,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 16,
+              height: 1.55,
               fontWeight: FontWeight.w600,
-              color: color,
-              letterSpacing: 0.4,
+              color: paperInk.withValues(alpha: 0.92),
             ),
           ),
-        ),
-        if (confidence >= 0.7) ...[
-          const SizedBox(width: 6),
-          Icon(
-            Icons.circle_rounded,
-            size: 5,
-            color: color.withValues(alpha: 0.6),
+          if (mode == _InsightVisualMode.chart) ...[
+            const SizedBox(height: 13),
+            Semantics(
+              label:
+                  '${_typeLabel(ins.insightType)}图表，${_evidenceLabel(points)}',
+              image: true,
+              child: Container(
+                key: const ValueKey('insight_chart'),
+                width: double.infinity,
+                height: _chartH,
+                decoration: BoxDecoration(
+                  color: tokens.surfaceDeep,
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: tokens.glassStroke,
+                    width: 0.7,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(13),
+                  child: CustomPaint(
+                    painter: _InsightPainter(viz),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ),
+          ] else if (mode == _InsightVisualMode.metric) ...[
+            const SizedBox(height: 13),
+            _buildSingleValueEvidence(points, tokens),
+          ],
+          const SizedBox(height: 11),
+          Text(
+            _evidenceLabel(points),
+            style: TextStyle(
+              fontSize: 11.5,
+              color: paperInk.withValues(alpha: 0.52),
+            ),
           ),
         ],
-      ],
+      ),
     );
   }
 
-  (String, Color) _typePillSpec(String type) {
-    switch (type) {
-      case 'trend':
-        return ('趋势', _accent);
-      case 'pattern':
-        return ('模式', _highlight);
-      case 'streak':
-        return ('连续', _highlight);
-      case 'baseline':
-        return ('基线', _accentSoft);
-      case 'anomaly':
-        return ('异常', _warn);
-      case 'projection':
-        return ('预测', _inkSecondary);
-      default:
-        return ('观察', _accentSoft);
+  Widget _buildSingleValueEvidence(
+    List<_DataPoint> points,
+    HereIamThemeTokens tokens,
+  ) {
+    final point = points.lastWhere((item) => item.value != null);
+    return Container(
+      key: const ValueKey('insight_metric'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      decoration: BoxDecoration(
+        color: tokens.surfaceDeep,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Text(
+              point.rawValue,
+              style: TextStyle(
+                fontSize: 26,
+                height: 1,
+                fontWeight: FontWeight.w700,
+                color: tokens.highlight,
+              ),
+            ),
+          ),
+          if (point.date.isNotEmpty)
+            Text(
+              point.date,
+              style: TextStyle(fontSize: 11, color: tokens.textMuted),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactInsights() {
+    final tokens = context.hereIamTheme;
+    final compactInsights = _compactInsights;
+    return Material(
+      key: const ValueKey('insight_compact_list'),
+      color: tokens.surface,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < compactInsights.length; i++) ...[
+            if (i > 0)
+              Divider(height: 1, thickness: 0.6, color: tokens.glassStroke),
+            InkWell(
+              onTap: () => setState(
+                () => _featuredInsightId = compactInsights[i].id,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 42,
+                      child: Text(
+                        _typeLabel(compactInsights[i].insightType),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: tokens.accent,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        compactInsights[i].narrative,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.45,
+                          color: tokens.textSecondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: tokens.textMuted,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  _InsightVisualMode _visualMode(List<_DataPoint> points) {
+    final numericCount = points.where((point) => point.value != null).length;
+    if (numericCount >= 2) return _InsightVisualMode.chart;
+    if (numericCount == 1) return _InsightVisualMode.metric;
+    return _InsightVisualMode.narrative;
+  }
+
+  String _leadMeta(LifeInsight insight) {
+    final period = switch (insight.period) {
+      'daily' => '今天',
+      'weekly' => '近 7 天',
+      'monthly' => '近 30 天',
+      _ => '近期',
+    };
+    return '$period · ${_typeLabel(insight.insightType)}';
+  }
+
+  String _updatedLabel(int timestamp) {
+    final updated = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    final now = DateTime.now();
+    if (updated.year == now.year &&
+        updated.month == now.month &&
+        updated.day == now.day) {
+      return '更新于今天';
     }
+    return '${updated.month}月${updated.day}日更新';
+  }
+
+  String _evidenceLabel(List<_DataPoint> points) {
+    final numericCount = points.where((point) => point.value != null).length;
+    if (numericCount >= 2) {
+      return '${points.length} 条记录 · $numericCount 个有效数据点';
+    }
+    if (numericCount == 1) return '来自 1 条有效数值记录';
+    if (points.isNotEmpty) return '基于 ${points.length} 条已记录内容';
+    return '基于已记录内容';
+  }
+
+  String _typeLabel(String type) {
+    return switch (type) {
+      'trend' => '趋势',
+      'pattern' => '模式',
+      'streak' => '连续',
+      'baseline' => '基线',
+      'anomaly' => '异常',
+      'projection' => '预测',
+      _ => '观察',
+    };
   }
 
   Widget _shimmerLine({required double widthFactor}) {
@@ -376,6 +574,8 @@ class _DataPoint {
   _DataPoint({required this.date, required this.rawValue, required this.value});
 }
 
+enum _InsightVisualMode { chart, metric, narrative }
+
 class _InsightViz {
   final String type;
   final List<_DataPoint> points;
@@ -415,11 +615,24 @@ class _InsightPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _InsightPainter old) =>
       old.viz.type != viz.type ||
-      old.viz.points.length != viz.points.length;
+      old.viz.points.length != viz.points.length ||
+      !_sameValues(old.viz.points, viz.points);
+
+  bool _sameValues(List<_DataPoint> a, List<_DataPoint> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].value != b[i].value || a[i].rawValue != b[i].rawValue) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   // ── helpers ──
-  List<double> _numericValues() =>
-      viz.points.map((p) => p.value).whereType<double>().toList(growable: false);
+  List<double> _numericValues() => viz.points
+      .map((p) => p.value)
+      .whereType<double>()
+      .toList(growable: false);
 
   (double, double, double) _range(List<double> vals) {
     if (vals.isEmpty) return (0, 1, 1);
@@ -434,8 +647,8 @@ class _InsightPainter extends CustomPainter {
     final vals = _numericValues();
     if (vals.length < 2) return _drawDefault(canvas, size);
     final (minV, maxV, range) = _range(vals);
-    const pad = 6.0;
-    final w = size.width - pad * 2 - 12; // leave room for arrow
+    const pad = 14.0;
+    final w = size.width - pad * 2 - 14; // leave room for arrow
     final h = size.height - pad * 2;
 
     final path = Path();
@@ -456,14 +669,13 @@ class _InsightPainter extends CustomPainter {
     fill.lineTo(pad + w, size.height);
     fill.close();
 
-    canvas.drawPath(
-        fill, Paint()..color = _accent.withValues(alpha: 0.12));
+    canvas.drawPath(fill, Paint()..color = _accent.withValues(alpha: 0.18));
     canvas.drawPath(
       path,
       Paint()
         ..color = _accent
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
+        ..strokeWidth = 2.4
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round,
     );
@@ -471,17 +683,16 @@ class _InsightPainter extends CustomPainter {
     // Last dot
     final lastX = pad + w;
     final lastY = pad + h - ((vals.last - minV) / range) * h;
-    canvas.drawCircle(
-        Offset(lastX, lastY), 2.6, Paint()..color = _accent);
+    canvas.drawCircle(Offset(lastX, lastY), 3.6, Paint()..color = _highlight);
 
     // Direction arrow
     final up = vals.last >= vals.first;
-    final ax = size.width - 4;
+    final ax = size.width - 10;
     final ay = up ? pad + 2 : size.height - pad - 2;
     final arrowPaint = Paint()
       ..color = (up ? _highlight : _warn)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
+      ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     final arrow = Path();
@@ -578,8 +789,7 @@ class _InsightPainter extends CustomPainter {
     // Labels
     _drawMiniText(canvas, _formatValue(minV), Offset(padX - 2, barY + barH + 4),
         align: TextAlign.left, color: _inkSecondary);
-    _drawMiniText(
-        canvas, _formatValue(maxV),
+    _drawMiniText(canvas, _formatValue(maxV),
         Offset(size.width - padX - 20, barY + barH + 4),
         align: TextAlign.right, color: _inkSecondary);
   }
@@ -709,8 +919,7 @@ class _InsightPainter extends CustomPainter {
         }
       }
       // End dot
-      canvas.drawCircle(
-          Offset(endX, endY), 2.6, Paint()..color = _highlight);
+      canvas.drawCircle(Offset(endX, endY), 2.6, Paint()..color = _highlight);
     } else {
       // All solid, just dot the end
       canvas.drawCircle(
