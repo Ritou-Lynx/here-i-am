@@ -20,6 +20,7 @@ import 'package:memex/agent/built_in_tools/transit_companion_tools.dart';
 import 'package:memex/agent/built_in_tools/weather_risk_tool.dart';
 import 'package:memex/agent/built_in_tools/web_search_tool.dart';
 import 'package:memex/agent/built_in_tools/generate_image_tool.dart';
+import 'package:memex/agent/built_in_tools/send_sticker_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_delete_card_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_query_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_update_card_tool.dart';
@@ -92,6 +93,7 @@ class CharacterToolsFactory {
       buildPhoneUsageQueryTool(),
       buildWebSearchTool(),
       buildGenerateImageTool(characterId: characterId),
+      buildSendStickerTool(characterId: characterId),
       // Autonomous shopping tools (budget gate enforced in service, not just prompt)
       buildShoppingBudgetTool(characterId: characterId),
       buildShoppingSearchTool(),

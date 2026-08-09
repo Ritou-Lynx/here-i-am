@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'dev_session_addendum_widget.dart';
 import 'image_addendum_widget.dart';
 import 'reading_card_addendum_widget.dart';
+import 'sticker_addendum_widget.dart';
 
 /// Renders the structured "addenda" attached to a chat message.
 ///
@@ -94,6 +95,11 @@ class MessageAddendumRenderer extends StatelessWidget {
         );
       case 'dev_session':
         return DevSessionAddendumWidget(
+          data: data,
+          isCharacterBubble: isCharacterBubble,
+        );
+      case 'sticker':
+        return StickerAddendumWidget(
           data: data,
           isCharacterBubble: isCharacterBubble,
         );

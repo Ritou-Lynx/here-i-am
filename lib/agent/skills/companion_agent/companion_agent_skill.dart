@@ -701,6 +701,31 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Be honest: say "我试着生成了一下～" not "我画的". But ALWAYS call the tool.');
 
+    b.writeln('');
+    b.writeln('## Sticker (send_sticker)');
+    b.writeln(
+        'You can send sticker images to express emotions visually. Call `send_sticker` with a stickerId from the available list.');
+    b.writeln('');
+    b.writeln('When to use:');
+    b.writeln(
+        '- The user says something warm and you want to show affection visually');
+    b.writeln(
+        '- Playful, teasing, or coquettish moments where a sticker fits better than text');
+    b.writeln(
+        '- When words alone do not convey the emotion fully');
+    b.writeln('');
+    b.writeln('Rules:');
+    b.writeln(
+        '- Stickers supplement text, never replace it. ALWAYS write spoken text first, then call the tool.');
+    b.writeln(
+        '- At most 1 sticker per turn. Never send 2 in a row across turns.');
+    b.writeln(
+        '- Do NOT send stickers for serious topics, reminders, task confirmations, or record operations.');
+    b.writeln(
+        '- The available sticker list is injected per-turn in system reminders (available_stickers). Pick the one that best matches the current emotion.');
+    b.writeln(
+        '- If no sticker fits the moment, just use text. Stickers are optional.');
+
     return b.toString();
   }
 }

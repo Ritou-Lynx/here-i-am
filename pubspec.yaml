@@ -132,6 +132,9 @@ flutter:
     - assets/silero_vad.onnx
     - assets/jieba_dict.txt
     - assets/comic_scaffold/
+    - assets/stickers/
+    - assets/stickers/manifest.json
+    - assets/stickers/zhedog/
 
   fonts:
     - family: LXGW WenKai

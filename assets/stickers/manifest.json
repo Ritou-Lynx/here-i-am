@@ -1,0 +1,35 @@
+{
+  "packs": [
+    {
+      "id": "zhedog",
+      "name": "这狗",
+      "stickers": [
+        {"id": "zhedog/开心", "file": "zhedog/zhedog_00.jpg", "desc": "开心"},
+        {"id": "zhedog/暗爽", "file": "zhedog/zhedog_01.jpg", "desc": "暗爽"},
+        {"id": "zhedog/骄傲", "file": "zhedog/zhedog_02.jpg", "desc": "骄傲"},
+        {"id": "zhedog/忍", "file": "zhedog/zhedog_03.jpg", "desc": "忍"},
+        {"id": "zhedog/那咋了", "file": "zhedog/zhedog_04.jpg", "desc": "那咋了"},
+        {"id": "zhedog/好饿", "file": "zhedog/zhedog_05.jpg", "desc": "好饿"},
+        {"id": "zhedog/顺毛", "file": "zhedog/zhedog_06.jpg", "desc": "顺毛"},
+        {"id": "zhedog/走开", "file": "zhedog/zhedog_07.jpg", "desc": "走开"},
+        {"id": "zhedog/哈喽", "file": "zhedog/zhedog_08.jpg", "desc": "哈喽"},
+        {"id": "zhedog/嗯嗯", "file": "zhedog/zhedog_09.jpg", "desc": "嗯嗯"},
+        {"id": "zhedog/好萌", "file": "zhedog/zhedog_10.jpg", "desc": "好萌"},
+        {"id": "zhedog/暗爽中", "file": "zhedog/zhedog_11.jpg", "desc": "暗爽中"},
+        {"id": "zhedog/蹭蹭", "file": "zhedog/zhedog_12.jpg", "desc": "蹭蹭"},
+        {"id": "zhedog/完蛋", "file": "zhedog/zhedog_13.jpg", "desc": "完蛋"},
+        {"id": "zhedog/好困", "file": "zhedog/zhedog_14.jpg", "desc": "好困"},
+        {"id": "zhedog/何意味", "file": "zhedog/zhedog_15.jpg", "desc": "何意味"},
+        {"id": "zhedog/玩", "file": "zhedog/zhedog_16.jpg", "desc": "玩"},
+        {"id": "zhedog/委屈", "file": "zhedog/zhedog_17.jpg", "desc": "委屈"},
+        {"id": "zhedog/机智", "file": "zhedog/zhedog_18.jpg", "desc": "机智"},
+        {"id": "zhedog/啊", "file": "zhedog/zhedog_19.jpg", "desc": "啊"},
+        {"id": "zhedog/嘶", "file": "zhedog/zhedog_20.jpg", "desc": "嘶"},
+        {"id": "zhedog/不对", "file": "zhedog/zhedog_21.jpg", "desc": "不对"},
+        {"id": "zhedog/思考", "file": "zhedog/zhedog_22.jpg", "desc": "思考"},
+        {"id": "zhedog/急急急", "file": "zhedog/zhedog_23.jpg", "desc": "急急急"},
+        {"id": "zhedog/宝宝", "file": "zhedog/zhedog_24.jpg", "desc": "宝宝"}
+      ]
+    }
+  ]
+}

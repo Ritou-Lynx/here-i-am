@@ -21,6 +21,7 @@ import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_recall_log_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
+import 'package:memex/data/services/sticker_library.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
@@ -1462,6 +1463,13 @@ class CompanionAgent {
     List<Tool> extraTools = const [],
     List<String>? turnImageAnalyses,
   }) async* {
+    // Ensure sticker library is loaded BEFORE building the agent (tools),
+    // because the send_sticker tool reads StickerLibrary.instance.ids to
+    // populate its enum. If loaded after _createAgent, the enum is empty.
+    if (StickerLibrary.instance.isEmpty && !StickerLibrary.instance.isLoaded) {
+      await StickerLibrary.instance.load();
+    }
+
     final agent = await _createAgent(
       client: client,
       modelConfig: modelConfig,
@@ -1613,6 +1621,15 @@ class CompanionAgent {
       if (hasRecordRequest) {
         state.systemReminders['record_request_directive'] =
             _recordRequestDirective;
+      }
+
+      // Inject the available sticker list so the LLM can pick the right
+      // stickerId when calling send_sticker.  The library was loaded before
+      // _createAgent above; here we just inject the reminder.
+      if (StickerLibrary.instance.isNotEmpty) {
+        state.systemReminders['available_stickers'] =
+            '## Available Stickers\n'
+            '${StickerLibrary.instance.reminderList}';
       }
 
       final historyTurns = await _loadChatHistoryTurns(
