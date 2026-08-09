@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
@@ -305,8 +306,8 @@ class CompanionForegroundService {
 
   /// Notification icon for the persistent companion foreground service.
   /// Points to manifest meta-data "ic_stat_here_i_am" -> @drawable/ic_stat_here_i_am.
-  static final NotificationIcon _notificationIcon =
-      const NotificationIcon(metaDataName: 'ic_stat_here_i_am');
+  static const NotificationIcon _notificationIcon =
+      NotificationIcon(metaDataName: 'ic_stat_here_i_am');
 
   // Tick cadence. The interval gate (CheckinService.dueForCheckin) decides when
   // a tick actually performs a checkin.
@@ -347,6 +348,35 @@ class CompanionForegroundService {
   static Future<void> startPersistent() async {
     final prefs = await SharedPreferences.getInstance();
     final isRunning = await FlutterForegroundTask.isRunningService;
+
+    // The shared foreground service is declared with the microphone type so
+    // headset-triggered background voice can record. Android 14 validates all
+    // declared types whenever startForeground() runs and kills the process if
+    // RECORD_AUDIO has not been granted yet (the normal state on a fresh
+    // install). Do not start or refresh that service until the user grants the
+    // permission from a foreground UI; later lifecycle/check-in calls retry.
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      var microphoneGranted = false;
+      try {
+        microphoneGranted = await Permission.microphone.status.isGranted;
+      } catch (error) {
+        debugPrint(
+          '[ForegroundTask] unable to read microphone permission; '
+          'skip service start: $error',
+        );
+      }
+      if (!microphoneGranted) {
+        if (isRunning) {
+          await FlutterForegroundTask.stopService();
+        }
+        debugPrint(
+          '[ForegroundTask] microphone permission not granted; '
+          'persistent service deferred',
+        );
+        return;
+      }
+    }
+
     if (isRunning) {
       final owner = prefs.getString(_ownerPrefsKey);
       final version = prefs.getInt(_versionPrefsKey);

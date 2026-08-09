@@ -39,6 +39,7 @@ class MainActivity : FlutterFragmentActivity() {
     private var openingSplashPlayer: MediaPlayer? = null
     private var openingSplashSurface: Surface? = null
     private var openingSplashPrepared = false
+    private var webViewRenderProcessGuard: WebViewRenderProcessGuard? = null
     private val openingSplashHandler = Handler(Looper.getMainLooper())
     private val openingSplashFailsafe = Runnable { dismissNativeOpeningSplash() }
 
@@ -58,6 +59,9 @@ class MainActivity : FlutterFragmentActivity() {
             intent?.removeExtra("some unique action key")
         }
         super.onCreate(savedInstanceState)
+        webViewRenderProcessGuard = WebViewRenderProcessGuard(window.decorView).also {
+            it.install()
+        }
         BackupImportChannelHandler.handleIntent(this, intent)
         if (packageName == HERE_I_AM_V3_PACKAGE && savedInstanceState == null) {
             showNativeOpeningSplash()
@@ -317,6 +321,8 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
+        webViewRenderProcessGuard?.uninstall()
+        webViewRenderProcessGuard = null
         openingSplashHandler.removeCallbacks(openingSplashFailsafe)
         openingSplashChannel?.setMethodCallHandler(null)
         openingSplashChannel = null

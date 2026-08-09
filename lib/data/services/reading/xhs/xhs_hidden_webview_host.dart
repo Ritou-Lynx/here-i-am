@@ -99,6 +99,8 @@ class XhsHiddenWebViewHost extends StatefulWidget {
 }
 
 class _XhsHiddenWebViewHostState extends State<XhsHiddenWebViewHost> {
+  static final Uri _parkingUri = Uri.parse('about:blank');
+
   // Match XhsConnectPage's desktop UA so the session cookie minted at
   // login time is recognised here. (Mobile UA would land on the
   // download-the-App shell where login controls don't even exist.)
@@ -301,6 +303,7 @@ window.chrome = window.chrome || { runtime: {} };
 
   Completer<XhsRawContent>? _activeRequest;
   bool _isProbing = false;
+  bool _isParking = false;
   final List<_XhsFetchRequest> _queue = [];
 
   @override
@@ -320,17 +323,24 @@ window.chrome = window.chrome || { runtime: {} };
             // (xhsdiscover://, intent://). Otherwise the WebView surfaces
             // ERR_UNKNOWN_URL_SCHEME which we then read as a fetch failure.
             final url = request.url;
-            if (!url.startsWith('http://') &&
+            if (url != _parkingUri.toString() &&
+                !url.startsWith('http://') &&
                 !url.startsWith('https://')) {
               _logger.fine('Blocked non-http navigation: $url');
               return NavigationDecision.prevent;
             }
             return NavigationDecision.navigate;
           },
-          onPageStarted: (_) async {
-            await _controller.runJavaScript(_stealthScript);
+          onPageStarted: (url) async {
+            if (url != _parkingUri.toString()) {
+              await _controller.runJavaScript(_stealthScript);
+            }
           },
-          onPageFinished: (_) async {
+          onPageFinished: (url) async {
+            if (url == _parkingUri.toString()) {
+              _isParking = false;
+              return;
+            }
             if (_isProbing) {
               await _runCookieProbe();
             } else if (_activeRequest != null) {
@@ -338,6 +348,11 @@ window.chrome = window.chrome || { runtime: {} };
             }
           },
           onWebResourceError: (err) {
+            if (_isParking) {
+              _logger.fine('Ignoring WebView error while parking: '
+                  '${err.description}');
+              return;
+            }
             _logger.warning(
                 'WebView resource error: ${err.description} (${err.errorType})');
             _completeActiveWithFailure(
@@ -376,6 +391,7 @@ window.chrome = window.chrome || { runtime: {} };
     if (_queue.isEmpty) return;
     final req = _queue.removeAt(0);
     _activeRequest = req.completer;
+    _isParking = false;
     try {
       _logger.info('XHS hidden fetch: ${req.url}');
       await _controller.loadRequest(Uri.parse(req.url));
@@ -397,7 +413,35 @@ window.chrome = window.chrome || { runtime: {} };
     if (active != null && !active.isCompleted) {
       active.complete(XhsRawContent.failure(message));
     }
-    _drainQueue();
+    _continueOrPark();
+  }
+
+  void _continueOrPark() {
+    if (_queue.isNotEmpty) {
+      unawaited(_drainQueue());
+      return;
+    }
+    _parkWebView();
+  }
+
+  /// Releases the heavyweight 小红书 page as soon as a probe or fetch ends.
+  ///
+  /// Some vendor WebView builds (notably the MEEBOOK M8C WebView 124 build)
+  /// crash their renderer after a complex SPA remains alive off-screen. When
+  /// no WebView handles that renderer death Chromium deliberately terminates
+  /// the whole application. Keeping the host mounted is useful for queued
+  /// fetches, but keeping the XHS document alive is not; parking on a blank
+  /// document leaves the controller reusable without retaining the unstable
+  /// renderer workload between requests.
+  void _parkWebView() {
+    if (_isParking || _activeRequest != null || _isProbing) return;
+    _isParking = true;
+    unawaited(
+      _controller.loadRequest(_parkingUri).catchError((Object error) {
+        _isParking = false;
+        _logger.fine('Failed to park hidden WebView: $error');
+      }),
+    );
   }
 
   void _onBridgeMessage(JavaScriptMessage message) {
@@ -446,7 +490,7 @@ window.chrome = window.chrome || { runtime: {} };
       );
       _activeRequest = null;
       if (!active.isCompleted) active.complete(content);
-      _drainQueue();
+      _continueOrPark();
     } catch (e) {
       _completeActiveWithFailure('Bridge parse failed: $e');
     }
@@ -460,6 +504,7 @@ window.chrome = window.chrome || { runtime: {} };
     if (_isProbing) return;
     if (_activeRequest != null) return;
     _isProbing = true;
+    _isParking = false;
     _controller
         .loadRequest(Uri.parse('https://www.xiaohongshu.com/'))
         .catchError((e) {
@@ -498,7 +543,7 @@ window.chrome = window.chrome || { runtime: {} };
       _logger.fine('Cookie probe failed (likely first run): $e');
     } finally {
       _isProbing = false;
-      _drainQueue();
+      _continueOrPark();
     }
   }
 
