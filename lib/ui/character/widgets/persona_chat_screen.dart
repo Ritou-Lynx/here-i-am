@@ -625,8 +625,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   /// Which TTS provider the auto-read button activates. 'elevenlabs' or
   /// 'minimax'. Controlled by the two auto-read buttons in the header; manual
   /// play and inline voice mode both follow this.
-  String _activeTtsProvider = 'elevenlabs';
+  String _activeTtsProvider = 'minimax';
   bool _isInlineVoiceMode = false;
+  bool _isVoiceModeMicMuted = false;
+  int _voiceModeMicSerial = 0;
   bool _voiceModeStartQueued = false;
   bool _voiceModeOpeningInProgress = false;
   bool _endVoiceModeAfterCurrentReply = false;
@@ -746,7 +748,9 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       // Rebuild the toy controller on resume: BLE handles can go stale when a
       // toy is powered off/on or tested from settings.
       unawaited(_tryConnectToy(forceRefresh: true));
-      if (_isInlineVoiceMode && !_voiceController.isStreaming) {
+      if (_isInlineVoiceMode &&
+          !_isVoiceModeMicMuted &&
+          !_voiceController.isStreaming) {
         _queueVoiceModeStreamingStart();
       }
     }
@@ -923,10 +927,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   /// Toggle voice recording. If we just stopped a recording and got text back,
   /// fill the input and auto-send.
   Future<void> _onVoiceToggle() async {
-    if (_isInlineVoiceMode && _voiceController.isStreaming) {
-      // In streaming mode the mic is always open; the button becomes a
-      // no-op (server VAD drives turn-taking). Barge-in is handled by
-      // SentenceBeginEvent -> _onStreamingAsrEvent.
+    if (_isInlineVoiceMode) {
+      await _toggleVoiceModeMicrophone();
       return;
     }
     if (_isInlineVoiceMode && _isStreaming && !_voiceController.isRecording) {
@@ -996,9 +998,36 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     }
   }
 
+  Future<void> _toggleVoiceModeMicrophone() async {
+    if (!mounted || !_isInlineVoiceMode) {
+      return;
+    }
+    final micSerial = ++_voiceModeMicSerial;
+    final mute = !_isVoiceModeMicMuted;
+    setState(() => _isVoiceModeMicMuted = mute);
+
+    if (mute) {
+      _voiceModeStartQueued = false;
+      _sentenceDebounceTimer?.cancel();
+      _sentenceDebounceTimer = null;
+      _sentenceDebounceBuffer.clear();
+      _inBargeInFollowUp = false;
+      if (_voiceController.isStreaming) {
+        await _voiceController.cancelStreaming();
+      } else {
+        await _voiceController.cancel();
+      }
+      return;
+    }
+
+    if (micSerial == _voiceModeMicSerial) {
+      _queueVoiceModeStreamingStart(delay: const Duration(milliseconds: 120));
+    }
+  }
+
   Future<void> _interruptRoleVoiceAndStartRecording() async {
     await _stopTtsPlayback();
-    if (!mounted || !_isInlineVoiceMode) return;
+    if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
     if (_voiceController.isStreaming) {
       // Mic is already open in streaming mode; barge-in is just TTS stop.
       return;
@@ -1048,7 +1077,7 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   Future<void> _onAutoVoiceRecognitionComplete(String? text) async {
-    if (!mounted || !_isInlineVoiceMode) return;
+    if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
     final recognized = text?.trim() ?? '';
     if (recognized.isNotEmpty) {
       _voiceModeSilentFollowUps = 0;
@@ -1073,7 +1102,7 @@ only after you have written the goodbye you want the user to hear.''',
   /// - [SentenceBeginEvent]: no-op.
   /// - [TranscriptionResultChangedEvent]: no-op.
   void _onStreamingAsrEvent(StreamingAsrEvent event) {
-    if (!mounted || !_isInlineVoiceMode) return;
+    if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
     switch (event) {
       case SentenceBeginEvent():
         break;
@@ -1112,14 +1141,14 @@ only after you have written the goodbye you want the user to hear.''',
     final text = _sentenceDebounceBuffer.toString().trim();
     _sentenceDebounceBuffer.clear();
     if (text.isEmpty) return;
-    if (!mounted || !_isInlineVoiceMode) return;
+    if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
     _voiceModeSilentFollowUps = 0;
     _textController.text = text;
     unawaited(_sendMessage());
   }
 
   void _onBargeInDetected() {
-    if (!mounted || !_isInlineVoiceMode) return;
+    if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
     debugPrint('Barge-in: amplitude threshold exceeded, stopping TTS');
     // Mark barge-in follow-up so subsequent NLS SentenceEnd events use the
     // longer debounce window. The amplitude detector fires before the NLS
@@ -1136,7 +1165,7 @@ only after you have written the goodbye you want the user to hear.''',
   /// so the next turn can be recognized. Skipped while TTS is playing or a send
   /// is in flight — those paths re-arm the mic themselves when they finish.
   void _onStreamingSessionLost() {
-    if (!mounted || !_isInlineVoiceMode) return;
+    if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
     if (_isRoleVoiceActive || _isStreaming || _isAppInBackground) return;
     debugPrint('Streaming ASR session lost; re-arming mic');
     _queueVoiceModeStreamingStart(delay: const Duration(milliseconds: 400));
@@ -1154,7 +1183,12 @@ only after you have written the goodbye you want the user to hear.''',
   }
 
   Future<void> _runVoiceModeIdleFollowUp() async {
-    if (!mounted || !_isInlineVoiceMode || _isAppInBackground) return;
+    if (!mounted ||
+        !_isInlineVoiceMode ||
+        _isVoiceModeMicMuted ||
+        _isAppInBackground) {
+      return;
+    }
     if (_isStreaming || _isRoleVoiceActive) {
       _queueVoiceModeStreamingStart(delay: const Duration(milliseconds: 600));
       return;
@@ -1182,6 +1216,7 @@ only after you have written the goodbye you want the user to hear.''',
 
     if (!mounted ||
         !_isInlineVoiceMode ||
+        _isVoiceModeMicMuted ||
         serial != _voiceModeIdleFollowUpSerial) {
       return;
     }
@@ -1198,6 +1233,7 @@ only after you have written the goodbye you want the user to hear.''',
     final followUp = await _persistVoiceModeOpening(spoken);
     if (!mounted ||
         !_isInlineVoiceMode ||
+        _isVoiceModeMicMuted ||
         serial != _voiceModeIdleFollowUpSerial) {
       return;
     }
@@ -1234,14 +1270,20 @@ only after you have written the goodbye you want the user to hear.''',
   Future<void> _startVoiceModeStreamingIfReady() async {
     if (!mounted ||
         !_isInlineVoiceMode ||
+        _isVoiceModeMicMuted ||
         _isAppInBackground ||
         _isVoiceReplyActive ||
         _voiceController.isStreaming ||
         _voiceController.isRecording) {
       return;
     }
+    final micSerial = _voiceModeMicSerial;
     await _voiceController.startStreaming();
     if (!mounted) return;
+    if (_isVoiceModeMicMuted || micSerial != _voiceModeMicSerial) {
+      await _voiceController.cancelStreaming();
+      return;
+    }
     final error = _voiceController.lastError;
     if (error != null && error.isNotEmpty) {
       _showVoiceInputError(error);
@@ -1257,6 +1299,7 @@ only after you have written the goodbye you want the user to hear.''',
   Future<void> _startVoiceModeRecordingIfReady() async {
     if (!mounted ||
         !_isInlineVoiceMode ||
+        _isVoiceModeMicMuted ||
         _isAppInBackground ||
         _isVoiceReplyActive ||
         _voiceController.state != VoiceInputState.idle) {
@@ -1323,7 +1366,8 @@ only after you have written the goodbye you want the user to hear.''',
           _isInlineVoiceMode &&
           !_isRoleVoiceActive &&
           !_voiceController.isStreaming &&
-          !_voiceController.isRecording) {
+          !_voiceController.isRecording &&
+          !_isVoiceModeMicMuted) {
         _queueVoiceModeStreamingStart();
       }
     }
@@ -1658,6 +1702,7 @@ only after you have written the goodbye you want the user to hear.''',
         _userAvatar = userAvatar;
         _messages = messages;
         _autoReadEnabled = autoReadEnabled;
+        _activeTtsProvider = activeProvider;
         _hasMoreHistory = messages.length >= _pageSize;
         _isLoading = false;
         _toyControlService = null;
@@ -2465,7 +2510,9 @@ only after you have written the goodbye you want the user to hear.''',
       if (_isSendCanceled(sendSerial, primaryMessageId)) {
         unawaited(ttsSession?.cancel());
         _streamingTtsSession = null;
-        if (_isInlineVoiceMode && _voiceController.isStreaming) {
+        if (_isInlineVoiceMode &&
+            !_isVoiceModeMicMuted &&
+            _voiceController.isStreaming) {
           _voiceController.resumeAudioForwarding();
         }
         _finishCanceledSend(sendSerial);
@@ -2574,7 +2621,9 @@ only after you have written the goodbye you want the user to hear.''',
       ContinuousModeState.instance.stopRun();
       unawaited(ttsSession?.cancel());
       _streamingTtsSession = null;
-      if (_isInlineVoiceMode && _voiceController.isStreaming) {
+      if (_isInlineVoiceMode &&
+          !_isVoiceModeMicMuted &&
+          _voiceController.isStreaming) {
         _voiceController.resumeAudioForwarding();
       }
       debugPrint('CompanionApiException during send: ${e.cause}');
@@ -2614,7 +2663,9 @@ only after you have written the goodbye you want the user to hear.''',
     } catch (e) {
       unawaited(ttsSession?.cancel());
       _streamingTtsSession = null;
-      if (_isInlineVoiceMode && _voiceController.isStreaming) {
+      if (_isInlineVoiceMode &&
+          !_isVoiceModeMicMuted &&
+          _voiceController.isStreaming) {
         _voiceController.resumeAudioForwarding();
       }
       if (_isSendCanceled(sendSerial, primaryMessageId)) {
@@ -4511,7 +4562,11 @@ only after you have written the goodbye you want the user to hear.''',
       return;
     }
     if (!mounted) return;
-    setState(() => _isInlineVoiceMode = enabled);
+    _voiceModeMicSerial++;
+    setState(() {
+      _isInlineVoiceMode = enabled;
+      _isVoiceModeMicMuted = false;
+    });
     if (enabled) {
       // Enter VoIP call audio mode so mic + TTS speaker coexist with AEC.
       unawaited(VoiceCallAudioSession.instance.enter());
@@ -4615,7 +4670,7 @@ only after you have written the goodbye you want the user to hear.''',
     await _audioStateSub?.cancel();
     _audioStateSub = null;
     await _audioPlayer.stop();
-    if (_isInlineVoiceMode) {
+    if (_isInlineVoiceMode && !_isVoiceModeMicMuted) {
       if (_voiceController.isStreaming) {
         _voiceController.resumeAudioForwarding();
       } else {
@@ -4644,7 +4699,9 @@ only after you have written the goodbye you want the user to hear.''',
       _playingMessageId = null;
       _isTtsLoading = false;
     });
-    if (_isInlineVoiceMode && _voiceController.isStreaming) {
+    if (_isInlineVoiceMode &&
+        !_isVoiceModeMicMuted &&
+        _voiceController.isStreaming) {
       _voiceController.resumeAudioForwarding();
     }
     if (_endVoiceModeAfterCurrentReply && _isInlineVoiceMode) {
@@ -4653,12 +4710,14 @@ only after you have written the goodbye you want the user to hear.''',
       return;
     }
     if (_isInlineVoiceMode) {
-      if (_voiceController.isStreaming) {
-        // Mic already open (streaming ASR). The server VAD will fire
-        // SentenceBegin/SentenceEnd when the user speaks. Nothing to do.
-        return;
+      if (!_isVoiceModeMicMuted) {
+        if (_voiceController.isStreaming) {
+          // Mic already open (streaming ASR). The server VAD will fire
+          // SentenceBegin/SentenceEnd when the user speaks. Nothing to do.
+          return;
+        }
+        _queueVoiceModeStreamingStart();
       }
-      _queueVoiceModeStreamingStart();
     } else {
       _queueVoiceModeRecordingStart();
     }
@@ -4865,7 +4924,9 @@ only after you have written the goodbye you want the user to hear.''',
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
-        if (_isInlineVoiceMode && !_voiceController.isStreaming) {
+        if (_isInlineVoiceMode &&
+            !_isVoiceModeMicMuted &&
+            !_voiceController.isStreaming) {
           _queueVoiceModeStreamingStart();
         }
       }
@@ -6450,8 +6511,9 @@ only after you have written the goodbye you want the user to hear.''',
       voiceController: _voiceController,
       onVoiceTap: _onVoiceToggle,
       isVoiceInputEnabled:
-          _isInlineVoiceMode ? !_isStreaming : !_isVoiceReplyActive,
+          _isInlineVoiceMode ? true : !_isVoiceReplyActive,
       isVoiceModeActive: _isInlineVoiceMode,
+      isVoiceModeMicMuted: _isVoiceModeMicMuted,
       onVoiceModeTap: () => unawaited(_setInlineVoiceMode(!_isInlineVoiceMode)),
       onAddTap: widget.enableRichCapture
           ? () => setState(() => _isMediaTrayOpen = !_isMediaTrayOpen)
@@ -7726,6 +7788,7 @@ class PersonaChatInputBar extends StatelessWidget {
     this.isVoiceInputEnabled = true,
     this.onVoiceModeTap,
     this.isVoiceModeActive = false,
+    this.isVoiceModeMicMuted = false,
     this.onAddTap,
     this.isAddActive = false,
     this.selectedImages = const [],
@@ -7754,6 +7817,7 @@ class PersonaChatInputBar extends StatelessWidget {
   final bool isVoiceInputEnabled;
   final VoidCallback? onVoiceModeTap;
   final bool isVoiceModeActive;
+  final bool isVoiceModeMicMuted;
   final VoidCallback? onAddTap;
   final bool isAddActive;
 
@@ -8004,6 +8068,10 @@ class PersonaChatInputBar extends StatelessWidget {
                                           : onSend,
                                       onVoiceModeTap: onVoiceModeTap,
                                       showVoiceModeEnd: isVoiceModeActive,
+                                      voiceController: voiceController,
+                                      onVoiceTap: onVoiceTap,
+                                      isVoiceModeMicMuted:
+                                          isVoiceModeMicMuted,
                                       isComposeMode: isComposeMode,
                                       onLongPress: isStreaming
                                           ? null
@@ -8029,6 +8097,8 @@ class PersonaChatInputBar extends StatelessWidget {
                                           onVoiceTap: onVoiceTap,
                                           onVoiceModeTap: onVoiceModeTap,
                                           isVoiceModeActive: isVoiceModeActive,
+                                          isVoiceModeMicMuted:
+                                              isVoiceModeMicMuted,
                                           voiceInputEnabled:
                                               isVoiceInputEnabled,
                                           voiceModeEnabled:
@@ -8156,6 +8226,7 @@ class _ChatVoiceActions extends StatelessWidget {
     required this.isVoiceModeActive,
     required this.voiceInputEnabled,
     required this.voiceModeEnabled,
+    required this.isVoiceModeMicMuted,
   });
 
   final VoiceInputController? voiceController;
@@ -8164,6 +8235,7 @@ class _ChatVoiceActions extends StatelessWidget {
   final bool isVoiceModeActive;
   final bool voiceInputEnabled;
   final bool voiceModeEnabled;
+  final bool isVoiceModeMicMuted;
 
   @override
   Widget build(BuildContext context) {
@@ -8177,6 +8249,8 @@ class _ChatVoiceActions extends StatelessWidget {
             iconColor: const Color(0xFFF5EEE0).withValues(alpha: 0.84),
             bgColor: const Color(0xFF12160F).withValues(alpha: 0.4),
             enabled: voiceInputEnabled,
+            isMuted: isVoiceModeActive && isVoiceModeMicMuted,
+            isCallMode: isVoiceModeActive,
           ),
           const SizedBox(width: 8),
         ],
@@ -8197,6 +8271,9 @@ class _SendAndMaybeEndVoiceMode extends StatelessWidget {
     required this.onSend,
     required this.onVoiceModeTap,
     required this.showVoiceModeEnd,
+    required this.voiceController,
+    required this.onVoiceTap,
+    required this.isVoiceModeMicMuted,
     this.isComposeMode = false,
     this.onLongPress,
   });
@@ -8204,6 +8281,9 @@ class _SendAndMaybeEndVoiceMode extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback? onVoiceModeTap;
   final bool showVoiceModeEnd;
+  final VoiceInputController? voiceController;
+  final VoidCallback? onVoiceTap;
+  final bool isVoiceModeMicMuted;
   final bool isComposeMode;
   final VoidCallback? onLongPress;
 
@@ -8228,6 +8308,17 @@ class _SendAndMaybeEndVoiceMode extends StatelessWidget {
           onLongPress: onLongPress,
         ),
         const SizedBox(width: 8),
+        if (voiceController != null && onVoiceTap != null) ...[
+          VoiceInputButton(
+            controller: voiceController!,
+            onTap: onVoiceTap!,
+            iconColor: const Color(0xFFF5EEE0).withValues(alpha: 0.84),
+            bgColor: const Color(0xFF12160F).withValues(alpha: 0.4),
+            isMuted: isVoiceModeMicMuted,
+            isCallMode: true,
+          ),
+          const SizedBox(width: 8),
+        ],
         _VoiceModeButton(enabled: true, active: true, onTap: onVoiceModeTap!),
       ],
     );

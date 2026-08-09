@@ -66,8 +66,10 @@ void main() {
     required VoidCallback onSend,
     VoidCallback? onAddTap,
     VoidCallback? onVoiceModeTap,
+    VoidCallback? onVoiceTap,
     VoiceInputController? voiceController,
     bool isVoiceModeActive = false,
+    bool isVoiceModeMicMuted = false,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -77,8 +79,10 @@ void main() {
           onSend: onSend,
           onAddTap: onAddTap,
           onVoiceModeTap: onVoiceModeTap,
+          onVoiceTap: onVoiceTap,
           voiceController: voiceController,
           isVoiceModeActive: isVoiceModeActive,
+          isVoiceModeMicMuted: isVoiceModeMicMuted,
           hintText: 'Message...',
         ),
       ),
@@ -136,6 +140,45 @@ void main() {
     await tester.tap(find.bySemanticsLabel('End voice mode'));
     await tester.pump();
     expect(exits, 1);
+  });
+
+  testWidgets('active voice mode exposes a microphone mute toggle',
+      (tester) async {
+    final controller = TextEditingController();
+    final voiceController = VoiceInputController();
+    var micToggles = 0;
+    addTearDown(controller.dispose);
+    addTearDown(voiceController.dispose);
+
+    await tester.pumpWidget(buildSubject(
+      controller: controller,
+      isStreaming: true,
+      isVoiceModeActive: true,
+      onSend: () {},
+      onVoiceModeTap: () {},
+      onVoiceTap: () => micToggles++,
+      voiceController: voiceController,
+    ));
+
+    await tester.tap(find.bySemanticsLabel('Mute microphone'));
+    await tester.pump();
+    expect(micToggles, 1);
+
+    await tester.pumpWidget(buildSubject(
+      controller: controller,
+      isStreaming: true,
+      isVoiceModeActive: true,
+      isVoiceModeMicMuted: true,
+      onSend: () {},
+      onVoiceModeTap: () {},
+      onVoiceTap: () => micToggles++,
+      voiceController: voiceController,
+    ));
+    await tester.pump();
+
+    await tester.tap(find.bySemanticsLabel('Unmute microphone'));
+    await tester.pump();
+    expect(micToggles, 2);
   });
 
   testWidgets('active voice mode keeps end action visible while typing',

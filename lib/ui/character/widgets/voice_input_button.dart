@@ -18,6 +18,8 @@ class VoiceInputButton extends StatelessWidget {
     required this.bgColor,
     this.size = 40,
     this.enabled = true,
+    this.isMuted = false,
+    this.isCallMode = false,
   });
 
   final VoiceInputController controller;
@@ -30,6 +32,8 @@ class VoiceInputButton extends StatelessWidget {
   final Color bgColor;
   final double size;
   final bool enabled;
+  final bool isMuted;
+  final bool isCallMode;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +41,7 @@ class VoiceInputButton extends StatelessWidget {
       animation: controller,
       builder: (context, _) {
         final state = controller.state;
-        final isRecording = state == VoiceInputState.recording;
+        final isRecording = state == VoiceInputState.recording && !isMuted;
         final isProcessing = state == VoiceInputState.processing;
 
         Widget inner;
@@ -52,16 +56,22 @@ class VoiceInputButton extends StatelessWidget {
           );
         } else {
           inner = Icon(
-            isRecording ? Icons.mic : Icons.mic_none,
+            isMuted
+                ? Icons.mic_off_rounded
+                : (isRecording ? Icons.mic : Icons.mic_none),
             size: size * 0.5,
-            color: isRecording ? Colors.white : iconColor,
+            color: isRecording
+                ? Colors.white
+                : (isMuted ? const Color(0xFFFFC6B5) : iconColor),
           );
         }
 
         return Semantics(
           button: true,
           enabled: enabled && !isProcessing,
-          label: isRecording ? 'Stop voice input' : 'Start voice input',
+          label: isCallMode
+              ? (isMuted ? 'Unmute microphone' : 'Mute microphone')
+              : (isRecording ? 'Stop voice input' : 'Start voice input'),
           child: GestureDetector(
             onTap: enabled && !isProcessing ? onTap : null,
             child: Opacity(

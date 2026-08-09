@@ -517,19 +517,19 @@ class UserStorage {
   static Future<String> getTtsProvider() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final value = prefs.getString(_keyTtsProvider) ?? 'elevenlabs';
+      final value = prefs.getString(_keyTtsProvider) ?? 'minimax';
       _cachedTtsProvider = value;
       return value;
     } catch (e) {
-      return _cachedTtsProvider ?? 'elevenlabs';
+      return _cachedTtsProvider ?? 'minimax';
     }
   }
 
-  /// Synchronous access to the last-known TTS provider. Returns 'elevenlabs'
+  /// Synchronous access to the last-known TTS provider. Returns 'minimax'
   /// (default) before the async [getTtsProvider] has been called at least
   /// once. Used by CompanionAgent._injectTtsTagsGuide which runs in a sync
   /// context but needs to know the current provider.
-  static String getCachedTtsProviderSync() => _cachedTtsProvider ?? 'elevenlabs';
+  static String getCachedTtsProviderSync() => _cachedTtsProvider ?? 'minimax';
   static String? _cachedTtsProvider;
 
   static Future<void> setTtsProvider(String provider) async {

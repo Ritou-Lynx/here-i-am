@@ -39,7 +39,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _elevenLabsApiKeyController = TextEditingController();
   final _miniMaxApiKeyController = TextEditingController();
   final _miniMaxGroupIdController = TextEditingController();
-  String _ttsProvider = 'elevenlabs';
+  String _ttsProvider = 'minimax';
   String _imageGenProvider = 'tongyi_wanxiang';
   String? _imageGenLlmConfigKey;
   List<LLMConfig> _llmConfigs = [];
