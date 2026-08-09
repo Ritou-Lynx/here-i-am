@@ -121,11 +121,14 @@ class CharacterToolsFactory {
     }
     if (RecordOrganizerServiceV3.isInitialized) {
       tools.add(_buildLifeMemoryCaptureTool(
+          currentUserMessageId: currentUserMessageId,
           turnImageAnalyses: turnImageAnalyses));
-      tools.add(buildMemoryV3QueryTool());
+      tools.add(
+          buildMemoryV3QueryTool(currentUserMessageId: currentUserMessageId));
       tools.add(buildMemoryV3UpdateCardTool());
       tools.add(buildMemoryV3DeleteCardTool());
-      tools.add(buildProjectMemoryQueryTool());
+      tools.add(buildProjectMemoryQueryTool(
+          currentUserMessageId: currentUserMessageId));
     }
     if (AppDatabase.isInitialized) {
       tools.add(buildTopicThreadCreateTool());
@@ -203,6 +206,7 @@ class CharacterToolsFactory {
   /// Organizer can see exactly what was in the image — without relying on the
   /// companion LLM to faithfully transcribe it into the `text` parameter.
   static Tool _buildLifeMemoryCaptureTool({
+    int? currentUserMessageId,
     List<String>? turnImageAnalyses,
   }) {
     return Tool(
@@ -227,8 +231,7 @@ class CharacterToolsFactory {
         'properties': {
           'text': {
             'type': 'string',
-            'description':
-                'A self-contained Chinese description of what to record. '
+            'description': 'A self-contained Chinese description of what to record. '
                 'Include ONLY facts the user stated or that are visible in an '
                 'attached image. Do NOT synthesize, infer, or fabricate. '
                 'If you saw an [Image analysis: ...] block in this turn, you '
@@ -251,9 +254,8 @@ class CharacterToolsFactory {
           }
           var rawInput = text;
           if (turnImageAnalyses != null && turnImageAnalyses.isNotEmpty) {
-            final analysisBlock = turnImageAnalyses
-                .where((a) => a.trim().isNotEmpty)
-                .join(' | ');
+            final analysisBlock =
+                turnImageAnalyses.where((a) => a.trim().isNotEmpty).join(' | ');
             if (analysisBlock.isNotEmpty) {
               rawInput = '$text\n[图片内容：$analysisBlock]';
             }
@@ -269,6 +271,7 @@ class CharacterToolsFactory {
             source: RecordSource(
               sourceKind: 'chat_message',
               rawInput: rawInput,
+              sourceRef: currentUserMessageId?.toString(),
             ),
           );
           return jsonEncode({

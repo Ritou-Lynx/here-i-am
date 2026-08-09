@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/memory_v3/retrieval/query_expander.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
+import 'package:memex/data/memory_v3/services/memory_recall_trace_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -67,6 +68,46 @@ void main() {
     final hits = await service.searchCards('花钱');
 
     expect(hits.map((h) => h['card_id']), contains('finance-card'));
+  });
+
+  test(
+      'recently repeated generic card yields to an equally relevant fresh card',
+      () async {
+    if (!_fts5Available) return;
+    await _insertCard(
+      db,
+      id: 'repeated-card',
+      type: 'fact',
+      label: '咖啡偏好',
+      text: '用户喜欢喝咖啡。',
+    );
+    await _insertCard(
+      db,
+      id: 'fresh-card',
+      type: 'fact',
+      label: '咖啡偏好',
+      text: '用户喜欢喝咖啡。',
+    );
+    final trace = MemoryRecallTraceService(db);
+    for (final messageId in [301, 302, 303, 304]) {
+      await trace.startTurn(chatMessageId: messageId, query: '咖啡');
+      await trace.recordTargets(
+        chatMessageId: messageId,
+        query: '咖啡',
+        targets: const [
+          MemoryRecallTarget(
+            targetTable: MemoryRecallTraceService.memoryCardsTable,
+            targetId: 'repeated-card',
+            score: 10,
+          ),
+        ],
+      );
+    }
+
+    final hits = await service.searchCardsWithScoresResolved('咖啡', limit: 1);
+
+    expect(hits.single.card.id, 'fresh-card');
+    expect(hits.single.recentRecallCount, 0);
   });
 }
 

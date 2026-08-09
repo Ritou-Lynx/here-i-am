@@ -9,6 +9,7 @@
 library;
 
 import 'intent_classifier.dart';
+import 'recall_novelty_policy.dart';
 
 /// A search hit with its metadata for ranking.
 class RankableHit {
@@ -17,12 +18,14 @@ class RankableHit {
     required this.ftsRank,
     required this.updatedAt, // ms since epoch
     required this.cardType, // fact / event / task / schedule / plan
+    this.recentRecallCount = 0,
   });
 
   final String cardId;
   final double ftsRank; // lower = better in FTS5
   final int updatedAt;
   final String cardType;
+  final int recentRecallCount;
 
   /// Computed fusion score (higher = better).
   double score = 0;
@@ -61,14 +64,24 @@ class FusionRanker {
     // ── Recency boost ──────────────────────────────────────────
     const oneDay = 24 * 60 * 60 * 1000;
     for (final h in hits) {
-      final daysAgo = ((now - h.updatedAt) / oneDay).clamp(0, _recentWindowDays);
-      final recency = 1.0 - (daysAgo / _recentWindowDays); // 1.0 = today, 0.0 = 30+ days
+      final daysAgo =
+          ((now - h.updatedAt) / oneDay).clamp(0, _recentWindowDays);
+      final recency =
+          1.0 - (daysAgo / _recentWindowDays); // 1.0 = today, 0.0 = 30+ days
       h.score += _wRecency * recency;
     }
 
     // ── Intent-type relevance ──────────────────────────────────
     for (final h in hits) {
       h.score += _wIntent * _typeBoost(h.cardType, intent);
+    }
+
+    // ── Novelty penalty ────────────────────────────────────────
+    for (final h in hits) {
+      h.score = RecallNoveltyPolicy.adjustedScore(
+        baseScore: h.score,
+        recentRecallCount: h.recentRecallCount,
+      );
     }
 
     // Sort descending by score

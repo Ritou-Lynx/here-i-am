@@ -12,8 +12,10 @@ import 'package:memex/data/memory_v3/agents/dreaming_agent/episode_consolidator.
 import 'package:memex/data/memory_v3/agents/dreaming_agent/fragment_extractor.dart';
 import 'package:memex/data/memory_v3/agents/dreaming_agent/saga_weaver.dart';
 import 'package:memex/data/memory_v3/models/dreaming_fragment.dart';
+import 'package:memex/data/memory_v3/retrieval/recall_novelty_policy.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/memory_v3/services/embedding_service.dart';
+import 'package:memex/data/memory_v3/services/memory_recall_trace_service.dart';
 import 'package:memex/data/services/search/query_matcher.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:uuid/uuid.dart';
@@ -943,8 +945,8 @@ class DreamingOrchestratorServiceV3 {
 
     // Identical record already present (e.g. the same window was re-run and
     // skipped again) — replace instead of duplicating.
-    records.removeWhere((r) =>
-        r.fromId == fromId && r.toId == toId && r.reason == reason);
+    records.removeWhere(
+        (r) => r.fromId == fromId && r.toId == toId && r.reason == reason);
 
     // Merge a new 'empty' record into a consecutive trailing 'empty' record
     // so sequential zero-draft batches collapse into one window.
@@ -1217,12 +1219,10 @@ class DreamingOrchestratorServiceV3 {
         'recomputeAllEpisodeOccurredAtRange: ${episodes.length} episodes');
     var updated = 0;
     for (final ep in episodes) {
-      final fragIds =
-          (jsonDecode(ep.sourceFragmentIds) as List).cast<String>();
+      final fragIds = (jsonDecode(ep.sourceFragmentIds) as List).cast<String>();
       final range = await _computeOccurredAtRange(fragIds);
       if (range != null && range != ep.occurredAtRange) {
-        await (_db.update(_db.memoryEpisodes)
-              ..where((t) => t.id.equals(ep.id)))
+        await (_db.update(_db.memoryEpisodes)..where((t) => t.id.equals(ep.id)))
             .write(MemoryEpisodesCompanion(occurredAtRange: Value(range)));
         updated++;
       }
@@ -1235,7 +1235,8 @@ class DreamingOrchestratorServiceV3 {
     final rows = await (_db.select(_db.memoryFragments)
           ..where((t) => t.eventTime.isNull() & t.sourceMessageIds.isNotNull()))
         .get();
-    _logger.info('backfillFragmentEventTimes: ${rows.length} fragments to fill');
+    _logger
+        .info('backfillFragmentEventTimes: ${rows.length} fragments to fill');
     var filled = 0;
     for (final frag in rows) {
       final ids = (jsonDecode(frag.sourceMessageIds!) as List).cast<int>();
@@ -1661,22 +1662,108 @@ class DreamingOrchestratorServiceV3 {
     String queryHint = '',
     int episodeLimit = 8,
     int recentFragmentLimit = 12,
+    int? currentChatMessageId,
   }) async {
     final trimmedHint = queryHint.trim();
 
-    final episodeHits = await _queryEpisodesForContext(
+    final episodeCandidates = await _queryEpisodesForContext(
       queryHint: trimmedHint,
-      limit: episodeLimit,
+      limit: episodeLimit * 3,
     );
-    final fragmentHits = await _queryFragmentsForContext(
+    final fragmentCandidates = await _queryFragmentsForContext(
       queryHint: trimmedHint,
-      limit: recentFragmentLimit,
+      limit: recentFragmentLimit * 3,
+    );
+    final traceService = MemoryRecallTraceService(_db);
+    final episodeCounts = await traceService.recentRecallCounts(
+      targetTable: MemoryRecallTraceService.memoryEpisodesTable,
+      targetIds: episodeCandidates.map((hit) => hit.episode.id),
+      excludeChatMessageId: currentChatMessageId,
+    );
+    final fragmentCounts = await traceService.recentRecallCounts(
+      targetTable: MemoryRecallTraceService.memoryFragmentsTable,
+      targetIds: fragmentCandidates.map((hit) => hit.fragment.id),
+      excludeChatMessageId: currentChatMessageId,
+    );
+    final episodeHits = _rankEpisodeNovelty(
+      episodeCandidates,
+      episodeCounts,
+      episodeLimit,
+    );
+    final fragmentHits = _rankFragmentNovelty(
+      fragmentCandidates,
+      fragmentCounts,
+      recentFragmentLimit,
     );
 
     return DreamingContextQueryResult(
       episodeHits: episodeHits,
       fragmentHits: fragmentHits,
     );
+  }
+
+  List<DreamingEpisodeContextHit> _rankEpisodeNovelty(
+    List<DreamingEpisodeContextHit> candidates,
+    Map<String, int> recallCounts,
+    int limit,
+  ) {
+    final ranked = candidates.indexed
+        .map((entry) => (
+              originalIndex: entry.$1,
+              hit: entry.$2,
+              adjusted: RecallNoveltyPolicy.adjustedScore(
+                baseScore: entry.$2.score.toDouble(),
+                recentRecallCount: recallCounts[entry.$2.episode.id] ?? 0,
+              ),
+            ))
+        .toList()
+      ..sort((a, b) {
+        final byScore = b.adjusted.compareTo(a.adjusted);
+        return byScore != 0
+            ? byScore
+            : a.originalIndex.compareTo(b.originalIndex);
+      });
+    return ranked
+        .take(limit)
+        .map((entry) => DreamingEpisodeContextHit(
+              episode: entry.hit.episode,
+              score: entry.hit.score <= 0
+                  ? 0
+                  : entry.adjusted.round().clamp(1, 9999),
+            ))
+        .toList(growable: false);
+  }
+
+  List<DreamingFragmentContextHit> _rankFragmentNovelty(
+    List<DreamingFragmentContextHit> candidates,
+    Map<String, int> recallCounts,
+    int limit,
+  ) {
+    final ranked = candidates.indexed
+        .map((entry) => (
+              originalIndex: entry.$1,
+              hit: entry.$2,
+              adjusted: RecallNoveltyPolicy.adjustedScore(
+                baseScore: entry.$2.score.toDouble(),
+                recentRecallCount: recallCounts[entry.$2.fragment.id] ?? 0,
+              ),
+            ))
+        .toList()
+      ..sort((a, b) {
+        final byScore = b.adjusted.compareTo(a.adjusted);
+        return byScore != 0
+            ? byScore
+            : a.originalIndex.compareTo(b.originalIndex);
+      });
+    return ranked
+        .take(limit)
+        .map((entry) => DreamingFragmentContextHit(
+              fragment: entry.hit.fragment,
+              score: entry.hit.score <= 0
+                  ? 0
+                  : entry.adjusted.round().clamp(1, 9999),
+            ))
+        .toList(growable: false);
   }
 
   Future<List<DreamingEpisodeContextHit>> _queryEpisodesForContext({
@@ -1702,8 +1789,8 @@ class DreamingOrchestratorServiceV3 {
                     t.id.isIn(ranks.keys.toList(growable: false)) &
                     t.status.equals('active')))
               .get();
-          activeRows.sort(
-              (a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
+          activeRows
+              .sort((a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
           for (final ep in activeRows) {
             if (ftsHits.length >= limit) break;
             if (seenIds.add(ep.id)) {
@@ -1738,8 +1825,7 @@ class DreamingOrchestratorServiceV3 {
           for (final ep in pool) {
             if (ftsHits.length >= limit) break;
             final narrative = ep.narrative.toLowerCase();
-            final hits =
-                keywords.where((kw) => narrative.contains(kw)).length;
+            final hits = keywords.where((kw) => narrative.contains(kw)).length;
             if (hits > 0 && seenIds.add(ep.id)) {
               ftsHits.add(DreamingEpisodeContextHit(
                 episode: ep,
@@ -1842,8 +1928,8 @@ class DreamingOrchestratorServiceV3 {
                       t.id.isIn(ranks.keys.toList(growable: false)) &
                       t.status.isIn(const ['active', 'consolidated'])))
                 .get();
-            activeRows.sort(
-                (a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
+            activeRows
+                .sort((a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
             for (final fr in activeRows) {
               if (allHits.length >= limit) break;
               if (seenIds.add(fr.id)) {
@@ -1865,15 +1951,15 @@ class DreamingOrchestratorServiceV3 {
           final keywords = await QueryMatcher.contentKeywords(queryHint);
           if (keywords.isNotEmpty) {
             final pool = await (_db.select(_db.memoryFragments)
-                  ..where((t) => t.status.isIn(const ['active', 'consolidated']))
+                  ..where(
+                      (t) => t.status.isIn(const ['active', 'consolidated']))
                   ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
                   ..limit(limit * 6))
                 .get();
             for (final fr in pool) {
               if (allHits.length >= limit) break;
               final content = fr.content.toLowerCase();
-              final hits =
-                  keywords.where((kw) => content.contains(kw)).length;
+              final hits = keywords.where((kw) => content.contains(kw)).length;
               if (hits > 0 && seenIds.add(fr.id)) {
                 allHits.add(DreamingFragmentContextHit(
                   fragment: fr,
@@ -2056,12 +2142,13 @@ class DreamingOrchestratorServiceV3 {
           );
         }
       } catch (e, s) {
-        _logger.warning('updateFragment: FTS update failed for $fragmentId',
-            e, s);
+        _logger.warning(
+            'updateFragment: FTS update failed for $fragmentId', e, s);
       }
 
-      _logger.info('updateFragment: $fragmentId fields=${changes.keys.join(',')} '
-          'source=$sourceKind');
+      _logger
+          .info('updateFragment: $fragmentId fields=${changes.keys.join(',')} '
+              'source=$sourceKind');
       final updated = await (_db.select(_db.memoryFragments)
             ..where((t) => t.id.equals(fragmentId)))
           .getSingle();
@@ -2192,8 +2279,7 @@ class DreamingOrchestratorServiceV3 {
       await (_db.update(_db.memoryEpisodes)
             ..where((t) => t.id.equals(episodeId)))
           .write(MemoryEpisodesCompanion(
-        narrative:
-            narrative != null ? Value(narrative) : const Value.absent(),
+        narrative: narrative != null ? Value(narrative) : const Value.absent(),
         topicId: topicId != null ? Value(topicId) : const Value.absent(),
         confidence:
             confidence != null ? Value(confidence) : const Value.absent(),
@@ -2210,8 +2296,7 @@ class DreamingOrchestratorServiceV3 {
 
       // FTS handling.
       final becameDeleted = (status == 'deleted');
-      final narrativeChanged =
-          narrative != null && narrative != row.narrative;
+      final narrativeChanged = narrative != null && narrative != row.narrative;
       final topicChanged = topicId != null && topicId != row.topicId;
       try {
         if (becameDeleted) {
@@ -2224,8 +2309,8 @@ class DreamingOrchestratorServiceV3 {
           );
         }
       } catch (e, s) {
-        _logger.warning('updateEpisode: FTS update failed for $episodeId',
-            e, s);
+        _logger.warning(
+            'updateEpisode: FTS update failed for $episodeId', e, s);
       }
 
       _logger.info('updateEpisode: $episodeId fields=${changes.keys.join(',')} '
@@ -2358,8 +2443,7 @@ class DreamingOrchestratorServiceV3 {
         final episodeIdsJson = jsonEncode(draft.episodeIds);
         final axisJson = jsonEncode(draft.emotionalAxis.toJson());
 
-        if (draft.existingSagaId != null &&
-            draft.existingSagaId!.isNotEmpty) {
+        if (draft.existingSagaId != null && draft.existingSagaId!.isNotEmpty) {
           // ── Update existing saga: snapshot old version first ──
           final oldSaga = await (_db.select(_db.memorySagas)
                 ..where((t) =>
@@ -2475,20 +2559,20 @@ class DreamingOrchestratorServiceV3 {
               .map((h) => h['saga_id'] as String)
               .toList(growable: false);
           final rows = await (_db.select(_db.memorySagas)
-                ..where((t) =>
-                    t.id.isIn(ids) & t.status.equals('active')))
+                ..where((t) => t.id.isIn(ids) & t.status.equals('active')))
               .get();
           // Sort by FTS rank order.
           final idOrder = {for (var i = 0; i < ids.length; i++) ids[i]: i};
-          rows.sort((a, b) =>
-              (idOrder[a.id] ?? 999).compareTo(idOrder[b.id] ?? 999));
+          rows.sort(
+              (a, b) => (idOrder[a.id] ?? 999).compareTo(idOrder[b.id] ?? 999));
           for (final saga in rows) {
             if (results.length >= limit) break;
             if (seenIds.add(saga.id)) results.add(saga);
           }
         }
       } catch (e, s) {
-        _logger.warning('Saga FTS search failed; falling back to recency', e, s);
+        _logger.warning(
+            'Saga FTS search failed; falling back to recency', e, s);
       }
     }
 
@@ -2564,8 +2648,7 @@ class DreamingOrchestratorServiceV3 {
 
       // FTS handling.
       final becameDeleted = (status == 'deleted');
-      final contentChanged =
-          (title != null && title != row.title) ||
+      final contentChanged = (title != null && title != row.title) ||
           (description != null && description != row.description);
       try {
         if (becameDeleted) {

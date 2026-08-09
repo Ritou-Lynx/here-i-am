@@ -90,6 +90,9 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 - `EpisodeConsolidatorV3` 已接入 Daily Dreaming 和 Lab 手动入口，把 active fragments 凝结为第一人称 `memory_episodes`。
 - Companion 每轮对话会自动查询最近/相关 episodes + active fragments，并以 `dreaming_context` 注入。
 - Dreaming recall log 会记录每轮 query、命中的 episodes / fragments、bm25 分数和最终注入内容，供 Lab 调试。
+- 用户侧召回追踪写入 `memory_recall_events`：每轮自动召回与工具召回绑定用户消息；长按消息可查看 Card / Episode / Fragment / Saga / Project Memory 命中，并沿来源引用定位原始对话。它与仅供 Lab 的 Dreaming JSON recall log 分工独立。
+- `memory_recall_events` 同时参与七天窗口的 novelty penalty：近期反复注入的 Card / Episode / Fragment / Saga 会柔性降权，为同等相关的新候选让位，但不会被硬过滤；Compose 模式合并发送的多条用户消息共享同一轮 trace。
+- 召回详情支持逐条“有帮助 / 不相关”反馈，仍以 append-style recall event 保存，不改记忆正文：不相关会增加后续 penalty，有帮助会抵消仅因反复使用形成的部分降权；再次点击可取消。
 - Fragment 记录 `eventTime`（原始事件时间，非抽取时间）；Episode 的 `occurredAtRange` 由源 fragment eventTime 代码算出，不依赖 LLM。见 V3 § 5.6。
 - Companion 注入 dreaming context 时在 narrative 前加日期前缀（例："(07-08 · 2 天前)"），让模型能区分过去和现在。
 - Dreaming 自动产物写入 Dreaming 表族（fragments / episodes），不直接写 `memory_cards`。它承载的是事件+关系记忆，可信度中等（AI 观察）；Card 是用户显式确认的高置信版本。用户可以在 Memory Review 把高置信 Episode 升格成 Card。详见 V3 § 2.5。

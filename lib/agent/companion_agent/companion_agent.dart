@@ -16,6 +16,8 @@ import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/daily_outing_learning_service.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
+import 'package:memex/data/memory_v3/services/memory_recall_trace_service.dart';
+import 'package:memex/data/memory_v3/retrieval/recall_novelty_policy.dart';
 import 'package:memex/data/memory_v3/retrieval/project_memory_intent_classifier.dart';
 import 'package:memex/data/memory_v3/services/project_memory_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
@@ -694,6 +696,7 @@ class CompanionAgent {
     required String characterId,
     required String queryHint,
     int? currentUserMessageId,
+    List<int> recallMessageIds = const [],
     bool saveState = true,
     bool includeCheckinTools = false,
     bool forceNewSession = false,
@@ -721,6 +724,24 @@ class CompanionAgent {
       'scene': 'companion_chat',
       'characterId': characterId,
     });
+
+    MemoryRecallTraceService? recallTraceService;
+    if (AppDatabase.isInitialized &&
+        currentUserMessageId != null &&
+        currentUserMessageId > 0) {
+      recallTraceService = MemoryRecallTraceService(AppDatabase.instance);
+      try {
+        await recallTraceService.startTurn(
+          chatMessageId: currentUserMessageId,
+          query: queryHint,
+          relatedChatMessageIds: recallMessageIds,
+        );
+      } catch (e) {
+        // Recall transparency must never block the conversation itself.
+        _logger.warning('Failed to start message recall trace: $e');
+        recallTraceService = null;
+      }
+    }
 
     final skill = CompanionAgentSkill(
       character: character,
@@ -810,6 +831,17 @@ class CompanionAgent {
             }
           }
           state.systemReminders['project_memory_context'] = buf.toString();
+          if (recallTraceService != null) {
+            await recallTraceService.recordTargets(
+              chatMessageId: currentUserMessageId!,
+              query: queryHint,
+              targets: projectHits.map((hit) => MemoryRecallTarget(
+                    targetTable: MemoryRecallTraceService.projectMemoryTable,
+                    targetId: hit.itemId,
+                    score: (-hit.rank * 10).clamp(0.0, 9999.0),
+                  )),
+            );
+          }
         } else {
           state.systemReminders.remove('project_memory_context');
         }
@@ -826,7 +858,9 @@ class CompanionAgent {
     if (RecordOrganizerServiceV3.isInitialized && queryHint.trim().isNotEmpty) {
       try {
         final v3Service = MemoryCardQueryService(AppDatabase.instance);
-        final v3Hits = await v3Service.searchCardsResolved(queryHint, limit: 8);
+        final v3Results =
+            await v3Service.searchCardsWithScoresResolved(queryHint, limit: 8);
+        final v3Hits = v3Results.map((result) => result.card).toList();
         if (v3Hits.isNotEmpty) {
           final buf = StringBuffer();
           buf.writeln('## Your Memory V3 Cards (auto-looked up for this turn)');
@@ -840,6 +874,17 @@ class CompanionAgent {
                 'updated: ${DateTime.fromMillisecondsSinceEpoch(card.updatedAt).toIso8601String()})');
           }
           state.systemReminders['memory_v3_cards'] = buf.toString();
+          if (recallTraceService != null) {
+            await recallTraceService.recordTargets(
+              chatMessageId: currentUserMessageId!,
+              query: queryHint,
+              targets: v3Results.map((result) => MemoryRecallTarget(
+                    targetTable: MemoryRecallTraceService.memoryCardsTable,
+                    targetId: result.card.id,
+                    score: result.relevanceScore,
+                  )),
+            );
+          }
         } else {
           state.systemReminders.remove('memory_v3_cards');
         }
@@ -909,7 +954,10 @@ class CompanionAgent {
     if (DreamingOrchestratorServiceV3.isInitialized) {
       try {
         final ctx = await DreamingOrchestratorServiceV3.instance
-            .queryRecentDreamingContext(queryHint: queryHint);
+            .queryRecentDreamingContext(
+          queryHint: queryHint,
+          currentChatMessageId: currentUserMessageId,
+        );
         if (ctx.episodes.isNotEmpty || ctx.fragments.isNotEmpty) {
           final buf = StringBuffer();
           final now = DateTime.now();
@@ -976,6 +1024,25 @@ class CompanionAgent {
                     ))
                 .toList(growable: false),
           )));
+          if (recallTraceService != null) {
+            await recallTraceService.recordTargets(
+              chatMessageId: currentUserMessageId!,
+              query: queryHint,
+              targets: [
+                ...ctx.episodeHits.map((hit) => MemoryRecallTarget(
+                      targetTable: MemoryRecallTraceService.memoryEpisodesTable,
+                      targetId: hit.episode.id,
+                      score: hit.score.toDouble(),
+                    )),
+                ...ctx.fragmentHits.map((hit) => MemoryRecallTarget(
+                      targetTable:
+                          MemoryRecallTraceService.memoryFragmentsTable,
+                      targetId: hit.fragment.id,
+                      score: hit.score.toDouble(),
+                    )),
+              ],
+            );
+          }
         } else {
           state.systemReminders.remove('dreaming_context');
           unawaited(DreamingRecallLogService.log(DreamingRecallLogEntry(
@@ -992,8 +1059,36 @@ class CompanionAgent {
       }
       // Inject saga long-arc context (V3 § 7.2: reflection/emotion layer).
       try {
-        final sagas = await DreamingOrchestratorServiceV3.instance
-            .querySagasForContext(queryHint: queryHint, limit: 3);
+        final sagaCandidates = await DreamingOrchestratorServiceV3.instance
+            .querySagasForContext(queryHint: queryHint, limit: 9);
+        var sagas = sagaCandidates;
+        if (recallTraceService != null && sagaCandidates.length > 3) {
+          final recallCounts = await recallTraceService.recentRecallCounts(
+            targetTable: MemoryRecallTraceService.memorySagasTable,
+            targetIds: sagaCandidates.map((saga) => saga.id),
+            excludeChatMessageId: currentUserMessageId,
+          );
+          final ranked = sagaCandidates.indexed
+              .map((entry) => (
+                    originalIndex: entry.$1,
+                    saga: entry.$2,
+                    score: RecallNoveltyPolicy.adjustedScore(
+                      baseScore: (sagaCandidates.length - entry.$1).toDouble(),
+                      recentRecallCount: recallCounts[entry.$2.id] ?? 0,
+                    ),
+                  ))
+              .toList()
+            ..sort((a, b) {
+              final byScore = b.score.compareTo(a.score);
+              return byScore != 0
+                  ? byScore
+                  : a.originalIndex.compareTo(b.originalIndex);
+            });
+          sagas =
+              ranked.take(3).map((entry) => entry.saga).toList(growable: false);
+        } else if (sagaCandidates.length > 3) {
+          sagas = sagaCandidates.take(3).toList(growable: false);
+        }
         if (sagas.isNotEmpty) {
           final sagaBuf = StringBuffer();
           sagaBuf.writeln('## 长期弧线 — 跨周月的关系趋势');
@@ -1003,6 +1098,19 @@ class CompanionAgent {
             sagaBuf.writeln('- 【${saga.title}】${saga.description}');
           }
           state.systemReminders['saga_context'] = sagaBuf.toString();
+          if (recallTraceService != null) {
+            await recallTraceService.recordTargets(
+              chatMessageId: currentUserMessageId!,
+              query: queryHint,
+              targets: sagas.map((saga) => MemoryRecallTarget(
+                    targetTable: MemoryRecallTraceService.memorySagasTable,
+                    targetId: saga.id,
+                    // Saga retrieval currently exposes no numeric rank. Zero
+                    // honestly marks it as context/fallback, not a direct hit.
+                    score: 0.0,
+                  )),
+            );
+          }
         } else {
           state.systemReminders.remove('saga_context');
         }
@@ -1456,6 +1564,8 @@ class CompanionAgent {
     required String userId,
     required String characterId,
     required String userMessage,
+    String? recallQuery,
+    List<int> recallMessageIds = const [],
     List<ImagePart>? images,
     int? userMessageId,
     DateTime? userMessageTime,
@@ -1501,8 +1611,9 @@ class CompanionAgent {
       modelConfig: modelConfig,
       userId: userId,
       characterId: characterId,
-      queryHint: userMessage,
+      queryHint: recallQuery ?? userMessage,
       currentUserMessageId: userMessageId,
+      recallMessageIds: recallMessageIds,
       // Include call and reminder tools so users can request immediate calls
       // or schedule calls for later ("call me now" / "call me in 30 minutes").
       // Background checkin tasks process their own queued triggers separately.

@@ -2,6 +2,7 @@ import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/data/memory_v3/retrieval/fusion_ranker.dart';
 import 'package:memex/data/memory_v3/retrieval/intent_classifier.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
+import 'package:memex/data/memory_v3/services/memory_recall_trace_service.dart';
 import 'package:memex/db/app_database.dart';
 
 /// Agent tool for searching the user's V3 memory cards.
@@ -9,7 +10,7 @@ import 'package:memex/db/app_database.dart';
 /// Uses FTS5 full-text search on `retrievalText`, `dropletLabel`, and `title`,
 /// with lightweight query expansion before re-ranking results with
 /// [FusionRanker] based on intent classification.
-Tool buildMemoryV3QueryTool() {
+Tool buildMemoryV3QueryTool({int? currentUserMessageId}) {
   return Tool(
     name: 'memory_v3_query',
     description:
@@ -61,6 +62,13 @@ Tips:
         final cardIds = rawHits.map((h) => h['card_id'] as String).toList();
         final cards = await service.getCardsByIds(cardIds);
         final cardById = {for (final c in cards) c.id: c};
+        final recallTraceService =
+            MemoryRecallTraceService(AppDatabase.instance);
+        final recallCounts = await recallTraceService.recentRecallCounts(
+          targetTable: MemoryRecallTraceService.memoryCardsTable,
+          targetIds: cardIds,
+          excludeChatMessageId: currentUserMessageId,
+        );
 
         // 4. Build rankable hits
         final rankable = <RankableHit>[];
@@ -73,12 +81,26 @@ Tips:
               ftsRank: (hit['rank'] as num).toDouble(),
               updatedAt: card.updatedAt,
               cardType: card.type,
+              recentRecallCount: recallCounts[cardId] ?? 0,
             ));
           }
         }
 
         // 5. Fusion rank
         FusionRanker.rank(rankable, intent);
+
+        if (currentUserMessageId != null && currentUserMessageId > 0) {
+          final visibleHits = rankable.take(10).toList(growable: false);
+          await recallTraceService.recordTargets(
+            chatMessageId: currentUserMessageId,
+            query: query,
+            targets: visibleHits.map((hit) => MemoryRecallTarget(
+                  targetTable: MemoryRecallTraceService.memoryCardsTable,
+                  targetId: hit.cardId,
+                  score: hit.score * 100,
+                )),
+          );
+        }
 
         // 6. Format output
         final buf = StringBuffer();

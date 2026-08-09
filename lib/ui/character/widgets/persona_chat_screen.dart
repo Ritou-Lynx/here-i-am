@@ -68,6 +68,7 @@ import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
 import 'package:memex/ui/core/widgets/app_opening_splash.dart';
+import 'package:memex/ui/memory/widgets/message_recall_trace_page.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
@@ -98,6 +99,33 @@ const _composerStaleGuardPollDelays = <Duration>[
 
 String _chatUiText({required String zh, required String en}) {
   return UserStorage.l10n.localeName.toLowerCase().startsWith('zh') ? zh : en;
+}
+
+/// Resolves the persisted user message that initiated the selected turn.
+///
+/// User messages point to themselves. Character/action messages point to the
+/// nearest older user message only when the time gap is small enough to be a
+/// normal reply; this avoids attaching an unrelated proactive check-in to the
+/// last conversation from hours earlier.
+@visibleForTesting
+int? personaChatRecallAnchorMessageId({
+  required List<PersonaChatMessage> messagesNewestFirst,
+  required int selectedMessageId,
+  Duration maxReplyGap = const Duration(minutes: 15),
+}) {
+  final selectedIndex = messagesNewestFirst
+      .indexWhere((message) => message.id == selectedMessageId);
+  if (selectedIndex < 0) return null;
+  final selected = messagesNewestFirst[selectedIndex];
+  if (!selected.isFromCharacter) return selected.id;
+
+  for (var i = selectedIndex + 1; i < messagesNewestFirst.length; i++) {
+    final candidate = messagesNewestFirst[i];
+    if (candidate.isFromCharacter) continue;
+    final gap = selected.timestamp.difference(candidate.timestamp).abs();
+    return gap <= maxReplyGap ? candidate.id : null;
+  }
+  return null;
 }
 
 const _personaChatImageAttachmentPathKeys = <String>[
@@ -2475,6 +2503,12 @@ only after you have written the goodbye you want the user to hear.''',
         userId: userId,
         characterId: sendCharacterId,
         userMessage: chatMessageWithContext,
+        // Retrieval should use what the user actually said, not hidden link,
+        // call-end, image-analysis, or time-prefix context added for the LLM.
+        recallQuery: combinedText,
+        // Compose mode can persist several user messages that the model sees
+        // as one turn. Every member should open the same recall trace.
+        recallMessageIds: batch.persistedMessageIds,
         // Images are only passed to the LLM when it supports vision. For
         // text-only models, the image hint above lets the character acknowledge
         // the images without seeing their contents.
@@ -3636,6 +3670,7 @@ only after you have written the goodbye you want the user to hear.''',
         source: RecordSource(
           sourceKind: 'record_button',
           rawInput: recordInput.isNotEmpty ? recordInput : message.content,
+          sourceRef: message.id.toString(),
         ),
         inputMedia: inputMedia,
       );
@@ -3899,6 +3934,7 @@ only after you have written the goodbye you want the user to hear.''',
         source: RecordSource(
           sourceKind: 'record_button',
           rawInput: combinedText,
+          sourceRef: jsonEncode(selected.map((message) => message.id).toList()),
         ),
         inputMedia: inputMedia,
       );
@@ -6174,6 +6210,46 @@ only after you have written the goodbye you want the user to hear.''',
     }
   }
 
+  Future<void> _openMessageRecallTrace(int selectedMessageId) async {
+    final anchorId = personaChatRecallAnchorMessageId(
+      messagesNewestFirst: _messages,
+      selectedMessageId: selectedMessageId,
+    );
+    if (anchorId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showToast(
+        _chatUiText(
+          zh: '这条消息没有对应的用户对话轮次',
+          en: 'This message is not linked to a user turn',
+        ),
+        duration: const Duration(seconds: 2),
+      );
+      return;
+    }
+
+    final anchor =
+        _messages.where((message) => message.id == anchorId).firstOrNull ??
+            await _chatService.getMessageById(anchorId);
+    if (anchor == null || !mounted) return;
+
+    final sourceMessageId = await Navigator.of(context).push<int>(
+      MaterialPageRoute(
+        builder: (_) => MessageRecallTracePage(
+          chatMessageId: anchorId,
+          messagePreview: anchor.content,
+        ),
+      ),
+    );
+    if (sourceMessageId == null || !mounted) return;
+    final source = _messages
+            .where((message) => message.id == sourceMessageId)
+            .firstOrNull ??
+        await _chatService.getMessageById(sourceMessageId);
+    if (source != null && mounted) {
+      await _jumpToMessage(source);
+    }
+  }
+
   void _dismissBubblePopup() {
     _bubblePopupOverlay?.remove();
     _bubblePopupOverlay = null;
@@ -6246,6 +6322,14 @@ only after you have written the goodbye you want the user to hear.''',
                             ),
                           );
                         }
+                      },
+                    ),
+                    _BubblePopupAction(
+                      icon: Icons.manage_search_rounded,
+                      label: '召回',
+                      onTap: () {
+                        _dismissBubblePopup();
+                        unawaited(_openMessageRecallTrace(userMessage.id));
                       },
                     ),
                     _BubblePopupAction(
@@ -6351,6 +6435,19 @@ only after you have written the goodbye you want the user to hear.''',
                               duration: Duration(seconds: 1),
                             ),
                           );
+                        }
+                      },
+                    ),
+                    _BubblePopupAction(
+                      icon: Icons.manage_search_rounded,
+                      label: '召回',
+                      onTap: () {
+                        _dismissBubblePopup();
+                        final msgId = int.tryParse(
+                          messageId.split(':').first,
+                        );
+                        if (msgId != null) {
+                          unawaited(_openMessageRecallTrace(msgId));
                         }
                       },
                     ),

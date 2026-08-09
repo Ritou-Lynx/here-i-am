@@ -366,7 +366,8 @@ class MemoryCardOperations extends Table {
 class MemoryRecallEvents extends Table {
   TextColumn get id => text()();
   TextColumn get targetTable =>
-      text()(); // memory_cards / memory_episodes / memory_sagas
+      text()(); // memory_cards / memory_fragments / memory_episodes /
+  // memory_sagas / project_memory_items / _recall_turn
   TextColumn get targetId => text()();
   TextColumn get chatMessageId => text().nullable()();
   TextColumn get query => text().nullable()();

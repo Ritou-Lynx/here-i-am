@@ -60,6 +60,78 @@ void main() {
     );
   });
 
+  test('recall trace anchors replies to the nearest recent user message', () {
+    PersonaChatMessage message({
+      required int id,
+      required bool fromCharacter,
+      required DateTime at,
+    }) =>
+        PersonaChatMessage(
+          id: id,
+          characterId: 'i',
+          isFromCharacter: fromCharacter,
+          content: 'message $id',
+          isRead: true,
+          timestamp: at,
+          messageType: 'chat',
+        );
+
+    final userAt = DateTime(2026, 8, 10, 12);
+    final recentReply = message(
+      id: 2,
+      fromCharacter: true,
+      at: userAt.add(const Duration(seconds: 8)),
+    );
+    final user = message(id: 1, fromCharacter: false, at: userAt);
+
+    expect(
+      personaChatRecallAnchorMessageId(
+        messagesNewestFirst: [recentReply, user],
+        selectedMessageId: recentReply.id,
+      ),
+      user.id,
+    );
+    expect(
+      personaChatRecallAnchorMessageId(
+        messagesNewestFirst: [recentReply, user],
+        selectedMessageId: user.id,
+      ),
+      user.id,
+    );
+  });
+
+  test('recall trace does not attach a proactive message to an old turn', () {
+    final userAt = DateTime(2026, 8, 10, 8);
+    final messages = [
+      PersonaChatMessage(
+        id: 2,
+        characterId: 'i',
+        isFromCharacter: true,
+        content: '主动来看看你',
+        isRead: true,
+        timestamp: userAt.add(const Duration(hours: 2)),
+        messageType: 'chat',
+      ),
+      PersonaChatMessage(
+        id: 1,
+        characterId: 'i',
+        isFromCharacter: false,
+        content: '早上的消息',
+        isRead: true,
+        timestamp: userAt,
+        messageType: 'chat',
+      ),
+    ];
+
+    expect(
+      personaChatRecallAnchorMessageId(
+        messagesNewestFirst: messages,
+        selectedMessageId: 2,
+      ),
+      isNull,
+    );
+  });
+
   Widget buildSubject({
     required TextEditingController controller,
     required bool isStreaming,

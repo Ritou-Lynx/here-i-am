@@ -1,10 +1,11 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/data/memory_v3/retrieval/project_memory_intent_classifier.dart';
 import 'package:memex/data/memory_v3/services/project_memory_service.dart';
+import 'package:memex/data/memory_v3/services/memory_recall_trace_service.dart';
 import 'package:memex/db/app_database.dart';
 
 /// Explicit project-work recall. Never searches User-truth or Dreaming.
-Tool buildProjectMemoryQueryTool() {
+Tool buildProjectMemoryQueryTool({int? currentUserMessageId}) {
   return Tool(
     name: 'project_memory_query',
     description: '''Search policy-approved Project Memory only.
@@ -39,6 +40,18 @@ Use this when the user explicitly asks about a software/product/research/writing
         ),
       );
       if (hits.isEmpty) return 'No matching Project Memory was found.';
+
+      if (currentUserMessageId != null && currentUserMessageId > 0) {
+        await MemoryRecallTraceService(AppDatabase.instance).recordTargets(
+          chatMessageId: currentUserMessageId,
+          query: query,
+          targets: hits.map((hit) => MemoryRecallTarget(
+                targetTable: MemoryRecallTraceService.projectMemoryTable,
+                targetId: hit.itemId,
+                score: (-hit.rank * 10).clamp(0.0, 9999.0),
+              )),
+        );
+      }
 
       final out =
           StringBuffer('Found ${hits.length} project memory item(s):\n');

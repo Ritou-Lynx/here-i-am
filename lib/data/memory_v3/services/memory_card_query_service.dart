@@ -13,6 +13,8 @@ import 'package:memex/db/app_database.dart';
 
 import '../models/memory_card_view_data.dart';
 import '../retrieval/query_expander.dart';
+import '../retrieval/recall_novelty_policy.dart';
+import 'memory_recall_trace_service.dart';
 import 'query_log_service.dart';
 
 /// Detail payload for [getCardDetail].
@@ -65,6 +67,33 @@ class MemoryCardSourceData {
   final String? recordedPlace;
   final String? sourceRef;
   final String? sourceKind;
+}
+
+/// One resolved FTS result with the ranking evidence kept intact.
+///
+/// Most UI callers only need [card], while recall-trace callers also retain
+/// [rank] and [queryStrategy] so they can explain why the card entered a turn.
+class MemoryCardSearchResult {
+  const MemoryCardSearchResult({
+    required this.card,
+    required this.rank,
+    required this.queryStrategy,
+    this.recentRecallCount = 0,
+  });
+
+  final MemoryCardViewData card;
+  final double rank;
+  final String queryStrategy;
+  final int recentRecallCount;
+
+  /// FTS5 bm25 is negative and more-negative means more relevant. Convert it
+  /// to a positive display/logging score without pretending it is a probability.
+  double get rawRelevanceScore => (-rank * 10).clamp(0.0, 9999.0);
+
+  double get relevanceScore => RecallNoveltyPolicy.adjustedScore(
+        baseScore: rawRelevanceScore,
+        recentRecallCount: recentRecallCount,
+      );
 }
 
 /// Flat view of one [MemoryCardStructuredFields] row.
@@ -357,9 +386,8 @@ class MemoryCardQueryService {
           ..limit(limit))
         .get();
 
-    final cards = rows
-        .map((row) => _toViewData(row.readTable(_db.memoryCards)))
-        .toList();
+    final cards =
+        rows.map((row) => _toViewData(row.readTable(_db.memoryCards))).toList();
     await _attachStructuredFields(cards);
     cards.sort((a, b) {
       final aMs = a.eventTimeMs ?? a.createdAt;
@@ -520,7 +548,17 @@ class MemoryCardQueryService {
     String query, {
     int limit = 20,
   }) async {
-    final hits = await searchCards(query, limit: limit);
+    final results = await searchCardsWithScoresResolved(query, limit: limit);
+    return results.map((result) => result.card).toList(growable: false);
+  }
+
+  /// Search and resolve cards while preserving the FTS ranking evidence.
+  Future<List<MemoryCardSearchResult>> searchCardsWithScoresResolved(
+    String query, {
+    int limit = 20,
+  }) async {
+    final candidateLimit = limit <= 0 ? limit : limit * 3;
+    final hits = await searchCards(query, limit: candidateLimit);
 
     // Determine the best strategy that produced results.
     String topStrategy = 'none';
@@ -528,35 +566,59 @@ class MemoryCardQueryService {
       topStrategy = hits.first['query_strategy'] as String? ?? 'none';
     }
 
-    final cards = <MemoryCardViewData>[];
+    final resolved =
+        <({MemoryCardViewData card, double rank, String strategy})>[];
     for (final hit in hits) {
       final cardId = hit['card_id'] as String;
       final row = await (_db.select(_db.memoryCards)
             ..where((t) => t.id.equals(cardId)))
           .getSingleOrNull();
       if (row != null) {
-        cards.add(_toViewData(row));
+        resolved.add((
+          card: _toViewData(row),
+          rank: (hit['rank'] as num).toDouble(),
+          strategy: hit['query_strategy'] as String? ?? 'none',
+        ));
       }
     }
+
+    final recallCounts = await MemoryRecallTraceService(_db).recentRecallCounts(
+      targetTable: MemoryRecallTraceService.memoryCardsTable,
+      targetIds: resolved.map((result) => result.card.id),
+    );
+    final results = resolved
+        .map((result) => MemoryCardSearchResult(
+              card: result.card,
+              rank: result.rank,
+              queryStrategy: result.strategy,
+              recentRecallCount: recallCounts[result.card.id] ?? 0,
+            ))
+        .toList()
+      ..sort((a, b) {
+        final byScore = b.relevanceScore.compareTo(a.relevanceScore);
+        if (byScore != 0) return byScore;
+        return a.rank.compareTo(b.rank);
+      });
+    final selected = results.take(limit).toList(growable: false);
 
     // Fire-and-forget: never block the caller on logging.
     unawaited(QueryLogService.log(QueryLogEntry(
       query: query,
       timestamp: DateTime.now().millisecondsSinceEpoch,
-      resultCount: cards.length,
+      resultCount: selected.length,
       topStrategy: topStrategy,
-      topCards: cards
+      topCards: selected
           .take(5)
-          .map((card) => QueryLogCardHit(
-                id: card.id,
-                title: card.title,
-                dropletLabel: card.dropletLabel,
-                type: card.type,
+          .map((result) => QueryLogCardHit(
+                id: result.card.id,
+                title: result.card.title,
+                dropletLabel: result.card.dropletLabel,
+                type: result.card.type,
               ))
           .toList(),
     )));
 
-    return cards;
+    return selected;
   }
 
   // ---------------------------------------------------------------------------

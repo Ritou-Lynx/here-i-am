@@ -48,6 +48,12 @@ class PersonaChatService {
         .get();
   }
 
+  Future<PersonaChatMessage?> getMessageById(int messageId) {
+    return (_db.select(_db.personaChatMessages)
+          ..where((table) => table.id.equals(messageId)))
+        .getSingleOrNull();
+  }
+
   Future<int> countMessagesNewerThan(
     String characterId,
     PersonaChatMessage message,
