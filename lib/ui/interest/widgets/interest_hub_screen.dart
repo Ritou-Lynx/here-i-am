@@ -1,6 +1,9 @@
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
+import 'package:memex/data/services/comic/comic_library_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/ui/book/book_reader_screen.dart';
+import 'package:memex/ui/comic/comic_reader_screen.dart';
 import 'package:memex/ui/game/widgets/game_library_screen.dart';
 import 'package:memex/ui/reading/widgets/unified_reading_screen.dart';
 
@@ -30,12 +33,18 @@ class _InterestHubScreenState extends State<InterestHubScreen> {
     final results = await Future.wait([
       (db.select(db.books)
             ..where((t) => t.status.equals('active'))
-            ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)])
+            ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)]))
+          .get(),
+      (db.select(db.bookReadingProgress)
+            ..orderBy([(t) => drift.OrderingTerm.desc(t.readAt)])
             ..limit(2))
           .get(),
       (db.select(db.comicMangas)
             ..where((t) => t.status.isNotIn(['removed']))
-            ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)])
+            ..orderBy([(t) => drift.OrderingTerm.desc(t.updatedAt)]))
+          .get(),
+      (db.select(db.comicReadingProgress)
+            ..orderBy([(t) => drift.OrderingTerm.desc(t.readAt)])
             ..limit(2))
           .get(),
       (db.select(db.gameSessions)
@@ -44,16 +53,21 @@ class _InterestHubScreenState extends State<InterestHubScreen> {
             ..limit(2))
           .get(),
     ]);
+    final books = {
+      for (final item in results[0] as List<Book>) item.id: item,
+    };
+    final comics = {
+      for (final item in results[2] as List<ComicManga>) item.id: item,
+    };
     final recent = <_RecentInterest>[
-      for (final item in results[0] as List<Book>)
-        _RecentInterest(
-            '阅读', item.title, item.updatedAt, Icons.menu_book_rounded),
-      for (final item in results[1] as List<ComicManga>)
-        _RecentInterest(
-            '漫画', item.title, item.updatedAt, Icons.auto_stories_rounded),
-      for (final item in results[2] as List<GameSession>)
-        _RecentInterest('游戏', item.sessionTitle, item.lastPlayedAt,
-            Icons.sports_esports_rounded),
+      for (final progress in results[1] as List<BookReadingProgressData>)
+        if (books[progress.bookId] case final book?)
+          _RecentInterest.book(book, progress),
+      for (final progress in results[3] as List<ComicReadingProgressData>)
+        if (comics[progress.mangaId] case final comic?)
+          _RecentInterest.comic(comic, progress),
+      for (final item in results[4] as List<GameSession>)
+        _RecentInterest.game(item),
     ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     if (mounted) setState(() => _recent = recent.take(4).toList());
   }
@@ -61,6 +75,53 @@ class _InterestHubScreenState extends State<InterestHubScreen> {
   Future<void> _open(Widget screen) async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     await _load();
+  }
+
+  Future<void> _openRecent(_RecentInterest item) async {
+    switch (item.kind) {
+      case _RecentInterestKind.book:
+        await _open(BookReaderScreen(
+          bookId: item.id,
+          bookTitle: item.title,
+        ));
+      case _RecentInterestKind.comic:
+        var chapterId = item.chapterId;
+        if (chapterId != null) {
+          final chapter =
+              await ComicLibraryService.instance.getChapter(chapterId);
+          if (chapter == null || chapter.status != 'ready') chapterId = null;
+        }
+        chapterId ??=
+            (await ComicLibraryService.instance.getLatestReadyChapter(item.id))
+                ?.id;
+        if (chapterId == null) {
+          _toast('这本还没有已就绪的章节');
+          return;
+        }
+        if (!mounted) return;
+        await _open(ComicReaderScreen(
+          mangaId: item.id,
+          chapterId: chapterId,
+        ));
+      case _RecentInterestKind.game:
+        GameDefinition? definition;
+        if (item.definitionId case final definitionId?) {
+          definition = await (AppDatabase.instance
+                  .select(AppDatabase.instance.gameDefinitions)
+                ..where((t) => t.id.equals(definitionId)))
+              .getSingleOrNull();
+        }
+        if (!mounted) return;
+        await _open(GamePlayScreen(
+          sessionId: item.id,
+          definition: definition,
+        ));
+    }
+  }
+
+  void _toast(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   @override
@@ -128,35 +189,46 @@ class _InterestHubScreenState extends State<InterestHubScreen> {
                 for (final item in _recent)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: Container(
-                      padding: const EdgeInsets.all(13),
-                      decoration: _decoration(),
-                      child: Row(children: [
-                        Container(
-                            width: 38,
-                            height: 38,
-                            decoration: const BoxDecoration(
-                                color: Color(0xFFDDE2CD),
-                                shape: BoxShape.circle),
-                            child: Icon(item.icon,
-                                color: const Color(0xFF737B46), size: 19)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                              Text(item.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      color: _ink,
-                                      fontWeight: FontWeight.w700)),
-                              const SizedBox(height: 3),
-                              Text('${item.type} · ${_date(item.timestamp)}',
-                                  style: const TextStyle(
-                                      color: _muted, fontSize: 11)),
-                            ])),
-                      ]),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _openRecent(item),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Ink(
+                          padding: const EdgeInsets.all(13),
+                          decoration: _decoration(),
+                          child: Row(children: [
+                            Container(
+                                width: 38,
+                                height: 38,
+                                decoration: const BoxDecoration(
+                                    color: Color(0xFFDDE2CD),
+                                    shape: BoxShape.circle),
+                                child: Icon(item.icon,
+                                    color: const Color(0xFF737B46), size: 19)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                  Text(item.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          color: _ink,
+                                          fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                      '${item.type} · ${item.progressLabel} · ${_date(item.timestamp)}',
+                                      style: const TextStyle(
+                                          color: _muted, fontSize: 11)),
+                                ])),
+                            const Icon(Icons.arrow_forward_ios_rounded,
+                                color: Color(0xFF737B46), size: 14),
+                          ]),
+                        ),
+                      ),
                     ),
                   ),
             ],
@@ -217,10 +289,64 @@ class _InterestHubScreenState extends State<InterestHubScreen> {
   }
 }
 
+enum _RecentInterestKind { book, comic, game }
+
 class _RecentInterest {
-  const _RecentInterest(this.type, this.title, this.timestamp, this.icon);
+  const _RecentInterest({
+    required this.kind,
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.progressLabel,
+    required this.timestamp,
+    required this.icon,
+    this.chapterId,
+    this.definitionId,
+  });
+
+  factory _RecentInterest.book(Book book, BookReadingProgressData progress) =>
+      _RecentInterest(
+        kind: _RecentInterestKind.book,
+        id: book.id,
+        type: '小说',
+        title: book.title,
+        progressLabel:
+            '第 ${progress.chapterNumber} 章 · ${(progress.scrollRatio * 100).round()}%',
+        timestamp: progress.readAt,
+        icon: Icons.menu_book_rounded,
+      );
+
+  factory _RecentInterest.comic(
+          ComicManga comic, ComicReadingProgressData progress) =>
+      _RecentInterest(
+        kind: _RecentInterestKind.comic,
+        id: comic.id,
+        type: '漫画',
+        title: comic.title,
+        progressLabel: '第 ${progress.page} 页',
+        timestamp: progress.readAt,
+        icon: Icons.auto_stories_rounded,
+        chapterId: progress.chapterId,
+      );
+
+  factory _RecentInterest.game(GameSession session) => _RecentInterest(
+        kind: _RecentInterestKind.game,
+        id: session.id,
+        type: '游戏',
+        title: session.sessionTitle,
+        progressLabel: session.status == 'ended' ? '已结束' : '继续上次剧情',
+        timestamp: session.lastPlayedAt,
+        icon: Icons.sports_esports_rounded,
+        definitionId: session.definitionId,
+      );
+
+  final _RecentInterestKind kind;
+  final String id;
   final String type;
   final String title;
+  final String progressLabel;
   final int timestamp;
   final IconData icon;
+  final String? chapterId;
+  final String? definitionId;
 }
