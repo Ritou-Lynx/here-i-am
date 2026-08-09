@@ -19,6 +19,7 @@ import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/agent/companion_agent/intimate_scene_planner.dart';
 import 'package:memex/agent/companion_agent/intimate_scene_state.dart';
+import 'package:memex/agent/companion_agent/sleep_companion_state.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/asr/asr_config.dart';
 import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
@@ -174,21 +175,42 @@ bool personaChatVoiceIdleFollowUpShouldForceClose(
 String personaChatVoiceIdleFollowUpPrompt({
   required int followUpIndex,
   required bool forceClose,
+  bool isSleepCoaxing = false,
 }) {
   if (forceClose) {
-    return '[The user has been silent for about 60 seconds again in chat voice '
+    return '[The user has been silent for about 10 seconds again in chat voice '
         'mode. This is silent follow-up $followUpIndex. They may have fallen '
         'asleep. Say a very soft, brief goodnight or closing line, then call '
         '`end_voice_mode` in this same turn. Do not use markdown, action text, '
         'or parenthetical thoughts.]';
   }
-  return '[The user has been silent for about 60 seconds in chat voice mode. '
-      'This is silent follow-up $followUpIndex. React naturally in one or two '
-      'short spoken sentences. If the recent conversation is about sleep, '
-      'bedtime, rest, or the user wanting company while falling asleep, keep '
-      'speaking softly and do not require them to answer. Otherwise gently ask '
-      'if they are still there or continue the topic. Vary your wording. Do '
-      'not use markdown, action text, or parenthetical thoughts.]';
+  if (isSleepCoaxing) {
+    return '[The user has been silent for about 10 seconds in chat voice mode. '
+        'This is silent follow-up $followUpIndex. The user is in a sleep-coaxing '
+        'context (they said they are going to sleep or are trying to fall '
+        'asleep). Continue low-intensity companionship narration as if in an '
+        'aftercare phase: soothing physical contact and gentle touch, soft '
+        'low-voice words, and a lingering thread of intimacy / sexual '
+        'continuation is welcome. Do NOT ask questions, do NOT rush them to '
+        'sleep, do NOT wrap up, do NOT say "睡吧" or "晚安". Keep the narration '
+        'flowing continuously — one or two short spoken sentences at a time, '
+        'like someone lying beside them in the dark. Narrate from his actions '
+        'and perceptions only (he touches, he murmurs, he holds); do NOT '
+        'describe the user\'s state (do not write "你睡着了" / "你的呼吸变 '
+        '平稳了" / "你闭上了眼睛") — their state is theirs to express. Vary '
+        'your wording across follow-ups. Do not use markdown, action text, or '
+        'parenthetical thoughts.]';
+  }
+  return '[The user has been silent for about 10 seconds in chat voice mode. '
+      'This is silent follow-up $followUpIndex. The user is NOT trying to '
+      'sleep — this is a normal voice conversation and they just went quiet. '
+      'Do NOT repeat or rephrase what you said in your previous reply. '
+      'Instead, react to the silence itself: you can ask if they are still '
+      'there, if they are thinking about something, if they got distracted by '
+      'something else, or say a brief "喂？" / "还在吗？" style check-in. '
+      'Keep it to one or two short spoken sentences. Vary your wording across '
+      'follow-ups. Do not use markdown, action text, or parenthetical '
+      'thoughts.]';
 }
 
 @visibleForTesting
@@ -1142,11 +1164,20 @@ only after you have written the goodbye you want the user to hear.''',
     final forceClose = personaChatVoiceIdleFollowUpShouldForceClose(
       followUpIndex,
     );
+    bool isSleepCoaxing = false;
+    if (AppDatabase.isInitialized) {
+      final sleepState = await SleepCompanionStateManager.load(
+        AppDatabase.instance,
+        _currentCharacterId,
+      );
+      isSleepCoaxing = sleepState != null;
+    }
     final serial = ++_voiceModeIdleFollowUpSerial;
     final text = await _generateVoiceModeIdleFollowUp(
       serial: serial,
       followUpIndex: followUpIndex,
       forceClose: forceClose,
+      isSleepCoaxing: isSleepCoaxing,
     );
 
     if (!mounted ||
@@ -1433,6 +1464,7 @@ only after you have written the goodbye you want the user to hear.''',
     required int serial,
     required int followUpIndex,
     required bool forceClose,
+    bool isSleepCoaxing = false,
   }) async {
     final userId = _userId ?? await UserStorage.getUserId();
     if (userId == null) return null;
@@ -1461,6 +1493,7 @@ only after you have written the goodbye you want the user to hear.''',
         userMessage: personaChatVoiceIdleFollowUpPrompt(
           followUpIndex: followUpIndex,
           forceClose: forceClose,
+          isSleepCoaxing: isSleepCoaxing,
         ),
         debugErrorOutput: true,
         voiceMode: true,
@@ -1476,7 +1509,10 @@ only after you have written the goodbye you want the user to hear.''',
         _scrollToBottom();
       }
     } catch (e) {
-      return forceClose ? '我先不吵你了，闭上眼睛好好睡。晚安。' : '我在呢。你不用说话，闭上眼睛，慢慢放松就好。';
+      if (forceClose) return '我先不吵你了，闭上眼睛好好睡。晚安。';
+      return isSleepCoaxing
+          ? '我在呢，不用说话，闭上眼睛就好。'
+          : '喂？还在吗？';
     } finally {
       if (mounted && serial == _voiceModeIdleFollowUpSerial) {
         setState(() {
@@ -1489,7 +1525,10 @@ only after you have written the goodbye you want the user to hear.''',
 
     final text = lastChunk.trim();
     if (text.isNotEmpty) return text;
-    return forceClose ? '我先不吵你了，闭上眼睛好好睡。晚安。' : '我在呢。你不用说话，闭上眼睛，慢慢放松就好。';
+    if (forceClose) return '我先不吵你了，闭上眼睛好好睡。晚安。';
+    return isSleepCoaxing
+        ? '我在呢，不用说话，闭上眼睛就好。'
+        : '喂？还在吗？';
   }
 
   Future<void> _initMediaButtons() async {

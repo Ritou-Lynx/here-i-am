@@ -549,8 +549,32 @@ void main() {
       followUpIndex: 8,
       forceClose: true,
     );
-    expect(prompt, contains('60 seconds'));
+    expect(prompt, contains('10 seconds'));
     expect(prompt, contains('end_voice_mode'));
+  });
+
+  test('voice idle follow-up normal mode does not repeat previous reply', () {
+    final prompt = personaChatVoiceIdleFollowUpPrompt(
+      followUpIndex: 1,
+      forceClose: false,
+      isSleepCoaxing: false,
+    );
+    expect(prompt, contains('NOT trying to sleep'));
+    expect(prompt, contains('Do NOT repeat'));
+    expect(prompt, contains('10 seconds'));
+  });
+
+  test('voice idle follow-up sleep coaxing mode routes to aftercare style', () {
+    final prompt = personaChatVoiceIdleFollowUpPrompt(
+      followUpIndex: 1,
+      forceClose: false,
+      isSleepCoaxing: true,
+    );
+    expect(prompt, contains('sleep-coaxing'));
+    expect(prompt, contains('aftercare'));
+    expect(prompt, contains('intimacy'));
+    expect(prompt, contains('睡吧'));
+    expect(prompt, contains('10 seconds'));
   });
 }
 
