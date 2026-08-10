@@ -143,6 +143,8 @@ class RecordOrganizerService {
     required String sourceCharacterId,
     required String text,
     String sourceKind = 'floating_ball',
+    String? sourceRef,
+    List<int> sourceMessageIds = const [],
     List<MediaInputAttachment>? media,
   }) async {
     return _organize(
@@ -150,6 +152,8 @@ class RecordOrganizerService {
       sourceCharacterId: sourceCharacterId,
       rawInput: text,
       sourceKind: sourceKind,
+      sourceRef: sourceRef,
+      sourceMessageIds: sourceMessageIds,
       media: media,
     );
   }

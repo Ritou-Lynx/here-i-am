@@ -87,6 +87,8 @@ part 'app_database.g.dart';
     BookChapters,
     BookReadingProgress,
     BookChapterNotes,
+    CoReadingSessions,
+    CoReadingSessionMessages,
     // Game tables — see lib/db/game_tables.dart
     GameDefinitions,
     GameSessions,
@@ -147,7 +149,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 52;
+  int get schemaVersion => 53;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -180,6 +182,7 @@ class AppDatabase extends _$AppDatabase {
           await _createMemoryV3Indices();
           // Comic co-reading indices
           await _createComicIndices();
+          await _createCoReadingContinuityIndices();
           // Game indices
           await _createGameIndices();
           // Create FTS5 virtual tables for full-text search
@@ -739,6 +742,15 @@ class AppDatabase extends _$AppDatabase {
               'user_rhythms ADD COLUMN exceptions_json TEXT',
             );
           }
+          if (from < 53) {
+            // Durable co-reading discussion boundaries. These soft-link the
+            // shared chat messages to the exact book/manga chapter that
+            // produced them, so later Topic Thread cleanup cannot absorb
+            // unrelated companion chat.
+            await m.createTable(coReadingSessions);
+            await m.createTable(coReadingSessionMessages);
+            await _createCoReadingContinuityIndices();
+          }
         },
         beforeOpen: (OpeningDetails details) async {
           // Defensive backfill: some devices upgraded to v43 via the earlier
@@ -883,6 +895,17 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_comic_mangas_status '
         'ON comic_mangas(status)');
+  }
+
+  Future<void> _createCoReadingContinuityIndices() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_co_reading_sessions_work_status '
+      'ON co_reading_sessions(work_type, work_id, status, started_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_co_reading_session_messages_session '
+      'ON co_reading_session_messages(session_id, message_id)',
+    );
   }
 
   Future<void> _createClarificationRequestsTable(Migrator m) async {

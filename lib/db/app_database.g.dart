@@ -30773,6 +30773,837 @@ class BookChapterNotesCompanion extends UpdateCompanion<BookChapterNote> {
   }
 }
 
+class $CoReadingSessionsTable extends CoReadingSessions
+    with TableInfo<$CoReadingSessionsTable, CoReadingSession> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CoReadingSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _workTypeMeta =
+      const VerificationMeta('workType');
+  @override
+  late final GeneratedColumn<String> workType = GeneratedColumn<String>(
+      'work_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _workIdMeta = const VerificationMeta('workId');
+  @override
+  late final GeneratedColumn<String> workId = GeneratedColumn<String>(
+      'work_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _workTitleMeta =
+      const VerificationMeta('workTitle');
+  @override
+  late final GeneratedColumn<String> workTitle = GeneratedColumn<String>(
+      'work_title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _characterIdMeta =
+      const VerificationMeta('characterId');
+  @override
+  late final GeneratedColumn<String> characterId = GeneratedColumn<String>(
+      'character_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _chapterRefMeta =
+      const VerificationMeta('chapterRef');
+  @override
+  late final GeneratedColumn<String> chapterRef = GeneratedColumn<String>(
+      'chapter_ref', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _chapterTitleMeta =
+      const VerificationMeta('chapterTitle');
+  @override
+  late final GeneratedColumn<String> chapterTitle = GeneratedColumn<String>(
+      'chapter_title', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _startedAtMeta =
+      const VerificationMeta('startedAt');
+  @override
+  late final GeneratedColumn<int> startedAt = GeneratedColumn<int>(
+      'started_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _endedAtMeta =
+      const VerificationMeta('endedAt');
+  @override
+  late final GeneratedColumn<int> endedAt = GeneratedColumn<int>(
+      'ended_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('active'));
+  static const VerificationMeta _processedAtMeta =
+      const VerificationMeta('processedAt');
+  @override
+  late final GeneratedColumn<int> processedAt = GeneratedColumn<int>(
+      'processed_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _errorMeta = const VerificationMeta('error');
+  @override
+  late final GeneratedColumn<String> error = GeneratedColumn<String>(
+      'error', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        workType,
+        workId,
+        workTitle,
+        characterId,
+        chapterRef,
+        chapterTitle,
+        startedAt,
+        endedAt,
+        status,
+        processedAt,
+        error
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'co_reading_sessions';
+  @override
+  VerificationContext validateIntegrity(Insertable<CoReadingSession> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('work_type')) {
+      context.handle(_workTypeMeta,
+          workType.isAcceptableOrUnknown(data['work_type']!, _workTypeMeta));
+    } else if (isInserting) {
+      context.missing(_workTypeMeta);
+    }
+    if (data.containsKey('work_id')) {
+      context.handle(_workIdMeta,
+          workId.isAcceptableOrUnknown(data['work_id']!, _workIdMeta));
+    } else if (isInserting) {
+      context.missing(_workIdMeta);
+    }
+    if (data.containsKey('work_title')) {
+      context.handle(_workTitleMeta,
+          workTitle.isAcceptableOrUnknown(data['work_title']!, _workTitleMeta));
+    } else if (isInserting) {
+      context.missing(_workTitleMeta);
+    }
+    if (data.containsKey('character_id')) {
+      context.handle(
+          _characterIdMeta,
+          characterId.isAcceptableOrUnknown(
+              data['character_id']!, _characterIdMeta));
+    } else if (isInserting) {
+      context.missing(_characterIdMeta);
+    }
+    if (data.containsKey('chapter_ref')) {
+      context.handle(
+          _chapterRefMeta,
+          chapterRef.isAcceptableOrUnknown(
+              data['chapter_ref']!, _chapterRefMeta));
+    } else if (isInserting) {
+      context.missing(_chapterRefMeta);
+    }
+    if (data.containsKey('chapter_title')) {
+      context.handle(
+          _chapterTitleMeta,
+          chapterTitle.isAcceptableOrUnknown(
+              data['chapter_title']!, _chapterTitleMeta));
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(_startedAtMeta,
+          startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta));
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('ended_at')) {
+      context.handle(_endedAtMeta,
+          endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('processed_at')) {
+      context.handle(
+          _processedAtMeta,
+          processedAt.isAcceptableOrUnknown(
+              data['processed_at']!, _processedAtMeta));
+    }
+    if (data.containsKey('error')) {
+      context.handle(
+          _errorMeta, error.isAcceptableOrUnknown(data['error']!, _errorMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CoReadingSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CoReadingSession(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      workType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}work_type'])!,
+      workId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}work_id'])!,
+      workTitle: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}work_title'])!,
+      characterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
+      chapterRef: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}chapter_ref'])!,
+      chapterTitle: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}chapter_title'])!,
+      startedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}started_at'])!,
+      endedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}ended_at']),
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      processedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}processed_at']),
+      error: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}error']),
+    );
+  }
+
+  @override
+  $CoReadingSessionsTable createAlias(String alias) {
+    return $CoReadingSessionsTable(attachedDatabase, alias);
+  }
+}
+
+class CoReadingSession extends DataClass
+    implements Insertable<CoReadingSession> {
+  final String id;
+  final String workType;
+  final String workId;
+  final String workTitle;
+  final String characterId;
+  final String chapterRef;
+  final String chapterTitle;
+  final int startedAt;
+  final int? endedAt;
+  final String status;
+  final int? processedAt;
+  final String? error;
+  const CoReadingSession(
+      {required this.id,
+      required this.workType,
+      required this.workId,
+      required this.workTitle,
+      required this.characterId,
+      required this.chapterRef,
+      required this.chapterTitle,
+      required this.startedAt,
+      this.endedAt,
+      required this.status,
+      this.processedAt,
+      this.error});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['work_type'] = Variable<String>(workType);
+    map['work_id'] = Variable<String>(workId);
+    map['work_title'] = Variable<String>(workTitle);
+    map['character_id'] = Variable<String>(characterId);
+    map['chapter_ref'] = Variable<String>(chapterRef);
+    map['chapter_title'] = Variable<String>(chapterTitle);
+    map['started_at'] = Variable<int>(startedAt);
+    if (!nullToAbsent || endedAt != null) {
+      map['ended_at'] = Variable<int>(endedAt);
+    }
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || processedAt != null) {
+      map['processed_at'] = Variable<int>(processedAt);
+    }
+    if (!nullToAbsent || error != null) {
+      map['error'] = Variable<String>(error);
+    }
+    return map;
+  }
+
+  CoReadingSessionsCompanion toCompanion(bool nullToAbsent) {
+    return CoReadingSessionsCompanion(
+      id: Value(id),
+      workType: Value(workType),
+      workId: Value(workId),
+      workTitle: Value(workTitle),
+      characterId: Value(characterId),
+      chapterRef: Value(chapterRef),
+      chapterTitle: Value(chapterTitle),
+      startedAt: Value(startedAt),
+      endedAt: endedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endedAt),
+      status: Value(status),
+      processedAt: processedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(processedAt),
+      error:
+          error == null && nullToAbsent ? const Value.absent() : Value(error),
+    );
+  }
+
+  factory CoReadingSession.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CoReadingSession(
+      id: serializer.fromJson<String>(json['id']),
+      workType: serializer.fromJson<String>(json['workType']),
+      workId: serializer.fromJson<String>(json['workId']),
+      workTitle: serializer.fromJson<String>(json['workTitle']),
+      characterId: serializer.fromJson<String>(json['characterId']),
+      chapterRef: serializer.fromJson<String>(json['chapterRef']),
+      chapterTitle: serializer.fromJson<String>(json['chapterTitle']),
+      startedAt: serializer.fromJson<int>(json['startedAt']),
+      endedAt: serializer.fromJson<int?>(json['endedAt']),
+      status: serializer.fromJson<String>(json['status']),
+      processedAt: serializer.fromJson<int?>(json['processedAt']),
+      error: serializer.fromJson<String?>(json['error']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'workType': serializer.toJson<String>(workType),
+      'workId': serializer.toJson<String>(workId),
+      'workTitle': serializer.toJson<String>(workTitle),
+      'characterId': serializer.toJson<String>(characterId),
+      'chapterRef': serializer.toJson<String>(chapterRef),
+      'chapterTitle': serializer.toJson<String>(chapterTitle),
+      'startedAt': serializer.toJson<int>(startedAt),
+      'endedAt': serializer.toJson<int?>(endedAt),
+      'status': serializer.toJson<String>(status),
+      'processedAt': serializer.toJson<int?>(processedAt),
+      'error': serializer.toJson<String?>(error),
+    };
+  }
+
+  CoReadingSession copyWith(
+          {String? id,
+          String? workType,
+          String? workId,
+          String? workTitle,
+          String? characterId,
+          String? chapterRef,
+          String? chapterTitle,
+          int? startedAt,
+          Value<int?> endedAt = const Value.absent(),
+          String? status,
+          Value<int?> processedAt = const Value.absent(),
+          Value<String?> error = const Value.absent()}) =>
+      CoReadingSession(
+        id: id ?? this.id,
+        workType: workType ?? this.workType,
+        workId: workId ?? this.workId,
+        workTitle: workTitle ?? this.workTitle,
+        characterId: characterId ?? this.characterId,
+        chapterRef: chapterRef ?? this.chapterRef,
+        chapterTitle: chapterTitle ?? this.chapterTitle,
+        startedAt: startedAt ?? this.startedAt,
+        endedAt: endedAt.present ? endedAt.value : this.endedAt,
+        status: status ?? this.status,
+        processedAt: processedAt.present ? processedAt.value : this.processedAt,
+        error: error.present ? error.value : this.error,
+      );
+  CoReadingSession copyWithCompanion(CoReadingSessionsCompanion data) {
+    return CoReadingSession(
+      id: data.id.present ? data.id.value : this.id,
+      workType: data.workType.present ? data.workType.value : this.workType,
+      workId: data.workId.present ? data.workId.value : this.workId,
+      workTitle: data.workTitle.present ? data.workTitle.value : this.workTitle,
+      characterId:
+          data.characterId.present ? data.characterId.value : this.characterId,
+      chapterRef:
+          data.chapterRef.present ? data.chapterRef.value : this.chapterRef,
+      chapterTitle: data.chapterTitle.present
+          ? data.chapterTitle.value
+          : this.chapterTitle,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
+      status: data.status.present ? data.status.value : this.status,
+      processedAt:
+          data.processedAt.present ? data.processedAt.value : this.processedAt,
+      error: data.error.present ? data.error.value : this.error,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CoReadingSession(')
+          ..write('id: $id, ')
+          ..write('workType: $workType, ')
+          ..write('workId: $workId, ')
+          ..write('workTitle: $workTitle, ')
+          ..write('characterId: $characterId, ')
+          ..write('chapterRef: $chapterRef, ')
+          ..write('chapterTitle: $chapterTitle, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('status: $status, ')
+          ..write('processedAt: $processedAt, ')
+          ..write('error: $error')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, workType, workId, workTitle, characterId,
+      chapterRef, chapterTitle, startedAt, endedAt, status, processedAt, error);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CoReadingSession &&
+          other.id == this.id &&
+          other.workType == this.workType &&
+          other.workId == this.workId &&
+          other.workTitle == this.workTitle &&
+          other.characterId == this.characterId &&
+          other.chapterRef == this.chapterRef &&
+          other.chapterTitle == this.chapterTitle &&
+          other.startedAt == this.startedAt &&
+          other.endedAt == this.endedAt &&
+          other.status == this.status &&
+          other.processedAt == this.processedAt &&
+          other.error == this.error);
+}
+
+class CoReadingSessionsCompanion extends UpdateCompanion<CoReadingSession> {
+  final Value<String> id;
+  final Value<String> workType;
+  final Value<String> workId;
+  final Value<String> workTitle;
+  final Value<String> characterId;
+  final Value<String> chapterRef;
+  final Value<String> chapterTitle;
+  final Value<int> startedAt;
+  final Value<int?> endedAt;
+  final Value<String> status;
+  final Value<int?> processedAt;
+  final Value<String?> error;
+  final Value<int> rowid;
+  const CoReadingSessionsCompanion({
+    this.id = const Value.absent(),
+    this.workType = const Value.absent(),
+    this.workId = const Value.absent(),
+    this.workTitle = const Value.absent(),
+    this.characterId = const Value.absent(),
+    this.chapterRef = const Value.absent(),
+    this.chapterTitle = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.endedAt = const Value.absent(),
+    this.status = const Value.absent(),
+    this.processedAt = const Value.absent(),
+    this.error = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CoReadingSessionsCompanion.insert({
+    required String id,
+    required String workType,
+    required String workId,
+    required String workTitle,
+    required String characterId,
+    required String chapterRef,
+    this.chapterTitle = const Value.absent(),
+    required int startedAt,
+    this.endedAt = const Value.absent(),
+    this.status = const Value.absent(),
+    this.processedAt = const Value.absent(),
+    this.error = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        workType = Value(workType),
+        workId = Value(workId),
+        workTitle = Value(workTitle),
+        characterId = Value(characterId),
+        chapterRef = Value(chapterRef),
+        startedAt = Value(startedAt);
+  static Insertable<CoReadingSession> custom({
+    Expression<String>? id,
+    Expression<String>? workType,
+    Expression<String>? workId,
+    Expression<String>? workTitle,
+    Expression<String>? characterId,
+    Expression<String>? chapterRef,
+    Expression<String>? chapterTitle,
+    Expression<int>? startedAt,
+    Expression<int>? endedAt,
+    Expression<String>? status,
+    Expression<int>? processedAt,
+    Expression<String>? error,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (workType != null) 'work_type': workType,
+      if (workId != null) 'work_id': workId,
+      if (workTitle != null) 'work_title': workTitle,
+      if (characterId != null) 'character_id': characterId,
+      if (chapterRef != null) 'chapter_ref': chapterRef,
+      if (chapterTitle != null) 'chapter_title': chapterTitle,
+      if (startedAt != null) 'started_at': startedAt,
+      if (endedAt != null) 'ended_at': endedAt,
+      if (status != null) 'status': status,
+      if (processedAt != null) 'processed_at': processedAt,
+      if (error != null) 'error': error,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CoReadingSessionsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? workType,
+      Value<String>? workId,
+      Value<String>? workTitle,
+      Value<String>? characterId,
+      Value<String>? chapterRef,
+      Value<String>? chapterTitle,
+      Value<int>? startedAt,
+      Value<int?>? endedAt,
+      Value<String>? status,
+      Value<int?>? processedAt,
+      Value<String?>? error,
+      Value<int>? rowid}) {
+    return CoReadingSessionsCompanion(
+      id: id ?? this.id,
+      workType: workType ?? this.workType,
+      workId: workId ?? this.workId,
+      workTitle: workTitle ?? this.workTitle,
+      characterId: characterId ?? this.characterId,
+      chapterRef: chapterRef ?? this.chapterRef,
+      chapterTitle: chapterTitle ?? this.chapterTitle,
+      startedAt: startedAt ?? this.startedAt,
+      endedAt: endedAt ?? this.endedAt,
+      status: status ?? this.status,
+      processedAt: processedAt ?? this.processedAt,
+      error: error ?? this.error,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (workType.present) {
+      map['work_type'] = Variable<String>(workType.value);
+    }
+    if (workId.present) {
+      map['work_id'] = Variable<String>(workId.value);
+    }
+    if (workTitle.present) {
+      map['work_title'] = Variable<String>(workTitle.value);
+    }
+    if (characterId.present) {
+      map['character_id'] = Variable<String>(characterId.value);
+    }
+    if (chapterRef.present) {
+      map['chapter_ref'] = Variable<String>(chapterRef.value);
+    }
+    if (chapterTitle.present) {
+      map['chapter_title'] = Variable<String>(chapterTitle.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<int>(startedAt.value);
+    }
+    if (endedAt.present) {
+      map['ended_at'] = Variable<int>(endedAt.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (processedAt.present) {
+      map['processed_at'] = Variable<int>(processedAt.value);
+    }
+    if (error.present) {
+      map['error'] = Variable<String>(error.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CoReadingSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('workType: $workType, ')
+          ..write('workId: $workId, ')
+          ..write('workTitle: $workTitle, ')
+          ..write('characterId: $characterId, ')
+          ..write('chapterRef: $chapterRef, ')
+          ..write('chapterTitle: $chapterTitle, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('status: $status, ')
+          ..write('processedAt: $processedAt, ')
+          ..write('error: $error, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CoReadingSessionMessagesTable extends CoReadingSessionMessages
+    with TableInfo<$CoReadingSessionMessagesTable, CoReadingSessionMessage> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CoReadingSessionMessagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _sessionIdMeta =
+      const VerificationMeta('sessionId');
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+      'session_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _messageIdMeta =
+      const VerificationMeta('messageId');
+  @override
+  late final GeneratedColumn<int> messageId = GeneratedColumn<int>(
+      'message_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _addedAtMeta =
+      const VerificationMeta('addedAt');
+  @override
+  late final GeneratedColumn<int> addedAt = GeneratedColumn<int>(
+      'added_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [sessionId, messageId, addedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'co_reading_session_messages';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<CoReadingSessionMessage> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('session_id')) {
+      context.handle(_sessionIdMeta,
+          sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta));
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('message_id')) {
+      context.handle(_messageIdMeta,
+          messageId.isAcceptableOrUnknown(data['message_id']!, _messageIdMeta));
+    } else if (isInserting) {
+      context.missing(_messageIdMeta);
+    }
+    if (data.containsKey('added_at')) {
+      context.handle(_addedAtMeta,
+          addedAt.isAcceptableOrUnknown(data['added_at']!, _addedAtMeta));
+    } else if (isInserting) {
+      context.missing(_addedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {sessionId, messageId};
+  @override
+  CoReadingSessionMessage map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CoReadingSessionMessage(
+      sessionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}session_id'])!,
+      messageId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}message_id'])!,
+      addedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}added_at'])!,
+    );
+  }
+
+  @override
+  $CoReadingSessionMessagesTable createAlias(String alias) {
+    return $CoReadingSessionMessagesTable(attachedDatabase, alias);
+  }
+}
+
+class CoReadingSessionMessage extends DataClass
+    implements Insertable<CoReadingSessionMessage> {
+  final String sessionId;
+  final int messageId;
+  final int addedAt;
+  const CoReadingSessionMessage(
+      {required this.sessionId,
+      required this.messageId,
+      required this.addedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['session_id'] = Variable<String>(sessionId);
+    map['message_id'] = Variable<int>(messageId);
+    map['added_at'] = Variable<int>(addedAt);
+    return map;
+  }
+
+  CoReadingSessionMessagesCompanion toCompanion(bool nullToAbsent) {
+    return CoReadingSessionMessagesCompanion(
+      sessionId: Value(sessionId),
+      messageId: Value(messageId),
+      addedAt: Value(addedAt),
+    );
+  }
+
+  factory CoReadingSessionMessage.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CoReadingSessionMessage(
+      sessionId: serializer.fromJson<String>(json['sessionId']),
+      messageId: serializer.fromJson<int>(json['messageId']),
+      addedAt: serializer.fromJson<int>(json['addedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'sessionId': serializer.toJson<String>(sessionId),
+      'messageId': serializer.toJson<int>(messageId),
+      'addedAt': serializer.toJson<int>(addedAt),
+    };
+  }
+
+  CoReadingSessionMessage copyWith(
+          {String? sessionId, int? messageId, int? addedAt}) =>
+      CoReadingSessionMessage(
+        sessionId: sessionId ?? this.sessionId,
+        messageId: messageId ?? this.messageId,
+        addedAt: addedAt ?? this.addedAt,
+      );
+  CoReadingSessionMessage copyWithCompanion(
+      CoReadingSessionMessagesCompanion data) {
+    return CoReadingSessionMessage(
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      messageId: data.messageId.present ? data.messageId.value : this.messageId,
+      addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CoReadingSessionMessage(')
+          ..write('sessionId: $sessionId, ')
+          ..write('messageId: $messageId, ')
+          ..write('addedAt: $addedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(sessionId, messageId, addedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CoReadingSessionMessage &&
+          other.sessionId == this.sessionId &&
+          other.messageId == this.messageId &&
+          other.addedAt == this.addedAt);
+}
+
+class CoReadingSessionMessagesCompanion
+    extends UpdateCompanion<CoReadingSessionMessage> {
+  final Value<String> sessionId;
+  final Value<int> messageId;
+  final Value<int> addedAt;
+  final Value<int> rowid;
+  const CoReadingSessionMessagesCompanion({
+    this.sessionId = const Value.absent(),
+    this.messageId = const Value.absent(),
+    this.addedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CoReadingSessionMessagesCompanion.insert({
+    required String sessionId,
+    required int messageId,
+    required int addedAt,
+    this.rowid = const Value.absent(),
+  })  : sessionId = Value(sessionId),
+        messageId = Value(messageId),
+        addedAt = Value(addedAt);
+  static Insertable<CoReadingSessionMessage> custom({
+    Expression<String>? sessionId,
+    Expression<int>? messageId,
+    Expression<int>? addedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (sessionId != null) 'session_id': sessionId,
+      if (messageId != null) 'message_id': messageId,
+      if (addedAt != null) 'added_at': addedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CoReadingSessionMessagesCompanion copyWith(
+      {Value<String>? sessionId,
+      Value<int>? messageId,
+      Value<int>? addedAt,
+      Value<int>? rowid}) {
+    return CoReadingSessionMessagesCompanion(
+      sessionId: sessionId ?? this.sessionId,
+      messageId: messageId ?? this.messageId,
+      addedAt: addedAt ?? this.addedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (messageId.present) {
+      map['message_id'] = Variable<int>(messageId.value);
+    }
+    if (addedAt.present) {
+      map['added_at'] = Variable<int>(addedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CoReadingSessionMessagesCompanion(')
+          ..write('sessionId: $sessionId, ')
+          ..write('messageId: $messageId, ')
+          ..write('addedAt: $addedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $GameDefinitionsTable extends GameDefinitions
     with TableInfo<$GameDefinitionsTable, GameDefinition> {
   @override
@@ -32482,6 +33313,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $BookReadingProgressTable(this);
   late final $BookChapterNotesTable bookChapterNotes =
       $BookChapterNotesTable(this);
+  late final $CoReadingSessionsTable coReadingSessions =
+      $CoReadingSessionsTable(this);
+  late final $CoReadingSessionMessagesTable coReadingSessionMessages =
+      $CoReadingSessionMessagesTable(this);
   late final $GameDefinitionsTable gameDefinitions =
       $GameDefinitionsTable(this);
   late final $GameSessionsTable gameSessions = $GameSessionsTable(this);
@@ -32555,6 +33390,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         bookChapters,
         bookReadingProgress,
         bookChapterNotes,
+        coReadingSessions,
+        coReadingSessionMessages,
         gameDefinitions,
         gameSessions,
         gameMessages
@@ -48600,6 +49437,437 @@ typedef $$BookChapterNotesTableProcessedTableManager = ProcessedTableManager<
     ),
     BookChapterNote,
     PrefetchHooks Function()>;
+typedef $$CoReadingSessionsTableCreateCompanionBuilder
+    = CoReadingSessionsCompanion Function({
+  required String id,
+  required String workType,
+  required String workId,
+  required String workTitle,
+  required String characterId,
+  required String chapterRef,
+  Value<String> chapterTitle,
+  required int startedAt,
+  Value<int?> endedAt,
+  Value<String> status,
+  Value<int?> processedAt,
+  Value<String?> error,
+  Value<int> rowid,
+});
+typedef $$CoReadingSessionsTableUpdateCompanionBuilder
+    = CoReadingSessionsCompanion Function({
+  Value<String> id,
+  Value<String> workType,
+  Value<String> workId,
+  Value<String> workTitle,
+  Value<String> characterId,
+  Value<String> chapterRef,
+  Value<String> chapterTitle,
+  Value<int> startedAt,
+  Value<int?> endedAt,
+  Value<String> status,
+  Value<int?> processedAt,
+  Value<String?> error,
+  Value<int> rowid,
+});
+
+class $$CoReadingSessionsTableFilterComposer
+    extends Composer<_$AppDatabase, $CoReadingSessionsTable> {
+  $$CoReadingSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get workType => $composableBuilder(
+      column: $table.workType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get workId => $composableBuilder(
+      column: $table.workId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get workTitle => $composableBuilder(
+      column: $table.workTitle, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get chapterRef => $composableBuilder(
+      column: $table.chapterRef, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get chapterTitle => $composableBuilder(
+      column: $table.chapterTitle, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get startedAt => $composableBuilder(
+      column: $table.startedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get endedAt => $composableBuilder(
+      column: $table.endedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get processedAt => $composableBuilder(
+      column: $table.processedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get error => $composableBuilder(
+      column: $table.error, builder: (column) => ColumnFilters(column));
+}
+
+class $$CoReadingSessionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CoReadingSessionsTable> {
+  $$CoReadingSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get workType => $composableBuilder(
+      column: $table.workType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get workId => $composableBuilder(
+      column: $table.workId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get workTitle => $composableBuilder(
+      column: $table.workTitle, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get chapterRef => $composableBuilder(
+      column: $table.chapterRef, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get chapterTitle => $composableBuilder(
+      column: $table.chapterTitle,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get startedAt => $composableBuilder(
+      column: $table.startedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get endedAt => $composableBuilder(
+      column: $table.endedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get processedAt => $composableBuilder(
+      column: $table.processedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get error => $composableBuilder(
+      column: $table.error, builder: (column) => ColumnOrderings(column));
+}
+
+class $$CoReadingSessionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CoReadingSessionsTable> {
+  $$CoReadingSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get workType =>
+      $composableBuilder(column: $table.workType, builder: (column) => column);
+
+  GeneratedColumn<String> get workId =>
+      $composableBuilder(column: $table.workId, builder: (column) => column);
+
+  GeneratedColumn<String> get workTitle =>
+      $composableBuilder(column: $table.workTitle, builder: (column) => column);
+
+  GeneratedColumn<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => column);
+
+  GeneratedColumn<String> get chapterRef => $composableBuilder(
+      column: $table.chapterRef, builder: (column) => column);
+
+  GeneratedColumn<String> get chapterTitle => $composableBuilder(
+      column: $table.chapterTitle, builder: (column) => column);
+
+  GeneratedColumn<int> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get endedAt =>
+      $composableBuilder(column: $table.endedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get processedAt => $composableBuilder(
+      column: $table.processedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get error =>
+      $composableBuilder(column: $table.error, builder: (column) => column);
+}
+
+class $$CoReadingSessionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $CoReadingSessionsTable,
+    CoReadingSession,
+    $$CoReadingSessionsTableFilterComposer,
+    $$CoReadingSessionsTableOrderingComposer,
+    $$CoReadingSessionsTableAnnotationComposer,
+    $$CoReadingSessionsTableCreateCompanionBuilder,
+    $$CoReadingSessionsTableUpdateCompanionBuilder,
+    (
+      CoReadingSession,
+      BaseReferences<_$AppDatabase, $CoReadingSessionsTable, CoReadingSession>
+    ),
+    CoReadingSession,
+    PrefetchHooks Function()> {
+  $$CoReadingSessionsTableTableManager(
+      _$AppDatabase db, $CoReadingSessionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CoReadingSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CoReadingSessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CoReadingSessionsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> workType = const Value.absent(),
+            Value<String> workId = const Value.absent(),
+            Value<String> workTitle = const Value.absent(),
+            Value<String> characterId = const Value.absent(),
+            Value<String> chapterRef = const Value.absent(),
+            Value<String> chapterTitle = const Value.absent(),
+            Value<int> startedAt = const Value.absent(),
+            Value<int?> endedAt = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int?> processedAt = const Value.absent(),
+            Value<String?> error = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              CoReadingSessionsCompanion(
+            id: id,
+            workType: workType,
+            workId: workId,
+            workTitle: workTitle,
+            characterId: characterId,
+            chapterRef: chapterRef,
+            chapterTitle: chapterTitle,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            status: status,
+            processedAt: processedAt,
+            error: error,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String workType,
+            required String workId,
+            required String workTitle,
+            required String characterId,
+            required String chapterRef,
+            Value<String> chapterTitle = const Value.absent(),
+            required int startedAt,
+            Value<int?> endedAt = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int?> processedAt = const Value.absent(),
+            Value<String?> error = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              CoReadingSessionsCompanion.insert(
+            id: id,
+            workType: workType,
+            workId: workId,
+            workTitle: workTitle,
+            characterId: characterId,
+            chapterRef: chapterRef,
+            chapterTitle: chapterTitle,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            status: status,
+            processedAt: processedAt,
+            error: error,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$CoReadingSessionsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $CoReadingSessionsTable,
+    CoReadingSession,
+    $$CoReadingSessionsTableFilterComposer,
+    $$CoReadingSessionsTableOrderingComposer,
+    $$CoReadingSessionsTableAnnotationComposer,
+    $$CoReadingSessionsTableCreateCompanionBuilder,
+    $$CoReadingSessionsTableUpdateCompanionBuilder,
+    (
+      CoReadingSession,
+      BaseReferences<_$AppDatabase, $CoReadingSessionsTable, CoReadingSession>
+    ),
+    CoReadingSession,
+    PrefetchHooks Function()>;
+typedef $$CoReadingSessionMessagesTableCreateCompanionBuilder
+    = CoReadingSessionMessagesCompanion Function({
+  required String sessionId,
+  required int messageId,
+  required int addedAt,
+  Value<int> rowid,
+});
+typedef $$CoReadingSessionMessagesTableUpdateCompanionBuilder
+    = CoReadingSessionMessagesCompanion Function({
+  Value<String> sessionId,
+  Value<int> messageId,
+  Value<int> addedAt,
+  Value<int> rowid,
+});
+
+class $$CoReadingSessionMessagesTableFilterComposer
+    extends Composer<_$AppDatabase, $CoReadingSessionMessagesTable> {
+  $$CoReadingSessionMessagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get messageId => $composableBuilder(
+      column: $table.messageId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get addedAt => $composableBuilder(
+      column: $table.addedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$CoReadingSessionMessagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CoReadingSessionMessagesTable> {
+  $$CoReadingSessionMessagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get messageId => $composableBuilder(
+      column: $table.messageId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get addedAt => $composableBuilder(
+      column: $table.addedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$CoReadingSessionMessagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CoReadingSessionMessagesTable> {
+  $$CoReadingSessionMessagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<int> get messageId =>
+      $composableBuilder(column: $table.messageId, builder: (column) => column);
+
+  GeneratedColumn<int> get addedAt =>
+      $composableBuilder(column: $table.addedAt, builder: (column) => column);
+}
+
+class $$CoReadingSessionMessagesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $CoReadingSessionMessagesTable,
+    CoReadingSessionMessage,
+    $$CoReadingSessionMessagesTableFilterComposer,
+    $$CoReadingSessionMessagesTableOrderingComposer,
+    $$CoReadingSessionMessagesTableAnnotationComposer,
+    $$CoReadingSessionMessagesTableCreateCompanionBuilder,
+    $$CoReadingSessionMessagesTableUpdateCompanionBuilder,
+    (
+      CoReadingSessionMessage,
+      BaseReferences<_$AppDatabase, $CoReadingSessionMessagesTable,
+          CoReadingSessionMessage>
+    ),
+    CoReadingSessionMessage,
+    PrefetchHooks Function()> {
+  $$CoReadingSessionMessagesTableTableManager(
+      _$AppDatabase db, $CoReadingSessionMessagesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CoReadingSessionMessagesTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CoReadingSessionMessagesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CoReadingSessionMessagesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> sessionId = const Value.absent(),
+            Value<int> messageId = const Value.absent(),
+            Value<int> addedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              CoReadingSessionMessagesCompanion(
+            sessionId: sessionId,
+            messageId: messageId,
+            addedAt: addedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String sessionId,
+            required int messageId,
+            required int addedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              CoReadingSessionMessagesCompanion.insert(
+            sessionId: sessionId,
+            messageId: messageId,
+            addedAt: addedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$CoReadingSessionMessagesTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $CoReadingSessionMessagesTable,
+        CoReadingSessionMessage,
+        $$CoReadingSessionMessagesTableFilterComposer,
+        $$CoReadingSessionMessagesTableOrderingComposer,
+        $$CoReadingSessionMessagesTableAnnotationComposer,
+        $$CoReadingSessionMessagesTableCreateCompanionBuilder,
+        $$CoReadingSessionMessagesTableUpdateCompanionBuilder,
+        (
+          CoReadingSessionMessage,
+          BaseReferences<_$AppDatabase, $CoReadingSessionMessagesTable,
+              CoReadingSessionMessage>
+        ),
+        CoReadingSessionMessage,
+        PrefetchHooks Function()>;
 typedef $$GameDefinitionsTableCreateCompanionBuilder = GameDefinitionsCompanion
     Function({
   required String id,
@@ -49477,6 +50745,11 @@ class $AppDatabaseManager {
       $$BookReadingProgressTableTableManager(_db, _db.bookReadingProgress);
   $$BookChapterNotesTableTableManager get bookChapterNotes =>
       $$BookChapterNotesTableTableManager(_db, _db.bookChapterNotes);
+  $$CoReadingSessionsTableTableManager get coReadingSessions =>
+      $$CoReadingSessionsTableTableManager(_db, _db.coReadingSessions);
+  $$CoReadingSessionMessagesTableTableManager get coReadingSessionMessages =>
+      $$CoReadingSessionMessagesTableTableManager(
+          _db, _db.coReadingSessionMessages);
   $$GameDefinitionsTableTableManager get gameDefinitions =>
       $$GameDefinitionsTableTableManager(_db, _db.gameDefinitions);
   $$GameSessionsTableTableManager get gameSessions =>

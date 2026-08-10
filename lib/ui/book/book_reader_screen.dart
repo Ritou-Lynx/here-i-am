@@ -47,6 +47,8 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
   final TextEditingController _input = TextEditingController();
   final ScrollController _chatScroll = ScrollController();
   List<PersonaChatMessage> _messages = const [];
+  String? _coReadingSessionId;
+  String _coReadingContinuityContext = '';
 
   @override
   void initState() {
@@ -56,6 +58,10 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
 
   @override
   void dispose() {
+    final sessionId = _coReadingSessionId;
+    if (sessionId != null && CoReadingNoteService.isInitialized) {
+      unawaited(CoReadingNoteService.instance.finishSession(sessionId));
+    }
     _progressThrottle?.cancel();
     _scroll.dispose();
     _input.dispose();
@@ -82,13 +88,7 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
       await _loadChapterContent(startChapter);
       await _loadMessages();
 
-      if (CoReadingNoteService.isInitialized && _characterId.isNotEmpty) {
-        CoReadingNoteService.instance.maybeGenerateForBook(
-          bookId: widget.bookId,
-          bookTitle: widget.bookTitle,
-          characterId: _characterId,
-        );
-      }
+      await _beginCoReadingSession();
 
       // Restore scroll position
       if (progress != null && progress.scrollRatio > 0) {
@@ -175,13 +175,47 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
   }
 
   void _goToChapter(int number) {
-    if (number < 1 || number > _chapters.length) return;
+    if (_sending || number < 1 || number > _chapters.length) return;
+    unawaited(_switchChapter(number));
+  }
+
+  Future<void> _switchChapter(int number) async {
+    await _finishCoReadingSession();
     _scroll.jumpTo(0);
-    _loadChapterContent(number);
+    await _loadChapterContent(number);
+    await _beginCoReadingSession();
+  }
+
+  Future<void> _beginCoReadingSession() async {
+    if (!CoReadingNoteService.isInitialized || _characterId.isEmpty) return;
+    final handle = await CoReadingNoteService.instance.startBookSession(
+      bookId: widget.bookId,
+      bookTitle: widget.bookTitle,
+      characterId: _characterId,
+      chapterNumber: _currentChapter,
+      chapterTitle: _chapterTitle(),
+    );
+    if (!mounted) {
+      unawaited(CoReadingNoteService.instance.finishSession(handle.id));
+      return;
+    }
+    _coReadingSessionId = handle.id;
+    _coReadingContinuityContext = handle.continuityContext;
+  }
+
+  Future<void> _finishCoReadingSession() async {
+    final sessionId = _coReadingSessionId;
+    _coReadingSessionId = null;
+    _coReadingContinuityContext = '';
+    if (sessionId == null || !CoReadingNoteService.isInitialized) return;
+    await CoReadingNoteService.instance.finishSession(
+      sessionId,
+      processNow: false,
+    );
   }
 
   Future<void> _pickChapter() async {
-    if (_chapters.isEmpty) return;
+    if (_sending || _chapters.isEmpty) return;
     final picked = await showModalBottomSheet<int>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -247,10 +281,26 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
     _scrollChatToBottom();
 
     try {
+      final userMessageId =
+          await PersonaChatService.instance.addUserMessage(_characterId, text);
+      final sessionId = _coReadingSessionId;
+      if (sessionId != null && CoReadingNoteService.isInitialized) {
+        await CoReadingNoteService.instance.recordMessages(
+          sessionId: sessionId,
+          messageIds: [userMessageId],
+        );
+      }
       final res = await UserStorage.getAgentLLMResources(
         AgentDefinitions.companionAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
+      if (CoReadingNoteService.isInitialized) {
+        _coReadingContinuityContext =
+            await CoReadingNoteService.instance.buildContinuityContext(
+          workType: 'book',
+          workId: widget.bookId,
+        );
+      }
       String full = '';
       await for (final chunk in CompanionAgent.chat(
         client: res.client,
@@ -258,6 +308,9 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
         userId: userId,
         characterId: _characterId,
         userMessage: text,
+        recallQuery: text,
+        userMessageId: userMessageId,
+        turnContextReminder: _coReadingContinuityContext,
         debugErrorOutput: true,
       )) {
         if (!mounted) return;
@@ -265,10 +318,15 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
         setState(() => _reply = chunk);
         _scrollChatToBottom();
       }
-      await PersonaChatService.instance.addUserMessage(_characterId, text);
       if (full.trim().isNotEmpty) {
-        await PersonaChatService.instance
+        final characterMessageId = await PersonaChatService.instance
             .addCharacterMessage(_characterId, full, isRead: true);
+        if (sessionId != null && CoReadingNoteService.isInitialized) {
+          await CoReadingNoteService.instance.recordMessages(
+            sessionId: sessionId,
+            messageIds: [characterMessageId],
+          );
+        }
       }
       await _loadMessages();
       if (mounted) setState(() => _reply = '');

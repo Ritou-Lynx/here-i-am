@@ -85,3 +85,38 @@ class BookChapterNotes extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+/// One bounded co-reading discussion window for a book or manga chapter.
+///
+/// This table deliberately stores only soft references. The persisted chat
+/// rows remain the evidence of record; this row says which of those messages
+/// were produced while the user was reading a specific work/chapter.
+class CoReadingSessions extends Table {
+  TextColumn get id => text()(); // UUID v4
+  TextColumn get workType => text()(); // 'book' | 'comic'
+  TextColumn get workId => text()();
+  TextColumn get workTitle => text()();
+  TextColumn get characterId => text()();
+  TextColumn get chapterRef => text()(); // book chapter number / comic chapter id
+  TextColumn get chapterTitle => text().withDefault(const Constant(''))();
+
+  IntColumn get startedAt => integer()(); // milliseconds since epoch
+  IntColumn get endedAt => integer().nullable()();
+  TextColumn get status => text().withDefault(const Constant('active'))();
+  // 'active' | 'ready' | 'processing' | 'processed' | 'failed'
+  IntColumn get processedAt => integer().nullable()();
+  TextColumn get error => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Evidence links from a co-reading session to the shared companion chat.
+class CoReadingSessionMessages extends Table {
+  TextColumn get sessionId => text()(); // → CoReadingSessions.id (soft ref)
+  IntColumn get messageId => integer()(); // → PersonaChatMessages.id (soft ref)
+  IntColumn get addedAt => integer()(); // milliseconds since epoch
+
+  @override
+  Set<Column> get primaryKey => {sessionId, messageId};
+}

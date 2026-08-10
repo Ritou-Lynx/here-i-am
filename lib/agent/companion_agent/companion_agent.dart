@@ -1573,6 +1573,7 @@ class CompanionAgent {
     bool voiceMode = false,
     bool continuousModeInput = false,
     String? sceneDirective,
+    String? turnContextReminder,
     ToyController? toyControlService,
     List<Tool> extraTools = const [],
     List<String>? turnImageAnalyses,
@@ -1705,6 +1706,13 @@ class CompanionAgent {
       if (sceneDirective != null && sceneDirective.trim().isNotEmpty) {
         state.systemReminders['scene_directive'] =
             '## 场景节拍（导演指令）\n$sceneDirective';
+      }
+
+      if (turnContextReminder != null &&
+          turnContextReminder.trim().isNotEmpty) {
+        state.systemReminders['turn_context'] = turnContextReminder.trim();
+      } else {
+        state.systemReminders.remove('turn_context');
       }
 
       if (continuousModeInput) {

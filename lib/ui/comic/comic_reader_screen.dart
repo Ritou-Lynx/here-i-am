@@ -70,6 +70,8 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
   final TextEditingController _input = TextEditingController();
   final ScrollController _chatScroll = ScrollController();
   List<PersonaChatMessage> _messages = const [];
+  String? _coReadingSessionId;
+  String _coReadingContinuityContext = '';
 
   List<Map<String, String>> _comments = const [];
   bool _commentsOpen = false;
@@ -85,6 +87,10 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
 
   @override
   void dispose() {
+    final sessionId = _coReadingSessionId;
+    if (sessionId != null && CoReadingNoteService.isInitialized) {
+      unawaited(CoReadingNoteService.instance.finishSession(sessionId));
+    }
     _scrollThrottle?.cancel();
     _scroll.dispose();
     _input.dispose();
@@ -93,6 +99,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
   }
 
   Future<void> _load() async {
+    await _finishCoReadingSession();
     setState(() => _error = null);
     try {
       final lib = ComicLibraryService.instance;
@@ -140,14 +147,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
 
       await _loadMessages();
 
-      // Fire-and-forget: generate co-reading notes if enough messages have accumulated.
-      if (CoReadingNoteService.isInitialized && _manga != null && _characterId.isNotEmpty) {
-        CoReadingNoteService.instance.maybeGenerateForManga(
-          mangaId: widget.mangaId,
-          mangaTitle: _manga!.title,
-          characterId: _characterId,
-        );
-      }
+      await _beginCoReadingSession();
 
       if (pages.isNotEmpty) {
         await ComicReadingProgressService.instance.recordProgress(
@@ -193,6 +193,39 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
         );
       }
     });
+  }
+
+  Future<void> _beginCoReadingSession() async {
+    final manga = _manga;
+    if (!CoReadingNoteService.isInitialized ||
+        manga == null ||
+        _characterId.isEmpty) {
+      return;
+    }
+    final handle = await CoReadingNoteService.instance.startMangaSession(
+      mangaId: widget.mangaId,
+      mangaTitle: manga.title,
+      characterId: _characterId,
+      chapterId: _chapterId,
+      chapterTitle: _chapter?.chapterTitle ?? _chapterId,
+    );
+    if (!mounted) {
+      unawaited(CoReadingNoteService.instance.finishSession(handle.id));
+      return;
+    }
+    _coReadingSessionId = handle.id;
+    _coReadingContinuityContext = handle.continuityContext;
+  }
+
+  Future<void> _finishCoReadingSession() async {
+    final sessionId = _coReadingSessionId;
+    _coReadingSessionId = null;
+    _coReadingContinuityContext = '';
+    if (sessionId == null || !CoReadingNoteService.isInitialized) return;
+    await CoReadingNoteService.instance.finishSession(
+      sessionId,
+      processNow: false,
+    );
   }
 
   List<_PageRef> _parsePages(ComicChapter? ch, String baseUrl) {
@@ -291,6 +324,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
   }
 
   Future<void> _pickChapter() async {
+    if (_sending) return;
     final chapters = await ComicLibraryService.instance.getChapters(widget.mangaId);
     if (!mounted) return;
     final ready = chapters.where((c) => c.status == 'ready').toList();
@@ -357,12 +391,28 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
     _scrollChatToBottom();
 
     try {
+      final userMessageId =
+          await PersonaChatService.instance.addUserMessage(_characterId, text);
+      final sessionId = _coReadingSessionId;
+      if (sessionId != null && CoReadingNoteService.isInitialized) {
+        await CoReadingNoteService.instance.recordMessages(
+          sessionId: sessionId,
+          messageIds: [userMessageId],
+        );
+      }
       final res = await UserStorage.getAgentLLMResources(
         AgentDefinitions.companionAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
       // The current page is NOT passed here - companion_agent.dart injects it
       // from reading progress automatically.
+      if (CoReadingNoteService.isInitialized) {
+        _coReadingContinuityContext =
+            await CoReadingNoteService.instance.buildContinuityContext(
+          workType: 'comic',
+          workId: widget.mangaId,
+        );
+      }
       String full = '';
       await for (final chunk in CompanionAgent.chat(
         client: res.client,
@@ -370,6 +420,9 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
         userId: userId,
         characterId: _characterId,
         userMessage: text,
+        recallQuery: text,
+        userMessageId: userMessageId,
+        turnContextReminder: _coReadingContinuityContext,
         debugErrorOutput: true,
       )) {
         if (!mounted) return;
@@ -377,14 +430,15 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
         setState(() => _reply = chunk);
         _scrollChatToBottom();
       }
-      // Persist user message then AI reply so they enter the shared chat
-      // history (loaded by _loadChatHistoryTurns next round and extracted by
-      // dreaming).
-      await PersonaChatService.instance
-          .addUserMessage(_characterId, text);
       if (full.trim().isNotEmpty) {
-        await PersonaChatService.instance
+        final characterMessageId = await PersonaChatService.instance
             .addCharacterMessage(_characterId, full, isRead: true);
+        if (sessionId != null && CoReadingNoteService.isInitialized) {
+          await CoReadingNoteService.instance.recordMessages(
+            sessionId: sessionId,
+            messageIds: [characterMessageId],
+          );
+        }
       }
       await _loadMessages();
       if (mounted) setState(() => _reply = '');

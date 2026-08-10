@@ -353,11 +353,19 @@ Step 4  书架进度更新
 | **Step 1** | 数据层：`TopicThreads` + `TopicThreadSessions` 表、FTS、embedding 注册 | Memory V3 基础表已有 | ✅ 是 |
 | **Step 2** | 写入入口：悬浮球创建、聊天指令创建、Companion 工具 `recall_topic_thread` | Step 1 | ✅ 是 |
 | **Step 3** | Companion 接续：检测话题关键词、主动建议接续、Thread 详情页 | Step 2 | ✅ 是 |
-| **Step 4** | 共读集成：Reading Intent 配置、清理流程双出口（Memory Card + Thread Session） | Step 3 + RecordOrganizer 重构完成 | ⚠️ 依赖 RecordOrganizer |
+| **Step 4** | 共读集成：Reading Intent 配置、清理流程双出口（Memory Card + Thread Session） | Step 3 + RecordOrganizer 重构完成 | ✅ 2026-08-10 完成 |
 | **Step 5** | i Gateway 读桥：`linkedProjectMemoryIds` 解引用，按项目政策访问 | Step 1 + Phase 3 Project Memory 已完成 | ✅ 可并行 |
 | **Step 6** | Topic Browser UI（Interests 面板） | Step 3 | 可在 Step 3 后任意时间 |
 
-**Step 1–3 和 Step 5 完全独立于 RecordOrganizer 重构**，可以先行启动。共读集成（Step 4）等 RecordOrganizer 重构完成后接入，不阻塞其他步骤。
+**Step 1–3 和 Step 5 完全独立于 RecordOrganizer 重构**，可以先行启动。
+
+### Step 4 落地说明（2026-08-10）
+
+- schema v53 增加 `CoReadingSessions` 与 `CoReadingSessionMessages`，把共享 Chat 中的消息软链接到具体作品、章节和阅读会话；旧的角色级消息水位线不再作为共读来源边界。
+- 会话整理保留 Memory Card 出口，同时逐个 Reading Intent 生成有实际内容的 Topic Thread Session；`sourceRefJson` 保存会话、作品、章节和消息 ID，`linkedCardIds` 指回本轮生成的卡片。
+- `currentStage` 和 `openQuestions` 可随会话低摩擦演进，旧开放问题采用合并策略；`corePositions` 不在后台路径中更新，继续要求用户明确确认。
+- 小说和漫画阅读器再次对话前都会读取关联 Thread 的状态层和最近 Session，作为隐藏共读上下文注入；用户可见聊天只保存原话，不保存隐藏上下文。
+- 章节切换只快速封口当前会话，整理在后台执行，避免阻塞阅读；正常退出会触发即时整理，异常中断的 active 会话会在下次打开同一作品时封口并恢复处理。
 
 ---
 
