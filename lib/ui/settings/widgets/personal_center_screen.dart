@@ -18,6 +18,7 @@ import 'package:memex/ui/settings/widgets/custom_agent_config_page.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/settings/widgets/device_app_blocker_settings_page.dart';
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
+import 'package:memex/ui/settings/widgets/companion_share_settings_page.dart';
 import 'package:memex/ui/settings/widgets/image_generation_settings_page.dart';
 import 'package:memex/ui/settings/widgets/log_viewer_page.dart';
 import 'package:memex/ui/settings/widgets/model_config_list_page.dart';
@@ -603,6 +604,12 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
                 status: _showPermissionBadge ? '1 项待处理' : null,
                 warning: _showPermissionBadge,
                 onTap: () => open(const SystemAuthorizationPage()),
+              ),
+              _Destination(
+                icon: Icons.ios_share_rounded,
+                title: '交给林埃',
+                subtitle: '从其他 App 分享截图或复制的链接',
+                onTap: () => open(const CompanionShareSettingsPage()),
               ),
               _Destination(
                 icon: Icons.location_on_outlined,

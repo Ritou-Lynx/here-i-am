@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="focus_lock_accessibility_description">Keeps Here I am in front while focus lock is active.</string>
+    <string name="companion_share_accessibility_description">Shows an i bubble that shares a screenshot or a copied link only when you tap it.</string>
+    <string name="companion_share_accessibility_summary">Tap for a screenshot; hold for a copied link.</string>
+    <string name="companion_share_bubble_description">Share with i. Tap for screenshot, hold for copied link.</string>
+    <string name="companion_share_screenshot_label">Screen shared with i</string>
+    <string name="companion_share_screenshot_unsupported">Screen sharing requires Android 11 or newer.</string>
+    <string name="companion_share_screenshot_failed">Could not capture this screen.</string>
 </resources>

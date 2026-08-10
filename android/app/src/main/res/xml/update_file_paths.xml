@@ -3,4 +3,7 @@
     <cache-path
         name="early_update_cache"
         path="updates/" />
+    <cache-path
+        name="companion_share_cache"
+        path="companion_shares/" />
 </paths>

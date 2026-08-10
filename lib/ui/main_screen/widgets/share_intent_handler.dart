@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:crypto/crypto.dart';
@@ -17,6 +18,8 @@ import 'package:memex/utils/user_storage.dart';
 /// Handles system share intents (text, images) and forwards them
 /// as drafts into the input sheet for user confirmation.
 class ShareIntentHandler {
+  static const _clipboardLinkMarker = '__here_i_am_share_copied_link__';
+
   final Logger logger;
   final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey;
   final void Function(InputData) onSharedDraft;
@@ -38,10 +41,13 @@ class ShareIntentHandler {
     final handler = ShareHandlerPlatform.instance;
 
     // Handle initial shared media when app is launched from share
-    handler.getInitialSharedMedia().then((media) {
+    handler.getInitialSharedMedia().then((media) async {
       if (media != null) {
-        _handleSharedMedia(media);
+        await _handleSharedMedia(media);
+        await handler.resetInitialSharedMedia();
       }
+    }).catchError((error, stack) {
+      logger.warning('Error reading initial shared media: $error');
     });
 
     // Listen for media shared while app is in memory
@@ -52,16 +58,13 @@ class ShareIntentHandler {
     });
 
     final backupIntentService = BackupImportIntentService.instance;
-    backupIntentService
-        .consumeInitialBackupPath()
-        .then((path) {
-          if (path != null) {
-            _handleBackupFile(path);
-          }
-        })
-        .catchError((err, stack) {
-          logger.warning('Error reading initial backup import intent: $err');
-        });
+    backupIntentService.consumeInitialBackupPath().then((path) {
+      if (path != null) {
+        _handleBackupFile(path);
+      }
+    }).catchError((err, stack) {
+      logger.warning('Error reading initial backup import intent: $err');
+    });
     _backupPathSubscription = backupIntentService.backupPathStream.listen(
       (path) {
         _handleBackupFile(path);
@@ -96,10 +99,20 @@ class ShareIntentHandler {
         return;
       }
 
-      final trimmedText =
-          media.content == null || media.content!.trim().isEmpty
-              ? null
-              : media.content!.trim();
+      var trimmedText = media.content == null || media.content!.trim().isEmpty
+          ? null
+          : media.content!.trim();
+
+      if (trimmedText == _clipboardLinkMarker) {
+        trimmedText = await _readCopiedLink();
+        if (trimmedText == null) {
+          ToastHelper.showErrorWithKey(
+            scaffoldMessengerKey,
+            '剪贴板里没有可分享的链接',
+          );
+          return;
+        }
+      }
 
       // Reading Companion links are no longer auto-captured here. Both
       // system share intents and chat-pasted links now flow through the
@@ -165,6 +178,24 @@ class ShareIntentHandler {
       ToastHelper.showErrorWithKey(scaffoldMessengerKey, e);
     } finally {
       _isHandlingShare = false;
+    }
+  }
+
+  Future<String?> _readCopiedLink() async {
+    // Android 10+ can deny clipboard reads while an app is in the background.
+    // This retry happens after MainActivity has been brought to the foreground
+    // by the explicit long-press share action.
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    try {
+      final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
+      final value = clipboard?.text?.trim();
+      if (value == null || value.isEmpty) return null;
+      return RegExp(r'https?://\S+', caseSensitive: false).hasMatch(value)
+          ? value
+          : null;
+    } on PlatformException catch (error) {
+      logger.warning('Clipboard link read failed: $error');
+      return null;
     }
   }
 
