@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_project_settings_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_run_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_session_screen.dart';
@@ -31,7 +31,9 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
     return Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) => DevProjectSettingsScreen(project: project),
+        builder: (_) => SpringRainUiScope(
+          child: DevProjectSettingsScreen(project: project),
+        ),
       ),
     );
   }
@@ -82,10 +84,10 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('清理 "${project.name}" 的 worktree?'),
+        title: Text('清理 "${project.name}" �?worktree?'),
         content: const Text(
-          '会让 Bridge 删除该项目下所有已结束 run 残留的 worktree 和 dev-agent 分支。\n'
-          'run 历史和事件不会被清——只清磁盘上的工作区。',
+          '会让 Bridge 删除该项目下所有已结束 run 残留�?worktree �?dev-agent 分支。\n'
+          'run 历史和事件不会被清——只清磁盘上的工作区�?,
         ),
         actions: [
           TextButton(
@@ -93,7 +95,8 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
               child: const Text('取消')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('清理', style: TextStyle(color: Colors.red)),
+            child: const Text('清理',
+                style: TextStyle(color: SpringRainUiTokens.daylightError)),
           ),
         ],
       ),
@@ -104,8 +107,8 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
           .cleanupProjectWorktrees(project.id);
       if (!context.mounted) return;
       final text = result.failed == 0
-          ? '已清理 ${result.removed} 个 worktree'
-          : '清理 ${result.removed} 个，${result.failed} 个失败';
+          ? '已清�?${result.removed} �?worktree'
+          : '清理 ${result.removed} 个，${result.failed} 个失�?;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
     } catch (e) {
       if (!context.mounted) return;
@@ -122,7 +125,7 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
       final count = await DevAgentBridgeService.instance.refreshActiveRuns();
       if (!mounted || !showResult) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(count == 0 ? '没有正在运行的任务。' : '已刷新 $count 个任务。')),
+        SnackBar(content: Text(count == 0 ? '没有正在运行的任务�? : '已刷�?$count 个任务�?)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -136,57 +139,64 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dev Room'),
-        actions: [
-          IconButton(
-            tooltip: '刷新任务',
-            onPressed: _refreshingRuns
-                ? null
-                : () => _refreshActiveRuns(showResult: true),
-            icon: _refreshingRuns
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openProjectSettings(context),
-        icon: const Icon(Icons.add),
-        label: const Text('新增项目'),
-      ),
-      body: StreamBuilder<List<DevProject>>(
-        stream: DevAgentBridgeService.instance.watchProjects(),
-        builder: (context, snapshot) {
-          final projects = snapshot.data ?? const [];
-          if (projects.isEmpty) {
-            return const _EmptyState();
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-            itemCount: projects.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final project = projects[index];
-              return _ProjectCard(
-                project: project,
-                onEdit: () => _openProjectSettings(context, project: project),
-                onSessionOpencode: () =>
-                    _startSession(context, project, DevAgentType.opencode),
-                onSessionClaude: () =>
-                    _startSession(context, project, DevAgentType.claudeCode),
-                onSessionCodex: () =>
-                    _startSession(context, project, DevAgentType.codex),
-                onCleanup: () => _cleanupProjectWorktrees(context, project),
-              );
-            },
-          );
-        },
+    return SpringRainUiScope(
+      child: Scaffold(
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        appBar: AppBar(
+          title: const Text('Dev Room'),
+          backgroundColor: SpringRainUiTokens.daylightCanvas,
+          foregroundColor: SpringRainUiTokens.daylightTextPrimary,
+          actions: [
+            IconButton(
+              tooltip: '刷新任务',
+              onPressed: _refreshingRuns
+                  ? null
+                  : () => _refreshActiveRuns(showResult: true),
+              icon: _refreshingRuns
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _openProjectSettings(context),
+          backgroundColor: SpringRainUiTokens.daylightAccent,
+          foregroundColor: SpringRainUiTokens.daylightTextOnAccent,
+          icon: const Icon(Icons.add),
+          label: const Text('新增项目'),
+        ),
+        body: StreamBuilder<List<DevProject>>(
+          stream: DevAgentBridgeService.instance.watchProjects(),
+          builder: (context, snapshot) {
+            final projects = snapshot.data ?? const [];
+            if (projects.isEmpty) {
+              return const _EmptyState();
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              itemCount: projects.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final project = projects[index];
+                return _ProjectCard(
+                  project: project,
+                  onEdit: () => _openProjectSettings(context, project: project),
+                  onSessionOpencode: () =>
+                      _startSession(context, project, DevAgentType.opencode),
+                  onSessionClaude: () =>
+                      _startSession(context, project, DevAgentType.claudeCode),
+                  onSessionCodex: () =>
+                      _startSession(context, project, DevAgentType.codex),
+                  onCleanup: () => _cleanupProjectWorktrees(context, project),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -214,15 +224,9 @@ class _ProjectCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.textTertiary.withValues(alpha: 0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: SpringRainUiTokens.daylightSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: SpringRainUiTokens.daylightDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,6 +239,7 @@ class _ProjectCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
+                    color: SpringRainUiTokens.daylightTextPrimary,
                   ),
                 ),
               ),
@@ -242,14 +247,17 @@ class _ProjectCard extends StatelessWidget {
               const SizedBox(width: 4),
               PopupMenuButton<String>(
                 tooltip: '更多',
-                icon: const Icon(Icons.more_vert),
+                icon: const Icon(
+                  Icons.more_vert,
+                  color: SpringRainUiTokens.daylightIconMuted,
+                ),
                 onSelected: (value) {
                   if (value == 'edit') onEdit();
                   if (value == 'cleanup') onCleanup();
                 },
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'edit', child: Text('编辑 / 删除')),
-                  PopupMenuItem(value: 'cleanup', child: Text('清理所有 worktree')),
+                  PopupMenuItem(value: 'cleanup', child: Text('清理所�?worktree')),
                 ],
               ),
             ],
@@ -258,7 +266,7 @@ class _ProjectCard extends StatelessWidget {
           Text(
             project.rootPath,
             style: const TextStyle(
-              color: AppColors.textSecondary,
+              color: SpringRainUiTokens.daylightTextSecondary,
               fontSize: 13,
             ),
           ),
@@ -266,7 +274,7 @@ class _ProjectCard extends StatelessWidget {
           Text(
             project.defaultBranch,
             style: const TextStyle(
-              color: AppColors.textTertiary,
+              color: SpringRainUiTokens.daylightTextTertiary,
               fontSize: 12,
             ),
           ),
@@ -277,32 +285,10 @@ class _ProjectCard extends StatelessWidget {
             _GitStatusBar(project: project),
           ],
           const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: onSessionOpencode,
-                  icon: const Icon(Icons.forum_outlined, size: 18),
-                  label: const Text('OpenCode'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onSessionClaude,
-                  icon: const Icon(Icons.forum_outlined, size: 18),
-                  label: const Text('Claude Code'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onSessionCodex,
-                  icon: const Icon(Icons.forum_outlined, size: 18),
-                  label: const Text('Codex'),
-                ),
-              ),
-            ],
+          _AgentButtons(
+            onSessionOpencode: onSessionOpencode,
+            onSessionClaude: onSessionClaude,
+            onSessionCodex: onSessionCodex,
           ),
           const SizedBox(height: 12),
           _RecentSessions(projectId: project.id),
@@ -314,6 +300,58 @@ class _ProjectCard extends StatelessWidget {
   }
 }
 
+/// Three agent launcher buttons. Stacked vertically (full width) instead of
+/// crammed into one row so 'Claude Code' doesn't get squeezed or ellipsised.
+class _AgentButtons extends StatelessWidget {
+  const _AgentButtons({
+    required this.onSessionOpencode,
+    required this.onSessionClaude,
+    required this.onSessionCodex,
+  });
+
+  final VoidCallback onSessionOpencode;
+  final VoidCallback onSessionClaude;
+  final VoidCallback onSessionCodex;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton.icon(
+          onPressed: onSessionOpencode,
+          icon: const Icon(Icons.forum_outlined, size: 18),
+          label: const Text('OpenCode'),
+          style: FilledButton.styleFrom(
+            backgroundColor: SpringRainUiTokens.daylightAccent,
+            foregroundColor: SpringRainUiTokens.daylightTextOnAccent,
+          ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: onSessionClaude,
+          icon: const Icon(Icons.forum_outlined, size: 18),
+          label: const Text('Claude Code'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: SpringRainUiTokens.daylightTextPrimary,
+            side: const BorderSide(color: SpringRainUiTokens.daylightDivider),
+          ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: onSessionCodex,
+          icon: const Icon(Icons.forum_outlined, size: 18),
+          label: const Text('Codex'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: SpringRainUiTokens.daylightTextPrimary,
+            side: const BorderSide(color: SpringRainUiTokens.daylightDivider),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TierChip extends StatelessWidget {
   const _TierChip({required this.tier});
 
@@ -321,21 +359,32 @@ class _TierChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (tier) {
-      'workspace_write' => ('写入', const Color(0xFF10B981)),
-      'release_ops' => ('发布', const Color(0xFFF43F5E)),
-      _ => ('只读', const Color(0xFF3B82F6)),
+    final (label, color, bg) = switch (tier) {
+      'workspace_write' => (
+        '写入',
+        SpringRainUiTokens.daylightSuccess,
+        SpringRainUiTokens.daylightSuccessSoft,
+      ),
+      'release_ops' => (
+        '发布',
+        SpringRainUiTokens.daylightWarning,
+        SpringRainUiTokens.daylightWarningSoft,
+      ),
+      _ => (
+        '只读',
+        SpringRainUiTokens.daylightAccent,
+        SpringRainUiTokens.daylightAccentSoft,
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: bg,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         label,
-        style:
-            TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -368,7 +417,10 @@ class _ProjectRunsSummary extends StatelessWidget {
         parts.add('上次 ${_relativeTime(latest.startedAt)}');
         return Text(
           parts.join(' · '),
-          style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+          style: const TextStyle(
+            color: SpringRainUiTokens.daylightTextTertiary,
+            fontSize: 12,
+          ),
         );
       },
     );
@@ -378,8 +430,8 @@ class _ProjectRunsSummary extends StatelessWidget {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final diff = now - epochSeconds;
     if (diff < 60) return '刚刚';
-    if (diff < 3600) return '${diff ~/ 60} 分钟前';
-    if (diff < 86400) return '${diff ~/ 3600} 小时前';
+    if (diff < 3600) return '${diff ~/ 60} 分钟�?;
+    if (diff < 86400) return '${diff ~/ 3600} 小时�?;
     return '${diff ~/ 86400} 天前';
   }
 }
@@ -452,7 +504,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
           '将在 ${_project.rootPath} 执行：\n'
           'git fetch && git merge --ff-only\n'
           'origin/${_project.defaultBranch}\n\n'
-          '预计快进合并 ${status.behind} 个 commit。',
+          '预计快进合并 ${status.behind} �?commit�?,
         ),
         actions: [
           TextButton(
@@ -477,7 +529,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              result.message ?? '已拉取 ${status.behind} 个 commit。',
+              result.message ?? '已拉�?${status.behind} �?commit�?,
             ),
           ),
         );
@@ -485,8 +537,8 @@ class _GitStatusBarState extends State<_GitStatusBar> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.message ?? '拉取失败。'),
-            backgroundColor: Colors.red,
+            content: Text(result.message ?? '拉取失败�?),
+            backgroundColor: SpringRainUiTokens.daylightError,
           ),
         );
       }
@@ -494,8 +546,8 @@ class _GitStatusBarState extends State<_GitStatusBar> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('拉取失败：$e'),
-          backgroundColor: Colors.red,
+          content: Text('拉取失败�?e'),
+          backgroundColor: SpringRainUiTokens.daylightError,
         ),
       );
     } finally {
@@ -514,7 +566,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
         content: Text(
           '将在 ${_project.rootPath} 执行：\n'
           'git push origin ${_project.defaultBranch}\n\n'
-          '将推送 ${status.ahead} 个 commit。',
+          '将推�?${status.ahead} �?commit�?,
         ),
         actions: [
           TextButton(
@@ -523,7 +575,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('确认推送'),
+            child: const Text('确认推�?),
           ),
         ],
       ),
@@ -538,15 +590,15 @@ class _GitStatusBarState extends State<_GitStatusBar> {
       if (result.ok) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.message ?? '已推送 ${status.ahead} 个 commit。'),
+            content: Text(result.message ?? '已推�?${status.ahead} �?commit�?),
           ),
         );
         await _fetchStatus();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.message ?? '推送失败。'),
-            backgroundColor: Colors.red,
+            content: Text(result.message ?? '推送失败�?),
+            backgroundColor: SpringRainUiTokens.daylightError,
           ),
         );
       }
@@ -555,7 +607,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('推送失败：$e'),
-          backgroundColor: Colors.red,
+          backgroundColor: SpringRainUiTokens.daylightError,
         ),
       );
     } finally {
@@ -570,8 +622,8 @@ class _GitStatusBarState extends State<_GitStatusBar> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.textTertiary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(6),
+        color: SpringRainUiTokens.daylightSurfaceMuted,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: _buildContent(),
     );
@@ -588,8 +640,11 @@ class _GitStatusBarState extends State<_GitStatusBar> {
           ),
           SizedBox(width: 8),
           Text(
-            '检查 Git 状态...',
-            style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
+            '检�?Git 状�?..',
+            style: TextStyle(
+              color: SpringRainUiTokens.daylightTextTertiary,
+              fontSize: 12,
+            ),
           ),
         ],
       );
@@ -598,19 +653,26 @@ class _GitStatusBarState extends State<_GitStatusBar> {
     if (_error != null && _status == null) {
       return Row(
         children: [
-          const Icon(Icons.error_outline, size: 14, color: Colors.red),
+          const Icon(Icons.error_outline, size: 14, color: SpringRainUiTokens.daylightError),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               _error!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.red, fontSize: 12),
+              style: const TextStyle(
+                color: SpringRainUiTokens.daylightError,
+                fontSize: 12,
+              ),
             ),
           ),
           GestureDetector(
             onTap: _fetchStatus,
-            child: const Icon(Icons.refresh, size: 16, color: AppColors.textTertiary),
+            child: const Icon(
+              Icons.refresh,
+              size: 16,
+              color: SpringRainUiTokens.daylightIconMuted,
+            ),
           ),
         ],
       );
@@ -634,7 +696,10 @@ class _GitStatusBarState extends State<_GitStatusBar> {
             padding: const EdgeInsets.only(bottom: 4),
             child: Text(
               _error!,
-              style: const TextStyle(color: Colors.red, fontSize: 11),
+              style: const TextStyle(
+                color: SpringRainUiTokens.daylightError,
+                fontSize: 11,
+              ),
             ),
           ),
         if (showPull || showPush)
@@ -642,12 +707,12 @@ class _GitStatusBarState extends State<_GitStatusBar> {
             children: [
               if (showPull) ...[
                 Icon(Icons.cloud_download_outlined,
-                    size: 14, color: Colors.orange.shade700),
+                    size: 14, color: SpringRainUiTokens.daylightWarning),
                 const SizedBox(width: 4),
                 Text(
-                  '远程领先 ${status.behind} 个 commit',
-                  style: TextStyle(
-                    color: Colors.orange.shade700,
+                  '远程领先 ${status.behind} �?commit',
+                  style: const TextStyle(
+                    color: SpringRainUiTokens.daylightWarning,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -658,18 +723,18 @@ class _GitStatusBarState extends State<_GitStatusBar> {
                 Container(
                   width: 1,
                   height: 14,
-                  color: AppColors.textTertiary.withValues(alpha: 0.3),
+                  color: SpringRainUiTokens.daylightDivider,
                 ),
                 const SizedBox(width: 10),
               ],
               if (showPush) ...[
                 const Icon(Icons.cloud_upload_outlined,
-                    size: 14, color: AppColors.textSecondary),
+                    size: 14, color: SpringRainUiTokens.daylightTextSecondary),
                 const SizedBox(width: 4),
                 Text(
-                  '本地领先 ${status.ahead} 个 commit',
+                  '本地领先 ${status.ahead} �?commit',
                   style: const TextStyle(
-                    color: AppColors.textSecondary,
+                    color: SpringRainUiTokens.daylightTextSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -689,6 +754,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
                     icon: const Icon(Icons.download, size: 14),
                     label: const Text('拉取', style: TextStyle(fontSize: 12)),
                     style: TextButton.styleFrom(
+                      foregroundColor: SpringRainUiTokens.daylightAccent,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -698,8 +764,9 @@ class _GitStatusBarState extends State<_GitStatusBar> {
                   TextButton.icon(
                     onPressed: _operating ? null : _push,
                     icon: const Icon(Icons.upload, size: 14),
-                    label: const Text('推送', style: TextStyle(fontSize: 12)),
+                    label: const Text('推�?, style: TextStyle(fontSize: 12)),
                     style: TextButton.styleFrom(
+                      foregroundColor: SpringRainUiTokens.daylightAccent,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -741,9 +808,9 @@ class _RecentSessions extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '最近会话',
+              '最近会�?,
               style: TextStyle(
-                color: AppColors.textTertiary,
+                color: SpringRainUiTokens.daylightTextTertiary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -753,14 +820,29 @@ class _RecentSessions extends StatelessWidget {
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.forum_outlined, size: 20),
+                leading: const Icon(
+                  Icons.forum_outlined,
+                  size: 20,
+                  color: SpringRainUiTokens.daylightIcon,
+                ),
                 title: Text(
                   session.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: SpringRainUiTokens.daylightTextPrimary,
+                  ),
                 ),
-                subtitle: Text('${session.agentType} 路 ${session.status}'),
-                trailing: const Icon(Icons.chevron_right),
+                subtitle: Text(
+                  '${session.agentType} �?${session.status}',
+                  style: const TextStyle(
+                    color: SpringRainUiTokens.daylightTextSecondary,
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  color: SpringRainUiTokens.daylightIconMuted,
+                ),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -788,8 +870,11 @@ class _RecentRuns extends StatelessWidget {
         final runs = (snapshot.data ?? const []).take(3).toList();
         if (runs.isEmpty) {
           return const Text(
-            '还没有任务。',
-            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+            '还没有任务�?,
+            style: TextStyle(
+              color: SpringRainUiTokens.daylightTextTertiary,
+              fontSize: 13,
+            ),
           );
         }
         return Column(
@@ -802,9 +887,20 @@ class _RecentRuns extends StatelessWidget {
                   run.initialPrompt,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: SpringRainUiTokens.daylightTextPrimary,
+                  ),
                 ),
-                subtitle: Text('${run.agentType} · ${run.status}'),
-                trailing: const Icon(Icons.chevron_right),
+                subtitle: Text(
+                  '${run.agentType} · ${run.status}',
+                  style: const TextStyle(
+                    color: SpringRainUiTokens.daylightTextSecondary,
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  color: SpringRainUiTokens.daylightIconMuted,
+                ),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -828,11 +924,11 @@ class _EmptyState extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(32),
         child: Text(
-          '先添加一个开发项目。Dev Room 只保存控制数据，真正的 OpenCode / Claude Code / Codex 进程会跑在 Bridge 电脑上。',
+          '先添加一个开发项目。Dev Room 只保存控制数据，真正�?OpenCode / Claude Code / Codex 进程会跑�?Bridge 电脑上�?,
           textAlign: TextAlign.center,
           style: TextStyle(
             height: 1.5,
-            color: AppColors.textSecondary,
+            color: SpringRainUiTokens.daylightTextSecondary,
           ),
         ),
       ),
@@ -882,7 +978,7 @@ class _PromptDialogState extends State<_PromptDialog> {
         minLines: 4,
         maxLines: 8,
         decoration: const InputDecoration(
-          hintText: '例如：只读项目，告诉我当前 Dev Room 还缺哪些入口。',
+          hintText: '例如：只读项目，告诉我当�?Dev Room 还缺哪些入口�?,
           border: OutlineInputBorder(),
         ),
       ),
