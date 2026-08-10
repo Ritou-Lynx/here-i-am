@@ -84,10 +84,10 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('清理 "${project.name}" �?worktree?'),
+        title: Text('清理 "${project.name}" 的 worktree?'),
         content: const Text(
-          '会让 Bridge 删除该项目下所有已结束 run 残留�?worktree �?dev-agent 分支。\n'
-          'run 历史和事件不会被清——只清磁盘上的工作区�?,
+          '会让 Bridge 删除该项目下所有已结束 run 残留的 worktree 与 dev-agent 分支。\n'
+          'run 历史和事件不会被清——只清磁盘上的工作区。',
         ),
         actions: [
           TextButton(
@@ -107,8 +107,8 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
           .cleanupProjectWorktrees(project.id);
       if (!context.mounted) return;
       final text = result.failed == 0
-          ? '已清�?${result.removed} �?worktree'
-          : '清理 ${result.removed} 个，${result.failed} 个失�?;
+          ? '已清理 ${result.removed} 个 worktree'
+          : '清理 ${result.removed} 个，${result.failed} 个失败';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
     } catch (e) {
       if (!context.mounted) return;
@@ -125,7 +125,7 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
       final count = await DevAgentBridgeService.instance.refreshActiveRuns();
       if (!mounted || !showResult) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(count == 0 ? '没有正在运行的任务�? : '已刷�?$count 个任务�?)),
+        SnackBar(content: Text(count == 0 ? '没有正在运行的任务' : '已刷新 $count 个任务')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -257,7 +257,7 @@ class _ProjectCard extends StatelessWidget {
                 },
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'edit', child: Text('编辑 / 删除')),
-                  PopupMenuItem(value: 'cleanup', child: Text('清理所�?worktree')),
+                  PopupMenuItem(value: 'cleanup', child: Text('清理所�?worktree')),
                 ],
               ),
             ],
@@ -430,8 +430,8 @@ class _ProjectRunsSummary extends StatelessWidget {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final diff = now - epochSeconds;
     if (diff < 60) return '刚刚';
-    if (diff < 3600) return '${diff ~/ 60} 分钟�?;
-    if (diff < 86400) return '${diff ~/ 3600} 小时�?;
+    if (diff < 3600) return '${diff ~/ 60} 分钟前';
+    if (diff < 86400) return '${diff ~/ 3600} 小时前';
     return '${diff ~/ 86400} 天前';
   }
 }
@@ -504,7 +504,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
           '将在 ${_project.rootPath} 执行：\n'
           'git fetch && git merge --ff-only\n'
           'origin/${_project.defaultBranch}\n\n'
-          '预计快进合并 ${status.behind} �?commit�?,
+          '预计快进合并 ${status.behind} 个 commit',
         ),
         actions: [
           TextButton(
@@ -529,7 +529,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              result.message ?? '已拉�?${status.behind} �?commit�?,
+              result.message ?? '已拉取 ${status.behind} 个 commit',
             ),
           ),
         );
@@ -537,7 +537,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.message ?? '拉取失败�?),
+            content: Text(result.message ?? '拉取失败'),
             backgroundColor: SpringRainUiTokens.daylightError,
           ),
         );
@@ -546,7 +546,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('拉取失败�?e'),
+          content: Text('拉取失败: $e'),
           backgroundColor: SpringRainUiTokens.daylightError,
         ),
       );
@@ -566,7 +566,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
         content: Text(
           '将在 ${_project.rootPath} 执行：\n'
           'git push origin ${_project.defaultBranch}\n\n'
-          '将推�?${status.ahead} �?commit�?,
+          '将推送 ${status.ahead} 个 commit',
         ),
         actions: [
           TextButton(
@@ -575,7 +575,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('确认推�?),
+            child: const Text('确认推送'),
           ),
         ],
       ),
@@ -590,14 +590,14 @@ class _GitStatusBarState extends State<_GitStatusBar> {
       if (result.ok) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.message ?? '已推�?${status.ahead} �?commit�?),
+            content: Text(result.message ?? '已推送 ${status.ahead} 个 commit'),
           ),
         );
         await _fetchStatus();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.message ?? '推送失败�?),
+            content: Text(result.message ?? '推送失败'),
             backgroundColor: SpringRainUiTokens.daylightError,
           ),
         );
@@ -640,7 +640,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
           ),
           SizedBox(width: 8),
           Text(
-            '检�?Git 状�?..',
+            '检�?Git 状�?..',
             style: TextStyle(
               color: SpringRainUiTokens.daylightTextTertiary,
               fontSize: 12,
@@ -710,7 +710,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
                     size: 14, color: SpringRainUiTokens.daylightWarning),
                 const SizedBox(width: 4),
                 Text(
-                  '远程领先 ${status.behind} �?commit',
+                  '远程领先 ${status.behind} �?commit',
                   style: const TextStyle(
                     color: SpringRainUiTokens.daylightWarning,
                     fontSize: 12,
@@ -732,7 +732,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
                     size: 14, color: SpringRainUiTokens.daylightTextSecondary),
                 const SizedBox(width: 4),
                 Text(
-                  '本地领先 ${status.ahead} �?commit',
+                  '本地领先 ${status.ahead} �?commit',
                   style: const TextStyle(
                     color: SpringRainUiTokens.daylightTextSecondary,
                     fontSize: 12,
@@ -764,7 +764,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
                   TextButton.icon(
                     onPressed: _operating ? null : _push,
                     icon: const Icon(Icons.upload, size: 14),
-                    label: const Text('推�?, style: TextStyle(fontSize: 12)),
+                    label: const Text('推送', style: TextStyle(fontSize: 12)),
                     style: TextButton.styleFrom(
                       foregroundColor: SpringRainUiTokens.daylightAccent,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -808,7 +808,7 @@ class _RecentSessions extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '最近会�?,
+              '最近会话',
               style: TextStyle(
                 color: SpringRainUiTokens.daylightTextTertiary,
                 fontSize: 12,
@@ -834,7 +834,7 @@ class _RecentSessions extends StatelessWidget {
                   ),
                 ),
                 subtitle: Text(
-                  '${session.agentType} �?${session.status}',
+                  '${session.agentType} · ${session.status}',
                   style: const TextStyle(
                     color: SpringRainUiTokens.daylightTextSecondary,
                   ),
@@ -870,7 +870,7 @@ class _RecentRuns extends StatelessWidget {
         final runs = (snapshot.data ?? const []).take(3).toList();
         if (runs.isEmpty) {
           return const Text(
-            '还没有任务�?,
+            '还没有任务',
             style: TextStyle(
               color: SpringRainUiTokens.daylightTextTertiary,
               fontSize: 13,
@@ -924,7 +924,7 @@ class _EmptyState extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(32),
         child: Text(
-          '先添加一个开发项目。Dev Room 只保存控制数据，真正�?OpenCode / Claude Code / Codex 进程会跑�?Bridge 电脑上�?,
+          '先添加一个开发项目。Dev Room 只保存控制数据，真正的 OpenCode / Claude Code / Codex 进程会跑在 Bridge 电脑上。',
           textAlign: TextAlign.center,
           style: TextStyle(
             height: 1.5,
@@ -978,7 +978,7 @@ class _PromptDialogState extends State<_PromptDialog> {
         minLines: 4,
         maxLines: 8,
         decoration: const InputDecoration(
-          hintText: '例如：只读项目，告诉我当�?Dev Room 还缺哪些入口�?,
+          hintText: '例如：只读项目，告诉我当前 Dev Room 还缺哪些入口？',
           border: OutlineInputBorder(),
         ),
       ),
