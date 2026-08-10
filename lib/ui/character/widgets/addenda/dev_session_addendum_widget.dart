@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
+import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_session_screen.dart';
 
@@ -10,10 +11,17 @@ class DevSessionAddendumWidget extends StatefulWidget {
     super.key,
     required this.data,
     required this.isCharacterBubble,
+    this.messageId,
   });
 
   final Map<String, dynamic> data;
   final bool isCharacterBubble;
+
+  /// Row id of the hosting persona chat message. Used to persist the user's
+  /// Accept / Discard decision back into attachmentsJson so the decision row
+  /// doesn't reappear when the widget is rebuilt (chat refreshes every 2s,
+  /// and the State would otherwise be lost).
+  final int? messageId;
 
   @override
   State<DevSessionAddendumWidget> createState() =>
@@ -24,6 +32,28 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
   bool _deciding = false;
   String? _decisionResult;
   bool? _decisionAccepted;
+
+  @override
+  void initState() {
+    super.initState();
+    // Seed local state from persisted addendum data so a rebuilt widget
+    // (chat refresh, navigation away and back) keeps showing the decision
+    // outcome instead of re-offering Accept / Discard.
+    final persisted = widget.data['decision'] as String?;
+    if (persisted != null && persisted.isNotEmpty) {
+      _decisionAccepted = true;
+      _decisionResult = _persistedLabel(persisted);
+    }
+  }
+
+  String _persistedLabel(String decision) {
+    return switch (decision) {
+      'apply' => '已合入默认分支',
+      'discard' => '已丢弃工作区',
+      'leave' => '已保留工作区',
+      _ => decision,
+    };
+  }
 
   /// Write-mode runs offer Accept (merge worktree into default branch) /
   /// Discard (remove worktree). Read-only runs never have a worktree and
@@ -63,6 +93,17 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
         };
         messenger.showSnackBar(
           SnackBar(content: Text(label), duration: const Duration(seconds: 2)),
+        );
+      }
+      // Persist the decision into the hosting chat message so the card
+      // doesn't re-offer the buttons after a chat refresh or re-navigation.
+      // Only persist on accepted leave/apply/discard; rejected decisions
+      // leave the row actionable.
+      if (result.accepted && widget.messageId != null) {
+        await PersonaChatService.instance.persistDevSessionDecision(
+          messageId: widget.messageId!,
+          runId: runId,
+          decision: decision,
         );
       }
     } catch (e) {

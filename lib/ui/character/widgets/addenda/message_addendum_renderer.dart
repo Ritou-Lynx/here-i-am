@@ -30,10 +30,17 @@ class MessageAddendumRenderer extends StatelessWidget {
   /// individual addendum widgets to pick palette / alignment.
   final bool isCharacterBubble;
 
+  /// Row id of the hosting persona chat message, when this renderer is built
+  /// inside a bubble. Some addenda (e.g. dev_session) persist user decisions
+  /// back into the message's attachmentsJson, so they need the id to update
+  /// the right row. Null when rendered outside a bubble (preview / test).
+  final int? messageId;
+
   const MessageAddendumRenderer({
     super.key,
     required this.attachmentsJson,
     required this.isCharacterBubble,
+    this.messageId,
   });
 
   @override
@@ -97,6 +104,7 @@ class MessageAddendumRenderer extends StatelessWidget {
         return DevSessionAddendumWidget(
           data: data,
           isCharacterBubble: isCharacterBubble,
+          messageId: messageId,
         );
       case 'sticker':
         return StickerAddendumWidget(

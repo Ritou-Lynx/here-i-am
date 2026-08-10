@@ -713,26 +713,65 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     const c = SpringRainChatTokens.springRainDaydream;
     final codeBackground =
         c.brightness == Brightness.dark ? c.backgroundSoft : c.glassFillSoft;
+    final baseText = TextStyle(
+      fontSize: c.iSize,
+      height: c.lineHeight,
+      color: c.iColor,
+      fontFamily: c.fontFamily,
+    );
+    final bold = baseText.copyWith(fontWeight: FontWeight.w700);
+    final italic = baseText.copyWith(fontStyle: FontStyle.italic);
 
     return MarkdownStyleSheet(
-      p: TextStyle(
-        fontSize: c.iSize,
-        height: c.lineHeight,
-        fontWeight: c.iWeight,
-        color: c.iColor,
-        fontFamily: c.fontFamily,
+      p: baseText.copyWith(fontWeight: c.iWeight),
+      h1: bold.copyWith(fontSize: c.iSize + 8, height: c.lineHeight),
+      h2: bold.copyWith(fontSize: c.iSize + 6, height: c.lineHeight),
+      h3: bold.copyWith(fontSize: c.iSize + 4, height: c.lineHeight),
+      h4: bold.copyWith(fontSize: c.iSize + 2, height: c.lineHeight),
+      h5: bold.copyWith(fontSize: c.iSize + 1, height: c.lineHeight),
+      h6: bold.copyWith(fontSize: c.iSize, height: c.lineHeight),
+      strong: bold,
+      em: italic,
+      del: baseText.copyWith(
+        decoration: TextDecoration.lineThrough,
+        decorationColor: c.iColor.withValues(alpha: 0.6),
       ),
-      strong: TextStyle(
-        fontWeight: FontWeight.w700,
-        color: c.iColor,
-        fontFamily: c.fontFamily,
-      ),
-      em: TextStyle(
+      blockSpacing: 8,
+      blockquote: baseText.copyWith(
         fontStyle: FontStyle.italic,
-        color: c.iColor,
-        fontFamily: c.fontFamily,
+        color: c.iColor.withValues(alpha: 0.86),
       ),
+      blockquoteDecoration: BoxDecoration(
+        color: c.iColor.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(4),
+        border: Border(
+          left: BorderSide(
+            color: c.actionColor.withValues(alpha: c.iAnchorAlpha),
+            width: 2,
+          ),
+        ),
+      ),
+      blockquotePadding: const EdgeInsets.all(8),
       listBullet: TextStyle(color: c.actionColor),
+      listBulletPadding: const EdgeInsets.only(right: 6),
+      checkbox: baseText.copyWith(
+        color: c.actionColor,
+        fontWeight: FontWeight.w600,
+      ),
+      tableHead: bold.copyWith(fontSize: c.iSize - 1),
+      tableBody: baseText.copyWith(fontSize: c.iSize - 1),
+      tablePadding: const EdgeInsets.only(bottom: 4),
+      tableCellsPadding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+      tableBorder: TableBorder.all(
+        color: c.iColor.withValues(alpha: 0.18),
+        width: 1,
+      ),
+      tableColumnWidth: const IntrinsicColumnWidth(),
+      a: TextStyle(
+        color: c.actionColor,
+        decoration: TextDecoration.underline,
+        decorationColor: c.actionColor.withValues(alpha: 0.55),
+      ),
       code: TextStyle(
         fontSize: 13,
         color: c.iColor,
@@ -742,6 +781,14 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       codeblockDecoration: BoxDecoration(
         color: codeBackground,
         borderRadius: BorderRadius.circular(8),
+      ),
+      horizontalRuleDecoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: c.iColor.withValues(alpha: 0.18),
+            width: 1,
+          ),
+        ),
       ),
     );
   }
@@ -6560,6 +6607,7 @@ only after you have written the goodbye you want the user to hear.''',
                   MessageAddendumRenderer(
                     attachmentsJson: attachmentsJson,
                     isCharacterBubble: true,
+                    messageId: int.tryParse(messageId ?? ''),
                   ),
                 ],
               ],
