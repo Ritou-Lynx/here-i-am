@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 class DevProjectSettingsScreen extends StatefulWidget {
   const DevProjectSettingsScreen({
@@ -141,7 +141,8 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
               child: const Text('取消')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
+            child: const Text('删除',
+                style: TextStyle(color: SpringRainUiTokens.daylightError)),
           ),
         ],
       ),
@@ -192,14 +193,18 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
   Widget build(BuildContext context) {
     final isEditing = widget.project != null;
     return Scaffold(
+      backgroundColor: SpringRainUiTokens.daylightCanvas,
       appBar: AppBar(
         title: Text(isEditing ? '编辑 Dev 项目' : '新增 Dev 项目'),
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        foregroundColor: SpringRainUiTokens.daylightTextPrimary,
         actions: [
           if (isEditing)
             IconButton(
               tooltip: '删除项目',
               onPressed: _saving ? null : _delete,
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              icon: const Icon(Icons.delete_outline,
+                  color: SpringRainUiTokens.daylightError),
             ),
           TextButton(
             onPressed: _saving ? null : _save,
@@ -264,7 +269,7 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
                     _bridgeStatus ?? '保存前可以先确认 Bridge 是否在线。',
                     style: const TextStyle(
                       height: 1.35,
-                      color: AppColors.textSecondary,
+                      color: SpringRainUiTokens.daylightTextSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -355,7 +360,7 @@ class _OpencodeModelField extends StatelessWidget {
         const Text(
           'OpenCode CLI 用 `provider/model` 格式调用。这个值会在 chat 里或自动跑 Dev Room 时作为默认值；留空走 opencode.jsonc / DEV_AGENT_OPENCODE_MODEL。',
           style: TextStyle(
-            color: AppColors.textSecondary,
+            color: SpringRainUiTokens.daylightTextSecondary,
             fontSize: 12,
             height: 1.4,
           ),
@@ -381,7 +386,7 @@ else if (!loading && warning != null)
           Text(
             'Bridge 没法拉取模型列表（${warning!}）。可以直接在下方框里填。',
             style: const TextStyle(
-              color: AppColors.textTertiary,
+              color: SpringRainUiTokens.daylightTextTertiary,
               fontSize: 12,
               height: 1.4,
             ),

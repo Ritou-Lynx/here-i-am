@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_run_screen.dart';
 
 class DevSessionScreen extends StatefulWidget {
@@ -74,6 +74,7 @@ class _DevSessionScreenState extends State<DevSessionScreen> {
       builder: (context, snapshot) {
         final session = snapshot.data;
         return Scaffold(
+          backgroundColor: SpringRainUiTokens.daylightCanvas,
           appBar: AppBar(
             title: session == null
                 ? const Text('Dev Session')
@@ -87,6 +88,8 @@ class _DevSessionScreenState extends State<DevSessionScreen> {
                       ),
                     ],
                   ),
+            backgroundColor: SpringRainUiTokens.daylightCanvas,
+            foregroundColor: SpringRainUiTokens.daylightTextPrimary,
             actions: [
               IconButton(
                 tooltip: '刷新',
@@ -115,7 +118,7 @@ class _DevSessionScreenState extends State<DevSessionScreen> {
                                   '直接追问、分配下一步，或让它继续检查项目。',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: AppColors.textSecondary,
+                                    color: SpringRainUiTokens.daylightTextSecondary,
                                   ),
                                 ),
                               ),
@@ -168,12 +171,15 @@ class _GoalBanner extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
+        color: SpringRainUiTokens.daylightAccentSoft,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         goal,
-        style: const TextStyle(color: AppColors.textSecondary, height: 1.35),
+        style: const TextStyle(
+          color: SpringRainUiTokens.daylightTextSecondary,
+          height: 1.35,
+        ),
       ),
     );
   }
@@ -189,10 +195,10 @@ class _SessionMessageTile extends StatelessWidget {
     final isUser = message.role == 'user';
     final isSystem = message.role == 'system';
     final color = isUser
-        ? AppColors.primary.withValues(alpha: 0.10)
+        ? SpringRainUiTokens.daylightAccentSoft
         : isSystem
-            ? AppColors.textTertiary.withValues(alpha: 0.08)
-            : AppColors.cardBackground;
+            ? SpringRainUiTokens.daylightSurfaceMuted
+            : SpringRainUiTokens.daylightSurface;
     final alignment =
         isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     return Column(
@@ -205,7 +211,7 @@ class _SessionMessageTile extends StatelessWidget {
             color: color,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: AppColors.textTertiary.withValues(alpha: 0.12),
+              color: SpringRainUiTokens.daylightDivider,
             ),
           ),
           child: Column(
@@ -217,7 +223,7 @@ class _SessionMessageTile extends StatelessWidget {
                   Text(
                     _roleLabel(message.role),
                     style: const TextStyle(
-                      color: AppColors.textTertiary,
+                      color: SpringRainUiTokens.daylightTextTertiary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -230,7 +236,7 @@ class _SessionMessageTile extends StatelessWidget {
                       ),
                     ),
                     style: const TextStyle(
-                      color: AppColors.textTertiary,
+                      color: SpringRainUiTokens.daylightTextTertiary,
                       fontSize: 12,
                     ),
                   ),
@@ -239,7 +245,10 @@ class _SessionMessageTile extends StatelessWidget {
               const SizedBox(height: 6),
               SelectableText(
                 message.content,
-                style: const TextStyle(height: 1.42),
+                style: const TextStyle(
+                  height: 1.42,
+                  color: SpringRainUiTokens.daylightTextPrimary,
+                ),
               ),
               if (message.linkedRunId != null) ...[
                 const SizedBox(height: 8),
@@ -247,11 +256,17 @@ class _SessionMessageTile extends StatelessWidget {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => DevRunScreen(runId: message.linkedRunId!),
+                      builder: (_) =>
+                          DevRunScreen(runId: message.linkedRunId!),
                     ),
                   ),
                   icon: const Icon(Icons.open_in_new, size: 16),
                   label: const Text('查看关联任务'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: SpringRainUiTokens.daylightAccent,
+                    side: const BorderSide(
+                        color: SpringRainUiTokens.daylightDivider),
+                  ),
                 ),
               ],
             ],
@@ -286,7 +301,7 @@ class _SessionComposer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       elevation: 8,
-      color: AppColors.cardBackground,
+      color: SpringRainUiTokens.daylightSurface,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -311,6 +326,10 @@ class _SessionComposer extends StatelessWidget {
               IconButton.filled(
                 tooltip: '发送',
                 onPressed: sending ? null : onSend,
+                style: IconButton.styleFrom(
+                  backgroundColor: SpringRainUiTokens.daylightAccent,
+                  foregroundColor: SpringRainUiTokens.daylightTextOnAccent,
+                ),
                 icon: sending
                     ? const SizedBox(
                         width: 18,

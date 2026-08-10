@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_diff_screen.dart';
 
 class DevRunScreen extends StatefulWidget {
@@ -87,8 +87,11 @@ class _DevRunScreenState extends State<DevRunScreen> {
           _pollTimer = null;
         }
         return Scaffold(
+          backgroundColor: SpringRainUiTokens.daylightCanvas,
           appBar: AppBar(
             title: Text(run == null ? 'Dev Run' : _agentLabel(run.agentType)),
+            backgroundColor: SpringRainUiTokens.daylightCanvas,
+            foregroundColor: SpringRainUiTokens.daylightTextPrimary,
             actions: [
               IconButton(
                 tooltip: '刷新',
@@ -157,17 +160,17 @@ class _PendingApprovalBanner extends StatelessWidget {
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.deepPurple.withValues(alpha: 0.08),
+            color: SpringRainUiTokens.daylightWarningSoft,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: Colors.deepPurple.withValues(alpha: 0.22),
+              color: SpringRainUiTokens.daylightWarning.withValues(alpha: 0.35),
             ),
           ),
           child: Row(
             children: [
               const Icon(
                 Icons.verified_user_outlined,
-                color: Colors.deepPurple,
+                color: SpringRainUiTokens.daylightWarning,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -178,6 +181,9 @@ class _PendingApprovalBanner extends StatelessWidget {
               ),
               TextButton(
                 onPressed: () => _ApprovalSheet.show(context, approvals.first),
+                style: TextButton.styleFrom(
+                  foregroundColor: SpringRainUiTokens.daylightAccent,
+                ),
                 child: const Text('查看'),
               ),
             ],
@@ -244,7 +250,7 @@ class _DecisionBar extends StatelessWidget {
         run.worktreePath != null && run.worktreePath!.trim().isNotEmpty;
     return Material(
       elevation: 8,
-      color: AppColors.cardBackground,
+      color: SpringRainUiTokens.daylightSurface,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -261,14 +267,23 @@ class _DecisionBar extends StatelessWidget {
               ),
               TextButton(
                 onPressed: () => onDecide('leave'),
+                style: TextButton.styleFrom(
+                  foregroundColor: SpringRainUiTokens.daylightAccent,
+                ),
                 child: const Text('留着'),
               ),
               TextButton(
                 onPressed: () => onDecide('discard'),
+                style: TextButton.styleFrom(
+                  foregroundColor: SpringRainUiTokens.daylightError,
+                ),
                 child: const Text('丢弃'),
               ),
               TextButton(
                 onPressed: () => onDecide('apply'),
+                style: TextButton.styleFrom(
+                  foregroundColor: SpringRainUiTokens.daylightSuccess,
+                ),
                 child: const Text('应用'),
               ),
             ],
@@ -351,16 +366,26 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
           children: [
             const Text(
               '审批请求',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: SpringRainUiTokens.daylightTextPrimary,
+              ),
             ),
             const SizedBox(height: 14),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: SpringRainUiTokens.daylightTextPrimary,
+              ),
+            ),
             if (reason != null && reason.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
                 reason,
                 style: const TextStyle(
-                  color: AppColors.textSecondary,
+                  color: SpringRainUiTokens.daylightTextSecondary,
                   height: 1.4,
                 ),
               ),
@@ -371,12 +396,15 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: SpringRainUiTokens.daylightSurfaceMuted,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: SelectableText(
                   command,
-                  style: const TextStyle(fontFamily: 'monospace'),
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: SpringRainUiTokens.daylightTextPrimary,
+                  ),
                 ),
               ),
             ],
@@ -422,15 +450,9 @@ class _RunHeader extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.textTertiary.withValues(alpha: 0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: SpringRainUiTokens.daylightSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: SpringRainUiTokens.daylightDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -441,28 +463,36 @@ class _RunHeader extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 _agentLabel(run.agentType),
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: SpringRainUiTokens.daylightTextPrimary,
+                ),
               ),
               const Spacer(),
               Text(
                 DateFormat('HH:mm').format(
                   DateTime.fromMillisecondsSinceEpoch(run.startedAt * 1000),
                 ),
-                style: const TextStyle(color: AppColors.textTertiary),
+                style: const TextStyle(
+                  color: SpringRainUiTokens.daylightTextTertiary,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           SelectableText(
             run.initialPrompt,
-            style: const TextStyle(height: 1.4),
+            style: const TextStyle(
+              height: 1.4,
+              color: SpringRainUiTokens.daylightTextPrimary,
+            ),
           ),
           if (run.summary != null && run.summary!.trim().isNotEmpty) ...[
             const SizedBox(height: 12),
             SelectableText(
               run.summary!,
               style: const TextStyle(
-                color: AppColors.textSecondary,
+                color: SpringRainUiTokens.daylightTextSecondary,
                 height: 1.4,
               ),
             ),
@@ -480,17 +510,32 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      'done' => Colors.green,
-      'failed' => Colors.red,
-      'aborted' => Colors.orange,
-      'waiting_approval' => Colors.deepPurple,
-      _ => AppColors.primary,
+    final (color, bg) = switch (status) {
+      'done' => (
+        SpringRainUiTokens.daylightSuccess,
+        SpringRainUiTokens.daylightSuccessSoft,
+      ),
+      'failed' => (
+        SpringRainUiTokens.daylightError,
+        SpringRainUiTokens.daylightErrorSoft,
+      ),
+      'aborted' => (
+        SpringRainUiTokens.daylightWarning,
+        SpringRainUiTokens.daylightWarningSoft,
+      ),
+      'waiting_approval' => (
+        SpringRainUiTokens.daylightWarning,
+        SpringRainUiTokens.daylightWarningSoft,
+      ),
+      _ => (
+        SpringRainUiTokens.daylightAccent,
+        SpringRainUiTokens.daylightAccentSoft,
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: bg,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -518,14 +563,18 @@ class _EventTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: SpringRainUiTokens.daylightSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: SpringRainUiTokens.daylightDivider),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(_iconFor(event.kind), color: AppColors.primary, size: 20),
+          Icon(
+            _iconFor(event.kind),
+            color: SpringRainUiTokens.daylightAccent,
+            size: 20,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -533,14 +582,17 @@ class _EventTile extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: SpringRainUiTokens.daylightTextPrimary,
+                  ),
                 ),
                 if (detail.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   SelectableText(
                     detail,
                     style: const TextStyle(
-                      color: AppColors.textSecondary,
+                      color: SpringRainUiTokens.daylightTextSecondary,
                       height: 1.4,
                     ),
                   ),

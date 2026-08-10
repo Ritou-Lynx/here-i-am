@@ -145,16 +145,28 @@ class SpringRainUiTokens extends ThemeExtension<SpringRainUiTokens> {
 
   // Public constants used by const widgets before a BuildContext exists.
   static const Color daylightCanvas = Color(0xFFF8F6EB);
+  static const Color daylightSurface = Color(0xFFFCFAF1);
   static const Color daylightSurfaceMuted = Color(0xFFEDE9D8);
   static const Color daylightTextPrimary = Color(0xFF293025);
   static const Color daylightTextSecondary = Color(0xFF74766E);
+  static const Color daylightTextTertiary = Color(0xFF999B91);
+  static const Color daylightTextOnAccent = Color(0xFFFFFDF5);
+  static const Color daylightIcon = Color(0xFF59603C);
+  static const Color daylightIconMuted = Color(0xFF8C8F82);
   static const Color daylightAccent = Color(0xFF6E7541);
+  static const Color daylightAccentSoft = Color(0xFFE7E8D1);
   static const Color daylightGold = Color(0xFFF2CA70);
+  static const Color daylightSuccess = Color(0xFF577254);
+  static const Color daylightSuccessSoft = Color(0xFFE3ECDC);
+  static const Color daylightWarning = Color(0xFF9A702E);
+  static const Color daylightWarningSoft = Color(0xFFF7E8BE);
+  static const Color daylightError = Color(0xFF9B5B52);
+  static const Color daylightErrorSoft = Color(0xFFF3DFD9);
   static const Color daylightDivider = Color(0x1F5B5843);
 
   static const SpringRainUiTokens daylight = SpringRainUiTokens(
     canvas: daylightCanvas,
-    surface: Color(0xFFFCFAF1),
+    surface: daylightSurface,
     surfaceRaised: Color(0xFFFFFDF7),
     surfaceMuted: daylightSurfaceMuted,
     surfaceSelected: Color(0xFFE3E5C9),
@@ -162,21 +174,21 @@ class SpringRainUiTokens extends ThemeExtension<SpringRainUiTokens> {
     glassStroke: Color(0x73FFFFFF),
     textPrimary: daylightTextPrimary,
     textSecondary: daylightTextSecondary,
-    textTertiary: Color(0xFF999B91),
-    textOnAccent: Color(0xFFFFFDF5),
-    icon: Color(0xFF59603C),
-    iconMuted: Color(0xFF8C8F82),
+    textTertiary: daylightTextTertiary,
+    textOnAccent: daylightTextOnAccent,
+    icon: daylightIcon,
+    iconMuted: daylightIconMuted,
     accent: daylightAccent,
     accentPressed: Color(0xFF555D31),
-    accentSoft: Color(0xFFE7E8D1),
+    accentSoft: daylightAccentSoft,
     gold: daylightGold,
     goldSoft: Color(0xFFF7E8BE),
-    success: Color(0xFF577254),
-    successSoft: Color(0xFFE3ECDC),
-    warning: Color(0xFF9A702E),
-    warningSoft: Color(0xFFF7E8BE),
-    error: Color(0xFF9B5B52),
-    errorSoft: Color(0xFFF3DFD9),
+    success: daylightSuccess,
+    successSoft: daylightSuccessSoft,
+    warning: daylightWarning,
+    warningSoft: daylightWarningSoft,
+    error: daylightError,
+    errorSoft: daylightErrorSoft,
     info: Color(0xFF526E72),
     infoSoft: Color(0xFFDDE9E7),
     outline: Color(0x405B5843),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 class DevDiffScreen extends StatefulWidget {
   const DevDiffScreen({
@@ -50,7 +50,12 @@ class _DevDiffScreenState extends State<DevDiffScreen> {
   Widget build(BuildContext context) {
     final content = widget.artifact.content ?? widget.artifact.uri ?? '';
     return Scaffold(
-      appBar: AppBar(title: Text(widget.artifact.title)),
+      backgroundColor: SpringRainUiTokens.daylightCanvas,
+      appBar: AppBar(
+        title: Text(widget.artifact.title),
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        foregroundColor: SpringRainUiTokens.daylightTextPrimary,
+      ),
       body: content.isEmpty
           ? const Center(child: Text('这个 artifact 没有可显示内容。'))
           : SingleChildScrollView(
@@ -61,7 +66,7 @@ class _DevDiffScreenState extends State<DevDiffScreen> {
                   fontFamily: 'monospace',
                   fontSize: 12,
                   height: 1.45,
-                  color: AppColors.textPrimary,
+                  color: SpringRainUiTokens.daylightTextPrimary,
                 ),
               ),
             ),
@@ -72,6 +77,11 @@ class _DevDiffScreenState extends State<DevDiffScreen> {
             Expanded(
               child: OutlinedButton(
                 onPressed: _submitting ? null : () => _decide('discard'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: SpringRainUiTokens.daylightTextPrimary,
+                  side: const BorderSide(
+                      color: SpringRainUiTokens.daylightDivider),
+                ),
                 child: const Text('丢弃'),
               ),
             ),
@@ -79,6 +89,11 @@ class _DevDiffScreenState extends State<DevDiffScreen> {
             Expanded(
               child: OutlinedButton(
                 onPressed: _submitting ? null : () => _decide('leave'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: SpringRainUiTokens.daylightTextPrimary,
+                  side: const BorderSide(
+                      color: SpringRainUiTokens.daylightDivider),
+                ),
                 child: const Text('留着'),
               ),
             ),
@@ -86,6 +101,10 @@ class _DevDiffScreenState extends State<DevDiffScreen> {
             Expanded(
               child: FilledButton(
                 onPressed: _submitting ? null : () => _decide('apply'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: SpringRainUiTokens.daylightAccent,
+                  foregroundColor: SpringRainUiTokens.daylightTextOnAccent,
+                ),
                 child: _submitting
                     ? const SizedBox(
                         width: 16,
