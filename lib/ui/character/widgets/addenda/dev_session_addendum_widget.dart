@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_session_screen.dart';
 
 class DevSessionAddendumWidget extends StatefulWidget {
@@ -130,11 +130,12 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
     final sessionId = (widget.data['sessionId'] as String?) ?? '';
     if (sessionId.isEmpty) return const SizedBox.shrink();
 
+    final tokens = context.hereIamTheme;
     final title = (widget.data['title'] as String?)?.trim();
     final agentType = (widget.data['agentType'] as String?) ?? 'codex';
     final status = (widget.data['status'] as String?) ?? 'done';
     final branch = (widget.data['branch'] as String?)?.trim();
-    final color = _statusColor(status);
+    final statusColor = _statusColor(status, tokens);
 
     // Accept / Discard only make sense for terminal, write-mode runs that
     // still have a worktree. Read-only runs and in-progress runs skip the
@@ -148,9 +149,9 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
       constraints: const BoxConstraints(maxWidth: 420),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        color: tokens.surfaceDeep,
+        borderRadius: BorderRadius.circular(tokens.innerRadius),
+        border: Border.all(color: statusColor.withValues(alpha: 0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,16 +159,16 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
         children: [
           Row(
             children: [
-              Icon(Icons.forum_outlined, size: 18, color: color),
+              Icon(Icons.forum_outlined, size: 18, color: statusColor),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title?.isNotEmpty == true ? title! : 'Dev Session',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: tokens.textPrimary,
                   ),
                 ),
               ),
@@ -179,8 +180,8 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
             '${branch?.isNotEmpty == true ? ' · $branch' : ''}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: tokens.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -190,8 +191,8 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
               _decisionResult!,
               style: TextStyle(
                 color: _decisionAccepted == true
-                    ? const Color(0xFF10B981)
-                    : AppColors.textTertiary,
+                    ? tokens.accent
+                    : tokens.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -200,21 +201,29 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
           if (showDecisionRow)
             Row(
               children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _deciding ? null : () => _decide('apply'),
-                  icon: const Icon(Icons.check, size: 16),
-                  label: const Text('Accept'),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _deciding ? null : () => _decide('apply'),
+                    icon: const Icon(Icons.check, size: 16),
+                    label: const Text('Accept'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: tokens.accent,
+                      foregroundColor: tokens.background,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _deciding ? null : () => _decide('discard'),
-                  icon: const Icon(Icons.delete_outline, size: 16),
-                  label: const Text('Discard'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _deciding ? null : () => _decide('discard'),
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('Discard'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: tokens.textPrimary,
+                      side: BorderSide(color: tokens.glassStroke),
+                    ),
+                  ),
                 ),
-              ),
               ],
             )
           else
@@ -231,6 +240,9 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
                 ),
                 icon: const Icon(Icons.open_in_new, size: 16),
                 label: const Text('查看 Dev Room'),
+                style: TextButton.styleFrom(
+                  foregroundColor: tokens.highlight,
+                ),
               ),
             ),
         ],
@@ -238,12 +250,12 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
     );
   }
 
-  Color _statusColor(String status) {
+  Color _statusColor(String status, HereIamThemeTokens tokens) {
     return switch (status) {
-      'done' => const Color(0xFF10B981),
+      'done' => tokens.accent,
       'failed' => const Color(0xFFEF4444),
       'aborted' => const Color(0xFFF59E0B),
-      _ => AppColors.primary,
+      _ => tokens.highlight,
     };
   }
 
