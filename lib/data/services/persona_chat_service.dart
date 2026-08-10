@@ -229,10 +229,19 @@ class PersonaChatService {
   /// would think the click had no effect. We stamp `decision` on the
   /// addendum matching [runId] (defensive: a message could carry multiple
   /// dev_session addenda) and notify the chat to repaint.
+  ///
+  /// When [accepted] is false (Bridge rejected the decision, e.g.
+  /// `no_worktree`), [resultText] is stored so the card can show the reason
+  /// and stay collapsed instead of re-offering the buttons. Network failures
+  /// (DioException before the Bridge responds) should NOT call this — they
+  /// leave the row actionable so the user can retry once connectivity is
+  /// restored.
   Future<void> persistDevSessionDecision({
     required int messageId,
     required String runId,
     required String decision,
+    bool accepted = true,
+    String? resultText,
   }) async {
     try {
       final row = await (_db.select(_db.personaChatMessages)
@@ -247,6 +256,10 @@ class PersonaChatService {
         if (att['type'] != 'dev_session') continue;
         if (att['runId'] != runId) continue;
         att['decision'] = decision;
+        att['decisionAccepted'] = accepted;
+        if (resultText != null && resultText.isNotEmpty) {
+          att['decisionResult'] = resultText;
+        }
         dirty = true;
         break;
       }

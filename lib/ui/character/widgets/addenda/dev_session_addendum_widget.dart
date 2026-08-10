@@ -38,11 +38,14 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
     super.initState();
     // Seed local state from persisted addendum data so a rebuilt widget
     // (chat refresh, navigation away and back) keeps showing the decision
-    // outcome instead of re-offering Accept / Discard.
+    // outcome instead of re-offering Accept / Discard. Both accepted and
+    // Bridge-rejected decisions are persisted; only network failures
+    // (DioException before the Bridge responded) leave the row actionable.
     final persisted = widget.data['decision'] as String?;
     if (persisted != null && persisted.isNotEmpty) {
-      _decisionAccepted = true;
-      _decisionResult = _persistedLabel(persisted);
+      _decisionAccepted = widget.data['decisionAccepted'] as bool? ?? true;
+      _decisionResult =
+          (widget.data['decisionResult'] as String?) ?? _persistedLabel(persisted);
     }
   }
 
@@ -95,15 +98,22 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
           SnackBar(content: Text(label), duration: const Duration(seconds: 2)),
         );
       }
-      // Persist the decision into the hosting chat message so the card
-      // doesn't re-offer the buttons after a chat refresh or re-navigation.
-      // Only persist on accepted leave/apply/discard; rejected decisions
-      // leave the row actionable.
-      if (result.accepted && widget.messageId != null) {
+      // Persist both accepted and Bridge-rejected decisions so the card
+      // stays collapsed and the user doesn't see the buttons reappear after
+      // a chat refresh. Network failures (caught below) do NOT persist —
+      // the row stays actionable so the user can retry.
+      if (widget.messageId != null) {
+        final resultText = result.accepted
+            ? null
+            : (result.message ??
+                result.reason ??
+                _persistedLabel(decision).replaceFirst('已', ''));
         await PersonaChatService.instance.persistDevSessionDecision(
           messageId: widget.messageId!,
           runId: runId,
           decision: decision,
+          accepted: result.accepted,
+          resultText: resultText,
         );
       }
     } catch (e) {
