@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../db/app_database.dart';
+import 'turtle_soup_catalog.dart';
 
 const _uuid = Uuid();
 final _log = Logger('GameSessionService');
@@ -29,7 +30,7 @@ class GameSessionService {
   /// assistant message so the character speaks first — matching SillyTavern
   /// convention where `first_mes` opens the session before the user replies.
   Future<GameSession> createSession({
-    required String definitionId,
+    String? definitionId,
     required String gameType,
     required String definitionTitle,
     required String definitionSnapshotJson,
@@ -62,6 +63,39 @@ class GameSessionService {
     }
 
     return (await getSession(id))!;
+  }
+
+  /// Start a built-in Turtle Soup round.
+  ///
+  /// The selected puzzle is snapshotted into the session, so both the pinned
+  /// surface and the hidden canonical solution remain unchanged forever.
+  Future<GameSession> createTurtleSoupSession({
+    TurtleSoupPuzzle? puzzle,
+  }) async {
+    final recent = await listSessions(
+      gameType: 'turtle_soup',
+      includeArchived: true,
+    );
+    final recentPuzzleIds = <String>[];
+    for (final session in recent.take(5)) {
+      try {
+        final data = jsonDecode(session.definitionSnapshotJson);
+        if (data is Map && data['id'] != null) {
+          recentPuzzleIds.add(data['id'].toString());
+        }
+      } catch (_) {
+        // An older or manually edited session should not block a new round.
+      }
+    }
+    final selected = puzzle ??
+        TurtleSoupCatalog.pick(excludingIds: recentPuzzleIds);
+    return createSession(
+      gameType: 'turtle_soup',
+      definitionTitle: '海龟汤',
+      definitionSnapshotJson: jsonEncode(selected.toJson()),
+      sessionTitle: '海龟汤 · ${selected.title}',
+      firstMessage: '汤面已经钉在上面了。你来问，我只回答「是」「不是」或「是也不是」。',
+    );
   }
 
   /// Fetch a single session row; returns null when not found.

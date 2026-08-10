@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/agent/game_agent/prompt.dart';
+import 'package:memex/agent/game_agent/turtle_soup_prompt.dart';
 import 'package:memex/agent/state_util.dart';
+import 'package:memex/data/services/game/turtle_soup_catalog.dart';
 import 'package:memex/db/app_database.dart';
 
 final _log = Logger('GameAgent');
@@ -114,7 +116,9 @@ class GameAgent {
       }
 
       if (reply.isNotEmpty) {
-        yield reply;
+        yield session.gameType == 'turtle_soup'
+            ? TurtleSoupPrompt.normalizeVerdict(reply)
+            : reply;
       } else {
         _log.warning('GameAgent: empty reply for session ${session.id}');
       }
@@ -140,6 +144,10 @@ class GameAgent {
     switch (gameType) {
       case 'card_roleplay':
         return GameAgentPrompt.build(definitionData);
+      case 'turtle_soup':
+        return TurtleSoupPrompt.build(
+          TurtleSoupPuzzle.fromJson(definitionData),
+        );
       default:
         // Fallback: return raw definition or a generic prompt.
         return 'You are in a game session. ${definitionData['description'] ?? ''}';

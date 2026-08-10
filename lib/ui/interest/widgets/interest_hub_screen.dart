@@ -332,11 +332,19 @@ class _RecentInterest {
   factory _RecentInterest.game(GameSession session) => _RecentInterest(
         kind: _RecentInterestKind.game,
         id: session.id,
-        type: '游戏',
+        type: session.gameType == 'turtle_soup' ? '海龟汤' : '游戏',
         title: session.sessionTitle,
-        progressLabel: session.status == 'ended' ? '已结束' : '继续上次剧情',
+        progressLabel: session.gameType == 'turtle_soup'
+            ? session.status == 'ended'
+                ? '已揭晓'
+                : '继续猜这碗汤'
+            : session.status == 'ended'
+                ? '已结束'
+                : '继续上次剧情',
         timestamp: session.lastPlayedAt,
-        icon: Icons.sports_esports_rounded,
+        icon: session.gameType == 'turtle_soup'
+            ? Icons.psychology_alt_rounded
+            : Icons.sports_esports_rounded,
         definitionId: session.definitionId,
       );
 
