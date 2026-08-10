@@ -1,63 +1,11 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:memex/data/services/tts_service.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/sentence_splitter.dart';
-
-class _GrowingBufferSource extends StreamAudioSource {
-  final _buffer = <int>[];
-  final _controller = StreamController<Uint8List>.broadcast();
-  bool _done = false;
-
-  void addBytes(List<int> bytes) {
-    if (_done) return;
-    _buffer.addAll(bytes);
-    _controller.add(Uint8List.fromList(bytes));
-  }
-
-  void markDone() {
-    if (_done) return;
-    _done = true;
-    _controller.close();
-  }
-
-  bool get isDone => _done;
-
-  @override
-  Future<StreamAudioResponse> request([int? start, int? end]) async {
-    final s = start ?? 0;
-    final existing = s < _buffer.length
-        ? Uint8List.fromList(_buffer.sublist(s, end))
-        : Uint8List(0);
-
-    Stream<Uint8List> stream;
-    if (_done) {
-      stream = existing.isNotEmpty
-          ? Stream.value(existing)
-          : const Stream.empty();
-    } else {
-      final merged = StreamController<Uint8List>();
-      if (existing.isNotEmpty) merged.add(existing);
-      _controller.stream.listen(
-        merged.add,
-        onError: merged.addError,
-        onDone: merged.close,
-      );
-      stream = merged.stream;
-    }
-
-    return StreamAudioResponse(
-      sourceLength: _done ? _buffer.length : null,
-      contentLength: _done ? (_buffer.length - s) : null,
-      offset: s,
-      stream: stream,
-      contentType: 'audio/mpeg',
-    );
-  }
-}
 
 class StreamingTtsSession {
   StreamingTtsSession({required this.voiceId, this.voiceMode = false});
@@ -70,12 +18,10 @@ class StreamingTtsSession {
   /// the mic so platform AEC can cancel the echo.
   final bool voiceMode;
   final _log = getLogger('StreamingTts');
-  final _player = AudioPlayer();
-  final _source = _GrowingBufferSource();
   final _splitter = SentenceSplitter();
-  final _ttsSubscriptions = <StreamSubscription<List<int>>>[];
   final _sentenceQueue = <String>[];
   final _pendingSentences = <String>[];
+  final _segmentFiles = <File>[];
   bool _processingSentence = false;
   bool _llmDone = false;
   bool _disposed = false;
@@ -86,52 +32,16 @@ class StreamingTtsSession {
   /// This avoids per-call minimum billing and reduces total API round-trips.
   /// The threshold is low enough that first-audio latency stays acceptable.
   static const int _minSentenceRunes = 24;
-  Completer<void>? _playbackCompleter;
-  StreamSubscription<PlayerState>? _stateSub;
+
+  /// The currently active AudioPlayer for a single segment. A fresh player is
+  /// created per segment to avoid any ExoPlayer state carry-over between
+  /// independent MP3 files (which caused double-playback glitches with both
+  /// StreamAudioSource byte concatenation and ConcatenatingAudioSource).
+  AudioPlayer? _segmentPlayer;
 
   Future<void> start() async {
     _splitter.onSentence = _onSentence;
     _log.info('start: voiceId=$voiceId voiceMode=$voiceMode');
-    _stateSub = _player.playerStateStream.listen((state) {
-      _log.fine('player state: ${state.processingState} playing=${state.playing} '
-          'done=${_source.isDone} queue=${_sentenceQueue.length} '
-          'proc=$_processingSentence completer=${_playbackCompleter?.isCompleted}');
-      if (state.processingState == ProcessingState.completed &&
-          _source.isDone &&
-          _sentenceQueue.isEmpty &&
-          !_processingSentence) {
-        _log.info('playback completed');
-        _playbackCompleter?.complete();
-      } else if (state.processingState == ProcessingState.idle &&
-          !state.playing &&
-          _playbackCompleter != null &&
-          !_playbackCompleter!.isCompleted) {
-        // Playback failed (e.g. format probe error) or was stopped early.
-        // Complete the completer so the caller does not hang in the speaking
-        // phase until the 120s timeout.
-        _log.warning('playback stopped/failed before completion');
-        _playbackCompleter!.complete();
-      }
-    });
-    await _player.setAudioSource(_source, preload: false);
-    _log.info('start: setAudioSource done');
-    if (voiceMode) {
-      // Pin the Android audio usage to voice-communication explicitly. Relying
-      // on just_audio's configurationStream subscription is racy (broadcast
-      // stream won't replay the value configured by the unawaited VoIP-session
-      // enter), which leaves the player on the default media usage — silent
-      // over Bluetooth HFP during a call.
-      try {
-        await _player.setAndroidAudioAttributes(
-          const AndroidAudioAttributes(
-            contentType: AndroidAudioContentType.speech,
-            usage: AndroidAudioUsage.voiceCommunication,
-          ),
-        );
-      } catch (e) {
-        _log.warning('set voice-communication audio attributes failed: $e');
-      }
-    }
   }
 
   void feedText(String chunk) {
@@ -146,15 +56,10 @@ class StreamingTtsSession {
     _flushPendingSentences();
     _log.info('finishAndWait: waiting for TTS sentences...');
 
-    // Wait for every queued sentence to finish streaming its audio bytes into
-    // the buffer before marking the source done. Marking done too early (with
-    // an empty buffer) makes ExoPlayer's format probe read EOF and fail with
-    // UnrecognizedInputFormatException, so the reply is never heard — the
-    // bytes that arrive afterwards are also dropped by addBytes().
+    // Wait for every queued sentence to finish synthesizing and writing its
+    // audio bytes to a temp file.
     final deadline = DateTime.now().add(const Duration(seconds: 60));
-    while (_processingSentence ||
-        _sentenceQueue.isNotEmpty ||
-        _ttsSubscriptions.isNotEmpty) {
+    while (_processingSentence || _sentenceQueue.isNotEmpty) {
       if (DateTime.now().isAfter(deadline)) {
         _log.warning('finishAndWait: TTS sentences timed out');
         break;
@@ -162,20 +67,65 @@ class StreamingTtsSession {
       await Future.delayed(const Duration(milliseconds: 50));
     }
 
-    _log.info('finishAndWait: sentences done, bufferBytes=${_source._buffer.length}');
-    if (_source._buffer.isEmpty) {
-      // Nothing was synthesized (e.g. all text filtered); nothing to play.
+    _log.info(
+        'finishAndWait: sentences done, segments=${_segmentFiles.length}');
+    if (_segmentFiles.isEmpty) {
       await _dispose();
       return;
     }
-    _source.markDone();
-    _playbackCompleter = Completer<void>();
-    _log.info('finishAndWait: play()');
-    await _player.play();
-    await _playbackCompleter!.future.timeout(
-      const Duration(seconds: 120),
-      onTimeout: () => _log.warning('finishAndWait: playback timed out'),
-    );
+
+    // Play each segment with its own AudioPlayer, sequentially. A fresh
+    // player per file avoids ExoPlayer re-seeking / double-playback glitches
+    // that occur when independent MP3 files share a single player (whether
+    // via StreamAudioSource byte concatenation or ConcatenatingAudioSource).
+    for (var i = 0; i < _segmentFiles.length; i++) {
+      if (_disposed) break;
+      final file = _segmentFiles[i];
+      if (!await file.exists() || file.lengthSync() == 0) continue;
+
+      _log.info('finishAndWait: playing segment $i/${_segmentFiles.length} '
+          '(${file.lengthSync()} bytes)');
+
+      final player = AudioPlayer();
+      if (voiceMode) {
+        try {
+          await player.setAndroidAudioAttributes(
+            const AndroidAudioAttributes(
+              contentType: AndroidAudioContentType.speech,
+              usage: AndroidAudioUsage.voiceCommunication,
+            ),
+          );
+        } catch (e) {
+          _log.warning('set audio attributes failed: $e');
+        }
+      }
+      _segmentPlayer = player;
+
+      try {
+        await player.setFilePath(file.path);
+        final segmentCompleter = Completer<void>();
+        late StreamSubscription sub;
+        sub = player.playerStateStream.listen((state) {
+          if (state.processingState == ProcessingState.completed) {
+            sub.cancel();
+            if (!segmentCompleter.isCompleted) segmentCompleter.complete();
+          }
+        });
+        await player.play();
+        await segmentCompleter.future.timeout(
+          const Duration(seconds: 90),
+          onTimeout: () => _log.warning('segment $i playback timed out'),
+        );
+        await sub.cancel();
+      } catch (e) {
+        _log.warning('segment $i playback failed: $e');
+      } finally {
+        await player.dispose();
+        _segmentPlayer = null;
+      }
+    }
+
+    _log.info('finishAndWait: all segments played');
     await _dispose();
   }
 
@@ -212,6 +162,7 @@ class StreamingTtsSession {
     _processingSentence = true;
     final sentence = _sentenceQueue.removeAt(0);
     try {
+      final bytes = <int>[];
       final stream = TtsService.streamTextToSpeech(
         text: sentence,
         voiceId: voiceId,
@@ -219,31 +170,36 @@ class StreamingTtsSession {
       final completer = Completer<void>();
       late StreamSubscription<List<int>> sub;
       sub = stream.listen(
-        (bytes) {
-          if (!_disposed) _source.addBytes(bytes);
+        (chunk) {
+          if (!_disposed) bytes.addAll(chunk);
         },
         onError: (Object e) {
           _log.warning('TTS stream error: $e');
           if (!completer.isCompleted) completer.complete();
         },
         onDone: () {
-          _ttsSubscriptions.remove(sub);
           if (!completer.isCompleted) completer.complete();
         },
         cancelOnError: true,
       );
-      _ttsSubscriptions.add(sub);
       await completer.future;
+      await sub.cancel();
+
+      if (!_disposed && bytes.isNotEmpty) {
+        final file = File(
+          '${Directory.systemTemp.path}/tts_seg_'
+          '${DateTime.now().microsecondsSinceEpoch}_${_segmentFiles.length}.mp3',
+        );
+        await file.writeAsBytes(bytes, flush: true);
+        _segmentFiles.add(file);
+        _log.fine('segment ${_segmentFiles.length}: ${bytes.length} bytes');
+      }
     } catch (e) {
       _log.warning('TTS sentence failed: $e');
     }
     _processingSentence = false;
     if (_sentenceQueue.isNotEmpty) {
       _processNextSentence();
-    } else if (_llmDone && _ttsSubscriptions.isEmpty && _source.isDone) {
-      // Playback completion is owned by finishAndWait: the completer is only
-      // created after markDone()+play(), and completing it here races with
-      // play() and would cut the audio off (or hang the speaking phase).
     }
   }
 
@@ -254,20 +210,17 @@ class StreamingTtsSession {
   Future<void> _dispose() async {
     if (_disposed) return;
     _disposed = true;
-    _log.info('_dispose: bufferBytes=${_source._buffer.length}');
-    for (final sub in _ttsSubscriptions) {
-      await sub.cancel();
-    }
-    _ttsSubscriptions.clear();
+    _log.info('_dispose: segments=${_segmentFiles.length}');
     _sentenceQueue.clear();
     _pendingSentences.clear();
-    await _stateSub?.cancel();
-    _stateSub = null;
-    await _player.stop();
-    await _player.dispose();
-    _source.markDone();
-    if (_playbackCompleter != null && !_playbackCompleter!.isCompleted) {
-      _playbackCompleter!.complete();
+    await _segmentPlayer?.dispose();
+    _segmentPlayer = null;
+    // Clean up temp files.
+    for (final file in _segmentFiles) {
+      try {
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
     }
+    _segmentFiles.clear();
   }
 }

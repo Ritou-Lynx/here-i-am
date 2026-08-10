@@ -94,4 +94,33 @@ void main() {
       expect(script.emotion, isNull);
     });
   });
+
+  group('MiniMaxTtsService.decodeStreamingAudioEvent', () {
+    test('decodes an incremental audio payload', () {
+      final bytes = MiniMaxTtsService.decodeStreamingAudioEvent(
+        '{"data":{"status":1,"audio":"0102ff"},'
+        '"base_resp":{"status_code":0,"status_msg":"success"}}',
+      );
+
+      expect(bytes, <int>[1, 2, 255]);
+    });
+
+    test('skips the status=2 completion payload containing the full clip', () {
+      final bytes = MiniMaxTtsService.decodeStreamingAudioEvent(
+        '{"data":{"status":2,"audio":"0102ff"},'
+        '"base_resp":{"status_code":0,"status_msg":"success"}}',
+      );
+
+      expect(bytes, isNull);
+    });
+
+    test('surfaces MiniMax stream errors', () {
+      expect(
+        () => MiniMaxTtsService.decodeStreamingAudioEvent(
+          '{"base_resp":{"status_code":1001,"status_msg":"denied"}}',
+        ),
+        throwsA(isA<Exception>()),
+      );
+    });
+  });
 }

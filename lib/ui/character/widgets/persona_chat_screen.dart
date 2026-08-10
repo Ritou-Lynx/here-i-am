@@ -415,6 +415,65 @@ class _PendingBatch {
   final String? sceneDirective;
 }
 
+@visibleForTesting
+bool personaChatPendingBatchWasAlreadyAnswered({
+  required Iterable<int> pendingMessageIds,
+  required Set<int> answeredMessageIds,
+}) {
+  final persistedIds = pendingMessageIds.where((id) => id > 0).toList();
+  return persistedIds.isNotEmpty &&
+      persistedIds.every(answeredMessageIds.contains);
+}
+
+@visibleForTesting
+bool personaChatCanDispatchPendingBatch({
+  required bool isStreaming,
+  required bool isRoleVoiceActive,
+}) {
+  return !isStreaming && !isRoleVoiceActive;
+}
+
+/// Collects adjacent NLS sentences into one user turn.
+///
+/// NLS can emit `SentenceEnd` and then begin the next sentence almost
+/// immediately. A new sentence suspends the pending flush but keeps the text
+/// already collected; its eventual `SentenceEnd` appends to the same turn and
+/// starts a fresh silence window.
+@visibleForTesting
+class PersonaChatSentenceDebouncer {
+  PersonaChatSentenceDebouncer({required this.onFlush});
+
+  final ValueChanged<String> onFlush;
+  final StringBuffer _buffer = StringBuffer();
+  Timer? _timer;
+
+  void sentenceBegin() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  void sentenceEnd(String text, {required Duration debounceWindow}) {
+    final normalized = text.trim();
+    if (normalized.isEmpty) return;
+    if (_buffer.isNotEmpty) _buffer.write(' ');
+    _buffer.write(normalized);
+    _timer?.cancel();
+    _timer = Timer(debounceWindow, _flush);
+  }
+
+  void cancel() {
+    sentenceBegin();
+    _buffer.clear();
+  }
+
+  void _flush() {
+    _timer = null;
+    final text = _buffer.toString().trim();
+    _buffer.clear();
+    if (text.isNotEmpty) onFlush(text);
+  }
+}
+
 class _VoiceModeOpening {
   const _VoiceModeOpening({required this.text, required this.playbackId});
 
@@ -451,6 +510,10 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   // message sends populate this with one id. Retracting any one cancels the
   // whole batch.
   final Set<int> _activeUserMessageIds = {};
+  // A persisted user message may briefly remain in the pending queue after a
+  // racing voice flush. Once a reply is saved for that id, never consume it as
+  // a second LLM turn.
+  final Set<int> _answeredUserMessageIds = {};
   String? _activeStreamingCharacterId;
   final Set<int> _canceledSendSerials = {};
   final Set<int> _retractedUserMessageIds = {};
@@ -650,6 +713,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   int? _autoReadWatermarkId;
   bool _isTtsLoading = false;
   bool _autoReadEnabled = false;
+
   /// Which TTS provider the auto-read button activates. 'elevenlabs' or
   /// 'minimax'. Controlled by the two auto-read buttons in the header; manual
   /// play and inline voice mode both follow this.
@@ -665,8 +729,8 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   int _voiceModeIdleFollowUpSerial = 0;
   int _ttsRequestSerial = 0;
   StreamingTtsSession? _streamingTtsSession;
-  Timer? _sentenceDebounceTimer;
-  final _sentenceDebounceBuffer = StringBuffer();
+  late final PersonaChatSentenceDebouncer _sentenceDebouncer =
+      PersonaChatSentenceDebouncer(onFlush: _flushSentenceDebounce);
   static const _sentenceDebounceWindow = Duration(milliseconds: 2000);
   // Longer window after a barge-in so the user has time to finish a multi-
   // sentence correction ("不对，我说的是… 其实是…") before we flush.
@@ -1074,18 +1138,14 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   }
 
   Future<void> _toggleVoiceModeMicrophone() async {
-    if (!mounted || !_isInlineVoiceMode) {
-      return;
-    }
+    if (!mounted || !_isInlineVoiceMode) return;
     final micSerial = ++_voiceModeMicSerial;
     final mute = !_isVoiceModeMicMuted;
     setState(() => _isVoiceModeMicMuted = mute);
 
     if (mute) {
       _voiceModeStartQueued = false;
-      _sentenceDebounceTimer?.cancel();
-      _sentenceDebounceTimer = null;
-      _sentenceDebounceBuffer.clear();
+      _sentenceDebouncer.cancel();
       _inBargeInFollowUp = false;
       if (_voiceController.isStreaming) {
         await _voiceController.cancelStreaming();
@@ -1174,12 +1234,15 @@ only after you have written the goodbye you want the user to hear.''',
   /// - [SentenceEndEvent]: if TTS is playing, stop it (barge-in) then accumulate
   ///   text in a debounce buffer. If no new sentence arrives within
   ///   [_sentenceDebounceWindow] (2.0s), dispatch the combined text to the LLM.
-  /// - [SentenceBeginEvent]: no-op.
+  /// - [SentenceBeginEvent]: suspend any pending flush while preserving the
+  ///   previous sentence, so a continuation already in progress stays in the
+  ///   same user turn.
   /// - [TranscriptionResultChangedEvent]: no-op.
   void _onStreamingAsrEvent(StreamingAsrEvent event) {
     if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
     switch (event) {
       case SentenceBeginEvent():
+        _sentenceDebouncer.sentenceBegin();
         break;
       case SentenceEndEvent():
         final text = event.text.trim();
@@ -1195,14 +1258,11 @@ only after you have written the goodbye you want the user to hear.''',
           unawaited(_stopTtsPlayback());
           _inBargeInFollowUp = true;
         }
-        if (_sentenceDebounceBuffer.isNotEmpty) {
-          _sentenceDebounceBuffer.write(' ');
-        }
-        _sentenceDebounceBuffer.write(text);
-        _sentenceDebounceTimer?.cancel();
-        _sentenceDebounceTimer = Timer(
-          _inBargeInFollowUp ? _bargeInDebounceWindow : _sentenceDebounceWindow,
-          _flushSentenceDebounce,
+        _sentenceDebouncer.sentenceEnd(
+          text,
+          debounceWindow: _inBargeInFollowUp
+              ? _bargeInDebounceWindow
+              : _sentenceDebounceWindow,
         );
         break;
       case TranscriptionResultChangedEvent():
@@ -1210,12 +1270,8 @@ only after you have written the goodbye you want the user to hear.''',
     }
   }
 
-  void _flushSentenceDebounce() {
-    _sentenceDebounceTimer = null;
+  void _flushSentenceDebounce(String text) {
     _inBargeInFollowUp = false;
-    final text = _sentenceDebounceBuffer.toString().trim();
-    _sentenceDebounceBuffer.clear();
-    if (text.isEmpty) return;
     if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
     _voiceModeSilentFollowUps = 0;
     _textController.text = text;
@@ -1629,9 +1685,7 @@ only after you have written the goodbye you want the user to hear.''',
       }
     } catch (e) {
       if (forceClose) return '我先不吵你了，闭上眼睛好好睡。晚安。';
-      return isSleepCoaxing
-          ? '我在呢，不用说话，闭上眼睛就好。'
-          : '喂？还在吗？';
+      return isSleepCoaxing ? '我在呢，不用说话，闭上眼睛就好。' : '喂？还在吗？';
     } finally {
       if (mounted && serial == _voiceModeIdleFollowUpSerial) {
         setState(() {
@@ -1645,9 +1699,7 @@ only after you have written the goodbye you want the user to hear.''',
     final text = lastChunk.trim();
     if (text.isNotEmpty) return text;
     if (forceClose) return '我先不吵你了，闭上眼睛好好睡。晚安。';
-    return isSleepCoaxing
-        ? '我在呢，不用说话，闭上眼睛就好。'
-        : '喂？还在吗？';
+    return isSleepCoaxing ? '我在呢，不用说话，闭上眼睛就好。' : '喂？还在吗？';
   }
 
   Future<void> _initMediaButtons() async {
@@ -1924,7 +1976,7 @@ only after you have written the goodbye you want the user to hear.''',
     _composerFocus.dispose();
     _scrollController.dispose();
     _highlightTimer?.cancel();
-    _sentenceDebounceTimer?.cancel();
+    _sentenceDebouncer.cancel();
     _retractToastTimer?.cancel();
     _audioCompleteSub?.cancel();
     _audioStateSub?.cancel();
@@ -2618,6 +2670,7 @@ only after you have written the goodbye you want the user to hear.''',
           timestamp: DateTime.now(),
         );
         responsePersisted = true;
+        _markBatchAnswered(batch);
 
         if (_isAppInBackground && sendCharacter != null) {
           final preview = cleanResponse.length > 100
@@ -2765,6 +2818,7 @@ only after you have written the goodbye you want the user to hear.''',
           isRead: !_isAppInBackground,
           timestamp: DateTime.now(),
         );
+        _markBatchAnswered(batch);
       }
 
       final updated = await _chatService.getMessages(
@@ -2860,6 +2914,10 @@ only after you have written the goodbye you want the user to hear.''',
   /// call; the persisted user messages from the queue-while-streaming path are
   /// reused without re-persisting.
   Future<void> _sendBatch(_PendingBatch batch) async {
+    if (_batchWasAlreadyAnswered(batch)) {
+      _sendPendingMessage();
+      return;
+    }
     // Synchronous send lock for the persist window below (compose batches await
     // image compression + addUserMessage before _runBatchSend would claim it).
     // Stops a concurrent direct _sendMessage from dispatching a second turn.
@@ -3028,12 +3086,36 @@ only after you have written the goodbye you want the user to hear.''',
     );
   }
 
-  /// If the user queued a message while the character was streaming, send it
-  /// now that the response has finished.
+  bool _batchWasAlreadyAnswered(_PendingBatch batch) {
+    return personaChatPendingBatchWasAlreadyAnswered(
+      pendingMessageIds: batch.persistedMessageIds,
+      answeredMessageIds: _answeredUserMessageIds,
+    );
+  }
+
+  void _markBatchAnswered(_PendingBatch batch) {
+    _answeredUserMessageIds.addAll(
+      batch.persistedMessageIds.where((id) => id > 0),
+    );
+  }
+
+  /// Sends the next queued user turn only after both reply generation and its
+  /// spoken playback have finished. Drops any stale queue entry whose persisted
+  /// user message already received a reply.
   void _sendPendingMessage() {
-    if (_pendingBatches.isEmpty) return;
-    final batch = _pendingBatches.removeAt(0);
-    unawaited(_sendBatch(batch));
+    if (!personaChatCanDispatchPendingBatch(
+      isStreaming: _isStreaming,
+      isRoleVoiceActive: _isRoleVoiceActive,
+    )) {
+      return;
+    }
+
+    while (_pendingBatches.isNotEmpty) {
+      final batch = _pendingBatches.removeAt(0);
+      if (_batchWasAlreadyAnswered(batch)) continue;
+      unawaited(_sendBatch(batch));
+      return;
+    }
   }
 
   /// Continuous-mode driver: called after a reply finishes streaming. Starts a
@@ -3160,8 +3242,9 @@ only after you have written the goodbye you want the user to hear.''',
   /// Visible affordance shown while a continuous run is active.
   Widget _buildContinuousModeStopChip() {
     final remaining = ContinuousModeState.instance.remaining;
+    final tokens = HereIamThemeRuntime.current;
     return Material(
-      color: Colors.black54,
+      color: tokens.surface.withValues(alpha: 0.92),
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -3171,14 +3254,15 @@ only after you have written the goodbye you want the user to hear.''',
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.stop_circle_outlined, size: 16),
+              Icon(Icons.stop_circle_outlined,
+                  size: 16, color: tokens.highlight),
               const SizedBox(width: 6),
               Text(
                 _chatUiText(
                   zh: '连续叙述中 · 剩余 $remaining 条 · 点按停止',
                   en: 'Narrating… $remaining left · tap to stop',
                 ),
-                style: const TextStyle(fontSize: 12),
+                style: TextStyle(fontSize: 12, color: tokens.textPrimary),
               ),
             ],
           ),
@@ -4053,8 +4137,8 @@ only after you have written the goodbye you want the user to hear.''',
       builder: (ctx) => AlertDialog(
         backgroundColor: SpringRainUiTokens.daylight.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(
-              SpringRainUiTokens.daylight.radius14),
+          borderRadius:
+              BorderRadius.circular(SpringRainUiTokens.daylight.radius14),
         ),
         title: Text(
           _chatUiText(zh: '加入话题线索？', en: 'Add to topic thread?'),
@@ -4138,8 +4222,8 @@ only after you have written the goodbye you want the user to hear.''',
       builder: (context) => AlertDialog(
         backgroundColor: SpringRainUiTokens.daylight.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(
-              SpringRainUiTokens.daylight.radius14),
+          borderRadius:
+              BorderRadius.circular(SpringRainUiTokens.daylight.radius14),
         ),
         title: Text(_chatUiText(zh: '删除消息', en: 'Delete messages'),
             style: TextStyle(
@@ -4147,10 +4231,11 @@ only after you have written the goodbye you want the user to hear.''',
               fontSize: 17,
               fontWeight: FontWeight.w600,
             )),
-        content: Text(_chatUiText(
-          zh: '确定要删除选中的 ${_selectedMessageIds.length} 条消息吗？删除后将不会被提取到记忆中。',
-          en: 'Delete ${_selectedMessageIds.length} selected message(s)? They will not be extracted into memory.',
-        ),
+        content: Text(
+            _chatUiText(
+              zh: '确定要删除选中的 ${_selectedMessageIds.length} 条消息吗？删除后将不会被提取到记忆中。',
+              en: 'Delete ${_selectedMessageIds.length} selected message(s)? They will not be extracted into memory.',
+            ),
             style: TextStyle(
               color: SpringRainUiTokens.daylight.textSecondary,
               fontSize: 14,
@@ -4664,9 +4749,7 @@ only after you have written the goodbye you want the user to hear.''',
       _voiceModeIdleFollowUpSerial++;
       _voiceModeOpeningInProgress = false;
       _voiceModeStartQueued = false;
-      _sentenceDebounceTimer?.cancel();
-      _sentenceDebounceTimer = null;
-      _sentenceDebounceBuffer.clear();
+      _sentenceDebouncer.cancel();
       _inBargeInFollowUp = false;
       // Hang-up must unlock the UI immediately. Invalidate any in-flight LLM
       // turn and force-reset the streaming state, otherwise two paths leave
@@ -4782,6 +4865,10 @@ only after you have written the goodbye you want the user to hear.''',
       _playingMessageId = null;
       _isTtsLoading = false;
     });
+    if (_pendingBatches.isNotEmpty) {
+      _sendPendingMessage();
+      if (_isStreaming) return;
+    }
     if (_isInlineVoiceMode &&
         !_isVoiceModeMicMuted &&
         _voiceController.isStreaming) {
@@ -4837,8 +4924,8 @@ only after you have written the goodbye you want the user to hear.''',
       builder: (ctx) => AlertDialog(
         backgroundColor: SpringRainUiTokens.daylight.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(
-              SpringRainUiTokens.daylight.radius14),
+          borderRadius:
+              BorderRadius.circular(SpringRainUiTokens.daylight.radius14),
         ),
         title: Text('删除这条消息？',
             style: TextStyle(
@@ -4862,8 +4949,7 @@ only after you have written the goodbye you want the user to hear.''',
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text('删除',
-                style:
-                    TextStyle(color: SpringRainUiTokens.daylight.error)),
+                style: TextStyle(color: SpringRainUiTokens.daylight.error)),
           ),
         ],
       ),
@@ -4951,7 +5037,8 @@ only after you have written the goodbye you want the user to hear.''',
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('请先在声音与互动中配置 TTS Voice ID')));
+        ).showSnackBar(
+            const SnackBar(content: Text('请先在声音与互动中配置 TTS Voice ID')));
       }
       return;
     }
@@ -6224,6 +6311,34 @@ only after you have written the goodbye you want the user to hear.''',
       final widgets = <Widget>[];
       for (var i = 0; i < attachments.length; i++) {
         final att = attachments[i];
+        if (att is! Map) continue;
+        final type = att['type'] as String?;
+
+        // Sticker attachments render from asset path, not base64.
+        if (type == 'sticker') {
+          final assetPath = att['assetPath'] as String?;
+          if (assetPath == null || assetPath.isEmpty) continue;
+          widgets.add(
+            Padding(
+              key: ValueKey('chat-sticker-$messageId-$i'),
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Image.asset(
+                  assetPath,
+                  width: 128,
+                  height: 128,
+                  fit: BoxFit.contain,
+                  gaplessPlayback: true,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          );
+          continue;
+        }
+
         final base64 = att['base64'] as String;
         final cacheKey = messageId * 1000 + i;
         Uint8List? bytes = _imageByteCache[cacheKey];
@@ -6655,8 +6770,7 @@ only after you have written the goodbye you want the user to hear.''',
           : UserStorage.l10n.personaChatInputHint,
       voiceController: _voiceController,
       onVoiceTap: _onVoiceToggle,
-      isVoiceInputEnabled:
-          _isInlineVoiceMode ? true : !_isVoiceReplyActive,
+      isVoiceInputEnabled: _isInlineVoiceMode ? true : !_isVoiceReplyActive,
       isVoiceModeActive: _isInlineVoiceMode,
       isVoiceModeMicMuted: _isVoiceModeMicMuted,
       onVoiceModeTap: () => unawaited(_setInlineVoiceMode(!_isInlineVoiceMode)),
@@ -8215,8 +8329,7 @@ class PersonaChatInputBar extends StatelessWidget {
                                       showVoiceModeEnd: isVoiceModeActive,
                                       voiceController: voiceController,
                                       onVoiceTap: onVoiceTap,
-                                      isVoiceModeMicMuted:
-                                          isVoiceModeMicMuted,
+                                      isVoiceModeMicMuted: isVoiceModeMicMuted,
                                       isComposeMode: isComposeMode,
                                       onLongPress: isStreaming
                                           ? null

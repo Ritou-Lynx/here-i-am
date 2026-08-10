@@ -42,19 +42,24 @@ class XiaohongshuFetcher implements ReadingFetcher {
         );
       }
       if ((raw.title == null || raw.title!.isEmpty) &&
-          (raw.contentFull == null || raw.contentFull!.isEmpty)) {
+          (raw.contentFull == null || raw.contentFull!.isEmpty) &&
+          raw.comments.isEmpty) {
         return const ReadingFetchResult.failure(
           'XHS note returned empty content (login expired? note deleted?)',
         );
       }
+      final contentFull = buildXiaohongshuContent(
+        body: raw.contentFull,
+        comments: raw.comments,
+      );
       return ReadingFetchResult(
         success: true,
         title: raw.title,
         author: raw.author,
         coverUrl: raw.coverUrl,
         imageUrls: raw.imageUrls,
-        contentExcerpt: buildContentExcerpt(raw.contentFull),
-        contentFull: raw.contentFull,
+        contentExcerpt: buildContentExcerpt(contentFull),
+        contentFull: contentFull,
       );
     } catch (e, stack) {
       _logger.warning('XHS fetch crashed', e, stack);
@@ -62,3 +67,41 @@ class XiaohongshuFetcher implements ReadingFetcher {
     }
   }
 }
+
+/// Combines the note description with the first visible top-level comments.
+/// Comment images and nested replies never enter this representation.
+String? buildXiaohongshuContent({
+  required String? body,
+  required List<XhsRawComment> comments,
+}) {
+  final cleanBody = body?.trim();
+  final cleanComments = comments
+      .where((comment) =>
+          comment.nickname.trim().isNotEmpty &&
+          comment.content.trim().isNotEmpty)
+      .take(10)
+      .toList(growable: false);
+  if ((cleanBody == null || cleanBody.isEmpty) && cleanComments.isEmpty) {
+    return null;
+  }
+
+  final buffer = StringBuffer();
+  if (cleanBody != null && cleanBody.isNotEmpty) {
+    buffer.write(cleanBody);
+  }
+  if (cleanComments.isNotEmpty) {
+    if (buffer.isNotEmpty) buffer.write('\n\n');
+    buffer.writeln('---');
+    buffer.writeln('评论区（前 ${cleanComments.length} 条）：');
+    for (var i = 0; i < cleanComments.length; i++) {
+      final comment = cleanComments[i];
+      final nickname = _collapseWhitespace(comment.nickname);
+      final content = _collapseWhitespace(comment.content);
+      buffer.writeln('${i + 1}. $nickname：$content');
+    }
+  }
+  return buffer.toString().trimRight();
+}
+
+String _collapseWhitespace(String value) =>
+    value.replaceAll(RegExp(r'\s+'), ' ').trim();

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
@@ -59,6 +60,10 @@ class MiniMaxSpeechScript {
 class MiniMaxTtsService {
   static const _baseUrl = 'https://api.minimax.chat';
   static const _model = 'speech-2.8-hd';
+  // v2 excludes MiniMax's status=2 completion payload from streamed audio.
+  // Include it in the cache key so files produced by the old concatenation
+  // behavior are never replayed after the parser is fixed.
+  static const _cacheVersion = 'v2-stream-completion-filter';
   static const _stablePitch = 0;
   static final _log = getLogger('MiniMaxTts');
 
@@ -67,28 +72,28 @@ class MiniMaxTtsService {
   /// @see https://platform.minimax.io/docs (T2A v2 — Sound Tags)
   static const _allowedSoundTags = {
     // 笑/哭类
-    'laughs',      // 笑声
-    'chuckle',     // 轻笑
-    'sniffs',      // 吸鼻子
-    'sighs',       // 叹气
+    'laughs', // 笑声
+    'chuckle', // 轻笑
+    'sniffs', // 吸鼻子
+    'sighs', // 叹气
     // 呼吸类
-    'breath',      // 正常换气
-    'pant',        // 喘气
-    'inhale',      // 吸气
-    'exhale',      // 呼气
-    'gasps',       // 倒吸气
+    'breath', // 正常换气
+    'pant', // 喘气
+    'inhale', // 吸气
+    'exhale', // 呼气
+    'gasps', // 倒吸气
     // 生理类
-    'coughs',      // 咳嗽
-    'snorts',      // 喷鼻息
-    'clear-throat',// 清嗓子
-    'burps',       // 打嗝
-    'groans',      // 呻吟
-    'sneezes',    // 喷嚏
-    'hissing',     // 嘶嘶声
-    'lip-smacking',// 咂嘴
+    'coughs', // 咳嗽
+    'snorts', // 喷鼻息
+    'clear-throat', // 清嗓子
+    'burps', // 打嗝
+    'groans', // 呻吟
+    'sneezes', // 喷嚏
+    'hissing', // 嘶嘶声
+    'lip-smacking', // 咂嘴
     // 声音类
-    'humming',     // 哼唱
-    'emm',         // 嗯
+    'humming', // 哼唱
+    'emm', // 嗯
   };
 
   /// Generate speech for [text] using [voiceId]. Returns path to local audio file.
@@ -248,15 +253,8 @@ class MiniMaxTtsService {
             final jsonStr = line.substring(5).trim();
             if (jsonStr.isEmpty || jsonStr == '[DONE]') continue;
             try {
-              final json = jsonDecode(jsonStr);
-              final statusCode = json['base_resp']?['status_code'];
-              if (statusCode != null && statusCode != 0) {
-                final msg = json['base_resp']?['status_msg'] ?? 'unknown error';
-                throw Exception('MiniMax API error: $msg');
-              }
-              final audioHex = json['data']?['audio'] as String?;
-              if (audioHex != null && audioHex.isNotEmpty) {
-                final bytes = _hexDecode(audioHex);
+              final bytes = decodeStreamingAudioEvent(jsonStr);
+              if (bytes != null) {
                 sink.add(bytes);
                 yield bytes;
               }
@@ -273,10 +271,8 @@ class MiniMaxTtsService {
           final jsonStr = remaining.substring(5).trim();
           if (jsonStr.isNotEmpty && jsonStr != '[DONE]') {
             try {
-              final json = jsonDecode(jsonStr);
-              final audioHex = json['data']?['audio'] as String?;
-              if (audioHex != null && audioHex.isNotEmpty) {
-                final bytes = _hexDecode(audioHex);
+              final bytes = decodeStreamingAudioEvent(jsonStr);
+              if (bytes != null) {
                 sink.add(bytes);
                 yield bytes;
               }
@@ -293,6 +289,36 @@ class MiniMaxTtsService {
     } finally {
       client.close();
     }
+  }
+
+  /// Decodes one MiniMax streaming SSE payload.
+  ///
+  /// MiniMax sends incremental audio while `data.status` is not 2, followed by
+  /// a status=2 completion event whose `audio` can contain the complete clip.
+  /// Appending that final payload after the incremental chunks makes each
+  /// sentence repeat inside the cached MP3, so completion events are control
+  /// messages and must not be emitted as audio.
+  @visibleForTesting
+  static List<int>? decodeStreamingAudioEvent(String jsonText) {
+    final json = jsonDecode(jsonText);
+    if (json is! Map<String, dynamic>) return null;
+
+    final baseResponse = json['base_resp'];
+    final statusCode = baseResponse is Map ? baseResponse['status_code'] : null;
+    if (statusCode != null && statusCode != 0) {
+      final message = baseResponse is Map
+          ? baseResponse['status_msg'] ?? 'unknown error'
+          : 'unknown error';
+      throw Exception('MiniMax API error: $message');
+    }
+
+    final data = json['data'];
+    if (data is! Map) return null;
+    if (data['status'] == 2) return null;
+
+    final audioHex = data['audio'];
+    if (audioHex is! String || audioHex.isEmpty) return null;
+    return _hexDecode(audioHex);
   }
 
   static List<int> _hexDecode(String hex) {
@@ -491,7 +517,8 @@ class MiniMaxTtsService {
       _ => null,
     };
     if (tag == null) return text;
-    final punctMatch = RegExp(r'^([^，。！？!?;；,.\s]+[，。！？!?;；,.\s])').firstMatch(text);
+    final punctMatch =
+        RegExp(r'^([^，。！？!?;；,.\s]+[，。！？!?;；,.\s])').firstMatch(text);
     if (punctMatch == null) return '$text $tag';
     final splitAt = punctMatch.end;
     return '${text.substring(0, splitAt)}$tag ${text.substring(splitAt)}';
@@ -544,7 +571,9 @@ class MiniMaxTtsService {
   }
 
   static String _cacheKey(MiniMaxSpeechScript script, String voiceId) {
-    final bytes = utf8.encode('$_model:$voiceId:${script.cacheSignature}');
+    final bytes = utf8.encode(
+      '$_cacheVersion:$_model:$voiceId:${script.cacheSignature}',
+    );
     return sha256.convert(bytes).toString();
   }
 

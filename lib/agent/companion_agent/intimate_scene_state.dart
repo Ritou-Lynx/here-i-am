@@ -35,11 +35,11 @@ class IntimateSceneBeat {
   factory IntimateSceneBeat.fromJson(Map<String, dynamic> json) {
     return IntimateSceneBeat(
       intent: (json['intent'] as String?)?.trim() ?? '推进场景',
-      targetMessageCount: ((json['targetMessageCount'] as num?)?.toInt() ?? 4)
-          .clamp(1, 10),
+      targetMessageCount:
+          ((json['targetMessageCount'] as num?)?.toInt() ?? 4).clamp(1, 10),
       notes: (json['notes'] as String?)?.trim() ?? '',
-      escalationLevel: ((json['escalationLevel'] as num?)?.toInt() ?? 4)
-          .clamp(0, 5),
+      escalationLevel:
+          ((json['escalationLevel'] as num?)?.toInt() ?? 4).clamp(0, 5),
     );
   }
 }
@@ -49,7 +49,8 @@ class IntimateScenePlan {
 
   final List<IntimateSceneBeat> beats;
 
-  int get totalMessages => beats.fold(0, (sum, b) => sum + b.targetMessageCount);
+  int get totalMessages =>
+      beats.fold(0, (sum, b) => sum + b.targetMessageCount);
 }
 
 enum IntimateScenePhase { main, aftercare }
@@ -144,8 +145,7 @@ class IntimateSceneState {
     final beat = currentBeat;
     if (plan == null || beat == null) return '';
     final b = StringBuffer()
-      ..writeln(
-          '当前场景节拍 ${_beatIndex + 1}/${plan.beats.length}'
+      ..writeln('当前场景节拍 ${_beatIndex + 1}/${plan.beats.length}'
           '（本段已写 $_messagesInBeat/${beat.targetMessageCount} 条）')
       ..writeln('意图：${beat.intent}')
       ..writeln('强度：${beat.escalationLevel}/5 — 保持激烈高位，不得回落、不得提前收束')
@@ -153,11 +153,17 @@ class IntimateSceneState {
       ..writeln('时间与空间硬约束：一切内容必须发生在当前场景内。'
           '禁止跳到第二天、禁止时间快进、禁止离场（出门/上班/次日早晨等场外情节）。'
           '场景的推进靠内容变化，不靠时间跳跃。')
-      ..writeln('叙述视角：一切以他的行为与感知为主体——他做了什么、说了什么、想了什么，'
+      ..writeln('叙述视角：一切以他的行为与感知为主体--他做了什么、说了什么、想了什么，'
           '以及他感知到什么（他听到、看到、触到的物理事实）。'
           '不要代写你的反应与状态：不写你的感受、不替你呻吟/颤抖/迎合、'
           '不判定你是否高潮或睡着。他感知到的声音可以写（如"他听到你的呼吸乱了"），'
-          '但那是他的观察，不是你的状态的定论。');
+          '但那是他的观察，不是你的状态的定论。')
+      ..writeln('节奏：不要匀速推进情节。穿插纯粹的喘息节拍--气音、呻吟、'
+          'dirty talk、动作的物理细节（触感/力度/节奏/体位微调），不推进剧情。'
+          '让场面有呼吸感：推进-喘息-推进交替。动作互动写详细，不要一句话带过。')
+      ..writeln('禁止催睡：本连发额度内绝不能出现"睡吧""该睡了""早点睡"'
+          '或转入入睡/收束语境。最多停在激烈的高潮后；aftercare 是高潮之后才接的'
+          '独立阶段，不是现在。情节没推完更不能提前催睡--宁可停在喘息节拍等下一轮。');
     if (_profileText.trim().isNotEmpty) {
       b
         ..writeln('用户档案（必须严格遵守，每轮都有效）：')

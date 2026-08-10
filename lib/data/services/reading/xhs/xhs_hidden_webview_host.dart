@@ -16,6 +16,7 @@ class XhsRawContent {
     this.author,
     this.coverUrl,
     this.imageUrls = const [],
+    this.comments = const [],
     this.contentFull,
     this.errorMessage,
   });
@@ -26,6 +27,7 @@ class XhsRawContent {
         author = null,
         coverUrl = null,
         imageUrls = const [],
+        comments = const [],
         contentFull = null,
         errorMessage = message;
 
@@ -38,8 +40,22 @@ class XhsRawContent {
   /// [coverUrl]. Empty when the note is text-only.
   final List<String> imageUrls;
 
+  /// The first visible top-level comments, in page order. Comment images and
+  /// nested replies are intentionally excluded.
+  final List<XhsRawComment> comments;
+
   final String? contentFull;
   final String? errorMessage;
+}
+
+class XhsRawComment {
+  const XhsRawComment({
+    required this.nickname,
+    required this.content,
+  });
+
+  final String nickname;
+  final String content;
 }
 
 class _XhsFetchRequest {
@@ -104,8 +120,7 @@ class _XhsHiddenWebViewHostState extends State<XhsHiddenWebViewHost> {
   // Match XhsConnectPage's desktop UA so the session cookie minted at
   // login time is recognised here. (Mobile UA would land on the
   // download-the-App shell where login controls don't even exist.)
-  static const _desktopUserAgent =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+  static const _desktopUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
       'AppleWebKit/537.36 (KHTML, like Gecko) '
       'Chrome/120.0.0.0 Safari/537.36';
 
@@ -137,6 +152,111 @@ class _XhsHiddenWebViewHostState extends State<XhsHiddenWebViewHost> {
     }
     return null;
   }
+  function normalizedText(value) {
+    if (!value || typeof value !== 'string') return null;
+    const text = value.replace(/\s+/g, ' ').trim();
+    return text.length > 0 ? text : null;
+  }
+  const commentContainerSelector = [
+    '.comments-container',
+    '.comment-list',
+    '.list-container[class*="comment"]',
+    '[class*="comments-container"]',
+    '[class*="comment-list"]',
+  ].join(',');
+  function isInsideComments(el) {
+    if (!el || !el.closest) return false;
+    return !!el.closest(commentContainerSelector);
+  }
+  function collectTopComments() {
+    const rootSelectors = [
+      '.comments-container .parent-comment',
+      '[class*="comments-container"] .parent-comment',
+      '.comments-container > .comment-list > .comment-item',
+      '.comments-container > .list-container > .comment-item',
+      '#noteContainer .comment-list > .comment-item',
+    ];
+    let roots = [];
+    for (const selector of rootSelectors) {
+      roots = Array.from(document.querySelectorAll(selector));
+      if (roots.length > 0) break;
+    }
+    // Conservative fallback for class-name variants: keep only comment items
+    // that are not nested inside another comment item, so replies stay out.
+    if (roots.length === 0) {
+      roots = Array.from(document.querySelectorAll([
+        '.comments-container .comment-item',
+        '[class*="comments-container"] [class*="comment-item"]',
+      ].join(','))).filter(node => {
+        const parent = node.parentElement;
+        return !parent || !parent.closest('.comment-item,[class*="comment-item"]');
+      });
+    }
+
+    const comments = [];
+    const seen = new Set();
+    for (const root of roots) {
+      if (comments.length >= 10) break;
+      // A parent-comment wrapper normally contains its own comment-item first,
+      // followed by a reply container. Scope extraction to that first item.
+      const item = root.matches('.comment-item,[class*="comment-item"]')
+        ? root
+        : (root.querySelector(':scope > .comment-item') || root);
+      const nicknameSelectors = [
+        '.comment-inner-container .author .name',
+        '.comment-inner-container .author',
+        '.author .name',
+        '.user-info .name',
+        '.username',
+        'a.name',
+        '[class*="author"] [class*="name"]',
+      ];
+      const contentSelectors = [
+        '.comment-inner-container .content',
+        '.right .content',
+        '.comment-content',
+        '.note-text',
+        '[class*="comment-content"]',
+        '[class~="content"]',
+      ];
+      let nickname = null;
+      for (const selector of nicknameSelectors) {
+        const el = item.querySelector(selector);
+        nickname = normalizedText(el && el.textContent);
+        if (nickname) break;
+      }
+      nickname = nickname || normalizedText(item.getAttribute('data-user-name'));
+
+      let content = null;
+      for (const selector of contentSelectors) {
+        const el = item.querySelector(selector);
+        content = normalizedText(el && el.textContent);
+        if (content) break;
+      }
+      if (!nickname || !content) continue;
+      const key = nickname + '\n' + content;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      comments.push({ nickname, content });
+    }
+    return comments;
+  }
+  function nudgeCommentLoading() {
+    const container = document.querySelector([
+      '.comments-container',
+      '[class*="comments-container"]',
+      '.comment-list',
+    ].join(','));
+    if (!container) return;
+    try {
+      container.scrollIntoView({ block: 'nearest' });
+      if (container.scrollHeight > container.clientHeight) {
+        const step = Math.max(container.clientHeight * 0.75, 320);
+        container.scrollTop = Math.min(container.scrollTop + step,
+                                       container.scrollHeight);
+      }
+    } catch (_) {}
+  }
   // Collect every image URL on the note page. XHS uses three patterns:
   //   (a) <img src> / data-src (rare on detail pages)
   //   (b) lazy-load attrs on <img> like data-xhs-img / data-original-src
@@ -148,6 +268,7 @@ class _XhsHiddenWebViewHostState extends State<XhsHiddenWebViewHost> {
     const seen = new Set();
     const debug = { candidates: 0, skipped_non_http: 0,
                     skipped_avatar: 0, skipped_icon: 0,
+                    skipped_comment: 0,
                     skipped_dup: 0, by_source: {},
                     total_img: 0, total_bg_scanned: 0,
                     total_html_matches: 0 };
@@ -178,6 +299,10 @@ class _XhsHiddenWebViewHostState extends State<XhsHiddenWebViewHost> {
     const allImgs = document.querySelectorAll('img');
     debug.total_img = allImgs.length;
     allImgs.forEach(img => {
+      if (isInsideComments(img)) {
+        debug.skipped_comment++;
+        return;
+      }
       consider(img.getAttribute('src'), 'img.src');
       for (const attr of img.attributes) {
         const name = attr.name;
@@ -200,6 +325,10 @@ class _XhsHiddenWebViewHostState extends State<XhsHiddenWebViewHost> {
     }
     containers.forEach(container => {
       container.querySelectorAll('*').forEach(el => {
+        if (isInsideComments(el)) {
+          debug.skipped_comment++;
+          return;
+        }
         debug.total_bg_scanned++;
         try {
           const bg = window.getComputedStyle(el).backgroundImage;
@@ -216,7 +345,13 @@ class _XhsHiddenWebViewHostState extends State<XhsHiddenWebViewHost> {
     // over the whole HTML catches them even when they aren't in any
     // rendered element.
     try {
-      const html = document.documentElement.outerHTML;
+      // Remove comment containers from the cloned DOM before scanning raw
+      // HTML. This closes the fallback path that could otherwise send a
+      // comment attachment through the note-image OCR pipeline.
+      const clone = document.documentElement.cloneNode(true);
+      clone.querySelectorAll(commentContainerSelector)
+        .forEach(el => el.remove());
+      const html = clone.outerHTML;
       const pattern = /https?:\/\/(?:sns-webpic[^"'\\\s)<>]+|sns-img[^"'\\\s)<>]+|ci\.xiaohongshu\.com[^"'\\\s)<>]+|picasso-static\.xiaohongshu\.com[^"'\\\s)<>]+|xhscdn\.com[^"'\\\s)<>]+)/g;
       const matches = html.match(pattern) || [];
       debug.total_html_matches = matches.length;
@@ -250,6 +385,7 @@ class _XhsHiddenWebViewHostState extends State<XhsHiddenWebViewHost> {
       'src',
     );
     const imageResult = collectImageUrls();
+    const comments = collectTopComments();
     // Note body: prefer the explicit detail-desc container; fall back to
     // the desc paragraphs and finally to a generic note-content scrape.
     const body = pickText([
@@ -261,29 +397,38 @@ class _XhsHiddenWebViewHostState extends State<XhsHiddenWebViewHost> {
       title, author, cover, body,
       images: imageResult.urls,
       imagesDebug: imageResult.debug,
+      comments,
     };
   }
-  const initial = tryExtract();
-  if (initial.title || initial.body) {
-    XhsBridge.postMessage(JSON.stringify({ ok: true, data: initial }));
-    return;
-  }
-  // Otherwise retry up to 6 times at 400ms intervals.
+  let best = tryExtract();
+  // Comments often render after the note body. Keep a short retry window and
+  // nudge the comment pane so its first page is mounted, but do not attempt to
+  // load all comments or expand replies.
+  if (best.comments.length < 10) nudgeCommentLoading();
   let attempts = 0;
   const t = setInterval(() => {
     attempts++;
     const got = tryExtract();
-    if (got.title || got.body) {
+    if ((got.title || got.body) &&
+        (!best.title && !best.body || got.comments.length >= best.comments.length)) {
+      best = got;
+    }
+    if ((got.title || got.body) && got.comments.length >= 10) {
       clearInterval(t);
       XhsBridge.postMessage(JSON.stringify({ ok: true, data: got }));
       return;
     }
+    if (got.comments.length < 10) nudgeCommentLoading();
     if (attempts >= 6) {
       clearInterval(t);
-      XhsBridge.postMessage(JSON.stringify({
-        ok: false,
-        error: 'no_content_after_retries',
-      }));
+      if (best.title || best.body) {
+        XhsBridge.postMessage(JSON.stringify({ ok: true, data: best }));
+      } else {
+        XhsBridge.postMessage(JSON.stringify({
+          ok: false,
+          error: 'no_content_after_retries',
+        }));
+      }
     }
   }, 400);
 })();
@@ -355,8 +500,7 @@ window.chrome = window.chrome || { runtime: {} };
             }
             _logger.warning(
                 'WebView resource error: ${err.description} (${err.errorType})');
-            _completeActiveWithFailure(
-                'WebView error: ${err.description}');
+            _completeActiveWithFailure('WebView error: ${err.description}');
           },
         ),
       );
@@ -472,6 +616,20 @@ window.chrome = window.chrome || { runtime: {} };
         if (rawImages is List)
           ...rawImages.whereType<String>().where((s) => s.isNotEmpty),
       ];
+      final rawComments = data['comments'];
+      final comments = <XhsRawComment>[
+        if (rawComments is List)
+          for (final raw in rawComments)
+            if (raw is Map &&
+                raw['nickname'] is String &&
+                raw['content'] is String &&
+                (raw['nickname'] as String).trim().isNotEmpty &&
+                (raw['content'] as String).trim().isNotEmpty)
+              XhsRawComment(
+                nickname: (raw['nickname'] as String).trim(),
+                content: (raw['content'] as String).trim(),
+              ),
+      ];
       // Always log image extractor stats so we can see (in LogViewer)
       // whether the JS scraper actually found pictures and why not when
       // it doesn't.
@@ -479,13 +637,15 @@ window.chrome = window.chrome || { runtime: {} };
       _logger.info(
           'XHS extracted: title=${(data['title'] as String?)?.length ?? 0}c '
           'body=${(data['body'] as String?)?.length ?? 0}c '
-          'images=${imageUrls.length} debug=$imagesDebug');
+          'images=${imageUrls.length} comments=${comments.length} '
+          'debug=$imagesDebug');
       final content = XhsRawContent(
         success: true,
         title: (data['title'] as String?)?.trim(),
         author: (data['author'] as String?)?.trim(),
         coverUrl: (data['cover'] as String?)?.trim(),
         imageUrls: imageUrls,
+        comments: comments,
         contentFull: (data['body'] as String?)?.trim(),
       );
       _activeRequest = null;
@@ -516,8 +676,8 @@ window.chrome = window.chrome || { runtime: {} };
 
   Future<void> _runCookieProbe() async {
     try {
-      final result = await _controller
-          .runJavaScriptReturningResult('document.cookie');
+      final result =
+          await _controller.runJavaScriptReturningResult('document.cookie');
       // result comes back as a JSON-encoded string on Android.
       String raw = result.toString();
       // Strip surrounding quotes if present.
@@ -532,12 +692,10 @@ window.chrome = window.chrome || { runtime: {} };
       // evidence of being logged out, so this probe only ever upgrades
       // false→true. Disconnect must go through XhsCookieRepository.clear()
       // (driven by the user tapping "disconnect" in settings).
-      final alreadyConnected =
-          XhsCookieRepository.instance.isLoggedIn.value;
+      final alreadyConnected = XhsCookieRepository.instance.isLoggedIn.value;
       if (!alreadyConnected && raw.length > 350) {
         _logger.info('Probe detected logged-in cookie state.');
-        XhsCookieRepository.instance
-            .recordSessionCookie('<probe-detected>');
+        XhsCookieRepository.instance.recordSessionCookie('<probe-detected>');
       }
     } catch (e) {
       _logger.fine('Cookie probe failed (likely first run): $e');

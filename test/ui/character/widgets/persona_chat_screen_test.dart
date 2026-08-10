@@ -569,7 +569,8 @@ void main() {
     expect(ordered.map((message) => message.id), [3, 4]);
   });
 
-  test('split character messages share base playback id for TTS cache reuse', () {
+  test('split character messages share base playback id for TTS cache reuse',
+      () {
     final message = _chatMessage(
       id: 7,
       content: '*she nods* I am here.\n*she smiles* Still here.',
@@ -690,6 +691,75 @@ void main() {
     expect(prompt, contains('intimacy'));
     expect(prompt, contains('睡吧'));
     expect(prompt, contains('10 seconds'));
+  });
+
+  test('pending voice turns wait until current TTS playback finishes', () {
+    expect(
+      personaChatCanDispatchPendingBatch(
+        isStreaming: false,
+        isRoleVoiceActive: true,
+      ),
+      isFalse,
+    );
+    expect(
+      personaChatCanDispatchPendingBatch(
+        isStreaming: false,
+        isRoleVoiceActive: false,
+      ),
+      isTrue,
+    );
+  });
+
+  test('a queued persisted user turn cannot receive a second reply', () {
+    expect(
+      personaChatPendingBatchWasAlreadyAnswered(
+        pendingMessageIds: const [5632],
+        answeredMessageIds: const {5632},
+      ),
+      isTrue,
+    );
+    expect(
+      personaChatPendingBatchWasAlreadyAnswered(
+        pendingMessageIds: const [5633],
+        answeredMessageIds: const {5632},
+      ),
+      isFalse,
+    );
+    expect(
+      personaChatPendingBatchWasAlreadyAnswered(
+        pendingMessageIds: const [],
+        answeredMessageIds: const {5632},
+      ),
+      isFalse,
+    );
+  });
+
+  testWidgets(
+      'a new NLS sentence suspends the pending flush and stays in one turn',
+      (tester) async {
+    final flushed = <String>[];
+    final debouncer = PersonaChatSentenceDebouncer(onFlush: flushed.add);
+
+    debouncer.sentenceEnd(
+      '对呀，晚上还要上课。',
+      debounceWindow: const Duration(seconds: 2),
+    );
+    await tester.pump(const Duration(milliseconds: 12));
+    debouncer.sentenceBegin();
+    await tester.pump(const Duration(seconds: 2));
+    expect(flushed, isEmpty);
+
+    debouncer.sentenceEnd(
+      '我这个周末真是对自己太差了。',
+      debounceWindow: const Duration(seconds: 2),
+    );
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(
+      flushed,
+      const ['对呀，晚上还要上课。 我这个周末真是对自己太差了。'],
+    );
+    debouncer.cancel();
   });
 }
 

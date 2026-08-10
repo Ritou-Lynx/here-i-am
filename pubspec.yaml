@@ -140,3 +140,16 @@ flutter:
     - family: LXGW WenKai
       fonts:
         - asset: assets/fonts/LXGWWenKai-Regular.ttf
+    # Inter — bundled locally so GoogleFonts.inter can resolve the common
+    # application weights without a fonts.gstatic.com request on restricted
+    # devices (see the MEEBOOK incident from 2026-08-09).
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter/Inter-Bold.ttf
+          weight: 700

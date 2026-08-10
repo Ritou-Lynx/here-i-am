@@ -82,8 +82,7 @@ class UserStorage {
       'memex_last_auto_backup_fingerprint_';
   static const String _keyAutoCloudSyncEnabledPrefix =
       'memex_auto_cloud_sync_enabled_';
-  static const String _keyLastCloudSyncAtPrefix =
-      'memex_last_cloud_sync_at_';
+  static const String _keyLastCloudSyncAtPrefix = 'memex_last_cloud_sync_at_';
   static const String _keyLastCloudSyncFingerprintPrefix =
       'memex_last_cloud_sync_fingerprint_';
   static const String _keyAndroidBackupTreeUriPrefix =
@@ -485,8 +484,8 @@ class UserStorage {
       if (decoded is! Map) return null;
       final t = decoded['t'];
       if (t is int) {
-        final age = DateTime.now()
-            .difference(DateTime.fromMillisecondsSinceEpoch(t));
+        final age =
+            DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(t));
         if (age > maxAge) return null;
       }
       final e = decoded['e'];
