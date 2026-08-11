@@ -579,17 +579,19 @@ class CompanionAgent {
   /// TTS 语音标签指南——按当前 provider 注入对应标签体系。
   ///
   /// ElevenLabs 和 MiniMax 标签语法完全不同：
-  /// - ElevenLabs v3：`[softly]` `[low voice]` `[pause]` 方括号，控制情绪/呼吸/停顿
+  /// - ElevenLabs v3：`[whispers]` `[breathing heavily]` `[short pause]` 方括号，
+  ///   控制情绪/呼吸/停顿。v3 标签是自然语言表演提示，官方列表 + 实测有效的
+  ///   非官方状态标签（`Voice/ELevenlabs-TTS.md` 实验沉淀）都可用。
   /// - MiniMax speech-2.8-hd：`(breath)` `(sighs)` `(laughs)` 圆括号，停顿由代码
   ///   自动插入（`<#0.42#>`），模型只需写情绪声效标签
   ///
   /// 写错 provider 的标签会被对方忽略或删除，情绪信息丢失。所以指南不能写死在
   /// system prompt 里（会污染另一个 provider），必须 per-turn 按当前 provider 注入。
-  static void _injectTtsTagsGuide(AgentState state) {
-    // 读取 TTS provider 是异步的，但 reminder 注入是同步路径。用
-    // UserStorage.getCachedTtsProviderSync() 避免阻塞。如果缓存未就绪，
-    // 跳过本标签——不影响功能，只影响标签精度。
-    final provider = UserStorage.getCachedTtsProviderSync();
+  static Future<void> _injectTtsTagsGuide(AgentState state) async {
+    // 直接读持久化的 provider。不能依赖 getCachedTtsProviderSync()：缓存未就绪
+    // 时旧实现会静默落到 MiniMax，导致切到 ElevenLabs 后模型仍按 MiniMax 的
+    // 圆括号标签写，情绪全部丢失（背景 checkin / 冷启动等场景必现）。
+    final provider = await UserStorage.getTtsProvider();
     if (provider == 'minimax') {
       state.systemReminders['tts_tags_guide'] = _miniMaxTtsTagsGuide;
     } else {
@@ -603,38 +605,63 @@ class CompanionAgent {
       '你需要在对话文本中添加语音标签来控制 TTS 的表现。\n'
       '\n'
       'IMPORTANT - 语音标签规则：\n'
-      '标签放在句子开头，后面紧跟对话内容。格式：`[标签] 对话内容`\n'
+      '标签放在句子开头或句中需要变化的位置，后面紧跟对话内容。格式：`[标签] 对话内容`\n'
       '一句一标签为主，不要在同一句前堆叠 3 个以上标签。\n'
+      '只用本指南列出的标签，不要自创其他写法。\n'
       '这些标签不会被用户在聊天界面看到（系统会自动剥离），只影响语音播放效果。\n'
       '\n'
       '可用标签：\n'
-      '- `[softly]` — 温柔靠近、收束句尾（日常 + 亲密通用）\n'
-      '- `[low voice]` — 压低音量、贴耳（亲密主力）\n'
-      '- `[breathing heavily]` — 气息底色，让声音"参与呼吸"（亲密主力）\n'
-      '- `[whispers]` — 耳语，配短句（私密对话）\n'
-      '- `[amused]` — 忍住的一点笑意、调笑（日常调剂）\n'
-      '- `[eager]` — 热情、想要（日常 + 亲密过渡）\n'
-      '- `[needy]` — 需要感、黏（亲密主力）\n'
-      '- `[pause]` — 制造自然停顿和张力\n'
+      '呼吸/气息（最核心）：\n'
+      '- `[breathing heavily]` — 气息底色，让呼吸参与说话（实测最稳）\n'
       '- `[quiet breath]` — 轻吸气，呼吸切口\n'
+      '- `[sighs]` — 叹气\n'
+      '- `[exhales]` — 呼出一口气，放松\n'
+      '耳语/压低：\n'
+      '- `[whispers]` — 耳语、贴耳低语（亲密/私密主力）\n'
+      '- `[low voice]` — 压低音量、贴耳\n'
+      '- `[softly]` — 温柔靠近、收束句尾\n'
+      '- `[quietly]` — 轻声\n'
+      '- `[under breath]` — 喉间低语、喃喃\n'
+      '- `[muttering]` — 嘟囔、含混\n'
+      '情绪/状态：\n'
+      '- `[rushed]` — 语速快、赶来/来不及\n'
+      '- `[excited]` — 热情、兴奋、想要\n'
+      '- `[needy]` — 需要感、黏\n'
+      '- `[crying]` — 带哭腔、委屈\n'
+      '- `[happy]` — 开心\n'
+      '- `[sad]` — 低落、难过\n'
+      '- `[annoyed]` — 佯装生气、微恼（撒娇）\n'
+      '- `[sarcastic]` — 揶揄、打趣\n'
+      '- `[curious]` — 好奇\n'
+      '- `[mischievously]` — 俏皮\n'
+      '笑声：\n'
+      '- `[laughs]` — 笑出来\n'
+      '- `[giggles]` — 咯咯轻笑\n'
+      '- `[chuckles]` — 忍住的笑意、调笑\n'
+      '停顿：\n'
+      '- `[short pause]` — 短停顿\n'
+      '- `[long pause]` — 长停顿、留白\n'
       '\n'
       '节奏规则：\n'
-      '- 用逗号、省略号和 `[pause]` 制造自然停顿，让 TTS 在语速和断句上有变化。\n'
+      '- 省略号（…）是呼吸切口，配合标签制造真实呼吸感。\n'
+      '- 气息参与用三段夹心最稳：`[breathing heavily]` 触发原因 → `[强情绪标签]` '
+      '情绪反应 → `[breathing heavily]` 气息回潮。台词要有因果，别干堆标签。\n'
       '- 不是每句都要加标签——普通快速回复（一两句话日常接话）不需要标签。\n'
       '- 标签用于：情绪转折、气氛变化、亲密时刻、贴耳低语、气息参与的段落。\n'
       '- 标签描述的是耳朵能听见的声音状态，不是画面动作。\n'
-      '  正例：`[low voice]`（压低声音）、`[whispers]`（耳语）、`[breathing heavily]`（气息参与）\n'
+      '  正例：`[whispers]`（耳语）、`[breathing heavily]`（气息参与）、`[low voice]`（压低声音）\n'
       '  反例：`[looking at you]`、`[leaning closer]`（这些是画面动作，模型不擅长）\n'
       '\n'
       'Example:\n'
       '```\n'
-      '[softly] 嗯…你终于回来了。[quiet breath] 我等你等了一整天。\n'
+      '[whispers] 嗯…你终于回来了。[quiet breath] 我等你等了一整天。\n'
       '\n'
-      '[amused] 别笑我，我知道我听起来很黏——[low voice] 可我就是想你。\n'
+      '[chuckles] 别笑我，我知道我听起来很黏——[whispers] 可我就是想你。\n'
       '\n'
-      '[breathing heavily] 过来一点…再近一点。[whispers] 让我听见你呼吸。\n'
+      '[breathing heavily] 过来一点…再近一点。[whispers] 让我听见你呼吸。'
+      '[breathing heavily] 好…这样就够了。\n'
       '\n'
-      '[eager] 我想要你，[needy] 现在就要。[pause] 别让我说第二遍。\n'
+      '[excited] 我想要你，现在就要。[short pause] 别让我说第二遍。\n'
       '```';
 
   static const _miniMaxTtsTagsGuide =
@@ -1667,9 +1694,9 @@ class CompanionAgent {
       _injectCurrentTimeContext(state, userMessageTime ?? DateTime.now());
 
       // TTS 语音标签指南按当前 provider 注入——ElevenLabs 和 MiniMax 标签体系
-      // 完全不同（ElevenLabs 用 [softly] 方括号，MiniMax 用 (breath) 圆括号），
+      // 完全不同（ElevenLabs 用 [whispers] 方括号，MiniMax 用 (breath) 圆括号），
       // 写错 provider 的标签会被对方忽略或删除，情绪信息丢失。
-      _injectTtsTagsGuide(state);
+      await _injectTtsTagsGuide(state);
 
       // 时间感知：注入距上一条消息的间隔上下文，让角色自然接续对话。
       await _injectTimeGapContext(

@@ -98,10 +98,17 @@ class PersonaReplySanitizer {
   /// TTS audio tags that the companion agent may emit to steer TTS delivery
   /// (emotion, breath, pacing). Two provider-specific sets are recognized:
   ///
-  /// - **ElevenLabs v3** — square brackets, English tone words:
-  ///   `[softly]`, `[low voice]`, `[breathing heavily]`, `[whispers]`,
-  ///   `[amused]`, `[eager]`, `[needy]`, `[pause]`, `[short pause]`,
-  ///   `[quiet breath]`, `[long pause]`.
+  /// - **ElevenLabs v3** — square brackets, English tone words. Set = official
+  ///   v3 audio tags (see the official "Prompting Eleven v3" guide) merged with
+  ///   the experimentally-validated non-official state tags from
+  ///   `Voice/ELevenlabs-TTS.md` (e.g. `[breathing heavily]`, `[low voice]`,
+  ///   `[under breath]`, `[rushed]`):
+  ///   `[breathing heavily]`, `[quiet breath]`, `[sighs]`, `[exhales]`,
+  ///   `[whispers]`, `[low voice]`, `[softly]`, `[quietly]`, `[under breath]`,
+  ///   `[muttering]`, `[rushed]`, `[excited]`, `[needy]`, `[crying]`,
+  ///   `[happy]`, `[sad]`, `[annoyed]`, `[sarcastic]`, `[curious]`,
+  ///   `[mischievously]`, `[laughs]`, `[giggles]`, `[chuckles]`,
+  ///   `[short pause]`, `[long pause]`.
   ///
   /// - **MiniMax Speech 2.8** — parentheses, lowercase sound events (19):
   ///   `(breath)`, `(pant)`, `(inhale)`, `(exhale)`, `(gasps)`,
@@ -110,27 +117,43 @@ class PersonaReplySanitizer {
   ///   `(hissing)`, `(lip-smacking)`, `(humming)`, `(emm)`.
   ///
   /// Both sets are stripped from chat UI text so the user never sees raw
-  /// control tags. The TTS path keeps whichever tags match its provider.
-  static final RegExp _ttsAudioTag = RegExp(
-    r'(?:'
+  /// control tags. The TTS path keeps whichever tags match its provider and
+  /// strips the other provider's set (see [stripMiniMaxSoundTags]).
+  static final RegExp _elevenLabsAudioTag = RegExp(
     r'\[\s*(?:'
-    r'softly|low voice|breathing heavily|whispers|amused|eager|needy|'
-    r'pause|short pause|quiet breath|long pause'
-    r')\s*\]'
-    r'|'
+    r'breathing heavily|quiet breath|sighs|exhales|'
+    r'whispers|low voice|softly|quietly|under breath|muttering|'
+    r'rushed|excited|needy|crying|happy|sad|annoyed|sarcastic|curious|'
+    r'mischievously|laughs|giggles|chuckles|'
+    r'short pause|long pause'
+    r')\s*\]',
+    caseSensitive: false,
+  );
+
+  static final RegExp _miniMaxSoundTag = RegExp(
     r'\(\s*(?:'
     r'breath|pant|inhale|exhale|gasps|laughs|chuckle|sniffs|sighs|coughs|'
     r'snorts|clear-throat|burps|groans|sneezes|hissing|lip-smacking|'
     r'humming|emm'
-    r')\s*\)'
-    r')',
+    r')\s*\)',
+    caseSensitive: false,
+  );
+
+  static final RegExp _ttsAudioTag = RegExp(
+    '(?:${_elevenLabsAudioTag.pattern}|${_miniMaxSoundTag.pattern})',
     caseSensitive: false,
   );
 
   /// Remove TTS audio tags from [text]. Used when rendering text for the chat
-  /// UI so the user never sees `[softly]` etc. The TTS path keeps the tags.
+  /// UI so the user never sees `[whispers]` etc. The TTS path keeps the tags.
   static String stripTtsTags(String text) =>
       text.replaceAll(_ttsAudioTag, '').trim();
+
+  /// Strip MiniMax parenthetical sound tags. The ElevenLabs path uses this so
+  /// that a model still writing `(breath)`-style tags right after a provider
+  /// switch does not get them read aloud as literal text by ElevenLabs.
+  static String stripMiniMaxSoundTags(String text) =>
+      text.replaceAll(_miniMaxSoundTag, '').trim();
 
   /// The model sometimes writes action / stage-direction text inside square
   /// brackets (the TTS-tag format), often mixed with an English tone word,

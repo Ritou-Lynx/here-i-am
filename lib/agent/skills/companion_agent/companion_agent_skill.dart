@@ -599,10 +599,10 @@ class CompanionAgentSkill extends Skill {
     b.writeln('- 用户明确说"停"、"不要了"、"停一下"时，立刻停止相关描写，回到普通对话语气。');
 
     // TTS voice tag guidelines are NOT baked into the system prompt — they
-    // differ between ElevenLabs ([softly], [low voice], [pause]…) and MiniMax
-    // ((breath), (sighs)…). Injecting the wrong set would pollute the prompt
-    // for the other provider and also break prefix-cache stability. The
-    // active provider's tag guide is injected per-turn via systemReminders
+    // differ between ElevenLabs ([whispers], [breathing heavily], [short pause]…)
+    // and MiniMax ((breath), (sighs)…). Injecting the wrong set would pollute
+    // the prompt for the other provider and also break prefix-cache stability.
+    // The active provider's tag guide is injected per-turn via systemReminders
     // (see CompanionAgent._injectTtsTagsGuide).
 
     if (hasToyControl) {

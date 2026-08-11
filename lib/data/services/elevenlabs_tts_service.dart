@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -156,7 +157,12 @@ class ElevenLabsTtsService {
   }
 
   static String _prepareTextForSpeech(String text) {
-    final normalized = normalizeSpokenText(text.trim());
+    // The model may still emit the other provider's tags ((breath), (sighs)…)
+    // right after a provider switch. ElevenLabs has no such paren tags and
+    // would read them as literal words, so strip them first; v3's own
+    // square-bracket audio tags are kept.
+    final stripped = PersonaReplySanitizer.stripMiniMaxSoundTags(text);
+    final normalized = normalizeSpokenText(stripped.trim());
     if (normalized.isEmpty) return normalized;
 
     // Eleven v3 understands pause audio tags rather than SSML <break>. A small
@@ -177,7 +183,7 @@ class ElevenLabsTtsService {
     // because ElevenLabs sometimes under-generates the final frame; the
     // trailing pause also acts as a guard buffer.
 
-    // If the text already opens with a TTS audio tag (e.g. [softly]),
+    // If the text already opens with a TTS audio tag (e.g. [whispers]),
     // prepending [short pause] would stack two tags and dilute the opening
     // emotion. Let the character's opening tag lead.
     if (RegExp(r'^\s*\[[^\]]+\]').hasMatch(withSentencePauses)) {

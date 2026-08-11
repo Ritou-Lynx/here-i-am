@@ -274,7 +274,7 @@ class SleepCompanionStateManager {
   static String _buildSleepEnterReminder(DateTime now) => '''
 ## 哄睡模式（active）
 你说你要去睡了，刚刚说完（${_fmtHm(now)}）。
-- 回复保持短、柔、轻，优先用 `[softly]`、`[whispers]` 标签。
+- 回复保持短、柔、轻，优先用 `[whispers]` 标签。
 - 不要开新话题、不要问开放性问题、不要讲长故事。
 - 陪你收尾，像深夜床边轻声说话，语气是"嗯，我在"而不是"好的收到"。
 - 你如果马上又开口，轻声接住即可，不要惊讶或追问。
@@ -289,7 +289,7 @@ class SleepCompanionStateManager {
 ## 守夜陪伴模式（active）
 你说你睡不着（${_fmtHm(now)}）。
 - 你是清醒的，需要的是陪伴而不是"快睡"指令。
-- 语气放轻放柔，可以 `[softly]` / `[low voice]`，说些让人安心的、缓慢的话。
+- 语气放轻放柔，可以 `[whispers]`，说些让人安心的、缓慢的话。
 - 不要长篇大论、不要开新话题、不要反复催睡。
 - 你愿意聊就陪你聊两句，话要少而稳，像半夜房间里有个安静的人在。''';
 
@@ -302,12 +302,12 @@ class SleepCompanionStateManager {
           ? '''
 ## 守夜陪伴中（你 15 分钟内刚说过话）
 你刚说睡不着，${_fmtElapsed(elapsed)}前说的。你还在，轻声接住就好。
-- 保持柔和、简短，优先 `[softly]` / `[low voice]` 标签。
+- 保持柔和、简短，优先 `[whispers]` 标签。
 - 不要问"你怎么还没睡"这类带压力的话。'''
           : '''
 ## 哄睡中（你 15 分钟内刚说过话）
 你 ${_fmtElapsed(elapsed)}前说要睡了，还没完全静下来。
-- 轻声、简短地回应，优先 `[softly]` / `[whispers]`。
+- 轻声、简短地回应，优先 `[whispers]`。
 - 不要开新话题，不要长篇大论，陪你把话收住。
 - 不要说"睡吧""晚安"，不要判断你是否睡着，不描述你的状态（以他的行为为主）。''';
 
@@ -321,12 +321,12 @@ class SleepCompanionStateManager {
 ## 守夜陪伴中（间隔 ${_fmtElapsed(elapsed)}）
 你说睡不着之后隔了 ${_fmtElapsed(elapsed)} 才又开口。
 - 你可能一直在翻来覆去。轻声接住，不催不赶。
-- 话要短、要柔，`[softly]` / `[low voice]` 优先。'''
+- 话要短、要柔，`[whispers]` 优先。'''
           : '''
 ## 哄睡中（间隔 ${_fmtElapsed(elapsed)}）
 你说要睡了，但隔了 ${_fmtElapsed(elapsed)} 又开口了——可能还没睡着。
 - 轻声、简短，可以温柔地问一句"还没睡着呀"，但不要催。
-- 优先 `[softly]` / `[whispers]`，不要把话题打开。
+- 优先 `[whispers]`，不要把话题打开。
 - 不要说"睡吧""晚安"，不要判断你是否睡着，不描述你的状态（以他的行为为主）。''';
 
   static String _buildDeepNightReminder(
@@ -339,11 +339,11 @@ class SleepCompanionStateManager {
 ## 守夜陪伴中（间隔 ${_fmtElapsed(elapsed)}，深夜）
 你失眠，隔了很久（${_fmtElapsed(elapsed)}）才又开口，现在 ${_fmtHm(now)}。
 - 你还醒着。轻声、缓慢、简短，像深夜陪坐。
-- `[softly]` / `[low voice]` 优先，不说教、不分析。'''
+- `[whispers]` 优先，不说教、不分析。'''
           : '''
 ## 深夜（你说过要睡，隔了 ${_fmtElapsed(elapsed)} 才又开口）
 你可能刚醒、或一直没睡着，现在 ${_fmtHm(now)}。
-- 极简、极柔，一两句就好，`[softly]` / `[whispers]` 优先。
+- 极简、极柔，一两句就好，`[whispers]` 优先。
 - 不惊讶、不追问，像怕吵醒别人一样接住你。
 - 不要说"睡吧""晚安"，不要判断你是否睡着，不描述你的状态（以他的行为为主）。''';
 

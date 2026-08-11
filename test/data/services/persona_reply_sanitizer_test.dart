@@ -328,4 +328,50 @@ More hidden planning that must also be discarded.
       expect(cleaned, source);
     });
   });
+
+  group('TTS tag stripping', () {
+    test('stripTtsTags removes v3 tags and MiniMax tags from chat UI text', () {
+      const source = '[whispers] 你终于回来了。(breath) 我等你等了一整天。[short pause]';
+      expect(PersonaReplySanitizer.stripTtsTags(source), '你终于回来了。 我等你等了一整天。');
+    });
+
+    test('stripTtsTags keeps the v3 audio tags the TTS path needs', () {
+      const source = '[whispers] 你终于回来了。[exhales] 我等你等了一整天。';
+      expect(
+        PersonaReplySanitizer.stripTtsTags(source),
+        '你终于回来了。 我等你等了一整天。',
+      );
+    });
+
+    test('stripMiniMaxSoundTags strips only the other provider tags', () {
+      const source = '(breath) [whispers] 我等你等了一整天。(sighs)';
+      expect(
+        PersonaReplySanitizer.stripMiniMaxSoundTags(source),
+        '[whispers] 我等你等了一整天。',
+      );
+    });
+
+    test('stripMiniMaxSoundTags keeps legitimate parenthetical aside text', () {
+      const source = '（她轻声说）我等了好久 (breath)。';
+      expect(
+        PersonaReplySanitizer.stripMiniMaxSoundTags(source),
+        '（她轻声说）我等了好久 。',
+      );
+    });
+
+    test('v3 tags from the guide are all recognized by stripTtsTags', () {
+      const tags = [
+        '[breathing heavily]', '[quiet breath]', '[sighs]', '[exhales]',
+        '[whispers]', '[low voice]', '[softly]', '[quietly]',
+        '[under breath]', '[muttering]', '[rushed]', '[excited]',
+        '[needy]', '[crying]', '[happy]', '[sad]', '[annoyed]',
+        '[sarcastic]', '[curious]', '[mischievously]', '[laughs]',
+        '[giggles]', '[chuckles]', '[short pause]', '[long pause]',
+      ];
+      for (final tag in tags) {
+        expect(PersonaReplySanitizer.stripTtsTags(tag), isEmpty,
+            reason: '$tag should be stripped from chat UI');
+      }
+    });
+  });
 }

@@ -6182,8 +6182,8 @@ only after you have written the goodbye you want the user to hear.''',
       // The stored character.name ("I") is the English name and won't match
       // the self-referential text in Chinese actions.
       characterName: '林埃',
-      // Strip TTS audio tags ([softly], [low voice], etc.) from what the user
-      // sees in chat bubbles. Tags are preserved on the TTS path.
+      // Strip TTS audio tags ([whispers], [sighs], (breath), etc.) from what
+      // the user sees in chat bubbles. Tags are preserved on the TTS path.
       stripTtsTags: true,
     );
     if (segments.isEmpty && text.trim().isNotEmpty) {
