@@ -119,7 +119,7 @@ class ShareIntentHandler {
       // same path: the link becomes a chat message, the companion reads
       // the article body via TransientFetchCache, and saving to a memory
       // card only happens when the user explicitly records it (double-tap
-      // / "存一下" / floating ball). This unifies the semantics of "share"
+      // / "存一�? / floating ball). This unifies the semantics of "share"
       // with image attachments: read first, save only on explicit action.
       final imageFiles = <XFile>[];
 

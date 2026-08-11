@@ -12,10 +12,12 @@ import io.flutter.plugin.common.MethodChannel
 /** Exposes the companion-share accessibility setup state to Flutter. */
 object CompanionShareChannelHandler {
     private const val CHANNEL = "com.memexlab.memex/companion_share"
+    private var channel: MethodChannel? = null
 
     fun register(flutterEngine: FlutterEngine, activity: Activity) {
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-            .setMethodCallHandler { call, result ->
+        val ch = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        channel = ch
+        ch.setMethodCallHandler { call, result ->
                 when (call.method) {
                     "isAccessibilityServiceEnabled" -> {
                         result.success(isAccessibilityServiceEnabled(activity))
@@ -33,6 +35,13 @@ object CompanionShareChannelHandler {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    fun pushShare(text: String?, imagePath: String?) {
+        val map = HashMap<String, Any?>()
+        map["text"] = text
+        map["imagePath"] = imagePath
+        channel?.invokeMethod("onShareReceived", map)
     }
 
     private fun isAccessibilityServiceEnabled(context: Context): Boolean {

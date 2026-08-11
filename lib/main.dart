@@ -28,6 +28,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:ui';
 import 'package:memex/ui/main_screen/widgets/input_sheet.dart';
+import 'package:memex/data/services/shared_draft_service.dart';
+import 'package:memex/data/services/companion_share_service.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:memex/ui/settings/widgets/model_config_list_page.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/event_bus_service.dart';
@@ -848,6 +851,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       scaffoldMessengerKey: rootScaffoldMessengerKey,
       onSharedDraft: (data) {
         if (!mounted) return;
+        SharedDraftService.instance.publish(SharedDraft(
+          text: data.text,
+          images: data.images,
+        ));
         setState(() {
           _sharedDraft = data;
           _isInputOpen = true;
@@ -855,6 +862,21 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       },
       onBackupFileShared: _handleExternalBackupFile,
     )..init();
+
+    // Listen for direct share pushes from the accessibility service
+    // (screenshot / copied link). This bypasses share_handler entirely,
+    // avoiding the EventSink-null problem when the app is in the background.
+    CompanionShareService.instance.startListening((text, imagePath) {
+      if (!mounted) return;
+      final images = <XFile>[];
+      if (imagePath != null && imagePath.isNotEmpty) {
+        images.add(XFile(imagePath));
+      }
+      SharedDraftService.instance.publish(SharedDraft(
+        text: text,
+        images: images,
+      ));
+    });
 
     // Consume pending quick action (app icon long-press shortcut).
     QuickActionService.instance.attach();

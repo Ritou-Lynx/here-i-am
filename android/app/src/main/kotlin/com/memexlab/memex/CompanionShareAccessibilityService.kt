@@ -11,6 +11,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Display
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -20,7 +21,7 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.TextView
 import android.widget.Toast
-import androidx.core.content.FileProvider
+import com.memexlab.memex.channels.CompanionShareChannelHandler
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
@@ -32,6 +33,7 @@ import kotlin.math.abs
  */
 class CompanionShareAccessibilityService : AccessibilityService() {
     companion object {
+        private const val TAG = "CompanionShare"
         const val CLIPBOARD_LINK_MARKER = "__here_i_am_share_copied_link__"
 
         private const val LONG_PRESS_MS = 650L
@@ -50,6 +52,10 @@ class CompanionShareAccessibilityService : AccessibilityService() {
     private var bubble: TextView? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var bubbleAttached = false
+    private var bubbleVisible = false
+    private val showBubbleRunnable = Runnable { showBubble() }
+    private val hideBubbleRunnable = Runnable { hideBubble() }
+    private var lastForegroundPackage: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -61,10 +67,18 @@ class CompanionShareAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val foregroundPackage = event.packageName?.toString() ?: return
-        if (foregroundPackage == packageName || isKeyguardLocked()) {
-            hideBubble()
+        if (foregroundPackage == lastForegroundPackage) return
+        lastForegroundPackage = foregroundPackage
+        val keyguard = isKeyguardLocked()
+        val shouldShow = foregroundPackage != packageName && !keyguard
+        // Show immediately for responsiveness; delay hide so transient
+        // self-package events during app switching don't cause flicker.
+        mainHandler.removeCallbacks(showBubbleRunnable)
+        mainHandler.removeCallbacks(hideBubbleRunnable)
+        if (shouldShow) {
+            mainHandler.post(showBubbleRunnable)
         } else {
-            showBubble()
+            mainHandler.postDelayed(hideBubbleRunnable, 600)
         }
     }
 
@@ -116,37 +130,49 @@ class CompanionShareAccessibilityService : AccessibilityService() {
         }
         bubble = view
         bubbleParams = params
-        showBubble()
+        bubbleVisible = false
+        // Attach the overlay once and keep it attached; toggle visibility
+        // instead of add/removeView to avoid flicker from rapid events.
+        // Use INVISIBLE (not GONE) so the overlay retains its touch region
+        // and can be reliably shown again.
+        try {
+            windowManager.addView(view, params)
+            bubbleAttached = true
+            view.visibility = View.INVISIBLE
+        } catch (e: Throwable) {
+            bubbleAttached = false
+            Log.e(TAG, "createBubble addView failed", e)
+        }
     }
 
     private fun showBubble() {
         val view = bubble ?: return
-        val params = bubbleParams ?: return
-        if (bubbleAttached || isKeyguardLocked()) return
-        try {
-            windowManager.addView(view, params)
-            bubbleAttached = true
-        } catch (_: Throwable) {
-            bubbleAttached = false
-        }
+        if (!bubbleAttached) return
+        if (isKeyguardLocked()) return
+        view.visibility = View.VISIBLE
+        bubbleVisible = true
     }
 
     private fun hideBubble() {
         val view = bubble ?: return
         if (!bubbleAttached) return
-        try {
-            windowManager.removeView(view)
-        } catch (_: Throwable) {
-            // The system may already have detached the accessibility overlay.
-        } finally {
-            bubbleAttached = false
-        }
+        view.visibility = View.INVISIBLE
+        bubbleVisible = false
     }
 
     private fun removeBubble() {
-        hideBubble()
+        val view = bubble
         bubble = null
         bubbleParams = null
+        bubbleVisible = false
+        if (view != null && bubbleAttached) {
+            try {
+                windowManager.removeView(view)
+            } catch (_: Throwable) {
+                // The system may already have detached the overlay.
+            }
+        }
+        bubbleAttached = false
     }
 
     private fun shareCurrentScreen() {
@@ -174,7 +200,7 @@ class CompanionShareAccessibilityService : AccessibilityService() {
                             }
                             val file = persistScreenshot(bitmap)
                             bitmap.recycle()
-                            launchImageShare(file)
+                            pushShareAndBringToFront(null, file.absolutePath)
                         } catch (_: Throwable) {
                             restoreAfterFailure(R.string.companion_share_screenshot_failed)
                         } finally {
@@ -193,37 +219,16 @@ class CompanionShareAccessibilityService : AccessibilityService() {
     private fun shareCopiedLink() {
         val clipboardText = readClipboardText()
         val sharedText = clipboardText?.takeIf { HTTP_URL.containsMatchIn(it) }
-            ?: CLIPBOARD_LINK_MARKER
         hideBubble()
-        val intent = Intent(this, MainActivity::class.java).apply {
-            action = Intent.ACTION_SEND
-            type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, sharedText)
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
-            )
-        }
-        startActivity(intent)
+        pushShareAndBringToFront(sharedText, null)
     }
 
-    private fun launchImageShare(file: File) {
-        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+    private fun pushShareAndBringToFront(text: String?, imagePath: String?) {
+        CompanionShareChannelHandler.pushShare(text, imagePath)
         val intent = Intent(this, MainActivity::class.java).apply {
-            action = Intent.ACTION_SEND
-            type = "image/jpeg"
-            putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-            clipData = android.content.ClipData.newUri(
-                contentResolver,
-                getString(R.string.companion_share_screenshot_label),
-                uri,
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
             )
         }
         startActivity(intent)

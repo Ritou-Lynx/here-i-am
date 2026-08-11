@@ -54,6 +54,7 @@ import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/memory_v3/services/topic_thread_backfill_service.dart';
 import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
+import 'package:memex/data/services/shared_draft_service.dart';
 import 'package:memex/data/services/reading/reading_share_parser.dart';
 import 'package:memex/data/services/reading/transient_fetch_cache.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
@@ -698,6 +699,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   StreamSubscription<void>? _audioCompleteSub;
   StreamSubscription<PlayerState>? _audioStateSub;
   StreamSubscription<PersonaChatOpenRequest>? _openRequestSub;
+  StreamSubscription<SharedDraft>? _sharedDraftSub;
   Timer? _messageRefreshTimer;
 
   /// Throttled Dev Room active-runs poll, driven from the 2s message
@@ -994,6 +996,15 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
         }
       });
     }
+    _sharedDraftSub = SharedDraftService.instance.stream.listen((draft) {
+      if (!mounted) return;
+      if (draft.text != null && draft.text!.isNotEmpty) {
+        _textController.text = draft.text!;
+      }
+      if (draft.images.isNotEmpty) {
+        _onImagesPicked(draft.images);
+      }
+    });
   }
 
   @override
@@ -1981,6 +1992,7 @@ only after you have written the goodbye you want the user to hear.''',
     _audioCompleteSub?.cancel();
     _audioStateSub?.cancel();
     _openRequestSub?.cancel();
+    _sharedDraftSub?.cancel();
     _streamingTtsSession?.cancel();
     _messageRefreshTimer?.cancel();
     _devRunPollTimer?.cancel();
