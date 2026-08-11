@@ -45,16 +45,28 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   }
 
   Future<void> _load() async {
-    final values = await Future.wait([
-      _imports.listDefinitions(gameType: 'card_roleplay'),
-      _games.listSessions(),
-    ]);
-    if (!mounted) return;
-    setState(() {
-      _definitions = values[0] as List<GameDefinition>;
-      _sessions = values[1] as List<GameSession>;
-      _loading = false;
-    });
+    try {
+      final values = await Future.wait([
+        _imports.listDefinitions(gameType: 'card_roleplay'),
+        _games.listSessions(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _definitions = values[0] as List<GameDefinition>;
+        _sessions = values[1] as List<GameSession>;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _definitions = const [];
+        _sessions = const [];
+        _loading = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _toast('游戏库加载失败: $e');
+      });
+    }
   }
 
   Future<void> _importCard() async {
@@ -665,23 +677,34 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   }
 
   Future<void> _load() async {
-    final values = await Future.wait([
-      _games.getSession(widget.sessionId),
-      _games.getMessages(widget.sessionId),
-      _games.getSaveMarkers(widget.sessionId),
-      _games.listSessions(includeArchived: true),
-    ]);
-    if (!mounted) return;
-    final allSessions = values[3] as List<GameSession>;
-    setState(() {
-      _session = values[0] as GameSession?;
-      _messages = values[1] as List<GameMessage>;
-      _markers = values[2] as List<GameMessage>;
-      _branches = allSessions
-          .where((e) => e.parentSessionId == widget.sessionId)
-          .toList();
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+    try {
+      final values = await Future.wait([
+        _games.getSession(widget.sessionId),
+        _games.getMessages(widget.sessionId),
+        _games.getSaveMarkers(widget.sessionId),
+        _games.listSessions(includeArchived: true),
+      ]);
+      if (!mounted) return;
+      final allSessions = values[3] as List<GameSession>;
+      setState(() {
+        _session = values[0] as GameSession?;
+        _messages = values[1] as List<GameMessage>;
+        _markers = values[2] as List<GameMessage>;
+        _branches = allSessions
+            .where((e) => e.parentSessionId == widget.sessionId)
+            .toList();
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messages = const [];
+        _markers = const [];
+        _branches = const [];
+      });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('游戏加载失败: $e')));
+    }
   }
 
   Future<void> _send() async {
