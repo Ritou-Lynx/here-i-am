@@ -87,6 +87,7 @@ part 'app_database.g.dart';
     BookChapters,
     BookReadingProgress,
     BookChapterNotes,
+    BookAnnotations,
     CoReadingSessions,
     CoReadingSessionMessages,
     // Game tables — see lib/db/game_tables.dart
@@ -149,7 +150,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 53;
+  int get schemaVersion => 54;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -183,6 +184,7 @@ class AppDatabase extends _$AppDatabase {
           // Comic co-reading indices
           await _createComicIndices();
           await _createCoReadingContinuityIndices();
+          await _createBookAnnotationIndices();
           // Game indices
           await _createGameIndices();
           // Create FTS5 virtual tables for full-text search
@@ -751,6 +753,10 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(coReadingSessionMessages);
             await _createCoReadingContinuityIndices();
           }
+          if (from < 54) {
+            await m.createTable(bookAnnotations);
+            await _createBookAnnotationIndices();
+          }
         },
         beforeOpen: (OpeningDetails details) async {
           // Defensive backfill: some devices upgraded to v43 via the earlier
@@ -905,6 +911,17 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_co_reading_session_messages_session '
       'ON co_reading_session_messages(session_id, message_id)',
+    );
+  }
+
+  Future<void> _createBookAnnotationIndices() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_book_annotations_location '
+      'ON book_annotations(book_id, chapter_number, start_offset)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_book_annotations_active '
+      'ON book_annotations(book_id, deleted_at)',
     );
   }
 

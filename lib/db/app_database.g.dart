@@ -30773,6 +30773,688 @@ class BookChapterNotesCompanion extends UpdateCompanion<BookChapterNote> {
   }
 }
 
+class $BookAnnotationsTable extends BookAnnotations
+    with TableInfo<$BookAnnotationsTable, BookAnnotation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BookAnnotationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+      'book_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _chapterNumberMeta =
+      const VerificationMeta('chapterNumber');
+  @override
+  late final GeneratedColumn<int> chapterNumber = GeneratedColumn<int>(
+      'chapter_number', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _startOffsetMeta =
+      const VerificationMeta('startOffset');
+  @override
+  late final GeneratedColumn<int> startOffset = GeneratedColumn<int>(
+      'start_offset', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _endOffsetMeta =
+      const VerificationMeta('endOffset');
+  @override
+  late final GeneratedColumn<int> endOffset = GeneratedColumn<int>(
+      'end_offset', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _quoteMeta = const VerificationMeta('quote');
+  @override
+  late final GeneratedColumn<String> quote = GeneratedColumn<String>(
+      'quote', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _prefixContextMeta =
+      const VerificationMeta('prefixContext');
+  @override
+  late final GeneratedColumn<String> prefixContext = GeneratedColumn<String>(
+      'prefix_context', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _suffixContextMeta =
+      const VerificationMeta('suffixContext');
+  @override
+  late final GeneratedColumn<String> suffixContext = GeneratedColumn<String>(
+      'suffix_context', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _contentFingerprintMeta =
+      const VerificationMeta('contentFingerprint');
+  @override
+  late final GeneratedColumn<String> contentFingerprint =
+      GeneratedColumn<String>('content_fingerprint', aliasedName, false,
+          type: DriftSqlType.string,
+          requiredDuringInsert: false,
+          defaultValue: const Constant(''));
+  static const VerificationMeta _styleMeta = const VerificationMeta('style');
+  @override
+  late final GeneratedColumn<String> style = GeneratedColumn<String>(
+      'style', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('spring_rain'));
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+      'note', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _deletedAtMeta =
+      const VerificationMeta('deletedAt');
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+      'deleted_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        bookId,
+        chapterNumber,
+        startOffset,
+        endOffset,
+        quote,
+        prefixContext,
+        suffixContext,
+        contentFingerprint,
+        style,
+        note,
+        createdAt,
+        updatedAt,
+        deletedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'book_annotations';
+  @override
+  VerificationContext validateIntegrity(Insertable<BookAnnotation> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(_bookIdMeta,
+          bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta));
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('chapter_number')) {
+      context.handle(
+          _chapterNumberMeta,
+          chapterNumber.isAcceptableOrUnknown(
+              data['chapter_number']!, _chapterNumberMeta));
+    } else if (isInserting) {
+      context.missing(_chapterNumberMeta);
+    }
+    if (data.containsKey('start_offset')) {
+      context.handle(
+          _startOffsetMeta,
+          startOffset.isAcceptableOrUnknown(
+              data['start_offset']!, _startOffsetMeta));
+    } else if (isInserting) {
+      context.missing(_startOffsetMeta);
+    }
+    if (data.containsKey('end_offset')) {
+      context.handle(_endOffsetMeta,
+          endOffset.isAcceptableOrUnknown(data['end_offset']!, _endOffsetMeta));
+    } else if (isInserting) {
+      context.missing(_endOffsetMeta);
+    }
+    if (data.containsKey('quote')) {
+      context.handle(
+          _quoteMeta, quote.isAcceptableOrUnknown(data['quote']!, _quoteMeta));
+    } else if (isInserting) {
+      context.missing(_quoteMeta);
+    }
+    if (data.containsKey('prefix_context')) {
+      context.handle(
+          _prefixContextMeta,
+          prefixContext.isAcceptableOrUnknown(
+              data['prefix_context']!, _prefixContextMeta));
+    }
+    if (data.containsKey('suffix_context')) {
+      context.handle(
+          _suffixContextMeta,
+          suffixContext.isAcceptableOrUnknown(
+              data['suffix_context']!, _suffixContextMeta));
+    }
+    if (data.containsKey('content_fingerprint')) {
+      context.handle(
+          _contentFingerprintMeta,
+          contentFingerprint.isAcceptableOrUnknown(
+              data['content_fingerprint']!, _contentFingerprintMeta));
+    }
+    if (data.containsKey('style')) {
+      context.handle(
+          _styleMeta, style.isAcceptableOrUnknown(data['style']!, _styleMeta));
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+          _noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(_deletedAtMeta,
+          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BookAnnotation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BookAnnotation(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      bookId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}book_id'])!,
+      chapterNumber: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}chapter_number'])!,
+      startOffset: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}start_offset'])!,
+      endOffset: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}end_offset'])!,
+      quote: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}quote'])!,
+      prefixContext: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}prefix_context'])!,
+      suffixContext: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}suffix_context'])!,
+      contentFingerprint: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}content_fingerprint'])!,
+      style: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}style'])!,
+      note: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}note'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+      deletedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}deleted_at']),
+    );
+  }
+
+  @override
+  $BookAnnotationsTable createAlias(String alias) {
+    return $BookAnnotationsTable(attachedDatabase, alias);
+  }
+}
+
+class BookAnnotation extends DataClass implements Insertable<BookAnnotation> {
+  final String id;
+  final String bookId;
+  final int chapterNumber;
+  final int startOffset;
+  final int endOffset;
+  final String quote;
+  final String prefixContext;
+  final String suffixContext;
+  final String contentFingerprint;
+  final String style;
+  final String note;
+  final int createdAt;
+  final int updatedAt;
+  final int? deletedAt;
+  const BookAnnotation(
+      {required this.id,
+      required this.bookId,
+      required this.chapterNumber,
+      required this.startOffset,
+      required this.endOffset,
+      required this.quote,
+      required this.prefixContext,
+      required this.suffixContext,
+      required this.contentFingerprint,
+      required this.style,
+      required this.note,
+      required this.createdAt,
+      required this.updatedAt,
+      this.deletedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['book_id'] = Variable<String>(bookId);
+    map['chapter_number'] = Variable<int>(chapterNumber);
+    map['start_offset'] = Variable<int>(startOffset);
+    map['end_offset'] = Variable<int>(endOffset);
+    map['quote'] = Variable<String>(quote);
+    map['prefix_context'] = Variable<String>(prefixContext);
+    map['suffix_context'] = Variable<String>(suffixContext);
+    map['content_fingerprint'] = Variable<String>(contentFingerprint);
+    map['style'] = Variable<String>(style);
+    map['note'] = Variable<String>(note);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  BookAnnotationsCompanion toCompanion(bool nullToAbsent) {
+    return BookAnnotationsCompanion(
+      id: Value(id),
+      bookId: Value(bookId),
+      chapterNumber: Value(chapterNumber),
+      startOffset: Value(startOffset),
+      endOffset: Value(endOffset),
+      quote: Value(quote),
+      prefixContext: Value(prefixContext),
+      suffixContext: Value(suffixContext),
+      contentFingerprint: Value(contentFingerprint),
+      style: Value(style),
+      note: Value(note),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory BookAnnotation.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BookAnnotation(
+      id: serializer.fromJson<String>(json['id']),
+      bookId: serializer.fromJson<String>(json['bookId']),
+      chapterNumber: serializer.fromJson<int>(json['chapterNumber']),
+      startOffset: serializer.fromJson<int>(json['startOffset']),
+      endOffset: serializer.fromJson<int>(json['endOffset']),
+      quote: serializer.fromJson<String>(json['quote']),
+      prefixContext: serializer.fromJson<String>(json['prefixContext']),
+      suffixContext: serializer.fromJson<String>(json['suffixContext']),
+      contentFingerprint:
+          serializer.fromJson<String>(json['contentFingerprint']),
+      style: serializer.fromJson<String>(json['style']),
+      note: serializer.fromJson<String>(json['note']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'bookId': serializer.toJson<String>(bookId),
+      'chapterNumber': serializer.toJson<int>(chapterNumber),
+      'startOffset': serializer.toJson<int>(startOffset),
+      'endOffset': serializer.toJson<int>(endOffset),
+      'quote': serializer.toJson<String>(quote),
+      'prefixContext': serializer.toJson<String>(prefixContext),
+      'suffixContext': serializer.toJson<String>(suffixContext),
+      'contentFingerprint': serializer.toJson<String>(contentFingerprint),
+      'style': serializer.toJson<String>(style),
+      'note': serializer.toJson<String>(note),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  BookAnnotation copyWith(
+          {String? id,
+          String? bookId,
+          int? chapterNumber,
+          int? startOffset,
+          int? endOffset,
+          String? quote,
+          String? prefixContext,
+          String? suffixContext,
+          String? contentFingerprint,
+          String? style,
+          String? note,
+          int? createdAt,
+          int? updatedAt,
+          Value<int?> deletedAt = const Value.absent()}) =>
+      BookAnnotation(
+        id: id ?? this.id,
+        bookId: bookId ?? this.bookId,
+        chapterNumber: chapterNumber ?? this.chapterNumber,
+        startOffset: startOffset ?? this.startOffset,
+        endOffset: endOffset ?? this.endOffset,
+        quote: quote ?? this.quote,
+        prefixContext: prefixContext ?? this.prefixContext,
+        suffixContext: suffixContext ?? this.suffixContext,
+        contentFingerprint: contentFingerprint ?? this.contentFingerprint,
+        style: style ?? this.style,
+        note: note ?? this.note,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+      );
+  BookAnnotation copyWithCompanion(BookAnnotationsCompanion data) {
+    return BookAnnotation(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      chapterNumber: data.chapterNumber.present
+          ? data.chapterNumber.value
+          : this.chapterNumber,
+      startOffset:
+          data.startOffset.present ? data.startOffset.value : this.startOffset,
+      endOffset: data.endOffset.present ? data.endOffset.value : this.endOffset,
+      quote: data.quote.present ? data.quote.value : this.quote,
+      prefixContext: data.prefixContext.present
+          ? data.prefixContext.value
+          : this.prefixContext,
+      suffixContext: data.suffixContext.present
+          ? data.suffixContext.value
+          : this.suffixContext,
+      contentFingerprint: data.contentFingerprint.present
+          ? data.contentFingerprint.value
+          : this.contentFingerprint,
+      style: data.style.present ? data.style.value : this.style,
+      note: data.note.present ? data.note.value : this.note,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookAnnotation(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('chapterNumber: $chapterNumber, ')
+          ..write('startOffset: $startOffset, ')
+          ..write('endOffset: $endOffset, ')
+          ..write('quote: $quote, ')
+          ..write('prefixContext: $prefixContext, ')
+          ..write('suffixContext: $suffixContext, ')
+          ..write('contentFingerprint: $contentFingerprint, ')
+          ..write('style: $style, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      bookId,
+      chapterNumber,
+      startOffset,
+      endOffset,
+      quote,
+      prefixContext,
+      suffixContext,
+      contentFingerprint,
+      style,
+      note,
+      createdAt,
+      updatedAt,
+      deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BookAnnotation &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.chapterNumber == this.chapterNumber &&
+          other.startOffset == this.startOffset &&
+          other.endOffset == this.endOffset &&
+          other.quote == this.quote &&
+          other.prefixContext == this.prefixContext &&
+          other.suffixContext == this.suffixContext &&
+          other.contentFingerprint == this.contentFingerprint &&
+          other.style == this.style &&
+          other.note == this.note &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class BookAnnotationsCompanion extends UpdateCompanion<BookAnnotation> {
+  final Value<String> id;
+  final Value<String> bookId;
+  final Value<int> chapterNumber;
+  final Value<int> startOffset;
+  final Value<int> endOffset;
+  final Value<String> quote;
+  final Value<String> prefixContext;
+  final Value<String> suffixContext;
+  final Value<String> contentFingerprint;
+  final Value<String> style;
+  final Value<String> note;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const BookAnnotationsCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.chapterNumber = const Value.absent(),
+    this.startOffset = const Value.absent(),
+    this.endOffset = const Value.absent(),
+    this.quote = const Value.absent(),
+    this.prefixContext = const Value.absent(),
+    this.suffixContext = const Value.absent(),
+    this.contentFingerprint = const Value.absent(),
+    this.style = const Value.absent(),
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BookAnnotationsCompanion.insert({
+    required String id,
+    required String bookId,
+    required int chapterNumber,
+    required int startOffset,
+    required int endOffset,
+    required String quote,
+    this.prefixContext = const Value.absent(),
+    this.suffixContext = const Value.absent(),
+    this.contentFingerprint = const Value.absent(),
+    this.style = const Value.absent(),
+    this.note = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        bookId = Value(bookId),
+        chapterNumber = Value(chapterNumber),
+        startOffset = Value(startOffset),
+        endOffset = Value(endOffset),
+        quote = Value(quote),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<BookAnnotation> custom({
+    Expression<String>? id,
+    Expression<String>? bookId,
+    Expression<int>? chapterNumber,
+    Expression<int>? startOffset,
+    Expression<int>? endOffset,
+    Expression<String>? quote,
+    Expression<String>? prefixContext,
+    Expression<String>? suffixContext,
+    Expression<String>? contentFingerprint,
+    Expression<String>? style,
+    Expression<String>? note,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (chapterNumber != null) 'chapter_number': chapterNumber,
+      if (startOffset != null) 'start_offset': startOffset,
+      if (endOffset != null) 'end_offset': endOffset,
+      if (quote != null) 'quote': quote,
+      if (prefixContext != null) 'prefix_context': prefixContext,
+      if (suffixContext != null) 'suffix_context': suffixContext,
+      if (contentFingerprint != null) 'content_fingerprint': contentFingerprint,
+      if (style != null) 'style': style,
+      if (note != null) 'note': note,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BookAnnotationsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? bookId,
+      Value<int>? chapterNumber,
+      Value<int>? startOffset,
+      Value<int>? endOffset,
+      Value<String>? quote,
+      Value<String>? prefixContext,
+      Value<String>? suffixContext,
+      Value<String>? contentFingerprint,
+      Value<String>? style,
+      Value<String>? note,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int?>? deletedAt,
+      Value<int>? rowid}) {
+    return BookAnnotationsCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      chapterNumber: chapterNumber ?? this.chapterNumber,
+      startOffset: startOffset ?? this.startOffset,
+      endOffset: endOffset ?? this.endOffset,
+      quote: quote ?? this.quote,
+      prefixContext: prefixContext ?? this.prefixContext,
+      suffixContext: suffixContext ?? this.suffixContext,
+      contentFingerprint: contentFingerprint ?? this.contentFingerprint,
+      style: style ?? this.style,
+      note: note ?? this.note,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (chapterNumber.present) {
+      map['chapter_number'] = Variable<int>(chapterNumber.value);
+    }
+    if (startOffset.present) {
+      map['start_offset'] = Variable<int>(startOffset.value);
+    }
+    if (endOffset.present) {
+      map['end_offset'] = Variable<int>(endOffset.value);
+    }
+    if (quote.present) {
+      map['quote'] = Variable<String>(quote.value);
+    }
+    if (prefixContext.present) {
+      map['prefix_context'] = Variable<String>(prefixContext.value);
+    }
+    if (suffixContext.present) {
+      map['suffix_context'] = Variable<String>(suffixContext.value);
+    }
+    if (contentFingerprint.present) {
+      map['content_fingerprint'] = Variable<String>(contentFingerprint.value);
+    }
+    if (style.present) {
+      map['style'] = Variable<String>(style.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookAnnotationsCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('chapterNumber: $chapterNumber, ')
+          ..write('startOffset: $startOffset, ')
+          ..write('endOffset: $endOffset, ')
+          ..write('quote: $quote, ')
+          ..write('prefixContext: $prefixContext, ')
+          ..write('suffixContext: $suffixContext, ')
+          ..write('contentFingerprint: $contentFingerprint, ')
+          ..write('style: $style, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $CoReadingSessionsTable extends CoReadingSessions
     with TableInfo<$CoReadingSessionsTable, CoReadingSession> {
   @override
@@ -33313,6 +33995,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $BookReadingProgressTable(this);
   late final $BookChapterNotesTable bookChapterNotes =
       $BookChapterNotesTable(this);
+  late final $BookAnnotationsTable bookAnnotations =
+      $BookAnnotationsTable(this);
   late final $CoReadingSessionsTable coReadingSessions =
       $CoReadingSessionsTable(this);
   late final $CoReadingSessionMessagesTable coReadingSessionMessages =
@@ -33390,6 +34074,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         bookChapters,
         bookReadingProgress,
         bookChapterNotes,
+        bookAnnotations,
         coReadingSessions,
         coReadingSessionMessages,
         gameDefinitions,
@@ -49437,6 +50122,320 @@ typedef $$BookChapterNotesTableProcessedTableManager = ProcessedTableManager<
     ),
     BookChapterNote,
     PrefetchHooks Function()>;
+typedef $$BookAnnotationsTableCreateCompanionBuilder = BookAnnotationsCompanion
+    Function({
+  required String id,
+  required String bookId,
+  required int chapterNumber,
+  required int startOffset,
+  required int endOffset,
+  required String quote,
+  Value<String> prefixContext,
+  Value<String> suffixContext,
+  Value<String> contentFingerprint,
+  Value<String> style,
+  Value<String> note,
+  required int createdAt,
+  required int updatedAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+typedef $$BookAnnotationsTableUpdateCompanionBuilder = BookAnnotationsCompanion
+    Function({
+  Value<String> id,
+  Value<String> bookId,
+  Value<int> chapterNumber,
+  Value<int> startOffset,
+  Value<int> endOffset,
+  Value<String> quote,
+  Value<String> prefixContext,
+  Value<String> suffixContext,
+  Value<String> contentFingerprint,
+  Value<String> style,
+  Value<String> note,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+
+class $$BookAnnotationsTableFilterComposer
+    extends Composer<_$AppDatabase, $BookAnnotationsTable> {
+  $$BookAnnotationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+      column: $table.bookId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get startOffset => $composableBuilder(
+      column: $table.startOffset, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get endOffset => $composableBuilder(
+      column: $table.endOffset, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get quote => $composableBuilder(
+      column: $table.quote, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get prefixContext => $composableBuilder(
+      column: $table.prefixContext, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get suffixContext => $composableBuilder(
+      column: $table.suffixContext, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get contentFingerprint => $composableBuilder(
+      column: $table.contentFingerprint,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get style => $composableBuilder(
+      column: $table.style, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get note => $composableBuilder(
+      column: $table.note, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$BookAnnotationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $BookAnnotationsTable> {
+  $$BookAnnotationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+      column: $table.bookId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get startOffset => $composableBuilder(
+      column: $table.startOffset, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get endOffset => $composableBuilder(
+      column: $table.endOffset, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get quote => $composableBuilder(
+      column: $table.quote, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get prefixContext => $composableBuilder(
+      column: $table.prefixContext,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get suffixContext => $composableBuilder(
+      column: $table.suffixContext,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get contentFingerprint => $composableBuilder(
+      column: $table.contentFingerprint,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get style => $composableBuilder(
+      column: $table.style, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get note => $composableBuilder(
+      column: $table.note, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$BookAnnotationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BookAnnotationsTable> {
+  $$BookAnnotationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<int> get chapterNumber => $composableBuilder(
+      column: $table.chapterNumber, builder: (column) => column);
+
+  GeneratedColumn<int> get startOffset => $composableBuilder(
+      column: $table.startOffset, builder: (column) => column);
+
+  GeneratedColumn<int> get endOffset =>
+      $composableBuilder(column: $table.endOffset, builder: (column) => column);
+
+  GeneratedColumn<String> get quote =>
+      $composableBuilder(column: $table.quote, builder: (column) => column);
+
+  GeneratedColumn<String> get prefixContext => $composableBuilder(
+      column: $table.prefixContext, builder: (column) => column);
+
+  GeneratedColumn<String> get suffixContext => $composableBuilder(
+      column: $table.suffixContext, builder: (column) => column);
+
+  GeneratedColumn<String> get contentFingerprint => $composableBuilder(
+      column: $table.contentFingerprint, builder: (column) => column);
+
+  GeneratedColumn<String> get style =>
+      $composableBuilder(column: $table.style, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$BookAnnotationsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $BookAnnotationsTable,
+    BookAnnotation,
+    $$BookAnnotationsTableFilterComposer,
+    $$BookAnnotationsTableOrderingComposer,
+    $$BookAnnotationsTableAnnotationComposer,
+    $$BookAnnotationsTableCreateCompanionBuilder,
+    $$BookAnnotationsTableUpdateCompanionBuilder,
+    (
+      BookAnnotation,
+      BaseReferences<_$AppDatabase, $BookAnnotationsTable, BookAnnotation>
+    ),
+    BookAnnotation,
+    PrefetchHooks Function()> {
+  $$BookAnnotationsTableTableManager(
+      _$AppDatabase db, $BookAnnotationsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BookAnnotationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BookAnnotationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BookAnnotationsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> bookId = const Value.absent(),
+            Value<int> chapterNumber = const Value.absent(),
+            Value<int> startOffset = const Value.absent(),
+            Value<int> endOffset = const Value.absent(),
+            Value<String> quote = const Value.absent(),
+            Value<String> prefixContext = const Value.absent(),
+            Value<String> suffixContext = const Value.absent(),
+            Value<String> contentFingerprint = const Value.absent(),
+            Value<String> style = const Value.absent(),
+            Value<String> note = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              BookAnnotationsCompanion(
+            id: id,
+            bookId: bookId,
+            chapterNumber: chapterNumber,
+            startOffset: startOffset,
+            endOffset: endOffset,
+            quote: quote,
+            prefixContext: prefixContext,
+            suffixContext: suffixContext,
+            contentFingerprint: contentFingerprint,
+            style: style,
+            note: note,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String bookId,
+            required int chapterNumber,
+            required int startOffset,
+            required int endOffset,
+            required String quote,
+            Value<String> prefixContext = const Value.absent(),
+            Value<String> suffixContext = const Value.absent(),
+            Value<String> contentFingerprint = const Value.absent(),
+            Value<String> style = const Value.absent(),
+            Value<String> note = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              BookAnnotationsCompanion.insert(
+            id: id,
+            bookId: bookId,
+            chapterNumber: chapterNumber,
+            startOffset: startOffset,
+            endOffset: endOffset,
+            quote: quote,
+            prefixContext: prefixContext,
+            suffixContext: suffixContext,
+            contentFingerprint: contentFingerprint,
+            style: style,
+            note: note,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$BookAnnotationsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $BookAnnotationsTable,
+    BookAnnotation,
+    $$BookAnnotationsTableFilterComposer,
+    $$BookAnnotationsTableOrderingComposer,
+    $$BookAnnotationsTableAnnotationComposer,
+    $$BookAnnotationsTableCreateCompanionBuilder,
+    $$BookAnnotationsTableUpdateCompanionBuilder,
+    (
+      BookAnnotation,
+      BaseReferences<_$AppDatabase, $BookAnnotationsTable, BookAnnotation>
+    ),
+    BookAnnotation,
+    PrefetchHooks Function()>;
 typedef $$CoReadingSessionsTableCreateCompanionBuilder
     = CoReadingSessionsCompanion Function({
   required String id,
@@ -50745,6 +51744,8 @@ class $AppDatabaseManager {
       $$BookReadingProgressTableTableManager(_db, _db.bookReadingProgress);
   $$BookChapterNotesTableTableManager get bookChapterNotes =>
       $$BookChapterNotesTableTableManager(_db, _db.bookChapterNotes);
+  $$BookAnnotationsTableTableManager get bookAnnotations =>
+      $$BookAnnotationsTableTableManager(_db, _db.bookAnnotations);
   $$CoReadingSessionsTableTableManager get coReadingSessions =>
       $$CoReadingSessionsTableTableManager(_db, _db.coReadingSessions);
   $$CoReadingSessionMessagesTableTableManager get coReadingSessionMessages =>

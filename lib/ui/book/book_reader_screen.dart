@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
+import 'package:memex/data/services/book/book_annotation_service.dart';
 import 'package:memex/data/services/book/book_library_service.dart';
 import 'package:memex/data/services/book/co_reading_note_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
@@ -38,6 +40,9 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
 
   final ScrollController _scroll = ScrollController();
   Timer? _progressThrottle;
+  late final BookAnnotationService _annotationService;
+  List<BookAnnotation> _annotations = const [];
+  final Map<String, TapGestureRecognizer> _annotationRecognizers = {};
 
   // Chat state
   String _characterId = '';
@@ -53,6 +58,7 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
   @override
   void initState() {
     super.initState();
+    _annotationService = BookAnnotationService(db: AppDatabase.instance);
     _load();
   }
 
@@ -66,6 +72,9 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
     _scroll.dispose();
     _input.dispose();
     _chatScroll.dispose();
+    for (final recognizer in _annotationRecognizers.values) {
+      recognizer.dispose();
+    }
     super.dispose();
   }
 
@@ -116,8 +125,9 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
       if (!mounted) return;
       setState(() {
         _content = content ?? '（无法加载章节内容）';
-        _loadingContent = false;
       });
+      await _loadAnnotations(number);
+      if (mounted) setState(() => _loadingContent = false);
       // Record progress
       BookLibraryService.instance.recordProgress(
         bookId: widget.bookId,
@@ -130,6 +140,325 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
         _loadingContent = false;
       });
     }
+  }
+
+  Future<void> _loadAnnotations(int chapterNumber) async {
+    final items = await _annotationService.listForChapter(
+      bookId: widget.bookId,
+      chapterNumber: chapterNumber,
+    );
+    if (!mounted || chapterNumber != _currentChapter) return;
+    for (final recognizer in _annotationRecognizers.values) {
+      recognizer.dispose();
+    }
+    _annotationRecognizers.clear();
+    for (final annotation in items) {
+      _annotationRecognizers[annotation.id] = TapGestureRecognizer()
+        ..onTap = () => _editAnnotation(annotation);
+    }
+    setState(() => _annotations = items);
+  }
+
+  Future<String?> _promptForNote({
+    required String quote,
+    String initialNote = '',
+  }) async {
+    final controller = TextEditingController(text: initialNote);
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          18,
+          20,
+          16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              '写下这段带给你的想法',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0x14737B46),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                quote,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(height: 1.55, color: Color(0xFF4D5649)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              minLines: 3,
+              maxLines: 7,
+              decoration: const InputDecoration(
+                hintText: '可以只写一句，也可以慢慢展开……',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => Navigator.pop(sheetContext, controller.text),
+              child: const Text('保存批注'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  Future<void> _createAnnotation(
+    TextSelection selection, {
+    required bool withNote,
+  }) async {
+    ContextMenuController.removeAny();
+    if (!selection.isValid || selection.isCollapsed || _content.isEmpty) return;
+    final start = selection.start.clamp(0, _content.length);
+    final end = selection.end.clamp(0, _content.length);
+    if (start >= end) return;
+    final quote = _content.substring(start, end);
+    final note = withNote ? await _promptForNote(quote: quote) : '';
+    if (withNote && note == null) return;
+
+    try {
+      await _annotationService.create(
+        bookId: widget.bookId,
+        chapterNumber: _currentChapter,
+        chapterContent: _content,
+        startOffset: start,
+        endOffset: end,
+        note: note ?? '',
+      );
+      await _loadAnnotations(_currentChapter);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(withNote ? '批注已保存' : '已划线')),
+      );
+    } on BookAnnotationOverlapException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('这段文字已经有划线了，可以点它修改批注')),
+      );
+    }
+  }
+
+  Widget _buildSelectionMenu(
+    BuildContext context,
+    EditableTextState editableTextState,
+  ) {
+    final selection = editableTextState.textEditingValue.selection;
+    final items = List<ContextMenuButtonItem>.of(
+      editableTextState.contextMenuButtonItems,
+    );
+    if (selection.isValid && !selection.isCollapsed) {
+      items.insertAll(0, [
+        ContextMenuButtonItem(
+          label: '划线',
+          onPressed: () => unawaited(
+            _createAnnotation(selection, withNote: false),
+          ),
+        ),
+        ContextMenuButtonItem(
+          label: '批注',
+          onPressed: () => unawaited(
+            _createAnnotation(selection, withNote: true),
+          ),
+        ),
+      ]);
+    }
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: items,
+    );
+  }
+
+  TextSpan _buildAnnotatedText() {
+    if (_annotations.isEmpty) return TextSpan(text: _content);
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final annotation in _annotations) {
+      final start = annotation.startOffset.clamp(cursor, _content.length);
+      final end = annotation.endOffset.clamp(start, _content.length);
+      if (start > cursor) {
+        spans.add(TextSpan(text: _content.substring(cursor, start)));
+      }
+      if (end > start) {
+        spans.add(TextSpan(
+          text: _content.substring(start, end),
+          style: const TextStyle(
+            backgroundColor: Color(0x667F8A45),
+            decoration: TextDecoration.underline,
+            decorationColor: Color(0xFF737B46),
+            decorationThickness: 1.2,
+          ),
+          recognizer: _annotationRecognizers[annotation.id],
+        ));
+      }
+      cursor = end;
+    }
+    if (cursor < _content.length) {
+      spans.add(TextSpan(text: _content.substring(cursor)));
+    }
+    return TextSpan(children: spans);
+  }
+
+  Future<void> _editAnnotation(BookAnnotation annotation) async {
+    if (!mounted) return;
+    final controller = TextEditingController(text: annotation.note);
+    final action = await showModalBottomSheet<_AnnotationEditAction>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          18,
+          20,
+          16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              annotation.quote,
+              maxLines: 5,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, height: 1.6),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              minLines: 3,
+              maxLines: 7,
+              decoration: const InputDecoration(
+                hintText: '写下感想；留空也可以只保留划线',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () => Navigator.pop(
+                    sheetContext,
+                    const _AnnotationEditAction.delete(),
+                  ),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('删除'),
+                ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: () => Navigator.pop(
+                    sheetContext,
+                    _AnnotationEditAction.save(controller.text),
+                  ),
+                  child: const Text('保存'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (action == null) return;
+    if (action.delete) {
+      await _annotationService.delete(annotation.id);
+    } else {
+      await _annotationService.updateNote(annotation.id, action.note ?? '');
+    }
+    await _loadAnnotations(_currentChapter);
+  }
+
+  Future<void> _openBookNotes() async {
+    final annotations = await _annotationService.listForBook(widget.bookId);
+    if (!mounted) return;
+    if (annotations.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('还没有划线或批注。长按正文选中文字即可开始。')),
+      );
+      return;
+    }
+    final selected = await showModalBottomSheet<BookAnnotation>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: FractionallySizedBox(
+          heightFactor: 0.76,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 18, 20, 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '本书笔记',
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: annotations.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, index) {
+                    final item = annotations[index];
+                    return ListTile(
+                      title: Text(
+                        item.quote,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        item.note.isEmpty
+                            ? '第 ${item.chapterNumber} 章 · 仅划线'
+                            : '第 ${item.chapterNumber} 章 · ${item.note}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.pop(sheetContext, item),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    await _jumpToAnnotation(selected);
+  }
+
+  Future<void> _jumpToAnnotation(BookAnnotation annotation) async {
+    if (annotation.chapterNumber != _currentChapter) {
+      await _switchChapter(annotation.chapterNumber);
+    }
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients || _content.isEmpty) return;
+      final ratio = (annotation.startOffset / _content.length).clamp(0.0, 1.0);
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent * ratio,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   Future<void> _loadMessages() async {
@@ -483,6 +812,11 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.bookmark_outline),
+            tooltip: '本书笔记',
+            onPressed: _openBookNotes,
+          ),
+          IconButton(
             icon: const Icon(Icons.list),
             tooltip: '目录',
             onPressed: _pickChapter,
@@ -503,13 +837,14 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
                       controller: _scroll,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 16),
-                      child: SelectableText(
-                        _content,
+                      child: SelectableText.rich(
+                        _buildAnnotatedText(),
                         style: const TextStyle(
                           fontSize: 17,
                           height: 1.8,
                           letterSpacing: 0.3,
                         ),
+                        contextMenuBuilder: _buildSelectionMenu,
                       ),
                     ),
                   ),
@@ -519,4 +854,14 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
       ),
     );
   }
+}
+
+class _AnnotationEditAction {
+  const _AnnotationEditAction.save(this.note) : delete = false;
+  const _AnnotationEditAction.delete()
+      : delete = true,
+        note = null;
+
+  final bool delete;
+  final String? note;
 }

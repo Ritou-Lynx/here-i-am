@@ -86,6 +86,34 @@ class BookChapterNotes extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// A user-created highlight or note anchored to a stable character range.
+///
+/// This remains first-class reader data. It is deliberately not linked to
+/// Memory V3: promotion into memory only happens through an explicit user
+/// action, and a highlight without a note must not be treated as a belief.
+class BookAnnotations extends Table {
+  TextColumn get id => text()(); // UUID v4
+  TextColumn get bookId => text()(); // → Books.id (soft ref)
+  IntColumn get chapterNumber => integer()();
+
+  IntColumn get startOffset => integer()(); // inclusive UTF-16 offset
+  IntColumn get endOffset => integer()(); // exclusive UTF-16 offset
+  TextColumn get quote => text()();
+  TextColumn get prefixContext => text().withDefault(const Constant(''))();
+  TextColumn get suffixContext => text().withDefault(const Constant(''))();
+  TextColumn get contentFingerprint => text().withDefault(const Constant(''))();
+
+  TextColumn get style => text().withDefault(const Constant('spring_rain'))();
+  TextColumn get note => text().withDefault(const Constant(''))();
+
+  IntColumn get createdAt => integer()(); // milliseconds since epoch
+  IntColumn get updatedAt => integer()();
+  IntColumn get deletedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// One bounded co-reading discussion window for a book or manga chapter.
 ///
 /// This table deliberately stores only soft references. The persisted chat
