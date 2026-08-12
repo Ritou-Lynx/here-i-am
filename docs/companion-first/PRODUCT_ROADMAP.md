@@ -324,13 +324,22 @@ Memory Card = 统一凝露外壳 + 活动板块组装。
 - 正文抓取、封面、作者、摘要。
 - LoadReadingContent tool。
 - 角色可自然讲解，不需要按钮式 session。
+- 小说阅读器划线批注基础版：原生选区菜单、持续高亮、写 / 改 / 删批注、本书笔记与原文跳转。
+- 本地听书 R0 音色实验室：Kokoro v1.1 int8 可下载 / 校验 / 删除，三种匿名中文音色同稿盲听、变速评分和性能结果导出。
 
 后续重点：
 
-1. 连续抓取失败后提示重新登录。
-2. Reading card 合并进 Memory Summary Card / LinkAttachment 体系。
-3. 在 Memory Review / Interests 屏里提供“聊聊”入口。
-4. 支持对阅读内容生成用户自己的感受记忆，而不是只保存链接本体。
+1. 完成 Kokoro 音色真机赛马，并补 MeloTTS / Android 系统 TTS 跨引擎决赛；据结果确定默认包和低性能兜底。
+2. 建立统一语义进度：屏幕阅读、听书、书架和林埃共用章节 + 字符定位；同时保留当前阅读位置、上次听书位置和最远进度。
+3. 支持暂停、精确续播、后台 / 锁屏 / 耳机控制，以及“从当前开始 / 继续上次暂停”的启动选择。
+4. 完成划线批注后续增强：章节内容变化后的锚点自动修复、“和林埃聊”与显式提升 Memory V3；原始笔记继续留在阅读域。
+5. 连续抓取失败后提示重新登录。
+6. Reading card 合并进 Memory Summary Card / LinkAttachment 体系。
+7. 在 Memory Review / Interests 屏里提供“聊聊”入口。
+8. 支持对阅读内容生成用户自己的感受记忆，而不是只保存链接本体。
+
+小说阅读器的详细定位、播放、数据边界和实施分期见
+`docs/companion-first/BOOK_READER_TTS_ANNOTATION_PLAN.md`。
 
 ### 5.4 财务认知
 
