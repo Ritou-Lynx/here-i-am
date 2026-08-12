@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:memex/data/services/book/book_tts_bakeoff_service.dart';
+import 'package:memex/data/services/book/book_tts_melo_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+enum _LabEngine { kokoro, melo }
 
 class BookTtsVoiceLabScreen extends StatefulWidget {
   const BookTtsVoiceLabScreen({super.key});
@@ -22,6 +25,7 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
   static const _moss = Color(0xFF6E774A);
 
   final _service = BookTtsBakeoffService();
+  final _melo = BookTtsMeloService();
   final _player = AudioPlayer();
   final Map<String, BookTtsVoiceRating> _ratings = {
     for (final candidate in BookTtsBakeoffService.candidates)
@@ -29,6 +33,7 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
   };
   final Map<String, BookTtsSampleResult> _results = {};
 
+  _LabEngine _engine = _LabEngine.kokoro;
   bool _checking = true;
   bool _modelReady = false;
   bool _installing = false;
@@ -39,6 +44,12 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
   String _installMessage = '';
   String? _activeLabel;
   String? _error;
+
+  bool _meloReady = false;
+  bool _meloInstalling = false;
+  double _meloInstallProgress = 0;
+  String _meloInstallMessage = '';
+  BookTtsSampleResult? _meloResult;
 
   @override
   void initState() {
@@ -66,9 +77,11 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
       }
     }
     final ready = await _service.isModelReady();
+    final meloReady = await _melo.isModelReady();
     if (!mounted) return;
     setState(() {
       _modelReady = ready;
+      _meloReady = meloReady;
       _checking = false;
     });
   }
@@ -104,10 +117,38 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
     }
   }
 
+  Future<void> _installMelo() async {
+    setState(() {
+      _meloInstalling = true;
+      _error = null;
+      _meloInstallProgress = 0;
+      _meloInstallMessage = '准备下载';
+    });
+    try {
+      await _melo.downloadAndPrepare(onProgress: (progress) {
+        if (!mounted) return;
+        setState(() {
+          _meloInstallProgress = progress.value;
+          _meloInstallMessage = progress.message;
+        });
+      });
+      if (!mounted) return;
+      setState(() => _meloReady = true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = _friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _meloInstalling = false);
+    }
+  }
+
   String _friendlyError(Object error) {
     final text = error.toString();
-    if (text.contains('SocketException') || text.contains('HttpException')) {
-      return '下载没有完成。请换一个稳定的网络后重试，已损坏的临时文件不会被保留。';
+    if (text.contains('SocketException') ||
+        text.contains('HttpException') ||
+        text.contains('TimeoutException') ||
+        text.contains('ClientException')) {
+      return '网络中断，下载没有完成。已下载的部分会保留，下次会自动从断点继续，不需要重新下载整个模型。请换一个稳定的网络后重试。';
     }
     return '没有完成：$text';
   }
@@ -148,6 +189,28 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _listenMelo() async {
+    if (_generating || !_meloReady) return;
+    if (_meloResult != null && _player.playing) {
+      await _player.pause();
+      return;
+    }
+    setState(() {
+      _generating = true;
+      _activeLabel = 'M';
+      _error = null;
+    });
+    try {
+      final result = await _melo.generateSample(speed: _speed);
+      _meloResult = result;
+      await _playResult('M', result);
+    } catch (e) {
+      if (mounted) setState(() => _error = _friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
   Future<void> _saveRatings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -174,7 +237,11 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('删除本地音色模型？'),
-        content: const Text('会释放约 215 MB 空间，评分会保留；下次试听需要重新下载。'),
+        content: Text(
+          _engine == _LabEngine.kokoro
+              ? '会释放约 215 MB 空间，评分会保留；下次试听需要重新下载。'
+              : '会释放约 170 MB 空间；下次试听需要重新下载。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -189,13 +256,23 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
     );
     if (confirmed != true) return;
     await _player.stop();
-    await _service.deleteModelAndSamples();
-    if (!mounted) return;
-    setState(() {
-      _modelReady = false;
-      _results.clear();
-      _activeLabel = null;
-    });
+    if (_engine == _LabEngine.kokoro) {
+      await _service.deleteModelAndSamples();
+      if (!mounted) return;
+      setState(() {
+        _modelReady = false;
+        _results.clear();
+        _activeLabel = null;
+      });
+    } else {
+      await _melo.deleteModelAndSamples();
+      if (!mounted) return;
+      setState(() {
+        _meloReady = false;
+        _meloResult = null;
+        _activeLabel = null;
+      });
+    }
   }
 
   @override
@@ -206,7 +283,8 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
         title: const Text('本地音色实验室'),
         backgroundColor: _paper,
         actions: [
-          if (_modelReady)
+          if ((_engine == _LabEngine.kokoro && _modelReady) ||
+              (_engine == _LabEngine.melo && _meloReady))
             IconButton(
               tooltip: '管理本地模型',
               onPressed: _generating ? null : _deleteModel,
@@ -221,17 +299,12 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
               children: [
                 _introCard(),
                 const SizedBox(height: 14),
-                if (!_modelReady) _installCard() else ...[
-                  _testTextCard(),
-                  const SizedBox(height: 14),
-                  _speedSelector(),
-                  const SizedBox(height: 18),
-                  for (final candidate in BookTtsBakeoffService.candidates) ...[
-                    _candidateCard(candidate),
-                    const SizedBox(height: 12),
-                  ],
-                  _finishCard(),
-                ],
+                _engineSelector(),
+                const SizedBox(height: 14),
+                if (_engine == _LabEngine.kokoro)
+                  ..._kokoroContent()
+                else
+                  ..._meloContent(),
                 if (_error != null) ...[
                   const SizedBox(height: 14),
                   _errorCard(_error!),
@@ -241,6 +314,62 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
     );
   }
 
+  List<Widget> _kokoroContent() {
+    if (!_modelReady) return [_installCard()];
+    return [
+      _testTextCard(),
+      const SizedBox(height: 14),
+      _speedSelector(),
+      const SizedBox(height: 18),
+      for (final candidate in BookTtsBakeoffService.candidates) ...[
+        _candidateCard(candidate),
+        const SizedBox(height: 12),
+      ],
+      _finishCard(),
+    ];
+  }
+
+  List<Widget> _meloContent() {
+    if (!_meloReady) return [_meloInstallCard()];
+    return [
+      _testTextCard(),
+      const SizedBox(height: 14),
+      _speedSelector(),
+      const SizedBox(height: 18),
+      _meloListenCard(),
+    ];
+  }
+
+  Widget _engineSelector() => Row(children: [
+        Expanded(
+          child: ChoiceChip(
+            label: Text('Kokoro ${_modelReady ? '' : '（未下载）'}'),
+            selected: _engine == _LabEngine.kokoro,
+            onSelected: _generating
+                ? null
+                : (_) => setState(() {
+                      _engine = _LabEngine.kokoro;
+                      _error = null;
+                      _activeLabel = null;
+                    }),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: ChoiceChip(
+            label: Text('MeloTTS ${_meloReady ? '' : '（未下载）'}'),
+            selected: _engine == _LabEngine.melo,
+            onSelected: _generating
+                ? null
+                : (_) => setState(() {
+                      _engine = _LabEngine.melo;
+                      _error = null;
+                      _activeLabel = null;
+                    }),
+          ),
+        ),
+      ]);
+
   Widget _introCard() => _card(
         child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,11 +377,11 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
             Text('先听，再看名字',
                 style: TextStyle(
                     color: _ink, fontSize: 22, fontWeight: FontWeight.w700)),
-            SizedBox(height: 8),
-            Text(
-              'A、B、C 使用完全相同的文字与速度。声音全在手机里生成，不上传书籍内容，也不产生按次费用。',
-              style: TextStyle(color: _muted, height: 1.6),
-            ),
+          SizedBox(height: 8),
+          Text(
+            'Kokoro 赛马三种匿名中文女声，MeloTTS 是单音色对比组。同文同速，声音全在手机里生成，不上传书籍内容，也不产生按次费用。',
+            style: TextStyle(color: _muted, height: 1.6),
+          ),
           ],
         ),
       );
@@ -272,7 +401,7 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
             ]),
             const SizedBox(height: 8),
             const Text(
-              '首次需要联网下载，安装后约占 215 MB。下载、解压和校验可能需要几分钟。',
+              '首次需要联网下载，安装后约占 215 MB。下载、解压和校验可能需要几分钟；网络中断时会保留进度，下次自动从断点继续。',
               style: TextStyle(color: _muted, height: 1.5),
             ),
             const SizedBox(height: 16),
@@ -293,6 +422,90 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
           ],
         ),
       );
+
+  Widget _meloInstallCard() => _card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(children: [
+              Icon(Icons.download_for_offline_outlined, color: _moss),
+              SizedBox(width: 9),
+              Expanded(
+                child: Text(BookTtsMeloService.modelName,
+                    style:
+                        TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            const Text(
+              '首次需要联网下载，安装后约占 170 MB。下载、解压和校验可能需要几分钟；网络中断时会保留进度，下次自动从断点继续。',
+              style: TextStyle(color: _muted, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            if (_meloInstalling) ...[
+              LinearProgressIndicator(value: _meloInstallProgress, color: _moss),
+              const SizedBox(height: 9),
+              Text('$_meloInstallMessage · ${(_meloInstallProgress * 100).round()}%',
+                  style: const TextStyle(color: _muted)),
+            ] else
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _installMelo,
+                  icon: const Icon(Icons.download_rounded),
+                  label: const Text('下载并安装本地模型'),
+                ),
+              ),
+          ],
+        ),
+      );
+
+  Widget _meloListenCard() {
+    final result = _meloResult;
+    final isGenerating = _generating && _activeLabel == 'M';
+    final isPlaying = _activeLabel == 'M' && _player.playing;
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const CircleAvatar(
+              backgroundColor: _moss,
+              foregroundColor: Colors.white,
+              child: Text('M'),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('MeloTTS · 中英混读单音色',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: _generating ? null : _listenMelo,
+              icon: isGenerating
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow),
+              label: Text(isGenerating
+                  ? '生成中'
+                  : isPlaying
+                      ? '暂停'
+                      : '试听'),
+            ),
+          ]),
+          if (result != null) ...[
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 7, children: [
+              _metric('首段 ${result.firstChunkMs} ms'),
+              _metric('RTF ${result.realTimeFactor.toStringAsFixed(2)}'),
+              _metric('冷启动 ${result.initMs} ms'),
+              _metric('内存 +${(result.peakRssBytes / 1048576).round()} MB'),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _testTextCard() => _card(
         child: const Column(
@@ -327,6 +540,7 @@ class _BookTtsVoiceLabScreenState extends State<BookTtsVoiceLabScreen> {
                           setState(() {
                             _speed = speed;
                             _results.clear();
+                            _meloResult = null;
                             _activeLabel = null;
                           });
                         },

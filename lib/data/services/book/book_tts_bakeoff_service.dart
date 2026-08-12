@@ -1,23 +1,37 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:archive/archive_io.dart';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
+
+import 'offline_tts_model_installer.dart';
 
 /// A deliberately small, reader-focused lab for comparing local Kokoro voices.
 ///
 /// Model lifecycle and synthesis live here so the eventual reader TTS service
 /// can reuse the same verified files without coupling itself to the lab UI.
 class BookTtsBakeoffService {
-  BookTtsBakeoffService({Directory? supportDirectory})
-      : _supportDirectoryOverride = supportDirectory;
+  BookTtsBakeoffService({
+    Directory? supportDirectory,
+    String? downloadUrl,
+    Duration retryDelay = const Duration(seconds: 3),
+  }) : _installer = OfflineTtsModelInstaller(
+          name: _modelDirectoryName,
+          downloadUrl: downloadUrl ?? BookTtsBakeoffService.downloadUrl,
+          modelRelativePath: 'model.int8.onnx',
+          modelSha256: _modelSha256,
+          requiredFiles: const [
+            'model.int8.onnx',
+            'voices.bin',
+            'tokens.txt',
+            'lexicon-zh.txt',
+            'espeak-ng-data',
+          ],
+          baseDirectory: supportDirectory,
+          retryDelay: retryDelay,
+        );
 
   static const modelName = 'Kokoro v1.1 中文 int8';
   static const installedSizeLabel = '约 215 MB';
@@ -37,97 +51,22 @@ class BookTtsBakeoffService {
     BookTtsCandidate(label: 'C', speakerId: 54),
   ];
 
-  final Directory? _supportDirectoryOverride;
+  final OfflineTtsModelInstaller _installer;
 
-  Future<Directory> _baseDirectory() async {
-    final support =
-        _supportDirectoryOverride ?? await getApplicationSupportDirectory();
-    return Directory(path.join(support.path, 'book_tts'));
-  }
+  Future<Directory> get modelDirectory => _installer.modelDirectory;
 
-  Future<Directory> get modelDirectory async =>
-      Directory(path.join((await _baseDirectory()).path, _modelDirectoryName));
+  Future<bool> isModelReady() => _installer.isReady();
 
-  Future<bool> isModelReady() async {
-    final root = await modelDirectory;
-    final marker = File(path.join(root.path, '.verified'));
-    if (!await marker.exists()) return false;
-    return _hasRequiredFiles(root);
-  }
-
-  Future<int> installedBytes() async {
-    final root = await modelDirectory;
-    if (!await root.exists()) return 0;
-    var total = 0;
-    await for (final entity in root.list(recursive: true, followLinks: false)) {
-      if (entity is File) total += await entity.length();
-    }
-    return total;
-  }
+  Future<int> installedBytes() => _installer.installedBytes();
 
   /// Downloads, stream-extracts, and verifies the model before publishing it.
   Future<void> downloadAndPrepare({
     required ValueChanged<BookTtsInstallProgress> onProgress,
-  }) async {
-    final base = await _baseDirectory();
-    await base.create(recursive: true);
-    // Keep the compression suffix last: the streaming extractor selects its
-    // decoder from the filename extension.
-    final archiveFile =
-        File(path.join(base.path, '$_modelDirectoryName.part.tar.bz2'));
-    final staging =
-        Directory(path.join(base.path, '.extracting-$_modelDirectoryName'));
-    final destination = await modelDirectory;
-
-    if (await archiveFile.exists()) await archiveFile.delete();
-    if (await staging.exists()) await staging.delete(recursive: true);
-    await staging.create(recursive: true);
-
-    try {
-      onProgress(const BookTtsInstallProgress(0, '正在下载本地音色模型'));
-      await _downloadFile(
-        Uri.parse(downloadUrl),
-        archiveFile,
-        onProgress: (value) => onProgress(
-          BookTtsInstallProgress(value * 0.82, '正在下载本地音色模型'),
-        ),
+  }) =>
+      _installer.downloadAndPrepare(
+        onProgress: (progress) =>
+            onProgress(BookTtsInstallProgress(progress.value, progress.message)),
       );
-
-      onProgress(const BookTtsInstallProgress(0.84, '正在解压模型'));
-      await extractFileToDisk(
-        archiveFile.path,
-        staging.path,
-        bufferSize: 1024 * 1024,
-      );
-
-      onProgress(const BookTtsInstallProgress(0.92, '正在校验模型完整性'));
-      final extractedRoot = await _findExtractedRoot(staging);
-      if (extractedRoot == null || !_hasRequiredFiles(extractedRoot)) {
-        throw const FormatException('模型包缺少必要文件');
-      }
-      final digest = await sha256
-          .bind(
-              File(path.join(extractedRoot.path, 'model.int8.onnx')).openRead())
-          .first;
-      if (digest.toString() != _modelSha256) {
-        throw const FormatException('模型校验失败，请重新下载');
-      }
-
-      if (await destination.exists()) await destination.delete(recursive: true);
-      if (path.equals(extractedRoot.path, staging.path)) {
-        await staging.rename(destination.path);
-      } else {
-        await extractedRoot.rename(destination.path);
-        if (await staging.exists()) await staging.delete(recursive: true);
-      }
-      await File(path.join(destination.path, '.verified'))
-          .writeAsString(_modelSha256, flush: true);
-      onProgress(const BookTtsInstallProgress(1, '模型已就绪'));
-    } finally {
-      if (await archiveFile.exists()) await archiveFile.delete();
-      if (await staging.exists()) await staging.delete(recursive: true);
-    }
-  }
 
   Future<BookTtsSampleResult> generateSample({
     required BookTtsCandidate candidate,
@@ -137,8 +76,8 @@ class BookTtsBakeoffService {
       throw StateError('本地音色模型尚未准备好');
     }
     final root = await modelDirectory;
-    final cache =
-        Directory(path.join((await _baseDirectory()).path, 'samples'));
+    final cache = Directory(
+        path.join((await _installer.baseDirectory).path, 'samples', 'kokoro'));
     await cache.create(recursive: true);
     final speedKey = speed.toStringAsFixed(2).replaceAll('.', '_');
     final output =
@@ -155,62 +94,21 @@ class BookTtsBakeoffService {
   }
 
   Future<void> deleteModelAndSamples() async {
-    final base = await _baseDirectory();
-    if (await base.exists()) await base.delete(recursive: true);
+    await _installer.deleteModel();
+    final base = await _installer.baseDirectory;
+    final samples = Directory(path.join(base.path, 'samples', 'kokoro'));
+    if (await samples.exists()) await samples.delete(recursive: true);
   }
 
-  Future<void> _downloadFile(
+  /// Test seam: downloads [uri] into [target] with the same resume/retry logic
+  /// used for the model archive.
+  @visibleForTesting
+  Future<void> downloadTo(
     Uri uri,
     File target, {
     required ValueChanged<double> onProgress,
-  }) async {
-    final client = http.Client();
-    IOSink? sink;
-    try {
-      final response = await client.send(http.Request('GET', uri));
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw HttpException('下载失败（${response.statusCode}）', uri: uri);
-      }
-      final total = response.contentLength ?? 0;
-      var received = 0;
-      sink = target.openWrite();
-      await for (final chunk in response.stream) {
-        sink.add(chunk);
-        received += chunk.length;
-        if (total > 0) onProgress(received / total);
-      }
-      await sink.flush();
-      await sink.close();
-      sink = null;
-    } finally {
-      await sink?.close();
-      client.close();
-    }
-  }
-
-  Future<Directory?> _findExtractedRoot(Directory staging) async {
-    if (_hasRequiredFiles(staging)) return staging;
-    await for (final entity
-        in staging.list(recursive: true, followLinks: false)) {
-      if (entity is File && path.basename(entity.path) == 'model.int8.onnx') {
-        final root = entity.parent;
-        if (_hasRequiredFiles(root)) return root;
-      }
-    }
-    return null;
-  }
-
-  bool _hasRequiredFiles(Directory root) {
-    const files = [
-      'model.int8.onnx',
-      'voices.bin',
-      'tokens.txt',
-      'lexicon-zh.txt',
-    ];
-    return files
-            .every((name) => File(path.join(root.path, name)).existsSync()) &&
-        Directory(path.join(root.path, 'espeak-ng-data')).existsSync();
-  }
+  }) =>
+      _installer.downloadTo(uri, target, onProgress: onProgress);
 }
 
 Map<String, Object> _generateKokoroSample(Map<String, Object> args) {
@@ -286,13 +184,8 @@ class BookTtsCandidate {
   final int speakerId;
 }
 
-@immutable
-class BookTtsInstallProgress {
-  const BookTtsInstallProgress(this.value, this.message);
-
-  final double value;
-  final String message;
-}
+/// Install progress for a reader TTS model package.
+typedef BookTtsInstallProgress = OfflineTtsInstallProgress;
 
 @immutable
 class BookTtsSampleResult {
