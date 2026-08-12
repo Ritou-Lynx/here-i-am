@@ -4,6 +4,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_project_settings_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_run_screen.dart';
+import 'package:memex/ui/dev_agent/widgets/dev_session_list_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_session_screen.dart';
 
 class DevRoomScreen extends StatefulWidget {
@@ -257,7 +258,7 @@ class _ProjectCard extends StatelessWidget {
                 },
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'edit', child: Text('编辑 / 删除')),
-                  PopupMenuItem(value: 'cleanup', child: Text('清理所�?worktree')),
+                  PopupMenuItem(value: 'cleanup', child: Text('清理所有 worktree')),
                 ],
               ),
             ],
@@ -291,7 +292,7 @@ class _ProjectCard extends StatelessWidget {
             onSessionCodex: onSessionCodex,
           ),
           const SizedBox(height: 12),
-          _RecentSessions(projectId: project.id),
+          _RecentSessions(projectId: project.id, projectName: project.name),
           const SizedBox(height: 12),
           _RecentRuns(projectId: project.id),
         ],
@@ -640,7 +641,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
           ),
           SizedBox(width: 8),
           Text(
-            '检�?Git 状�?..',
+            '检查 Git 状态...',
             style: TextStyle(
               color: SpringRainUiTokens.daylightTextTertiary,
               fontSize: 12,
@@ -710,7 +711,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
                     size: 14, color: SpringRainUiTokens.daylightWarning),
                 const SizedBox(width: 4),
                 Text(
-                  '远程领先 ${status.behind} �?commit',
+                  '远程领先 ${status.behind} 个 commit',
                   style: const TextStyle(
                     color: SpringRainUiTokens.daylightWarning,
                     fontSize: 12,
@@ -732,7 +733,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
                     size: 14, color: SpringRainUiTokens.daylightTextSecondary),
                 const SizedBox(width: 4),
                 Text(
-                  '本地领先 ${status.ahead} �?commit',
+                  '本地领先 ${status.ahead} 个 commit',
                   style: const TextStyle(
                     color: SpringRainUiTokens.daylightTextSecondary,
                     fontSize: 12,
@@ -790,9 +791,10 @@ class _GitStatusBarState extends State<_GitStatusBar> {
 }
 
 class _RecentSessions extends StatelessWidget {
-  const _RecentSessions({required this.projectId});
+  const _RecentSessions({required this.projectId, required this.projectName});
 
   final String projectId;
+  final String projectName;
 
   @override
   Widget build(BuildContext context) {
@@ -800,10 +802,11 @@ class _RecentSessions extends StatelessWidget {
       stream:
           DevAgentBridgeService.instance.watchSessions(projectId: projectId),
       builder: (context, snapshot) {
-        final sessions = (snapshot.data ?? const []).take(2).toList();
-        if (sessions.isEmpty) {
+        final all = snapshot.data ?? const [];
+        if (all.isEmpty) {
           return const SizedBox.shrink();
         }
+        final sessions = all.take(2).toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -848,6 +851,22 @@ class _RecentSessions extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => DevSessionScreen(sessionId: session.id),
                   ),
+                ),
+              ),
+            if (all.length > sessions.length)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DevSessionListScreen(
+                        projectId: projectId,
+                        projectName: projectName,
+                      ),
+                    ),
+                  ),
+                  child: Text('查看全部会话 (${all.length})'),
                 ),
               ),
           ],
