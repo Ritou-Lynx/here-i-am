@@ -13,6 +13,7 @@ import 'package:memex/ui/calendar/widgets/calendar_screen.dart';
 import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
 import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
 import 'package:memex/ui/interest/widgets/interest_hub_screen.dart';
+import 'package:memex/ui/book/book_tts_voice_lab_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_room_screen.dart';
 import 'package:memex/ui/user_setup/widgets/user_setup_screen.dart';
 import 'package:memex/ui/memory/widgets/memory_center_screen.dart';
@@ -107,6 +108,10 @@ GoRouter createAppRouter(
       GoRoute(
         path: AppRoutes.interests,
         builder: (_, __) => const InterestHubScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.bookTtsVoiceLab,
+        builder: (_, __) => const BookTtsVoiceLabScreen(),
       ),
       GoRoute(
         path: AppRoutes.devRoom,

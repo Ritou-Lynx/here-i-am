@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:memex/data/services/book/book_library_service.dart';
 import 'package:memex/data/services/book/book_remote_service.dart';
 import 'package:memex/data/services/character_service.dart';
@@ -12,6 +13,7 @@ import 'package:memex/data/services/comic/comic_remote_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/book/book_reader_screen.dart';
 import 'package:memex/ui/comic/comic_reader_screen.dart';
+import 'package:memex/routing/routes.dart';
 import 'package:memex/utils/user_storage.dart';
 
 enum ReadingShelfFilter { reading, all, novels, comics }
@@ -320,6 +322,9 @@ class _UnifiedReadingScreenState extends State<UnifiedReadingScreen> {
                   fontSize: 12,
                   shadows: [Shadow(color: Colors.black45, blurRadius: 4)])),
           const SizedBox(width: 8),
+          _glassIcon(Icons.graphic_eq_rounded,
+              () => context.push(AppRoutes.bookTtsVoiceLab)),
+          const SizedBox(width: 6),
           _glassIcon(
               _view == ReadingShelfView.list
                   ? Icons.grid_view_rounded

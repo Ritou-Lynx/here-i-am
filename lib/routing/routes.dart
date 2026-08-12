@@ -18,6 +18,9 @@ abstract final class AppRoutes {
   /// Reading and games entry.
   static const String interests = '/interests';
 
+  /// Blind, on-device book TTS voice bakeoff.
+  static const String bookTtsVoiceLab = '/book-tts-voice-lab';
+
   /// Dev Room.
   static const String devRoom = '/dev-room';
 
