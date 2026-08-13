@@ -4,7 +4,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 export const CORE_PROTOCOL_VERSION = '0.1';
-export const CORE_STORE_SCHEMA_VERSION = 3;
+export const CORE_STORE_SCHEMA_VERSION = 4;
 export const MAX_MESSAGE_BATCH = 100;
 export const CORE_WORKLOADS = Object.freeze([
   'companion_reply',
@@ -229,6 +229,16 @@ export class ICoreStore {
       );
       CREATE INDEX IF NOT EXISTS companion_reply_jobs_status_idx
         ON companion_reply_jobs(status, trigger_server_sequence);
+      CREATE TABLE IF NOT EXISTS companion_reply_shadow_runs (
+        job_id TEXT PRIMARY KEY,
+        holder_id TEXT NOT NULL,
+        fencing_token INTEGER NOT NULL,
+        model TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        reply_characters INTEGER NOT NULL,
+        completed_at_ms INTEGER NOT NULL,
+        FOREIGN KEY(job_id) REFERENCES companion_reply_jobs(job_id)
+      );
     `);
     this.#setMetadata('schema_version', String(CORE_STORE_SCHEMA_VERSION));
   }
@@ -789,6 +799,93 @@ export class ICoreStore {
       reply_sync_id: row.reply_sync_id,
       reply_server_sequence: reply.server_sequence,
       publication_status: reply.status,
+      completed_at_ms: now,
+    };
+  }
+
+  completeCompanionReplyShadow(raw, now = Date.now()) {
+    this.#requireCompanionReplyJobsEnabled();
+    const lease = this.#requireActiveLease(raw, now);
+    if (lease.workload !== 'companion_reply') {
+      throw new CoreStoreError(
+        'wrong_workload',
+        'Companion reply jobs require the companion_reply workload lease.',
+        { status: 403 },
+      );
+    }
+    const jobId = requiredString(raw?.job_id, 'job_id');
+    const model = requiredString(raw?.model, 'model');
+    const durationMs = requiredInteger(raw?.duration_ms, 'duration_ms', { minimum: 0 });
+    const replyCharacters = requiredInteger(
+      raw?.reply_characters,
+      'reply_characters',
+      { minimum: 0 },
+    );
+    const job = this.db.prepare(`
+      SELECT status, claimed_by, claim_fencing_token
+      FROM companion_reply_jobs WHERE job_id = ?
+    `).get(jobId);
+    if (!job) {
+      throw new CoreStoreError(
+        'job_not_found',
+        'The companion reply job does not exist.',
+        { status: 404 },
+      );
+    }
+    const existing = this.db.prepare(`
+      SELECT model, duration_ms, reply_characters, completed_at_ms
+      FROM companion_reply_shadow_runs WHERE job_id = ?
+    `).get(jobId);
+    if (job.status === 'completed' && existing) {
+      return {
+        job_id: jobId,
+        status: 'shadow_completed',
+        duplicate: true,
+        completed_at_ms: Number(existing.completed_at_ms),
+      };
+    }
+    if (
+      job.status !== 'claimed' ||
+      job.claimed_by !== lease.holderId ||
+      Number(job.claim_fencing_token) !== lease.fencingToken
+    ) {
+      throw new CoreStoreError(
+        'stale_job_claim',
+        'The companion reply job is no longer claimed by this lease.',
+        { status: 409 },
+      );
+    }
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare(`
+        INSERT INTO companion_reply_shadow_runs(
+          job_id, holder_id, fencing_token, model, duration_ms,
+          reply_characters, completed_at_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        jobId,
+        lease.holderId,
+        lease.fencingToken,
+        model,
+        durationMs,
+        replyCharacters,
+        now,
+      );
+      this.db.prepare(`
+        UPDATE companion_reply_jobs
+        SET status = 'completed', completed_at_ms = ?, updated_at_ms = ?
+        WHERE job_id = ? AND status = 'claimed'
+          AND claimed_by = ? AND claim_fencing_token = ?
+      `).run(now, now, jobId, lease.holderId, lease.fencingToken);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+    return {
+      job_id: jobId,
+      status: 'shadow_completed',
+      duplicate: false,
       completed_at_ms: now,
     };
   }

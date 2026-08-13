@@ -95,7 +95,9 @@ Tailscale 是网络边界，device token 是应用边界。token 只保存在设
 - `POST /v1/core/workers/companion-replies/claim`：当前 holder 领取下一轮待回复
   任务，并取得截至触发消息的最近 20 条角色聊天上下文；
 - `POST /v1/core/workers/companion-replies/complete`：用任务的稳定 reply id
-  完成回复并推进权威 change feed；重复完成返回同一 sequence。
+  完成回复并推进权威 change feed；重复完成返回同一 sequence；
+- `POST /v1/core/workers/companion-replies/shadow-complete`：影子模式只记录
+  model、耗时和回复字符数并关闭该任务，不保存生成正文，也不产生角色消息。
 
 首批 workload 为 `companion_reply`、`record_organizer`、`memory_v3`、
 `dreaming`、`checkin`。默认租期 30 秒，可请求 5 秒至 5 分钟。

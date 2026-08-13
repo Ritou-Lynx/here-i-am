@@ -677,3 +677,62 @@ test('a newer user message supersedes an in-flight reply job', async (t) => {
     0,
   );
 });
+
+test('shadow completion records metrics without publishing a companion message', async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'i-core-reply-shadow-'));
+  const { core, baseUrl } = await startCore(t, directory, {
+    companionReplyJobsEnabled: true,
+  });
+  const phone = await pair(baseUrl, 'phone-a');
+  await jsonRequest(`${baseUrl}/v1/core/chat/messages`, {
+    method: 'POST',
+    token: phone.body.device_token,
+    body: {
+      device_id: 'phone-a',
+      request_companion_reply: true,
+      messages: [message('phone-a', 'shadow-trigger', 1)],
+    },
+  });
+  const lease = await workerRequest(baseUrl, '/workers/leases', {
+    body: { workload: 'companion_reply', holder_id: 'shadow-worker' },
+  });
+  const proof = {
+    workload: 'companion_reply',
+    holder_id: 'shadow-worker',
+    lease_token: lease.body.lease_token,
+    fencing_token: lease.body.fencing_token,
+  };
+  const claimed = await workerRequest(baseUrl, '/workers/companion-replies/claim', {
+    body: proof,
+  });
+  const completed = await workerRequest(
+    baseUrl,
+    '/workers/companion-replies/shadow-complete',
+    {
+      body: {
+        ...proof,
+        job_id: claimed.body.job.job_id,
+        model: 'shadow-model',
+        duration_ms: 1234,
+        reply_characters: 28,
+      },
+    },
+  );
+  assert.equal(completed.status, 200);
+  assert.equal(completed.body.status, 'shadow_completed');
+  assert.equal(
+    core.store.db.prepare("SELECT COUNT(*) AS count FROM chat_messages WHERE sender = 'companion'").get().count,
+    0,
+  );
+  const metrics = core.store.db.prepare(`
+    SELECT model, duration_ms, reply_characters
+    FROM companion_reply_shadow_runs
+  `).get();
+  assert.equal(metrics.model, 'shadow-model');
+  assert.equal(metrics.duration_ms, 1234);
+  assert.equal(metrics.reply_characters, 28);
+  const noMoreWork = await workerRequest(baseUrl, '/workers/companion-replies/claim', {
+    body: proof,
+  });
+  assert.equal(noMoreWork.body.job, null);
+});

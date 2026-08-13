@@ -184,6 +184,11 @@ export function createICoreServer({
         json(response, 200, store.completeCompanionReplyJob(await readJson(request)));
         return;
       }
+      if (request.method === 'POST' && url.pathname === '/v1/core/workers/companion-replies/shadow-complete') {
+        requireWorker(request, workerSecret);
+        json(response, 200, store.completeCompanionReplyShadow(await readJson(request)));
+        return;
+      }
       throw new CoreStoreError('not_found', 'The requested core endpoint does not exist.', { status: 404 });
     } catch (error) {
       const known = error instanceof CoreStoreError

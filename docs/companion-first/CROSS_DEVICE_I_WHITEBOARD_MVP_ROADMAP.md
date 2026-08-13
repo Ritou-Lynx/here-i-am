@@ -83,6 +83,7 @@ MVP 最终需要证明这一晚能够成立：
 - [x] 建立核心 worker 租约底座：独立凭据、单持有者、续租 / 释放、过期接管与 fencing token 均已持久化并验证。
 - [x] 锁定角色回复的核心发布边界：只有当前 `companion_reply` holder 能写入 `sender=companion` 并形成权威 change event，普通设备和其他 workload 均被拒绝。
 - [x] 建立暗启用的耐久待回复队列：客户端显式 opt-in、领取时返回最近上下文、稳定 reply id 幂等完成；用户连续补充会淘汰旧 pending / in-flight 任务，旧结果不可落库。真实核心默认关闭，避免 worker 就绪前积压。
+- [x] 落地电脑端普通文字 Companion worker 骨架：OpenAI-compatible 模型调用、租约续期、默认 shadow 不发布、只留无正文指标；支持显式 live，但尚未接入手机切换开关和完整 Companion prompt / tools。
 - [ ] 将 Companion Reply、Memory V3、Dreaming、Record Organizer 和 Check-in 执行器逐个接入租约；迁移完成前不关闭手机现有能力。
 - [ ] 服务开机自启、崩溃恢复，并提供一致性快照与加密异地备份。
 
@@ -154,6 +155,6 @@ MVP 最终需要证明这一晚能够成立：
 
 1. 现有 V3 聊天文字已安全导入私人电脑核心：导入前自动备份，5,432 条双边文字形成 change events；8 条纯附件消息和 61 个附件对象留待对象存储阶段。
 2. 第一台手机已覆盖安装支持双边历史拉取的版本，设备 ack 从 2 追平核心 5,434；按 `sync_id` 命中本机既有记录，不复制气泡。
-3. 核心 worker 租约、角色回复唯一发布口和暗启用耐久队列已完成；下一步做电脑端普通文字 Companion worker，把领取到的上下文接入现有角色 prompt / 模型配置并续租，完成一轮影子验证后再切换手机提交模式。切换前手机仍负责现有回复，不提前双跑。
+3. 电脑端普通文字 worker 骨架已完成，默认 shadow 且不保存生成正文。下一步从现有 V3 配置安全导出 Companion 模型连接与角色 prompt，建立一条专用影子测试消息完成真实模型调用；通过后再给手机加入核心回复切换开关，按“请求核心回复 → 关闭本地生成 → live”顺序切换。
 4. 双手机闭环降为后续扩展验收：第二台覆盖安装后再配对，验证能从空库拉取核心已有消息。
 5. 白板线并行进入底座赛马：按 `docs/development/WHITEBOARD_ENGINE_BAKEOFF_AND_VERTICAL_SLICE.md` 用同一 fixture 比较候选，引擎确定后只做 TXT / EPUB → 卡片库 → 白板 → 阅读 → 双方批注 → 重启恢复的第一条纵向闭环。

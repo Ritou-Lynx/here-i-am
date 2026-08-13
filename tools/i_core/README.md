@@ -60,3 +60,30 @@ node tools/i_core/import_v3_chat.mjs `
 
 当前只导入有文字的 user / companion 聊天。纯附件消息和附件对象等内容哈希
 对象存储落地后再迁移；工具不会把手机本地路径或 base64 塞进核心数据库。
+
+## 电脑端普通文字 Companion worker
+
+`companion_worker.mjs` 已提供 OpenAI-compatible 的首个电脑端执行器。它会：
+
+1. 获取并续期唯一 `companion_reply` 租约；
+2. 领取核心合并后的待回复轮次与最近 20 条上下文；
+3. 调用 `/chat/completions`；
+4. 默认以 `shadow` 模式只记录模型名、耗时和回复长度，不保存回复正文、也不向手机发布；
+5. 只有显式设置 `I_COMPANION_WORKER_MODE=live` 才把回复写入权威 change feed。
+
+凭据可直接通过环境变量传入，也可使用 `*_FILE` 指向仓库外、权限受控的本机文件：
+
+```powershell
+$env:I_CORE_WORKER_SECRET_FILE='C:\path\outside-repo\core-worker-secret.txt'
+$env:I_COMPANION_MODEL_API_KEY_FILE='C:\path\outside-repo\model-api-key.txt'
+$env:I_COMPANION_MODEL_BASE_URL='https://provider.example/v1'
+$env:I_COMPANION_MODEL='model-name'
+$env:I_COMPANION_SYSTEM_PROMPT_FILE='C:\path\outside-repo\lin-ai-system-prompt.txt'
+$env:I_COMPANION_WORKER_MODE='shadow'
+node tools/i_core/companion_worker.mjs --once
+```
+
+真实核心开启 `I_CORE_COMPANION_REPLY_JOBS=1`、手机显式提交
+`request_companion_reply=true` 之前不会产生任务。不要在同一条聊天路径同时启用
+手机本地生成与 `live` worker；正确顺序是 shadow 验证 → 手机切换提交模式 →
+关闭该路径本地生成 → live 验收。
