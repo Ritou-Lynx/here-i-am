@@ -276,4 +276,51 @@ void main() {
       await tempDir.delete(recursive: true);
     }
   });
+
+  test('schema v57 creates the sync outbox table on upgrade', () async {
+    final tempDir =
+        await Directory.systemTemp.createTemp('chat_sync_v57_');
+    final dbFile = File('${tempDir.path}${Platform.pathSeparator}legacy.db');
+
+    // v56-shaped minimal database: chat + outbox prerequisite tables, with the
+    // sync columns from v55/v56 present.
+    final legacy = sqlite.sqlite3.open(dbFile.path);
+    legacy.execute('''
+      CREATE TABLE persona_chat_messages (
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        character_id TEXT NOT NULL,
+        is_from_character INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        fact_id TEXT,
+        is_read INTEGER NOT NULL DEFAULT 0,
+        timestamp INTEGER NOT NULL,
+        message_type TEXT NOT NULL DEFAULT 'chat',
+        attachments_json TEXT,
+        sync_id TEXT,
+        origin_device_id TEXT
+      )
+    ''');
+    legacy.execute('PRAGMA user_version = 56');
+    legacy.dispose();
+
+    final db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      final tables = await db.customSelect(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        variables: [Variable.withString('sync_outbox_messages')],
+      ).get();
+      expect(tables, hasLength(1));
+
+      final idx = await db
+          .customSelect("PRAGMA index_list('sync_outbox_messages')")
+          .get();
+      expect(
+        idx.map((row) => row.read<String>('name')),
+        contains('idx_sync_outbox_device_seq'),
+      );
+    } finally {
+      await db.close();
+      await tempDir.delete(recursive: true);
+    }
+  });
 }

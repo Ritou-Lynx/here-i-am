@@ -195,6 +195,31 @@ class PersonaChatMessages extends Table {
   TextColumn get attachmentsJson => text().nullable()();
 }
 
+/// Outbox for the cross-device i core chat sync (CORE_API_V0).
+///
+/// Holds user messages awaiting submission to the authority core. Written in
+/// the same transaction as the chat row so every locally visible message has a
+/// durable pending copy; once the core accepts a `sync_id`, the row is removed.
+/// `origin_sequence` is per-device and strictly increasing — it preserves
+/// offline send order within the device (the core orders by server_sequence).
+///
+/// Only `sender=user` messages are synced; character replies are core-owned
+/// and arrive via the change feed instead.
+class SyncOutboxMessages extends Table {
+  TextColumn get syncId => text()(); // == persona_chat_messages.sync_id (soft ref)
+  TextColumn get originDeviceId => text()(); // installation id
+  IntColumn get originSequence => integer()(); // strictly increasing per device
+  TextColumn get characterId => text()();
+  TextColumn get content => text()();
+  IntColumn get createdAtMs => integer()(); // milliseconds since epoch
+  TextColumn get messageType => text().withDefault(const Constant('chat'))();
+  // JSON-encoded list of asset refs (CoreAssetRef wire shape), optional.
+  TextColumn get assetRefsJson => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {syncId};
+}
+
 /// Per-character extraction cursor for asynchronous conversation capture.
 ///
 /// Queued and extracted IDs are separate so a failed background task can be

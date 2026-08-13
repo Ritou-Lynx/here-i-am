@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 /// Service for managing persona chat messages.
 class PersonaChatService {
   static const _uuid = Uuid();
+  static const _outboxBucket = 'core_sync_outbox';
   static PersonaChatService? _instance;
   static PersonaChatService get instance {
     _instance ??= PersonaChatService._();
@@ -63,6 +64,27 @@ class PersonaChatService {
         .getSingleOrNull();
   }
 
+  /// Pending chat submissions for a device, oldest-first by origin sequence.
+  /// Consumed by the sync client to build a submit batch (CORE_API_V0).
+  Future<List<SyncOutboxMessage>> pendingOutboxMessages(
+    String originDeviceId, {
+    int limit = 100,
+  }) {
+    return (_db.select(_db.syncOutboxMessages)
+          ..where((t) => t.originDeviceId.equals(originDeviceId))
+          ..orderBy([(t) => OrderingTerm.asc(t.originSequence)])
+          ..limit(limit))
+        .get();
+  }
+
+  /// Removes an outbox row once the core accepts its sync_id. No-op when the
+  /// message was already retracted while pending.
+  Future<void> markOutboxAccepted(String syncId) async {
+    await (_db.delete(_db.syncOutboxMessages)
+          ..where((t) => t.syncId.equals(syncId)))
+        .go();
+  }
+
   Future<int> countMessagesNewerThan(
     String characterId,
     PersonaChatMessage message,
@@ -96,22 +118,81 @@ class PersonaChatService {
     final attachmentsJson = attachments != null && attachments.isNotEmpty
         ? jsonEncode(attachments)
         : null;
-    final id = await _db.into(_db.personaChatMessages).insert(
-          PersonaChatMessagesCompanion.insert(
-            syncId: Value(syncId),
-            originDeviceId: Value(originDeviceId),
-            characterId: characterId,
-            isFromCharacter: false,
-            content: content,
-            isRead: const Value(true),
-            timestamp: createdAt,
-            attachmentsJson: Value(attachmentsJson),
-          ),
-        );
+
+    // Chat row + sync outbox row commit atomically: every locally visible
+    // user message has a durable pending copy for the authority core. The
+    // outbox copy is removed once the core accepts sync_id (CORE_API_V0).
+    late int id;
+    await _db.transaction(() async {
+      id = await _db.into(_db.personaChatMessages).insert(
+            PersonaChatMessagesCompanion.insert(
+              syncId: Value(syncId),
+              originDeviceId: Value(originDeviceId),
+              characterId: characterId,
+              isFromCharacter: false,
+              content: content,
+              isRead: const Value(true),
+              timestamp: createdAt,
+              attachmentsJson: Value(attachmentsJson),
+            ),
+          );
+      await _enqueueOutbox(
+        syncId: syncId,
+        originDeviceId: originDeviceId,
+        characterId: characterId,
+        content: content,
+        createdAt: createdAt,
+        messageType: 'chat',
+        assetRefsJson: null,
+      );
+    });
     _notifyMessageAdded(characterId);
     _scheduleDreaming(characterId);
     _ignoreLegacyTimelineFlag(appendTimeline);
     return id;
+  }
+
+  /// Appends one pending sync submission with a strictly increasing
+  /// per-device origin sequence. Must be called inside a transaction with the
+  /// chat row write so the visible message and its outbox copy never diverge.
+  ///
+  /// The sequence counter lives in kvStore (not the outbox table): outbox rows
+  /// are deleted once accepted, so max(outbox.origin_sequence) would restart
+  /// at 1 and collide with the core's per-device uniqueness after a restart.
+  Future<void> _enqueueOutbox({
+    required String syncId,
+    required String originDeviceId,
+    required String characterId,
+    required String content,
+    required DateTime createdAt,
+    required String messageType,
+    String? assetRefsJson,
+  }) async {
+    final counterKey = 'outbox.max_sequence.$originDeviceId';
+    final counterRow = await (_db.select(_db.kvStore)
+          ..where((t) => t.key.equals(counterKey) & t.bucket.equals(_outboxBucket)))
+        .getSingleOrNull();
+    final nextSequence = (int.tryParse(counterRow?.value ?? '') ?? 0) + 1;
+    await _db.into(_db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: counterKey,
+            value: Value('$nextSequence'),
+            bucket: const Value(_outboxBucket),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+    await _db.into(_db.syncOutboxMessages).insert(
+          SyncOutboxMessagesCompanion.insert(
+            syncId: syncId,
+            originDeviceId: originDeviceId,
+            originSequence: nextSequence,
+            characterId: characterId,
+            content: content,
+            createdAtMs: createdAt.millisecondsSinceEpoch,
+            messageType: Value(messageType),
+            assetRefsJson: Value(assetRefsJson),
+          ),
+        );
   }
 
   Future<void> appendUserMessageTimeline(
@@ -121,17 +202,20 @@ class PersonaChatService {
   }
 
   Future<int> deleteMessage(String characterId, int messageId) async {
+    final message = await getMessageById(messageId);
     final deleted = await (_db.delete(_db.personaChatMessages)
           ..where((t) =>
               t.id.equals(messageId) & t.characterId.equals(characterId)))
         .go();
     if (deleted > 0) {
+      await _dropOutboxIfPending(message?.syncId);
       _notifyMessageAdded(characterId);
     }
     return deleted;
   }
 
   Future<int> retractUserMessage(String characterId, int messageId) async {
+    final message = await getMessageById(messageId);
     final deleted = await (_db.delete(_db.personaChatMessages)
           ..where((t) =>
               t.id.equals(messageId) &
@@ -139,9 +223,21 @@ class PersonaChatService {
               t.isFromCharacter.equals(false)))
         .go();
     if (deleted > 0) {
+      await _dropOutboxIfPending(message?.syncId);
       _notifyMessageAdded(characterId);
     }
     return deleted;
+  }
+
+  /// Removes a pending outbox copy when its chat row is deleted/retracted.
+  /// A message that never reached the core needs no retraction sync — the
+  /// outbox copy simply disappears. Messages already accepted by the core are
+  /// never in the outbox, so nothing to do there either.
+  Future<void> _dropOutboxIfPending(String? syncId) async {
+    if (syncId == null || syncId.isEmpty) return;
+    await (_db.delete(_db.syncOutboxMessages)
+          ..where((t) => t.syncId.equals(syncId)))
+        .go();
   }
 
   Future<int> addCharacterMessage(

@@ -3798,6 +3798,459 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
   }
 }
 
+class $SyncOutboxMessagesTable extends SyncOutboxMessages
+    with TableInfo<$SyncOutboxMessagesTable, SyncOutboxMessage> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SyncOutboxMessagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
+  @override
+  late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
+      'sync_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _originDeviceIdMeta =
+      const VerificationMeta('originDeviceId');
+  @override
+  late final GeneratedColumn<String> originDeviceId = GeneratedColumn<String>(
+      'origin_device_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _originSequenceMeta =
+      const VerificationMeta('originSequence');
+  @override
+  late final GeneratedColumn<int> originSequence = GeneratedColumn<int>(
+      'origin_sequence', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _characterIdMeta =
+      const VerificationMeta('characterId');
+  @override
+  late final GeneratedColumn<String> characterId = GeneratedColumn<String>(
+      'character_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMsMeta =
+      const VerificationMeta('createdAtMs');
+  @override
+  late final GeneratedColumn<int> createdAtMs = GeneratedColumn<int>(
+      'created_at_ms', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _messageTypeMeta =
+      const VerificationMeta('messageType');
+  @override
+  late final GeneratedColumn<String> messageType = GeneratedColumn<String>(
+      'message_type', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('chat'));
+  static const VerificationMeta _assetRefsJsonMeta =
+      const VerificationMeta('assetRefsJson');
+  @override
+  late final GeneratedColumn<String> assetRefsJson = GeneratedColumn<String>(
+      'asset_refs_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        syncId,
+        originDeviceId,
+        originSequence,
+        characterId,
+        content,
+        createdAtMs,
+        messageType,
+        assetRefsJson
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sync_outbox_messages';
+  @override
+  VerificationContext validateIntegrity(Insertable<SyncOutboxMessage> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('sync_id')) {
+      context.handle(_syncIdMeta,
+          syncId.isAcceptableOrUnknown(data['sync_id']!, _syncIdMeta));
+    } else if (isInserting) {
+      context.missing(_syncIdMeta);
+    }
+    if (data.containsKey('origin_device_id')) {
+      context.handle(
+          _originDeviceIdMeta,
+          originDeviceId.isAcceptableOrUnknown(
+              data['origin_device_id']!, _originDeviceIdMeta));
+    } else if (isInserting) {
+      context.missing(_originDeviceIdMeta);
+    }
+    if (data.containsKey('origin_sequence')) {
+      context.handle(
+          _originSequenceMeta,
+          originSequence.isAcceptableOrUnknown(
+              data['origin_sequence']!, _originSequenceMeta));
+    } else if (isInserting) {
+      context.missing(_originSequenceMeta);
+    }
+    if (data.containsKey('character_id')) {
+      context.handle(
+          _characterIdMeta,
+          characterId.isAcceptableOrUnknown(
+              data['character_id']!, _characterIdMeta));
+    } else if (isInserting) {
+      context.missing(_characterIdMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('created_at_ms')) {
+      context.handle(
+          _createdAtMsMeta,
+          createdAtMs.isAcceptableOrUnknown(
+              data['created_at_ms']!, _createdAtMsMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMsMeta);
+    }
+    if (data.containsKey('message_type')) {
+      context.handle(
+          _messageTypeMeta,
+          messageType.isAcceptableOrUnknown(
+              data['message_type']!, _messageTypeMeta));
+    }
+    if (data.containsKey('asset_refs_json')) {
+      context.handle(
+          _assetRefsJsonMeta,
+          assetRefsJson.isAcceptableOrUnknown(
+              data['asset_refs_json']!, _assetRefsJsonMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {syncId};
+  @override
+  SyncOutboxMessage map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SyncOutboxMessage(
+      syncId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}sync_id'])!,
+      originDeviceId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}origin_device_id'])!,
+      originSequence: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}origin_sequence'])!,
+      characterId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      createdAtMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at_ms'])!,
+      messageType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}message_type'])!,
+      assetRefsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}asset_refs_json']),
+    );
+  }
+
+  @override
+  $SyncOutboxMessagesTable createAlias(String alias) {
+    return $SyncOutboxMessagesTable(attachedDatabase, alias);
+  }
+}
+
+class SyncOutboxMessage extends DataClass
+    implements Insertable<SyncOutboxMessage> {
+  final String syncId;
+  final String originDeviceId;
+  final int originSequence;
+  final String characterId;
+  final String content;
+  final int createdAtMs;
+  final String messageType;
+  final String? assetRefsJson;
+  const SyncOutboxMessage(
+      {required this.syncId,
+      required this.originDeviceId,
+      required this.originSequence,
+      required this.characterId,
+      required this.content,
+      required this.createdAtMs,
+      required this.messageType,
+      this.assetRefsJson});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['sync_id'] = Variable<String>(syncId);
+    map['origin_device_id'] = Variable<String>(originDeviceId);
+    map['origin_sequence'] = Variable<int>(originSequence);
+    map['character_id'] = Variable<String>(characterId);
+    map['content'] = Variable<String>(content);
+    map['created_at_ms'] = Variable<int>(createdAtMs);
+    map['message_type'] = Variable<String>(messageType);
+    if (!nullToAbsent || assetRefsJson != null) {
+      map['asset_refs_json'] = Variable<String>(assetRefsJson);
+    }
+    return map;
+  }
+
+  SyncOutboxMessagesCompanion toCompanion(bool nullToAbsent) {
+    return SyncOutboxMessagesCompanion(
+      syncId: Value(syncId),
+      originDeviceId: Value(originDeviceId),
+      originSequence: Value(originSequence),
+      characterId: Value(characterId),
+      content: Value(content),
+      createdAtMs: Value(createdAtMs),
+      messageType: Value(messageType),
+      assetRefsJson: assetRefsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(assetRefsJson),
+    );
+  }
+
+  factory SyncOutboxMessage.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SyncOutboxMessage(
+      syncId: serializer.fromJson<String>(json['syncId']),
+      originDeviceId: serializer.fromJson<String>(json['originDeviceId']),
+      originSequence: serializer.fromJson<int>(json['originSequence']),
+      characterId: serializer.fromJson<String>(json['characterId']),
+      content: serializer.fromJson<String>(json['content']),
+      createdAtMs: serializer.fromJson<int>(json['createdAtMs']),
+      messageType: serializer.fromJson<String>(json['messageType']),
+      assetRefsJson: serializer.fromJson<String?>(json['assetRefsJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'syncId': serializer.toJson<String>(syncId),
+      'originDeviceId': serializer.toJson<String>(originDeviceId),
+      'originSequence': serializer.toJson<int>(originSequence),
+      'characterId': serializer.toJson<String>(characterId),
+      'content': serializer.toJson<String>(content),
+      'createdAtMs': serializer.toJson<int>(createdAtMs),
+      'messageType': serializer.toJson<String>(messageType),
+      'assetRefsJson': serializer.toJson<String?>(assetRefsJson),
+    };
+  }
+
+  SyncOutboxMessage copyWith(
+          {String? syncId,
+          String? originDeviceId,
+          int? originSequence,
+          String? characterId,
+          String? content,
+          int? createdAtMs,
+          String? messageType,
+          Value<String?> assetRefsJson = const Value.absent()}) =>
+      SyncOutboxMessage(
+        syncId: syncId ?? this.syncId,
+        originDeviceId: originDeviceId ?? this.originDeviceId,
+        originSequence: originSequence ?? this.originSequence,
+        characterId: characterId ?? this.characterId,
+        content: content ?? this.content,
+        createdAtMs: createdAtMs ?? this.createdAtMs,
+        messageType: messageType ?? this.messageType,
+        assetRefsJson:
+            assetRefsJson.present ? assetRefsJson.value : this.assetRefsJson,
+      );
+  SyncOutboxMessage copyWithCompanion(SyncOutboxMessagesCompanion data) {
+    return SyncOutboxMessage(
+      syncId: data.syncId.present ? data.syncId.value : this.syncId,
+      originDeviceId: data.originDeviceId.present
+          ? data.originDeviceId.value
+          : this.originDeviceId,
+      originSequence: data.originSequence.present
+          ? data.originSequence.value
+          : this.originSequence,
+      characterId:
+          data.characterId.present ? data.characterId.value : this.characterId,
+      content: data.content.present ? data.content.value : this.content,
+      createdAtMs:
+          data.createdAtMs.present ? data.createdAtMs.value : this.createdAtMs,
+      messageType:
+          data.messageType.present ? data.messageType.value : this.messageType,
+      assetRefsJson: data.assetRefsJson.present
+          ? data.assetRefsJson.value
+          : this.assetRefsJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncOutboxMessage(')
+          ..write('syncId: $syncId, ')
+          ..write('originDeviceId: $originDeviceId, ')
+          ..write('originSequence: $originSequence, ')
+          ..write('characterId: $characterId, ')
+          ..write('content: $content, ')
+          ..write('createdAtMs: $createdAtMs, ')
+          ..write('messageType: $messageType, ')
+          ..write('assetRefsJson: $assetRefsJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(syncId, originDeviceId, originSequence,
+      characterId, content, createdAtMs, messageType, assetRefsJson);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SyncOutboxMessage &&
+          other.syncId == this.syncId &&
+          other.originDeviceId == this.originDeviceId &&
+          other.originSequence == this.originSequence &&
+          other.characterId == this.characterId &&
+          other.content == this.content &&
+          other.createdAtMs == this.createdAtMs &&
+          other.messageType == this.messageType &&
+          other.assetRefsJson == this.assetRefsJson);
+}
+
+class SyncOutboxMessagesCompanion extends UpdateCompanion<SyncOutboxMessage> {
+  final Value<String> syncId;
+  final Value<String> originDeviceId;
+  final Value<int> originSequence;
+  final Value<String> characterId;
+  final Value<String> content;
+  final Value<int> createdAtMs;
+  final Value<String> messageType;
+  final Value<String?> assetRefsJson;
+  final Value<int> rowid;
+  const SyncOutboxMessagesCompanion({
+    this.syncId = const Value.absent(),
+    this.originDeviceId = const Value.absent(),
+    this.originSequence = const Value.absent(),
+    this.characterId = const Value.absent(),
+    this.content = const Value.absent(),
+    this.createdAtMs = const Value.absent(),
+    this.messageType = const Value.absent(),
+    this.assetRefsJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SyncOutboxMessagesCompanion.insert({
+    required String syncId,
+    required String originDeviceId,
+    required int originSequence,
+    required String characterId,
+    required String content,
+    required int createdAtMs,
+    this.messageType = const Value.absent(),
+    this.assetRefsJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : syncId = Value(syncId),
+        originDeviceId = Value(originDeviceId),
+        originSequence = Value(originSequence),
+        characterId = Value(characterId),
+        content = Value(content),
+        createdAtMs = Value(createdAtMs);
+  static Insertable<SyncOutboxMessage> custom({
+    Expression<String>? syncId,
+    Expression<String>? originDeviceId,
+    Expression<int>? originSequence,
+    Expression<String>? characterId,
+    Expression<String>? content,
+    Expression<int>? createdAtMs,
+    Expression<String>? messageType,
+    Expression<String>? assetRefsJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (syncId != null) 'sync_id': syncId,
+      if (originDeviceId != null) 'origin_device_id': originDeviceId,
+      if (originSequence != null) 'origin_sequence': originSequence,
+      if (characterId != null) 'character_id': characterId,
+      if (content != null) 'content': content,
+      if (createdAtMs != null) 'created_at_ms': createdAtMs,
+      if (messageType != null) 'message_type': messageType,
+      if (assetRefsJson != null) 'asset_refs_json': assetRefsJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SyncOutboxMessagesCompanion copyWith(
+      {Value<String>? syncId,
+      Value<String>? originDeviceId,
+      Value<int>? originSequence,
+      Value<String>? characterId,
+      Value<String>? content,
+      Value<int>? createdAtMs,
+      Value<String>? messageType,
+      Value<String?>? assetRefsJson,
+      Value<int>? rowid}) {
+    return SyncOutboxMessagesCompanion(
+      syncId: syncId ?? this.syncId,
+      originDeviceId: originDeviceId ?? this.originDeviceId,
+      originSequence: originSequence ?? this.originSequence,
+      characterId: characterId ?? this.characterId,
+      content: content ?? this.content,
+      createdAtMs: createdAtMs ?? this.createdAtMs,
+      messageType: messageType ?? this.messageType,
+      assetRefsJson: assetRefsJson ?? this.assetRefsJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (syncId.present) {
+      map['sync_id'] = Variable<String>(syncId.value);
+    }
+    if (originDeviceId.present) {
+      map['origin_device_id'] = Variable<String>(originDeviceId.value);
+    }
+    if (originSequence.present) {
+      map['origin_sequence'] = Variable<int>(originSequence.value);
+    }
+    if (characterId.present) {
+      map['character_id'] = Variable<String>(characterId.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (createdAtMs.present) {
+      map['created_at_ms'] = Variable<int>(createdAtMs.value);
+    }
+    if (messageType.present) {
+      map['message_type'] = Variable<String>(messageType.value);
+    }
+    if (assetRefsJson.present) {
+      map['asset_refs_json'] = Variable<String>(assetRefsJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncOutboxMessagesCompanion(')
+          ..write('syncId: $syncId, ')
+          ..write('originDeviceId: $originDeviceId, ')
+          ..write('originSequence: $originSequence, ')
+          ..write('characterId: $characterId, ')
+          ..write('content: $content, ')
+          ..write('createdAtMs: $createdAtMs, ')
+          ..write('messageType: $messageType, ')
+          ..write('assetRefsJson: $assetRefsJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ConversationCaptureCursorsTable extends ConversationCaptureCursors
     with
         TableInfo<$ConversationCaptureCursorsTable, ConversationCaptureCursor> {
@@ -34256,6 +34709,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ClarificationRequestsTable(this);
   late final $PersonaChatMessagesTable personaChatMessages =
       $PersonaChatMessagesTable(this);
+  late final $SyncOutboxMessagesTable syncOutboxMessages =
+      $SyncOutboxMessagesTable(this);
   late final $ConversationCaptureCursorsTable conversationCaptureCursors =
       $ConversationCaptureCursorsTable(this);
   late final $SharedLifeEventOperationsTable sharedLifeEventOperations =
@@ -34370,6 +34825,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         systemActions,
         clarificationRequests,
         personaChatMessages,
+        syncOutboxMessages,
         conversationCaptureCursors,
         sharedLifeEventOperations,
         sharedLifeEntities,
@@ -36229,6 +36685,231 @@ typedef $$PersonaChatMessagesTableProcessedTableManager = ProcessedTableManager<
           PersonaChatMessage>
     ),
     PersonaChatMessage,
+    PrefetchHooks Function()>;
+typedef $$SyncOutboxMessagesTableCreateCompanionBuilder
+    = SyncOutboxMessagesCompanion Function({
+  required String syncId,
+  required String originDeviceId,
+  required int originSequence,
+  required String characterId,
+  required String content,
+  required int createdAtMs,
+  Value<String> messageType,
+  Value<String?> assetRefsJson,
+  Value<int> rowid,
+});
+typedef $$SyncOutboxMessagesTableUpdateCompanionBuilder
+    = SyncOutboxMessagesCompanion Function({
+  Value<String> syncId,
+  Value<String> originDeviceId,
+  Value<int> originSequence,
+  Value<String> characterId,
+  Value<String> content,
+  Value<int> createdAtMs,
+  Value<String> messageType,
+  Value<String?> assetRefsJson,
+  Value<int> rowid,
+});
+
+class $$SyncOutboxMessagesTableFilterComposer
+    extends Composer<_$AppDatabase, $SyncOutboxMessagesTable> {
+  $$SyncOutboxMessagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get syncId => $composableBuilder(
+      column: $table.syncId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get originDeviceId => $composableBuilder(
+      column: $table.originDeviceId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get originSequence => $composableBuilder(
+      column: $table.originSequence,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAtMs => $composableBuilder(
+      column: $table.createdAtMs, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get messageType => $composableBuilder(
+      column: $table.messageType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get assetRefsJson => $composableBuilder(
+      column: $table.assetRefsJson, builder: (column) => ColumnFilters(column));
+}
+
+class $$SyncOutboxMessagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SyncOutboxMessagesTable> {
+  $$SyncOutboxMessagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get syncId => $composableBuilder(
+      column: $table.syncId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get originDeviceId => $composableBuilder(
+      column: $table.originDeviceId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get originSequence => $composableBuilder(
+      column: $table.originSequence,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAtMs => $composableBuilder(
+      column: $table.createdAtMs, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get messageType => $composableBuilder(
+      column: $table.messageType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get assetRefsJson => $composableBuilder(
+      column: $table.assetRefsJson,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$SyncOutboxMessagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SyncOutboxMessagesTable> {
+  $$SyncOutboxMessagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get syncId =>
+      $composableBuilder(column: $table.syncId, builder: (column) => column);
+
+  GeneratedColumn<String> get originDeviceId => $composableBuilder(
+      column: $table.originDeviceId, builder: (column) => column);
+
+  GeneratedColumn<int> get originSequence => $composableBuilder(
+      column: $table.originSequence, builder: (column) => column);
+
+  GeneratedColumn<String> get characterId => $composableBuilder(
+      column: $table.characterId, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAtMs => $composableBuilder(
+      column: $table.createdAtMs, builder: (column) => column);
+
+  GeneratedColumn<String> get messageType => $composableBuilder(
+      column: $table.messageType, builder: (column) => column);
+
+  GeneratedColumn<String> get assetRefsJson => $composableBuilder(
+      column: $table.assetRefsJson, builder: (column) => column);
+}
+
+class $$SyncOutboxMessagesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $SyncOutboxMessagesTable,
+    SyncOutboxMessage,
+    $$SyncOutboxMessagesTableFilterComposer,
+    $$SyncOutboxMessagesTableOrderingComposer,
+    $$SyncOutboxMessagesTableAnnotationComposer,
+    $$SyncOutboxMessagesTableCreateCompanionBuilder,
+    $$SyncOutboxMessagesTableUpdateCompanionBuilder,
+    (
+      SyncOutboxMessage,
+      BaseReferences<_$AppDatabase, $SyncOutboxMessagesTable, SyncOutboxMessage>
+    ),
+    SyncOutboxMessage,
+    PrefetchHooks Function()> {
+  $$SyncOutboxMessagesTableTableManager(
+      _$AppDatabase db, $SyncOutboxMessagesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SyncOutboxMessagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SyncOutboxMessagesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SyncOutboxMessagesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> syncId = const Value.absent(),
+            Value<String> originDeviceId = const Value.absent(),
+            Value<int> originSequence = const Value.absent(),
+            Value<String> characterId = const Value.absent(),
+            Value<String> content = const Value.absent(),
+            Value<int> createdAtMs = const Value.absent(),
+            Value<String> messageType = const Value.absent(),
+            Value<String?> assetRefsJson = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SyncOutboxMessagesCompanion(
+            syncId: syncId,
+            originDeviceId: originDeviceId,
+            originSequence: originSequence,
+            characterId: characterId,
+            content: content,
+            createdAtMs: createdAtMs,
+            messageType: messageType,
+            assetRefsJson: assetRefsJson,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String syncId,
+            required String originDeviceId,
+            required int originSequence,
+            required String characterId,
+            required String content,
+            required int createdAtMs,
+            Value<String> messageType = const Value.absent(),
+            Value<String?> assetRefsJson = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SyncOutboxMessagesCompanion.insert(
+            syncId: syncId,
+            originDeviceId: originDeviceId,
+            originSequence: originSequence,
+            characterId: characterId,
+            content: content,
+            createdAtMs: createdAtMs,
+            messageType: messageType,
+            assetRefsJson: assetRefsJson,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$SyncOutboxMessagesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $SyncOutboxMessagesTable,
+    SyncOutboxMessage,
+    $$SyncOutboxMessagesTableFilterComposer,
+    $$SyncOutboxMessagesTableOrderingComposer,
+    $$SyncOutboxMessagesTableAnnotationComposer,
+    $$SyncOutboxMessagesTableCreateCompanionBuilder,
+    $$SyncOutboxMessagesTableUpdateCompanionBuilder,
+    (
+      SyncOutboxMessage,
+      BaseReferences<_$AppDatabase, $SyncOutboxMessagesTable, SyncOutboxMessage>
+    ),
+    SyncOutboxMessage,
     PrefetchHooks Function()>;
 typedef $$ConversationCaptureCursorsTableCreateCompanionBuilder
     = ConversationCaptureCursorsCompanion Function({
@@ -52094,6 +52775,8 @@ class $AppDatabaseManager {
       $$ClarificationRequestsTableTableManager(_db, _db.clarificationRequests);
   $$PersonaChatMessagesTableTableManager get personaChatMessages =>
       $$PersonaChatMessagesTableTableManager(_db, _db.personaChatMessages);
+  $$SyncOutboxMessagesTableTableManager get syncOutboxMessages =>
+      $$SyncOutboxMessagesTableTableManager(_db, _db.syncOutboxMessages);
   $$ConversationCaptureCursorsTableTableManager
       get conversationCaptureCursors =>
           $$ConversationCaptureCursorsTableTableManager(

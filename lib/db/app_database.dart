@@ -31,6 +31,7 @@ part 'app_database.g.dart';
     SystemActions,
     ClarificationRequests,
     PersonaChatMessages,
+    SyncOutboxMessages,
     ConversationCaptureCursors,
     SharedLifeEventOperations,
     SharedLifeEntities,
@@ -152,7 +153,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 56;
+  int get schemaVersion => 57;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -811,6 +812,14 @@ class AppDatabase extends _$AppDatabase {
             await _backfillStableMessageRefs();
             await _createStableMessageRefIndices();
           }
+          if (from < 57) {
+            // Phase 1 client side (CORE_API_V0): durable outbox for user chat
+            // messages waiting to be submitted to the authority core. Written
+            // in the same transaction as the chat row by PersonaChatService;
+            // rows are removed once the core accepts the sync_id.
+            await m.createTable(syncOutboxMessages);
+            await _createSyncOutboxIndices();
+          }
         },
         beforeOpen: (OpeningDetails details) async {
           // Defensive backfill: some devices upgraded to v43 via the earlier
@@ -1128,6 +1137,14 @@ class AppDatabase extends _$AppDatabase {
         'WHERE message_sync_id IS NOT NULL',
       );
     }
+  }
+
+  Future<void> _createSyncOutboxIndices() async {
+    // Submission batches read pending rows oldest-first per device.
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_sync_outbox_device_seq '
+      'ON sync_outbox_messages(origin_device_id, origin_sequence)',
+    );
   }
 
   Future<void> _createClarificationRequestsTable(Migrator m) async {

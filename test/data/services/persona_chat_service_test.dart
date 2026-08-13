@@ -197,5 +197,66 @@ void main() {
         '*\u5979\u628a\u676f\u5b50\u5f80\u4f60\u624b\u8fb9\u63a8\u4e86\u63a8*',
       );
     });
+
+    test('addUserMessage enqueues a pending outbox copy atomically', () async {
+      final base = DateTime(2026, 6, 14, 9);
+      final deviceId = await DeviceIdentityService.getOrCreate();
+
+      final id = await service.addUserMessage('luna', 'first', timestamp: base);
+      await service.addUserMessage('luna', 'second', timestamp: base);
+
+      final chat = await service.getMessageById(id);
+      final pending = await service.pendingOutboxMessages(deviceId);
+
+      expect(pending, hasLength(2));
+      expect(pending.map((m) => m.syncId), contains(chat!.syncId));
+      // Strictly increasing per-device origin sequence.
+      expect(pending[0].originSequence, lessThan(pending[1].originSequence));
+      expect(pending.map((m) => m.originSequence).toSet(), hasLength(2));
+      // Only user messages are outboxed; content and character preserved.
+      expect(pending.every((m) => m.characterId == 'luna'), isTrue);
+      expect(pending.map((m) => m.content), containsAll(['first', 'second']));
+      expect(pending.every((m) => m.messageType == 'chat'), isTrue);
+    });
+
+    test('character messages are not enqueued to the sync outbox', () async {
+      final base = DateTime(2026, 6, 14, 9);
+      final deviceId = await DeviceIdentityService.getOrCreate();
+
+      await service.addCharacterMessage('luna', 'reply from i',
+          timestamp: base);
+      await service.addActionMessage('luna', '*nods*', timestamp: base);
+
+      final pending = await service.pendingOutboxMessages(deviceId);
+      expect(pending, isEmpty);
+    });
+
+    test('markOutboxAccepted removes only the accepted sync_id', () async {
+      final base = DateTime(2026, 6, 14, 9);
+      final deviceId = await DeviceIdentityService.getOrCreate();
+
+      await service.addUserMessage('luna', 'keep', timestamp: base);
+      await service.addUserMessage('luna', 'drop', timestamp: base);
+
+      final pending = await service.pendingOutboxMessages(deviceId);
+      final drop = pending.singleWhere((m) => m.content == 'drop');
+      await service.markOutboxAccepted(drop.syncId);
+
+      final remaining = await service.pendingOutboxMessages(deviceId);
+      expect(remaining, hasLength(1));
+      expect(remaining.single.content, 'keep');
+    });
+
+    test('retracting a pending user message also drops its outbox copy',
+        () async {
+      final base = DateTime(2026, 6, 14, 9);
+      final deviceId = await DeviceIdentityService.getOrCreate();
+
+      final id = await service.addUserMessage('luna', 'oops', timestamp: base);
+      await service.retractUserMessage('luna', id);
+
+      final pending = await service.pendingOutboxMessages(deviceId);
+      expect(pending, isEmpty);
+    });
   });
 }
