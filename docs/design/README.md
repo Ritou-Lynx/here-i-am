@@ -32,4 +32,4 @@
 
 现行文档统一以「春雨昼眠」开头，便于检索。凡不以「春雨昼眠」开头、或位于 `archive/` 的，均**非**现行。
 
-**例外**：`whiteboard-requirements.md` 第一部分「产品形态共识（2026-08-13）」是白板 / 桌面工作台的当前权威形态决策，属现行；第二部分保留早期 FlexNote 对标愿景全集，仅供追溯。
+**例外**：`whiteboard-requirements.md` 第一部分是白板 / 桌面工作台的当前权威产品形态；`whiteboard-ui-spine-contract.md` 是页面边界与数据骨架的实施级契约，二者均属现行。`whiteboard-requirements.md` 第二部分保留早期 FlexNote 对标愿景全集，仅供追溯。
