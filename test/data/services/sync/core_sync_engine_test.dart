@@ -11,10 +11,15 @@ import 'package:memex/data/services/sync/core_sync_protocol.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-Future<(String, Process)> _startCore() async {
+Future<(String, Process)> _startCore({bool seedCompanionHistory = false}) async {
   final process = await Process.start(
     'node',
-    ['test/data/services/sync/_core_server_harness.mjs', '654321', '654322'],
+    [
+      'test/data/services/sync/_core_server_harness.mjs',
+      '654321',
+      '654322',
+      if (seedCompanionHistory) 'seed-companion-history',
+    ],
   );
   final url = await process.stdout
       .transform(utf8.decoder)
@@ -70,8 +75,7 @@ void main() {
         deviceId: pairA.deviceId,
         initialCursor: pairA.initialCursor,
       );
-      await PersonaChatService.instance
-          .addUserMessage('lin-ai', '我到家了');
+      await PersonaChatService.instance.addUserMessage('lin-ai', '我到家了');
 
       // Before sync, the message exists locally and in the outbox.
       var pending =
@@ -82,7 +86,8 @@ void main() {
       // syncOnce submits the outbox and advances the cursor.
       final submitted = await engineA.syncOnce();
       expect(submitted, 1);
-      pending = await PersonaChatService.instance.pendingOutboxMessages(deviceA);
+      pending =
+          await PersonaChatService.instance.pendingOutboxMessages(deviceA);
       expect(pending, isEmpty);
 
       // Device B (a second logical device) syncs from the same core with its
@@ -120,8 +125,7 @@ void main() {
       await dbB.close();
     }, timeout: const Timeout(Duration(seconds: 60)));
 
-    test('cursor persists across engine rebuilds (restart recovery)',
-        () async {
+    test('cursor persists across engine rebuilds (restart recovery)', () async {
       final deviceId = await DeviceIdentityService.getOrCreate();
       final pair = await CoreSyncClient.pair(
         baseUrl: baseUrl,
@@ -164,10 +168,76 @@ void main() {
 
       final messages = await db.select(db.personaChatMessages).get();
       expect(messages, hasLength(2));
-      expect(messages.map((m) => m.content),
-          containsAll(['重启前', '重启后']));
+      expect(messages.map((m) => m.content), containsAll(['重启前', '重启后']));
       // No duplicates from replaying the feed.
       expect(messages.map((m) => m.syncId).toSet(), hasLength(2));
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('cursor state is isolated by authority core node id', () async {
+      final deviceId = await DeviceIdentityService.getOrCreate();
+      final client = CoreSyncClient(
+        baseUrl: baseUrl,
+        deviceId: deviceId,
+        deviceToken: 'unused-for-cursor-storage',
+      );
+      final coreA = CoreSyncEngine(
+        db: db,
+        client: client,
+        deviceId: deviceId,
+        coreNodeId: 'core-a',
+        initialCursor: 'initial-a',
+      );
+      final coreB = CoreSyncEngine(
+        db: db,
+        client: client,
+        deviceId: deviceId,
+        coreNodeId: 'core-b',
+        initialCursor: 'initial-b',
+      );
+
+      await coreA.saveCursor('cursor-a-7');
+
+      expect(await coreA.loadCursor(), 'cursor-a-7');
+      expect(await coreB.loadCursor(), 'initial-b');
+      await coreB.saveCursor('cursor-b-3');
+      expect(await coreA.loadCursor(), 'cursor-a-7');
+      expect(await coreB.loadCursor(), 'cursor-b-3');
+    });
+
+    test('pulls companion history as character messages', () async {
+      core.kill();
+      final seeded = await _startCore(seedCompanionHistory: true);
+      baseUrl = seeded.$1;
+      core = seeded.$2;
+
+      final pair = await CoreSyncClient.pair(
+        baseUrl: baseUrl,
+        request: const CoreDevicePairRequest(
+          deviceId: 'history-reader',
+          displayName: 'history-reader',
+          platform: 'test',
+          clientVersion: '0.1',
+          pairingCode: '654321',
+        ),
+      );
+      final engine = CoreSyncEngine(
+        db: db,
+        client: CoreSyncClient(
+          baseUrl: baseUrl,
+          deviceId: pair.deviceId,
+          deviceToken: pair.deviceToken,
+        ),
+        deviceId: pair.deviceId,
+        initialCursor: pair.initialCursor,
+      );
+
+      await engine.syncOnce();
+
+      final messages = await db.select(db.personaChatMessages).get();
+      expect(messages, hasLength(1));
+      expect(messages.single.syncId, 'historical-companion-1');
+      expect(messages.single.isFromCharacter, isTrue);
+      expect(messages.single.content, '欢迎回来。');
     }, timeout: const Timeout(Duration(seconds: 60)));
 
     test('syncOnce is idempotent: re-running does not duplicate messages',
@@ -194,8 +264,7 @@ void main() {
         initialCursor: pair.initialCursor,
       );
 
-      await PersonaChatService.instance
-          .addUserMessage('lin-ai', '第一条');
+      await PersonaChatService.instance.addUserMessage('lin-ai', '第一条');
       await engine.syncOnce();
 
       // Nothing new to submit, but a second pass must not create bubbles.
@@ -204,6 +273,67 @@ void main() {
       final messages = await db.select(db.personaChatMessages).get();
       expect(messages, hasLength(1));
       expect(messages.single.content, '第一条');
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('duplicate response clears outbox after a lost first response',
+        () async {
+      final deviceId = await DeviceIdentityService.getOrCreate();
+      final pair = await CoreSyncClient.pair(
+        baseUrl: baseUrl,
+        request: CoreDevicePairRequest(
+          deviceId: deviceId,
+          displayName: 'device-a',
+          platform: 'test',
+          clientVersion: '0.1',
+          pairingCode: '654321',
+        ),
+      );
+      final client = CoreSyncClient(
+        baseUrl: baseUrl,
+        deviceId: pair.deviceId,
+        deviceToken: pair.deviceToken,
+      );
+      final engine = CoreSyncEngine(
+        db: db,
+        client: client,
+        deviceId: pair.deviceId,
+        initialCursor: pair.initialCursor,
+      );
+
+      await PersonaChatService.instance
+          .addUserMessage('lin-ai', '核心已经收到，但客户端丢了响应');
+      final pending =
+          await PersonaChatService.instance.pendingOutboxMessages(deviceId);
+      expect(pending, hasLength(1));
+      final row = pending.single;
+
+      // Simulate the authority commit succeeding while the HTTP response is
+      // lost: submit directly, but deliberately leave the local outbox row.
+      final first = await client.submitMessages(CoreChatSubmitRequest(
+        deviceId: deviceId,
+        messages: [
+          CoreChatMessageWire(
+            syncId: row.syncId,
+            originDeviceId: row.originDeviceId,
+            originSequence: row.originSequence,
+            characterId: row.characterId,
+            sender: CoreMessageSender.user,
+            content: row.content,
+            createdAtMs: row.createdAtMs,
+            messageType: row.messageType,
+          ),
+        ],
+      ));
+      expect(first.results.single.status, CoreSubmitStatus.accepted);
+
+      // The engine retries the same immutable message, receives duplicate,
+      // and must treat that as durable success instead of retrying forever.
+      expect(await engine.syncOnce(), 1);
+      expect(
+        await PersonaChatService.instance.pendingOutboxMessages(deviceId),
+        isEmpty,
+      );
+      expect(await db.select(db.personaChatMessages).get(), hasLength(1));
     }, timeout: const Timeout(Duration(seconds: 60)));
   });
 }

@@ -78,6 +78,7 @@ import 'package:quick_actions/quick_actions.dart';
 import 'package:memex/data/services/quick_action_service.dart';
 import 'package:memex/data/services/speech_transcription_service.dart';
 import 'package:memex/data/services/background_task_drain_service.dart';
+import 'package:memex/data/services/sync/core_sync_runtime_service.dart';
 import 'package:memex/ui/companion/widgets/companion_first_shell.dart';
 import 'package:memex/ui/companion/widgets/floating_record_ball.dart';
 
@@ -786,6 +787,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         }
       }
       _eventBus.connect();
+      await CoreSyncRuntimeService.instance.initialize();
 
       // Start onboarding demo on first launch
       if (userId != null) {
@@ -806,7 +808,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     });
 
     // Register dreaming daily batch task (WorkManager, battery not low).
-    Workmanager().registerPeriodicTask(
+    Workmanager()
+        .registerPeriodicTask(
       DreamingSchedulerService.dailyBatchTaskName,
       DreamingSchedulerService.dailyBatchTaskName,
       constraints: Constraints(
@@ -820,7 +823,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       backoffPolicy: BackoffPolicy.linear,
       backoffPolicyDelay: const Duration(hours: 2),
       existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
-    ).catchError((e) {
+    )
+        .catchError((e) {
       _logger.warning('Failed to register dreaming daily batch task: $e');
     });
     // Schedule reliable AlarmManager alarm (bypasses Doze + Samsung Freecess).
@@ -1782,6 +1786,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       if (!_eventBus.isConnected) {
         _eventBus.connect();
       }
+      unawaited(CoreSyncRuntimeService.instance.syncNow(reason: 'resume'));
       // Consume any quick action that arrived while in background.
       // Use synchronous check; platform callback fires before resumed,
       // so no need for the 2-sec wait (which could catch a re-delivered intent).

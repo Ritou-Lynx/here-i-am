@@ -203,8 +203,8 @@ class PersonaChatMessages extends Table {
 /// `origin_sequence` is per-device and strictly increasing — it preserves
 /// offline send order within the device (the core orders by server_sequence).
 ///
-/// Only `sender=user` messages are synced; character replies are core-owned
-/// and arrive via the change feed instead.
+/// Only `sender=user` messages are submitted by clients. Companion replies
+/// are core-owned and arrive via the change feed instead.
 class SyncOutboxMessages extends Table {
   TextColumn get syncId => text()(); // == persona_chat_messages.sync_id (soft ref)
   TextColumn get originDeviceId => text()(); // installation id

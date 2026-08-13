@@ -26,6 +26,12 @@ node tools/i_core/i_core_server.mjs
 - `I_CORE_DATABASE`：SQLite 文件路径；
 - `I_CORE_HOST` / `I_CORE_PORT`：监听地址与端口；
 - `I_CORE_CERT` / `I_CORE_KEY`：直接启用 HTTPS 时的证书和私钥。
+- `I_CORE_WORKER_SECRET`：核心本机 worker 的独立长随机凭据。设置后开放
+  `companion_reply` / `memory_v3` / `dreaming` / `checkin` 等唯一执行租约；
+  不得与设备 token 或配对码复用。
+- `I_CORE_COMPANION_REPLY_JOBS=1`：允许显式带
+  `request_companion_reply=true` 的新用户消息进入耐久待回复队列。默认关闭；
+  电脑端 Companion worker 尚未就绪时不要开启。
 
 ## 验证
 
@@ -34,3 +40,23 @@ node --test tools/i_core/i_core_server.test.mjs
 ```
 
 测试覆盖双设备读取、重复提交、冲突回滚、身份边界、协议版本和服务重启后的持久性。
+
+## 一次性导入现有 V3 聊天
+
+导入器默认只预演，不修改核心。正式导入前必须停止核心；工具会先用
+SQLite backup API 在 `.state/backups/` 保存可恢复副本。远程 HTTP 权限不会
+因此放宽，客户端仍然只能提交用户消息。
+
+```powershell
+node tools/i_core/import_v3_chat.mjs `
+  --source tools/i_core/.state/imports/memex_local_Lynx.sqlite `
+  --core tools/i_core/.state/i-core.sqlite
+
+node tools/i_core/import_v3_chat.mjs `
+  --source tools/i_core/.state/imports/memex_local_Lynx.sqlite `
+  --core tools/i_core/.state/i-core.sqlite `
+  --apply --core-stopped
+```
+
+当前只导入有文字的 user / companion 聊天。纯附件消息和附件对象等内容哈希
+对象存储落地后再迁移；工具不会把手机本地路径或 base64 塞进核心数据库。

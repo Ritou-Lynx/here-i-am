@@ -11,11 +11,27 @@ import { createICoreServer } from '../../../../tools/i_core/i_core_server.mjs';
 
 const pairingCode = process.argv[2] ?? '654321';
 const backupPairingCode = process.argv[3] ?? null;
+const seedCompanionHistory = process.argv[4] === 'seed-companion-history';
 const directory = mkdtempSync(path.join(tmpdir(), 'i-core-dart-test-'));
 const core = createICoreServer({
   databasePath: path.join(directory, 'core.sqlite'),
   pairingCode,
 });
+
+if (seedCompanionHistory) {
+  core.store.importMessages('test-history-import', [{
+    sync_id: 'historical-companion-1',
+    origin_device_id: 'test-history-import',
+    origin_sequence: 1,
+    character_id: 'lin-ai',
+    sender: 'companion',
+    content: '欢迎回来。',
+    created_at_ms: 1786550401000,
+    message_type: 'chat',
+    asset_refs: [],
+    addenda: [],
+  }]);
+}
 
 const address = await core.listen({ port: 0 });
 console.log(`http://127.0.0.1:${address.port}`);

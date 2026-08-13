@@ -14,6 +14,7 @@ import 'package:memex/ui/settings/widgets/async_task_list_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/config_sync_page.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
+import 'package:memex/ui/settings/widgets/core_sync_settings_page.dart';
 import 'package:memex/ui/settings/widgets/custom_agent_config_page.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/settings/widgets/device_app_blocker_settings_page.dart';
@@ -625,6 +626,12 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
               ),
             ]),
             _DestinationGroup('外部连接', [
+              _Destination(
+                icon: Icons.cloud_sync_outlined,
+                title: '林埃核心',
+                subtitle: '试验性同步多设备的用户文字消息',
+                onTap: () => open(const CoreSyncSettingsPage()),
+              ),
               _Destination(
                 icon: Icons.watch_outlined,
                 title: 'COROS 高驰',

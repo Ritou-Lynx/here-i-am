@@ -947,7 +947,12 @@ class DreamingOrchestratorServiceV3 {
     String? error,
   }) async {
     if (toId < fromId) return;
-    final records = await getSkipRecords(characterId);
+    // getSkipRecords may return const [] for the empty / malformed case.
+    // This path mutates the collection while de-duplicating and merging, so
+    // always take a growable copy before removeWhere / assignment / add.
+    final records = List<DreamingSkipRecord>.of(
+      await getSkipRecords(characterId),
+    );
     final now = DateTime.now().millisecondsSinceEpoch;
 
     // Identical record already present (e.g. the same window was re-run and

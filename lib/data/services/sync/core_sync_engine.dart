@@ -20,12 +20,14 @@ class CoreSyncEngine {
     required this.db,
     required this.client,
     required this.deviceId,
+    this.coreNodeId,
     String? initialCursor,
   }) : _initialCursor = initialCursor;
 
   final AppDatabase db;
   final CoreSyncClient client;
   final String deviceId;
+  final String? coreNodeId;
 
   /// Cursor returned by the pair response for this device. Used as the start
   /// of the change feed until the first successful pull persists a cursor.
@@ -35,7 +37,9 @@ class CoreSyncEngine {
   static const _bucket = 'core_sync';
   final _logger = Logger('CoreSyncEngine');
 
-  String get _cursorKey => 'cursor.$deviceId';
+  String get _cursorKey => coreNodeId == null || coreNodeId!.isEmpty
+      ? 'cursor.$deviceId'
+      : 'cursor.$deviceId.$coreNodeId';
 
   /// Persists an opaque cursor (never parsed or constructed client-side).
   Future<void> saveCursor(String cursor) async {
@@ -53,8 +57,7 @@ class CoreSyncEngine {
   /// [initialCursor] when this device has never pulled successfully.
   Future<String> loadCursor() async {
     final row = await (db.select(db.kvStore)
-          ..where((t) =>
-              t.key.equals(_cursorKey) & t.bucket.equals(_bucket)))
+          ..where((t) => t.key.equals(_cursorKey) & t.bucket.equals(_bucket)))
         .getSingleOrNull();
     return row?.value ?? _initialCursor ?? '';
   }
@@ -83,24 +86,28 @@ class CoreSyncEngine {
       ],
     );
     final response = await client.submitMessages(request);
-    var accepted = 0;
+    var resolved = 0;
     for (final result in response.results) {
-      if (result.status == CoreSubmitStatus.accepted) {
+      // Both outcomes mean the authority core durably owns this exact
+      // immutable message. `duplicate` is the expected recovery path when
+      // the first response was lost after the core committed the write.
+      if (result.status == CoreSubmitStatus.accepted ||
+          result.status == CoreSubmitStatus.duplicate) {
         await PersonaChatService.instance.markOutboxAccepted(result.syncId);
-        accepted++;
+        resolved++;
       }
     }
-    return accepted;
+    return resolved;
   }
 
   /// Pulls change events from [cursor] until the feed is exhausted, applying
   /// chat upserts locally, then acks and persists the final cursor.
-  Future<void> _pullChanges({int pageLimit = 100}) async {
+  Future<void> _pullChanges({int pageLimit = 500}) async {
     var cursor = await loadCursor();
     // Apply at most a bounded number of pages per pass to keep each syncOnce
     // short; remaining pages arrive on the next pass via the persisted cursor.
     var pages = 0;
-    while (pages < 10) {
+    while (pages < 12) {
       final page = await client.fetchChanges(cursor: cursor, limit: pageLimit);
       if (page.events.isEmpty) break;
       for (final event in page.events) {
@@ -118,14 +125,14 @@ class CoreSyncEngine {
     await client.acknowledgeCursor(cursor: cursor);
   }
 
-  /// Inserts or updates one chat row from a `chat.message.upsert` event.
-  /// Only `sender=user` messages are stored locally — character replies are
-  /// core-owned and v0 does not generate them yet.
+  /// Inserts one user or companion row from a `chat.message.upsert` event.
+  /// Remote clients still submit user messages only; companion history enters
+  /// through trusted core-side generation or maintenance imports.
   Future<void> _applyChatUpsert(CoreChangeEvent event) async {
     final payload = event.payload;
     final syncId = event.entityId;
     final sender = CoreMessageSender.parse(payload['sender']);
-    if (sender != CoreMessageSender.user) return;
+    if (sender == CoreMessageSender.system) return;
 
     final content = payload['content']?.toString() ?? '';
     final characterId = payload['character_id']?.toString() ?? '';
@@ -143,8 +150,7 @@ class CoreSyncEngine {
       return;
     }
 
-    final originDeviceId =
-        payload['origin_device_id']?.toString() ?? deviceId;
+    final originDeviceId = payload['origin_device_id']?.toString() ?? deviceId;
     final messageType = payload['message_type']?.toString() ?? 'chat';
 
     await db.into(db.personaChatMessages).insert(
@@ -152,7 +158,7 @@ class CoreSyncEngine {
             syncId: Value(syncId),
             originDeviceId: Value(originDeviceId),
             characterId: characterId,
-            isFromCharacter: false,
+            isFromCharacter: sender == CoreMessageSender.companion,
             content: content,
             isRead: const Value(true),
             timestamp: timestamp,

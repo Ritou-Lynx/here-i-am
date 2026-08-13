@@ -54,6 +54,10 @@ Tailscale 是网络边界，device token 是应用边界。token 只保存在设
 
 响应逐条返回 `accepted` 或 `duplicate`，以及核心分配的 `server_sequence`。提交响应不返回同步 cursor；客户端只有在成功持久化 `GET /changes` 的结果后才能推进自己的 cursor，避免跳过其他设备同时产生的事件。
 
+可选 `request_companion_reply=true` 表示这批消息需要由核心创建待回复任务；
+只有核心显式开启该能力时才接受，否则以可重试 503 拒绝整个事务。未携带
+此字段的旧客户端行为不变，不会暗中入队。
+
 ### `GET /v1/core/changes?cursor=<opaque>&limit=100`
 
 返回 cursor 之后的 change events：
@@ -75,6 +79,42 @@ Tailscale 是网络边界，device token 是应用边界。token 只保存在设
 ### `POST /v1/core/devices/ack`
 
 设备确认已持久化到本地的 cursor。ack 用于监控、清理与换机恢复，不控制 change feed 是否可再次读取；重复 ack 幂等。
+
+### 核心 Worker 租约
+
+以下端点只供核心主机上的可信 worker 使用，使用独立的
+`I_CORE_WORKER_SECRET`，普通设备 token 无权访问：
+
+- `POST /v1/core/workers/leases`：获取某一 workload 的唯一租约；
+- `POST /v1/core/workers/leases/renew`：凭 lease token + fencing token 续租；
+- `POST /v1/core/workers/leases/release`：主动释放；
+- `GET /v1/core/workers/leases`：查看当前租约与是否仍有效；
+- `POST /v1/core/workers/chat/messages`：仅允许当前 `companion_reply`
+  holder 发布 `sender=companion` 的权威消息，并像普通聊天一样产生
+  `chat.message.upsert` change event；
+- `POST /v1/core/workers/companion-replies/claim`：当前 holder 领取下一轮待回复
+  任务，并取得截至触发消息的最近 20 条角色聊天上下文；
+- `POST /v1/core/workers/companion-replies/complete`：用任务的稳定 reply id
+  完成回复并推进权威 change feed；重复完成返回同一 sequence。
+
+首批 workload 为 `companion_reply`、`record_organizer`、`memory_v3`、
+`dreaming`、`checkin`。默认租期 30 秒，可请求 5 秒至 5 分钟。
+
+同一 workload 同时只有一个 holder。租约过期或释放后，下一位 holder
+取得严格递增的 `fencing_token`；任何产生持久化结果的 worker 都必须携带
+自己取得的 fencing token，由核心拒绝旧 holder 的迟到写入。租约使用核心的
+`server_time_ms`，客户端时钟不能裁决所有权。
+
+worker 发布消息时必须同时提交 `workload`、`holder_id`、`lease_token` 与
+`fencing_token`。普通手机 token 仍只能提交 `sender=user`；持有其他 workload
+的 worker 也不能借此写角色回复。消息继续按 `sync_id` 幂等，旧 holder 即使在
+租约过期后完成了耗时推理，也会在落库前被 fencing 校验拒绝。
+
+待回复任务是耐久状态，不依赖 HTTP 连接存活。对同一角色，如果用户在任务
+尚未完成前继续补充消息，旧的 pending / claimed 任务会标记为 superseded，
+worker 只能基于最新触发点和合并后的上下文回复一次。该能力由
+`I_CORE_COMPANION_REPLY_JOBS=1` 暗启用；电脑端推理与手机端切换验收完成前，
+真实核心保持关闭，避免历史消息积压后被补答。
 
 ## 4. 消息顺序与离线合并
 
@@ -120,6 +160,7 @@ Tailscale 是网络边界，device token 是应用边界。token 只保存在设
 - Memory V3 表级读写接口。
 - 多核心选主与公共互联网暴露。
 - 白板节点、权限和媒体锚点接口。
+- 多核心共识选主；当前租约只解决一个权威核心进程内的 worker 单执行问题。
 
 ## 8. Dart 对应模型
 

@@ -4,8 +4,18 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 export const CORE_PROTOCOL_VERSION = '0.1';
-export const CORE_STORE_SCHEMA_VERSION = 1;
+export const CORE_STORE_SCHEMA_VERSION = 3;
 export const MAX_MESSAGE_BATCH = 100;
+export const CORE_WORKLOADS = Object.freeze([
+  'companion_reply',
+  'record_organizer',
+  'memory_v3',
+  'dreaming',
+  'checkin',
+]);
+export const DEFAULT_LEASE_TTL_MS = 30_000;
+export const MIN_LEASE_TTL_MS = 5_000;
+export const MAX_LEASE_TTL_MS = 300_000;
 
 export class CoreStoreError extends Error {
   constructor(code, message, { status = 400, retryable = false, details = {} } = {}) {
@@ -68,7 +78,31 @@ function stringArray(value, field) {
   return value;
 }
 
-function normalizeMessage(raw, authenticatedDeviceId) {
+function normalizeWorkload(value) {
+  const workload = requiredString(value, 'workload');
+  if (!CORE_WORKLOADS.includes(workload)) {
+    throw new CoreStoreError(
+      'unknown_workload',
+      `workload must be one of: ${CORE_WORKLOADS.join(', ')}.`,
+    );
+  }
+  return workload;
+}
+
+function normalizeLeaseTtl(value) {
+  const ttl = value == null
+    ? DEFAULT_LEASE_TTL_MS
+    : requiredInteger(value, 'ttl_ms', { minimum: MIN_LEASE_TTL_MS });
+  if (ttl > MAX_LEASE_TTL_MS) {
+    throw new CoreStoreError(
+      'invalid_request',
+      `ttl_ms must be <= ${MAX_LEASE_TTL_MS}.`,
+    );
+  }
+  return ttl;
+}
+
+function normalizeMessage(raw, authenticatedDeviceId, { allowCompanion = false } = {}) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new CoreStoreError('invalid_request', 'Each message must be an object.');
   }
@@ -93,10 +127,13 @@ function normalizeMessage(raw, authenticatedDeviceId) {
       { status: 403 },
     );
   }
-  if (message.sender !== 'user') {
+  const allowedSenders = allowCompanion ? ['user', 'companion'] : ['user'];
+  if (!allowedSenders.includes(message.sender)) {
     throw new CoreStoreError(
       'sender_not_allowed',
-      'Remote clients may only submit user messages.',
+      allowCompanion
+        ? 'Historical imports may only contain user or companion messages.'
+        : 'Remote clients may only submit user messages.',
       { status: 403 },
     );
   }
@@ -104,9 +141,10 @@ function normalizeMessage(raw, authenticatedDeviceId) {
 }
 
 export class ICoreStore {
-  constructor(databasePath) {
+  constructor(databasePath, { companionReplyJobsEnabled = false } = {}) {
     mkdirSync(path.dirname(databasePath), { recursive: true });
     this.db = new DatabaseSync(databasePath);
+    this.companionReplyJobsEnabled = companionReplyJobsEnabled;
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
     this.#migrate();
     this.nodeId = this.#metadata('node_id') ?? this.#setMetadata('node_id', randomUUID());
@@ -162,6 +200,35 @@ export class ICoreStore {
         FOREIGN KEY(server_sequence) REFERENCES change_events(server_sequence),
         UNIQUE(origin_device_id, origin_sequence)
       );
+      CREATE TABLE IF NOT EXISTS worker_leases (
+        workload TEXT PRIMARY KEY,
+        holder_id TEXT NOT NULL,
+        lease_token_hash TEXT NOT NULL,
+        fencing_token INTEGER NOT NULL,
+        acquired_at_ms INTEGER NOT NULL,
+        renewed_at_ms INTEGER NOT NULL,
+        expires_at_ms INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS companion_reply_jobs (
+        job_id TEXT PRIMARY KEY,
+        trigger_sync_id TEXT NOT NULL UNIQUE,
+        reply_sync_id TEXT NOT NULL UNIQUE,
+        character_id TEXT NOT NULL,
+        trigger_server_sequence INTEGER NOT NULL UNIQUE,
+        status TEXT NOT NULL CHECK(status IN ('pending', 'claimed', 'completed', 'superseded')),
+        claimed_by TEXT,
+        claim_fencing_token INTEGER,
+        claimed_at_ms INTEGER,
+        completed_at_ms INTEGER,
+        reply_server_sequence INTEGER,
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL,
+        FOREIGN KEY(trigger_sync_id) REFERENCES chat_messages(sync_id),
+        FOREIGN KEY(trigger_server_sequence) REFERENCES change_events(server_sequence),
+        FOREIGN KEY(reply_server_sequence) REFERENCES change_events(server_sequence)
+      );
+      CREATE INDEX IF NOT EXISTS companion_reply_jobs_status_idx
+        ON companion_reply_jobs(status, trigger_server_sequence);
     `);
     this.#setMetadata('schema_version', String(CORE_STORE_SCHEMA_VERSION));
   }
@@ -178,7 +245,7 @@ export class ICoreStore {
     return value;
   }
 
-  health() {
+  health({ workerLeasesEnabled = false } = {}) {
     return {
       ok: true,
       node_id: this.nodeId,
@@ -187,8 +254,171 @@ export class ICoreStore {
       minimum_protocol_version: CORE_PROTOCOL_VERSION,
       schema_version: CORE_STORE_SCHEMA_VERSION,
       server_time_ms: Date.now(),
-      features: ['device_pairing', 'chat_submit', 'change_feed', 'cursor_ack'],
+      features: [
+        'device_pairing',
+        'chat_submit',
+        'change_feed',
+        'cursor_ack',
+        ...(workerLeasesEnabled ? ['worker_leases'] : []),
+        ...(workerLeasesEnabled && this.companionReplyJobsEnabled
+          ? ['companion_reply_jobs']
+          : []),
+      ],
     };
+  }
+
+  acquireWorkerLease(raw, now = Date.now()) {
+    const workload = normalizeWorkload(raw?.workload);
+    const holderId = requiredString(raw?.holder_id, 'holder_id');
+    const ttlMs = normalizeLeaseTtl(raw?.ttl_ms);
+    const leaseToken = randomBytes(32).toString('base64url');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const existing = this.db.prepare(`
+        SELECT holder_id, fencing_token, expires_at_ms
+        FROM worker_leases WHERE workload = ?
+      `).get(workload);
+      if (existing && Number(existing.expires_at_ms) > now) {
+        throw new CoreStoreError(
+          'lease_held',
+          'The workload already has an active lease.',
+          {
+            status: 409,
+            retryable: true,
+            details: {
+              workload,
+              holder_id: existing.holder_id,
+              expires_at_ms: Number(existing.expires_at_ms),
+            },
+          },
+        );
+      }
+      const fencingToken = existing ? Number(existing.fencing_token) + 1 : 1;
+      const expiresAt = now + ttlMs;
+      this.db.prepare(`
+        INSERT INTO worker_leases(
+          workload, holder_id, lease_token_hash, fencing_token,
+          acquired_at_ms, renewed_at_ms, expires_at_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(workload) DO UPDATE SET
+          holder_id = excluded.holder_id,
+          lease_token_hash = excluded.lease_token_hash,
+          fencing_token = excluded.fencing_token,
+          acquired_at_ms = excluded.acquired_at_ms,
+          renewed_at_ms = excluded.renewed_at_ms,
+          expires_at_ms = excluded.expires_at_ms
+      `).run(
+        workload,
+        holderId,
+        tokenDigest(leaseToken),
+        fencingToken,
+        now,
+        now,
+        expiresAt,
+      );
+      this.db.exec('COMMIT');
+      return {
+        workload,
+        holder_id: holderId,
+        lease_token: leaseToken,
+        fencing_token: fencingToken,
+        acquired_at_ms: now,
+        expires_at_ms: expiresAt,
+      };
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  renewWorkerLease(raw, now = Date.now()) {
+    const lease = this.#requireActiveLease(raw, now);
+    const ttlMs = normalizeLeaseTtl(raw?.ttl_ms);
+    const expiresAt = now + ttlMs;
+    this.db.prepare(`
+      UPDATE worker_leases
+      SET renewed_at_ms = ?, expires_at_ms = ?
+      WHERE workload = ?
+    `).run(now, expiresAt, lease.workload);
+    return {
+      workload: lease.workload,
+      holder_id: lease.holderId,
+      fencing_token: lease.fencingToken,
+      renewed_at_ms: now,
+      expires_at_ms: expiresAt,
+    };
+  }
+
+  releaseWorkerLease(raw, now = Date.now()) {
+    const lease = this.#requireActiveLease(raw, now);
+    this.db.prepare(`
+      UPDATE worker_leases
+      SET renewed_at_ms = ?, expires_at_ms = ?
+      WHERE workload = ?
+    `).run(now, now, lease.workload);
+    return {
+      ok: true,
+      workload: lease.workload,
+      holder_id: lease.holderId,
+      fencing_token: lease.fencingToken,
+      released_at_ms: now,
+    };
+  }
+
+  listWorkerLeases(now = Date.now()) {
+    return {
+      leases: this.db.prepare(`
+        SELECT workload, holder_id, fencing_token, acquired_at_ms,
+               renewed_at_ms, expires_at_ms
+        FROM worker_leases ORDER BY workload
+      `).all().map((row) => ({
+        workload: row.workload,
+        holder_id: row.holder_id,
+        fencing_token: Number(row.fencing_token),
+        acquired_at_ms: Number(row.acquired_at_ms),
+        renewed_at_ms: Number(row.renewed_at_ms),
+        expires_at_ms: Number(row.expires_at_ms),
+        active: Number(row.expires_at_ms) > now,
+      })),
+      server_time_ms: now,
+    };
+  }
+
+  #requireActiveLease(raw, now) {
+    const workload = normalizeWorkload(raw?.workload);
+    const holderId = requiredString(raw?.holder_id, 'holder_id');
+    const leaseToken = requiredString(raw?.lease_token, 'lease_token');
+    const fencingToken = requiredInteger(
+      raw?.fencing_token,
+      'fencing_token',
+      { minimum: 1 },
+    );
+    const existing = this.db.prepare(`
+      SELECT holder_id, lease_token_hash, fencing_token, expires_at_ms
+      FROM worker_leases WHERE workload = ?
+    `).get(workload);
+    if (!existing) {
+      throw new CoreStoreError('lease_not_found', 'The workload has no lease.', { status: 404 });
+    }
+    if (Number(existing.expires_at_ms) <= now) {
+      throw new CoreStoreError(
+        'lease_expired',
+        'The lease has expired and must be acquired again.',
+        { status: 409, retryable: true, details: { workload } },
+      );
+    }
+    if (
+      existing.holder_id !== holderId ||
+      Number(existing.fencing_token) !== fencingToken ||
+      existing.lease_token_hash !== tokenDigest(leaseToken)
+    ) {
+      throw new CoreStoreError(
+        'stale_lease',
+        'The lease token or fencing token is no longer current.',
+        { status: 409, details: { workload } },
+      );
+    }
+    return { workload, holderId, fencingToken };
   }
 
   pairDevice(raw, pairingCode) {
@@ -306,20 +536,356 @@ export class ICoreStore {
         { status: 413 },
       );
     }
+    if (
+      raw?.request_companion_reply != null &&
+      typeof raw.request_companion_reply !== 'boolean'
+    ) {
+      throw new CoreStoreError(
+        'invalid_request',
+        'request_companion_reply must be a boolean when provided.',
+      );
+    }
+    if (raw?.request_companion_reply === true && !this.companionReplyJobsEnabled) {
+      throw new CoreStoreError(
+        'feature_disabled',
+        'This core is not accepting companion reply jobs yet.',
+        { status: 503, retryable: true },
+      );
+    }
     const messages = raw.messages
       .map((message) => normalizeMessage(message, authenticatedDeviceId))
       .sort((left, right) => left.origin_sequence - right.origin_sequence);
+    return this.#persistMessages(messages, {
+      enqueueCompanionReplies:
+        this.companionReplyJobsEnabled && raw?.request_companion_reply === true,
+    });
+  }
+
+  /// Local maintenance entry point for one-time, trusted history imports.
+  /// This is deliberately not exposed by the HTTP server: remote clients
+  /// remain unable to submit companion messages or impersonate another
+  /// origin device.
+  importMessages(importDeviceId, rawMessages) {
+    const deviceId = requiredString(importDeviceId, 'import_device_id');
+    if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
+      throw new CoreStoreError(
+        'invalid_request',
+        'rawMessages must contain at least one item.',
+      );
+    }
+    const messages = rawMessages
+      .map((message) => normalizeMessage(message, deviceId, { allowCompanion: true }))
+      .sort((left, right) => left.origin_sequence - right.origin_sequence);
+    return this.#persistMessages(messages, {
+      localDevice: {
+        deviceId,
+        displayName: 'V3 historical import',
+        platform: 'local-import',
+      },
+      allowSemanticExisting: true,
+    });
+  }
+
+  publishCompanionMessages(raw, now = Date.now()) {
+    const lease = this.#requireActiveLease(raw, now);
+    if (lease.workload !== 'companion_reply') {
+      throw new CoreStoreError(
+        'wrong_workload',
+        'Companion messages require the companion_reply workload lease.',
+        { status: 403 },
+      );
+    }
+    if (!Array.isArray(raw?.messages) || raw.messages.length === 0) {
+      throw new CoreStoreError('invalid_request', 'messages must contain at least one item.');
+    }
+    if (raw.messages.length > MAX_MESSAGE_BATCH) {
+      throw new CoreStoreError(
+        'batch_too_large',
+        `messages may contain at most ${MAX_MESSAGE_BATCH} items.`,
+        { status: 413 },
+      );
+    }
+    const messages = raw.messages
+      .map((message) => normalizeMessage(message, lease.holderId, { allowCompanion: true }))
+      .sort((left, right) => left.origin_sequence - right.origin_sequence);
+    if (messages.some((message) => message.sender !== 'companion')) {
+      throw new CoreStoreError(
+        'sender_not_allowed',
+        'The companion publication endpoint only accepts companion messages.',
+        { status: 403 },
+      );
+    }
+    return this.#persistMessages(messages, {
+      localDevice: {
+        deviceId: lease.holderId,
+        displayName: `Core worker: ${lease.holderId}`,
+        platform: 'core-worker',
+      },
+    });
+  }
+
+  claimCompanionReplyJob(raw, now = Date.now()) {
+    this.#requireCompanionReplyJobsEnabled();
+    const lease = this.#requireActiveLease(raw, now);
+    if (lease.workload !== 'companion_reply') {
+      throw new CoreStoreError(
+        'wrong_workload',
+        'Companion reply jobs require the companion_reply workload lease.',
+        { status: 403 },
+      );
+    }
+    let jobId = null;
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const alreadyClaimed = this.db.prepare(`
+        SELECT job_id FROM companion_reply_jobs
+        WHERE status = 'claimed' AND claimed_by = ? AND claim_fencing_token = ?
+        ORDER BY trigger_server_sequence LIMIT 1
+      `).get(lease.holderId, lease.fencingToken);
+      const available = alreadyClaimed ?? this.db.prepare(`
+        SELECT job_id FROM companion_reply_jobs
+        WHERE status = 'pending'
+           OR (status = 'claimed' AND claim_fencing_token < ?)
+        ORDER BY trigger_server_sequence LIMIT 1
+      `).get(lease.fencingToken);
+      if (available) {
+        jobId = available.job_id;
+        this.db.prepare(`
+          UPDATE companion_reply_jobs
+          SET status = 'claimed', claimed_by = ?, claim_fencing_token = ?,
+              claimed_at_ms = ?, updated_at_ms = ?
+          WHERE job_id = ?
+        `).run(lease.holderId, lease.fencingToken, now, now, jobId);
+      }
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+    return {
+      job: jobId ? this.#companionReplyJob(jobId) : null,
+      server_time_ms: now,
+    };
+  }
+
+  completeCompanionReplyJob(raw, now = Date.now()) {
+    this.#requireCompanionReplyJobsEnabled();
+    const lease = this.#requireActiveLease(raw, now);
+    if (lease.workload !== 'companion_reply') {
+      throw new CoreStoreError(
+        'wrong_workload',
+        'Companion reply jobs require the companion_reply workload lease.',
+        { status: 403 },
+      );
+    }
+    const jobId = requiredString(raw?.job_id, 'job_id');
+    const content = requiredString(raw?.content, 'content', { allowEmpty: true });
+    const row = this.db.prepare(`
+      SELECT * FROM companion_reply_jobs WHERE job_id = ?
+    `).get(jobId);
+    if (!row) {
+      throw new CoreStoreError(
+        'job_not_found',
+        'The companion reply job does not exist.',
+        { status: 404 },
+      );
+    }
+    const existingReply = this.db.prepare(`
+      SELECT content, message_type, server_sequence
+      FROM chat_messages WHERE sync_id = ?
+    `).get(row.reply_sync_id);
+    if (row.status === 'completed') {
+      if (
+        !existingReply ||
+        existingReply.content !== content ||
+        existingReply.message_type !== (raw?.message_type ?? 'chat')
+      ) {
+        throw new CoreStoreError(
+          'immutable_message_conflict',
+          'The completed reply has different immutable content.',
+          { status: 409, details: { sync_id: row.reply_sync_id } },
+        );
+      }
+      return {
+        job_id: jobId,
+        status: 'completed',
+        reply_sync_id: row.reply_sync_id,
+        reply_server_sequence: Number(existingReply.server_sequence),
+        publication_status: 'duplicate',
+        completed_at_ms: Number(row.completed_at_ms),
+      };
+    }
+    if (
+      row.status !== 'claimed' ||
+      row.claimed_by !== lease.holderId ||
+      Number(row.claim_fencing_token) !== lease.fencingToken
+    ) {
+      throw new CoreStoreError(
+        'stale_job_claim',
+        'The companion reply job is no longer claimed by this lease.',
+        { status: 409 },
+      );
+    }
+    let reply;
+    if (existingReply) {
+      if (
+        existingReply.content !== content ||
+        existingReply.message_type !== (raw?.message_type ?? 'chat')
+      ) {
+        throw new CoreStoreError(
+          'immutable_message_conflict',
+          'The reply already exists with different immutable content.',
+          { status: 409, details: { sync_id: row.reply_sync_id } },
+        );
+      }
+      reply = {
+        status: 'duplicate',
+        server_sequence: Number(existingReply.server_sequence),
+      };
+    } else {
+      const authorityDeviceId = `core-companion:${row.character_id}`;
+      const message = normalizeMessage({
+          sync_id: row.reply_sync_id,
+          origin_device_id: authorityDeviceId,
+          origin_sequence: Number(row.trigger_server_sequence),
+          character_id: row.character_id,
+          sender: 'companion',
+          content,
+          created_at_ms: raw?.created_at_ms == null
+            ? now
+            : requiredInteger(raw.created_at_ms, 'created_at_ms', { minimum: 0 }),
+          message_type: raw?.message_type == null
+            ? 'chat'
+            : requiredString(raw.message_type, 'message_type'),
+          asset_refs: optionalObjectArray(raw?.asset_refs, 'asset_refs'),
+          addenda: optionalObjectArray(raw?.addenda, 'addenda'),
+        }, authorityDeviceId, { allowCompanion: true });
+      const publication = this.#persistMessages([message], {
+        localDevice: {
+          deviceId: authorityDeviceId,
+          displayName: `Core companion authority: ${row.character_id}`,
+          platform: 'core-authority',
+        },
+      });
+      reply = publication.results[0];
+    }
+    this.db.prepare(`
+      UPDATE companion_reply_jobs
+      SET status = 'completed', completed_at_ms = ?, updated_at_ms = ?,
+          reply_server_sequence = ?
+      WHERE job_id = ? AND status = 'claimed'
+        AND claimed_by = ? AND claim_fencing_token = ?
+    `).run(
+      now,
+      now,
+      reply.server_sequence,
+      jobId,
+      lease.holderId,
+      lease.fencingToken,
+    );
+    return {
+      job_id: jobId,
+      status: 'completed',
+      reply_sync_id: row.reply_sync_id,
+      reply_server_sequence: reply.server_sequence,
+      publication_status: reply.status,
+      completed_at_ms: now,
+    };
+  }
+
+  #requireCompanionReplyJobsEnabled() {
+    if (!this.companionReplyJobsEnabled) {
+      throw new CoreStoreError(
+        'feature_disabled',
+        'Companion reply jobs are not enabled on this core.',
+        { status: 503 },
+      );
+    }
+  }
+
+  #companionReplyJob(jobId) {
+    const row = this.db.prepare(`
+      SELECT * FROM companion_reply_jobs WHERE job_id = ?
+    `).get(jobId);
+    if (!row) return null;
+    const context = this.db.prepare(`
+      SELECT sync_id, origin_device_id, origin_sequence, character_id, sender,
+             content, created_at_ms, message_type, asset_refs_json, addenda_json,
+             server_sequence
+      FROM chat_messages
+      WHERE character_id = ? AND server_sequence <= ?
+      ORDER BY server_sequence DESC LIMIT 20
+    `).all(row.character_id, row.trigger_server_sequence).reverse().map((message) => ({
+      sync_id: message.sync_id,
+      origin_device_id: message.origin_device_id,
+      origin_sequence: Number(message.origin_sequence),
+      character_id: message.character_id,
+      sender: message.sender,
+      content: message.content,
+      created_at_ms: Number(message.created_at_ms),
+      message_type: message.message_type,
+      asset_refs: JSON.parse(message.asset_refs_json),
+      addenda: JSON.parse(message.addenda_json),
+      server_sequence: Number(message.server_sequence),
+    }));
+    return {
+      job_id: row.job_id,
+      trigger_sync_id: row.trigger_sync_id,
+      reply_sync_id: row.reply_sync_id,
+      character_id: row.character_id,
+      trigger_server_sequence: Number(row.trigger_server_sequence),
+      status: row.status,
+      claimed_by: row.claimed_by,
+      claim_fencing_token: Number(row.claim_fencing_token),
+      claimed_at_ms: Number(row.claimed_at_ms),
+      context,
+    };
+  }
+
+  #persistMessages(messages, {
+    localDevice = null,
+    allowSemanticExisting = false,
+    enqueueCompanionReplies = false,
+  } = {}) {
     const results = [];
     this.db.exec('BEGIN IMMEDIATE');
     try {
+      if (localDevice) {
+        const now = Date.now();
+        this.db.prepare(`
+          INSERT INTO devices(
+            device_id, display_name, platform, client_version,
+            capabilities_json, token_hash, paired_at_ms, updated_at_ms,
+            last_ack_sequence
+          ) VALUES (?, ?, ?, '0.1', '[]', ?, ?, ?, 0)
+          ON CONFLICT(device_id) DO NOTHING
+        `).run(
+          localDevice.deviceId,
+          localDevice.displayName,
+          localDevice.platform,
+          tokenDigest(`local-device:${localDevice.deviceId}`),
+          now,
+          now,
+        );
+      }
       for (const message of messages) {
         const digest = canonicalDigest(message);
         const existing = this.db.prepare(`
-          SELECT canonical_digest, server_sequence
+          SELECT canonical_digest, server_sequence, character_id, sender,
+                 content, created_at_ms, message_type
           FROM chat_messages WHERE sync_id = ?
         `).get(message.sync_id);
         if (existing) {
-          if (existing.canonical_digest !== digest) {
+          const sameSemanticMessage =
+            existing.character_id === message.character_id &&
+            existing.sender === message.sender &&
+            existing.content === message.content &&
+            Math.abs(Number(existing.created_at_ms) - message.created_at_ms) < 1000 &&
+            existing.message_type === message.message_type;
+          if (
+            existing.canonical_digest !== digest &&
+            !(allowSemanticExisting && sameSemanticMessage)
+          ) {
             throw new CoreStoreError(
               'immutable_message_conflict',
               'sync_id already exists with different immutable content.',
@@ -378,6 +944,27 @@ export class ICoreStore {
           digest,
           serverSequence,
         );
+        if (enqueueCompanionReplies && message.sender === 'user') {
+          this.db.prepare(`
+            UPDATE companion_reply_jobs
+            SET status = 'superseded', updated_at_ms = ?
+            WHERE character_id = ? AND status IN ('pending', 'claimed')
+          `).run(occurredAt, message.character_id);
+          this.db.prepare(`
+            INSERT INTO companion_reply_jobs(
+              job_id, trigger_sync_id, reply_sync_id, character_id,
+              trigger_server_sequence, status, created_at_ms, updated_at_ms
+            ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+          `).run(
+            `reply-job:${message.sync_id}`,
+            message.sync_id,
+            `companion-reply:${message.sync_id}`,
+            message.character_id,
+            serverSequence,
+            occurredAt,
+            occurredAt,
+          );
+        }
         results.push({
           sync_id: message.sync_id,
           status: 'accepted',

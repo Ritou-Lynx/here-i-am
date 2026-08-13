@@ -85,15 +85,28 @@ function requireDevice(request, store) {
   return device;
 }
 
+function requireWorker(request, workerSecret) {
+  requireProtocol(request);
+  if (!workerSecret || !equalSecret(bearerToken(request), workerSecret)) {
+    throw new CoreStoreError(
+      'worker_unauthorized',
+      'A valid core worker credential is required.',
+      { status: 401 },
+    );
+  }
+}
+
 export function createICoreServer({
   databasePath,
   pairingCode,
   certPath = null,
   keyPath = null,
+  workerSecret = null,
+  companionReplyJobsEnabled = false,
 } = {}) {
   if (!databasePath) throw new Error('databasePath is required');
   if (!pairingCode) throw new Error('pairingCode is required');
-  const store = new ICoreStore(databasePath);
+  const store = new ICoreStore(databasePath, { companionReplyJobsEnabled });
   let activePairingCode = store.isPairingCodeConsumed(pairingCode)
     ? null
     : pairingCode;
@@ -102,7 +115,7 @@ export function createICoreServer({
     try {
       const url = new URL(request.url, 'http://core.local');
       if (request.method === 'GET' && url.pathname === '/v1/core/health') {
-        json(response, 200, store.health());
+        json(response, 200, store.health({ workerLeasesEnabled: Boolean(workerSecret) }));
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/devices/pair') {
@@ -133,6 +146,42 @@ export function createICoreServer({
       if (request.method === 'POST' && url.pathname === '/v1/core/devices/ack') {
         const device = requireDevice(request, store);
         json(response, 200, store.acknowledgeCursor(device.device_id, await readJson(request)));
+        return;
+      }
+      if (url.pathname === '/v1/core/workers/leases') {
+        requireWorker(request, workerSecret);
+        if (request.method === 'GET') {
+          json(response, 200, store.listWorkerLeases());
+          return;
+        }
+        if (request.method === 'POST') {
+          json(response, 200, store.acquireWorkerLease(await readJson(request)));
+          return;
+        }
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/workers/leases/renew') {
+        requireWorker(request, workerSecret);
+        json(response, 200, store.renewWorkerLease(await readJson(request)));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/workers/leases/release') {
+        requireWorker(request, workerSecret);
+        json(response, 200, store.releaseWorkerLease(await readJson(request)));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/workers/chat/messages') {
+        requireWorker(request, workerSecret);
+        json(response, 200, store.publishCompanionMessages(await readJson(request)));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/workers/companion-replies/claim') {
+        requireWorker(request, workerSecret);
+        json(response, 200, store.claimCompanionReplyJob(await readJson(request)));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/workers/companion-replies/complete') {
+        requireWorker(request, workerSecret);
+        json(response, 200, store.completeCompanionReplyJob(await readJson(request)));
         return;
       }
       throw new CoreStoreError('not_found', 'The requested core endpoint does not exist.', { status: 404 });
@@ -196,6 +245,8 @@ async function main() {
     pairingCode,
     certPath: process.env.I_CORE_CERT ?? null,
     keyPath: process.env.I_CORE_KEY ?? null,
+    workerSecret: process.env.I_CORE_WORKER_SECRET ?? null,
+    companionReplyJobsEnabled: process.env.I_CORE_COMPANION_REPLY_JOBS === '1',
   });
   const address = await core.listen({ host, port });
   const protocol = process.env.I_CORE_CERT && process.env.I_CORE_KEY ? 'https' : 'http';
