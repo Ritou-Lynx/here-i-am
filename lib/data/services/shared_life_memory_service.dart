@@ -44,6 +44,7 @@ class SharedLifeOperationDraft {
     this.sourceRef,
     this.rawInput,
     this.sourceMessageIds = const [],
+    this.sourceSyncIds = const [],
     this.entityId,
   });
 
@@ -66,6 +67,12 @@ class SharedLifeOperationDraft {
   /// Legacy: chat message IDs validated against [allowedSourceMessageIds].
   /// Only checked when [sourceKind] == 'chat_message'.
   final List<int> sourceMessageIds;
+
+  /// Stable cross-device IDs mirroring [sourceMessageIds]. Callers that already
+  /// hold the chat rows (record button, floating ball) should pass these
+  /// directly; auto-capture leaves them empty and the service resolves them
+  /// from [sourceMessageIds] at write time.
+  final List<String> sourceSyncIds;
 
   final String? entityId;
 }
@@ -422,23 +429,44 @@ class SharedLifeMemoryService {
           ..where((t) => t.entityId.equals(entityId))
           ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
         .get();
-    final sourceMessageIds = operations
-        .expand((op) => _decodeIntList(op.sourceMessageIds))
-        .toSet()
-        .toList()
-      ..sort();
-    final sourceMessages = sourceMessageIds.isEmpty
-        ? const <PersonaChatMessage>[]
-        : await (db.select(db.personaChatMessages)
-              ..where((t) => t.id.isIn(sourceMessageIds))
-              ..orderBy([(t) => OrderingTerm.asc(t.timestamp)]))
-            .get();
+    final sourceMessages = await _resolveOperationSourceMessages(operations);
 
     return SharedLifeEntityDetail(
       entity: _snapshotFromRow(entityRow),
       operations: operations,
       sourceMessages: sourceMessages,
     );
+  }
+
+  /// Loads the chat messages cited as evidence by [operations].
+  ///
+  /// Reads prefer the stable [SharedLifeEventOperations.sourceSyncIds] column
+  /// and fall back to the legacy [SharedLifeEventOperations.sourceMessageIds]
+  /// int array when stable IDs are missing (rows written before v56 dual-write
+  /// or still awaiting backfill). A message that cannot be resolved by either
+  /// is silently dropped, mirroring the pre-stable-ref behaviour.
+  Future<List<PersonaChatMessage>> _resolveOperationSourceMessages(
+    List<SharedLifeEventOperation> operations,
+  ) async {
+    final stableIds = <String>{};
+    final legacyIds = <int>{};
+    for (final op in operations) {
+      final syncs = _decodeStringList(op.sourceSyncIds);
+      if (syncs.isNotEmpty) {
+        stableIds.addAll(syncs);
+      } else {
+        legacyIds.addAll(_decodeIntList(op.sourceMessageIds));
+      }
+    }
+    if (stableIds.isEmpty && legacyIds.isEmpty) {
+      return const <PersonaChatMessage>[];
+    }
+    final query = db.select(db.personaChatMessages)
+      ..where(
+        (t) => t.syncId.isIn(stableIds) | t.id.isIn(legacyIds),
+      )
+      ..orderBy([(t) => OrderingTerm.asc(t.timestamp)]);
+    return query.get();
   }
 
   /// Apply a list of operation drafts to the event log and rebuild projections.
@@ -479,14 +507,23 @@ class SharedLifeMemoryService {
         // Other sourceKinds (record_button, floating_ball, manual_edit…)
         // carry IDs the user/UI supplied directly — trust those as-is.
         final List<int> sourceIds;
+        final List<String> sourceSyncIds;
         if (draft.sourceKind == 'chat_message') {
           sourceIds = draft.sourceMessageIds
               .where(allowedSourceMessageIds.contains)
               .toSet()
               .toList()
             ..sort();
+          // For auto-captured chat_message evidence, only resolve sync_ids for
+          // IDs that survived the hallucination filter above.
+          sourceSyncIds = await _resolveSyncIdsForIntIds(db, sourceIds);
         } else {
           sourceIds = draft.sourceMessageIds.toSet().toList()..sort();
+          // Non-chat sources (record_button, floating_ball…) may carry a
+          // draft-provided stable list; otherwise resolve from int IDs.
+          sourceSyncIds = draft.sourceSyncIds.isNotEmpty
+              ? draft.sourceSyncIds.toSet().toList()
+              : await _resolveSyncIdsForIntIds(db, sourceIds);
         }
 
         final existingEntity = draft.entityId == null
@@ -527,6 +564,9 @@ class SharedLifeMemoryService {
                 title: title,
                 patchJson: jsonEncode(draft.patch),
                 sourceMessageIds: jsonEncode(sourceIds),
+                sourceSyncIds: sourceSyncIds.isEmpty
+                    ? const Value(null)
+                    : Value(jsonEncode(sourceSyncIds)),
                 sourceCharacterId: sourceCharacterId,
                 captureTaskId: Value(captureTaskId),
                 revertsOperationId: const Value(null),
@@ -1077,11 +1117,48 @@ List<int> _decodeIntList(String value) {
   }
 }
 
+List<String> _decodeStringList(String? value) {
+  if (value == null || value.trim().isEmpty) return const [];
+  try {
+    final decoded = jsonDecode(value);
+    if (decoded is! List) return const [];
+    return decoded
+        .map((item) => item is String ? item : '$item')
+        .where((s) => s.isNotEmpty)
+        .toList(growable: false);
+  } catch (_) {
+    return const [];
+  }
+}
+
 List<String> _stringList(dynamic value) {
   if (value is! List) return const [];
   return value
       .map((item) => '$item'.trim())
       .where((item) => item.isNotEmpty)
+      .toSet()
+      .toList(growable: false);
+}
+
+/// Resolves local persona_chat_messages integer IDs to their stable sync_ids.
+///
+/// Used during dual-write so every operation row carries a stable cross-device
+/// reference alongside the legacy int IDs. Rows missing a sync_id (should not
+/// happen post-v55) are silently dropped from the stable list; the int list is
+/// still written as-is for back-compat.
+Future<List<String>> _resolveSyncIdsForIntIds(
+  AppDatabase db,
+  Iterable<int> intIds,
+) async {
+  final unique = intIds.where((id) => id > 0).toSet();
+  if (unique.isEmpty) return const [];
+  final rows = await (db.select(db.personaChatMessages)
+        ..where((t) => t.id.isIn(unique)))
+      .get();
+  return rows
+      .map((row) => row.syncId)
+      .whereType<String>()
+      .where((id) => id.isNotEmpty)
       .toSet()
       .toList(growable: false);
 }

@@ -223,6 +223,10 @@ class SharedLifeEventOperations extends Table {
   TextColumn get title => text()();
   TextColumn get patchJson => text()();
   TextColumn get sourceMessageIds => text()(); // JSON list<int>, kept for back-compat
+  /// Stable cross-device message IDs (JSON array<string>), mirroring
+  /// [sourceMessageIds]. Preferred over legacy int IDs for evidence that must
+  /// survive device replication; int IDs remain as a local performance key.
+  TextColumn get sourceSyncIds => text().nullable()();
   TextColumn get sourceCharacterId => text()();
   TextColumn get captureTaskId => text().nullable()();
   TextColumn get revertsOperationId => text().nullable()();

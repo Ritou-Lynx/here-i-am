@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart';
@@ -150,7 +152,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 55;
+  int get schemaVersion => 56;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -785,6 +787,30 @@ class AppDatabase extends _$AppDatabase {
             );
             await _createPersonaChatSyncIndices();
           }
+          if (from < 56) {
+            // Phase 0 (CORE_SYNC_DATA_INVENTORY §7): give the four
+            // message-evidence stores a stable cross-device reference column
+            // alongside their legacy local int IDs. v55 already gave every
+            // persona_chat_messages row a sync_id, so we backfill the new
+            // columns from that mapping now. Per-domain dual-write and
+            // read-prefers-stable land in follow-up commits; this step only
+            // adds columns, backfills history and creates lookup indices.
+            //
+            // Each step is table-guarded: minimal/hand-built test databases
+            // and any partial real install may not carry every table yet.
+            await _addColumnIfTableExists(
+              'shared_life_event_operations', 'source_sync_ids TEXT');
+            await _addColumnIfTableExists(
+              'memory_fragments', 'source_sync_ids TEXT');
+            await _addColumnIfTableExists(
+              'memory_recall_events', 'chat_message_sync_id TEXT');
+            await _addColumnIfTableExists(
+              'co_reading_session_messages', 'message_sync_id TEXT');
+            await _addColumnIfTableExists(
+              'memory_card_sources', 'source_sync_id TEXT');
+            await _backfillStableMessageRefs();
+            await _createStableMessageRefIndices();
+          }
         },
         beforeOpen: (OpeningDetails details) async {
           // Defensive backfill: some devices upgraded to v43 via the earlier
@@ -964,6 +990,146 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Backfills the v56 stable-reference columns from the integer IDs already
+  /// stored alongside them, by joining through `persona_chat_messages.sync_id`.
+  ///
+  /// All four columns are nullable and start empty for new writes; this only
+  /// repairs rows that predate dual-write. It is idempotent: rows already
+  /// carrying a stable ref are left untouched.
+  Future<void> _backfillStableMessageRefs() async {
+    final idToSync = await _loadChatIdToSyncMap();
+    if (idToSync.isEmpty) return;
+
+    await _backfillJsonArrayRefs(
+      table: 'shared_life_event_operations',
+      idColumn: 'source_message_ids',
+      syncColumn: 'source_sync_ids',
+      idToSync: idToSync,
+    );
+    await _backfillJsonArrayRefs(
+      table: 'memory_fragments',
+      idColumn: 'source_message_ids',
+      syncColumn: 'source_sync_ids',
+      idToSync: idToSync,
+    );
+    await _backfillSingleIntRef(
+      table: 'memory_recall_events',
+      idColumn: 'chat_message_id',
+      syncColumn: 'chat_message_sync_id',
+      idToSync: idToSync,
+    );
+    await _backfillSingleIntRef(
+      table: 'co_reading_session_messages',
+      idColumn: 'message_id',
+      syncColumn: 'message_sync_id',
+      idToSync: idToSync,
+    );
+    await _backfillSingleIntRef(
+      table: 'memory_card_sources',
+      idColumn: 'source_ref',
+      syncColumn: 'source_sync_id',
+      idToSync: idToSync,
+    );
+  }
+
+  Future<Map<int, String>> _loadChatIdToSyncMap() async {
+    if (!await _tableExists('persona_chat_messages')) return const {};
+    final rows = await customSelect(
+      'SELECT id, sync_id FROM persona_chat_messages '
+      "WHERE sync_id IS NOT NULL AND sync_id != ''",
+    ).get();
+    return {
+      for (final row in rows) row.read<int>('id'): row.read<String>('sync_id'),
+    };
+  }
+
+  Future<void> _backfillJsonArrayRefs({
+    required String table,
+    required String idColumn,
+    required String syncColumn,
+    required Map<int, String> idToSync,
+  }) async {
+    if (!await _tableExists(table)) return;
+    final rows = await customSelect(
+      'SELECT rowid, $idColumn AS ids FROM $table '
+      "WHERE ($syncColumn IS NULL OR $syncColumn = '') "
+      'AND $idColumn IS NOT NULL AND $idColumn != \'\'',
+    ).get();
+    for (final row in rows) {
+      final idsRaw = row.read<String?>('ids');
+      if (idsRaw == null || idsRaw.trim().isEmpty) continue;
+      final intIds = _decodeIntList(idsRaw);
+      if (intIds.isEmpty) continue;
+      final syncIds = intIds
+          .map((id) => idToSync[id])
+          .whereType<String>()
+          .toList();
+      if (syncIds.isEmpty) continue;
+      await customStatement(
+        'UPDATE $table SET $syncColumn = ? WHERE rowid = ?',
+        [jsonEncode(syncIds), row.read<int>('rowid')],
+      );
+    }
+  }
+
+  Future<void> _backfillSingleIntRef({
+    required String table,
+    required String idColumn,
+    required String syncColumn,
+    required Map<int, String> idToSync,
+  }) async {
+    if (!await _tableExists(table)) return;
+    final rows = await customSelect(
+      'SELECT rowid, $idColumn AS id FROM $table '
+      "WHERE ($syncColumn IS NULL OR $syncColumn = '') "
+      'AND $idColumn IS NOT NULL AND $idColumn != \'\'',
+    ).get();
+    for (final row in rows) {
+      final idRaw = row.read<String?>('id');
+      final intId = int.tryParse(idRaw ?? '');
+      if (intId == null || intId <= 0) continue;
+      final syncId = idToSync[intId];
+      if (syncId == null) continue;
+      await customStatement(
+        'UPDATE $table SET $syncColumn = ? WHERE rowid = ?',
+        [syncId, row.read<int>('rowid')],
+      );
+    }
+  }
+
+  List<int> _decodeIntList(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded
+            .map((e) => e is int ? e : int.tryParse('$e'))
+            .whereType<int>()
+            .where((id) => id > 0)
+            .toList();
+      }
+    } catch (_) {
+      // Malformed JSON - nothing to backfill.
+    }
+    return const [];
+  }
+
+  Future<void> _createStableMessageRefIndices() async {
+    if (await _tableExists('memory_recall_events')) {
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_memory_recall_sync '
+        'ON memory_recall_events(chat_message_sync_id) '
+        'WHERE chat_message_sync_id IS NOT NULL',
+      );
+    }
+    if (await _tableExists('co_reading_session_messages')) {
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_co_reading_session_messages_sync '
+        'ON co_reading_session_messages(message_sync_id) '
+        'WHERE message_sync_id IS NOT NULL',
+      );
+    }
+  }
+
   Future<void> _createClarificationRequestsTable(Migrator m) async {
     try {
       await m.createTable(clarificationRequests);
@@ -1120,6 +1286,27 @@ class AppDatabase extends _$AppDatabase {
         rethrow;
       }
     }
+  }
+
+  /// Like [_addColumnIfMissing] but first checks the table exists. Migration
+  /// steps must tolerate minimal test databases and partial installs that do
+  /// not yet carry every table.
+  Future<void> _addColumnIfTableExists(
+      String tableName, String columnDef) async {
+    final exists = await customSelect(
+      'SELECT name FROM sqlite_master WHERE type = \'table\' AND name = ?',
+      variables: [Variable.withString(tableName)],
+    ).getSingleOrNull();
+    if (exists == null) return;
+    await _addColumnIfMissing('$tableName ADD COLUMN $columnDef');
+  }
+
+  Future<bool> _tableExists(String tableName) async {
+    final row = await customSelect(
+      'SELECT name FROM sqlite_master WHERE type = \'table\' AND name = ?',
+      variables: [Variable.withString(tableName)],
+    ).getSingleOrNull();
+    return row != null;
   }
 }
 

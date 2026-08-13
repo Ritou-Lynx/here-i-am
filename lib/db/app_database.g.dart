@@ -4142,6 +4142,12 @@ class $SharedLifeEventOperationsTable extends SharedLifeEventOperations
   late final GeneratedColumn<String> sourceMessageIds = GeneratedColumn<String>(
       'source_message_ids', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceSyncIdsMeta =
+      const VerificationMeta('sourceSyncIds');
+  @override
+  late final GeneratedColumn<String> sourceSyncIds = GeneratedColumn<String>(
+      'source_sync_ids', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _sourceCharacterIdMeta =
       const VerificationMeta('sourceCharacterId');
   @override
@@ -4208,6 +4214,7 @@ class $SharedLifeEventOperationsTable extends SharedLifeEventOperations
         title,
         patchJson,
         sourceMessageIds,
+        sourceSyncIds,
         sourceCharacterId,
         captureTaskId,
         revertsOperationId,
@@ -4275,6 +4282,12 @@ class $SharedLifeEventOperationsTable extends SharedLifeEventOperations
               data['source_message_ids']!, _sourceMessageIdsMeta));
     } else if (isInserting) {
       context.missing(_sourceMessageIdsMeta);
+    }
+    if (data.containsKey('source_sync_ids')) {
+      context.handle(
+          _sourceSyncIdsMeta,
+          sourceSyncIds.isAcceptableOrUnknown(
+              data['source_sync_ids']!, _sourceSyncIdsMeta));
     }
     if (data.containsKey('source_character_id')) {
       context.handle(
@@ -4350,6 +4363,8 @@ class $SharedLifeEventOperationsTable extends SharedLifeEventOperations
           .read(DriftSqlType.string, data['${effectivePrefix}patch_json'])!,
       sourceMessageIds: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}source_message_ids'])!,
+      sourceSyncIds: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_sync_ids']),
       sourceCharacterId: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}source_character_id'])!,
       captureTaskId: attachedDatabase.typeMapping
@@ -4386,6 +4401,11 @@ class SharedLifeEventOperation extends DataClass
   final String title;
   final String patchJson;
   final String sourceMessageIds;
+
+  /// Stable cross-device message IDs (JSON array<string>), mirroring
+  /// [sourceMessageIds]. Preferred over legacy int IDs for evidence that must
+  /// survive device replication; int IDs remain as a local performance key.
+  final String? sourceSyncIds;
   final String sourceCharacterId;
   final String? captureTaskId;
   final String? revertsOperationId;
@@ -4403,6 +4423,7 @@ class SharedLifeEventOperation extends DataClass
       required this.title,
       required this.patchJson,
       required this.sourceMessageIds,
+      this.sourceSyncIds,
       required this.sourceCharacterId,
       this.captureTaskId,
       this.revertsOperationId,
@@ -4422,6 +4443,9 @@ class SharedLifeEventOperation extends DataClass
     map['title'] = Variable<String>(title);
     map['patch_json'] = Variable<String>(patchJson);
     map['source_message_ids'] = Variable<String>(sourceMessageIds);
+    if (!nullToAbsent || sourceSyncIds != null) {
+      map['source_sync_ids'] = Variable<String>(sourceSyncIds);
+    }
     map['source_character_id'] = Variable<String>(sourceCharacterId);
     if (!nullToAbsent || captureTaskId != null) {
       map['capture_task_id'] = Variable<String>(captureTaskId);
@@ -4453,6 +4477,9 @@ class SharedLifeEventOperation extends DataClass
       title: Value(title),
       patchJson: Value(patchJson),
       sourceMessageIds: Value(sourceMessageIds),
+      sourceSyncIds: sourceSyncIds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceSyncIds),
       sourceCharacterId: Value(sourceCharacterId),
       captureTaskId: captureTaskId == null && nullToAbsent
           ? const Value.absent()
@@ -4485,6 +4512,7 @@ class SharedLifeEventOperation extends DataClass
       title: serializer.fromJson<String>(json['title']),
       patchJson: serializer.fromJson<String>(json['patchJson']),
       sourceMessageIds: serializer.fromJson<String>(json['sourceMessageIds']),
+      sourceSyncIds: serializer.fromJson<String?>(json['sourceSyncIds']),
       sourceCharacterId: serializer.fromJson<String>(json['sourceCharacterId']),
       captureTaskId: serializer.fromJson<String?>(json['captureTaskId']),
       revertsOperationId:
@@ -4508,6 +4536,7 @@ class SharedLifeEventOperation extends DataClass
       'title': serializer.toJson<String>(title),
       'patchJson': serializer.toJson<String>(patchJson),
       'sourceMessageIds': serializer.toJson<String>(sourceMessageIds),
+      'sourceSyncIds': serializer.toJson<String?>(sourceSyncIds),
       'sourceCharacterId': serializer.toJson<String>(sourceCharacterId),
       'captureTaskId': serializer.toJson<String?>(captureTaskId),
       'revertsOperationId': serializer.toJson<String?>(revertsOperationId),
@@ -4528,6 +4557,7 @@ class SharedLifeEventOperation extends DataClass
           String? title,
           String? patchJson,
           String? sourceMessageIds,
+          Value<String?> sourceSyncIds = const Value.absent(),
           String? sourceCharacterId,
           Value<String?> captureTaskId = const Value.absent(),
           Value<String?> revertsOperationId = const Value.absent(),
@@ -4545,6 +4575,8 @@ class SharedLifeEventOperation extends DataClass
         title: title ?? this.title,
         patchJson: patchJson ?? this.patchJson,
         sourceMessageIds: sourceMessageIds ?? this.sourceMessageIds,
+        sourceSyncIds:
+            sourceSyncIds.present ? sourceSyncIds.value : this.sourceSyncIds,
         sourceCharacterId: sourceCharacterId ?? this.sourceCharacterId,
         captureTaskId:
             captureTaskId.present ? captureTaskId.value : this.captureTaskId,
@@ -4573,6 +4605,9 @@ class SharedLifeEventOperation extends DataClass
       sourceMessageIds: data.sourceMessageIds.present
           ? data.sourceMessageIds.value
           : this.sourceMessageIds,
+      sourceSyncIds: data.sourceSyncIds.present
+          ? data.sourceSyncIds.value
+          : this.sourceSyncIds,
       sourceCharacterId: data.sourceCharacterId.present
           ? data.sourceCharacterId.value
           : this.sourceCharacterId,
@@ -4604,6 +4639,7 @@ class SharedLifeEventOperation extends DataClass
           ..write('title: $title, ')
           ..write('patchJson: $patchJson, ')
           ..write('sourceMessageIds: $sourceMessageIds, ')
+          ..write('sourceSyncIds: $sourceSyncIds, ')
           ..write('sourceCharacterId: $sourceCharacterId, ')
           ..write('captureTaskId: $captureTaskId, ')
           ..write('revertsOperationId: $revertsOperationId, ')
@@ -4626,6 +4662,7 @@ class SharedLifeEventOperation extends DataClass
       title,
       patchJson,
       sourceMessageIds,
+      sourceSyncIds,
       sourceCharacterId,
       captureTaskId,
       revertsOperationId,
@@ -4646,6 +4683,7 @@ class SharedLifeEventOperation extends DataClass
           other.title == this.title &&
           other.patchJson == this.patchJson &&
           other.sourceMessageIds == this.sourceMessageIds &&
+          other.sourceSyncIds == this.sourceSyncIds &&
           other.sourceCharacterId == this.sourceCharacterId &&
           other.captureTaskId == this.captureTaskId &&
           other.revertsOperationId == this.revertsOperationId &&
@@ -4666,6 +4704,7 @@ class SharedLifeEventOperationsCompanion
   final Value<String> title;
   final Value<String> patchJson;
   final Value<String> sourceMessageIds;
+  final Value<String?> sourceSyncIds;
   final Value<String> sourceCharacterId;
   final Value<String?> captureTaskId;
   final Value<String?> revertsOperationId;
@@ -4684,6 +4723,7 @@ class SharedLifeEventOperationsCompanion
     this.title = const Value.absent(),
     this.patchJson = const Value.absent(),
     this.sourceMessageIds = const Value.absent(),
+    this.sourceSyncIds = const Value.absent(),
     this.sourceCharacterId = const Value.absent(),
     this.captureTaskId = const Value.absent(),
     this.revertsOperationId = const Value.absent(),
@@ -4703,6 +4743,7 @@ class SharedLifeEventOperationsCompanion
     required String title,
     required String patchJson,
     required String sourceMessageIds,
+    this.sourceSyncIds = const Value.absent(),
     required String sourceCharacterId,
     this.captureTaskId = const Value.absent(),
     this.revertsOperationId = const Value.absent(),
@@ -4730,6 +4771,7 @@ class SharedLifeEventOperationsCompanion
     Expression<String>? title,
     Expression<String>? patchJson,
     Expression<String>? sourceMessageIds,
+    Expression<String>? sourceSyncIds,
     Expression<String>? sourceCharacterId,
     Expression<String>? captureTaskId,
     Expression<String>? revertsOperationId,
@@ -4749,6 +4791,7 @@ class SharedLifeEventOperationsCompanion
       if (title != null) 'title': title,
       if (patchJson != null) 'patch_json': patchJson,
       if (sourceMessageIds != null) 'source_message_ids': sourceMessageIds,
+      if (sourceSyncIds != null) 'source_sync_ids': sourceSyncIds,
       if (sourceCharacterId != null) 'source_character_id': sourceCharacterId,
       if (captureTaskId != null) 'capture_task_id': captureTaskId,
       if (revertsOperationId != null)
@@ -4771,6 +4814,7 @@ class SharedLifeEventOperationsCompanion
       Value<String>? title,
       Value<String>? patchJson,
       Value<String>? sourceMessageIds,
+      Value<String?>? sourceSyncIds,
       Value<String>? sourceCharacterId,
       Value<String?>? captureTaskId,
       Value<String?>? revertsOperationId,
@@ -4789,6 +4833,7 @@ class SharedLifeEventOperationsCompanion
       title: title ?? this.title,
       patchJson: patchJson ?? this.patchJson,
       sourceMessageIds: sourceMessageIds ?? this.sourceMessageIds,
+      sourceSyncIds: sourceSyncIds ?? this.sourceSyncIds,
       sourceCharacterId: sourceCharacterId ?? this.sourceCharacterId,
       captureTaskId: captureTaskId ?? this.captureTaskId,
       revertsOperationId: revertsOperationId ?? this.revertsOperationId,
@@ -4825,6 +4870,9 @@ class SharedLifeEventOperationsCompanion
     }
     if (sourceMessageIds.present) {
       map['source_message_ids'] = Variable<String>(sourceMessageIds.value);
+    }
+    if (sourceSyncIds.present) {
+      map['source_sync_ids'] = Variable<String>(sourceSyncIds.value);
     }
     if (sourceCharacterId.present) {
       map['source_character_id'] = Variable<String>(sourceCharacterId.value);
@@ -4869,6 +4917,7 @@ class SharedLifeEventOperationsCompanion
           ..write('title: $title, ')
           ..write('patchJson: $patchJson, ')
           ..write('sourceMessageIds: $sourceMessageIds, ')
+          ..write('sourceSyncIds: $sourceSyncIds, ')
           ..write('sourceCharacterId: $sourceCharacterId, ')
           ..write('captureTaskId: $captureTaskId, ')
           ..write('revertsOperationId: $revertsOperationId, ')
@@ -14382,6 +14431,12 @@ class $MemoryCardSourcesTable extends memory_v3.MemoryCardSources
   late final GeneratedColumn<String> sourceRef = GeneratedColumn<String>(
       'source_ref', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sourceSyncIdMeta =
+      const VerificationMeta('sourceSyncId');
+  @override
+  late final GeneratedColumn<String> sourceSyncId = GeneratedColumn<String>(
+      'source_sync_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _sourceKindMeta =
       const VerificationMeta('sourceKind');
   @override
@@ -14403,6 +14458,7 @@ class $MemoryCardSourcesTable extends memory_v3.MemoryCardSources
         recordedAt,
         recordedPlace,
         sourceRef,
+        sourceSyncId,
         sourceKind,
         schemaVersion
       ];
@@ -14446,6 +14502,12 @@ class $MemoryCardSourcesTable extends memory_v3.MemoryCardSources
       context.handle(_sourceRefMeta,
           sourceRef.isAcceptableOrUnknown(data['source_ref']!, _sourceRefMeta));
     }
+    if (data.containsKey('source_sync_id')) {
+      context.handle(
+          _sourceSyncIdMeta,
+          sourceSyncId.isAcceptableOrUnknown(
+              data['source_sync_id']!, _sourceSyncIdMeta));
+    }
     if (data.containsKey('source_kind')) {
       context.handle(
           _sourceKindMeta,
@@ -14479,6 +14541,8 @@ class $MemoryCardSourcesTable extends memory_v3.MemoryCardSources
           .read(DriftSqlType.string, data['${effectivePrefix}recorded_place']),
       sourceRef: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}source_ref']),
+      sourceSyncId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_sync_id']),
       sourceKind: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}source_kind'])!,
       schemaVersion: attachedDatabase.typeMapping
@@ -14503,6 +14567,11 @@ class MemoryCardSource extends DataClass
   /// 软引用，不写 FK 约束。
   final String? sourceRef;
 
+  /// Stable cross-device id mirroring [sourceRef] when it points at a chat
+  /// message. Preferred for cross-device resolution; [sourceRef] keeps the
+  /// legacy local-int form for back-compat.
+  final String? sourceSyncId;
+
   /// 记录方式元数据：record_button / fab / natural_command / import / system 等。
   final String sourceKind;
   final int schemaVersion;
@@ -14512,6 +14581,7 @@ class MemoryCardSource extends DataClass
       required this.recordedAt,
       this.recordedPlace,
       this.sourceRef,
+      this.sourceSyncId,
       required this.sourceKind,
       required this.schemaVersion});
   @override
@@ -14525,6 +14595,9 @@ class MemoryCardSource extends DataClass
     }
     if (!nullToAbsent || sourceRef != null) {
       map['source_ref'] = Variable<String>(sourceRef);
+    }
+    if (!nullToAbsent || sourceSyncId != null) {
+      map['source_sync_id'] = Variable<String>(sourceSyncId);
     }
     map['source_kind'] = Variable<String>(sourceKind);
     map['schema_version'] = Variable<int>(schemaVersion);
@@ -14542,6 +14615,9 @@ class MemoryCardSource extends DataClass
       sourceRef: sourceRef == null && nullToAbsent
           ? const Value.absent()
           : Value(sourceRef),
+      sourceSyncId: sourceSyncId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceSyncId),
       sourceKind: Value(sourceKind),
       schemaVersion: Value(schemaVersion),
     );
@@ -14556,6 +14632,7 @@ class MemoryCardSource extends DataClass
       recordedAt: serializer.fromJson<int>(json['recordedAt']),
       recordedPlace: serializer.fromJson<String?>(json['recordedPlace']),
       sourceRef: serializer.fromJson<String?>(json['sourceRef']),
+      sourceSyncId: serializer.fromJson<String?>(json['sourceSyncId']),
       sourceKind: serializer.fromJson<String>(json['sourceKind']),
       schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
     );
@@ -14569,6 +14646,7 @@ class MemoryCardSource extends DataClass
       'recordedAt': serializer.toJson<int>(recordedAt),
       'recordedPlace': serializer.toJson<String?>(recordedPlace),
       'sourceRef': serializer.toJson<String?>(sourceRef),
+      'sourceSyncId': serializer.toJson<String?>(sourceSyncId),
       'sourceKind': serializer.toJson<String>(sourceKind),
       'schemaVersion': serializer.toJson<int>(schemaVersion),
     };
@@ -14580,6 +14658,7 @@ class MemoryCardSource extends DataClass
           int? recordedAt,
           Value<String?> recordedPlace = const Value.absent(),
           Value<String?> sourceRef = const Value.absent(),
+          Value<String?> sourceSyncId = const Value.absent(),
           String? sourceKind,
           int? schemaVersion}) =>
       MemoryCardSource(
@@ -14589,6 +14668,8 @@ class MemoryCardSource extends DataClass
         recordedPlace:
             recordedPlace.present ? recordedPlace.value : this.recordedPlace,
         sourceRef: sourceRef.present ? sourceRef.value : this.sourceRef,
+        sourceSyncId:
+            sourceSyncId.present ? sourceSyncId.value : this.sourceSyncId,
         sourceKind: sourceKind ?? this.sourceKind,
         schemaVersion: schemaVersion ?? this.schemaVersion,
       );
@@ -14602,6 +14683,9 @@ class MemoryCardSource extends DataClass
           ? data.recordedPlace.value
           : this.recordedPlace,
       sourceRef: data.sourceRef.present ? data.sourceRef.value : this.sourceRef,
+      sourceSyncId: data.sourceSyncId.present
+          ? data.sourceSyncId.value
+          : this.sourceSyncId,
       sourceKind:
           data.sourceKind.present ? data.sourceKind.value : this.sourceKind,
       schemaVersion: data.schemaVersion.present
@@ -14618,6 +14702,7 @@ class MemoryCardSource extends DataClass
           ..write('recordedAt: $recordedAt, ')
           ..write('recordedPlace: $recordedPlace, ')
           ..write('sourceRef: $sourceRef, ')
+          ..write('sourceSyncId: $sourceSyncId, ')
           ..write('sourceKind: $sourceKind, ')
           ..write('schemaVersion: $schemaVersion')
           ..write(')'))
@@ -14626,7 +14711,7 @@ class MemoryCardSource extends DataClass
 
   @override
   int get hashCode => Object.hash(cardId, rawInput, recordedAt, recordedPlace,
-      sourceRef, sourceKind, schemaVersion);
+      sourceRef, sourceSyncId, sourceKind, schemaVersion);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -14636,6 +14721,7 @@ class MemoryCardSource extends DataClass
           other.recordedAt == this.recordedAt &&
           other.recordedPlace == this.recordedPlace &&
           other.sourceRef == this.sourceRef &&
+          other.sourceSyncId == this.sourceSyncId &&
           other.sourceKind == this.sourceKind &&
           other.schemaVersion == this.schemaVersion);
 }
@@ -14646,6 +14732,7 @@ class MemoryCardSourcesCompanion extends UpdateCompanion<MemoryCardSource> {
   final Value<int> recordedAt;
   final Value<String?> recordedPlace;
   final Value<String?> sourceRef;
+  final Value<String?> sourceSyncId;
   final Value<String> sourceKind;
   final Value<int> schemaVersion;
   final Value<int> rowid;
@@ -14655,6 +14742,7 @@ class MemoryCardSourcesCompanion extends UpdateCompanion<MemoryCardSource> {
     this.recordedAt = const Value.absent(),
     this.recordedPlace = const Value.absent(),
     this.sourceRef = const Value.absent(),
+    this.sourceSyncId = const Value.absent(),
     this.sourceKind = const Value.absent(),
     this.schemaVersion = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -14665,6 +14753,7 @@ class MemoryCardSourcesCompanion extends UpdateCompanion<MemoryCardSource> {
     required int recordedAt,
     this.recordedPlace = const Value.absent(),
     this.sourceRef = const Value.absent(),
+    this.sourceSyncId = const Value.absent(),
     required String sourceKind,
     this.schemaVersion = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -14678,6 +14767,7 @@ class MemoryCardSourcesCompanion extends UpdateCompanion<MemoryCardSource> {
     Expression<int>? recordedAt,
     Expression<String>? recordedPlace,
     Expression<String>? sourceRef,
+    Expression<String>? sourceSyncId,
     Expression<String>? sourceKind,
     Expression<int>? schemaVersion,
     Expression<int>? rowid,
@@ -14688,6 +14778,7 @@ class MemoryCardSourcesCompanion extends UpdateCompanion<MemoryCardSource> {
       if (recordedAt != null) 'recorded_at': recordedAt,
       if (recordedPlace != null) 'recorded_place': recordedPlace,
       if (sourceRef != null) 'source_ref': sourceRef,
+      if (sourceSyncId != null) 'source_sync_id': sourceSyncId,
       if (sourceKind != null) 'source_kind': sourceKind,
       if (schemaVersion != null) 'schema_version': schemaVersion,
       if (rowid != null) 'rowid': rowid,
@@ -14700,6 +14791,7 @@ class MemoryCardSourcesCompanion extends UpdateCompanion<MemoryCardSource> {
       Value<int>? recordedAt,
       Value<String?>? recordedPlace,
       Value<String?>? sourceRef,
+      Value<String?>? sourceSyncId,
       Value<String>? sourceKind,
       Value<int>? schemaVersion,
       Value<int>? rowid}) {
@@ -14709,6 +14801,7 @@ class MemoryCardSourcesCompanion extends UpdateCompanion<MemoryCardSource> {
       recordedAt: recordedAt ?? this.recordedAt,
       recordedPlace: recordedPlace ?? this.recordedPlace,
       sourceRef: sourceRef ?? this.sourceRef,
+      sourceSyncId: sourceSyncId ?? this.sourceSyncId,
       sourceKind: sourceKind ?? this.sourceKind,
       schemaVersion: schemaVersion ?? this.schemaVersion,
       rowid: rowid ?? this.rowid,
@@ -14733,6 +14826,9 @@ class MemoryCardSourcesCompanion extends UpdateCompanion<MemoryCardSource> {
     if (sourceRef.present) {
       map['source_ref'] = Variable<String>(sourceRef.value);
     }
+    if (sourceSyncId.present) {
+      map['source_sync_id'] = Variable<String>(sourceSyncId.value);
+    }
     if (sourceKind.present) {
       map['source_kind'] = Variable<String>(sourceKind.value);
     }
@@ -14753,6 +14849,7 @@ class MemoryCardSourcesCompanion extends UpdateCompanion<MemoryCardSource> {
           ..write('recordedAt: $recordedAt, ')
           ..write('recordedPlace: $recordedPlace, ')
           ..write('sourceRef: $sourceRef, ')
+          ..write('sourceSyncId: $sourceSyncId, ')
           ..write('sourceKind: $sourceKind, ')
           ..write('schemaVersion: $schemaVersion, ')
           ..write('rowid: $rowid')
@@ -15877,6 +15974,12 @@ class $MemoryFragmentsTable extends memory_v3.MemoryFragments
   late final GeneratedColumn<String> sourceMessageIds = GeneratedColumn<String>(
       'source_message_ids', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sourceSyncIdsMeta =
+      const VerificationMeta('sourceSyncIds');
+  @override
+  late final GeneratedColumn<String> sourceSyncIds = GeneratedColumn<String>(
+      'source_sync_ids', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _sourceScopeMeta =
       const VerificationMeta('sourceScope');
   @override
@@ -15951,6 +16054,7 @@ class $MemoryFragmentsTable extends memory_v3.MemoryFragments
         id,
         content,
         sourceMessageIds,
+        sourceSyncIds,
         sourceScope,
         emotionalWeight,
         status,
@@ -15987,6 +16091,12 @@ class $MemoryFragmentsTable extends memory_v3.MemoryFragments
           _sourceMessageIdsMeta,
           sourceMessageIds.isAcceptableOrUnknown(
               data['source_message_ids']!, _sourceMessageIdsMeta));
+    }
+    if (data.containsKey('source_sync_ids')) {
+      context.handle(
+          _sourceSyncIdsMeta,
+          sourceSyncIds.isAcceptableOrUnknown(
+              data['source_sync_ids']!, _sourceSyncIdsMeta));
     }
     if (data.containsKey('source_scope')) {
       context.handle(
@@ -16053,6 +16163,8 @@ class $MemoryFragmentsTable extends memory_v3.MemoryFragments
           .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
       sourceMessageIds: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}source_message_ids']),
+      sourceSyncIds: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_sync_ids']),
       sourceScope: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}source_scope'])!,
       emotionalWeight: attachedDatabase.typeMapping.read(
@@ -16084,6 +16196,11 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
   final String id;
   final String content;
   final String? sourceMessageIds;
+
+  /// Stable cross-device message IDs (JSON array<string>), mirroring
+  /// [sourceMessageIds]. Preferred for cross-device evidence; the legacy int
+  /// array stays as a local performance key.
+  final String? sourceSyncIds;
   final String sourceScope;
   final double emotionalWeight;
   final String status;
@@ -16097,6 +16214,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       {required this.id,
       required this.content,
       this.sourceMessageIds,
+      this.sourceSyncIds,
       required this.sourceScope,
       required this.emotionalWeight,
       required this.status,
@@ -16113,6 +16231,9 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
     map['content'] = Variable<String>(content);
     if (!nullToAbsent || sourceMessageIds != null) {
       map['source_message_ids'] = Variable<String>(sourceMessageIds);
+    }
+    if (!nullToAbsent || sourceSyncIds != null) {
+      map['source_sync_ids'] = Variable<String>(sourceSyncIds);
     }
     map['source_scope'] = Variable<String>(sourceScope);
     map['emotional_weight'] = Variable<double>(emotionalWeight);
@@ -16137,6 +16258,9 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       sourceMessageIds: sourceMessageIds == null && nullToAbsent
           ? const Value.absent()
           : Value(sourceMessageIds),
+      sourceSyncIds: sourceSyncIds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceSyncIds),
       sourceScope: Value(sourceScope),
       emotionalWeight: Value(emotionalWeight),
       status: Value(status),
@@ -16160,6 +16284,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       id: serializer.fromJson<String>(json['id']),
       content: serializer.fromJson<String>(json['content']),
       sourceMessageIds: serializer.fromJson<String?>(json['sourceMessageIds']),
+      sourceSyncIds: serializer.fromJson<String?>(json['sourceSyncIds']),
       sourceScope: serializer.fromJson<String>(json['sourceScope']),
       emotionalWeight: serializer.fromJson<double>(json['emotionalWeight']),
       status: serializer.fromJson<String>(json['status']),
@@ -16180,6 +16305,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       'id': serializer.toJson<String>(id),
       'content': serializer.toJson<String>(content),
       'sourceMessageIds': serializer.toJson<String?>(sourceMessageIds),
+      'sourceSyncIds': serializer.toJson<String?>(sourceSyncIds),
       'sourceScope': serializer.toJson<String>(sourceScope),
       'emotionalWeight': serializer.toJson<double>(emotionalWeight),
       'status': serializer.toJson<String>(status),
@@ -16196,6 +16322,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
           {String? id,
           String? content,
           Value<String?> sourceMessageIds = const Value.absent(),
+          Value<String?> sourceSyncIds = const Value.absent(),
           String? sourceScope,
           double? emotionalWeight,
           String? status,
@@ -16211,6 +16338,8 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
         sourceMessageIds: sourceMessageIds.present
             ? sourceMessageIds.value
             : this.sourceMessageIds,
+        sourceSyncIds:
+            sourceSyncIds.present ? sourceSyncIds.value : this.sourceSyncIds,
         sourceScope: sourceScope ?? this.sourceScope,
         emotionalWeight: emotionalWeight ?? this.emotionalWeight,
         status: status ?? this.status,
@@ -16230,6 +16359,9 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       sourceMessageIds: data.sourceMessageIds.present
           ? data.sourceMessageIds.value
           : this.sourceMessageIds,
+      sourceSyncIds: data.sourceSyncIds.present
+          ? data.sourceSyncIds.value
+          : this.sourceSyncIds,
       sourceScope:
           data.sourceScope.present ? data.sourceScope.value : this.sourceScope,
       emotionalWeight: data.emotionalWeight.present
@@ -16259,6 +16391,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
           ..write('id: $id, ')
           ..write('content: $content, ')
           ..write('sourceMessageIds: $sourceMessageIds, ')
+          ..write('sourceSyncIds: $sourceSyncIds, ')
           ..write('sourceScope: $sourceScope, ')
           ..write('emotionalWeight: $emotionalWeight, ')
           ..write('status: $status, ')
@@ -16277,6 +16410,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
       id,
       content,
       sourceMessageIds,
+      sourceSyncIds,
       sourceScope,
       emotionalWeight,
       status,
@@ -16293,6 +16427,7 @@ class MemoryFragment extends DataClass implements Insertable<MemoryFragment> {
           other.id == this.id &&
           other.content == this.content &&
           other.sourceMessageIds == this.sourceMessageIds &&
+          other.sourceSyncIds == this.sourceSyncIds &&
           other.sourceScope == this.sourceScope &&
           other.emotionalWeight == this.emotionalWeight &&
           other.status == this.status &&
@@ -16308,6 +16443,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
   final Value<String> id;
   final Value<String> content;
   final Value<String?> sourceMessageIds;
+  final Value<String?> sourceSyncIds;
   final Value<String> sourceScope;
   final Value<double> emotionalWeight;
   final Value<String> status;
@@ -16322,6 +16458,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
     this.id = const Value.absent(),
     this.content = const Value.absent(),
     this.sourceMessageIds = const Value.absent(),
+    this.sourceSyncIds = const Value.absent(),
     this.sourceScope = const Value.absent(),
     this.emotionalWeight = const Value.absent(),
     this.status = const Value.absent(),
@@ -16337,6 +16474,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
     required String id,
     required String content,
     this.sourceMessageIds = const Value.absent(),
+    this.sourceSyncIds = const Value.absent(),
     this.sourceScope = const Value.absent(),
     this.emotionalWeight = const Value.absent(),
     this.status = const Value.absent(),
@@ -16354,6 +16492,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
     Expression<String>? id,
     Expression<String>? content,
     Expression<String>? sourceMessageIds,
+    Expression<String>? sourceSyncIds,
     Expression<String>? sourceScope,
     Expression<double>? emotionalWeight,
     Expression<String>? status,
@@ -16369,6 +16508,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
       if (id != null) 'id': id,
       if (content != null) 'content': content,
       if (sourceMessageIds != null) 'source_message_ids': sourceMessageIds,
+      if (sourceSyncIds != null) 'source_sync_ids': sourceSyncIds,
       if (sourceScope != null) 'source_scope': sourceScope,
       if (emotionalWeight != null) 'emotional_weight': emotionalWeight,
       if (status != null) 'status': status,
@@ -16388,6 +16528,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
       {Value<String>? id,
       Value<String>? content,
       Value<String?>? sourceMessageIds,
+      Value<String?>? sourceSyncIds,
       Value<String>? sourceScope,
       Value<double>? emotionalWeight,
       Value<String>? status,
@@ -16402,6 +16543,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
       id: id ?? this.id,
       content: content ?? this.content,
       sourceMessageIds: sourceMessageIds ?? this.sourceMessageIds,
+      sourceSyncIds: sourceSyncIds ?? this.sourceSyncIds,
       sourceScope: sourceScope ?? this.sourceScope,
       emotionalWeight: emotionalWeight ?? this.emotionalWeight,
       status: status ?? this.status,
@@ -16426,6 +16568,9 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
     }
     if (sourceMessageIds.present) {
       map['source_message_ids'] = Variable<String>(sourceMessageIds.value);
+    }
+    if (sourceSyncIds.present) {
+      map['source_sync_ids'] = Variable<String>(sourceSyncIds.value);
     }
     if (sourceScope.present) {
       map['source_scope'] = Variable<String>(sourceScope.value);
@@ -16467,6 +16612,7 @@ class MemoryFragmentsCompanion extends UpdateCompanion<MemoryFragment> {
           ..write('id: $id, ')
           ..write('content: $content, ')
           ..write('sourceMessageIds: $sourceMessageIds, ')
+          ..write('sourceSyncIds: $sourceSyncIds, ')
           ..write('sourceScope: $sourceScope, ')
           ..write('emotionalWeight: $emotionalWeight, ')
           ..write('status: $status, ')
@@ -21149,6 +21295,12 @@ class $MemoryRecallEventsTable extends memory_v3.MemoryRecallEvents
   late final GeneratedColumn<String> chatMessageId = GeneratedColumn<String>(
       'chat_message_id', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _chatMessageSyncIdMeta =
+      const VerificationMeta('chatMessageSyncId');
+  @override
+  late final GeneratedColumn<String> chatMessageSyncId =
+      GeneratedColumn<String>('chat_message_sync_id', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _queryMeta = const VerificationMeta('query');
   @override
   late final GeneratedColumn<String> query = GeneratedColumn<String>(
@@ -21166,8 +21318,16 @@ class $MemoryRecallEventsTable extends memory_v3.MemoryRecallEvents
       'created_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, targetTable, targetId, chatMessageId, query, score, createdAt];
+  List<GeneratedColumn> get $columns => [
+        id,
+        targetTable,
+        targetId,
+        chatMessageId,
+        chatMessageSyncId,
+        query,
+        score,
+        createdAt
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -21203,6 +21363,12 @@ class $MemoryRecallEventsTable extends memory_v3.MemoryRecallEvents
           chatMessageId.isAcceptableOrUnknown(
               data['chat_message_id']!, _chatMessageIdMeta));
     }
+    if (data.containsKey('chat_message_sync_id')) {
+      context.handle(
+          _chatMessageSyncIdMeta,
+          chatMessageSyncId.isAcceptableOrUnknown(
+              data['chat_message_sync_id']!, _chatMessageSyncIdMeta));
+    }
     if (data.containsKey('query')) {
       context.handle(
           _queryMeta, query.isAcceptableOrUnknown(data['query']!, _queryMeta));
@@ -21236,6 +21402,8 @@ class $MemoryRecallEventsTable extends memory_v3.MemoryRecallEvents
           .read(DriftSqlType.string, data['${effectivePrefix}target_id'])!,
       chatMessageId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}chat_message_id']),
+      chatMessageSyncId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}chat_message_sync_id']),
       query: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}query']),
       score: attachedDatabase.typeMapping
@@ -21257,6 +21425,10 @@ class MemoryRecallEvent extends DataClass
   final String targetTable;
   final String targetId;
   final String? chatMessageId;
+
+  /// Stable cross-device ID of the chat message this trace belongs to,
+  /// mirroring [chatMessageId]. Preferred for cross-device resolution.
+  final String? chatMessageSyncId;
   final String? query;
   final double score;
   final int createdAt;
@@ -21265,6 +21437,7 @@ class MemoryRecallEvent extends DataClass
       required this.targetTable,
       required this.targetId,
       this.chatMessageId,
+      this.chatMessageSyncId,
       this.query,
       required this.score,
       required this.createdAt});
@@ -21276,6 +21449,9 @@ class MemoryRecallEvent extends DataClass
     map['target_id'] = Variable<String>(targetId);
     if (!nullToAbsent || chatMessageId != null) {
       map['chat_message_id'] = Variable<String>(chatMessageId);
+    }
+    if (!nullToAbsent || chatMessageSyncId != null) {
+      map['chat_message_sync_id'] = Variable<String>(chatMessageSyncId);
     }
     if (!nullToAbsent || query != null) {
       map['query'] = Variable<String>(query);
@@ -21293,6 +21469,9 @@ class MemoryRecallEvent extends DataClass
       chatMessageId: chatMessageId == null && nullToAbsent
           ? const Value.absent()
           : Value(chatMessageId),
+      chatMessageSyncId: chatMessageSyncId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(chatMessageSyncId),
       query:
           query == null && nullToAbsent ? const Value.absent() : Value(query),
       score: Value(score),
@@ -21308,6 +21487,8 @@ class MemoryRecallEvent extends DataClass
       targetTable: serializer.fromJson<String>(json['targetTable']),
       targetId: serializer.fromJson<String>(json['targetId']),
       chatMessageId: serializer.fromJson<String?>(json['chatMessageId']),
+      chatMessageSyncId:
+          serializer.fromJson<String?>(json['chatMessageSyncId']),
       query: serializer.fromJson<String?>(json['query']),
       score: serializer.fromJson<double>(json['score']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
@@ -21321,6 +21502,7 @@ class MemoryRecallEvent extends DataClass
       'targetTable': serializer.toJson<String>(targetTable),
       'targetId': serializer.toJson<String>(targetId),
       'chatMessageId': serializer.toJson<String?>(chatMessageId),
+      'chatMessageSyncId': serializer.toJson<String?>(chatMessageSyncId),
       'query': serializer.toJson<String?>(query),
       'score': serializer.toJson<double>(score),
       'createdAt': serializer.toJson<int>(createdAt),
@@ -21332,6 +21514,7 @@ class MemoryRecallEvent extends DataClass
           String? targetTable,
           String? targetId,
           Value<String?> chatMessageId = const Value.absent(),
+          Value<String?> chatMessageSyncId = const Value.absent(),
           Value<String?> query = const Value.absent(),
           double? score,
           int? createdAt}) =>
@@ -21341,6 +21524,9 @@ class MemoryRecallEvent extends DataClass
         targetId: targetId ?? this.targetId,
         chatMessageId:
             chatMessageId.present ? chatMessageId.value : this.chatMessageId,
+        chatMessageSyncId: chatMessageSyncId.present
+            ? chatMessageSyncId.value
+            : this.chatMessageSyncId,
         query: query.present ? query.value : this.query,
         score: score ?? this.score,
         createdAt: createdAt ?? this.createdAt,
@@ -21354,6 +21540,9 @@ class MemoryRecallEvent extends DataClass
       chatMessageId: data.chatMessageId.present
           ? data.chatMessageId.value
           : this.chatMessageId,
+      chatMessageSyncId: data.chatMessageSyncId.present
+          ? data.chatMessageSyncId.value
+          : this.chatMessageSyncId,
       query: data.query.present ? data.query.value : this.query,
       score: data.score.present ? data.score.value : this.score,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -21367,6 +21556,7 @@ class MemoryRecallEvent extends DataClass
           ..write('targetTable: $targetTable, ')
           ..write('targetId: $targetId, ')
           ..write('chatMessageId: $chatMessageId, ')
+          ..write('chatMessageSyncId: $chatMessageSyncId, ')
           ..write('query: $query, ')
           ..write('score: $score, ')
           ..write('createdAt: $createdAt')
@@ -21375,8 +21565,8 @@ class MemoryRecallEvent extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, targetTable, targetId, chatMessageId, query, score, createdAt);
+  int get hashCode => Object.hash(id, targetTable, targetId, chatMessageId,
+      chatMessageSyncId, query, score, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -21385,6 +21575,7 @@ class MemoryRecallEvent extends DataClass
           other.targetTable == this.targetTable &&
           other.targetId == this.targetId &&
           other.chatMessageId == this.chatMessageId &&
+          other.chatMessageSyncId == this.chatMessageSyncId &&
           other.query == this.query &&
           other.score == this.score &&
           other.createdAt == this.createdAt);
@@ -21395,6 +21586,7 @@ class MemoryRecallEventsCompanion extends UpdateCompanion<MemoryRecallEvent> {
   final Value<String> targetTable;
   final Value<String> targetId;
   final Value<String?> chatMessageId;
+  final Value<String?> chatMessageSyncId;
   final Value<String?> query;
   final Value<double> score;
   final Value<int> createdAt;
@@ -21404,6 +21596,7 @@ class MemoryRecallEventsCompanion extends UpdateCompanion<MemoryRecallEvent> {
     this.targetTable = const Value.absent(),
     this.targetId = const Value.absent(),
     this.chatMessageId = const Value.absent(),
+    this.chatMessageSyncId = const Value.absent(),
     this.query = const Value.absent(),
     this.score = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -21414,6 +21607,7 @@ class MemoryRecallEventsCompanion extends UpdateCompanion<MemoryRecallEvent> {
     required String targetTable,
     required String targetId,
     this.chatMessageId = const Value.absent(),
+    this.chatMessageSyncId = const Value.absent(),
     this.query = const Value.absent(),
     required double score,
     required int createdAt,
@@ -21428,6 +21622,7 @@ class MemoryRecallEventsCompanion extends UpdateCompanion<MemoryRecallEvent> {
     Expression<String>? targetTable,
     Expression<String>? targetId,
     Expression<String>? chatMessageId,
+    Expression<String>? chatMessageSyncId,
     Expression<String>? query,
     Expression<double>? score,
     Expression<int>? createdAt,
@@ -21438,6 +21633,7 @@ class MemoryRecallEventsCompanion extends UpdateCompanion<MemoryRecallEvent> {
       if (targetTable != null) 'target_table': targetTable,
       if (targetId != null) 'target_id': targetId,
       if (chatMessageId != null) 'chat_message_id': chatMessageId,
+      if (chatMessageSyncId != null) 'chat_message_sync_id': chatMessageSyncId,
       if (query != null) 'query': query,
       if (score != null) 'score': score,
       if (createdAt != null) 'created_at': createdAt,
@@ -21450,6 +21646,7 @@ class MemoryRecallEventsCompanion extends UpdateCompanion<MemoryRecallEvent> {
       Value<String>? targetTable,
       Value<String>? targetId,
       Value<String?>? chatMessageId,
+      Value<String?>? chatMessageSyncId,
       Value<String?>? query,
       Value<double>? score,
       Value<int>? createdAt,
@@ -21459,6 +21656,7 @@ class MemoryRecallEventsCompanion extends UpdateCompanion<MemoryRecallEvent> {
       targetTable: targetTable ?? this.targetTable,
       targetId: targetId ?? this.targetId,
       chatMessageId: chatMessageId ?? this.chatMessageId,
+      chatMessageSyncId: chatMessageSyncId ?? this.chatMessageSyncId,
       query: query ?? this.query,
       score: score ?? this.score,
       createdAt: createdAt ?? this.createdAt,
@@ -21480,6 +21678,9 @@ class MemoryRecallEventsCompanion extends UpdateCompanion<MemoryRecallEvent> {
     }
     if (chatMessageId.present) {
       map['chat_message_id'] = Variable<String>(chatMessageId.value);
+    }
+    if (chatMessageSyncId.present) {
+      map['chat_message_sync_id'] = Variable<String>(chatMessageSyncId.value);
     }
     if (query.present) {
       map['query'] = Variable<String>(query.value);
@@ -21503,6 +21704,7 @@ class MemoryRecallEventsCompanion extends UpdateCompanion<MemoryRecallEvent> {
           ..write('targetTable: $targetTable, ')
           ..write('targetId: $targetId, ')
           ..write('chatMessageId: $chatMessageId, ')
+          ..write('chatMessageSyncId: $chatMessageSyncId, ')
           ..write('query: $query, ')
           ..write('score: $score, ')
           ..write('createdAt: $createdAt, ')
@@ -32163,6 +32365,12 @@ class $CoReadingSessionMessagesTable extends CoReadingSessionMessages
   late final GeneratedColumn<int> messageId = GeneratedColumn<int>(
       'message_id', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _messageSyncIdMeta =
+      const VerificationMeta('messageSyncId');
+  @override
+  late final GeneratedColumn<String> messageSyncId = GeneratedColumn<String>(
+      'message_sync_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _addedAtMeta =
       const VerificationMeta('addedAt');
   @override
@@ -32170,7 +32378,8 @@ class $CoReadingSessionMessagesTable extends CoReadingSessionMessages
       'added_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
   @override
-  List<GeneratedColumn> get $columns => [sessionId, messageId, addedAt];
+  List<GeneratedColumn> get $columns =>
+      [sessionId, messageId, messageSyncId, addedAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -32194,6 +32403,12 @@ class $CoReadingSessionMessagesTable extends CoReadingSessionMessages
     } else if (isInserting) {
       context.missing(_messageIdMeta);
     }
+    if (data.containsKey('message_sync_id')) {
+      context.handle(
+          _messageSyncIdMeta,
+          messageSyncId.isAcceptableOrUnknown(
+              data['message_sync_id']!, _messageSyncIdMeta));
+    }
     if (data.containsKey('added_at')) {
       context.handle(_addedAtMeta,
           addedAt.isAcceptableOrUnknown(data['added_at']!, _addedAtMeta));
@@ -32214,6 +32429,8 @@ class $CoReadingSessionMessagesTable extends CoReadingSessionMessages
           .read(DriftSqlType.string, data['${effectivePrefix}session_id'])!,
       messageId: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}message_id'])!,
+      messageSyncId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}message_sync_id']),
       addedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}added_at'])!,
     );
@@ -32229,16 +32446,24 @@ class CoReadingSessionMessage extends DataClass
     implements Insertable<CoReadingSessionMessage> {
   final String sessionId;
   final int messageId;
+
+  /// Stable cross-device ID of the linked chat message, mirroring [messageId].
+  /// Preferred for cross-device resolution; [messageId] stays as a local index.
+  final String? messageSyncId;
   final int addedAt;
   const CoReadingSessionMessage(
       {required this.sessionId,
       required this.messageId,
+      this.messageSyncId,
       required this.addedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['session_id'] = Variable<String>(sessionId);
     map['message_id'] = Variable<int>(messageId);
+    if (!nullToAbsent || messageSyncId != null) {
+      map['message_sync_id'] = Variable<String>(messageSyncId);
+    }
     map['added_at'] = Variable<int>(addedAt);
     return map;
   }
@@ -32247,6 +32472,9 @@ class CoReadingSessionMessage extends DataClass
     return CoReadingSessionMessagesCompanion(
       sessionId: Value(sessionId),
       messageId: Value(messageId),
+      messageSyncId: messageSyncId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(messageSyncId),
       addedAt: Value(addedAt),
     );
   }
@@ -32257,6 +32485,7 @@ class CoReadingSessionMessage extends DataClass
     return CoReadingSessionMessage(
       sessionId: serializer.fromJson<String>(json['sessionId']),
       messageId: serializer.fromJson<int>(json['messageId']),
+      messageSyncId: serializer.fromJson<String?>(json['messageSyncId']),
       addedAt: serializer.fromJson<int>(json['addedAt']),
     );
   }
@@ -32266,15 +32495,21 @@ class CoReadingSessionMessage extends DataClass
     return <String, dynamic>{
       'sessionId': serializer.toJson<String>(sessionId),
       'messageId': serializer.toJson<int>(messageId),
+      'messageSyncId': serializer.toJson<String?>(messageSyncId),
       'addedAt': serializer.toJson<int>(addedAt),
     };
   }
 
   CoReadingSessionMessage copyWith(
-          {String? sessionId, int? messageId, int? addedAt}) =>
+          {String? sessionId,
+          int? messageId,
+          Value<String?> messageSyncId = const Value.absent(),
+          int? addedAt}) =>
       CoReadingSessionMessage(
         sessionId: sessionId ?? this.sessionId,
         messageId: messageId ?? this.messageId,
+        messageSyncId:
+            messageSyncId.present ? messageSyncId.value : this.messageSyncId,
         addedAt: addedAt ?? this.addedAt,
       );
   CoReadingSessionMessage copyWithCompanion(
@@ -32282,6 +32517,9 @@ class CoReadingSessionMessage extends DataClass
     return CoReadingSessionMessage(
       sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       messageId: data.messageId.present ? data.messageId.value : this.messageId,
+      messageSyncId: data.messageSyncId.present
+          ? data.messageSyncId.value
+          : this.messageSyncId,
       addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
     );
   }
@@ -32291,19 +32529,21 @@ class CoReadingSessionMessage extends DataClass
     return (StringBuffer('CoReadingSessionMessage(')
           ..write('sessionId: $sessionId, ')
           ..write('messageId: $messageId, ')
+          ..write('messageSyncId: $messageSyncId, ')
           ..write('addedAt: $addedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(sessionId, messageId, addedAt);
+  int get hashCode => Object.hash(sessionId, messageId, messageSyncId, addedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is CoReadingSessionMessage &&
           other.sessionId == this.sessionId &&
           other.messageId == this.messageId &&
+          other.messageSyncId == this.messageSyncId &&
           other.addedAt == this.addedAt);
 }
 
@@ -32311,17 +32551,20 @@ class CoReadingSessionMessagesCompanion
     extends UpdateCompanion<CoReadingSessionMessage> {
   final Value<String> sessionId;
   final Value<int> messageId;
+  final Value<String?> messageSyncId;
   final Value<int> addedAt;
   final Value<int> rowid;
   const CoReadingSessionMessagesCompanion({
     this.sessionId = const Value.absent(),
     this.messageId = const Value.absent(),
+    this.messageSyncId = const Value.absent(),
     this.addedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CoReadingSessionMessagesCompanion.insert({
     required String sessionId,
     required int messageId,
+    this.messageSyncId = const Value.absent(),
     required int addedAt,
     this.rowid = const Value.absent(),
   })  : sessionId = Value(sessionId),
@@ -32330,12 +32573,14 @@ class CoReadingSessionMessagesCompanion
   static Insertable<CoReadingSessionMessage> custom({
     Expression<String>? sessionId,
     Expression<int>? messageId,
+    Expression<String>? messageSyncId,
     Expression<int>? addedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (sessionId != null) 'session_id': sessionId,
       if (messageId != null) 'message_id': messageId,
+      if (messageSyncId != null) 'message_sync_id': messageSyncId,
       if (addedAt != null) 'added_at': addedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -32344,11 +32589,13 @@ class CoReadingSessionMessagesCompanion
   CoReadingSessionMessagesCompanion copyWith(
       {Value<String>? sessionId,
       Value<int>? messageId,
+      Value<String?>? messageSyncId,
       Value<int>? addedAt,
       Value<int>? rowid}) {
     return CoReadingSessionMessagesCompanion(
       sessionId: sessionId ?? this.sessionId,
       messageId: messageId ?? this.messageId,
+      messageSyncId: messageSyncId ?? this.messageSyncId,
       addedAt: addedAt ?? this.addedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -32362,6 +32609,9 @@ class CoReadingSessionMessagesCompanion
     }
     if (messageId.present) {
       map['message_id'] = Variable<int>(messageId.value);
+    }
+    if (messageSyncId.present) {
+      map['message_sync_id'] = Variable<String>(messageSyncId.value);
     }
     if (addedAt.present) {
       map['added_at'] = Variable<int>(addedAt.value);
@@ -32377,6 +32627,7 @@ class CoReadingSessionMessagesCompanion
     return (StringBuffer('CoReadingSessionMessagesCompanion(')
           ..write('sessionId: $sessionId, ')
           ..write('messageId: $messageId, ')
+          ..write('messageSyncId: $messageSyncId, ')
           ..write('addedAt: $addedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -36157,6 +36408,7 @@ typedef $$SharedLifeEventOperationsTableCreateCompanionBuilder
   required String title,
   required String patchJson,
   required String sourceMessageIds,
+  Value<String?> sourceSyncIds,
   required String sourceCharacterId,
   Value<String?> captureTaskId,
   Value<String?> revertsOperationId,
@@ -36177,6 +36429,7 @@ typedef $$SharedLifeEventOperationsTableUpdateCompanionBuilder
   Value<String> title,
   Value<String> patchJson,
   Value<String> sourceMessageIds,
+  Value<String?> sourceSyncIds,
   Value<String> sourceCharacterId,
   Value<String?> captureTaskId,
   Value<String?> revertsOperationId,
@@ -36219,6 +36472,9 @@ class $$SharedLifeEventOperationsTableFilterComposer
   ColumnFilters<String> get sourceMessageIds => $composableBuilder(
       column: $table.sourceMessageIds,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceSyncIds => $composableBuilder(
+      column: $table.sourceSyncIds, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get sourceCharacterId => $composableBuilder(
       column: $table.sourceCharacterId,
@@ -36282,6 +36538,10 @@ class $$SharedLifeEventOperationsTableOrderingComposer
       column: $table.sourceMessageIds,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get sourceSyncIds => $composableBuilder(
+      column: $table.sourceSyncIds,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get sourceCharacterId => $composableBuilder(
       column: $table.sourceCharacterId,
       builder: (column) => ColumnOrderings(column));
@@ -36343,6 +36603,9 @@ class $$SharedLifeEventOperationsTableAnnotationComposer
 
   GeneratedColumn<String> get sourceMessageIds => $composableBuilder(
       column: $table.sourceMessageIds, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceSyncIds => $composableBuilder(
+      column: $table.sourceSyncIds, builder: (column) => column);
 
   GeneratedColumn<String> get sourceCharacterId => $composableBuilder(
       column: $table.sourceCharacterId, builder: (column) => column);
@@ -36410,6 +36673,7 @@ class $$SharedLifeEventOperationsTableTableManager extends RootTableManager<
             Value<String> title = const Value.absent(),
             Value<String> patchJson = const Value.absent(),
             Value<String> sourceMessageIds = const Value.absent(),
+            Value<String?> sourceSyncIds = const Value.absent(),
             Value<String> sourceCharacterId = const Value.absent(),
             Value<String?> captureTaskId = const Value.absent(),
             Value<String?> revertsOperationId = const Value.absent(),
@@ -36429,6 +36693,7 @@ class $$SharedLifeEventOperationsTableTableManager extends RootTableManager<
             title: title,
             patchJson: patchJson,
             sourceMessageIds: sourceMessageIds,
+            sourceSyncIds: sourceSyncIds,
             sourceCharacterId: sourceCharacterId,
             captureTaskId: captureTaskId,
             revertsOperationId: revertsOperationId,
@@ -36448,6 +36713,7 @@ class $$SharedLifeEventOperationsTableTableManager extends RootTableManager<
             required String title,
             required String patchJson,
             required String sourceMessageIds,
+            Value<String?> sourceSyncIds = const Value.absent(),
             required String sourceCharacterId,
             Value<String?> captureTaskId = const Value.absent(),
             Value<String?> revertsOperationId = const Value.absent(),
@@ -36467,6 +36733,7 @@ class $$SharedLifeEventOperationsTableTableManager extends RootTableManager<
             title: title,
             patchJson: patchJson,
             sourceMessageIds: sourceMessageIds,
+            sourceSyncIds: sourceSyncIds,
             sourceCharacterId: sourceCharacterId,
             captureTaskId: captureTaskId,
             revertsOperationId: revertsOperationId,
@@ -42312,6 +42579,7 @@ typedef $$MemoryCardSourcesTableCreateCompanionBuilder
   required int recordedAt,
   Value<String?> recordedPlace,
   Value<String?> sourceRef,
+  Value<String?> sourceSyncId,
   required String sourceKind,
   Value<int> schemaVersion,
   Value<int> rowid,
@@ -42323,6 +42591,7 @@ typedef $$MemoryCardSourcesTableUpdateCompanionBuilder
   Value<int> recordedAt,
   Value<String?> recordedPlace,
   Value<String?> sourceRef,
+  Value<String?> sourceSyncId,
   Value<String> sourceKind,
   Value<int> schemaVersion,
   Value<int> rowid,
@@ -42351,6 +42620,9 @@ class $$MemoryCardSourcesTableFilterComposer
 
   ColumnFilters<String> get sourceRef => $composableBuilder(
       column: $table.sourceRef, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceSyncId => $composableBuilder(
+      column: $table.sourceSyncId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get sourceKind => $composableBuilder(
       column: $table.sourceKind, builder: (column) => ColumnFilters(column));
@@ -42384,6 +42656,10 @@ class $$MemoryCardSourcesTableOrderingComposer
   ColumnOrderings<String> get sourceRef => $composableBuilder(
       column: $table.sourceRef, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get sourceSyncId => $composableBuilder(
+      column: $table.sourceSyncId,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get sourceKind => $composableBuilder(
       column: $table.sourceKind, builder: (column) => ColumnOrderings(column));
 
@@ -42415,6 +42691,9 @@ class $$MemoryCardSourcesTableAnnotationComposer
 
   GeneratedColumn<String> get sourceRef =>
       $composableBuilder(column: $table.sourceRef, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceSyncId => $composableBuilder(
+      column: $table.sourceSyncId, builder: (column) => column);
 
   GeneratedColumn<String> get sourceKind => $composableBuilder(
       column: $table.sourceKind, builder: (column) => column);
@@ -42456,6 +42735,7 @@ class $$MemoryCardSourcesTableTableManager extends RootTableManager<
             Value<int> recordedAt = const Value.absent(),
             Value<String?> recordedPlace = const Value.absent(),
             Value<String?> sourceRef = const Value.absent(),
+            Value<String?> sourceSyncId = const Value.absent(),
             Value<String> sourceKind = const Value.absent(),
             Value<int> schemaVersion = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -42466,6 +42746,7 @@ class $$MemoryCardSourcesTableTableManager extends RootTableManager<
             recordedAt: recordedAt,
             recordedPlace: recordedPlace,
             sourceRef: sourceRef,
+            sourceSyncId: sourceSyncId,
             sourceKind: sourceKind,
             schemaVersion: schemaVersion,
             rowid: rowid,
@@ -42476,6 +42757,7 @@ class $$MemoryCardSourcesTableTableManager extends RootTableManager<
             required int recordedAt,
             Value<String?> recordedPlace = const Value.absent(),
             Value<String?> sourceRef = const Value.absent(),
+            Value<String?> sourceSyncId = const Value.absent(),
             required String sourceKind,
             Value<int> schemaVersion = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -42486,6 +42768,7 @@ class $$MemoryCardSourcesTableTableManager extends RootTableManager<
             recordedAt: recordedAt,
             recordedPlace: recordedPlace,
             sourceRef: sourceRef,
+            sourceSyncId: sourceSyncId,
             sourceKind: sourceKind,
             schemaVersion: schemaVersion,
             rowid: rowid,
@@ -43101,6 +43384,7 @@ typedef $$MemoryFragmentsTableCreateCompanionBuilder = MemoryFragmentsCompanion
   required String id,
   required String content,
   Value<String?> sourceMessageIds,
+  Value<String?> sourceSyncIds,
   Value<String> sourceScope,
   Value<double> emotionalWeight,
   Value<String> status,
@@ -43117,6 +43401,7 @@ typedef $$MemoryFragmentsTableUpdateCompanionBuilder = MemoryFragmentsCompanion
   Value<String> id,
   Value<String> content,
   Value<String?> sourceMessageIds,
+  Value<String?> sourceSyncIds,
   Value<String> sourceScope,
   Value<double> emotionalWeight,
   Value<String> status,
@@ -43147,6 +43432,9 @@ class $$MemoryFragmentsTableFilterComposer
   ColumnFilters<String> get sourceMessageIds => $composableBuilder(
       column: $table.sourceMessageIds,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceSyncIds => $composableBuilder(
+      column: $table.sourceSyncIds, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get sourceScope => $composableBuilder(
       column: $table.sourceScope, builder: (column) => ColumnFilters(column));
@@ -43196,6 +43484,10 @@ class $$MemoryFragmentsTableOrderingComposer
 
   ColumnOrderings<String> get sourceMessageIds => $composableBuilder(
       column: $table.sourceMessageIds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceSyncIds => $composableBuilder(
+      column: $table.sourceSyncIds,
       builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get sourceScope => $composableBuilder(
@@ -43248,6 +43540,9 @@ class $$MemoryFragmentsTableAnnotationComposer
 
   GeneratedColumn<String> get sourceMessageIds => $composableBuilder(
       column: $table.sourceMessageIds, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceSyncIds => $composableBuilder(
+      column: $table.sourceSyncIds, builder: (column) => column);
 
   GeneratedColumn<String> get sourceScope => $composableBuilder(
       column: $table.sourceScope, builder: (column) => column);
@@ -43307,6 +43602,7 @@ class $$MemoryFragmentsTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> content = const Value.absent(),
             Value<String?> sourceMessageIds = const Value.absent(),
+            Value<String?> sourceSyncIds = const Value.absent(),
             Value<String> sourceScope = const Value.absent(),
             Value<double> emotionalWeight = const Value.absent(),
             Value<String> status = const Value.absent(),
@@ -43322,6 +43618,7 @@ class $$MemoryFragmentsTableTableManager extends RootTableManager<
             id: id,
             content: content,
             sourceMessageIds: sourceMessageIds,
+            sourceSyncIds: sourceSyncIds,
             sourceScope: sourceScope,
             emotionalWeight: emotionalWeight,
             status: status,
@@ -43337,6 +43634,7 @@ class $$MemoryFragmentsTableTableManager extends RootTableManager<
             required String id,
             required String content,
             Value<String?> sourceMessageIds = const Value.absent(),
+            Value<String?> sourceSyncIds = const Value.absent(),
             Value<String> sourceScope = const Value.absent(),
             Value<double> emotionalWeight = const Value.absent(),
             Value<String> status = const Value.absent(),
@@ -43352,6 +43650,7 @@ class $$MemoryFragmentsTableTableManager extends RootTableManager<
             id: id,
             content: content,
             sourceMessageIds: sourceMessageIds,
+            sourceSyncIds: sourceSyncIds,
             sourceScope: sourceScope,
             emotionalWeight: emotionalWeight,
             status: status,
@@ -45619,6 +45918,7 @@ typedef $$MemoryRecallEventsTableCreateCompanionBuilder
   required String targetTable,
   required String targetId,
   Value<String?> chatMessageId,
+  Value<String?> chatMessageSyncId,
   Value<String?> query,
   required double score,
   required int createdAt,
@@ -45630,6 +45930,7 @@ typedef $$MemoryRecallEventsTableUpdateCompanionBuilder
   Value<String> targetTable,
   Value<String> targetId,
   Value<String?> chatMessageId,
+  Value<String?> chatMessageSyncId,
   Value<String?> query,
   Value<double> score,
   Value<int> createdAt,
@@ -45656,6 +45957,10 @@ class $$MemoryRecallEventsTableFilterComposer
 
   ColumnFilters<String> get chatMessageId => $composableBuilder(
       column: $table.chatMessageId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get chatMessageSyncId => $composableBuilder(
+      column: $table.chatMessageSyncId,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get query => $composableBuilder(
       column: $table.query, builder: (column) => ColumnFilters(column));
@@ -45689,6 +45994,10 @@ class $$MemoryRecallEventsTableOrderingComposer
       column: $table.chatMessageId,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get chatMessageSyncId => $composableBuilder(
+      column: $table.chatMessageSyncId,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get query => $composableBuilder(
       column: $table.query, builder: (column) => ColumnOrderings(column));
 
@@ -45719,6 +46028,9 @@ class $$MemoryRecallEventsTableAnnotationComposer
 
   GeneratedColumn<String> get chatMessageId => $composableBuilder(
       column: $table.chatMessageId, builder: (column) => column);
+
+  GeneratedColumn<String> get chatMessageSyncId => $composableBuilder(
+      column: $table.chatMessageSyncId, builder: (column) => column);
 
   GeneratedColumn<String> get query =>
       $composableBuilder(column: $table.query, builder: (column) => column);
@@ -45762,6 +46074,7 @@ class $$MemoryRecallEventsTableTableManager extends RootTableManager<
             Value<String> targetTable = const Value.absent(),
             Value<String> targetId = const Value.absent(),
             Value<String?> chatMessageId = const Value.absent(),
+            Value<String?> chatMessageSyncId = const Value.absent(),
             Value<String?> query = const Value.absent(),
             Value<double> score = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
@@ -45772,6 +46085,7 @@ class $$MemoryRecallEventsTableTableManager extends RootTableManager<
             targetTable: targetTable,
             targetId: targetId,
             chatMessageId: chatMessageId,
+            chatMessageSyncId: chatMessageSyncId,
             query: query,
             score: score,
             createdAt: createdAt,
@@ -45782,6 +46096,7 @@ class $$MemoryRecallEventsTableTableManager extends RootTableManager<
             required String targetTable,
             required String targetId,
             Value<String?> chatMessageId = const Value.absent(),
+            Value<String?> chatMessageSyncId = const Value.absent(),
             Value<String?> query = const Value.absent(),
             required double score,
             required int createdAt,
@@ -45792,6 +46107,7 @@ class $$MemoryRecallEventsTableTableManager extends RootTableManager<
             targetTable: targetTable,
             targetId: targetId,
             chatMessageId: chatMessageId,
+            chatMessageSyncId: chatMessageSyncId,
             query: query,
             score: score,
             createdAt: createdAt,
@@ -50851,6 +51167,7 @@ typedef $$CoReadingSessionMessagesTableCreateCompanionBuilder
     = CoReadingSessionMessagesCompanion Function({
   required String sessionId,
   required int messageId,
+  Value<String?> messageSyncId,
   required int addedAt,
   Value<int> rowid,
 });
@@ -50858,6 +51175,7 @@ typedef $$CoReadingSessionMessagesTableUpdateCompanionBuilder
     = CoReadingSessionMessagesCompanion Function({
   Value<String> sessionId,
   Value<int> messageId,
+  Value<String?> messageSyncId,
   Value<int> addedAt,
   Value<int> rowid,
 });
@@ -50876,6 +51194,9 @@ class $$CoReadingSessionMessagesTableFilterComposer
 
   ColumnFilters<int> get messageId => $composableBuilder(
       column: $table.messageId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get messageSyncId => $composableBuilder(
+      column: $table.messageSyncId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get addedAt => $composableBuilder(
       column: $table.addedAt, builder: (column) => ColumnFilters(column));
@@ -50896,6 +51217,10 @@ class $$CoReadingSessionMessagesTableOrderingComposer
   ColumnOrderings<int> get messageId => $composableBuilder(
       column: $table.messageId, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get messageSyncId => $composableBuilder(
+      column: $table.messageSyncId,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get addedAt => $composableBuilder(
       column: $table.addedAt, builder: (column) => ColumnOrderings(column));
 }
@@ -50914,6 +51239,9 @@ class $$CoReadingSessionMessagesTableAnnotationComposer
 
   GeneratedColumn<int> get messageId =>
       $composableBuilder(column: $table.messageId, builder: (column) => column);
+
+  GeneratedColumn<String> get messageSyncId => $composableBuilder(
+      column: $table.messageSyncId, builder: (column) => column);
 
   GeneratedColumn<int> get addedAt =>
       $composableBuilder(column: $table.addedAt, builder: (column) => column);
@@ -50952,24 +51280,28 @@ class $$CoReadingSessionMessagesTableTableManager extends RootTableManager<
           updateCompanionCallback: ({
             Value<String> sessionId = const Value.absent(),
             Value<int> messageId = const Value.absent(),
+            Value<String?> messageSyncId = const Value.absent(),
             Value<int> addedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               CoReadingSessionMessagesCompanion(
             sessionId: sessionId,
             messageId: messageId,
+            messageSyncId: messageSyncId,
             addedAt: addedAt,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String sessionId,
             required int messageId,
+            Value<String?> messageSyncId = const Value.absent(),
             required int addedAt,
             Value<int> rowid = const Value.absent(),
           }) =>
               CoReadingSessionMessagesCompanion.insert(
             sessionId: sessionId,
             messageId: messageId,
+            messageSyncId: messageSyncId,
             addedAt: addedAt,
             rowid: rowid,
           ),

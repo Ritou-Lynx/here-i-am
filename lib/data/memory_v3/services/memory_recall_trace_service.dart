@@ -134,10 +134,14 @@ class MemoryRecallTraceService {
   ///
   /// Retrying the same persisted user message replaces its previous trace, so
   /// the long-press UI always reflects the response the user currently sees.
+  ///
+  /// [chatMessageSyncId] is the stable cross-device id of [chatMessageId]; when
+  /// provided it is dual-written so the trace survives device replication.
   Future<void> startTurn({
     required int chatMessageId,
     required String query,
     Iterable<int> relatedChatMessageIds = const [],
+    String? chatMessageSyncId,
   }) async {
     if (chatMessageId <= 0) return;
     final messageKey = chatMessageId.toString();
@@ -145,6 +149,12 @@ class MemoryRecallTraceService {
       messageKey,
       ...relatedChatMessageIds.where((id) => id > 0).map((id) => '$id'),
     };
+    // Resolve stable ids for the primary and any alias messages, so every row
+    // gets dual-written. Missing sync_ids are left null (legacy rows).
+    final syncById = await _resolveSyncIds({
+      chatMessageId,
+      ...relatedChatMessageIds,
+    });
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.transaction(() async {
       await (_db.delete(_db.memoryRecallEvents)
@@ -161,18 +171,22 @@ class MemoryRecallTraceService {
               targetTable: turnMarkerTable,
               targetId: messageKey,
               chatMessageId: Value(messageKey),
+              chatMessageSyncId: Value(chatMessageSyncId ?? syncById[chatMessageId]),
               query: Value(query.trim()),
               score: 0.0,
               createdAt: now,
             ),
           );
       for (final aliasKey in messageKeys.where((key) => key != messageKey)) {
+        final aliasId = int.tryParse(aliasKey);
         await _db.into(_db.memoryRecallEvents).insert(
               MemoryRecallEventsCompanion.insert(
                 id: _uuid.v4(),
                 targetTable: turnAliasTable,
                 targetId: messageKey,
                 chatMessageId: Value(aliasKey),
+                chatMessageSyncId: Value(
+                    aliasId == null ? null : syncById[aliasId]),
                 query: Value(query.trim()),
                 score: 0.0,
                 createdAt: now,
@@ -285,6 +299,7 @@ class MemoryRecallTraceService {
     required int chatMessageId,
     required String query,
     required Iterable<MemoryRecallTarget> targets,
+    String? chatMessageSyncId,
   }) async {
     if (chatMessageId <= 0) return;
     final targetList = targets
@@ -294,6 +309,8 @@ class MemoryRecallTraceService {
     if (targetList.isEmpty) return;
 
     final messageKey = chatMessageId.toString();
+    final syncId = chatMessageSyncId ??
+        (await _resolveSyncIds({chatMessageId}))[chatMessageId];
     final existing = await (_db.select(_db.memoryRecallEvents)
           ..where((table) => table.chatMessageId.equals(messageKey)))
         .get();
@@ -313,6 +330,7 @@ class MemoryRecallTraceService {
             targetTable: target.targetTable,
             targetId: target.targetId,
             chatMessageId: Value(messageKey),
+            chatMessageSyncId: Value(syncId),
             query: Value(query.trim()),
             score: target.score,
             createdAt: now,
@@ -502,6 +520,20 @@ class MemoryRecallTraceService {
               table.targetTable.equals(turnAliasTable)))
         .getSingleOrNull();
     return int.tryParse(alias?.targetId ?? '') ?? chatMessageId;
+  }
+
+  /// Resolves local persona_chat_messages integer IDs to their stable sync_ids.
+  /// Used for dual-writing recall trace rows so they survive device replication.
+  Future<Map<int, String>> _resolveSyncIds(Iterable<int> ids) async {
+    final unique = ids.where((id) => id > 0).toSet();
+    if (unique.isEmpty) return const {};
+    final rows = await (_db.select(_db.personaChatMessages)
+          ..where((t) => t.id.isIn(unique)))
+        .get();
+    return {
+      for (final row in rows)
+        if (row.syncId != null && row.syncId!.isNotEmpty) row.id: row.syncId!,
+    };
   }
 
   static String _feedbackTable(String targetTable) =>

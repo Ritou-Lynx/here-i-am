@@ -264,6 +264,18 @@ class CharacterToolsFactory {
             AgentDefinitions.recordOrganizerAgent,
             defaultClientKey: LLMConfig.defaultClientKey,
           );
+          // Resolve stable sync_id for the triggering chat message so the
+          // Memory Card source row is dual-written with a cross-device ref.
+          String? syncId;
+          final messageId = currentUserMessageId;
+          if (messageId != null) {
+            final row = await (AppDatabase.instance.select(
+                    AppDatabase.instance.personaChatMessages)
+                  ..where((t) => t.id.equals(messageId)))
+                .getSingleOrNull();
+            syncId = row?.syncId;
+            if (syncId != null && syncId.isEmpty) syncId = null;
+          }
           final result =
               await RecordOrganizerServiceV3.instance.organizeAndPersist(
             client: resources.client,
@@ -272,6 +284,7 @@ class CharacterToolsFactory {
               sourceKind: 'chat_message',
               rawInput: rawInput,
               sourceRef: currentUserMessageId?.toString(),
+              sourceSyncId: syncId,
             ),
           );
           return jsonEncode({

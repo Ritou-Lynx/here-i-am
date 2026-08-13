@@ -61,6 +61,11 @@ class MemoryCardSources extends Table {
   /// 软引用，不写 FK 约束。
   TextColumn get sourceRef => text().nullable()();
 
+  /// Stable cross-device id mirroring [sourceRef] when it points at a chat
+  /// message. Preferred for cross-device resolution; [sourceRef] keeps the
+  /// legacy local-int form for back-compat.
+  TextColumn get sourceSyncId => text().nullable()();
+
   /// 记录方式元数据：record_button / fab / natural_command / import / system 等。
   TextColumn get sourceKind => text()();
 
@@ -127,6 +132,10 @@ class MemoryFragments extends Table {
   TextColumn get id => text()();
   TextColumn get content => text()(); // ≤ 80 字
   TextColumn get sourceMessageIds => text().nullable()(); // JSON array<int>
+  /// Stable cross-device message IDs (JSON array<string>), mirroring
+  /// [sourceMessageIds]. Preferred for cross-device evidence; the legacy int
+  /// array stays as a local performance key.
+  TextColumn get sourceSyncIds => text().nullable()();
   TextColumn get sourceScope => text()
       .withDefault(const Constant('main_chat'))(); // main_chat / script_session
 
@@ -370,6 +379,9 @@ class MemoryRecallEvents extends Table {
   // memory_sagas / project_memory_items / _recall_turn
   TextColumn get targetId => text()();
   TextColumn get chatMessageId => text().nullable()();
+  /// Stable cross-device ID of the chat message this trace belongs to,
+  /// mirroring [chatMessageId]. Preferred for cross-device resolution.
+  TextColumn get chatMessageSyncId => text().nullable()();
   TextColumn get query => text().nullable()();
   RealColumn get score => real()();
 

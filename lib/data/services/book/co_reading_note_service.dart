@@ -219,20 +219,36 @@ class CoReadingNoteService {
     required String sessionId,
     required Iterable<int> messageIds,
   }) async {
+    final uniqueIds = messageIds.where((id) => id > 0).toSet();
+    if (uniqueIds.isEmpty) return;
+    // Resolve stable sync_ids for dual-write so co-reading membership survives
+    // cross-device replication (where the local int id differs).
+    final syncById = await _resolveMessageSyncIds(uniqueIds);
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.batch((batch) {
-      for (final messageId in messageIds.where((id) => id > 0).toSet()) {
+      for (final messageId in uniqueIds) {
         batch.insert(
           _db.coReadingSessionMessages,
           CoReadingSessionMessagesCompanion.insert(
             sessionId: sessionId,
             messageId: messageId,
+            messageSyncId: Value(syncById[messageId]),
             addedAt: now,
           ),
           mode: InsertMode.insertOrIgnore,
         );
       }
     });
+  }
+
+  Future<Map<int, String>> _resolveMessageSyncIds(Iterable<int> ids) async {
+    final rows = await (_db.select(_db.personaChatMessages)
+          ..where((t) => t.id.isIn(ids.toSet())))
+        .get();
+    return {
+      for (final row in rows)
+        if (row.syncId != null && row.syncId!.isNotEmpty) row.id: row.syncId!,
+    };
   }
 
   Future<CoReadingProcessResult?> finishSession(
@@ -452,11 +468,19 @@ class CoReadingNoteService {
         .get();
     final ids = links.map((link) => link.messageId).take(_maxMessages).toList();
     if (ids.isEmpty) return const [];
+    // Prefer stable sync_ids when present; fall back to legacy int ids for
+    // rows written before dual-write or still awaiting backfill.
+    final syncIds = links
+        .map((link) => link.messageSyncId)
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toSet();
     return (_db.select(_db.personaChatMessages)
-          ..where((message) =>
-              message.id.isIn(ids) &
-              message.characterId.equals(session.characterId) &
-              message.messageType.equals('chat'))
+          ..where((message) => message.characterId.equals(session.characterId) &
+              message.messageType.equals('chat') &
+              (syncIds.isEmpty
+                  ? message.id.isIn(ids)
+                  : message.syncId.isIn(syncIds)))
           ..orderBy([(message) => OrderingTerm.asc(message.id)]))
         .get();
   }

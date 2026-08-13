@@ -126,6 +126,10 @@ class RecordOrganizerService {
       content: content,
       media: media,
     );
+    // Resolve stable sync_id for dual-write evidence. record_button sources
+    // bypass the chat_message hallucination filter, so we pass the stable id
+    // through SharedLifeOperationDraft.sourceSyncIds directly.
+    final syncId = await _resolveMessageSyncId(messageId);
     return _organize(
       userId: userId,
       sourceCharacterId: sourceCharacterId,
@@ -133,8 +137,17 @@ class RecordOrganizerService {
       sourceKind: 'record_button',
       sourceRef: messageId.toString(),
       sourceMessageIds: [messageId],
+      sourceSyncIds: syncId == null ? const [] : [syncId],
       media: resolvedMedia,
     );
+  }
+
+  Future<String?> _resolveMessageSyncId(int messageId) async {
+    final row = await (_memory.db.select(_memory.db.personaChatMessages)
+          ..where((t) => t.id.equals(messageId)))
+        .getSingleOrNull();
+    final syncId = row?.syncId;
+    return (syncId == null || syncId.isEmpty) ? null : syncId;
   }
 
   /// Record arbitrary text input (e.g., from the floating ball quick-save).
@@ -145,6 +158,7 @@ class RecordOrganizerService {
     String sourceKind = 'floating_ball',
     String? sourceRef,
     List<int> sourceMessageIds = const [],
+    List<String> sourceSyncIds = const [],
     List<MediaInputAttachment>? media,
   }) async {
     return _organize(
@@ -154,6 +168,7 @@ class RecordOrganizerService {
       sourceKind: sourceKind,
       sourceRef: sourceRef,
       sourceMessageIds: sourceMessageIds,
+      sourceSyncIds: sourceSyncIds,
       media: media,
     );
   }
@@ -165,6 +180,7 @@ class RecordOrganizerService {
     required String sourceKind,
     String? sourceRef,
     List<int> sourceMessageIds = const [],
+    List<String> sourceSyncIds = const [],
     List<MediaInputAttachment>? media,
   }) async {
     final trimmed = rawInput.trim();
@@ -270,6 +286,7 @@ class RecordOrganizerService {
         sourceRef: op.sourceRef ?? sourceRef,
         rawInput: evidenceRawInput,
         sourceMessageIds: sourceMessageIds,
+        sourceSyncIds: sourceSyncIds,
         entityId: op.entityId,
       );
     }).toList(growable: false);
@@ -527,6 +544,7 @@ List<SharedLifeOperationDraft> _restrictTagsToKnownTags(
       sourceRef: op.sourceRef,
       rawInput: op.rawInput,
       sourceMessageIds: op.sourceMessageIds,
+      sourceSyncIds: op.sourceSyncIds,
       entityId: op.entityId,
     );
   }).toList(growable: false);
@@ -585,6 +603,7 @@ SharedLifeOperationDraft _fallbackMediaOperation(
     operationType: 'create',
     entityType: 'event',
     title: text.isNotEmpty ? text : '图片记录',
+    sourceKind: 'media_upload',
     patch: {
       '_primaryDomain': 'general',
       '_facets': const [],

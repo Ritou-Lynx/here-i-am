@@ -143,6 +143,9 @@ class CoReadingSessions extends Table {
 class CoReadingSessionMessages extends Table {
   TextColumn get sessionId => text()(); // → CoReadingSessions.id (soft ref)
   IntColumn get messageId => integer()(); // → PersonaChatMessages.id (soft ref)
+  /// Stable cross-device ID of the linked chat message, mirroring [messageId].
+  /// Preferred for cross-device resolution; [messageId] stays as a local index.
+  TextColumn get messageSyncId => text().nullable()();
   IntColumn get addedAt => integer()(); // milliseconds since epoch
 
   @override

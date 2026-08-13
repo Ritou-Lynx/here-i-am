@@ -464,11 +464,18 @@ class DreamingOrchestratorServiceV3 {
         fragmentContents[fragmentId] = draft.content;
 
         final eventTime = _computeEventTime(sourceMessages);
+        // Dual-write stable sync_ids alongside legacy int ids so fragments
+        // remain traceable after cross-device replication.
+        final sourceSyncIds =
+            await _resolveFragmentSourceSyncIds(draft.sourceMessageIds);
         await _db.into(_db.memoryFragments).insert(
               MemoryFragmentsCompanion.insert(
                 id: fragmentId,
                 content: draft.content,
                 sourceMessageIds: Value(jsonEncode(draft.sourceMessageIds)),
+                sourceSyncIds: sourceSyncIds.isEmpty
+                    ? const Value(null)
+                    : Value(jsonEncode(sourceSyncIds)),
                 sourceScope: Value(draft.sourceScope.isNotEmpty
                     ? draft.sourceScope
                     : sourceScope),
@@ -1190,7 +1197,28 @@ class DreamingOrchestratorServiceV3 {
         result.add(row);
       }
     }
+    result.sort((a, b) => a.id.compareTo(b.id));
     return result;
+  }
+
+  /// Resolves legacy int message ids to stable sync_ids for dual-writing
+  /// fragments. Returns an ordered list mirroring [ids] (missing sync_ids
+  /// dropped), so evidence survives cross-device replication.
+  Future<List<String>> _resolveFragmentSourceSyncIds(List<int> ids) async {
+    final unique = ids.where((id) => id > 0).toSet();
+    if (unique.isEmpty) return const [];
+    final rows = await (_db.select(_db.personaChatMessages)
+          ..where((t) => t.id.isIn(unique)))
+        .get();
+    final byId = {
+      for (final row in rows)
+        if (row.syncId != null && row.syncId!.isNotEmpty) row.id: row.syncId!,
+    };
+    return ids
+        .map((id) => byId[id])
+        .whereType<String>()
+        .toSet()
+        .toList(growable: false);
   }
 
   int? _computeEventTime(List<PersonaChatMessage> messages) {

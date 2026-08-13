@@ -159,6 +159,7 @@ class RecordSource {
     required this.sourceKind,
     required this.rawInput,
     this.sourceRef,
+    this.sourceSyncId,
     this.recordedPlace,
     DateTime? recordedAt,
   }) : recordedAt = recordedAt ?? DateTime.now();
@@ -169,6 +170,11 @@ class RecordSource {
 
   /// Soft reference to upstream object: chat message id / asset id / batch id.
   final String? sourceRef;
+
+  /// Stable cross-device id mirroring [sourceRef] when it points at a chat
+  /// message. Preferred for cross-device resolution; [sourceRef] keeps the
+  /// legacy local-int form for back-compat.
+  final String? sourceSyncId;
   final String? recordedPlace;
   final DateTime recordedAt;
 }
@@ -548,6 +554,7 @@ class RecordOrganizerServiceV3 {
                 recordedAt: source.recordedAt.millisecondsSinceEpoch,
                 recordedPlace: Value(source.recordedPlace),
                 sourceRef: Value(source.sourceRef),
+                sourceSyncId: Value(source.sourceSyncId),
                 sourceKind: source.sourceKind,
               ),
             );

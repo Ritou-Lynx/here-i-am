@@ -3814,6 +3814,7 @@ only after you have written the goodbye you want the user to hear.''',
           sourceKind: 'record_button',
           rawInput: recordInput.isNotEmpty ? recordInput : message.content,
           sourceRef: message.id.toString(),
+          sourceSyncId: message.syncId,
         ),
         inputMedia: inputMedia,
       );
@@ -4078,6 +4079,13 @@ only after you have written the goodbye you want the user to hear.''',
           sourceKind: 'record_button',
           rawInput: combinedText,
           sourceRef: jsonEncode(selected.map((message) => message.id).toList()),
+          sourceSyncId: jsonEncode(
+            selected
+                .map((message) => message.syncId)
+                .whereType<String>()
+                .where((id) => id.isNotEmpty)
+                .toList(),
+          ),
         ),
         inputMedia: inputMedia,
       );
