@@ -124,6 +124,10 @@ void main() {
       ),
       isFalse,
     );
+    expect(
+      BackupService.isPortablePreference('here_i_am_installation_id'),
+      isFalse,
+    );
     expect(BackupService.isPortablePreference('user_id'), isTrue);
   });
 

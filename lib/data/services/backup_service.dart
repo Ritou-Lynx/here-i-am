@@ -26,6 +26,9 @@ import 'package:yaml/yaml.dart';
 /// persisted permission grant.
 const _excludePrefKeys = <String>{
   'flutter.',
+  // Installation identity must remain unique after restore. Copying it would
+  // make two physical clients indistinguishable to incremental sync.
+  'here_i_am_installation_',
   'memex_android_backup_tree_uri_',
   'memex_android_backup_tree_name_',
 };

@@ -3233,6 +3233,17 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
       requiredDuringInsert: false,
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
+  @override
+  late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
+      'sync_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _originDeviceIdMeta =
+      const VerificationMeta('originDeviceId');
+  @override
+  late final GeneratedColumn<String> originDeviceId = GeneratedColumn<String>(
+      'origin_device_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _characterIdMeta =
       const VerificationMeta('characterId');
   @override
@@ -3291,6 +3302,8 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
   @override
   List<GeneratedColumn> get $columns => [
         id,
+        syncId,
+        originDeviceId,
         characterId,
         isFromCharacter,
         content,
@@ -3312,6 +3325,16 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('sync_id')) {
+      context.handle(_syncIdMeta,
+          syncId.isAcceptableOrUnknown(data['sync_id']!, _syncIdMeta));
+    }
+    if (data.containsKey('origin_device_id')) {
+      context.handle(
+          _originDeviceIdMeta,
+          originDeviceId.isAcceptableOrUnknown(
+              data['origin_device_id']!, _originDeviceIdMeta));
     }
     if (data.containsKey('character_id')) {
       context.handle(
@@ -3372,6 +3395,10 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
     return PersonaChatMessage(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      syncId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}sync_id']),
+      originDeviceId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}origin_device_id']),
       characterId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
       isFromCharacter: attachedDatabase.typeMapping.read(
@@ -3400,6 +3427,15 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
 class PersonaChatMessage extends DataClass
     implements Insertable<PersonaChatMessage> {
   final int id;
+
+  /// Stable cross-device identity. The local auto-increment [id] remains for
+  /// existing UI cursors and Memory V3 compatibility, but must never be used
+  /// as a sync identity.
+  final String? syncId;
+
+  /// Installation that originally accepted this message. This is provenance,
+  /// not the current device and does not change when the row is replicated.
+  final String? originDeviceId;
   final String characterId;
   final bool isFromCharacter;
   final String content;
@@ -3416,6 +3452,8 @@ class PersonaChatMessage extends DataClass
   final String? attachmentsJson;
   const PersonaChatMessage(
       {required this.id,
+      this.syncId,
+      this.originDeviceId,
       required this.characterId,
       required this.isFromCharacter,
       required this.content,
@@ -3428,6 +3466,12 @@ class PersonaChatMessage extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    if (!nullToAbsent || syncId != null) {
+      map['sync_id'] = Variable<String>(syncId);
+    }
+    if (!nullToAbsent || originDeviceId != null) {
+      map['origin_device_id'] = Variable<String>(originDeviceId);
+    }
     map['character_id'] = Variable<String>(characterId);
     map['is_from_character'] = Variable<bool>(isFromCharacter);
     map['content'] = Variable<String>(content);
@@ -3446,6 +3490,11 @@ class PersonaChatMessage extends DataClass
   PersonaChatMessagesCompanion toCompanion(bool nullToAbsent) {
     return PersonaChatMessagesCompanion(
       id: Value(id),
+      syncId:
+          syncId == null && nullToAbsent ? const Value.absent() : Value(syncId),
+      originDeviceId: originDeviceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originDeviceId),
       characterId: Value(characterId),
       isFromCharacter: Value(isFromCharacter),
       content: Value(content),
@@ -3465,6 +3514,8 @@ class PersonaChatMessage extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return PersonaChatMessage(
       id: serializer.fromJson<int>(json['id']),
+      syncId: serializer.fromJson<String?>(json['syncId']),
+      originDeviceId: serializer.fromJson<String?>(json['originDeviceId']),
       characterId: serializer.fromJson<String>(json['characterId']),
       isFromCharacter: serializer.fromJson<bool>(json['isFromCharacter']),
       content: serializer.fromJson<String>(json['content']),
@@ -3480,6 +3531,8 @@ class PersonaChatMessage extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'syncId': serializer.toJson<String?>(syncId),
+      'originDeviceId': serializer.toJson<String?>(originDeviceId),
       'characterId': serializer.toJson<String>(characterId),
       'isFromCharacter': serializer.toJson<bool>(isFromCharacter),
       'content': serializer.toJson<String>(content),
@@ -3493,6 +3546,8 @@ class PersonaChatMessage extends DataClass
 
   PersonaChatMessage copyWith(
           {int? id,
+          Value<String?> syncId = const Value.absent(),
+          Value<String?> originDeviceId = const Value.absent(),
           String? characterId,
           bool? isFromCharacter,
           String? content,
@@ -3503,6 +3558,9 @@ class PersonaChatMessage extends DataClass
           Value<String?> attachmentsJson = const Value.absent()}) =>
       PersonaChatMessage(
         id: id ?? this.id,
+        syncId: syncId.present ? syncId.value : this.syncId,
+        originDeviceId:
+            originDeviceId.present ? originDeviceId.value : this.originDeviceId,
         characterId: characterId ?? this.characterId,
         isFromCharacter: isFromCharacter ?? this.isFromCharacter,
         content: content ?? this.content,
@@ -3517,6 +3575,10 @@ class PersonaChatMessage extends DataClass
   PersonaChatMessage copyWithCompanion(PersonaChatMessagesCompanion data) {
     return PersonaChatMessage(
       id: data.id.present ? data.id.value : this.id,
+      syncId: data.syncId.present ? data.syncId.value : this.syncId,
+      originDeviceId: data.originDeviceId.present
+          ? data.originDeviceId.value
+          : this.originDeviceId,
       characterId:
           data.characterId.present ? data.characterId.value : this.characterId,
       isFromCharacter: data.isFromCharacter.present
@@ -3538,6 +3600,8 @@ class PersonaChatMessage extends DataClass
   String toString() {
     return (StringBuffer('PersonaChatMessage(')
           ..write('id: $id, ')
+          ..write('syncId: $syncId, ')
+          ..write('originDeviceId: $originDeviceId, ')
           ..write('characterId: $characterId, ')
           ..write('isFromCharacter: $isFromCharacter, ')
           ..write('content: $content, ')
@@ -3551,13 +3615,25 @@ class PersonaChatMessage extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(id, characterId, isFromCharacter, content,
-      factId, isRead, timestamp, messageType, attachmentsJson);
+  int get hashCode => Object.hash(
+      id,
+      syncId,
+      originDeviceId,
+      characterId,
+      isFromCharacter,
+      content,
+      factId,
+      isRead,
+      timestamp,
+      messageType,
+      attachmentsJson);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PersonaChatMessage &&
           other.id == this.id &&
+          other.syncId == this.syncId &&
+          other.originDeviceId == this.originDeviceId &&
           other.characterId == this.characterId &&
           other.isFromCharacter == this.isFromCharacter &&
           other.content == this.content &&
@@ -3570,6 +3646,8 @@ class PersonaChatMessage extends DataClass
 
 class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
   final Value<int> id;
+  final Value<String?> syncId;
+  final Value<String?> originDeviceId;
   final Value<String> characterId;
   final Value<bool> isFromCharacter;
   final Value<String> content;
@@ -3580,6 +3658,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
   final Value<String?> attachmentsJson;
   const PersonaChatMessagesCompanion({
     this.id = const Value.absent(),
+    this.syncId = const Value.absent(),
+    this.originDeviceId = const Value.absent(),
     this.characterId = const Value.absent(),
     this.isFromCharacter = const Value.absent(),
     this.content = const Value.absent(),
@@ -3591,6 +3671,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
   });
   PersonaChatMessagesCompanion.insert({
     this.id = const Value.absent(),
+    this.syncId = const Value.absent(),
+    this.originDeviceId = const Value.absent(),
     required String characterId,
     required bool isFromCharacter,
     required String content,
@@ -3605,6 +3687,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
         timestamp = Value(timestamp);
   static Insertable<PersonaChatMessage> custom({
     Expression<int>? id,
+    Expression<String>? syncId,
+    Expression<String>? originDeviceId,
     Expression<String>? characterId,
     Expression<bool>? isFromCharacter,
     Expression<String>? content,
@@ -3616,6 +3700,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (syncId != null) 'sync_id': syncId,
+      if (originDeviceId != null) 'origin_device_id': originDeviceId,
       if (characterId != null) 'character_id': characterId,
       if (isFromCharacter != null) 'is_from_character': isFromCharacter,
       if (content != null) 'content': content,
@@ -3629,6 +3715,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
 
   PersonaChatMessagesCompanion copyWith(
       {Value<int>? id,
+      Value<String?>? syncId,
+      Value<String?>? originDeviceId,
       Value<String>? characterId,
       Value<bool>? isFromCharacter,
       Value<String>? content,
@@ -3639,6 +3727,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
       Value<String?>? attachmentsJson}) {
     return PersonaChatMessagesCompanion(
       id: id ?? this.id,
+      syncId: syncId ?? this.syncId,
+      originDeviceId: originDeviceId ?? this.originDeviceId,
       characterId: characterId ?? this.characterId,
       isFromCharacter: isFromCharacter ?? this.isFromCharacter,
       content: content ?? this.content,
@@ -3655,6 +3745,12 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (syncId.present) {
+      map['sync_id'] = Variable<String>(syncId.value);
+    }
+    if (originDeviceId.present) {
+      map['origin_device_id'] = Variable<String>(originDeviceId.value);
     }
     if (characterId.present) {
       map['character_id'] = Variable<String>(characterId.value);
@@ -3687,6 +3783,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
   String toString() {
     return (StringBuffer('PersonaChatMessagesCompanion(')
           ..write('id: $id, ')
+          ..write('syncId: $syncId, ')
+          ..write('originDeviceId: $originDeviceId, ')
           ..write('characterId: $characterId, ')
           ..write('isFromCharacter: $isFromCharacter, ')
           ..write('content: $content, ')
@@ -35616,6 +35714,8 @@ typedef $$ClarificationRequestsTableProcessedTableManager
 typedef $$PersonaChatMessagesTableCreateCompanionBuilder
     = PersonaChatMessagesCompanion Function({
   Value<int> id,
+  Value<String?> syncId,
+  Value<String?> originDeviceId,
   required String characterId,
   required bool isFromCharacter,
   required String content,
@@ -35628,6 +35728,8 @@ typedef $$PersonaChatMessagesTableCreateCompanionBuilder
 typedef $$PersonaChatMessagesTableUpdateCompanionBuilder
     = PersonaChatMessagesCompanion Function({
   Value<int> id,
+  Value<String?> syncId,
+  Value<String?> originDeviceId,
   Value<String> characterId,
   Value<bool> isFromCharacter,
   Value<String> content,
@@ -35649,6 +35751,13 @@ class $$PersonaChatMessagesTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get syncId => $composableBuilder(
+      column: $table.syncId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get originDeviceId => $composableBuilder(
+      column: $table.originDeviceId,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get characterId => $composableBuilder(
       column: $table.characterId, builder: (column) => ColumnFilters(column));
@@ -35689,6 +35798,13 @@ class $$PersonaChatMessagesTableOrderingComposer
   ColumnOrderings<int> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get syncId => $composableBuilder(
+      column: $table.syncId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get originDeviceId => $composableBuilder(
+      column: $table.originDeviceId,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get characterId => $composableBuilder(
       column: $table.characterId, builder: (column) => ColumnOrderings(column));
 
@@ -35727,6 +35843,12 @@ class $$PersonaChatMessagesTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get syncId =>
+      $composableBuilder(column: $table.syncId, builder: (column) => column);
+
+  GeneratedColumn<String> get originDeviceId => $composableBuilder(
+      column: $table.originDeviceId, builder: (column) => column);
 
   GeneratedColumn<String> get characterId => $composableBuilder(
       column: $table.characterId, builder: (column) => column);
@@ -35784,6 +35906,8 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
                   $db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
+            Value<String?> syncId = const Value.absent(),
+            Value<String?> originDeviceId = const Value.absent(),
             Value<String> characterId = const Value.absent(),
             Value<bool> isFromCharacter = const Value.absent(),
             Value<String> content = const Value.absent(),
@@ -35795,6 +35919,8 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
           }) =>
               PersonaChatMessagesCompanion(
             id: id,
+            syncId: syncId,
+            originDeviceId: originDeviceId,
             characterId: characterId,
             isFromCharacter: isFromCharacter,
             content: content,
@@ -35806,6 +35932,8 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
+            Value<String?> syncId = const Value.absent(),
+            Value<String?> originDeviceId = const Value.absent(),
             required String characterId,
             required bool isFromCharacter,
             required String content,
@@ -35817,6 +35945,8 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
           }) =>
               PersonaChatMessagesCompanion.insert(
             id: id,
+            syncId: syncId,
+            originDeviceId: originDeviceId,
             characterId: characterId,
             isFromCharacter: isFromCharacter,
             content: content,

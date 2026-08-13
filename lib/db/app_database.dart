@@ -150,7 +150,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 54;
+  int get schemaVersion => 55;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -185,6 +185,7 @@ class AppDatabase extends _$AppDatabase {
           await _createComicIndices();
           await _createCoReadingContinuityIndices();
           await _createBookAnnotationIndices();
+          await _createPersonaChatSyncIndices();
           // Game indices
           await _createGameIndices();
           // Create FTS5 virtual tables for full-text search
@@ -757,6 +758,33 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(bookAnnotations);
             await _createBookAnnotationIndices();
           }
+          if (from < 55) {
+            await _addColumnIfMissing(
+              'persona_chat_messages ADD COLUMN sync_id TEXT',
+            );
+            await _addColumnIfMissing(
+              'persona_chat_messages ADD COLUMN origin_device_id TEXT',
+            );
+
+            // Existing installations have one authoritative history at the
+            // moment this migration lands. Give those rows deterministic IDs
+            // without disturbing the local integer IDs still referenced by
+            // Dreaming and co-reading. New writes use UUIDs in
+            // PersonaChatService. Pre-v55 histories from multiple devices are
+            // intentionally not auto-merged; one is selected as the initial
+            // authority before incremental sync is enabled.
+            await customStatement(
+              "UPDATE persona_chat_messages "
+              "SET sync_id = 'legacy-v55:' || id "
+              "WHERE sync_id IS NULL OR sync_id = ''",
+            );
+            await customStatement(
+              "UPDATE persona_chat_messages "
+              "SET origin_device_id = 'legacy-authority' "
+              "WHERE origin_device_id IS NULL OR origin_device_id = ''",
+            );
+            await _createPersonaChatSyncIndices();
+          }
         },
         beforeOpen: (OpeningDetails details) async {
           // Defensive backfill: some devices upgraded to v43 via the earlier
@@ -922,6 +950,17 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_book_annotations_active '
       'ON book_annotations(book_id, deleted_at)',
+    );
+  }
+
+  Future<void> _createPersonaChatSyncIndices() async {
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_persona_chat_sync_id '
+      'ON persona_chat_messages(sync_id) WHERE sync_id IS NOT NULL',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_persona_chat_origin_device '
+      'ON persona_chat_messages(origin_device_id)',
     );
   }
 

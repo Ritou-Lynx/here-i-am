@@ -169,6 +169,16 @@ class SystemMessageQueue extends Table {
 /// Stores chat messages between user and their AI companion character.
 class PersonaChatMessages extends Table {
   IntColumn get id => integer().autoIncrement()();
+
+  /// Stable cross-device identity. The local auto-increment [id] remains for
+  /// existing UI cursors and Memory V3 compatibility, but must never be used
+  /// as a sync identity.
+  TextColumn get syncId => text().nullable()();
+
+  /// Installation that originally accepted this message. This is provenance,
+  /// not the current device and does not change when the row is replicated.
+  TextColumn get originDeviceId => text().nullable()();
+
   TextColumn get characterId => text()();
   BoolColumn get isFromCharacter => boolean()();
   TextColumn get content => text()();

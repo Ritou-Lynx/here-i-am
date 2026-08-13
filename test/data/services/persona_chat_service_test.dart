@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
+import 'package:memex/data/services/device_identity_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,6 +15,7 @@ void main() {
 
     setUp(() {
       SharedPreferences.setMockInitialValues({});
+      DeviceIdentityService.resetForTesting();
       db = AppDatabase.forTesting(NativeDatabase.memory());
       AppDatabase.setTestInstance(db);
       service = PersonaChatService.instance;
@@ -145,11 +147,34 @@ void main() {
 
       expect(messages, hasLength(1));
       expect(messages.single.id, id);
+      expect(messages.single.syncId, isNotNull);
+      expect(messages.single.syncId, isNotEmpty);
+      expect(messages.single.originDeviceId, isNotNull);
+      expect(
+        await service.getMessageBySyncId(messages.single.syncId!),
+        isNotNull,
+      );
       expect(messages.single.messageType, 'chat');
       expect(
         messages.single.content,
         '*\u5979\u8f7b\u8f7b\u504f\u8fc7\u5934,'
         '\u770b\u7740\u4f60\u3002* \u6211\u5728\u5462\u3002',
+      );
+    });
+
+    test('new messages share one installation identity and unique sync ids',
+        () async {
+      await service.addUserMessage('luna', 'first');
+      await service.addCharacterMessage('luna', 'second');
+
+      final messages = await service.getMessages('luna', limit: 10);
+
+      expect(messages, hasLength(2));
+      expect(messages.map((m) => m.syncId).toSet(), hasLength(2));
+      expect(messages.map((m) => m.originDeviceId).toSet(), hasLength(1));
+      expect(
+        messages.singleWhere((m) => m.content == 'first').originDeviceId,
+        messages.singleWhere((m) => m.content == 'second').originDeviceId,
       );
     });
 

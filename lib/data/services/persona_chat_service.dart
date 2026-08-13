@@ -3,11 +3,14 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
+import 'package:memex/data/services/device_identity_service.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:uuid/uuid.dart';
 
 /// Service for managing persona chat messages.
 class PersonaChatService {
+  static const _uuid = Uuid();
   static PersonaChatService? _instance;
   static PersonaChatService get instance {
     _instance ??= PersonaChatService._();
@@ -54,6 +57,12 @@ class PersonaChatService {
         .getSingleOrNull();
   }
 
+  Future<PersonaChatMessage?> getMessageBySyncId(String syncId) {
+    return (_db.select(_db.personaChatMessages)
+          ..where((table) => table.syncId.equals(syncId)))
+        .getSingleOrNull();
+  }
+
   Future<int> countMessagesNewerThan(
     String characterId,
     PersonaChatMessage message,
@@ -82,11 +91,15 @@ class PersonaChatService {
     bool appendTimeline = true,
   }) async {
     final createdAt = timestamp ?? DateTime.now();
+    final syncId = _uuid.v4();
+    final originDeviceId = await DeviceIdentityService.getOrCreate();
     final attachmentsJson = attachments != null && attachments.isNotEmpty
         ? jsonEncode(attachments)
         : null;
     final id = await _db.into(_db.personaChatMessages).insert(
           PersonaChatMessagesCompanion.insert(
+            syncId: Value(syncId),
+            originDeviceId: Value(originDeviceId),
             characterId: characterId,
             isFromCharacter: false,
             content: content,
@@ -140,10 +153,14 @@ class PersonaChatService {
     List<Map<String, dynamic>>? addenda,
   }) async {
     final createdAt = timestamp ?? DateTime.now();
+    final syncId = _uuid.v4();
+    final originDeviceId = await DeviceIdentityService.getOrCreate();
     final attachmentsJson =
         (addenda != null && addenda.isNotEmpty) ? jsonEncode(addenda) : null;
     final id = await _db.into(_db.personaChatMessages).insert(
           PersonaChatMessagesCompanion.insert(
+            syncId: Value(syncId),
+            originDeviceId: Value(originDeviceId),
             characterId: characterId,
             isFromCharacter: true,
             content: content,
@@ -283,8 +300,12 @@ class PersonaChatService {
   Future<int> addActionMessage(String characterId, String content,
       {String? factId, bool isRead = false, DateTime? timestamp}) async {
     final createdAt = timestamp ?? DateTime.now();
+    final syncId = _uuid.v4();
+    final originDeviceId = await DeviceIdentityService.getOrCreate();
     final id = await _db.into(_db.personaChatMessages).insert(
           PersonaChatMessagesCompanion.insert(
+            syncId: Value(syncId),
+            originDeviceId: Value(originDeviceId),
             characterId: characterId,
             isFromCharacter: true,
             content: content,
