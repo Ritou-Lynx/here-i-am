@@ -75,10 +75,10 @@ MVP 最终需要证明这一晚能够成立：
 ### Phase 1 — 私人电脑核心最小服务
 
 - [x] 固化版本化核心 API v0 契约与共享 JSON 模型：设备注册、消息提交、增量拉取、确认游标、健康状态。
-- [ ] 在私人电脑实现核心 API v0 服务端与持久化 change feed。
+- [x] 在私人电脑实现独立的核心 API v0 服务端与持久化 change feed，完成双设备、幂等、冲突回滚与重启恢复验证。
 - [ ] 私人电脑导入一份现有数据库，成为唯一权威状态。
 - [ ] 服务通过 Tailscale HTTPS 暴露，不允许远端直接访问 SQLite。
-- [ ] 每次提交使用幂等键；同一消息重复上传只写入一次。
+- [x] 每次提交使用幂等键；同一消息重复上传只写入一次。
 - [ ] 建立设备租约：Memory V3、Dreaming、Record Organizer 和 Check-in 只在核心运行。
 - [ ] 服务开机自启、崩溃恢复，并提供一致性快照与加密异地备份。
 
@@ -146,5 +146,5 @@ MVP 最终需要证明这一晚能够成立：
 ## 7. 当前下一步
 
 1. 将 Dreaming、Memory Card sourceRef、共读证据与召回追踪逐步改为稳定消息引用。
-2. 按 `CORE_API_V0.md` 在私人电脑实现聊天提交 / 增量拉取的最小核心服务。
-3. 为客户端增加离线 outbox、`originSequence` 与不透明 cursor 状态。
+2. 把现有 V3 数据库安全导入私人电脑核心，建立现有聊天到首批 change events 的一次性投影。
+3. 为 Flutter 客户端增加离线 outbox、`originSequence` 与不透明 cursor 状态，并接入核心服务。

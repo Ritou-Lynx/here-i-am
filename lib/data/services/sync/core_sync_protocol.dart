@@ -309,17 +309,12 @@ class CoreChatSubmitResult {
 }
 
 class CoreChatSubmitResponse {
-  const CoreChatSubmitResponse({
-    required this.results,
-    required this.nextCursor,
-  });
+  const CoreChatSubmitResponse({required this.results});
 
   final List<CoreChatSubmitResult> results;
-  final String nextCursor;
 
   Map<String, dynamic> toJson() => {
         'results': results.map((item) => item.toJson()).toList(),
-        'next_cursor': nextCursor,
       };
 
   factory CoreChatSubmitResponse.fromJson(Map<String, dynamic> json) =>
@@ -327,7 +322,6 @@ class CoreChatSubmitResponse {
         results: _mapList(json['results'], 'results')
             .map(CoreChatSubmitResult.fromJson)
             .toList(),
-        nextCursor: _requiredString(json, 'next_cursor'),
       );
 }
 

@@ -130,6 +130,7 @@ magicmotion_apk/
 mm_*.txt
 .tmp/
 tools/dev_agent_bridge/.state/
+tools/i_core/.state/
 
 # Dev Agent local artifacts
 .tmp-*

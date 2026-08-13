@@ -36,7 +36,7 @@ Tailscale 是网络边界，device token 是应用边界。token 只保存在设
 
 请求：设备安装 ID、显示名、平台、客户端版本、一次性 pairing code 和能力列表。
 
-响应：device token、初始 cursor、核心 node ID 与协议版本。相同安装 ID 再次配对会轮换 token，不创建第二个逻辑设备。
+响应：device token、初始 cursor、核心 node ID 与协议版本。相同安装 ID 再次配对会轮换 token，不创建第二个逻辑设备。配对码仅可成功使用一次；其哈希在设备注册事务中持久化，服务重启后也不能复用。
 
 ### `POST /v1/core/chat/messages`
 
@@ -52,7 +52,7 @@ Tailscale 是网络边界，device token 是应用边界。token 只保存在设
 - `message_type`
 - 可选 `asset_refs` 与 `addenda`
 
-响应逐条返回 `accepted` 或 `duplicate`，以及核心分配的 `server_sequence`。批次顺序不等于最终全局顺序；最终顺序以响应和 change feed 为准。
+响应逐条返回 `accepted` 或 `duplicate`，以及核心分配的 `server_sequence`。提交响应不返回同步 cursor；客户端只有在成功持久化 `GET /changes` 的结果后才能推进自己的 cursor，避免跳过其他设备同时产生的事件。
 
 ### `GET /v1/core/changes?cursor=<opaque>&limit=100`
 

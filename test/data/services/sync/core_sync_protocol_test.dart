@@ -103,14 +103,13 @@ void main() {
           serverSequence: 9,
         ),
       ],
-      nextCursor: 'opaque:11',
     );
 
     final decoded = CoreChatSubmitResponse.fromJson(response.toJson());
 
     expect(decoded.results.first.status, CoreSubmitStatus.accepted);
     expect(decoded.results.last.status, CoreSubmitStatus.duplicate);
-    expect(decoded.nextCursor, 'opaque:11');
+    expect(decoded.toJson(), isNot(contains('next_cursor')));
   });
 
   test('change feed keeps unknown future kinds forward compatible', () {
