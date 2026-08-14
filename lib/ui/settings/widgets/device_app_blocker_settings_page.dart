@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:memex/data/services/device_app_blocker_service.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 class DeviceAppBlockerSettingsPage extends StatefulWidget {
   const DeviceAppBlockerSettingsPage({super.key});
@@ -98,19 +98,19 @@ class _DeviceAppBlockerSettingsPageState
   }
 
   Color _summaryColor() {
-    if (_nativeFocusLockActive || _state.active) return Colors.green;
-    if (_state.lastError.isNotEmpty) return Colors.redAccent;
-    return _nativeAccessibilityEnabled ? Colors.green : Colors.grey[700]!;
+    if (_nativeFocusLockActive || _state.active) return SpringRainUiTokens.daylightSuccess;
+    if (_state.lastError.isNotEmpty) return SpringRainUiTokens.daylightError;
+    return _nativeAccessibilityEnabled ? SpringRainUiTokens.daylightSuccess : SpringRainUiTokens.daylightTextSecondary;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: SpringRainUiTokens.daylightSurfaceMuted,
       appBar: AppBar(
         title: const Text('Device App Blocker'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
+        foregroundColor: SpringRainUiTokens.daylightTextPrimary,
         elevation: 0,
         actions: [
           TextButton(
@@ -129,7 +129,7 @@ class _DeviceAppBlockerSettingsPageState
                     contentPadding: EdgeInsets.zero,
                     secondary: const Icon(
                       Icons.app_blocking_outlined,
-                      color: AppColors.primary,
+                      color: SpringRainUiTokens.daylightAccent,
                     ),
                     title: const Text('Enable app blocker'),
                     subtitle: const Text(
@@ -150,8 +150,8 @@ class _DeviceAppBlockerSettingsPageState
                             ? Icons.check_circle
                             : Icons.error_outline,
                         color: _nativeAccessibilityEnabled
-                            ? Colors.green
-                            : Colors.grey[700],
+                            ? SpringRainUiTokens.daylightSuccess
+                            : SpringRainUiTokens.daylightTextSecondary,
                         size: 20,
                       ),
                       const SizedBox(width: 8),
@@ -163,8 +163,8 @@ class _DeviceAppBlockerSettingsPageState
                           style: TextStyle(
                             fontSize: 13,
                             color: _nativeAccessibilityEnabled
-                                ? Colors.green
-                                : Colors.grey[700],
+                                ? SpringRainUiTokens.daylightSuccess
+                                : SpringRainUiTokens.daylightTextSecondary,
                           ),
                         ),
                       ),
@@ -250,11 +250,11 @@ class _DeviceAppBlockerSettingsPageState
   Widget _card(List<Widget> children) => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: SpringRainUiTokens.daylightSurface,
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: AppColors.textSecondary.withValues(alpha: 0.08),
+              color: SpringRainUiTokens.daylightTextSecondary.withValues(alpha: 0.08),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -271,7 +271,7 @@ class _DeviceAppBlockerSettingsPageState
         style: const TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: 15,
-          color: AppColors.textPrimary,
+          color: SpringRainUiTokens.daylightTextPrimary,
         ),
       );
 }

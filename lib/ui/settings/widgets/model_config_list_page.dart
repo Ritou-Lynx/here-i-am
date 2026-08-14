@@ -4,7 +4,7 @@ import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'model_config_edit_page.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 import 'package:memex/domain/models/agent_definitions.dart';
 
@@ -120,7 +120,7 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: SpringRainUiTokens.daylightSurfaceRaised,
           title: Text(l10n.cannotDeleteConfigurationTitle),
           content: Text(l10n.configUsedByAgentsMessage(usingAgents.join('\n'))),
           actions: [
@@ -139,22 +139,22 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            backgroundColor: Colors.white,
-            title: Text(l10n.deleteConfigurationTitle),
-            content: Text(l10n.confirmDeleteConfigMessage(config.key)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(l10n.cancel),
+          backgroundColor: SpringRainUiTokens.daylightSurfaceRaised,
+          title: Text(l10n.deleteConfigurationTitle),
+          content: Text(l10n.confirmDeleteConfigMessage(config.key)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l10n.cancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                l10n.delete,
+                style: const TextStyle(color: SpringRainUiTokens.daylightError),
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(
-                  l10n.delete,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
+            ),
+          ],
           ),
         ) ??
         false;
@@ -215,8 +215,8 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.modelConfiguration),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
         actions: [
           IconButton(
             icon: const Icon(Icons.restore_page),
@@ -226,7 +226,7 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
               final confirmed = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
-                  backgroundColor: Colors.white,
+                  backgroundColor: SpringRainUiTokens.daylightSurfaceRaised,
                   title: Text(l10n.resetAllConfigurationsTitle),
                   content: Text(l10n.resetAllModelConfigurationsMessage),
                   actions: [
@@ -238,7 +238,8 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                       onPressed: () => Navigator.pop(context, true),
                       child: Text(
                         l10n.resetButton,
-                        style: const TextStyle(color: Colors.red),
+                        style: const TextStyle(
+                            color: SpringRainUiTokens.daylightError),
                       ),
                     ),
                   ],
@@ -294,10 +295,11 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                             ? DismissDirection.endToStart
                             : DismissDirection.none,
                         background: Container(
-                          color: Colors.red,
+                          color: SpringRainUiTokens.daylightError,
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 16),
-                          child: const Icon(Icons.delete, color: Colors.white),
+                          child: const Icon(Icons.delete,
+                              color: SpringRainUiTokens.daylightSurfaceRaised),
                         ),
                         confirmDismiss: (direction) async {
                           return _confirmDeleteConfig(config);
@@ -332,17 +334,19 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.blue.withValues(alpha: 0.1),
+                                    color: SpringRainUiTokens.daylightAccent
+                                        .withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(
-                                      color: Colors.blue.withValues(alpha: 0.5),
+                                      color: SpringRainUiTokens.daylightAccent
+                                          .withValues(alpha: 0.5),
                                     ),
                                   ),
                                   child: Text(
                                     UserStorage.l10n.defaultLabel,
                                     style: const TextStyle(
                                       fontSize: 10,
-                                      color: Colors.blue,
+                                      color: SpringRainUiTokens.daylightAccent,
                                     ),
                                   ),
                                 ),
@@ -354,19 +358,19 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.withValues(alpha: 0.1),
+                                    color: SpringRainUiTokens.daylightSuccess
+                                        .withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(
-                                      color: Colors.green.withValues(
-                                        alpha: 0.5,
-                                      ),
+                                      color: SpringRainUiTokens.daylightSuccess
+                                          .withValues(alpha: 0.5),
                                     ),
                                   ),
                                   child: Text(
                                     _visionBadgeText,
                                     style: const TextStyle(
                                       fontSize: 10,
-                                      color: Colors.green,
+                                      color: SpringRainUiTokens.daylightSuccess,
                                     ),
                                   ),
                                 ),
@@ -392,8 +396,8 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                                         : Icons.warning_amber_rounded,
                                     size: 14,
                                     color: config.isValid
-                                        ? Colors.green
-                                        : Colors.orange,
+                                        ? SpringRainUiTokens.daylightSuccess
+                                        : SpringRainUiTokens.daylightWarning,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
@@ -403,8 +407,8 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: config.isValid
-                                          ? Colors.green
-                                          : Colors.orange,
+                                          ? SpringRainUiTokens.daylightSuccess
+                                          : SpringRainUiTokens.daylightWarning,
                                     ),
                                   ),
                                 ],
@@ -460,13 +464,13 @@ class _ModelConfigListPageState extends State<ModelConfigListPage> {
                                         const Icon(
                                           Icons.delete_outline,
                                           size: 20,
-                                          color: Colors.red,
+                                          color: SpringRainUiTokens.daylightError,
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
                                           l10n.delete,
                                           style: const TextStyle(
-                                            color: Colors.red,
+                                            color: SpringRainUiTokens.daylightError,
                                           ),
                                         ),
                                       ],

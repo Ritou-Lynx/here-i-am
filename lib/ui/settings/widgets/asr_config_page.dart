@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:memex/data/services/asr/asr_config.dart';
 import 'package:memex/data/services/voice_session_router.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 /// Configure Alibaba NLS credentials for voice input.
 ///
@@ -98,12 +98,12 @@ class _AsrConfigPageState extends State<AsrConfigPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: SpringRainUiTokens.daylightSurfaceMuted,
       appBar: AppBar(
         title: const Text('语音输入（阿里 NLS）'),
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: SpringRainUiTokens.daylightTextPrimary,
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -115,9 +115,9 @@ class _AsrConfigPageState extends State<AsrConfigPage> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF7E6),
+                      color: SpringRainUiTokens.daylightWarningSoft,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFFE7B0)),
+                      border: Border.all(color: SpringRainUiTokens.daylightWarning),
                     ),
                     child: const Text(
                       '在阿里云 NLS 控制台创建项目，获取 AppKey；在 RAM 控制台为账号创建 AccessKey（推荐子账号，赋予 AliyunNLSFullAccess）。',
@@ -154,8 +154,8 @@ class _AsrConfigPageState extends State<AsrConfigPage> {
                         child: ElevatedButton(
                           onPressed: _saving ? null : _save,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
+                            backgroundColor: SpringRainUiTokens.daylightAccent,
+                            foregroundColor: SpringRainUiTokens.daylightSurface,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
@@ -193,7 +193,7 @@ class _AsrConfigPageState extends State<AsrConfigPage> {
                     '提示：在 companion 聊天页输入框旁会出现麦克风按钮；蓝牙翻页器在「翻页模式」下用 PageDown 开启/结束录音，PageUp 取消。',
                     style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.textSecondary,
+                        color: SpringRainUiTokens.daylightTextSecondary,
                         height: 1.5),
                   ),
                 ],
@@ -215,23 +215,23 @@ class _AsrConfigPageState extends State<AsrConfigPage> {
             style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary)),
+                color: SpringRainUiTokens.daylightTextPrimary)),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
           obscureText: obscure,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white,
+            fillColor: SpringRainUiTokens.daylightSurface,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              borderSide: const BorderSide(color: SpringRainUiTokens.daylightDivider),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              borderSide: const BorderSide(color: SpringRainUiTokens.daylightDivider),
             ),
             suffixIcon: trailing,
           ),

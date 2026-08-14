@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -7,7 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:memex/data/services/file_logger_service.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 class LogViewerPage extends StatefulWidget {
   const LogViewerPage({super.key});
@@ -277,8 +277,8 @@ class _LogViewerPageState extends State<LogViewerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
         title: _isSearching
             ? TextField(
                 controller: _searchController,
@@ -287,7 +287,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                   hintText: 'Search logs...',
                   border: InputBorder.none,
                 ),
-                style: const TextStyle(color: Colors.black),
+                style: const TextStyle(color: SpringRainUiTokens.daylightTextPrimary),
               )
             : Text(UserStorage.l10n.logViewer),
         actions: [
@@ -421,21 +421,21 @@ class _LogViewerPageState extends State<LogViewerPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Icon(Icons.description_outlined,
-              size: 48, color: Color(0xFFB0B0B0)),
+              size: 48, color: SpringRainUiTokens.daylightIconMuted),
           const SizedBox(height: 16),
           Text(
             reason,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: Color(0xFF666666)),
+            style: const TextStyle(fontSize: 14, color: SpringRainUiTokens.daylightTextSecondary),
           ),
           if (_loadError != null) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFEBEE),
+                color: SpringRainUiTokens.daylightErrorSoft,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFFEF9A9A)),
+                border: Border.all(color: SpringRainUiTokens.daylightError),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,7 +445,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFFB00020),
+                      color: SpringRainUiTokens.daylightError,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -454,7 +454,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                     style: const TextStyle(
                       fontFamily: 'Courier',
                       fontSize: 11,
-                      color: Color(0xFFB00020),
+                      color: SpringRainUiTokens.daylightError,
                     ),
                   ),
                 ],
@@ -465,7 +465,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
           if (logDir != null) ...[
             const Text(
               '日志目录：',
-              style: TextStyle(fontSize: 12, color: Color(0xFF999999)),
+              style: TextStyle(fontSize: 12, color: SpringRainUiTokens.daylightTextTertiary),
             ),
             const SizedBox(height: 4),
             GestureDetector(
@@ -481,16 +481,16 @@ class _LogViewerPageState extends State<LogViewerPage> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
+                  color: SpringRainUiTokens.daylightSurfaceMuted,
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: const Color(0xFFE0E0E0)),
+                  border: Border.all(color: SpringRainUiTokens.daylightDivider),
                 ),
                 child: Text(
                   logDir,
                   style: const TextStyle(
                     fontFamily: 'Courier',
                     fontSize: 11,
-                    color: Color(0xFF333333),
+                    color: SpringRainUiTokens.daylightTextPrimary,
                   ),
                 ),
               ),
@@ -500,13 +500,13 @@ class _LogViewerPageState extends State<LogViewerPage> {
               '点击复制路径 · 已找到 ${_logFiles.length} 个文件',
               style: const TextStyle(
                 fontSize: 11,
-                color: Color(0xFF999999),
+                color: SpringRainUiTokens.daylightTextTertiary,
               ),
             ),
           ] else
             const Text(
               '日志目录尚未初始化（FileLoggerService.initialize 可能失败）',
-              style: TextStyle(fontSize: 12, color: Color(0xFFB00020)),
+              style: TextStyle(fontSize: 12, color: SpringRainUiTokens.daylightError),
               textAlign: TextAlign.center,
             ),
           if (selectedName != null) ...[
@@ -514,9 +514,9 @@ class _LogViewerPageState extends State<LogViewerPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF8E1),
+                color: SpringRainUiTokens.daylightWarningSoft,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFFFFE082)),
+                border: Border.all(color: SpringRainUiTokens.daylightWarning),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,7 +526,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF5D4037),
+                      color: SpringRainUiTokens.daylightWarning,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -535,7 +535,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                     style: const TextStyle(
                       fontFamily: 'Courier',
                       fontSize: 11,
-                      color: Color(0xFF5D4037),
+                      color: SpringRainUiTokens.daylightWarning,
                     ),
                   ),
                   if (canJumpToNonEmpty) ...[
@@ -545,7 +545,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                       '(${fileSizes[mostRecentNonEmpty]} 字节) 有内容',
                       style: const TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF5D4037),
+                        color: SpringRainUiTokens.daylightWarning,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -575,9 +575,9 @@ class _LogViewerPageState extends State<LogViewerPage> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFAFAFA),
+              color: SpringRainUiTokens.daylightSurfaceMuted,
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFFE5E5E5)),
+              border: Border.all(color: SpringRainUiTokens.daylightDivider),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -587,7 +587,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF666666),
+                    color: SpringRainUiTokens.daylightTextSecondary,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -685,7 +685,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
               key,
               style: const TextStyle(
                 fontSize: 11,
-                color: Color(0xFF888888),
+                color: SpringRainUiTokens.daylightTextTertiary,
               ),
             ),
           ),
@@ -696,10 +696,10 @@ class _LogViewerPageState extends State<LogViewerPage> {
                 fontFamily: 'Courier',
                 fontSize: 11,
                 color: value == null
-                    ? const Color(0xFFAAAAAA)
+                    ? SpringRainUiTokens.daylightIconMuted
                     : (value == false
-                        ? const Color(0xFFB00020)
-                        : const Color(0xFF333333)),
+                        ? SpringRainUiTokens.daylightError
+                        : SpringRainUiTokens.daylightTextPrimary),
               ),
             ),
           ),
@@ -709,9 +709,9 @@ class _LogViewerPageState extends State<LogViewerPage> {
   }
 
   Color _getLineColor(String line) {
-    if (line.contains('SEVERE')) return Colors.red;
-    if (line.contains('WARNING')) return Colors.orange;
-    return const Color(0xFF333333);
+    if (line.contains('SEVERE')) return SpringRainUiTokens.daylightError;
+    if (line.contains('WARNING')) return SpringRainUiTokens.daylightWarning;
+    return SpringRainUiTokens.daylightTextPrimary;
   }
 
   Widget _buildLogFileSelector() {
@@ -722,8 +722,8 @@ class _LogViewerPageState extends State<LogViewerPage> {
     return DropdownButton<File>(
       value: _selectedFile,
       underline: const SizedBox(),
-      style: const TextStyle(color: Colors.black, fontSize: 14),
-      dropdownColor: Colors.white,
+      style: const TextStyle(color: SpringRainUiTokens.daylightTextPrimary, fontSize: 14),
+      dropdownColor: SpringRainUiTokens.daylightSurface,
       items: _logFiles.map((file) {
         final name = file.path.split('/').last;
         return DropdownMenuItem(
@@ -747,7 +747,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
   Widget _buildControlBar(int currentCount) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.grey[100],
+      color: SpringRainUiTokens.daylightSurfaceMuted,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(

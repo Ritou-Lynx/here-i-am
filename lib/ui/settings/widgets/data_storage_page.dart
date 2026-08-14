@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
@@ -8,7 +8,7 @@ import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/main.dart' show rootShellKey;
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 /// Page to choose data storage.
 /// Android: app storage or custom folder.
@@ -244,7 +244,9 @@ class _DataStoragePageState extends State<DataStoragePage> {
       trailing: _location == StorageLocation.custom && _customPath != null
           ? Text(
               _customPath!,
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: SpringRainUiTokens.daylightTextSecondary),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             )
@@ -288,8 +290,8 @@ class _DataStoragePageState extends State<DataStoragePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.dataStorage),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
       ),
       bottomNavigationBar: widget.onboardingMode
           ? Padding(
@@ -304,8 +306,8 @@ class _DataStoragePageState extends State<DataStoragePage> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(true),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
+                    backgroundColor: SpringRainUiTokens.daylightAccent,
+                    foregroundColor: SpringRainUiTokens.daylightTextOnAccent,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -331,7 +333,9 @@ class _DataStoragePageState extends State<DataStoragePage> {
                     child: Text(
                       _dataStorageDescription,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      style: const TextStyle(
+                          fontSize: 14,
+                          color: SpringRainUiTokens.daylightTextSecondary),
                     ),
                   ),
                 )
@@ -342,9 +346,9 @@ class _DataStoragePageState extends State<DataStoragePage> {
                       children: [
                         Text(
                           _dataStorageDescription,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 14,
-                            color: Colors.grey[600],
+                            color: SpringRainUiTokens.daylightTextSecondary,
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -355,7 +359,7 @@ class _DataStoragePageState extends State<DataStoragePage> {
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: AppColors.primary,
+                            color: SpringRainUiTokens.daylightAccent,
                           ),
                         ),
                         if (!Platform.isIOS &&
@@ -365,8 +369,10 @@ class _DataStoragePageState extends State<DataStoragePage> {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               _customPath!,
-                              style: TextStyle(
-                                  fontSize: 12, color: Colors.grey[600]),
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color:
+                                      SpringRainUiTokens.daylightTextSecondary),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -391,7 +397,7 @@ class _DataStoragePageState extends State<DataStoragePage> {
                                       : UserStorage.l10n.switchingStorage,
                                   style: const TextStyle(
                                     fontSize: 14,
-                                    color: AppColors.primary,
+                                    color: SpringRainUiTokens.daylightAccent,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -422,15 +428,17 @@ class _DataStoragePageState extends State<DataStoragePage> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: SpringRainUiTokens.daylightSurface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? AppColors.primary : Colors.grey[300]!,
+              color: selected
+                  ? SpringRainUiTokens.daylightAccent
+                  : SpringRainUiTokens.daylightDivider!,
               width: selected ? 2 : 1,
             ),
             boxShadow: const [
               BoxShadow(
-                color: AppColors.shadowLight,
+                color: Color(0x0D293025),
                 blurRadius: 16,
                 offset: Offset(0, 2),
               ),
@@ -441,8 +449,10 @@ class _DataStoragePageState extends State<DataStoragePage> {
               Icon(
                 icon,
                 color: enabled
-                    ? (selected ? AppColors.primary : Colors.grey[600])
-                    : Colors.grey[400],
+                    ? (selected
+                        ? SpringRainUiTokens.daylightAccent
+                        : SpringRainUiTokens.daylightTextSecondary)
+                    : SpringRainUiTokens.daylightIconMuted,
                 size: 24,
               ),
               const SizedBox(width: 12),
@@ -455,7 +465,9 @@ class _DataStoragePageState extends State<DataStoragePage> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        color: enabled ? AppColors.textPrimary : Colors.grey,
+                        color: enabled
+                            ? SpringRainUiTokens.daylightTextPrimary
+                            : SpringRainUiTokens.daylightTextTertiary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -463,7 +475,7 @@ class _DataStoragePageState extends State<DataStoragePage> {
                       subtitle,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey[600],
+                        color: SpringRainUiTokens.daylightTextSecondary,
                       ),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
@@ -476,8 +488,11 @@ class _DataStoragePageState extends State<DataStoragePage> {
                 ),
               ),
               if (selected)
-                const Icon(Icons.check_circle,
-                    color: AppColors.primary, size: 22),
+                const Icon(
+                  Icons.check_circle,
+                  color: SpringRainUiTokens.daylightAccent,
+                  size: 22,
+                ),
             ],
           ),
         ),

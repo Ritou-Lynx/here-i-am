@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/companion_share_service.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 class CompanionShareSettingsPage extends StatefulWidget {
   const CompanionShareSettingsPage({super.key});
@@ -53,12 +53,12 @@ class _CompanionShareSettingsPageState
   Widget build(BuildContext context) {
     final ready = _enabled && _connected;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: SpringRainUiTokens.daylightCanvas,
       appBar: AppBar(
         title: Text(_zh ? '交给林埃' : 'Share with i'),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
-        foregroundColor: Colors.black,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
+        foregroundColor: SpringRainUiTokens.daylightTextPrimary,
         elevation: 0.5,
       ),
       body: _loading
@@ -76,7 +76,7 @@ class _CompanionShareSettingsPageState
                             ready
                                 ? Icons.check_circle
                                 : Icons.touch_app_outlined,
-                            color: ready ? Colors.green : AppColors.primary,
+                            color: ready ? SpringRainUiTokens.daylightSuccess : SpringRainUiTokens.daylightAccent,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -101,7 +101,7 @@ class _CompanionShareSettingsPageState
                         _zh
                             ? '开启后，浏览其他 App 时屏幕边缘会显示一个 i 悬浮球。轻点分享当前截图；长按分享刚复制的链接。'
                             : 'A small i bubble appears while you use other apps. Tap it to share the current screen, or hold it to share a copied link.',
-                        style: TextStyle(color: Colors.grey[700], height: 1.5),
+                        style: TextStyle(color: SpringRainUiTokens.daylightTextSecondary, height: 1.5),
                       ),
                       const SizedBox(height: 16),
                       SizedBox(
@@ -164,7 +164,7 @@ class _CompanionShareSettingsPageState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Icon(Icons.privacy_tip_outlined,
-                          color: AppColors.primary),
+                          color: SpringRainUiTokens.daylightAccent),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -172,7 +172,7 @@ class _CompanionShareSettingsPageState
                               ? '只有你主动轻点时才会截屏；服务不会读取其他 App 的页面结构。截图和链接会先进入发送草稿，由你确认。'
                               : 'A screenshot is taken only after you tap. The service does not inspect the page structure of other apps. Shares open as drafts for your confirmation.',
                           style:
-                              TextStyle(color: Colors.grey[700], height: 1.5),
+                              TextStyle(color: SpringRainUiTokens.daylightTextSecondary, height: 1.5),
                         ),
                       ),
                     ],
@@ -191,7 +191,7 @@ class _CompanionShareSettingsPageState
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: AppColors.primary, size: 22),
+        Icon(icon, color: SpringRainUiTokens.daylightAccent, size: 22),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -199,7 +199,7 @@ class _CompanionShareSettingsPageState
             children: [
               Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 3),
-              Text(description, style: TextStyle(color: Colors.grey[700])),
+              Text(description, style: TextStyle(color: SpringRainUiTokens.daylightTextSecondary)),
             ],
           ),
         ),
@@ -210,9 +210,9 @@ class _CompanionShareSettingsPageState
   Widget _card({required Widget child}) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: SpringRainUiTokens.daylightSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: SpringRainUiTokens.daylightDivider),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

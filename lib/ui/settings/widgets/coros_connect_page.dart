@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:memex/agent/mcp/mcp_oauth.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -215,7 +215,7 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
               const Icon(
                 Icons.check_circle,
                 size: 56,
-                color: Colors.green,
+                color: SpringRainUiTokens.daylightSuccess,
               ),
               const SizedBox(height: 16),
               const Text(
@@ -223,14 +223,14 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: SpringRainUiTokens.daylightTextPrimary,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Memex 已经可以读取 COROS 高驰授权的数据。',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                style: TextStyle(fontSize: 14, color: SpringRainUiTokens.daylightTextSecondary),
               ),
               const SizedBox(height: 28),
               ElevatedButton.icon(
@@ -255,11 +255,11 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const Icon(Icons.error_outline, size: 48, color: SpringRainUiTokens.daylightError),
               const SizedBox(height: 16),
               Text(_error!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red)),
+                  style: const TextStyle(color: SpringRainUiTokens.daylightError)),
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: () {

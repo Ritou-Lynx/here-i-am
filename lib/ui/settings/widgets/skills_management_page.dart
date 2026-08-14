@@ -10,7 +10,7 @@ import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
 import 'package:memex/ui/core/widgets/back_button.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 /// Skills directory browser & downloader.
 /// Root is `_UserSettings/skills/` under the user workspace.
@@ -103,7 +103,7 @@ class _SkillsManagementPageState extends State<SkillsManagementPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text(l10n.deleteConfirm),
         content: Text(l10n.deleteConfirmMessage(name)),
         actions: [
@@ -114,7 +114,7 @@ class _SkillsManagementPageState extends State<SkillsManagementPage> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(l10n.deleteConfirm,
-                style: const TextStyle(color: Colors.red)),
+                style: const TextStyle(color: SpringRainUiTokens.daylightError)),
           ),
         ],
       ),
@@ -143,7 +143,7 @@ class _SkillsManagementPageState extends State<SkillsManagementPage> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text(l10n.newFolder),
         content: Form(
           key: formKey,
@@ -193,7 +193,7 @@ class _SkillsManagementPageState extends State<SkillsManagementPage> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text(l10n.newFile),
         content: Form(
           key: formKey,
@@ -263,7 +263,7 @@ class _SkillsManagementPageState extends State<SkillsManagementPage> {
     final url = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text(l10n.downloadSkill),
         content: Form(
           key: formKey,
@@ -319,7 +319,7 @@ class _SkillsManagementPageState extends State<SkillsManagementPage> {
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         content: Row(
           children: [
             const CircularProgressIndicator(),
@@ -434,8 +434,8 @@ class _SkillsManagementPageState extends State<SkillsManagementPage> {
       appBar: AppBar(
         leading: _canGoBack ? AppBackButton(onTap: _goBack) : null,
         title: Text(l10n.skillsManagement),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
         actions: [
           IconButton(
             icon: const Icon(Icons.create_new_folder_outlined),
@@ -484,13 +484,13 @@ class _SkillsManagementPageState extends State<SkillsManagementPage> {
                             leading: Icon(
                               isDir ? Icons.folder : Icons.insert_drive_file,
                               color: isDir
-                                  ? Colors.amber.shade700
-                                  : Colors.blueGrey,
+                                  ? SpringRainUiTokens.daylightWarning
+                                  : SpringRainUiTokens.daylightIconMuted,
                             ),
                             title: Text(name),
                             trailing: IconButton(
                               icon: const Icon(Icons.delete,
-                                  size: 20, color: Colors.red),
+                                  size: 20, color: SpringRainUiTokens.daylightError),
                               onPressed: () => _deleteEntry(entity),
                             ),
                             onTap: isDir
@@ -564,8 +564,8 @@ class _FileEditorPageState extends State<_FileEditorPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(fileName),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
         actions: [
           TextButton(
             onPressed: _save,

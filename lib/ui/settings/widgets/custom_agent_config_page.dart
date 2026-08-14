@@ -7,7 +7,7 @@ import 'package:memex/domain/models/system_event.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 class CustomAgentConfigPage extends StatefulWidget {
   const CustomAgentConfigPage({super.key});
@@ -46,7 +46,7 @@ class _CustomAgentConfigPageState extends State<CustomAgentConfigPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text(l10n.deleteAgent),
         content: Text(l10n.deleteAgentConfirm(agentName)),
         actions: [
@@ -56,7 +56,7 @@ class _CustomAgentConfigPageState extends State<CustomAgentConfigPage> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child:
-                Text(l10n.deleted, style: const TextStyle(color: Colors.red)),
+                Text(l10n.deleted, style: const TextStyle(color: SpringRainUiTokens.daylightError)),
           ),
         ],
       ),
@@ -103,8 +103,8 @@ class _CustomAgentConfigPageState extends State<CustomAgentConfigPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.customAgents),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -142,7 +142,7 @@ class _CustomAgentConfigPageState extends State<CustomAgentConfigPage> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete,
-                                  size: 20, color: Colors.red),
+                                  size: 20, color: SpringRainUiTokens.daylightError),
                               onPressed: () => _delete(c.agentName),
                             ),
                           ],
@@ -385,8 +385,8 @@ class _CustomAgentEditPageState extends State<_CustomAgentEditPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? l10n.editAgent : l10n.newAgent),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
         actions: [
           TextButton(onPressed: _save, child: Text(l10n.save)),
         ],

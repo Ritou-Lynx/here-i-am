@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:local_auth/local_auth.dart';
@@ -7,7 +7,7 @@ import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 class AppLockSettingsPage extends StatefulWidget {
   const AppLockSettingsPage({super.key});
@@ -137,20 +137,20 @@ class _AppLockSettingsPageState extends State<AppLockSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: SpringRainUiTokens.daylightCanvas,
       appBar: AppBar(
         title: Text(
           UserStorage.l10n.appLockSettings,
           style: const TextStyle(
-            color: AppColors.textPrimary,
+            color: SpringRainUiTokens.daylightTextPrimary,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
         ),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: const IconThemeData(color: SpringRainUiTokens.daylightTextPrimary),
       ),
       body: _isLoading
           ? Center(child: AgentLogoLoading())
@@ -166,19 +166,19 @@ class _AppLockSettingsPageState extends State<AppLockSettingsPage> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                            color: SpringRainUiTokens.daylightTextPrimary,
                           ),
                         ),
                         subtitle: Text(
                           UserStorage.l10n.enableAppLockSubtitle,
                           style: const TextStyle(
                             fontSize: 12,
-                            color: AppColors.textSecondary,
+                            color: SpringRainUiTokens.daylightTextSecondary,
                           ),
                         ),
                         value: _isLockEnabled,
                         onChanged: _toggleLock,
-                        activeColor: AppColors.primary,
+                        activeColor: SpringRainUiTokens.daylightAccent,
                       ),
                       if (_canCheckBiometrics && _isLockEnabled) ...[
                         const Divider(height: 1),
@@ -188,19 +188,19 @@ class _AppLockSettingsPageState extends State<AppLockSettingsPage> {
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                              color: SpringRainUiTokens.daylightTextPrimary,
                             ),
                           ),
                           subtitle: Text(
                             UserStorage.l10n.biometricsSubtitle,
                             style: const TextStyle(
                               fontSize: 12,
-                              color: AppColors.textSecondary,
+                              color: SpringRainUiTokens.daylightTextSecondary,
                             ),
                           ),
                           value: _isBiometricsEnabled,
                           onChanged: _toggleBiometrics,
-                          activeColor: AppColors.primary,
+                          activeColor: SpringRainUiTokens.daylightAccent,
                         ),
                       ],
                     ],
@@ -215,7 +215,7 @@ class _AppLockSettingsPageState extends State<AppLockSettingsPage> {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
+                          color: SpringRainUiTokens.daylightTextPrimary,
                         ),
                       ),
                       trailing: const Icon(Icons.chevron_right),
@@ -230,11 +230,11 @@ class _AppLockSettingsPageState extends State<AppLockSettingsPage> {
   Widget _buildSettingCard({required Widget child}) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: SpringRainUiTokens.daylightSurface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppColors.textSecondary.withValues(alpha: 0.08),
+            color: SpringRainUiTokens.daylightTextSecondary.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -324,7 +324,7 @@ class _SetPasswordSheetState extends State<_SetPasswordSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: SpringRainUiTokens.daylightSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
@@ -334,7 +334,7 @@ class _SetPasswordSheetState extends State<_SetPasswordSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey[300],
+              color: SpringRainUiTokens.daylightDivider,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -344,7 +344,7 @@ class _SetPasswordSheetState extends State<_SetPasswordSheet> {
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: SpringRainUiTokens.daylightTextPrimary,
             ),
           ),
           if (_errorMessage.isNotEmpty) ...[
@@ -353,7 +353,7 @@ class _SetPasswordSheetState extends State<_SetPasswordSheet> {
               _errorMessage,
               style: const TextStyle(
                 fontSize: 14,
-                color: Colors.red,
+                color: SpringRainUiTokens.daylightError,
               ),
             ),
           ],
@@ -369,7 +369,7 @@ class _SetPasswordSheetState extends State<_SetPasswordSheet> {
                 height: 16,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isFilled ? AppColors.primary : const Color(0xFFE2E8F0),
+                  color: isFilled ? SpringRainUiTokens.daylightAccent : SpringRainUiTokens.daylightDivider,
                 ),
               );
             }),
@@ -429,8 +429,8 @@ class _SetPasswordSheetState extends State<_SetPasswordSheet> {
         height: 72,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.white,
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          color: SpringRainUiTokens.daylightSurface,
+          border: Border.all(color: SpringRainUiTokens.daylightDivider),
         ),
         alignment: Alignment.center,
         child: Text(
@@ -438,7 +438,7 @@ class _SetPasswordSheetState extends State<_SetPasswordSheet> {
           style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w500,
-            color: AppColors.textPrimary,
+            color: SpringRainUiTokens.daylightTextPrimary,
           ),
         ),
       ),

@@ -1,11 +1,11 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/buttplug_toy_controller.dart';
 import 'package:memex/data/services/magic_motion_flamingo_controller.dart';
 import 'package:memex/data/services/svakom_toy_controller.dart';
 import 'package:memex/data/services/toy_controller.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class ToyConfigPage extends StatefulWidget {
@@ -406,14 +406,14 @@ class _ToyConfigPageState extends State<ToyConfigPage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('玩具控制'),
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        foregroundColor: SpringRainUiTokens.daylightTextPrimary,
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textSecondary,
-          indicatorColor: AppColors.primary,
+          labelColor: SpringRainUiTokens.daylightAccent,
+          unselectedLabelColor: SpringRainUiTokens.daylightTextSecondary,
+          indicatorColor: SpringRainUiTokens.daylightAccent,
           tabs: const [
             Tab(text: 'Intiface'),
             Tab(text: 'Svakom'),
@@ -421,7 +421,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
           ],
         ),
       ),
-      backgroundColor: AppColors.background,
+      backgroundColor: SpringRainUiTokens.daylightCanvas,
       body: TabBarView(
         controller: _tabController,
         children: [
@@ -442,7 +442,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
         if (_savedIntifaceConfig != null) ...[
           _card(
               child: Row(children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 20),
+            const Icon(Icons.check_circle, color: SpringRainUiTokens.daylightSuccess, size: 20),
             const SizedBox(width: 10),
             Expanded(
                 child: Column(
@@ -450,16 +450,16 @@ class _ToyConfigPageState extends State<ToyConfigPage>
                     children: [
                   Text('已配置',
                       style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
+                          fontSize: 12, color: SpringRainUiTokens.daylightTextSecondary)),
                   Text(_savedIntifaceConfig!.url,
                       style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
+                          color: SpringRainUiTokens.daylightTextPrimary,
                           fontSize: 13)),
                 ])),
             TextButton(
                 onPressed: _clearIntiface,
-                style: TextButton.styleFrom(foregroundColor: Colors.red[400]),
+                style: TextButton.styleFrom(foregroundColor: SpringRainUiTokens.daylightError),
                 child: const Text('清除')),
           ])),
           const SizedBox(height: 16),
@@ -481,32 +481,32 @@ class _ToyConfigPageState extends State<ToyConfigPage>
           _sectionTitle('Intiface 服务器地址'),
           const SizedBox(height: 4),
           Text('手机和电脑需在同一 WiFi 下',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              style: TextStyle(fontSize: 12, color: SpringRainUiTokens.daylightTextSecondary)),
           const SizedBox(height: 12),
           TextField(
             controller: _ipController,
             keyboardType: TextInputType.url,
             decoration: InputDecoration(
               hintText: '例：192.168.1.100',
-              hintStyle: TextStyle(color: AppColors.textSecondary),
+              hintStyle: TextStyle(color: SpringRainUiTokens.daylightTextSecondary),
               prefixText: 'ws://',
               prefixStyle:
-                  TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  TextStyle(color: SpringRainUiTokens.daylightTextSecondary, fontSize: 14),
               suffixText: ':$_defaultPort',
               suffixStyle:
-                  TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  TextStyle(color: SpringRainUiTokens.daylightTextSecondary, fontSize: 14),
               filled: true,
-              fillColor: AppColors.background,
+              fillColor: SpringRainUiTokens.daylightCanvas,
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: AppColors.textTertiary)),
+                  borderSide: BorderSide(color: SpringRainUiTokens.daylightTextTertiary)),
               enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: AppColors.textTertiary)),
+                  borderSide: BorderSide(color: SpringRainUiTokens.daylightTextTertiary)),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide:
-                      const BorderSide(color: AppColors.primary, width: 2)),
+                      const BorderSide(color: SpringRainUiTokens.daylightAccent, width: 2)),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             ),
@@ -519,8 +519,8 @@ class _ToyConfigPageState extends State<ToyConfigPage>
             child: ElevatedButton.icon(
               onPressed: _isTesting ? null : _testIntiface,
               style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+                  backgroundColor: SpringRainUiTokens.daylightAccent,
+                  foregroundColor: SpringRainUiTokens.daylightSurface,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 14)),
@@ -529,7 +529,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2, color: SpringRainUiTokens.daylightSurface))
                   : const Icon(Icons.wifi_tethering, size: 20),
               label: Text(_isTesting ? '连接中...' : '测试连接'),
             )),
@@ -542,7 +542,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
           Text(
               '仅用于能被 Intiface Central 发现的设备。\nFlamingo Max 和 Svakom 请使用各自的直连标签页。',
               style: TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary, height: 1.6)),
+                  fontSize: 13, color: SpringRainUiTokens.daylightTextSecondary, height: 1.6)),
         ])),
       ],
     );
@@ -558,7 +558,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
           _card(
               child: Row(children: [
             const Icon(Icons.bluetooth_connected,
-                color: AppColors.primary, size: 20),
+                color: SpringRainUiTokens.daylightAccent, size: 20),
             const SizedBox(width: 10),
             Expanded(
                 child: Column(
@@ -566,15 +566,15 @@ class _ToyConfigPageState extends State<ToyConfigPage>
                     children: [
                   Text('已配对',
                       style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
+                          fontSize: 12, color: SpringRainUiTokens.daylightTextSecondary)),
                   Text(_savedSvakom!.name,
                       style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary)),
+                          color: SpringRainUiTokens.daylightTextPrimary)),
                 ])),
             TextButton(
                 onPressed: _clearSvakom,
-                style: TextButton.styleFrom(foregroundColor: Colors.red[400]),
+                style: TextButton.styleFrom(foregroundColor: SpringRainUiTokens.daylightError),
                 child: const Text('解除')),
           ])),
           const SizedBox(height: 16),
@@ -596,7 +596,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimary)),
+                  color: SpringRainUiTokens.daylightTextPrimary)),
           const SizedBox(height: 8),
           ..._foundSvakom
               .map((r) => _deviceTile(r.name, r.rssi, () => _connectSvakom(r))),
@@ -608,8 +608,8 @@ class _ToyConfigPageState extends State<ToyConfigPage>
               onPressed: _isScanningSvakom ? _stopScanSvakom : _scanSvakom,
               style: ElevatedButton.styleFrom(
                 backgroundColor:
-                    _isScanningSvakom ? Colors.red[400] : AppColors.primary,
-                foregroundColor: Colors.white,
+                    _isScanningSvakom ? SpringRainUiTokens.daylightError : SpringRainUiTokens.daylightAccent,
+                foregroundColor: SpringRainUiTokens.daylightSurface,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -619,7 +619,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2, color: SpringRainUiTokens.daylightSurface))
                   : const Icon(Icons.bluetooth_searching, size: 20),
               label: Text(_isScanningSvakom ? '停止扫描' : '扫描设备'),
             )),
@@ -631,7 +631,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
           const SizedBox(height: 8),
           Text('司沃康（Svakom）全系列蓝牙产品\n直连无需 Intiface，延迟更低',
               style: TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary, height: 1.6)),
+                  fontSize: 13, color: SpringRainUiTokens.daylightTextSecondary, height: 1.6)),
         ])),
       ],
     );
@@ -645,7 +645,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
           _card(
               child: Row(children: [
             const Icon(Icons.bluetooth_connected,
-                color: AppColors.primary, size: 20),
+                color: SpringRainUiTokens.daylightAccent, size: 20),
             const SizedBox(width: 10),
             Expanded(
                 child: Column(
@@ -653,15 +653,15 @@ class _ToyConfigPageState extends State<ToyConfigPage>
                     children: [
                   Text('已配对',
                       style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
+                          fontSize: 12, color: SpringRainUiTokens.daylightTextSecondary)),
                   Text(_savedFlamingo!.name,
                       style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary)),
+                          color: SpringRainUiTokens.daylightTextPrimary)),
                 ])),
             TextButton(
                 onPressed: _clearFlamingo,
-                style: TextButton.styleFrom(foregroundColor: Colors.red[400]),
+                style: TextButton.styleFrom(foregroundColor: SpringRainUiTokens.daylightError),
                 child: const Text('解除')),
           ])),
           const SizedBox(height: 10),
@@ -672,9 +672,9 @@ class _ToyConfigPageState extends State<ToyConfigPage>
               child: OutlinedButton.icon(
                 onPressed: _isTestingFlamingo ? null : _testFlamingo,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
+                  foregroundColor: SpringRainUiTokens.daylightAccent,
                   side: BorderSide(
-                      color: AppColors.primary.withValues(alpha: 0.5)),
+                      color: SpringRainUiTokens.daylightAccent.withValues(alpha: 0.5)),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -707,7 +707,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimary)),
+                  color: SpringRainUiTokens.daylightTextPrimary)),
           const SizedBox(height: 8),
           ..._foundFlamingo.map(
               (r) => _deviceTile(r.name, r.rssi, () => _connectFlamingo(r))),
@@ -720,8 +720,8 @@ class _ToyConfigPageState extends State<ToyConfigPage>
                   _isScanningFlamingo ? _stopScanFlamingo : _scanFlamingo,
               style: ElevatedButton.styleFrom(
                 backgroundColor:
-                    _isScanningFlamingo ? Colors.red[400] : AppColors.primary,
-                foregroundColor: Colors.white,
+                    _isScanningFlamingo ? SpringRainUiTokens.daylightError : SpringRainUiTokens.daylightAccent,
+                foregroundColor: SpringRainUiTokens.daylightSurface,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -731,7 +731,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2, color: SpringRainUiTokens.daylightSurface))
                   : const Icon(Icons.bluetooth_searching, size: 20),
               label: Text(_isScanningFlamingo ? '停止扫描' : '扫描设备'),
             )),
@@ -743,7 +743,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
           const SizedBox(height: 8),
           Text('Magic Motion Flamingo / Flamingo Max\n直连 BLE，无需 Intiface',
               style: TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary, height: 1.6)),
+                  fontSize: 13, color: SpringRainUiTokens.daylightTextSecondary, height: 1.6)),
         ])),
       ],
     );
@@ -758,16 +758,16 @@ class _ToyConfigPageState extends State<ToyConfigPage>
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-              color: Colors.white,
+              color: SpringRainUiTokens.daylightSurface,
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                    color: AppColors.textSecondary.withValues(alpha: 0.05),
+                    color: SpringRainUiTokens.daylightTextSecondary.withValues(alpha: 0.05),
                     blurRadius: 8,
                     offset: const Offset(0, 2))
               ]),
           child: Row(children: [
-            const Icon(Icons.vibration, color: AppColors.primary, size: 20),
+            const Icon(Icons.vibration, color: SpringRainUiTokens.daylightAccent, size: 20),
             const SizedBox(width: 12),
             Expanded(
                 child: Column(
@@ -776,12 +776,12 @@ class _ToyConfigPageState extends State<ToyConfigPage>
                   Text(name,
                       style: TextStyle(
                           fontWeight: FontWeight.w500,
-                          color: AppColors.textPrimary)),
+                          color: SpringRainUiTokens.daylightTextPrimary)),
                   Text('信号强度 $rssi dBm',
                       style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
+                          fontSize: 12, color: SpringRainUiTokens.daylightTextSecondary)),
                 ])),
-            Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+            Icon(Icons.chevron_right, color: SpringRainUiTokens.daylightTextSecondary, size: 20),
           ]),
         ),
       );
@@ -791,29 +791,29 @@ class _ToyConfigPageState extends State<ToyConfigPage>
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: ok
-              ? Colors.green.withValues(alpha: 0.08)
-              : Colors.orange.withValues(alpha: 0.08),
+              ? SpringRainUiTokens.daylightSuccess.withValues(alpha: 0.08)
+              : SpringRainUiTokens.daylightWarning.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
               color: ok
-                  ? Colors.green.withValues(alpha: 0.3)
-                  : Colors.orange.withValues(alpha: 0.3)),
+                  ? SpringRainUiTokens.daylightSuccess.withValues(alpha: 0.3)
+                  : SpringRainUiTokens.daylightWarning.withValues(alpha: 0.3)),
         ),
         child: Text(msg,
             style: TextStyle(
                 fontSize: 13,
-                color: ok ? Colors.green[700] : Colors.orange[700],
+                color: ok ? SpringRainUiTokens.daylightSuccess : SpringRainUiTokens.daylightWarning,
                 height: 1.5)),
       );
 
   Widget _card({required Widget child}) => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-            color: Colors.white,
+            color: SpringRainUiTokens.daylightSurface,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                  color: AppColors.textSecondary.withValues(alpha: 0.06),
+                  color: SpringRainUiTokens.daylightTextSecondary.withValues(alpha: 0.06),
                   blurRadius: 12,
                   offset: const Offset(0, 2))
             ]),
@@ -823,7 +823,7 @@ class _ToyConfigPageState extends State<ToyConfigPage>
   Widget _sectionTitle(String text) => Text(text,
       style: TextStyle(
           fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
+          color: SpringRainUiTokens.daylightTextPrimary,
           fontSize: 14));
 
   Widget _step(String num, String text) => Padding(
@@ -834,18 +834,18 @@ class _ToyConfigPageState extends State<ToyConfigPage>
               height: 20,
               margin: const EdgeInsets.only(top: 1, right: 10),
               decoration: const BoxDecoration(
-                  color: AppColors.primary, shape: BoxShape.circle),
+                  color: SpringRainUiTokens.daylightAccent, shape: BoxShape.circle),
               child: Center(
                   child: Text(num,
                       style: const TextStyle(
-                          color: Colors.white,
+                          color: SpringRainUiTokens.daylightSurface,
                           fontSize: 11,
                           fontWeight: FontWeight.bold)))),
           Expanded(
               child: Text(text,
                   style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: SpringRainUiTokens.daylightTextSecondary,
                       height: 1.5))),
         ]),
       );

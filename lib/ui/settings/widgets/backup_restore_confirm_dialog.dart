@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/backup_service.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
 
 class BackupRestoreConfirmDialog extends StatelessWidget {
@@ -13,7 +14,7 @@ class BackupRestoreConfirmDialog extends StatelessWidget {
     final createdAt = manifest?.createdAt.toLocal();
 
     return AlertDialog(
-      backgroundColor: Colors.white,
+      backgroundColor: SpringRainUiTokens.daylightSurfaceRaised,
       title: Text(UserStorage.l10n.confirmRestore),
       content: SingleChildScrollView(
         child: Column(
@@ -56,7 +57,8 @@ class BackupRestoreConfirmDialog extends StatelessWidget {
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
-          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          style: TextButton.styleFrom(
+              foregroundColor: SpringRainUiTokens.daylightError),
           child: Text(UserStorage.l10n.confirm),
         ),
       ],
@@ -97,14 +99,16 @@ class _BackupInfoRow extends StatelessWidget {
             width: 96,
             child: Text(
               label,
-              style: const TextStyle(color: Colors.black54, fontSize: 13),
+              style: const TextStyle(
+                  color: SpringRainUiTokens.daylightTextTertiary,
+                  fontSize: 13),
             ),
           ),
           Expanded(
             child: Text(
               value,
               style: const TextStyle(
-                color: Colors.black87,
+                color: SpringRainUiTokens.daylightTextPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),

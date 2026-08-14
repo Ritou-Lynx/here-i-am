@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/token_usage_utils.dart';
 
 class ModelStatsPage extends StatefulWidget {
@@ -246,8 +246,8 @@ class _ModelStatsPageState extends State<ModelStatsPage>
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.modelUsageStats),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
         elevation: 0,
         actions: [
           IconButton(
@@ -301,7 +301,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
       padding: const EdgeInsets.all(16),
       children: [
         _buildStatCard(UserStorage.l10n.totalCalls, total['calls'].toString(),
-            Colors.blue),
+            SpringRainUiTokens.daylightAccent),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -314,7 +314,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(UserStorage.l10n.totalEstimatedCost,
-                  _formatTotalCost(cost), Colors.red),
+                  _formatTotalCost(cost), SpringRainUiTokens.daylightError),
             ),
           ],
         ),
@@ -323,7 +323,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
             UserStorage.l10n.cacheRate,
             _calculateCacheRate(total['cached_tokens_for_rate'] as int? ?? 0,
                 total['effective_prompt_tokens'] as int? ?? 0),
-            Colors.teal),
+            SpringRainUiTokens.daylightSuccess),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -331,14 +331,14 @@ class _ModelStatsPageState extends State<ModelStatsPage>
               child: _buildStatCard(
                   UserStorage.l10n.promptTokens,
                   _formatTokenCount(total['prompt_tokens'] as int? ?? 0),
-                  Colors.orange),
+                  SpringRainUiTokens.daylightWarning),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(
                   UserStorage.l10n.completionTokens,
                   _formatTokenCount(total['completion_tokens'] as int? ?? 0),
-                  Colors.green),
+                  SpringRainUiTokens.daylightSuccess),
             ),
           ],
         ),
@@ -349,14 +349,14 @@ class _ModelStatsPageState extends State<ModelStatsPage>
               child: _buildStatCard(
                   UserStorage.l10n.cachedTokens,
                   _formatTokenCount(total['cached_tokens'] as int? ?? 0),
-                  Colors.cyan),
+                  SpringRainUiTokens.daylightAccent),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(
                   UserStorage.l10n.thoughtTokens,
                   _formatTokenCount(total['thought_tokens'] as int? ?? 0),
-                  Colors.teal),
+                  SpringRainUiTokens.daylightSuccess),
             ),
           ],
         ),
@@ -413,7 +413,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                         Text(
                           _formatTotalCost(cost),
                           style: const TextStyle(
-                            color: Colors.red,
+                            color: SpringRainUiTokens.daylightError,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -423,13 +423,13 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.blue.withValues(alpha: 0.1),
+                            color: SpringRainUiTokens.daylightAccent.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             UserStorage.l10n.callsCount(itemData['calls']),
                             style: const TextStyle(
-                              color: Colors.blue,
+                              color: SpringRainUiTokens.daylightAccent,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),
@@ -527,7 +527,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                         Text(
                           _formatTotalCost(cost),
                           style: const TextStyle(
-                            color: Colors.red,
+                            color: SpringRainUiTokens.daylightError,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -536,7 +536,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                         _buildMiniStat(
                           UserStorage.l10n.calls,
                           '${itemData['calls']}',
-                          Colors.blue,
+                          SpringRainUiTokens.daylightAccent,
                         ),
                       ],
                     ),
@@ -587,7 +587,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                               modelName,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey[700],
+                                color: SpringRainUiTokens.daylightTextSecondary,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -597,7 +597,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                             UserStorage.l10n.callsCount(modelData['calls']),
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey[600],
+                              color: SpringRainUiTokens.daylightTextSecondary,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -615,7 +615,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                             _formatTotalCost(modelCost),
                             style: const TextStyle(
                               fontSize: 11,
-                              color: Colors.red,
+                              color: SpringRainUiTokens.daylightError,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -721,14 +721,14 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                       ),
                       Text(timeStr,
                           style: const TextStyle(
-                              fontSize: 12, color: Colors.grey)),
+                              fontSize: 12, color: SpringRainUiTokens.daylightTextTertiary)),
                     ],
                   ),
                   if (record['scene_id'] != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       'ID: ${record['scene_id']}',
-                      style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                      style: TextStyle(fontSize: 10, color: SpringRainUiTokens.daylightTextSecondary),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -742,12 +742,12 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                       _buildMiniStat(UserStorage.l10n.totalTokens,
                           _formatTokenCount(recTotal), Colors.purple),
                       _buildMiniStat(
-                          UserStorage.l10n.cacheRate, cacheRate, Colors.teal),
+                          UserStorage.l10n.cacheRate, cacheRate, SpringRainUiTokens.daylightSuccess),
                       Text(
                         _formatCost(recCost),
                         style: const TextStyle(
                             fontSize: 11,
-                            color: Colors.red,
+                            color: SpringRainUiTokens.daylightError,
                             fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -759,28 +759,28 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                           child: Text(
                               '${UserStorage.l10n.prompt}: ${_formatTokenCount(recPrompt)}',
                               style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[700]),
+                                  fontSize: 11, color: SpringRainUiTokens.daylightTextSecondary),
                               overflow: TextOverflow.ellipsis)),
                       const SizedBox(width: 4),
                       Expanded(
                           child: Text(
                               '${UserStorage.l10n.completion}: ${_formatTokenCount(recCompletion)}',
                               style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[700]),
+                                  fontSize: 11, color: SpringRainUiTokens.daylightTextSecondary),
                               overflow: TextOverflow.ellipsis)),
                       const SizedBox(width: 4),
                       Expanded(
                           child: Text(
                               '${UserStorage.l10n.cached}: ${_formatTokenCount(recCached)}',
                               style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[700]),
+                                  fontSize: 11, color: SpringRainUiTokens.daylightTextSecondary),
                               overflow: TextOverflow.ellipsis)),
                       const SizedBox(width: 4),
                       Expanded(
                           child: Text(
                               '${UserStorage.l10n.thought}: ${_formatTokenCount(recThought)}',
                               style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[700]),
+                                  fontSize: 11, color: SpringRainUiTokens.daylightTextSecondary),
                               overflow: TextOverflow.ellipsis)),
                     ],
                   ),
@@ -805,7 +805,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
         builder: (context, scrollController) {
           return Container(
             decoration: const BoxDecoration(
-              color: Colors.white,
+              color: SpringRainUiTokens.daylightSurface,
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             padding: const EdgeInsets.all(16),
@@ -871,7 +871,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
 
                       return Card(
                         elevation: 0,
-                        color: Colors.grey[50],
+                        color: SpringRainUiTokens.daylightSurfaceMuted,
                         margin: const EdgeInsets.only(bottom: 8),
                         child: InkWell(
                           onTap: () => _showCallDetails(call),
@@ -897,14 +897,14 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                                     const SizedBox(width: 8),
                                     Text(timeStr,
                                         style: const TextStyle(
-                                            fontSize: 12, color: Colors.grey)),
+                                            fontSize: 12, color: SpringRainUiTokens.daylightTextTertiary)),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                     '${UserStorage.l10n.model}: ${call['model']}',
                                     style: TextStyle(
-                                        fontSize: 11, color: Colors.grey[600]),
+                                        fontSize: 11, color: SpringRainUiTokens.daylightTextSecondary),
                                     overflow: TextOverflow.ellipsis),
                                 const SizedBox(height: 8),
                                 Row(
@@ -920,12 +920,12 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                                         '${UserStorage.l10n.cacheRate}: $cacheRate',
                                         style: const TextStyle(
                                             fontSize: 12,
-                                            color: Colors.teal,
+                                            color: SpringRainUiTokens.daylightSuccess,
                                             fontWeight: FontWeight.bold)),
                                     Text(_formatCost(totalCost),
                                         style: const TextStyle(
                                             fontSize: 12,
-                                            color: Colors.red,
+                                            color: SpringRainUiTokens.daylightError,
                                             fontWeight: FontWeight.bold)),
                                   ],
                                 ),
@@ -937,7 +937,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                                         '${UserStorage.l10n.prompt}: ${_formatTokenCount(prompt)}\n${_formatCost(inputCost)}',
                                         style: TextStyle(
                                             fontSize: 11,
-                                            color: Colors.grey[700]),
+                                            color: SpringRainUiTokens.daylightTextSecondary),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -947,7 +947,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                                         '${UserStorage.l10n.completion}: ${_formatTokenCount(completion)}\n${_formatCost(outputCost)}',
                                         style: TextStyle(
                                             fontSize: 11,
-                                            color: Colors.grey[700]),
+                                            color: SpringRainUiTokens.daylightTextSecondary),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -957,7 +957,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                                         '${UserStorage.l10n.cached}: ${_formatTokenCount(cached)}',
                                         style: TextStyle(
                                             fontSize: 11,
-                                            color: Colors.grey[700]),
+                                            color: SpringRainUiTokens.daylightTextSecondary),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -967,7 +967,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
                                         '${UserStorage.l10n.thought}: ${_formatTokenCount(thought)}',
                                         style: TextStyle(
                                             fontSize: 11,
-                                            color: Colors.grey[700]),
+                                            color: SpringRainUiTokens.daylightTextSecondary),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -1023,7 +1023,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text(call['agent_name'] ?? UserStorage.l10n.callDetails),
         content: SingleChildScrollView(
           child: Column(
@@ -1070,7 +1070,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: SpringRainUiTokens.daylightSurface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.3)),
         boxShadow: [
@@ -1088,7 +1088,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
             title,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey[600],
+              color: SpringRainUiTokens.daylightTextSecondary,
             ),
           ),
           const SizedBox(height: 8),
@@ -1113,7 +1113,7 @@ class _ModelStatsPageState extends State<ModelStatsPage>
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 13, color: SpringRainUiTokens.daylightTextSecondary),
           ),
           Expanded(
             child: Text(

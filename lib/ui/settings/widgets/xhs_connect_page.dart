@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
@@ -6,7 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:memex/data/services/reading/xhs/xhs_cookie_repository.dart';
 import 'package:memex/data/services/reading/xhs/xhs_hidden_webview_host.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/logger.dart';
 
 /// Full-screen page that lets the user log into 小红书 inside an in-app
@@ -153,10 +153,10 @@ class _XhsConnectPageState extends State<XhsConnectPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: SpringRainUiTokens.daylightCanvas,
       appBar: AppBar(
         title: const Text('连接小红书账号'),
-        backgroundColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
         elevation: 0,
         actions: [
           TextButton(
@@ -164,7 +164,7 @@ class _XhsConnectPageState extends State<XhsConnectPage> {
             child: const Text(
               '我已登录',
               style: TextStyle(
-                color: AppColors.primary,
+                color: SpringRainUiTokens.daylightAccent,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -175,7 +175,7 @@ class _XhsConnectPageState extends State<XhsConnectPage> {
         children: [
           Container(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-            color: AppColors.background,
+            color: SpringRainUiTokens.daylightCanvas,
             child: const Text(
               '在下方页面登录你的小红书账号（推荐用手机号或扫码）。'
               '登录成功后请点击右上角的「我已登录」按钮完成连接。\n\n'

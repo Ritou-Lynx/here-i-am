@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:memex/domain/models/settings_item.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/settings/view_models/settings_search_viewmodel.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -33,10 +33,10 @@ class _SettingsSearchScreenState extends State<SettingsSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: SpringRainUiTokens.daylightCanvas,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -59,7 +59,7 @@ class _SettingsSearchScreenState extends State<SettingsSearchScreen> {
       decoration: InputDecoration(
         hintText: UserStorage.l10n.settingsSearchPlaceholder,
         hintStyle: const TextStyle(
-          color: AppColors.textTertiary,
+          color: SpringRainUiTokens.daylightTextTertiary,
           fontSize: 16,
         ),
         border: InputBorder.none,
@@ -67,7 +67,7 @@ class _SettingsSearchScreenState extends State<SettingsSearchScreen> {
       ),
       style: const TextStyle(
         fontSize: 16,
-        color: AppColors.textPrimary,
+        color: SpringRainUiTokens.daylightTextPrimary,
       ),
       onChanged: widget.viewModel.updateQuery,
     );
@@ -98,14 +98,14 @@ class _SettingsSearchScreenState extends State<SettingsSearchScreen> {
           Icon(
             Icons.search_off,
             size: 48,
-            color: AppColors.textTertiary.withValues(alpha: 0.5),
+            color: SpringRainUiTokens.daylightTextTertiary.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 12),
           Text(
             UserStorage.l10n.settingsSearchEmpty,
             style: const TextStyle(
               fontSize: 15,
-              color: AppColors.textTertiary,
+              color: SpringRainUiTokens.daylightTextTertiary,
             ),
           ),
         ],
@@ -124,11 +124,11 @@ class _SettingsSearchScreenState extends State<SettingsSearchScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: SpringRainUiTokens.daylightSurface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: AppColors.textSecondary.withValues(alpha: 0.08),
+                color: SpringRainUiTokens.daylightTextSecondary.withValues(alpha: 0.08),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -136,7 +136,7 @@ class _SettingsSearchScreenState extends State<SettingsSearchScreen> {
           ),
           child: Row(
             children: [
-              Icon(item.icon, color: AppColors.primary, size: 22),
+              Icon(item.icon, color: SpringRainUiTokens.daylightAccent, size: 22),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -147,7 +147,7 @@ class _SettingsSearchScreenState extends State<SettingsSearchScreen> {
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
+                        color: SpringRainUiTokens.daylightTextPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -155,7 +155,7 @@ class _SettingsSearchScreenState extends State<SettingsSearchScreen> {
                       item.breadcrumb,
                       style: const TextStyle(
                         fontSize: 13,
-                        color: AppColors.textTertiary,
+                        color: SpringRainUiTokens.daylightTextTertiary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -163,7 +163,7 @@ class _SettingsSearchScreenState extends State<SettingsSearchScreen> {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+              const Icon(Icons.chevron_right, color: SpringRainUiTokens.daylightTextTertiary),
             ],
           ),
         ),

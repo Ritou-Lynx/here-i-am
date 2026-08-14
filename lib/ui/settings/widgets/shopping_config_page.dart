@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:memex/data/services/ai_purchase_service.dart';
 import 'package:memex/data/services/remote_task_service.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 /// Settings page for the autonomous shopping feature.
 ///
@@ -140,11 +140,11 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: SpringRainUiTokens.daylightSurfaceMuted,
       appBar: AppBar(
         title: const Text('购物助手'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
+        foregroundColor: SpringRainUiTokens.daylightTextPrimary,
         elevation: 0,
         actions: [
           TextButton(
@@ -166,7 +166,7 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
                     subtitle: const Text('开启后 AI 伴侣可在你授权的预算内自主下单'),
                     value: _enabled,
                     onChanged: (v) => setState(() => _enabled = v),
-                    activeColor: AppColors.primary,
+                    activeColor: SpringRainUiTokens.daylightAccent,
                   ),
                 ]),
                 const SizedBox(height: 16),
@@ -195,12 +195,12 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
                           children: [
                             Text('已花费：¥${_cumulativeSpent.toStringAsFixed(2)}',
                                 style: const TextStyle(
-                                    fontSize: 14, color: Colors.grey)),
+                                    fontSize: 14, color: SpringRainUiTokens.daylightTextTertiary)),
                             Text(
                                 '剩余：¥${(_cumulativeLimit - _cumulativeSpent).clamp(0, double.infinity).toStringAsFixed(2)}',
                                 style: TextStyle(
                                     fontSize: 14,
-                                    color: AppColors.primary,
+                                    color: SpringRainUiTokens.daylightAccent,
                                     fontWeight: FontWeight.w600)),
                           ],
                         ),
@@ -242,7 +242,7 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
                     child: Text(
                       '配置后，AI 伴侣下单时会把任务推送给电脑端 Hermes Agent，由它自动完成淘宝下单和支付宝收银台生成。\n'
                       '留空则退回到"你手动下单、把收银台链接发给我"的半自动模式。',
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                      style: TextStyle(fontSize: 13, color: SpringRainUiTokens.daylightTextTertiary),
                     ),
                   ),
                   TextField(
@@ -294,22 +294,22 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
                           child: _connectionStatus!.isEmpty
                               ? const Row(children: [
                                   Icon(Icons.check_circle,
-                                      color: Colors.green, size: 16),
+                                      color: SpringRainUiTokens.daylightSuccess, size: 16),
                                   SizedBox(width: 4),
                                   Text('连接成功',
                                       style: TextStyle(
-                                          color: Colors.green, fontSize: 13)),
+                                          color: SpringRainUiTokens.daylightSuccess, fontSize: 13)),
                                 ])
                               : Row(
                                   children: [
                                     const Icon(Icons.error_outline,
-                                        color: Colors.red, size: 16),
+                                        color: SpringRainUiTokens.daylightError, size: 16),
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
                                         _connectionStatus!,
                                         style: const TextStyle(
-                                            color: Colors.red, fontSize: 12),
+                                            color: SpringRainUiTokens.daylightError, fontSize: 12),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -329,11 +329,11 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
   Widget _card(List<Widget> children) => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: SpringRainUiTokens.daylightSurface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: AppColors.textSecondary.withValues(alpha: 0.08),
+              color: SpringRainUiTokens.daylightTextSecondary.withValues(alpha: 0.08),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -349,7 +349,7 @@ class _ShoppingConfigPageState extends State<ShoppingConfigPage> {
             style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 15,
-                color: AppColors.textPrimary)),
+                color: SpringRainUiTokens.daylightTextPrimary)),
       );
 
   Widget _field({
@@ -397,11 +397,11 @@ class _PaymentModeOption extends StatelessWidget {
         value: true,
         groupValue: selected ? true : false,
         onChanged: enabled && onTap != null ? (_) => onTap!() : null,
-        activeColor: AppColors.primary,
+        activeColor: SpringRainUiTokens.daylightAccent,
       ),
-      title: Text(label, style: TextStyle(color: enabled ? null : Colors.grey)),
+      title: Text(label, style: TextStyle(color: enabled ? null : SpringRainUiTokens.daylightTextTertiary)),
       subtitle: Text(subtitle,
-          style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          style: const TextStyle(fontSize: 12, color: SpringRainUiTokens.daylightTextTertiary)),
       onTap: onTap,
     );
   }

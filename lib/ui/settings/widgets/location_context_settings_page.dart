@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/location_context_service.dart';
 import 'package:memex/domain/models/location_context_config.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
 
 typedef CurrentLocationContextLoader = Future<CurrentLocationContext> Function(
@@ -220,11 +220,11 @@ class _LocationContextSettingsPageState
   Widget build(BuildContext context) {
     final l10n = UserStorage.l10n;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: SpringRainUiTokens.daylightCanvas,
       appBar: AppBar(
         title: const Text('位置、地图与天气'),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -252,7 +252,7 @@ class _LocationContextSettingsPageState
             contentPadding: EdgeInsets.zero,
             secondary: const Icon(
               Icons.my_location_outlined,
-              color: AppColors.primary,
+              color: SpringRainUiTokens.daylightAccent,
             ),
             title: const Text('让 I 知道你的位置'),
             subtitle: const Text(
@@ -278,7 +278,7 @@ class _LocationContextSettingsPageState
           const SizedBox(height: 6),
           Text(
             '用于路线规划、天气风险提醒、周边地点和路线陪跑。日常记忆地点仍可在高级设置里继续使用 OpenStreetMap。',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 12, color: SpringRainUiTokens.daylightTextSecondary),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -302,7 +302,7 @@ class _LocationContextSettingsPageState
         contentPadding: EdgeInsets.zero,
         secondary: const Icon(
           Icons.directions_transit_filled_outlined,
-          color: AppColors.primary,
+          color: SpringRainUiTokens.daylightAccent,
         ),
         title: const Text('路线陪跑提醒'),
         subtitle: const Text(
@@ -322,7 +322,7 @@ class _LocationContextSettingsPageState
         childrenPadding: const EdgeInsets.only(top: 8),
         leading: const Icon(
           Icons.tune_outlined,
-          color: AppColors.primary,
+          color: SpringRainUiTokens.daylightAccent,
         ),
         title: const Text(
           '高级设置',
@@ -353,7 +353,7 @@ class _LocationContextSettingsPageState
         const SizedBox(height: 6),
         Text(
           '用于把 GPS 转成城市、区县和街区。记忆来源地点建议保持轻量，不需要特别精确。',
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          style: TextStyle(fontSize: 12, color: SpringRainUiTokens.daylightTextSecondary),
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<GeocodingProvider>(
@@ -386,7 +386,7 @@ class _LocationContextSettingsPageState
           const SizedBox(height: 8),
           Text(
             l10n.amapGcj02Note,
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 12, color: SpringRainUiTokens.daylightTextSecondary),
           ),
         ],
       ],
@@ -483,7 +483,7 @@ class _LocationContextSettingsPageState
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: SpringRainUiTokens.daylightTextOnAccent,
                   ),
                 )
               : const Icon(Icons.location_searching),
@@ -495,7 +495,7 @@ class _LocationContextSettingsPageState
             _testResult!,
             style: TextStyle(
               fontSize: 13,
-              color: Colors.grey[700],
+              color: SpringRainUiTokens.daylightTextSecondary,
               height: 1.4,
             ),
           ),
@@ -506,9 +506,9 @@ class _LocationContextSettingsPageState
 
   Widget _section({required Widget child}) {
     return Material(
-      color: Colors.white,
+      color: SpringRainUiTokens.daylightSurface,
       elevation: 2,
-      shadowColor: AppColors.textSecondary.withValues(alpha: 0.08),
+      shadowColor: SpringRainUiTokens.daylightTextSecondary.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: Padding(

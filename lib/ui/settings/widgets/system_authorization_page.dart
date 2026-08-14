@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/data/services/health_service.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'dart:io' show Platform;
 
 class SystemAuthorizationPage extends StatefulWidget {
@@ -124,7 +124,7 @@ class _SystemAuthorizationPageState extends State<SystemAuthorizationPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurfaceRaised,
         title: Text(UserStorage.l10n.permissionRequiredTitle),
         content: Text(UserStorage.l10n.permissionPermanentlyDeniedMessage),
         actions: [
@@ -156,13 +156,13 @@ class _SystemAuthorizationPageState extends State<SystemAuthorizationPage> {
     String statusText;
 
     if (status == null) {
-      statusColor = Colors.grey;
+      statusColor = SpringRainUiTokens.daylightTextTertiary;
       statusText = UserStorage.l10n.getting;
     } else if (status.isGranted || status.isLimited) {
-      statusColor = Colors.green;
+      statusColor = SpringRainUiTokens.daylightSuccess;
       statusText = UserStorage.l10n.authorized;
     } else {
-      statusColor = Colors.orange;
+      statusColor = SpringRainUiTokens.daylightWarning;
       statusText = UserStorage.l10n.unauthorized;
     }
 
@@ -170,7 +170,7 @@ class _SystemAuthorizationPageState extends State<SystemAuthorizationPage> {
       leading: Stack(
         clipBehavior: Clip.none,
         children: [
-          Icon(icon, color: AppColors.primary, size: 28),
+          Icon(icon, color: SpringRainUiTokens.daylightAccent, size: 28),
           if (showBadge)
             Positioned(
               right: -2,
@@ -179,7 +179,7 @@ class _SystemAuthorizationPageState extends State<SystemAuthorizationPage> {
                 width: 10,
                 height: 10,
                 decoration: const BoxDecoration(
-                  color: Colors.red,
+                  color: SpringRainUiTokens.daylightError,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -188,13 +188,13 @@ class _SystemAuthorizationPageState extends State<SystemAuthorizationPage> {
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
       subtitle: Text(subtitle,
-          style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+          style: TextStyle(color: SpringRainUiTokens.daylightTextSecondary, fontSize: 13)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(statusText, style: TextStyle(color: statusColor, fontSize: 14)),
           const SizedBox(width: 8),
-          const Icon(Icons.chevron_right, color: Colors.grey),
+          const Icon(Icons.chevron_right, color: SpringRainUiTokens.daylightTextTertiary),
         ],
       ),
       onTap: () {
@@ -216,16 +216,16 @@ class _SystemAuthorizationPageState extends State<SystemAuthorizationPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.systemAuthorization),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
-        foregroundColor: Colors.black,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
+        foregroundColor: SpringRainUiTokens.daylightTextPrimary,
         elevation: 0.5,
       ),
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: SpringRainUiTokens.daylightCanvas,
       body: ListView(
         children: [
           Container(
-            color: Colors.white,
+            color: SpringRainUiTokens.daylightSurface,
             child: Column(
               children: [
                 _buildPermissionItem(

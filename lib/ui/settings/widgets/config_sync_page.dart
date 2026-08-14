@@ -9,7 +9,7 @@ import 'package:memex/data/services/sync/config_sync_s3.dart';
 import 'package:memex/data/services/sync/config_sync_s3_credentials.dart';
 import 'package:memex/data/services/sync/config_sync_service.dart';
 import 'package:memex/data/services/sync/memory_data_sync_service.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/toast_helper.dart';
 
@@ -643,8 +643,8 @@ class _ConfigSyncPageState extends State<ConfigSyncPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('同步与迁移'),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -798,10 +798,11 @@ class _ConfigSyncPageState extends State<ConfigSyncPage> {
   }) {
     return Card(
       elevation: 0,
-      color: AppColors.background,
+      color: SpringRainUiTokens.daylightCanvas,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+        side: BorderSide(
+            color: SpringRainUiTokens.daylightDivider.withValues(alpha: 0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -824,7 +825,9 @@ class _ConfigSyncPageState extends State<ConfigSyncPage> {
             const SizedBox(height: 8),
             Text(
               description,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: const TextStyle(
+                  fontSize: 13,
+                  color: SpringRainUiTokens.daylightTextSecondary),
             ),
             const SizedBox(height: 12),
             Row(

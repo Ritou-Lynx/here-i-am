@@ -146,6 +146,7 @@ class SpringRainUiTokens extends ThemeExtension<SpringRainUiTokens> {
   // Public constants used by const widgets before a BuildContext exists.
   static const Color daylightCanvas = Color(0xFFF8F6EB);
   static const Color daylightSurface = Color(0xFFFCFAF1);
+  static const Color daylightSurfaceRaised = Color(0xFFFFFDF7);
   static const Color daylightSurfaceMuted = Color(0xFFEDE9D8);
   static const Color daylightTextPrimary = Color(0xFF293025);
   static const Color daylightTextSecondary = Color(0xFF74766E);

@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:logging/logging.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:memex/data/services/backup_service.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_confirm_dialog.dart';
 import 'package:memex/ui/settings/widgets/config_sync_page.dart';
 import 'package:memex/utils/logger.dart';
@@ -223,7 +223,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
 
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: SpringRainUiTokens.daylightSurface,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -333,7 +333,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text(UserStorage.l10n.confirmDeleteBackup),
         content: Text(
           UserStorage.l10n.confirmDeleteBackupMessage(snapshot.name),
@@ -345,7 +345,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: SpringRainUiTokens.daylightError),
             child: Text(UserStorage.l10n.delete),
           ),
         ],
@@ -388,7 +388,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       context: context,
       builder: (context) => backupInfo == null
           ? AlertDialog(
-              backgroundColor: Colors.white,
+              backgroundColor: SpringRainUiTokens.daylightSurface,
               title: Text(UserStorage.l10n.confirmRestore),
               content: Text(UserStorage.l10n.confirmRestoreMessage),
               actions: [
@@ -398,7 +398,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context, true),
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  style: TextButton.styleFrom(foregroundColor: SpringRainUiTokens.daylightError),
                   child: Text(UserStorage.l10n.confirm),
                 ),
               ],
@@ -438,7 +438,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            backgroundColor: Colors.white,
+            backgroundColor: SpringRainUiTokens.daylightSurface,
             title: Text(UserStorage.l10n.restoreComplete),
             content: Text(UserStorage.l10n.restoreRestartHint),
             actions: [
@@ -480,8 +480,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.backupAndRestore),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -524,10 +524,12 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           const SizedBox(height: 16),
           Card(
             elevation: 0,
-            color: AppColors.background,
+            color: SpringRainUiTokens.daylightCanvas,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+              side: BorderSide(
+                  color: SpringRainUiTokens.daylightDivider
+                      .withValues(alpha: 0.2)),
             ),
             child: ListTile(
               leading: const Icon(Icons.sync_outlined),
@@ -567,8 +569,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                       style: TextStyle(
                         fontSize: 14,
                         color: isBusy
-                            ? AppColors.textSecondary
-                            : const Color(0xFF16A34A),
+                            ? SpringRainUiTokens.daylightTextSecondary
+                            : SpringRainUiTokens.daylightSuccess,
                       ),
                     ),
                   ),
@@ -594,7 +596,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             children: [
               const Icon(
                 Icons.auto_awesome_outlined,
-                color: AppColors.primary,
+                color: SpringRainUiTokens.daylightAccent,
                 size: 24,
               ),
               const SizedBox(width: 12),
@@ -604,13 +606,13 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: SpringRainUiTokens.daylightTextPrimary,
                   ),
                 ),
               ),
               Switch(
                 value: _autoBackupEnabled,
-                activeThumbColor: AppColors.primary,
+                activeThumbColor: SpringRainUiTokens.daylightAccent,
                 onChanged: isBusy ? null : _toggleAutoBackup,
               ),
             ],
@@ -620,7 +622,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             UserStorage.l10n.autoBackupDescription,
             style: const TextStyle(
               fontSize: 13,
-              color: AppColors.textTertiary,
+              color: SpringRainUiTokens.daylightTextTertiary,
               height: 1.5,
             ),
           ),
@@ -629,7 +631,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             UserStorage.l10n.backupSensitiveSettingsHint,
             style: const TextStyle(
               fontSize: 12,
-              color: AppColors.textSecondary,
+              color: SpringRainUiTokens.daylightTextSecondary,
               height: 1.4,
             ),
           ),
@@ -685,7 +687,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             children: [
               const Icon(
                 Icons.cloud_upload_outlined,
-                color: AppColors.primary,
+                color: SpringRainUiTokens.daylightAccent,
                 size: 24,
               ),
               const SizedBox(width: 12),
@@ -695,13 +697,13 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: SpringRainUiTokens.daylightTextPrimary,
                   ),
                 ),
               ),
               Switch(
                 value: _autoCloudSyncEnabled,
-                activeThumbColor: AppColors.primary,
+                activeThumbColor: SpringRainUiTokens.daylightAccent,
                 onChanged: isBusy ? null : _toggleAutoCloudSync,
               ),
             ],
@@ -712,7 +714,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             '不会自动从云端恢复数据。',
             style: TextStyle(
               fontSize: 13,
-              color: AppColors.textTertiary,
+              color: SpringRainUiTokens.daylightTextTertiary,
               height: 1.5,
             ),
           ),
@@ -721,7 +723,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             '仅上传，不下载。切换设备时仍需手动恢复。',
             style: TextStyle(
               fontSize: 12,
-              color: AppColors.textSecondary,
+              color: SpringRainUiTokens.daylightTextSecondary,
               height: 1.4,
             ),
           ),
@@ -739,7 +741,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             children: [
               const Icon(
                 Icons.history_outlined,
-                color: AppColors.primary,
+                color: SpringRainUiTokens.daylightAccent,
                 size: 24,
               ),
               const SizedBox(width: 12),
@@ -749,7 +751,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: SpringRainUiTokens.daylightTextPrimary,
                   ),
                 ),
               ),
@@ -766,7 +768,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
               UserStorage.l10n.noStoredBackups,
               style: const TextStyle(
                 fontSize: 13,
-                color: AppColors.textTertiary,
+                color: SpringRainUiTokens.daylightTextTertiary,
                 height: 1.5,
               ),
             )
@@ -801,7 +803,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.primary, size: 24),
+              Icon(icon, color: SpringRainUiTokens.daylightAccent, size: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -812,7 +814,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: SpringRainUiTokens.daylightTextPrimary,
                       ),
                     ),
                     if (subtitle != null)
@@ -822,7 +824,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                           subtitle,
                           style: const TextStyle(
                             fontSize: 13,
-                            color: AppColors.textSecondary,
+                            color: SpringRainUiTokens.daylightTextSecondary,
                           ),
                         ),
                       ),
@@ -836,7 +838,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             description,
             style: const TextStyle(
               fontSize: 13,
-              color: AppColors.textTertiary,
+              color: SpringRainUiTokens.daylightTextTertiary,
               height: 1.5,
             ),
           ),
@@ -846,8 +848,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             child: ElevatedButton(
               onPressed: onPressed,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+                backgroundColor: SpringRainUiTokens.daylightAccent,
+                foregroundColor: SpringRainUiTokens.daylightSurface,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -859,7 +861,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: SpringRainUiTokens.daylightSurface,
                       ),
                     )
                   : Text(buttonText),
@@ -874,11 +876,11 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: SpringRainUiTokens.daylightSurface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppColors.textSecondary.withValues(alpha: 0.08),
+            color: SpringRainUiTokens.daylightTextSecondary.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -898,7 +900,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             label,
             style: const TextStyle(
               fontSize: 12,
-              color: AppColors.textSecondary,
+              color: SpringRainUiTokens.daylightTextSecondary,
             ),
           ),
         ),
@@ -907,7 +909,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             value,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+            style: const TextStyle(fontSize: 12, color: SpringRainUiTokens.daylightTextPrimary),
           ),
         ),
       ],
@@ -939,7 +941,7 @@ class _StoredBackupTile extends StatelessWidget {
       padding: const EdgeInsets.only(top: 10),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: SpringRainUiTokens.daylightDivider),
           borderRadius: BorderRadius.circular(12),
         ),
         child: ListTile(
@@ -951,7 +953,7 @@ class _StoredBackupTile extends StatelessWidget {
             snapshot.isSafetySnapshot
                 ? Icons.health_and_safety_outlined
                 : Icons.inventory_2_outlined,
-            color: AppColors.primary,
+            color: SpringRainUiTokens.daylightAccent,
           ),
           title: Text(
             snapshot.name,
@@ -978,7 +980,7 @@ class _StoredBackupTile extends StatelessWidget {
                 key: ValueKey('backup-delete-${snapshot.id}'),
                 tooltip: l10n.deleteThisBackup,
                 onPressed: onDelete,
-                color: const Color(0xFFDC2626),
+                color: SpringRainUiTokens.daylightError,
                 icon: isDeleting
                     ? const SizedBox(
                         width: 18,

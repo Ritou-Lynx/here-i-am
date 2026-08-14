@@ -11,7 +11,7 @@ import 'package:memex/data/services/model_test_service.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/ui/core/widgets/searchable_dropdown.dart';
 import 'package:memex/config/app_config.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 class ModelConfigEditPage extends StatefulWidget {
   final LLMConfig? config;
@@ -250,7 +250,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text(l10n.oauthHintTitle),
         content: Text(l10n.oauthHintMessage),
         actions: [
@@ -282,7 +282,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: SpringRainUiTokens.daylightSurface,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -294,7 +294,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                     UserStorage.l10n.authorizing,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Colors.black87,
+                      color: SpringRainUiTokens.daylightTextPrimary,
                       decoration: TextDecoration.none,
                       fontWeight: FontWeight.normal,
                     ),
@@ -342,7 +342,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: SpringRainUiTokens.daylightSurface,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -354,7 +354,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                     UserStorage.l10n.authorizing,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Colors.black87,
+                      color: SpringRainUiTokens.daylightTextPrimary,
                       decoration: TextDecoration.none,
                       fontWeight: FontWeight.normal,
                     ),
@@ -394,9 +394,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: SpringRainUiTokens.daylightSurfaceMuted,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: SpringRainUiTokens.daylightDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -405,7 +405,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
             children: [
               Icon(
                 isAuthorized ? Icons.check_circle : Icons.info_outline,
-                color: isAuthorized ? Colors.green : Colors.orange,
+                color: isAuthorized
+                    ? SpringRainUiTokens.daylightSuccess
+                    : SpringRainUiTokens.daylightWarning,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -413,7 +415,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                 isAuthorized ? 'Authorized' : 'Not authorized',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: isAuthorized ? Colors.green : Colors.orange,
+                  color: isAuthorized
+                      ? SpringRainUiTokens.daylightSuccess
+                      : SpringRainUiTokens.daylightWarning,
                 ),
               ),
             ],
@@ -439,10 +443,12 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                     await OpenAiAuthService.clearTokens();
                     _loadOpenAiTokens();
                   },
-                  icon: const Icon(Icons.logout, color: Colors.red),
+                  icon: const Icon(Icons.logout,
+                      color: SpringRainUiTokens.daylightError),
                   label: Text(
                     UserStorage.l10n.clearAuth,
-                    style: const TextStyle(color: Colors.red),
+                    style: const TextStyle(
+                        color: SpringRainUiTokens.daylightError),
                   ),
                 ),
               ),
@@ -458,9 +464,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: SpringRainUiTokens.daylightSurfaceMuted,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: SpringRainUiTokens.daylightDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,7 +475,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
             children: [
               Icon(
                 isAuthorized ? Icons.check_circle : Icons.info_outline,
-                color: isAuthorized ? Colors.green : Colors.orange,
+                color: isAuthorized
+                    ? SpringRainUiTokens.daylightSuccess
+                    : SpringRainUiTokens.daylightWarning,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -477,7 +485,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                 isAuthorized ? 'Authorized' : 'Not authorized',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: isAuthorized ? Colors.green : Colors.orange,
+                  color: isAuthorized
+                      ? SpringRainUiTokens.daylightSuccess
+                      : SpringRainUiTokens.daylightWarning,
                 ),
               ),
             ],
@@ -503,10 +513,12 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                     await GeminiAuthService.clearTokens();
                     _loadGeminiTokens();
                   },
-                  icon: const Icon(Icons.logout, color: Colors.red),
+                  icon: const Icon(Icons.logout,
+                      color: SpringRainUiTokens.daylightError),
                   label: Text(
                     UserStorage.l10n.clearAuth,
-                    style: const TextStyle(color: Colors.red),
+                    style: const TextStyle(
+                        color: SpringRainUiTokens.daylightError),
                   ),
                 ),
               ),
@@ -569,10 +581,10 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
             padding: EdgeInsets.only(top: groupIndex > 0 ? 4 : 0),
             child: Text(
               entry.key,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey[500],
+                color: SpringRainUiTokens.daylightTextTertiary,
                 letterSpacing: 0.5,
               ),
             ),
@@ -588,7 +600,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
               padding: const EdgeInsets.only(left: 12),
               child: Text(
                 provider.label,
-                style: TextStyle(color: Colors.grey[800]),
+                style: const TextStyle(
+                  color: SpringRainUiTokens.daylightTextPrimary,
+                ),
               ),
             ),
           ),
@@ -799,7 +813,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: SpringRainUiTokens.daylightSurface,
           title: Text(UserStorage.l10n.warning),
           content: Text(UserStorage.l10n.invalidConfigurationWarning),
           actions: [
@@ -834,7 +848,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            backgroundColor: Colors.white,
+            backgroundColor: SpringRainUiTokens.daylightSurface,
             title: Text(l10n.llmConsentTitle),
             content: SingleChildScrollView(
               child: Text(l10n.llmConsentMessage(providerName)),
@@ -884,7 +898,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text(UserStorage.l10n.resetConfigurationTitle),
         content: Text(UserStorage.l10n.resetConfigurationMessage),
         actions: [
@@ -896,7 +910,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               UserStorage.l10n.resetButton,
-              style: const TextStyle(color: Colors.red),
+              style: const TextStyle(color: SpringRainUiTokens.daylightError),
             ),
           ),
         ],
@@ -956,7 +970,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text(UserStorage.l10n.discardChangesTitle),
         content: Text(UserStorage.l10n.discardChangesMessage),
         actions: [
@@ -968,7 +982,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               UserStorage.l10n.discardButton,
-              style: const TextStyle(color: Colors.red),
+              style: const TextStyle(color: SpringRainUiTokens.daylightError),
             ),
           ),
         ],
@@ -985,17 +999,17 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: _testResult == null
-            ? const Color(0xFFF8FAFC)
+            ? SpringRainUiTokens.daylightSurfaceMuted
             : _testResult!.success
-                ? const Color(0xFFF0FDF4)
-                : const Color(0xFFFEF2F2),
+                ? SpringRainUiTokens.daylightSuccessSoft
+                : SpringRainUiTokens.daylightErrorSoft,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: _testResult == null
-              ? Colors.grey.shade200
+              ? SpringRainUiTokens.daylightDivider
               : _testResult!.success
-                  ? const Color(0xFF86EFAC)
-                  : const Color(0xFFFCA5A5),
+                  ? SpringRainUiTokens.daylightSuccess
+                  : SpringRainUiTokens.daylightError,
         ),
       ),
       child: Column(
@@ -1038,7 +1052,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                           height: 12,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: SpringRainUiTokens.daylightTextOnAccent,
                           ),
                         )
                       : const Icon(Icons.play_arrow_rounded, size: 16),
@@ -1062,8 +1076,8 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                       : Icons.cancel_rounded,
                   size: 14,
                   color: _testResult!.success
-                      ? const Color(0xFF16A34A)
-                      : const Color(0xFFDC2626),
+                      ? SpringRainUiTokens.daylightSuccess
+                      : SpringRainUiTokens.daylightError,
                 ),
                 const SizedBox(width: 5),
                 Text(
@@ -1074,8 +1088,8 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: _testResult!.success
-                        ? const Color(0xFF16A34A)
-                        : const Color(0xFFDC2626),
+                        ? SpringRainUiTokens.daylightSuccess
+                        : SpringRainUiTokens.daylightError,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1083,7 +1097,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                   '${_testResult!.responseTime.inMilliseconds}ms',
                   style: const TextStyle(
                     fontSize: 11,
-                    color: AppColors.textTertiary,
+                    color: SpringRainUiTokens.daylightTextTertiary,
                   ),
                 ),
               ],
@@ -1096,8 +1110,8 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                 style: TextStyle(
                   fontSize: 12,
                   color: _testResult!.success
-                      ? const Color(0xFF166534)
-                      : const Color(0xFF991B1B),
+                      ? SpringRainUiTokens.daylightSuccess
+                      : SpringRainUiTokens.daylightError,
                 ),
                 maxLines: 5,
                 overflow: TextOverflow.ellipsis,
@@ -1121,19 +1135,23 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.primary.withValues(alpha: 0.1)
-              : Colors.white,
+              ? SpringRainUiTokens.daylightAccentSoft
+              : SpringRainUiTokens.daylightSurface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: selected
-                ? AppColors.primary.withValues(alpha: 0.4)
-                : Colors.grey.shade300,
+                ? SpringRainUiTokens.daylightAccent.withValues(alpha: 0.4)
+                : SpringRainUiTokens.daylightDivider,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: AppColors.primary),
+            Icon(
+              icon,
+              size: 14,
+              color: SpringRainUiTokens.daylightAccent,
+            ),
             const SizedBox(width: 4),
             Text(label, style: const TextStyle(fontSize: 12)),
           ],
@@ -1158,8 +1176,8 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
       },
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: AppColors.background,
-          surfaceTintColor: AppColors.background,
+          backgroundColor: SpringRainUiTokens.daylightCanvas,
+          surfaceTintColor: SpringRainUiTokens.daylightCanvas,
           title: Text(
             widget.config == null
                 ? (widget.duplicateSource != null
@@ -1184,7 +1202,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                   child: IconButton(
                     icon: Icon(
                       Icons.save,
-                      color: _hasChanges ? Colors.blue.shade700 : null,
+                      color: _hasChanges
+                          ? SpringRainUiTokens.daylightAccent
+                          : null,
                     ),
                     onPressed: _save,
                   ),
@@ -1204,9 +1224,10 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),
+                    color: SpringRainUiTokens.daylightWarningSoft,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFBBF24)),
+                    border: Border.all(
+                        color: SpringRainUiTokens.daylightWarning),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1214,7 +1235,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                       const Icon(
                         Icons.info_outline,
                         size: 18,
-                        color: Color(0xFFD97706),
+                        color: SpringRainUiTokens.daylightWarning,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -1224,7 +1245,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                           ),
                           style: const TextStyle(
                             fontSize: 13,
-                            color: Color(0xFF92400E),
+                            color: SpringRainUiTokens.daylightWarning,
                           ),
                         ),
                       ),
@@ -1446,7 +1467,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                     UserStorage.l10n.enterApiKeyFirst,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.orange[700],
+                      color: SpringRainUiTokens.daylightWarning,
                       height: 1.3,
                     ),
                   ),
@@ -1505,16 +1526,16 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: AppColors.primary.withValues(
-                                          alpha: 0.1,
-                                        ),
+                                        color: SpringRainUiTokens
+                                            .daylightAccentSoft,
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
                                         UserStorage.l10n.recommendedBadge,
                                         style: const TextStyle(
                                           fontSize: 10,
-                                          color: AppColors.primary,
+                                          color:
+                                              SpringRainUiTokens.daylightAccent,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
@@ -1527,7 +1548,9 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.green.withValues(
+                                        color:
+                                            SpringRainUiTokens.daylightSuccess
+                                                .withValues(
                                           alpha: 0.1,
                                         ),
                                         borderRadius: BorderRadius.circular(4),
@@ -1536,7 +1559,8 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                                         _visionBadgeText,
                                         style: const TextStyle(
                                           fontSize: 10,
-                                          color: Colors.green,
+                                          color:
+                                              SpringRainUiTokens.daylightSuccess,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
@@ -1549,10 +1573,12 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFFFF7ED),
+                                        color: SpringRainUiTokens
+                                            .daylightWarningSoft,
                                         borderRadius: BorderRadius.circular(4),
                                         border: Border.all(
-                                          color: const Color(0xFFFBBF24),
+                                          color: SpringRainUiTokens
+                                              .daylightWarning,
                                           width: 0.5,
                                         ),
                                       ),
@@ -1560,7 +1586,8 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                                         'Pro/Plus',
                                         style: TextStyle(
                                           fontSize: 10,
-                                          color: Color(0xFFD97706),
+                                          color: SpringRainUiTokens
+                                              .daylightWarning,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
@@ -1602,7 +1629,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                       const Icon(
                         Icons.info_outline,
                         size: 14,
-                        color: Color(0xFFD97706),
+                        color: SpringRainUiTokens.daylightWarning,
                       ),
                       const SizedBox(width: 4),
                       Expanded(
@@ -1610,7 +1637,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                           UserStorage.l10n.proModelHint,
                           style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFFD97706),
+                            color: SpringRainUiTokens.daylightWarning,
                             height: 1.3,
                           ),
                         ),
@@ -1627,7 +1654,7 @@ class _ModelConfigEditPageState extends State<ModelConfigEditPage>
                     _notMultimodalHint,
                     style: const TextStyle(
                       fontSize: 12,
-                      color: Color(0xFFD97706),
+                            color: SpringRainUiTokens.daylightWarning,
                       height: 1.3,
                     ),
                   ),

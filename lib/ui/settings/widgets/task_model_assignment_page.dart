@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
 
 enum ModelAssignmentMode { tasks, agents }
@@ -28,12 +30,12 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   static const _inheritDefault = '__inherit_default__';
   static const _gameAgentId = 'game_agent';
   static const _backgroundAsset = 'assets/images/雨玻璃.jpg';
-  static const _warmSurface = Color(0xFFF8F6EB);
-  static const _warmControl = Color(0xFFEDE9D8);
-  static const _text = Color(0xFF293025);
-  static const _secondary = Color(0xFF74766E);
-  static const _accent = Color(0xFF6E7541);
-  static const _divider = Color(0x1F5B5843);
+  static const _warmSurface = SpringRainUiTokens.daylightCanvas;
+  static const _warmControl = SpringRainUiTokens.daylightSurfaceMuted;
+  static const _text = SpringRainUiTokens.daylightTextPrimary;
+  static const _secondary = SpringRainUiTokens.daylightTextSecondary;
+  static const _accent = SpringRainUiTokens.daylightAccent;
+  static const _divider = SpringRainUiTokens.daylightDivider;
 
   static const _tasks = <_TaskModelDefinition>[
     _TaskModelDefinition(
@@ -315,7 +317,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFF243029),
+        backgroundColor: HereIamThemeTokens.springRainDaydream.background,
         body: Stack(
           fit: StackFit.expand,
           children: [
@@ -408,17 +410,19 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
           IconButton(
             onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            color: const Color(0xFFF8FBF8),
+            color: SpringRainUiTokens.daylightTextOnAccent,
           ),
           const Expanded(
             child: Text(
               '模型分配',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Color(0xFFF8FBF8),
+                color: SpringRainUiTokens.daylightTextOnAccent,
                 fontWeight: FontWeight.w600,
                 fontSize: 17,
-                shadows: [Shadow(color: Colors.black45, blurRadius: 8)],
+                shadows: [
+                  Shadow(color: Color(0x73293025), blurRadius: 8),
+                ],
               ),
             ),
           ),

@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/utils/user_storage.dart';
-import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
 class AsyncTaskListPage extends StatefulWidget {
   const AsyncTaskListPage({super.key});
@@ -85,16 +85,16 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'completed':
-        return Colors.green;
+        return SpringRainUiTokens.daylightSuccess;
       case 'processing':
-        return Colors.blue;
+        return SpringRainUiTokens.daylightAccent;
       case 'failed':
-        return Colors.red;
+        return SpringRainUiTokens.daylightError;
       case 'retrying':
-        return Colors.orange;
+        return SpringRainUiTokens.daylightWarning;
       case 'pending':
       default:
-        return Colors.grey;
+        return SpringRainUiTokens.daylightTextTertiary;
     }
   }
 
@@ -109,7 +109,7 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: SpringRainUiTokens.daylightSurface,
         title: Text('${task.type} Details'),
         content: SingleChildScrollView(
           child: Column(
@@ -132,21 +132,21 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(8),
-                color: Colors.grey[100],
+                color: SpringRainUiTokens.daylightSurfaceMuted,
                 child: SelectableText(task.payload ?? 'null'),
               ),
               if (task.error != null && task.error!.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 const Text('Last error:',
                     style: TextStyle(
-                        fontWeight: FontWeight.bold, color: Colors.red)),
+                        fontWeight: FontWeight.bold, color: SpringRainUiTokens.daylightError)),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(8),
-                  color: Colors.red[50],
+                  color: SpringRainUiTokens.daylightErrorSoft,
                   child: SelectableText(
                     task.error!,
-                    style: const TextStyle(color: Colors.red),
+                    style: const TextStyle(color: SpringRainUiTokens.daylightError),
                   ),
                 ),
               ],
@@ -157,7 +157,7 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(8),
-                  color: Colors.green[50],
+                  color: SpringRainUiTokens.daylightSuccessSoft,
                   child: SelectableText(task.result!),
                 ),
               ],
@@ -179,8 +179,8 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(UserStorage.l10n.asyncTaskList),
-        backgroundColor: AppColors.background,
-        surfaceTintColor: AppColors.background,
+        backgroundColor: SpringRainUiTokens.daylightCanvas,
+        surfaceTintColor: SpringRainUiTokens.daylightCanvas,
       ),
       body: RefreshIndicator(
         onRefresh: () => _loadTasks(refresh: true),
@@ -229,12 +229,12 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: SpringRainUiTokens.daylightSurface,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                             color: hasError
-                                ? Colors.red.withOpacity(0.3)
-                                : Colors.grey.withOpacity(0.2)),
+                                ? SpringRainUiTokens.daylightError.withValues(alpha: 0.3)
+                                : SpringRainUiTokens.daylightDivider.withValues(alpha: 0.2)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,7 +260,7 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: _getStatusColor(task.status)
-                                      .withOpacity(0.1),
+                                      .withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
@@ -280,7 +280,7 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                               'BizID: ${task.bizId}',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey[600],
+                                color: SpringRainUiTokens.daylightTextSecondary,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -289,7 +289,7 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                             'ID: ${task.id}',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey[500],
+                              color: SpringRainUiTokens.daylightTextTertiary,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -299,14 +299,14 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                               Row(
                                 children: [
                                   Icon(Icons.access_time,
-                                      size: 14, color: Colors.grey[500]),
+                                      size: 14, color: SpringRainUiTokens.daylightTextTertiary),
                                   const SizedBox(width: 4),
                                   Text(
                                     UserStorage.l10n.createdAtDate(
                                         _formatDate(task.createdAt)),
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: Colors.grey[500],
+                                      color: SpringRainUiTokens.daylightTextTertiary,
                                     ),
                                   ),
                                 ],
@@ -316,14 +316,14 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                                 Row(
                                   children: [
                                     Icon(Icons.update,
-                                        size: 14, color: Colors.grey[500]),
+                                        size: 14, color: SpringRainUiTokens.daylightTextTertiary),
                                     const SizedBox(width: 4),
                                     Text(
                                       UserStorage.l10n.updatedAtDate(
                                           _formatDate(task.updatedAt)),
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: Colors.grey[500],
+                                        color: SpringRainUiTokens.daylightTextTertiary,
                                       ),
                                     ),
                                   ],
@@ -336,14 +336,14 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                                   children: [
                                     if (durationStr != null) ...[
                                       Icon(Icons.timer_outlined,
-                                          size: 14, color: Colors.grey[500]),
+                                          size: 14, color: SpringRainUiTokens.daylightTextTertiary),
                                       const SizedBox(width: 4),
                                       Text(
                                         UserStorage.l10n
                                             .durationLabel(durationStr),
                                         style: TextStyle(
                                           fontSize: 12,
-                                          color: Colors.grey[500],
+                                          color: SpringRainUiTokens.daylightTextTertiary,
                                         ),
                                       ),
                                       if (task.retryCount > 0)
@@ -351,14 +351,14 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                                     ],
                                     if (task.retryCount > 0) ...[
                                       Icon(Icons.refresh,
-                                          size: 14, color: Colors.grey[500]),
+                                          size: 14, color: SpringRainUiTokens.daylightTextTertiary),
                                       const SizedBox(width: 4),
                                       Text(
                                         UserStorage.l10n
                                             .retryCount(task.retryCount),
                                         style: TextStyle(
                                           fontSize: 12,
-                                          color: Colors.grey[500],
+                                          color: SpringRainUiTokens.daylightTextTertiary,
                                         ),
                                       ),
                                     ],
@@ -372,13 +372,13 @@ class _AsyncTaskListPageState extends State<AsyncTaskListPage> {
                             Row(
                               children: [
                                 const Icon(Icons.error_outline,
-                                    size: 16, color: Colors.red),
+                                    size: 16, color: SpringRainUiTokens.daylightError),
                                 const SizedBox(width: 4),
                                 Text(
                                   'Failed with error (tap to see details)',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.red[700],
+                                    color: SpringRainUiTokens.daylightError,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
