@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "source_id": "src_book_zhishen",
+      "media_type": "book",
+      "title": "置身事内",
+      "owner_space": "user",
+      "origin": "import",
+      "current_version_id": "ver_book_zhishen_v3",
+      "content_hash": "sha256:abc123def459",
+      "object_ref": "objects/sha256:abc123def459",
+      "created_at": "2026-08-11T15:10:00.000Z",
+      "updated_at": "2026-08-15T08:00:00.000Z"
+    }
+  ],
+  "source_versions": [
+    {
+      "version_id": "ver_book_zhishen_v1",
+      "source_id": "src_book_zhishen",
+      "content_hash": "sha256:abc123def456",
+      "object_ref": "objects/sha256:abc123def456",
+      "parser_version": "epub-parser/1.2",
+      "created_at": "2026-08-11T15:10:00.000Z"
+    },
+    {
+      "version_id": "ver_book_zhishen_v2",
+      "source_id": "src_book_zhishen",
+      "content_hash": "sha256:abc123def457",
+      "object_ref": "objects/sha256:abc123def457",
+      "parser_version": "epub-parser/1.3",
+      "created_at": "2026-08-13T20:00:00.000Z"
+    },
+    {
+      "version_id": "ver_book_zhishen_v3",
+      "source_id": "src_book_zhishen",
+      "content_hash": "sha256:abc123def459",
+      "object_ref": "objects/sha256:abc123def459",
+      "parser_version": "epub-parser/1.4",
+      "created_at": "2026-08-15T08:00:00.000Z"
+    }
+  ],
+  "cards": [
+    {
+      "card_id": "card_annotation_land",
+      "card_kind": "annotation",
+      "source_id": "src_book_zhishen",
+      "owner_space": "user",
+      "title": "土地财政的结构",
+      "body": "土地出让金不仅是收入项目，也影响城市扩张、融资方式和公共服务节奏。",
+      "tags": ["批注", "财政"],
+      "created_by": "user",
+      "created_at": "2026-08-14T06:18:00.000Z"
+    },
+    {
+      "card_id": "card_annotation_i_land",
+      "card_kind": "annotation",
+      "source_id": "src_book_zhishen",
+      "owner_space": "i",
+      "title": "土地财政的补充观察",
+      "body": "与第四章的融资平台讨论形成呼应，但作者在第三版中调整了部分措辞。",
+      "tags": ["批注", "财政"],
+      "created_by": "i",
+      "created_at": "2026-08-14T07:00:00.000Z"
+    }
+  ],
+  "boards": [
+    {
+      "board_id": "board_reading_notes",
+      "name": "阅读批注",
+      "owner_space": "user",
+      "created_by": "user",
+      "created_at": "2026-08-14T06:00:00.000Z"
+    }
+  ],
+  "board_items": [
+    {
+      "item_id": "item_annotation_land",
+      "board_id": "board_reading_notes",
+      "card_id": "card_annotation_land",
+      "x": 100,
+      "y": 100,
+      "width": 280,
+      "height": 200,
+      "rotation": 0,
+      "z_index": 1
+    },
+    {
+      "item_id": "item_annotation_i_land",
+      "board_id": "board_reading_notes",
+      "card_id": "card_annotation_i_land",
+      "x": 420,
+      "y": 100,
+      "width": 280,
+      "height": 200,
+      "rotation": 0,
+      "z_index": 2
+    }
+  ],
+  "groups": [],
+  "group_members": [],
+  "edges": [],
+  "viewport": {
+    "center_x": 350,
+    "center_y": 200,
+    "zoom": 1.0
+  },
+  "updated_at": "2026-08-15T08:00:00.000Z"
+}

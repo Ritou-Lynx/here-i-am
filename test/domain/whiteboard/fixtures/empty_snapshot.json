@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "sources": [],
+  "source_versions": [],
+  "cards": [],
+  "boards": [
+    {
+      "board_id": "board_empty",
+      "name": "空白板",
+      "owner_space": "user",
+      "created_by": "user",
+      "created_at": "2026-08-14T10:00:00.000Z"
+    }
+  ],
+  "board_items": [],
+  "groups": [],
+  "group_members": [],
+  "edges": [],
+  "viewport": {
+    "center_x": 0,
+    "center_y": 0,
+    "zoom": 1.0
+  },
+  "updated_at": "2026-08-14T10:00:00.000Z"
+}

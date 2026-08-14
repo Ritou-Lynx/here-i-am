@@ -1,0 +1,50 @@
+{
+  "schema_version": 0,
+  "cards": [
+    {
+      "cardId": "card_book_zhishen",
+      "kind": "source",
+      "mediaType": "book",
+      "title": "置身事内",
+      "body": "第四章 · 阅读进度 62%",
+      "source": "书籍",
+      "tags": ["书籍", "经济"],
+      "accent": "book",
+      "createdAt": "2026-08-11T15:10:00.000Z"
+    },
+    {
+      "cardId": "card_note_spine",
+      "kind": "note",
+      "mediaType": "text",
+      "title": "统一卡片脊柱",
+      "body": "统一 Card 身份不意味着统一缩略条。",
+      "source": "笔记",
+      "tags": ["文字", "架构"],
+      "createdAt": "2026-08-14T08:32:00.000Z"
+    }
+  ],
+  "boards": [
+    {
+      "boardId": "board_whiteboard_mvp",
+      "title": "白板 MVP 结构",
+      "updatedAt": "2026-08-14T10:30:00.000Z",
+      "viewport": { "x": 64, "y": 52, "zoom": 1 }
+    }
+  ],
+  "boardItems": [
+    {
+      "itemId": "item_spine",
+      "boardId": "board_whiteboard_mvp",
+      "cardId": "card_note_spine",
+      "x": 120,
+      "y": 90,
+      "width": 280,
+      "height": 200,
+      "zIndex": 1
+    }
+  ],
+  "groups": [],
+  "edges": [],
+  "ui": { "lastBoardId": "board_whiteboard_mvp", "navigationCollapsed": false },
+  "updatedAt": "2026-08-14T10:30:00.000Z"
+}
