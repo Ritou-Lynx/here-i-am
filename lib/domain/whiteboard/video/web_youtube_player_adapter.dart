@@ -122,6 +122,7 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
   bool _isPlayerReady = false;
   int _durationMs = 0;
   int _positionMs = 0;
+  String? _pendingVideoId;
   Timer? _pollTimer;
   JSObject? _player;
   bool _registered = false;
@@ -149,11 +150,19 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
   bool get isAvailable => kIsWeb;
 
   /// Loads a YouTube video by video ID or watch URL.
+  ///
+  /// Registers the platform view and returns immediately so the UI can render
+  /// the [HtmlElementView] (which mounts the host div). The actual `YT.Player`
+  /// creation is deferred — it polls `document.getElementById` until the div
+  /// is in the DOM, then constructs the player. This avoids a deadlock where
+  /// `load()` would wait for a div that only mounts after the body renders
+  /// (which requires `isLoaded` to be true).
   @override
   Future<void> load(String sourceId, {String? embedUrl}) async {
     if (!kIsWeb) return;
     final videoId = _extractVideoId(embedUrl);
     if (videoId == null) return;
+    _pendingVideoId = videoId;
 
     await ensureYouTubeIframeApiReady();
 
@@ -162,21 +171,24 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
       _registered = true;
     }
 
-    // Wait for the HtmlElementView to mount the host div in the DOM before
-    // asking YT to attach to it. The div is created lazily by Flutter's
-    // platform view registry when the widget first builds, so we poll until
-    // document.getElementById(viewTypeId) returns a real element.
-    await _waitForDivElement();
-    _createPlayer(videoId);
+    // Kick off async player creation — don't await it so the UI can render.
+    _ensurePlayerWhenReady();
   }
 
-  Future<void> _waitForDivElement() async {
+  void _ensurePlayerWhenReady() {
+    if (_player != null) return;
+    final videoId = _pendingVideoId;
+    if (videoId == null) return;
+
     final doc = webDocument;
     if (doc == null) return;
-    for (var i = 0; i < 50; i++) {
-      final el = doc.getElementById(viewTypeId);
-      if (el != null) return;
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    final el = doc.getElementById(viewTypeId);
+    if (el != null) {
+      _createPlayer(videoId);
+    } else {
+      // Div not mounted yet — retry on the next microtask.
+      Timer(const Duration(milliseconds: 30), _ensurePlayerWhenReady);
     }
   }
 
