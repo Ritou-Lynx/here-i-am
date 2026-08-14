@@ -226,11 +226,31 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
         durationMs: 0,
         at: DateTime.now(),
       ));
+      // Start continuous polling as soon as the player is ready so time
+      // events keep flowing regardless of HOW playback starts (native iframe
+      // button, our play(), auto-play, seek). Reverse highlight (playback →
+      // subtitle) depends on this stream.
+      _startPolling();
+    }).toJS;
+
+    // YT onStateChange passes an event object; state codes: -1 unstarted,
+    // 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued.
+    //
+    // We keep the continuous polling loop running regardless of state so the
+    // reverse highlight (playback → subtitle) always stays in sync, including
+    // when the user controls the player from the iframe's own UI (native
+    // play/pause/seek buttons), which never calls our play()/pause().
+    final stateChangeCallback = ((JSAny? event) {
+      final state = _readEventData(event);
+      if (state == 0) {
+        // Ended — flush the final position then keep polling (position stays).
+        _flushPositionOnce();
+      }
     }).toJS;
 
     final events = {
       'onReady': readyCallback,
-      'onStateChange': ((JSAny? _) {}).toJS,
+      'onStateChange': stateChangeCallback,
     }.jsify() as JSObject;
 
     final playerVars = {
@@ -244,6 +264,21 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
       'events': events,
       'playerVars': playerVars,
     }.jsify() as JSObject;
+  }
+
+  /// Reads the numeric `data` field from a YT onStateChange event object.
+  int _readEventData(JSAny? event) {
+    if (event == null) return -1;
+    try {
+      final obj = event as JSObject;
+      final data = obj['data'];
+      if (data is JSNumber) return data.toDartInt;
+      // data may be a Dart num wrapped as JSAny.
+      final asNum = data?.dartify();
+      return (asNum as num?)?.toInt() ?? -1;
+    } catch (_) {
+      return -1;
+    }
   }
 
   @override
@@ -328,6 +363,28 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
   void _stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
+  }
+
+  /// Reads the current position once and emits a final time event.
+  void _flushPositionOnce() {
+    if (!_isPlayerReady || _player == null) return;
+    try {
+      final posResult = _player!.callMethod<JSNumber>('getCurrentTime'.toJS);
+      final durResult = _player!.callMethod<JSNumber>('getDuration'.toJS);
+      final posMs = (posResult.toDartDouble * 1000).round();
+      final durMs = (durResult.toDartDouble * 1000).round();
+      if (posMs >= 0) {
+        _positionMs = posMs;
+        if (durMs > 0) _durationMs = durMs;
+        _timeController.add(PlayerTimeEvent(
+          positionMs: _positionMs,
+          durationMs: _durationMs > 0 ? _durationMs : null,
+          at: DateTime.now(),
+        ));
+      }
+    } catch (_) {
+      // Ignore — polling loop will pick it up.
+    }
   }
 
   String? _extractVideoId(String? url) {
