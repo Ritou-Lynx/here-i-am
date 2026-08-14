@@ -14,6 +14,7 @@ import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import '../view_models/video_study_view_model.dart';
 import 'subtitle_list_view.dart';
 import 'annotation_editor.dart';
+import 'timeline_anchor_bar.dart';
 
 class ContextDock extends StatefulWidget {
   final VideoStudyViewModel viewModel;
@@ -44,6 +45,15 @@ class _ContextDockState extends State<ContextDock> {
             onClose: () => Navigator.of(context).maybePop(),
           ),
           const Divider(height: 1, color: Color(0x1F5B5843)),
+          // Study timeline with time anchors — lives in the dock (not overlaid
+          // on the player) so it never overlaps a native player's progress bar.
+          if (vm.canReadPosition)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+              child: TimelineAnchorBar(viewModel: vm),
+            ),
+          if (vm.canReadPosition)
+            const Divider(height: 1, color: Color(0x1F5B5843)),
           // Body
           Expanded(
             child: vm.showSaveConfirmation

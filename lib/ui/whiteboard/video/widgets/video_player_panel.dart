@@ -16,7 +16,6 @@ import 'web_player_surface.dart'
     if (dart.library.js_interop) 'web_player_surface_web.dart'
     as player_surface;
 import '../view_models/video_study_view_model.dart';
-import 'timeline_anchor_bar.dart';
 
 class VideoPlayerPanel extends StatelessWidget {
   final VideoStudyViewModel viewModel;
@@ -24,8 +23,21 @@ class VideoPlayerPanel extends StatelessWidget {
 
   const VideoPlayerPanel({super.key, required this.viewModel});
 
+  /// Whether the underlying player provides its own native controls
+  /// (YouTube IFrame on web, webview_flutter on Android). When true, we must
+  /// NOT overlay our own control bar on top — the native progress bar, CC /
+  /// fullscreen / settings buttons are the primary surface and overlapping
+  /// would duplicate the progress bar.
+  bool get _usesNativeControls {
+    final adapter = viewModel.adapter;
+    if (player_surface.buildWebYouTubeSurface(adapter) != null) return true;
+    if (adapter is YouTubePlayerAdapter && adapter.isAvailable) return true;
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final nativeControls = _usesNativeControls;
     return Container(
       color: const Color(0xFF1C1C1A),
       child: Stack(
@@ -34,13 +46,15 @@ class VideoPlayerPanel extends StatelessWidget {
           Positioned.fill(
             child: _PlayerSurface(viewModel: viewModel),
           ),
-          // Bottom gradient + controls + timeline
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _PlayerControls(viewModel: viewModel),
-          ),
+          // Bottom gradient + controls + timeline (only for players WITHOUT
+          // native controls, e.g. the fixture simulator / link-only stubs).
+          if (!nativeControls)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _PlayerControls(viewModel: viewModel),
+            ),
         ],
       ),
     );
@@ -156,15 +170,12 @@ class _PlayerControls extends StatelessWidget {
           colors: [Color(0x001C1C1A), Color(0xE61C1C1A)],
         ),
       ),
-      padding: const EdgeInsets.only(top: 24, bottom: 8, left: 16, right: 16),
+      padding: const EdgeInsets.only(top: 8, bottom: 8, left: 16, right: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Timeline anchor bar
-          if (viewModel.canReadPosition)
-            TimelineAnchorBar(viewModel: viewModel),
-          const SizedBox(height: 8),
-          // Control row
+          // Control row (timeline/anchors live in the ContextDock so they
+          // never overlap a native player's progress bar)
           Row(
             children: [
               // Play/pause

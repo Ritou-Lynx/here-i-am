@@ -212,8 +212,7 @@ class YouTubePlayerAdapter implements PlayerAdapter {
         playerVars: {
           'playsinline': 1,
           'modestbranding': 1,
-          'rel': 0,
-          'controls': 0
+          'rel': 0
         },
         events: {
           'onReady': function() { window.ytReady = true; },
