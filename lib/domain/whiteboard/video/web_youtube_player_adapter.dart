@@ -37,6 +37,7 @@ external JSDocument get _jsDocument;
 extension type JSDocument._(JSObject _) implements JSObject {
   external JSHTMLElement createElement(String tagName);
   external JSHTMLElement? querySelector(String selector);
+  external JSHTMLElement? getElementById(String id);
   external JSHTMLHeadElement? get head;
 }
 
@@ -161,10 +162,22 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
       _registered = true;
     }
 
-    // Defer player creation slightly so the HtmlElementView has mounted the
-    // host div in the DOM before we ask YT to attach to it.
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    // Wait for the HtmlElementView to mount the host div in the DOM before
+    // asking YT to attach to it. The div is created lazily by Flutter's
+    // platform view registry when the widget first builds, so we poll until
+    // document.getElementById(viewTypeId) returns a real element.
+    await _waitForDivElement();
     _createPlayer(videoId);
+  }
+
+  Future<void> _waitForDivElement() async {
+    final doc = webDocument;
+    if (doc == null) return;
+    for (var i = 0; i < 50; i++) {
+      final el = doc.getElementById(viewTypeId);
+      if (el != null) return;
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
   }
 
   void _registerPlatformView() {
@@ -186,7 +199,11 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
     final playerCtor = ytHolder.getProperty<JSFunction>('Player'.toJS);
 
     final config = _buildPlayerConfig(videoId);
-    _player = playerCtor.callAsConstructor<JSObject>(config);
+    // YT.Player(element, config): the first argument is the DOM element ID
+    // (or the element itself) where the IFrame is attached; the second is the
+    // config object. Passing config as the only argument makes the API treat it
+    // as the element and read properties like `.toLowerCase()` on it → crash.
+    _player = playerCtor.callAsConstructor<JSObject>(viewTypeId.toJS, config);
   }
 
   JSObject _buildPlayerConfig(String videoId) {
