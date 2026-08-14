@@ -2,14 +2,19 @@
 ///
 /// On desktop (fixture adapter), shows a simulated player surface with
 /// playback controls. On Android (YouTube adapter), embeds the WebView.
-/// Player controls are always visible during development — they fade out
-/// in production when idle.
+/// On Flutter Web (WebYouTubePlayerAdapter), embeds a `HtmlElementView` that
+/// hosts the YouTube IFrame. Player controls are always visible during
+/// development — they fade out in production when idle.
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
+import 'web_player_surface.dart'
+    if (dart.library.js_interop) 'web_player_surface_web.dart'
+    as player_surface;
 import '../view_models/video_study_view_model.dart';
 import 'timeline_anchor_bar.dart';
 
@@ -50,7 +55,13 @@ class _PlayerSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final adapter = viewModel.adapter;
 
-    // YouTube adapter with WebView
+    // Flutter Web — YouTube IFrame embedded via HtmlElementView (conditional)
+    final webSurface = player_surface.buildWebYouTubeSurface(adapter);
+    if (webSurface != null) {
+      return webSurface;
+    }
+
+    // YouTube adapter with WebView (Android)
     if (adapter is YouTubePlayerAdapter && adapter.isAvailable) {
       final controller = adapter.webViewController;
       if (controller != null) {

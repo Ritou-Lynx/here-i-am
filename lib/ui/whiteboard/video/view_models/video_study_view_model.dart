@@ -465,10 +465,22 @@ class VideoStudyViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _syncController?.dispose();
-    if (adapter is FixturePlayerAdapter) {
-      (adapter as FixturePlayerAdapter).dispose();
-    } else if (adapter is YouTubePlayerAdapter) {
-      (adapter as YouTubePlayerAdapter).dispose();
+    // Dispose the adapter if it exposes a dispose() method (FixturePlayerAdapter,
+    // YouTubePlayerAdapter, and WebYouTubePlayerAdapter all do). Using dynamic
+    // avoids importing the Web adapter (which depends on dart:js_interop and
+    // is not available in the VM test environment).
+    final a = adapter;
+    if (a is FixturePlayerAdapter) {
+      a.dispose();
+    } else if (a is YouTubePlayerAdapter) {
+      a.dispose();
+    } else {
+      // WebYouTubePlayerAdapter or any other adapter with a dispose method.
+      try {
+        (a as dynamic).dispose();
+      } catch (_) {
+        // Adapter has no dispose() — nothing to clean up.
+      }
     }
     super.dispose();
   }

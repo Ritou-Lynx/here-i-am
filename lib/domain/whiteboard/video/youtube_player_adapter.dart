@@ -8,9 +8,15 @@
 /// or access private content. Videos that require login or are region-restricted
 /// will show the platform's own restriction UI — the adapter does not circumvent.
 ///
-/// **Desktop limitation**: WebView is not available on Windows desktop in
-/// Flutter. For desktop verification, use [FixturePlayerAdapter]. This adapter
-/// is conditionally constructed only on mobile platforms.
+/// **Platform routing**:
+/// - **Flutter Web**: use [createYouTubeAdapter] (returns
+///   [WebYouTubePlayerAdapter] driving the IFrame API via `dart:js_interop`).
+/// - **Android**: this adapter (webview_flutter). Call [createYouTubeAdapter].
+/// - **Other platforms**: no-op stub — callers must check `isAvailable`.
+///
+/// Prefer [createYouTubeAdapter] (from `youtube_adapter_factory.dart`) over
+/// constructing this class directly so the correct platform implementation is
+/// returned.
 library;
 
 import 'dart:async';
@@ -25,7 +31,8 @@ import 'provider_capability_matrix.dart';
 /// YouTube IFrame Player Adapter.
 ///
 /// On Android, this embeds a WebView with the YouTube IFrame Player API.
-/// On other platforms, construction throws — use [FixturePlayerAdapter] instead.
+/// On other platforms, construction is a no-op stub — use
+/// [createYouTubeAdapter] or [FixturePlayerAdapter] instead.
 class YouTubePlayerAdapter implements PlayerAdapter {
   WebViewController? _controller;
   bool _isLoaded = false;

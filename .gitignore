@@ -75,8 +75,10 @@ app.*.map.json
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
 
-# Web
-/web/
+# Web (MVP desktop video player uses Flutter Web + YouTube IFrame)
+# Keep web/ tracked — only ignore build artifacts.
+/web/build/
+/web/.dart_tool/
 
 # macOS
 **/macos/Flutter/GeneratedPluginRegistrant.swift

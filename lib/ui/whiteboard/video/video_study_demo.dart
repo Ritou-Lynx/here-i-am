@@ -1,24 +1,28 @@
 /// Desktop verification demo for the W4 video study workflow.
 ///
 /// Run with:
-///   flutter run -d windows -t lib/ui/whiteboard/video/video_study_demo.dart
+///   flutter run -d chrome -t lib/ui/whiteboard/video/video_study_demo.dart
 ///
-/// Uses [FixturePlayerAdapter] on desktop (no WebView available). The demo
-/// exercises the full closed loop: load → playback → cue click seek →
-/// reverse highlight → annotation creation → session save/restore.
+/// On Flutter Web: uses [WebYouTubePlayerAdapter] (YouTube IFrame via
+/// `dart:js_interop`) — the MVP desktop playback path. Loads a real YouTube
+/// video so the playback → seek → subtitle → annotation loop is real.
+/// On Android: uses [YouTubePlayerAdapter] (webview_flutter).
+/// On other desktop platforms: uses [FixturePlayerAdapter] (simulated).
 ///
-/// Web fallback: same demo runs on Chrome (session file persistence is
-/// skipped on web since dart:io is unavailable there).
+/// Web fallback: session file persistence is skipped on web since dart:io is
+/// unavailable there.
 library;
-
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
+import 'package:memex/domain/whiteboard/video/youtube_adapter_factory.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+
+import 'session_path_stub.dart'
+    if (dart.library.io) 'session_path_io.dart' as session_path;
 
 const _sampleSrt = '''
 1
@@ -80,19 +84,10 @@ class VideoStudyDemoScreen extends StatefulWidget {
 }
 
 class _VideoStudyDemoScreenState extends State<VideoStudyDemoScreen> {
-  FixturePlayerAdapter? _adapter;
-  final String? _sessionPath = _buildSessionPath();
-
-  /// Session persistence only on native platforms (web has no dart:io).
-  static String? _buildSessionPath() {
-    if (kIsWeb) return null;
-    try {
-      final temp = Directory.systemTemp.path;
-      return '$temp${Platform.pathSeparator}whiteboard_w4_video_session.json';
-    } catch (_) {
-      return null;
-    }
-  }
+  PlayerAdapter? _adapter;
+  String? _embedUrl;
+  String _providerId = 'fixture';
+  final String? _sessionPath = session_path.resolveSessionPath();
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +121,14 @@ class _VideoStudyDemoScreenState extends State<VideoStudyDemoScreen> {
                   fontSize: 14,
                 ),
               ),
+              const SizedBox(height: 6),
+              Text(
+                _platformHint(),
+                style: const TextStyle(
+                  color: Color(0xFF8F8E88),
+                  fontSize: 12,
+                ),
+              ),
               const SizedBox(height: 32),
               FilledButton.icon(
                 onPressed: _openStudy,
@@ -148,10 +151,21 @@ class _VideoStudyDemoScreenState extends State<VideoStudyDemoScreen> {
       adapter: adapter,
       sourceId: 'src_demo_concert',
       sourceVersionId: 'ver_demo_concert_v1',
+      embedUrl: _embedUrl,
       initialTrack: _demoTrack,
       sessionPath: _sessionPath,
-      providerId: 'fixture',
+      providerId: _providerId,
     );
+  }
+
+  String _platformHint() {
+    if (kIsWeb) {
+      return 'Flutter Web → YouTube IFrame Player（MVP 桌面路线）';
+    }
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'Android → webview_flutter YouTube IFrame';
+    }
+    return '桌面无 WebView → Fixture 模拟播放器';
   }
 
   TimedTextTrack get _demoTrack {
@@ -164,8 +178,21 @@ class _VideoStudyDemoScreenState extends State<VideoStudyDemoScreen> {
   }
 
   void _openStudy() {
-    final fixture = FixturePlayerAdapter(durationMs: 36000);
-    _adapter = fixture;
-    setState(() {});
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.android) {
+      // Real YouTube playback: Web uses IFrame via dart:js_interop, Android
+      // uses webview_flutter. The factory picks the right implementation.
+      final adapter = createYouTubeAdapter();
+      _adapter = adapter;
+      _embedUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+      _providerId = 'youtube';
+      setState(() {});
+    } else {
+      // Other desktop platforms: fixture (no real WebView available).
+      final fixture = FixturePlayerAdapter(durationMs: 36000);
+      _adapter = fixture;
+      _embedUrl = null;
+      _providerId = 'fixture';
+      setState(() {});
+    }
   }
 }
