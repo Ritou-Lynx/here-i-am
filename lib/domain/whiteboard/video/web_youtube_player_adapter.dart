@@ -257,6 +257,10 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
       'playsinline': 1,
       'modestbranding': 1,
       'rel': 0,
+      // Hide YouTube's own controls so our overlay control bar (timeline,
+      // play/pause, timecode) is the single control surface — otherwise the
+      // iframe's native progress bar overlaps ours.
+      'controls': 0,
     }.jsify() as JSObject;
 
     return {
