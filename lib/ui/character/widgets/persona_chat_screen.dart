@@ -31,6 +31,8 @@ import 'package:memex/data/services/active_persona_chat_service.dart';
 import 'package:memex/data/services/bad_case_collector.dart';
 import 'package:memex/data/services/streaming_tts_player.dart';
 import 'package:memex/data/services/tts_service.dart';
+import 'package:memex/data/services/voice_cue_coordinator.dart';
+import 'package:memex/data/services/voice_latency_tracker.dart';
 import 'package:memex/data/services/buttplug_toy_controller.dart';
 import 'package:memex/data/services/magic_motion_flamingo_controller.dart';
 import 'package:memex/data/services/svakom_toy_controller.dart';
@@ -73,6 +75,7 @@ import 'package:memex/ui/memory/widgets/message_recall_trace_page.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
+import 'package:memex/domain/models/voice_turn_identity.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -731,6 +734,12 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   int _voiceModeIdleFollowUpSerial = 0;
   int _ttsRequestSerial = 0;
   StreamingTtsSession? _streamingTtsSession;
+
+  /// Voice turn identity protocol (Cove GPT-Live style).
+  /// Each user utterance in a voice session gets a unique identity; stale TTS
+  /// segments or model chunks from a previous generation are rejected.
+  VoiceTurnSequencer? _voiceTurnSequencer;
+  VoiceTurnIdentity? _activeVoiceTurn;
   late final PersonaChatSentenceDebouncer _sentenceDebouncer =
       PersonaChatSentenceDebouncer(onFlush: _flushSentenceDebounce);
   static const _sentenceDebounceWindow = Duration(milliseconds: 2000);
@@ -959,7 +968,9 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     _voiceController.onAutoRecognitionComplete =
         _onAutoVoiceRecognitionComplete;
     _voiceController.onStreamingEvent = _onStreamingAsrEvent;
+    _voiceController.onBargeInDuck = _onBargeInDuck;
     _voiceController.onBargeInDetected = _onBargeInDetected;
+    _voiceController.onBargeInRestore = _onBargeInRestore;
     _voiceController.onStreamingSessionLost = _onStreamingSessionLost;
     _voiceController.onPressToTalkAutoComplete = _onPressToTalkAutoComplete;
     WidgetsBinding.instance.addObserver(this);
@@ -1228,6 +1239,7 @@ only after you have written the goodbye you want the user to hear.''',
     if (recognized.isNotEmpty) {
       _voiceModeSilentFollowUps = 0;
       _textController.text = recognized;
+      unawaited(VoiceCueCoordinator.instance.playCueFor(recognized));
       await _sendMessage();
       return;
     }
@@ -1286,20 +1298,43 @@ only after you have written the goodbye you want the user to hear.''',
     if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
     _voiceModeSilentFollowUps = 0;
     _textController.text = text;
+    // Play a local short feedback cue to fill the gap before formal TTS
+    // arrives. Fire-and-forget — the cue plays in the background and is
+    // preempted when the formal TTS first segment arrives.
+    unawaited(VoiceCueCoordinator.instance.playCueFor(text));
     unawaited(_sendMessage());
+  }
+
+  void _onBargeInDuck() {
+    if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
+    // Stage 1: lower TTS volume so the user can hear themselves, but
+    // don't stop playback yet — the voice might be a cough or table bump.
+    debugPrint('Barge-in: duck stage (lowering TTS volume)');
+    try {
+      _audioPlayer.setVolume(0.3);
+    } catch (_) {}
   }
 
   void _onBargeInDetected() {
     if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
-    debugPrint('Barge-in: amplitude threshold exceeded, stopping TTS');
+    debugPrint('Barge-in: interrupt confirmed, stopping TTS');
     // Mark barge-in follow-up so subsequent NLS SentenceEnd events use the
-    // longer debounce window. The amplitude detector fires before the NLS
-    // server has processed the audio and emitted SentenceEnd, so without this
+    // longer debounce window. The detector fires before the NLS server
+    // has processed the audio and emitted SentenceEnd, so without this
     // flag the SentenceEnd would arrive after TTS stopped (_isRoleVoiceActive
     // already false) and take the normal 2.0s path instead of the 2.5s
     // barge-in window — splitting multi-sentence speech into separate messages.
     _inBargeInFollowUp = true;
     unawaited(_stopTtsPlayback());
+  }
+
+  void _onBargeInRestore() {
+    if (!mounted || !_isInlineVoiceMode || _isVoiceModeMicMuted) return;
+    // False alarm — restore TTS volume.
+    debugPrint('Barge-in: false alarm, restoring TTS volume');
+    try {
+      _audioPlayer.setVolume(1.0);
+    } catch (_) {}
   }
 
   /// The NLS streaming session died unexpectedly (server closed the WebSocket,
@@ -2566,6 +2601,8 @@ only after you have written the goodbye you want the user to hear.''',
     String lastChunk = '';
     var responsePersisted = false;
     StreamingTtsSession? ttsSession;
+    VoiceTurnIdentity? turnIdentity;
+    VoiceLatencyTracker? latencyTracker;
 
     try {
       final resources = await UserStorage.getAgentLLMResources(
@@ -2586,10 +2623,32 @@ only after you have written the goodbye you want the user to hear.''',
         final voiceId = await UserStorage.getActiveTtsVoiceId();
         if (voiceId != null && voiceId.isNotEmpty) {
           final requestSerial = ++_ttsRequestSerial;
+          // Issue a new voice turn identity for this reply. Stale TTS
+          // segments from a previous generation will be rejected by
+          // OrderedTtsQueue.
+          turnIdentity = _voiceTurnSequencer?.nextTurn();
+          _activeVoiceTurn = turnIdentity;
+          // Start latency tracking for this voice turn.
+          latencyTracker = VoiceLatencyTracker(
+            turnId: turnIdentity?.turnId ?? 'turn_?',
+            callSessionId: turnIdentity?.callSessionId,
+          );
+          latencyTracker.markAsrComplete();
           ttsSession = StreamingTtsSession(
             voiceId: voiceId,
             voiceMode: _isInlineVoiceMode,
+            identity: turnIdentity,
           );
+          // Preempt the local voice cue when the first formal TTS segment
+          // arrives. seq=0 is the first segment; the cue is stopped
+          // immediately unless it has completeBeforeFormal. Also mark
+          // formal_first_sound for latency tracking.
+          ttsSession.onSegmentStart = (segment) {
+            if (segment.seq == 0) {
+              latencyTracker?.markFormalFirstSound();
+              unawaited(VoiceCueCoordinator.instance.preemptForFormalTts());
+            }
+          };
           await ttsSession.start();
           _streamingTtsSession = ttsSession;
           // Pause mic forwarding to NLS while TTS plays so the speaker output
@@ -2637,8 +2696,20 @@ only after you have written the goodbye you want the user to hear.''',
             .where((s) => s.trim().isNotEmpty)
             .toList(),
       )) {
+        latencyTracker?.markModelRequest();
         if (_isSendCanceled(sendSerial, primaryMessageId)) {
           break;
+        }
+        // Identity check: if a barge-in or hang-up invalidated this turn,
+        // stop feeding TTS and bail. The OrderedTtsQueue will reject any
+        // segments that were already synthesized under the old identity.
+        if (_isInlineVoiceMode &&
+            turnIdentity != null &&
+            !turnIdentity.isCurrent(_activeVoiceTurn)) {
+          break;
+        }
+        if (latencyTracker != null && lastChunk.isEmpty) {
+          latencyTracker.markModelFirstText();
         }
         lastChunk = chunk;
         ttsSession?.feedText(chunk);
@@ -2730,14 +2801,17 @@ only after you have written the goodbye you want the user to hear.''',
               if (mounted && playingId != null) {
                 _handleTtsPlaybackCompleted(reqSerial, playingId);
               }
+              latencyTracker?.log();
             }));
           } else if (_autoReadEnabled || _isInlineVoiceMode) {
             _autoReadNewestCharacterMessage(
               previousMessages: messages,
               updatedMessages: updated,
             );
+            latencyTracker?.log();
           } else {
             _advanceAutoReadWatermark(updated);
+            latencyTracker?.log();
           }
           // Active sends should keep the reversed list pinned to the latest
           // edge. Message-level focusing belongs to explicit search jumps; using
@@ -4763,6 +4837,17 @@ only after you have written the goodbye you want the user to hear.''',
       unawaited(_applyVoiceCallTtsContext());
       _voiceModeSilentFollowUps = 0;
       _voiceModeIdleFollowUpSerial++;
+      // Initialize voice turn sequencer for this call session.
+      _voiceTurnSequencer = VoiceTurnSequencer(
+        'call_${DateTime.now().millisecondsSinceEpoch}',
+      );
+      _activeVoiceTurn = null;
+      // Initialize voice cue coordinator and pre-generate cue clips.
+      final cueVoiceId = await UserStorage.getActiveTtsVoiceId();
+      if (cueVoiceId != null && cueVoiceId.isNotEmpty) {
+        VoiceCueCoordinator.instance.init(voiceId: cueVoiceId, voiceMode: true);
+        unawaited(VoiceCueCoordinator.instance.preGenerate());
+      }
       _queueVoiceModeOpening();
     } else {
       _voiceModeOpeningSerial++;
@@ -4771,6 +4856,11 @@ only after you have written the goodbye you want the user to hear.''',
       _voiceModeStartQueued = false;
       _sentenceDebouncer.cancel();
       _inBargeInFollowUp = false;
+      // Clear voice turn identity — no more turns belong to this call.
+      _activeVoiceTurn = null;
+      _voiceTurnSequencer = null;
+      // Reset voice cue coordinator.
+      VoiceCueCoordinator.instance.reset();
       // Hang-up must unlock the UI immediately. Invalidate any in-flight LLM
       // turn and force-reset the streaming state, otherwise two paths leave
       // _isStreaming stuck true: (1) the opening / idle-follow-up generators
@@ -4846,6 +4936,12 @@ only after you have written the goodbye you want the user to hear.''',
 
   Future<void> _stopTtsPlayback() async {
     _ttsRequestSerial++;
+    // Clear the active voice turn so any in-flight TTS segments from the
+    // cancelled generation are rejected by OrderedTtsQueue. A new turn
+    // identity will be issued when the next reply starts.
+    _activeVoiceTurn = null;
+    // Stop any playing voice cue.
+    unawaited(VoiceCueCoordinator.instance.preemptForFormalTts());
     final session = _streamingTtsSession;
     _streamingTtsSession = null;
     if (session != null) {
@@ -5102,6 +5198,10 @@ only after you have written the goodbye you want the user to hear.''',
           }
         });
         setState(() => _isTtsLoading = false);
+        // Reset volume in case a previous barge-in duck left it low.
+        try {
+          await _audioPlayer.setVolume(1.0);
+        } catch (_) {}
         await _audioPlayer.play(DeviceFileSource(audioPath));
         unawaited(_watchTtsPlaybackCompletion(requestSerial, messageId));
       }

@@ -1,14 +1,30 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:audio_session/audio_session.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:memex/data/services/ordered_tts_queue.dart';
 import 'package:memex/data/services/tts_service.dart';
+import 'package:memex/domain/models/voice_turn_identity.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/sentence_splitter.dart';
 
+/// Streaming TTS pipeline: feeds LLM text chunks to a sentence splitter,
+/// synthesizes each sentence batch to audio, and plays segments in order.
+///
+/// Key improvements over the previous version (Cove GPT-Live identity protocol):
+/// - Each segment carries a [VoiceTurnIdentity] + [seq]. Stale segments from a
+///   previous generation are silently discarded by [OrderedTtsQueue].
+/// - Segments are pushed to [OrderedTtsQueue] as soon as they're synthesized —
+///   playback starts on the first segment without waiting for the LLM to
+///   finish (pipeline / 边收边播).
+/// - [cancel] is atomic: the queue drops all pending segments and stops the
+///   current player. A stale `AudioPlayer.play()` Promise cannot mutate state
+///   via the non-reusable playback claim in [OrderedTtsQueue].
 class StreamingTtsSession {
-  StreamingTtsSession({required this.voiceId, this.voiceMode = false});
+  StreamingTtsSession({
+    required this.voiceId,
+    this.voiceMode = false,
+    this.identity,
+  });
 
   final String voiceId;
 
@@ -17,14 +33,24 @@ class StreamingTtsSession {
   /// default media stream is suspended). Also keeps TTS on the same stream as
   /// the mic so platform AEC can cancel the echo.
   final bool voiceMode;
-  final _log = getLogger('StreamingTts');
+
+  /// Identity for this TTS generation. All segments produced by this session
+  /// carry this identity. When null, a throwaway identity is used (backward
+  /// compat for callers not yet migrated to the identity protocol).
+  final VoiceTurnIdentity? identity;
+
+  static final _log = getLogger('StreamingTts');
+
   final _splitter = SentenceSplitter();
   final _sentenceQueue = <String>[];
   final _pendingSentences = <String>[];
-  final _segmentFiles = <File>[];
+
   bool _processingSentence = false;
   bool _llmDone = false;
   bool _disposed = false;
+  int _seq = 0;
+
+  late final OrderedTtsQueue _queue;
 
   /// Minimum rune count before a batch of sentences is sent to the TTS API.
   /// Short sentences ("嗯。", "好。", "然后呢。") are buffered until they
@@ -33,15 +59,25 @@ class StreamingTtsSession {
   /// The threshold is low enough that first-audio latency stays acceptable.
   static const int _minSentenceRunes = 24;
 
-  /// The currently active AudioPlayer for a single segment. A fresh player is
-  /// created per segment to avoid any ExoPlayer state carry-over between
-  /// independent MP3 files (which caused double-playback glitches with both
-  /// StreamAudioSource byte concatenation and ConcatenatingAudioSource).
-  AudioPlayer? _segmentPlayer;
+  /// Called when a segment starts playing. Useful for syncing subtitles.
+  void Function(TtsSegment segment)? onSegmentStart;
+
+  /// Called when all segments have finished playing (queue drained + LLM done).
+  void Function()? onAllSegmentsPlayed;
 
   Future<void> start() async {
     _splitter.onSentence = _onSentence;
-    _log.info('start: voiceId=$voiceId voiceMode=$voiceMode');
+    _queue = OrderedTtsQueue(
+      identity: identity ?? _throwawayIdentity(),
+      voiceMode: voiceMode,
+    );
+    _queue.onSegmentStart = (segment) => onSegmentStart?.call(segment);
+    _queue.onQueueDrained = () {
+      if (_llmDone && _sentenceQueue.isEmpty && !_processingSentence) {
+        onAllSegmentsPlayed?.call();
+      }
+    };
+    _log.info('start: voiceId=$voiceId voiceMode=$voiceMode identity=$identity');
   }
 
   void feedText(String chunk) {
@@ -49,83 +85,45 @@ class StreamingTtsSession {
     _splitter.feed(chunk);
   }
 
+  /// Signal that the LLM stream has finished and wait for all TTS segments to
+  /// finish synthesizing and playing.
+  ///
+  /// Returns when the [OrderedTtsQueue] drains (all segments played).
   Future<void> finishAndWait() async {
     if (_disposed) return;
     _llmDone = true;
     _splitter.finish();
     _flushPendingSentences();
-    _log.info('finishAndWait: waiting for TTS sentences...');
+    _log.info('finishAndWait: waiting for synthesis + playback...');
 
-    // Wait for every queued sentence to finish synthesizing and writing its
-    // audio bytes to a temp file.
-    final deadline = DateTime.now().add(const Duration(seconds: 60));
+    // Wait for all sentences to finish synthesizing.
+    final deadline = DateTime.now().add(const Duration(seconds: 90));
     while (_processingSentence || _sentenceQueue.isNotEmpty) {
       if (DateTime.now().isAfter(deadline)) {
-        _log.warning('finishAndWait: TTS sentences timed out');
+        _log.warning('finishAndWait: synthesis timed out');
         break;
       }
       await Future.delayed(const Duration(milliseconds: 50));
     }
 
-    _log.info(
-        'finishAndWait: sentences done, segments=${_segmentFiles.length}');
-    if (_segmentFiles.isEmpty) {
-      await _dispose();
-      return;
-    }
+    // Mark the queue as done so onQueueDrained can fire.
+    _queue.markDone();
 
-    // Play each segment with its own AudioPlayer, sequentially. A fresh
-    // player per file avoids ExoPlayer re-seeking / double-playback glitches
-    // that occur when independent MP3 files share a single player (whether
-    // via StreamAudioSource byte concatenation or ConcatenatingAudioSource).
-    for (var i = 0; i < _segmentFiles.length; i++) {
-      if (_disposed) break;
-      final file = _segmentFiles[i];
-      if (!await file.exists() || file.lengthSync() == 0) continue;
-
-      _log.info('finishAndWait: playing segment $i/${_segmentFiles.length} '
-          '(${file.lengthSync()} bytes)');
-
-      final player = AudioPlayer();
-      if (voiceMode) {
-        try {
-          await player.setAndroidAudioAttributes(
-            const AndroidAudioAttributes(
-              contentType: AndroidAudioContentType.speech,
-              usage: AndroidAudioUsage.voiceCommunication,
-            ),
-          );
-        } catch (e) {
-          _log.warning('set audio attributes failed: $e');
-        }
+    // Wait for the queue to drain (all segments played).
+    final playDeadline = DateTime.now().add(const Duration(seconds: 120));
+    while (_queue.isPlaying || _queue.pendingCount > 0) {
+      if (DateTime.now().isAfter(playDeadline)) {
+        _log.warning('finishAndWait: playback timed out');
+        break;
       }
-      _segmentPlayer = player;
-
-      try {
-        await player.setFilePath(file.path);
-        final segmentCompleter = Completer<void>();
-        late StreamSubscription sub;
-        sub = player.playerStateStream.listen((state) {
-          if (state.processingState == ProcessingState.completed) {
-            sub.cancel();
-            if (!segmentCompleter.isCompleted) segmentCompleter.complete();
-          }
-        });
-        await player.play();
-        await segmentCompleter.future.timeout(
-          const Duration(seconds: 90),
-          onTimeout: () => _log.warning('segment $i playback timed out'),
-        );
-        await sub.cancel();
-      } catch (e) {
-        _log.warning('segment $i playback failed: $e');
-      } finally {
-        await player.dispose();
-        _segmentPlayer = null;
-      }
+      await Future.delayed(const Duration(milliseconds: 50));
     }
 
     _log.info('finishAndWait: all segments played');
+    await _dispose();
+  }
+
+  Future<void> cancel() async {
     await _dispose();
   }
 
@@ -135,32 +133,29 @@ class StreamingTtsSession {
     _tryFlushPending();
   }
 
-  /// Merge buffered short sentences once they exceed [_minSentenceRunes] and
-  /// enqueue the merged text for TTS. Long sentences are enqueued immediately
-  /// (with any pending short prefix batched in front of them).
   void _tryFlushPending() {
     if (_pendingSentences.isEmpty) return;
     final merged = _pendingSentences.join('\n');
     if (merged.runes.length >= _minSentenceRunes || _llmDone) {
       _pendingSentences.clear();
       _sentenceQueue.add(merged);
-      _processNextSentence();
+      unawaited(_processNextSentence());
     }
   }
 
-  /// Flush any remaining short sentences after the LLM stream finishes.
   void _flushPendingSentences() {
     if (_pendingSentences.isEmpty) return;
     final merged = _pendingSentences.join('\n');
     _pendingSentences.clear();
     _sentenceQueue.add(merged);
-    _processNextSentence();
+    unawaited(_processNextSentence());
   }
 
   Future<void> _processNextSentence() async {
     if (_processingSentence || _sentenceQueue.isEmpty || _disposed) return;
     _processingSentence = true;
     final sentence = _sentenceQueue.removeAt(0);
+    final currentSeq = _seq++;
     try {
       final bytes = <int>[];
       final stream = TtsService.streamTextToSpeech(
@@ -188,39 +183,50 @@ class StreamingTtsSession {
       if (!_disposed && bytes.isNotEmpty) {
         final file = File(
           '${Directory.systemTemp.path}/tts_seg_'
-          '${DateTime.now().microsecondsSinceEpoch}_${_segmentFiles.length}.mp3',
+          '${DateTime.now().microsecondsSinceEpoch}_$currentSeq.mp3',
         );
         await file.writeAsBytes(bytes, flush: true);
-        _segmentFiles.add(file);
-        _log.fine('segment ${_segmentFiles.length}: ${bytes.length} bytes');
+        _log.fine('segment seq=$currentSeq: ${bytes.length} bytes');
+
+        final segment = TtsSegment(
+          identity: identity ?? _throwawayIdentity(),
+          seq: currentSeq,
+          file: file,
+          text: sentence,
+        );
+        final result = _queue.push(segment);
+        if (result == TtsQueuePushResult.staleIdentity) {
+          _log.fine('Segment seq=$currentSeq rejected (stale identity)');
+        }
       }
     } catch (e) {
       _log.warning('TTS sentence failed: $e');
     }
     _processingSentence = false;
     if (_sentenceQueue.isNotEmpty) {
-      _processNextSentence();
+      unawaited(_processNextSentence());
     }
-  }
-
-  Future<void> cancel() async {
-    await _dispose();
   }
 
   Future<void> _dispose() async {
     if (_disposed) return;
     _disposed = true;
-    _log.info('_dispose: segments=${_segmentFiles.length}');
+    _log.info('_dispose');
     _sentenceQueue.clear();
     _pendingSentences.clear();
-    await _segmentPlayer?.dispose();
-    _segmentPlayer = null;
-    // Clean up temp files.
-    for (final file in _segmentFiles) {
-      try {
-        if (await file.exists()) await file.delete();
-      } catch (_) {}
+    try {
+      await _queue.cancel();
+    } catch (e) {
+      _log.warning('queue cancel error: $e');
     }
-    _segmentFiles.clear();
+  }
+
+  VoiceTurnIdentity _throwawayIdentity() {
+    return const VoiceTurnIdentity(
+      callSessionId: 'throwaway',
+      turnId: 'throwaway',
+      turnSequence: 0,
+      generationId: 'throwaway',
+    );
   }
 }

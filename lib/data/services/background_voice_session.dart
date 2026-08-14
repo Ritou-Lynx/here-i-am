@@ -18,6 +18,7 @@ import 'package:memex/data/services/streaming_tts_player.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
+import 'package:memex/domain/models/voice_turn_identity.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -48,6 +49,15 @@ class BackgroundVoiceSession {
   bool _ready = false;
   bool _readyInProgress = false;
   int _runSerial = 0;
+
+  /// Identity sequencer for voice turns. Call session is fixed for the
+  /// lifetime of this background session; each turn gets a new identity.
+  late final VoiceTurnSequencer _turnSequencer =
+      VoiceTurnSequencer('bg_call_${identityHash()}');
+  VoiceTurnIdentity? _activeIdentity;
+
+  static int _callCounter = 0;
+  int identityHash() => _callCounter++;
 
   String? _userId;
   String? _characterId;
@@ -221,10 +231,12 @@ class BackgroundVoiceSession {
   }
 
   /// Send [text] as a user chat message, stream the companion reply, persist
-  /// it, and speak it aloud. Guarded by [_runSerial] so an interrupting
+  /// it, and speak it aloud. Guarded by identity protocol so an interrupting
   /// toggle/cancel invalidates the in-flight run.
   Future<void> _sendAndReply(String text) async {
     final serial = ++_runSerial;
+    final turnIdentity = _turnSequencer.nextTurn();
+    _activeIdentity = turnIdentity;
     final userId = _userId;
     final characterId = _characterId;
     if (userId == null || characterId == null) {
@@ -251,7 +263,10 @@ class BackgroundVoiceSession {
       );
 
       if (voiceId != null && voiceId.isNotEmpty) {
-        tts = StreamingTtsSession(voiceId: voiceId);
+        tts = StreamingTtsSession(
+          voiceId: voiceId,
+          identity: turnIdentity,
+        );
         await tts.start();
         _ttsSession = tts;
         _phase = BackgroundVoicePhase.speaking;
@@ -271,7 +286,7 @@ class BackgroundVoiceSession {
         userMessageTime: DateTime.now(),
         voiceMode: true,
       )) {
-        if (serial != _runSerial) {
+        if (serial != _runSerial || !turnIdentity.isCurrent(_activeIdentity)) {
           // Interrupted mid-stream: stop feeding TTS and bail.
           await tts?.cancel();
           return;
@@ -279,7 +294,9 @@ class BackgroundVoiceSession {
         buffer.write(chunk);
         tts?.feedText(chunk);
       }
-      if (serial != _runSerial) return;
+      if (serial != _runSerial || !turnIdentity.isCurrent(_activeIdentity)) {
+        return;
+      }
 
       final reply = buffer.toString().trim();
       if (reply.isNotEmpty) {
@@ -293,8 +310,9 @@ class BackgroundVoiceSession {
     } catch (e, st) {
       _log.severe('reply failed: $e\n$st');
     } finally {
-      if (serial == _runSerial) {
+      if (serial == _runSerial && turnIdentity.isCurrent(_activeIdentity)) {
         _ttsSession = null;
+        _activeIdentity = null;
         _phase = BackgroundVoicePhase.idle;
         await _updateNotification('在后台陪着你');
       }
@@ -304,6 +322,7 @@ class BackgroundVoiceSession {
   /// Invalidate the in-flight reply run and cancel TTS playback.
   Future<void> _interruptReply() async {
     _runSerial++;
+    _activeIdentity = null;
     final tts = _ttsSession;
     _ttsSession = null;
     if (tts != null) {

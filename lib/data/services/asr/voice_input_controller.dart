@@ -12,15 +12,24 @@ import 'package:memex/data/services/asr/alibaba_asr_client.dart';
 import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
 import 'package:memex/data/services/asr/asr_client.dart';
 import 'package:memex/data/services/asr/asr_config.dart';
+import 'package:memex/data/services/barge_in_detector.dart';
 import 'package:memex/utils/logger.dart';
 
 enum VoiceInputState { idle, recording, processing }
 
 const _voiceEndpointPollInterval = Duration(milliseconds: 200);
 const _voiceEndpointInitialSilenceTimeout = Duration(seconds: 4);
-const _voiceEndpointTrailingSilenceTimeout = Duration(milliseconds: 1500);
-const _voiceEndpointMaxRecordingDuration = Duration(seconds: 180);
+const _voiceEndpointTrailingSilenceTimeout = Duration(milliseconds: 1350);
+const _voiceEndpointMaxRecordingDuration = Duration(seconds: 60);
 const _voiceEndpointSpeechThresholdDb = -45.0;
+
+/// Adaptive endpoint thresholds (Cove GPT-Live section 7).
+/// Short utterances (< 1800ms) use a shorter trailing silence (900ms);
+/// longer utterances use 1350ms. The hard per-sentence limit is 60s,
+/// counted from the first real speech, not from "entering listening".
+const _adaptiveShortThreshold = Duration(milliseconds: 1800);
+const _adaptiveShortSilence = Duration(milliseconds: 900);
+const _adaptiveLongSilence = Duration(milliseconds: 1350);
 
 /// Drives the press-to-talk recording -> ASR pipeline.
 ///
@@ -118,8 +127,10 @@ class VoiceInputController extends ChangeNotifier {
   StreamSubscription<Uint8List>? _streamingAudioSub;
   bool _streamingStopping = false;
   bool _audioForwardingPaused = false;
-  Timer? _bargeInPollTimer;
-  bool _bargeInPollInProgress = false;
+
+  /// Two-stage barge-in detector (duck → interrupt → restore) with PCM
+  /// preroll ring buffer. Active while TTS plays (audio forwarding paused).
+  BargeInDetector? _bargeInDetector;
 
   // Press-to-talk streaming state ----------------------------------------
   bool _pressToTalkActive = false;
@@ -127,9 +138,6 @@ class VoiceInputController extends ChangeNotifier {
   Timer? _pressToTalkWatchdog;
 
   static const Duration _pressToTalkMaxDuration = Duration(minutes: 5);
-
-  static const double _bargeInThresholdDb = -25.0;
-  static const Duration _bargeInPollInterval = Duration(milliseconds: 150);
 
   /// Called when automatic endpoint detection stops a recording (file mode).
   ///
@@ -144,10 +152,15 @@ class VoiceInputController extends ChangeNotifier {
   /// [SentenceEndEvent] to dispatch the final text to the LLM.
   void Function(StreamingAsrEvent event)? onStreamingEvent;
 
-  /// Called when client-side amplitude detection fires during TTS playback
-  /// (barge-in). The threshold is high (-25 dB) so only real user speech
-  /// triggers it, not speaker echo.
+  /// Called when client-side barge-in detection fires during TTS playback.
+  ///
+  /// Two-stage: [onBargeInDuck] fires first (~240ms continuous voice) to
+  /// lower TTS volume. [onBargeInDetected] fires when interrupt is confirmed
+  /// (~520ms continuous voice). [onBargeInRestore] fires if the duck was a
+  /// false alarm (~160ms silence after duck).
+  void Function()? onBargeInDuck;
   void Function()? onBargeInDetected;
+  void Function()? onBargeInRestore;
 
   /// Called when the streaming ASR session is lost unexpectedly (NLS WebSocket
   /// closed, server-side timeout, or event stream errored) while the user has
@@ -420,6 +433,10 @@ class VoiceInputController extends ChangeNotifier {
         (chunk) {
           if (!_audioForwardingPaused) {
             _streamingClient?.sendAudio(chunk);
+          } else {
+            // TTS is playing — feed PCM to the barge-in detector instead
+            // of dropping it. The detector runs duck/interrupt/restore.
+            _feedBargeInDetector(chunk);
           }
         },
         onError: (Object e) {
@@ -486,14 +503,13 @@ class VoiceInputController extends ChangeNotifier {
   /// playing so the speaker output is not recognized as user speech (echo
   /// loop) — a fallback for devices where the platform AEC leaks echo. The
   /// mic stays open (VoIP call audio session keeps mic + speaker coexisting),
-  /// chunks are simply dropped. Starts barge-in amplitude polling so the user
-  /// can interrupt by speaking.
+  /// chunks are fed to the [BargeInDetector] for two-stage duck/interrupt.
   ///
   /// This is a defense-in-depth guard. With the TTS player routed through the
   /// voice-communication stream (see `_voiceCallTtsContext`), the platform AEC
   /// should cancel speaker echo and the NLS server-side VAD will not fire on
-  /// TTS output. The pause + amplitude poller catches any residual echo that
-  /// slips past AEC on misbehaving devices.
+  /// TTS output. The detector catches any residual echo that slips past AEC
+  /// on misbehaving devices.
   void pauseAudioForwarding() {
     _audioForwardingPaused = true;
     startBargeInDetection();
@@ -508,45 +524,50 @@ class VoiceInputController extends ChangeNotifier {
     stopBargeInDetection();
   }
 
-  /// Start polling mic amplitude while TTS plays. If the level exceeds
-  /// [_bargeInThresholdDb] (-25 dB, well above speaker echo), fire
-  /// [onBargeInDetected] so the UI can stop TTS and resume forwarding.
+  /// Start two-stage barge-in detection. Audio chunks arriving while
+  /// forwarding is paused are fed to [BargeInDetector].
   void startBargeInDetection() {
-    if (_bargeInPollTimer != null) return;
-    _bargeInPollTimer = Timer.periodic(
-      _bargeInPollInterval,
-      (_) => unawaited(_pollBargeInAmplitude()),
-    );
+    if (_bargeInDetector != null) return;
+    _bargeInDetector = BargeInDetector();
+    _bargeInDetector!.onEvent = (event, prerollSnapshot) {
+      switch (event) {
+        case BargeInEvent.duck:
+          _logger.info('Barge-in: duck stage');
+          onBargeInDuck?.call();
+        case BargeInEvent.interrupt:
+          _logger.info('Barge-in: interrupt confirmed');
+          stopBargeInDetection();
+          onBargeInDetected?.call();
+        case BargeInEvent.restore:
+          _logger.info('Barge-in: false alarm, restore');
+          onBargeInRestore?.call();
+      }
+    };
+    _bargeInDetector!.start(16000);
+    _logger.info('Barge-in detector started (duck=${BargeInDetector().duckMs}ms, '
+        'interrupt=${BargeInDetector().interruptMs}ms)');
   }
 
   void stopBargeInDetection() {
-    _bargeInPollTimer?.cancel();
-    _bargeInPollTimer = null;
-    _bargeInPollInProgress = false;
+    _bargeInDetector?.stop();
+    _bargeInDetector = null;
   }
 
-  Future<void> _pollBargeInAmplitude() async {
-    if (_bargeInPollInProgress || _bargeInPollTimer == null) return;
-    _bargeInPollInProgress = true;
-    try {
-      final amplitude = await _recorder
-          .getAmplitude()
-          .timeout(const Duration(seconds: 1), onTimeout: () {
-        return Amplitude(current: -160.0, max: -160.0);
-      });
-      if (amplitude.current >= _bargeInThresholdDb) {
-        _logger.info(
-          'Barge-in detected: ${amplitude.current.toStringAsFixed(1)}dB '
-          '>= ${_bargeInThresholdDb}dB',
-        );
-        stopBargeInDetection();
-        onBargeInDetected?.call();
-      }
-    } catch (e) {
-      _logger.fine('Barge-in poll error: $e');
-    } finally {
-      _bargeInPollInProgress = false;
+  /// Convert a PCM16 mono chunk (Uint8List of 16-bit samples) to Float32List
+  /// and feed it to the barge-in detector.
+  void _feedBargeInDetector(Uint8List chunk) {
+    final detector = _bargeInDetector;
+    if (detector == null) return;
+    // PCM16 mono → Float32 (normalized -1.0 to 1.0).
+    final sampleCount = chunk.length ~/ 2;
+    if (sampleCount == 0) return;
+    final floats = Float32List(sampleCount);
+    final byteData = ByteData.sublistView(chunk);
+    for (var i = 0; i < sampleCount; i++) {
+      final sample = byteData.getInt16(i * 2, Endian.little);
+      floats[i] = sample / 32768.0;
     }
+    detector.push(floats, 16000);
   }
 
   Future<void> _cancelStreamingInternal() async {
@@ -961,5 +982,18 @@ bool voiceInputShouldAutoStop({
 
   final lastSpeech = lastSpeechAt;
   if (lastSpeech == null) return false;
-  return now.difference(lastSpeech) >= trailingSilenceTimeout;
+
+  // Adaptive trailing silence (Cove section 7):
+  // Short utterances (< 1800ms of speech) → 900ms silence to end.
+  // Longer utterances (>= 1800ms) → 1350ms silence.
+  final speechDuration = lastSpeech.difference(startedAt);
+  final adaptiveSilence = speechDuration < _adaptiveShortThreshold
+      ? _adaptiveShortSilence
+      : _adaptiveLongSilence;
+  // Use the shorter of the caller-provided timeout and the adaptive one
+  // so callers that explicitly pass a timeout still get their value honored.
+  final effectiveSilence = trailingSilenceTimeout < adaptiveSilence
+      ? trailingSilenceTimeout
+      : adaptiveSilence;
+  return now.difference(lastSpeech) >= effectiveSilence;
 }
