@@ -125,14 +125,19 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
   String? _pendingVideoId;
   Timer? _pollTimer;
   JSObject? _player;
-  bool _registered = false;
 
   final StreamController<PlayerTimeEvent> _timeController =
       StreamController<PlayerTimeEvent>.broadcast();
 
   static int _counter = 0;
 
-  WebYouTubePlayerAdapter() : viewTypeId = 'yt-player-${++_counter}';
+  WebYouTubePlayerAdapter() : viewTypeId = 'yt-player-${++_counter}' {
+    // Register the platform view factory up front (not deferred to load()).
+    // Flutter web silently drops an HtmlElementView whose viewType has no
+    // registered factory — if registration waits until load(), the widget's
+    // first build renders nothing and the host div never appears in the DOM.
+    _registerPlatformView();
+  }
 
   @override
   String get providerId => 'youtube';
@@ -151,12 +156,11 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
 
   /// Loads a YouTube video by video ID or watch URL.
   ///
-  /// Registers the platform view and returns immediately so the UI can render
-  /// the [HtmlElementView] (which mounts the host div). The actual `YT.Player`
-  /// creation is deferred — it polls `document.getElementById` until the div
-  /// is in the DOM, then constructs the player. This avoids a deadlock where
-  /// `load()` would wait for a div that only mounts after the body renders
-  /// (which requires `isLoaded` to be true).
+  /// Platform view registration happens in the constructor so the
+  /// [HtmlElementView] always finds a factory on its first build. The actual
+  /// `YT.Player` creation is deferred — [ensureYouTubeIframeApiReady] loads
+  /// the IFrame API, then `_ensurePlayerWhenReady` polls until the host div is
+  /// in the DOM before constructing the player.
   @override
   Future<void> load(String sourceId, {String? embedUrl}) async {
     if (!kIsWeb) return;
@@ -165,11 +169,6 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
     _pendingVideoId = videoId;
 
     await ensureYouTubeIframeApiReady();
-
-    if (!_registered) {
-      _registerPlatformView();
-      _registered = true;
-    }
 
     // Kick off async player creation — don't await it so the UI can render.
     _ensurePlayerWhenReady();

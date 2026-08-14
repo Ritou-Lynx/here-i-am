@@ -90,6 +90,16 @@ class _VideoStudyDemoScreenState extends State<VideoStudyDemoScreen> {
   final String? _sessionPath = session_path.resolveSessionPath();
 
   @override
+  void initState() {
+    super.initState();
+    // Auto-open the study view immediately (this is a demo). Kept behind a
+    // post-frame callback so the first frame can render.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _adapter == null) _openStudy();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final adapter = _adapter;
     if (adapter == null) {
