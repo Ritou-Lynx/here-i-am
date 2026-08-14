@@ -19,6 +19,8 @@
 | `春雨昼眠主题Interest与游戏.md` | 阅读与游戏共用顶层「兴趣」入口但保持独立子空间；SillyTavern 游戏库、PNG/JSON 导入、角色详情、剧情/OOC、存档分支与角色卡图片复用规则。 |
 | `春雨昼眠主题个人中心.md` | 固定用户入口的设置重组提案：用户资料、AI 与模型、声音与互动、设备与连接、数据与安全、应用设置，以及独立的开发与诊断入口。 |
 | `春雨昼眠UI Token.md` | 应用级暖雾昼面 Token：语义色、字体、间距、圆角、控件、弹窗、Toast 与设置次级页迁移纪律；与 Chat 的暗色场景 Token 分离。 |
+| `whiteboard-visual-rules.md` | 白板 / 桌面工作台视觉母语：暖纸 + 鼠尾草绿、排版与留白层级、工作台 / 全屏白板 / 阅读器 / 媒体 / 任务房间的差异化表面，以及桌面视口和组件状态验收矩阵。 |
+| `whiteboard-component-spec.md` | 白板组件规范 v0.1：基础 Token、通用控件、内容卡 / 白板节点 / 图表 / 字幕标注 / 任务 / 记忆 / 林埃悬浮对话组件，以及“基础先冻结、业务随功能增量完善”的并行设计方法。 |
 | `lab/` | 设计期调参画板（纯静态 html / css / js，浏览器开即用、跨电脑）。**值不进生产代码**；调满意后一次性翻译成 Dart 新 skin「春雨昼眠」。 |
 
 成品背景图：`assets/images/spring_rain_daydream_chat_bg.png`。
@@ -32,4 +34,4 @@
 
 现行文档统一以「春雨昼眠」开头，便于检索。凡不以「春雨昼眠」开头、或位于 `archive/` 的，均**非**现行。
 
-**例外**：`whiteboard-requirements.md` 第一部分是白板 / 桌面工作台的当前权威产品形态；`whiteboard-ui-spine-contract.md` 是页面边界与数据骨架的实施级契约，二者均属现行。`whiteboard-requirements.md` 第二部分保留早期 FlexNote 对标愿景全集，仅供追溯。
+**例外**：`whiteboard-requirements.md` 第一部分是白板 / 桌面工作台的当前权威产品形态；`whiteboard-ui-spine-contract.md` 是页面边界与数据骨架的实施级契约；`whiteboard-visual-rules.md` 是桌面视觉与验收规则；`whiteboard-component-spec.md` 是组件与状态规范，四者均属现行。`whiteboard-requirements.md` 第二部分保留早期 FlexNote 对标愿景全集，仅供追溯。
