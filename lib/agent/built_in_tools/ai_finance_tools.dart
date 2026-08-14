@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
+import 'package:memex/data/memory_v3/services/growth_pact_service.dart';
 
 const double _maxPenaltyAmountCny = 100.0;
 
@@ -296,7 +297,9 @@ Rules:
   directly and state the reason.
 - Use 10 CNY steps. Typical penalties are 10, 20, 30... up to 100 CNY.
 - The hard maximum is 100 CNY per penalty entry.
-- This is bookkeeping only — no real money moves automatically.''',
+- If the penalty is for a Growth Pact violation, pass the pactId so the
+  settled misses are marked and not re-penalized on the next checkin.
+- This is bookkeeping only - no real money moves automatically.''',
     parameters: {
       'type': 'object',
       'properties': {
@@ -313,10 +316,18 @@ Rules:
           'type': 'string',
           'description': 'Any extra context to remember about this penalty.',
         },
+        'pactId': {
+          'type': 'string',
+          'description':
+              'The Growth Pact ID this penalty settles, if applicable. '
+              'Pass this when penalizing for a pact violation so the settled '
+              'misses are marked and not re-penalized on subsequent checkins. '
+              'Omit for ad-hoc penalties not tied to a pact.',
+        },
       },
       'required': ['amount', 'reason'],
     },
-    executable: (double amount, String reason, [String? notes]) async {
+    executable: (double amount, String reason, [String? notes, String? pactId]) async {
       try {
         if (amount <= 0) {
           return jsonEncode({
@@ -345,6 +356,42 @@ Rules:
           purpose: '⚠️ 惩罚: $reason',
           notes: notes,
         );
+
+        // If a pactId was provided and the ledger entry was actually created,
+        // settle the corresponding miss checks so the next checkin snapshot
+        // doesn't re-fire the same penalty.
+        if (pactId != null && pactId.isNotEmpty && result.created) {
+          try {
+            if (GrowthPactService.isInitialized) {
+              final pact = await GrowthPactService.instance.getPact(pactId);
+              if (pact != null) {
+                final stakes = _decodeStakes(pact.stakesJson);
+                final penaltyPerMiss = _extractPenaltyPerMiss(stakes);
+                if (penaltyPerMiss != null && penaltyPerMiss > 0) {
+                  final settleCount = (amount / penaltyPerMiss).round();
+                  await GrowthPactService.instance.settlePenalties(
+                    pactId: pactId,
+                    penaltyLedgerId: result.id,
+                    settleCount: settleCount,
+                  );
+                }
+              }
+            }
+          } catch (e) {
+            return jsonEncode({
+              'success': true,
+              'id': result.id,
+              'created': result.created,
+              'amount': amount,
+              'pact_settlement_error': e.toString(),
+              if (result.duplicateOf != null) 'duplicate_of': result.duplicateOf,
+              if (!result.created)
+                'message':
+                    'A matching penalty entry already exists; no new ledger row was created.',
+            });
+          }
+        }
+
         return jsonEncode({
           'success': true,
           'id': result.id,
@@ -643,4 +690,21 @@ Rules:
       }
     },
   );
+}
+
+Map<String, dynamic>? _decodeStakes(String? json) {
+  if (json == null || json.isEmpty) return null;
+  try {
+    return jsonDecode(json) as Map<String, dynamic>;
+  } catch (_) {
+    return null;
+  }
+}
+
+double? _extractPenaltyPerMiss(Map<String, dynamic>? stakes) {
+  if (stakes == null) return null;
+  final v = stakes['penaltyPerMiss'];
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v);
+  return null;
 }

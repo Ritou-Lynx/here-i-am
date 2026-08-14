@@ -1,7 +1,7 @@
 /// V3 Record Organizer service.
 ///
 /// Persists [OrganizedRecord] outputs across the Memory V3 table family.
-/// Implements V3 § 9 — single explicit-write path for User-truth Memory Cards.
+/// Implements V3 § 9 - single explicit-write path for User-truth Memory Cards.
 ///
 /// Boundary:
 /// - Does NOT contain the LLM prompt or call. That lives in
@@ -27,6 +27,59 @@ import '../agents/record_organizer_agent/agent.dart';
 import '../models/organized_record.dart';
 import 'life_insight_scheduler.dart';
 import 'user_rhythm_service.dart';
+
+/// Robust date-time parser for LLM-generated time fields.
+///
+/// `DateTime.tryParse` only accepts strict ISO-8601. LLMs sometimes produce
+/// other formats ("2026/8/6", "2026-8-6", "8月6日", "08-06T14:30") which
+/// silently fail and fall back to recordedAt/createdAt, producing wrong
+/// dates in the ledger. This parser handles common variants before giving up.
+DateTime? _parseTimeField(dynamic raw) {
+  if (raw == null) return null;
+  final s = raw.toString().trim();
+  if (s.isEmpty) return null;
+
+  // 1. Try strict ISO-8601 first (fast path).
+  final iso = DateTime.tryParse(s);
+  if (iso != null) return iso;
+
+  // 2. Slash-separated: "2026/8/6" or "2026/08/06"
+  final slashMatch = RegExp(r'^(\d{4})/(\d{1,2})/(\d{1,2})(.*)$').firstMatch(s);
+  if (slashMatch != null) {
+    final dt = DateTime.tryParse(
+      '${slashMatch.group(1)}-${slashMatch.group(2)!.padLeft(2, '0')}-'
+      '${slashMatch.group(3)!.padLeft(2, '0')}${slashMatch.group(4)}',
+    );
+    if (dt != null) return dt;
+  }
+
+  // 3. Non-zero-padded ISO: "2026-8-6" or "2026-8-6T14:30"
+  final dashMatch = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})(.*)$').firstMatch(s);
+  if (dashMatch != null) {
+    final dt = DateTime.tryParse(
+      '${dashMatch.group(1)}-${dashMatch.group(2)!.padLeft(2, '0')}-'
+      '${dashMatch.group(3)!.padLeft(2, '0')}${dashMatch.group(4)}',
+    );
+    if (dt != null) return dt;
+  }
+
+  // 4. Chinese date: "8月6日" or "2026年8月6日" or "8月6日 14:30"
+  final cnMatch = RegExp(
+    r'(?:(\d{4})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*日?'
+    r'(?:\s*(\d{1,2}):(\d{2}))?',
+  ).firstMatch(s);
+  if (cnMatch != null) {
+    final year = int.tryParse(cnMatch.group(1) ?? '') ?? DateTime.now().year;
+    final month = int.parse(cnMatch.group(2)!);
+    final day = int.parse(cnMatch.group(3)!);
+    final hour = int.tryParse(cnMatch.group(4) ?? '') ?? 0;
+    final minute = int.tryParse(cnMatch.group(5) ?? '') ?? 0;
+    final dt = DateTime(year, month, day, hour, minute);
+    if (dt.year == year && dt.month == month && dt.day == day) return dt;
+  }
+
+  return null;
+}
 
 final _logger = getLogger('memory_v3.RecordOrganizerService');
 
@@ -670,7 +723,7 @@ class RecordOrganizerServiceV3 {
     ]) {
       final raw = fields[name];
       if (raw == null) continue;
-      final parsed = DateTime.tryParse(raw.toString());
+      final parsed = _parseTimeField(raw);
       if (parsed != null) return parsed;
     }
     return null;
@@ -1128,7 +1181,7 @@ class RecordOrganizerServiceV3 {
       final timeRaw =
           fields['paidAt'] as String? ?? fields['receivedAt'] as String?;
       if (timeRaw != null) {
-        occurredAt = DateTime.tryParse(timeRaw);
+        occurredAt = _parseTimeField(timeRaw);
       }
       occurredAt ??= source.recordedAt;
 
@@ -1281,7 +1334,7 @@ class RecordOrganizerServiceV3 {
       final timeRaw =
           fieldsMap['paidAt'] as String? ?? fieldsMap['receivedAt'] as String?;
       if (timeRaw != null) {
-        occurredAt = DateTime.tryParse(timeRaw);
+        occurredAt = _parseTimeField(timeRaw);
       }
       occurredAt ??= DateTime.fromMillisecondsSinceEpoch(card.createdAt);
 

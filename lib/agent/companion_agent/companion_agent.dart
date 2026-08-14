@@ -1472,8 +1472,9 @@ class CompanionAgent {
         'food)? Is it late (ask if everything is okay, don\'t alarm)?');
     buf.writeln();
     buf.writeln('If any of these signals are present, they should STRONGLY '
-        'influence your action choice. A bedtime signal → call. A pact miss '
-        'with penalty due → notify + execute penalty. A streak of hits → '
+        'influence your action choice. A bedtime signal -> call. A pact miss '
+        'with penalty due -> notify + execute penalty (pass the pactId from '
+        'the snapshot so the misses are marked as settled). A streak of hits -> '
         'notify with praise. A period-coming-soon or late signal -> notify '
         'with a caring, practical reminder. Do NOT ignore these signals and '
         'send a generic "thinking of you" message.');

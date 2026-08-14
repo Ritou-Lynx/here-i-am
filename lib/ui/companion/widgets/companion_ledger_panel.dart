@@ -813,11 +813,17 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
   }
 
   Future<void> _pickDate() async {
+    // Allow selecting dates up to 1 year in the future so entries whose
+    // recorded_at landed in the future (LLM paidAt parsing drift) can be
+    // corrected. Without this, showDatePicker silently fails when
+    // initialDate > lastDate (DateTime.now()).
+    final lastDate = DateTime.now().add(const Duration(days: 365));
+    final initialDate = _occurredAt.isAfter(lastDate) ? lastDate : _occurredAt;
     final date = await showDatePicker(
       context: context,
-      initialDate: _occurredAt,
+      initialDate: initialDate,
       firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
+      lastDate: lastDate,
     );
     if (date != null) setState(() => _occurredAt = date);
   }

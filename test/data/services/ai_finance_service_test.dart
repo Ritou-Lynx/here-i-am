@@ -325,5 +325,54 @@ void main() {
       final entries = await service.getRecentEntries(limit: 10);
       expect(entries, hasLength(2));
     });
+
+    // Regression: 2026-08-14 real-device bug - three identical 30 CNY penalties
+    // were recorded in ~10 min because the companion agent re-fired the penalty
+    // on each checkin tick. The primary fix is Growth Pact settlement, but the
+    // ledger must also dedupe same-amount penalties within a short window.
+    test('penalty dedupes by amount within 30min when purpose differs', () async {
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'penalty',
+        totalAmount: 30,
+        aiAmount: 30,
+        purpose: '⚠️ 惩罚: 又没早睡',
+      );
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'penalty',
+        totalAmount: 30,
+        aiAmount: 30,
+        purpose: '⚠️ 惩罚: 说了要早睡的',
+      );
+
+      final entries = await service.getRecentEntries(limit: 10);
+      expect(entries, hasLength(1));
+      expect(entries.single['total_amount'], 30);
+    });
+
+    // Guard: two penalties for the same amount but hours apart are real and
+    // distinct - must NOT dedupe.
+    test('penalty does NOT dedupe when outside the 30min window', () async {
+      final oldTime = DateTime.now().subtract(const Duration(hours: 2));
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'penalty',
+        totalAmount: 30,
+        aiAmount: 30,
+        purpose: '⚠️ 惩罚: 没早睡',
+        occurredAt: oldTime,
+      );
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'penalty',
+        totalAmount: 30,
+        aiAmount: 30,
+        purpose: '⚠️ 惩罚: 又没早睡',
+      );
+
+      final entries = await service.getRecentEntries(limit: 10);
+      expect(entries, hasLength(2));
+    });
   });
 }

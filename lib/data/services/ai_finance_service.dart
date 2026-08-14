@@ -26,6 +26,7 @@ class AiFinanceService {
   static final Lock _recordLock = Lock();
   static const _duplicateWindow = Duration(hours: 36);
   static const _bareAmountDuplicateWindow = Duration(minutes: 1);
+  static const _penaltyDuplicateWindow = Duration(minutes: 30);
 
   Future<String> recordEntry({
     required String characterId,
@@ -172,7 +173,6 @@ class AiFinanceService {
           case 'cost':
             externalExpense += row.totalAmount;
             myExpenseShare += row.totalAmount - aiShare;
-            paidToAi += row.aiAmount;
           case 'loan':
             loanedToAi += row.aiAmount;
             paidToAi += row.aiAmount;
@@ -426,6 +426,12 @@ class AiFinanceService {
     // common and must not merge. Other types (transfer/cost/loan/repayment/
     // reward/penalty) likewise keep the context gate.
     final amountOnlyDedupe = entryType == 'expense';
+    // penalty uses amount + a short window (30 min): three identical 30 CNY
+    // penalties fired by repeated checkins within ~10 min are duplicates, but
+    // two legitimate 30 CNY penalties for different reasons hours apart are
+    // not. The primary fix is Growth Pact settlement (penaltyLedgerId write-
+    // back); this is the backstop.
+    final penaltyAmountDedupe = entryType == 'penalty';
     for (final row in recentRows) {
       if (!_sameMoney(row.totalAmount, totalAmount) ||
           !_sameMoney(row.aiAmount, aiAmount) ||
@@ -433,6 +439,15 @@ class AiFinanceService {
         continue;
       }
       if (amountOnlyDedupe) {
+        return row;
+      }
+
+      // penalty: amount match within 30 min window is enough to dedupe.
+      // Purpose text differs each time ("又没早睡" vs "说了要早睡的"),
+      // so context-based dedupe is useless. Primary fix is Growth Pact
+      // settlement; this is the last-resort backstop.
+      if (penaltyAmountDedupe &&
+          nowEpoch - row.recordedAt <= _penaltyDuplicateWindow.inSeconds) {
         return row;
       }
 

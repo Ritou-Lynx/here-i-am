@@ -225,6 +225,61 @@ class GrowthPactService {
     return result.read(_db.growthPactChecks.id.count()) ?? 0;
   }
 
+  /// 某个 pact 在某时间区间内**已结算罚款**的 miss 次数
+  ///（penaltyLedgerId 非空 = 那次 miss 已经被罚过了）。
+  Future<int> countSettledMissesInRange(String pactId,
+      {required int fromMs, required int toMs}) async {
+    final count = _db.selectOnly(_db.growthPactChecks)
+      ..addColumns([_db.growthPactChecks.id.count()])
+      ..where((_db.growthPactChecks.pactId.equals(pactId)) &
+          (_db.growthPactChecks.result.equals('miss')) &
+          (_db.growthPactChecks.penaltyLedgerId.isNotNull()) &
+          (_db.growthPactChecks.checkedAt
+              .isBiggerOrEqualValue(fromMs)) &
+          (_db.growthPactChecks.checkedAt.isSmallerOrEqualValue(toMs)));
+    final result = await count.getSingle();
+    return result.read(_db.growthPactChecks.id.count()) ?? 0;
+  }
+
+  /// 将 [settleCount] 条最近的**未结算** miss check 回写 penaltyLedgerId，
+  /// 标记这些 miss 已经被罚款了。
+  ///
+  /// 由 AiFinancePenalty tool 在写入 ledger 行之后调用，确保下一次 checkin
+  /// 的 snapshot 不再对这些 miss 显示 "penalty due"。
+  ///
+  /// 返回实际回写的行数。
+  Future<int> settlePenalties({
+    required String pactId,
+    required String penaltyLedgerId,
+    required int settleCount,
+  }) async {
+    if (settleCount <= 0) return 0;
+
+    final unsettled = await (_db.select(_db.growthPactChecks)
+          ..where((t) =>
+              t.pactId.equals(pactId) &
+              t.result.equals('miss') &
+              t.penaltyLedgerId.isNull())
+          ..orderBy([(t) => OrderingTerm.desc(t.checkedAt)])
+          ..limit(settleCount))
+        .get();
+
+    if (unsettled.isEmpty) return 0;
+
+    var settled = 0;
+    for (final check in unsettled) {
+      await (_db.update(_db.growthPactChecks)
+            ..where((t) => t.id.equals(check.id)))
+          .write(GrowthPactChecksCompanion(
+        penaltyLedgerId: Value(penaltyLedgerId),
+      ));
+      settled++;
+    }
+    _log.info('Settled $settled miss check(s) for pact=$pactId '
+        'with penaltyLedgerId=$penaltyLedgerId');
+    return settled;
+  }
+
   // ──────────────────────────────────────────────────────────────────────
   // Calibrate — 基于 Life Insights 重新推断 target
   // ──────────────────────────────────────────────────────────────────────
@@ -306,17 +361,25 @@ class GrowthPactService {
         }
       }
       if (recentMisses > 0) {
-        statusParts.add('misses this week: $recentMisses');
-        if (stakes != null) {
-          final penaltyPerMiss = stakes['penaltyPerMiss'];
-          if (penaltyPerMiss != null && penaltyPerMiss > 0) {
-            statusParts.add('⚠️ penalty due: $recentMisses × $penaltyPerMiss CNY');
+        // Subtract misses that were already penalized (penaltyLedgerId set)
+        // so the snapshot doesn't show "penalty due" for already-settled misses.
+        final settledMisses = await countSettledMissesInRange(
+            pact.id, fromMs: weekAgo, toMs: moment.millisecondsSinceEpoch);
+        final outstandingMisses = recentMisses - settledMisses;
+        if (outstandingMisses > 0) {
+          statusParts.add('misses this week: $outstandingMisses');
+          if (stakes != null) {
+            final penaltyPerMiss = stakes['penaltyPerMiss'];
+            if (penaltyPerMiss != null && penaltyPerMiss > 0) {
+              statusParts.add(
+                  '⚠️ penalty due: $outstandingMisses × $penaltyPerMiss CNY');
+            }
           }
         }
       }
 
       lines.add('- $kindEmoji ${pact.kind}/${pact.domain}: '
-          '${pact.description}');
+          '${pact.description} [pactId: ${pact.id}]');
       lines.add('    target: $currentRange');
       if (statusParts.isNotEmpty) {
         lines.add('    ${statusParts.join(' | ')}');
