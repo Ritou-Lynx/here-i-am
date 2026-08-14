@@ -46,6 +46,17 @@ class CanvasTransform {
     final br = canvasToScreen(canvasRect.bottomRight);
     return Rect.fromPoints(tl, br);
   }
+
+  /// The visible canvas rectangle for a given screen [size].
+  ///
+  /// Used for viewport culling: only board items intersecting this rect are
+  /// materialized as widgets, so a 500-card board renders only the cards the
+  /// user can actually see.
+  Rect visibleCanvasRect(Size size) {
+    final tl = screenToCanvas(Offset.zero);
+    final br = screenToCanvas(Offset(size.width, size.height));
+    return Rect.fromPoints(tl, br);
+  }
 }
 
 /// The main full-screen whiteboard canvas widget.
@@ -275,6 +286,18 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       for (final item in boardState.nodes) item.itemId: item.item,
     };
 
+    // Viewport culling: only materialize cards intersecting the visible
+    // canvas area (plus a margin, and always the selected items so a card
+    // stays interactive while being dragged near the edge).
+    final visibleCanvas = transform.visibleCanvasRect(size).inflate(64.0);
+    final visibleNodes = boardState.nodes.where((node) {
+      if (vm.selection.isSelected(node.itemId)) return true;
+      final item = node.item;
+      return visibleCanvas.overlaps(
+        Rect.fromLTWH(item.x, item.y, item.width, item.height),
+      );
+    }).toList();
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -285,8 +308,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             itemsByItemId: itemsByItemId,
             transform: transform,
           ),
-        // Cards
-        for (final node in boardState.nodes)
+        // Cards (culled to viewport)
+        for (final node in visibleNodes)
           _CardWidget(
             node: node,
             transform: transform,
