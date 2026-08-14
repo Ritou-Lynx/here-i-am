@@ -27,22 +27,24 @@ const List<String> richTextCjkFallback = [
 /// 英文、数字、时间码、代码目标字体族名（Cascadia Code）。
 const String richTextCodeFamily = 'Cascadia Code';
 
-/// 英文与代码回退链：系统等宽字体。
+/// 英文与代码回退链：具体系统等宽字体 → 汇文明朝体（CJK 注释）→ 系统宋体
+/// → 通用 `monospace`。把汇文明朝体放通用 monospace 之前，避免通用等宽字体
+/// 提前接管 CJK 字形。
 const List<String> richTextCodeFallback = [
   'Cascadia Mono',
   'Consolas',
   'Courier New',
   'Menlo',
+  richTextCjkFamily,
+  ...richTextCjkFallback,
   'monospace',
 ];
 
-/// 正文混排完整回退链：先系统等宽（拉丁/数字），再汇文明朝体，再系统衬线
-/// （CJK）。`TextStyle.fontFamilyFallback` 是按字形逐项尝试的列表。
-const List<String> _bodyFallbackChain = [
-  ...richTextCodeFallback,
-  richTextCjkFamily,
-  ...richTextCjkFallback,
-];
+/// 正文混排完整回退链：具体系统等宽（拉丁/数字）→ 汇文明朝体与系统
+/// 衬线（CJK）→ 通用 `monospace`。把汇文明朝体放通用 `monospace` 之前，
+/// 避免通用等宽字体提前接管 CJK 字形。`TextStyle.fontFamilyFallback` 是
+/// 按字形逐项尝试的列表。
+const List<String> _bodyFallbackChain = richTextCodeFallback;
 
 /// 正文（混排）样式：拉丁字符优先 Cascadia Code，CJK 字符进汇文明朝体，
 /// 随后回退系统宋体。这是普通正文、标题、引用、列表的默认字体。
