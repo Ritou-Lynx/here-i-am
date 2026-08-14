@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../player_adapter.dart';
+import 'provider_capability_matrix.dart';
 
 /// YouTube IFrame Player Adapter.
 ///
@@ -54,15 +55,8 @@ class YouTubePlayerAdapter implements PlayerAdapter {
   String get providerId => 'youtube';
 
   @override
-  PlayerCapability get capability => const PlayerCapability(
-        canSeek: true,
-        canReadDuration: true,
-        canReadPosition: true,
-        hasTranscript: true,
-        canEmbedPlayer: true,
-        canReverseHighlight: true,
-        canCreateTimeAnchor: true,
-      );
+  PlayerCapability get capability =>
+      ProviderCapabilityMatrix.capabilityFor('youtube');
 
   @override
   Stream<PlayerTimeEvent> get timeEvents => _timeController.stream;

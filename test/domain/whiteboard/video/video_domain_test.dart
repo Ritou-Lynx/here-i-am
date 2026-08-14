@@ -453,26 +453,45 @@ void main() {
   });
 
   group('ProviderCapabilityMatrix', () {
-    test('youtube is playback study capable', () {
+    test('youtube has real control capabilities but no static transcript', () {
       final cap = ProviderCapabilityMatrix.capabilityFor('youtube');
-      expect(cap.isPlaybackStudyCapable, isTrue);
-    });
-
-    test('bilibili is NOT playback study capable', () {
-      final cap = ProviderCapabilityMatrix.capabilityFor('bilibili');
-      expect(cap.isPlaybackStudyCapable, isFalse);
+      expect(cap.canSeek, isTrue);
+      expect(cap.canReadPosition, isTrue);
+      expect(cap.canReadDuration, isTrue);
       expect(cap.canEmbedPlayer, isTrue);
-    });
-
-    test('xiaohongshu is NOT playback study capable', () {
-      final cap = ProviderCapabilityMatrix.capabilityFor('xiaohongshu');
+      // Platform subtitle auto-fetch not implemented yet → static false.
+      expect(cap.hasTranscript, isFalse);
+      // Because hasTranscript is false, static full-study gate is NOT passed.
       expect(cap.isPlaybackStudyCapable, isFalse);
-      expect(cap.canEmbedPlayer, isFalse);
     });
 
-    test('fixture is playback study capable', () {
+    test('bilibili: embeddable but NOT controllable are separate facts', () {
+      final cap = ProviderCapabilityMatrix.capabilityFor('bilibili');
+      expect(cap.canEmbedPlayer, isTrue);
+      expect(cap.canReadPosition, isFalse);
+      expect(cap.canSeek, isFalse);
+      expect(cap.canReadDuration, isFalse);
+      expect(cap.isPlaybackStudyCapable, isFalse);
+    });
+
+    test('xiaohongshu is link-only (no playback surface)', () {
+      final cap = ProviderCapabilityMatrix.capabilityFor('xiaohongshu');
+      expect(cap.canEmbedPlayer, isFalse);
+      expect(cap.canReadPosition, isFalse);
+      expect(cap.isPlaybackStudyCapable, isFalse);
+    });
+
+    test('fixture declares full static capability (test provider)', () {
       final cap = ProviderCapabilityMatrix.capabilityFor('fixture');
       expect(cap.isPlaybackStudyCapable, isTrue);
+      expect(cap.hasTranscript, isTrue);
+    });
+
+    test('fixture is NOT in the production provider list', () {
+      expect(ProviderCapabilityMatrix.productionProviders, isNot(contains('fixture')));
+      expect(ProviderCapabilityMatrix.testProviders, contains('fixture'));
+      expect(ProviderCapabilityMatrix.productionProviders,
+          containsAll(['youtube', 'bilibili', 'xiaohongshu']));
     });
 
     test('recommendedProvider is youtube', () {
@@ -490,6 +509,150 @@ void main() {
       }
       expect(ProviderCapabilityMatrix.rows.length, greaterThanOrEqualTo(10));
     });
+
+    test('reverse highlight / time anchor are NOT supported where position is unreadable', () {
+      final biliRow = ProviderCapabilityMatrix.rows
+          .firstWhere((r) => r.name.contains('Reverse highlight'));
+      final anchorRow = ProviderCapabilityMatrix.rows
+          .firstWhere((r) => r.name.contains('Time anchor'));
+      expect(biliRow.bilibili, equals(CapabilityVerdict.unsupported));
+      expect(biliRow.xiaohongshu, equals(CapabilityVerdict.unsupported));
+      expect(anchorRow.bilibili, equals(CapabilityVerdict.unsupported));
+      expect(anchorRow.xiaohongshu, equals(CapabilityVerdict.unsupported));
+    });
+
+    test('bilibili embeddability and controllability are distinct rows', () {
+      final embedRow = ProviderCapabilityMatrix.rows
+          .firstWhere((r) => r.name == 'Embeddable player');
+      final controlRow = ProviderCapabilityMatrix.rows
+          .firstWhere((r) => r.name.contains('Controllable playback interface'));
+      expect(embedRow.bilibili, equals(CapabilityVerdict.partial));
+      expect(controlRow.bilibili, equals(CapabilityVerdict.unsupported));
+    });
+
+    test('current-source subtitle availability is a runtime verdict, not static', () {
+      final row = ProviderCapabilityMatrix.rows
+          .firstWhere((r) => r.name.contains('usable subtitle track'));
+      expect(row.youtube, equals(CapabilityVerdict.notConfirmed));
+      expect(row.bilibili, equals(CapabilityVerdict.notConfirmed));
+    });
+  });
+
+  group('VideoStudyAvailability (runtime model)', () {
+    test('no readable position → no reverse highlight, no current-time anchor', () {
+      const capability = PlayerCapability(
+        canSeek: false,
+        canReadPosition: false,
+        canReadDuration: false,
+        canEmbedPlayer: true,
+      );
+      final avail = VideoStudyAvailability(
+        capability: capability,
+        hasUsableSubtitleTrack: true,
+      );
+      expect(avail.canReverseHighlightNow, isFalse);
+      expect(avail.canCreateTimeAnchorNow, isFalse);
+      expect(avail.isStudyReady, isFalse);
+    });
+
+    test('readable position but no subtitle track → not study ready', () {
+      final avail = VideoStudyAvailability.fromProvider('youtube');
+      expect(avail.hasReadablePosition, isTrue);
+      expect(avail.hasUsableSubtitleTrack, isFalse);
+      expect(avail.isStudyReady, isFalse);
+      expect(avail.canReverseHighlightNow, isFalse);
+      // Current-time anchor requires readable position only.
+      expect(avail.canCreateTimeAnchorNow, isTrue);
+    });
+
+    test('readable position + loaded subtitle track → study ready', () {
+      final avail = VideoStudyAvailability.fromProvider(
+        'youtube',
+        hasUsableSubtitleTrack: true,
+      );
+      expect(avail.isStudyReady, isTrue);
+      expect(avail.canReverseHighlightNow, isTrue);
+      expect(avail.canCreateTimeAnchorNow, isTrue);
+    });
+
+    test('importing SRT/VTT upgrades the runtime state', () {
+      // Simulate the ViewModel flow: no track → import → usable track.
+      final before = VideoStudyAvailability.fromProvider('youtube');
+      expect(before.isStudyReady, isFalse);
+
+      final after = VideoStudyAvailability.fromProvider(
+        'youtube',
+        hasUsableSubtitleTrack: true,
+      );
+      expect(after.isStudyReady, isTrue);
+    });
+
+    test('bilibili is never study ready even with a subtitle track', () {
+      final avail = VideoStudyAvailability.fromProvider(
+        'bilibili',
+        hasUsableSubtitleTrack: true,
+      );
+      expect(avail.hasReadablePosition, isFalse);
+      expect(avail.isStudyReady, isFalse);
+      expect(avail.canReverseHighlightNow, isFalse);
+      expect(avail.canCreateTimeAnchorNow, isFalse);
+    });
+
+    test('link-only provider has no playback surface', () {
+      final avail = VideoStudyAvailability.fromProvider('xiaohongshu');
+      expect(avail.hasAnyPlaybackSurface, isFalse);
+      final bili = VideoStudyAvailability.fromProvider('bilibili');
+      // Bilibili is embeddable but not controllable → embed surface only.
+      expect(bili.hasAnyPlaybackSurface, isTrue);
+      expect(bili.canControlPlayback, isFalse);
+    });
+  });
+
+  group('CapabilityConsistency', () {
+    test('reverse highlight without readable position is inconsistent', () {
+      const bad = PlayerCapability(
+        canSeek: true,
+        canReadPosition: false,
+        canReverseHighlight: true,
+      );
+      expect(CapabilityConsistency.validate(bad), isNotNull);
+    });
+
+    test('time anchor without readable position is inconsistent', () {
+      const bad = PlayerCapability(
+        canSeek: true,
+        canReadPosition: false,
+        canCreateTimeAnchor: true,
+      );
+      expect(CapabilityConsistency.validate(bad), isNotNull);
+    });
+
+    test('all production providers pass consistency validation', () {
+      expect(CapabilityConsistency.validateProduction, returnsNormally);
+    });
+
+    test('capability matrix agrees with adapter declarations', () {
+      // Adapter capability getters delegate to the matrix for real providers,
+      // so the matrix is the single source of truth. We verify each provider
+      // id resolves consistently, and that concrete adapter instances (which
+      // do not require a platform WebView) agree too.
+      const providerIds = ['youtube', 'bilibili', 'xiaohongshu', 'fixture'];
+      for (final id in providerIds) {
+        final matrixCap = ProviderCapabilityMatrix.capabilityFor(id);
+        expect(CapabilityConsistency.validate(matrixCap), isNull,
+            reason: '$id must be self-consistent');
+      }
+
+      // Concrete link-only adapters (no WebView dependency) must agree.
+      final bili = BilibiliPlayerAdapter();
+      final xhs = XiaohongshuPlayerAdapter();
+      expect(bili.capability.canEmbedPlayer,
+          equals(ProviderCapabilityMatrix.capabilityFor('bilibili').canEmbedPlayer));
+      expect(bili.capability.canReadPosition,
+          equals(ProviderCapabilityMatrix.capabilityFor('bilibili').canReadPosition));
+      expect(xhs.capability.canReadPosition,
+          equals(ProviderCapabilityMatrix.capabilityFor('xiaohongshu').canReadPosition));
+    });
   });
 
   group('Bilibili and Xiaohongshu adapters', () {
@@ -499,6 +662,7 @@ void main() {
       expect(adapter.capability.isPlaybackStudyCapable, isFalse);
       expect(adapter.capability.canEmbedPlayer, isTrue);
       expect(adapter.capability.canSeek, isFalse);
+      expect(adapter.capability.canReadPosition, isFalse);
     });
 
     test('xiaohongshu adapter declares no playback capability', () {

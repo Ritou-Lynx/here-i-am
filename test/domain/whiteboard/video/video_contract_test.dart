@@ -175,14 +175,46 @@ void main() {
     // The UI reads capability — it never pretends a provider supports
     // what it cannot. This test locks the contract.
     final yt = ProviderCapabilityMatrix.capabilityFor('youtube');
-    expect(yt.isPlaybackStudyCapable, isTrue);
+    // Static: control capabilities are real, but platform-subtitle auto-fetch
+    // is NOT implemented → hasTranscript stays false, so the static full-study
+    // gate is NOT passed. Study readiness is evaluated at runtime.
+    expect(yt.canReadPosition, isTrue);
+    expect(yt.canSeek, isTrue);
+    expect(yt.hasTranscript, isFalse);
+    expect(yt.isPlaybackStudyCapable, isFalse);
+
+    // Runtime: YouTube + a loaded subtitle track IS study ready.
+    final ytReady = VideoStudyAvailability.fromProvider(
+      'youtube',
+      hasUsableSubtitleTrack: true,
+    );
+    expect(ytReady.isStudyReady, isTrue);
 
     final bili = ProviderCapabilityMatrix.capabilityFor('bilibili');
     expect(bili.isPlaybackStudyCapable, isFalse);
     expect(bili.canSeek, isFalse);
+    // Embeddable ≠ controllable.
+    expect(bili.canEmbedPlayer, isTrue);
+    expect(bili.canReadPosition, isFalse);
 
     final xhs = ProviderCapabilityMatrix.capabilityFor('xiaohongshu');
     expect(xhs.isPlaybackStudyCapable, isFalse);
     expect(xhs.canEmbedPlayer, isFalse);
+
+    // Fixture is a test provider, excluded from production.
+    expect(ProviderCapabilityMatrix.productionProviders, isNot(contains('fixture')));
+  });
+
+  test('consistency: reverse highlight / anchors need a readable position', () {
+    final before = VideoStudyAvailability.fromProvider('youtube');
+    expect(before.canReverseHighlightNow, isFalse);
+    expect(before.isStudyReady, isFalse);
+
+    final after = VideoStudyAvailability.fromProvider(
+      'youtube',
+      hasUsableSubtitleTrack: true,
+    );
+    expect(after.canReverseHighlightNow, isTrue);
+    expect(after.isStudyReady, isTrue);
   });
 }

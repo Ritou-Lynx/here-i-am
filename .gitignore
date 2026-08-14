@@ -81,9 +81,6 @@ app.*.map.json
 # macOS
 **/macos/Flutter/GeneratedPluginRegistrant.swift
 
-# Windows (flutter create scaffolding for desktop verification; not part of the product)
-/windows/
-
 # Coverage
 coverage/
 

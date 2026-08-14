@@ -69,6 +69,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     _needsSubtitle = initialTrack == null ||
         initialTrack.reliability == TimedTextReliability.unavailable ||
         initialTrack.cues.isEmpty;
+    _updateAvailability();
   }
 
   // ─── Track ───
@@ -86,7 +87,45 @@ class VideoStudyViewModel extends ChangeNotifier {
   bool get canSeek => adapter.capability.canSeek;
   bool get canReadPosition => adapter.capability.canReadPosition;
   bool get canReadDuration => adapter.capability.canReadDuration;
+
+  /// Static adapter capability declaration (from the W0 contract).
   bool get isPlaybackStudyCapable => adapter.capability.isPlaybackStudyCapable;
+
+  // ─── Runtime availability (W4 model) ───
+
+  late VideoStudyAvailability _availability;
+
+  /// Whether a readable playback position exists at runtime.
+  bool get hasReadablePosition => _availability.hasReadablePosition;
+
+  /// Whether playback can be controlled (seek + position + duration).
+  bool get canControlPlayback => _availability.canControlPlayback;
+
+  /// Whether the current source has a usable subtitle track loaded.
+  bool get hasUsableSubtitleTrack => _availability.hasUsableSubtitleTrack;
+
+  /// Reverse highlight is available NOW (readable position + loaded track).
+  bool get canReverseHighlightNow => _availability.canReverseHighlightNow;
+
+  /// Current-position time anchor creation is available NOW.
+  bool get canCreateTimeAnchorNow => _availability.canCreateTimeAnchorNow;
+
+  /// Full study readiness (runtime): readable position + loaded subtitle track.
+  bool get isStudyReady => _availability.isStudyReady;
+
+  /// Whether the adapter exposes any playback surface (embed or position
+  /// readback). Providers with neither are link-only.
+  bool get hasAnyPlaybackSurface => _availability.hasAnyPlaybackSurface;
+
+  void _updateAvailability() {
+    final hasUsable = _track != null &&
+        _track!.reliability != TimedTextReliability.unavailable &&
+        _track!.cues.isNotEmpty;
+    _availability = VideoStudyAvailability(
+      capability: adapter.capability,
+      hasUsableSubtitleTrack: hasUsable,
+    );
+  }
 
   // ─── Sync ───
 
@@ -196,6 +235,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     _needsSubtitle = track.reliability == TimedTextReliability.unavailable ||
         track.cues.isEmpty;
     _errorMessage = null;
+    _updateAvailability();
 
     _syncController?.dispose();
     if (_isLoaded && !_needsSubtitle) {

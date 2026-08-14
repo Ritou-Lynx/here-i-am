@@ -11,6 +11,7 @@ export 'subtitle_parser.dart';
 export 'time_range_anchor_spec.dart';
 export 'player_sync_controller.dart';
 export 'video_annotation_service.dart';
+export 'video_availability.dart';
 export 'fixture_player_adapter.dart';
 export 'youtube_player_adapter.dart';
 export 'platform_player_adapters.dart';

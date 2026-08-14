@@ -132,7 +132,7 @@ class _VideoStudyBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!viewModel.isPlaybackStudyCapable) {
+    if (!viewModel.hasAnyPlaybackSurface) {
       return _LinkOnlyView(viewModel: viewModel);
     }
 

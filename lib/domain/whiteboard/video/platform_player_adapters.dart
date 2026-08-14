@@ -1,14 +1,22 @@
 /// Bilibili and Xiaohongshu player adapter stubs.
 ///
-/// These platforms do not provide official, public, controllable embeddable
-/// players with readable time APIs. They are declared as "link-only" mode:
+/// These platforms do not expose a stable, public, controllable player
+/// interface with readable time APIs. They are declared as "link-only" mode:
 /// the user sees a link card that opens the platform's own app/website.
+///
+/// **Bilibili is embeddable but NOT controllable.** It has an external-link
+/// embed via `player.bilibili.com/player.html`, but that is not an official,
+/// stable, documented third-party playback control API. There is no public
+/// `getCurrentTime` / `getDuration` / `seekTo` interface suitable for this
+/// product, so [BilibiliPlayerAdapter] declares `canEmbedPlayer = true` but
+/// `canReadPosition = canSeek = canReadDuration = false`. Embeddability and
+/// controllability are separate facts and are declared separately.
 ///
 /// The adapters exist to:
 /// 1. Honestly declare [PlayerCapability] — the UI reads this and does NOT
 ///    pretend the platform is fully supported.
 /// 2. Provide a future extension point if Bilibili publishes an official
-///    IFrame-like API.
+///    IFrame-like control API.
 ///
 /// See [ProviderCapabilityMatrix] for the evidence basis.
 library;
@@ -18,10 +26,9 @@ import 'provider_capability_matrix.dart';
 
 /// Bilibili adapter — link-only mode.
 ///
-/// Bilibili has an embeddable player (player.bilibili.com/player.html) but
-/// does not expose an official JS API for getCurrentTime / getDuration /
-/// seekTo. Without these, the playback-study workflow cannot function.
-/// The adapter declares [canEmbedPlayer] = true but the rest as false.
+/// Bilibili can be embedded via external link (`player.bilibili.com/player.html`)
+/// but exposes no stable public third-party control API. Without readable
+/// position / duration and seek, the playback-study workflow cannot function.
 class BilibiliPlayerAdapter implements PlayerAdapter {
   @override
   String get providerId => 'bilibili';

@@ -59,33 +59,69 @@ class _PlayerSurface extends StatelessWidget {
     }
 
     // Fixture adapter — simulated dark surface
+    if (adapter is FixturePlayerAdapter) {
+      return Container(
+        color: const Color(0xFF1C1C1A),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                viewModel.isPlaying ? Icons.play_circle_outline : Icons.pause_circle_outline,
+                size: 64,
+                color: const Color(0xFF8F8E88),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Fixture Player',
+                style: TextStyle(
+                  color: const Color(0xFF8F8E88),
+                  fontSize: 12,
+                  fontFamily: 'Cascadia Code',
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                VideoStudyViewModel.formatTimecode(viewModel.positionMs),
+                style: TextStyle(
+                  color: const Color(0xFFB0AFA9),
+                  fontSize: 20,
+                  fontFamily: 'Cascadia Code',
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Link-only providers that expose a (non-controllable) embed surface:
+    // show an honest placeholder, not a fake fixture player.
     return Container(
       color: const Color(0xFF1C1C1A),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              viewModel.isPlaying ? Icons.play_circle_outline : Icons.pause_circle_outline,
-              size: 64,
-              color: const Color(0xFF8F8E88),
+            const Icon(
+              Icons.link,
+              size: 48,
+              color: Color(0xFF8F8E88),
             ),
             const SizedBox(height: 12),
             Text(
-              'Fixture Player',
-              style: TextStyle(
-                color: const Color(0xFF8F8E88),
-                fontSize: 12,
-                fontFamily: 'Cascadia Code',
+              '${viewModel.providerId} 当前为链接模式',
+              style: const TextStyle(
+                color: Color(0xFF8F8E88),
+                fontSize: 14,
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              VideoStudyViewModel.formatTimecode(viewModel.positionMs),
+            const Text(
+              '无可控播放接口，请使用 YouTube 研读播放',
               style: TextStyle(
-                color: const Color(0xFFB0AFA9),
-                fontSize: 20,
-                fontFamily: 'Cascadia Code',
+                color: Color(0xFF6A6963),
+                fontSize: 12,
               ),
             ),
           ],

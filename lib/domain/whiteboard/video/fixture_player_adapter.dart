@@ -5,14 +5,17 @@
 /// [PlayerTimeEvent]s via a [StreamController] so the entire sync pipeline
 /// can be tested without a real WebView or network connection.
 ///
-/// This adapter declares full capabilities — it is the reference for what
-/// "playback study capable" means. Real adapters (YouTube, Bilibili, etc.)
-/// may declare fewer capabilities.
+/// **Product identity**: this is a TEST / demo provider. It is not a real
+/// platform and must never appear in the production provider list
+/// ([ProviderCapabilityMatrix.productionProviders]). It declares full
+/// capabilities (including `hasTranscript`) so the fixture closed loop is
+/// testable, but its declarations do not imply any real-platform support.
 library;
 
 import 'dart:async';
 
 import '../player_adapter.dart';
+import 'provider_capability_matrix.dart';
 
 class FixturePlayerAdapter implements PlayerAdapter {
   final int _durationMs;
@@ -39,15 +42,8 @@ class FixturePlayerAdapter implements PlayerAdapter {
   String get providerId => 'fixture';
 
   @override
-  PlayerCapability get capability => const PlayerCapability(
-        canSeek: true,
-        canReadDuration: true,
-        canReadPosition: true,
-        hasTranscript: true,
-        canEmbedPlayer: true,
-        canReverseHighlight: true,
-        canCreateTimeAnchor: true,
-      );
+  PlayerCapability get capability =>
+      ProviderCapabilityMatrix.capabilityFor('fixture');
 
   @override
   Stream<PlayerTimeEvent> get timeEvents => _timeController.stream;

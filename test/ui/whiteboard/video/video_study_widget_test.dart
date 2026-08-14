@@ -3,8 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
-import 'package:memex/ui/whiteboard/video/widgets/subtitle_list_view.dart';
-import 'package:memex/ui/whiteboard/video/widgets/context_dock.dart';
 
 /// Builds a FixturePlayerAdapter + track for widget testing.
 FixturePlayerAdapter _buildFixture() {
