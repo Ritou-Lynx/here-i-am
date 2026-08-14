@@ -3,10 +3,12 @@
 /// A paragraph-based editor for [RichTextDocument]. Each top-level block is
 /// an editable text field with its own [TextEditingController] and
 /// [FocusNode], so Chinese IME composition state is handled correctly by
-/// Flutter's [EditableText]. Mixed-font rendering uses a fallback chain:
-/// CJK characters resolve to `LXGW WenKai` (汇文明朝体 / WenKai family),
-/// Latin characters and digits resolve to a monospace stack (Cascadia Code
-/// on platforms that have it, falling back to the system monospace).
+/// Flutter's [EditableText]. Mixed-font rendering uses the centralized
+/// `rich_text_fonts` tokens (`lib/ui/whiteboard/fonts.dart`): CJK characters
+/// resolve to 汇文明朝体 (falling back to system serif), Latin characters,
+/// digits, time codes and code resolve to Cascadia Code (falling back to
+/// system monospace). Note: LXGW WenKai is 霞鹜文楷, a different typeface,
+/// and must NOT be used here.
 ///
 /// The editor:
 /// - Renders block types (paragraph, heading, list, quote, code) with
@@ -24,6 +26,7 @@ import 'package:flutter/services.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_controller.dart';
 import 'package:memex/domain/whiteboard/rich_text_paste_sanitizer.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 /// Signature for save callback.
 typedef RichTextSaveCallback = void Function(RichTextDocument doc);
@@ -145,9 +148,13 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     bool strikethrough = false,
     bool mono = false,
   }) {
-    final style = TextStyle(
-      fontFamily: mono ? 'monospace' : 'LXGW WenKai',
-      fontSize: 13,
+    // Toolbar glyphs: use the code token for `</>` / link glyphs, body token
+    // for CJK + Latin labels. Fonts come from the centralized token, never
+    // hard-coded strings.
+    final base = mono
+        ? richTextCodeTextStyle(fontSize: 13)
+        : richTextBodyTextStyle(fontSize: 13);
+    final style = base.copyWith(
       fontWeight: bold ? FontWeight.bold : FontWeight.normal,
       fontStyle: italic ? FontStyle.italic : FontStyle.normal,
       decoration: underline
@@ -205,13 +212,8 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
   }
 
   TextStyle _blockStyle(RichTextBlock block, ThemeData theme) {
-    const base = TextStyle(
-      fontFamily: 'LXGW WenKai',
-      fontFamilyFallback: ['monospace'],
-      fontSize: 14,
-      height: 1.65,
-      color: Color(0xFF293025),
-    );
+    // All block typography flows through the centralized font tokens.
+    final base = richTextBodyTextStyle();
     switch (block.type) {
       case BlockType.heading:
         final level = block.headingLevel;
@@ -232,13 +234,8 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
           color: const Color(0xFF74766E),
         );
       case BlockType.code:
-        return base.copyWith(
-          fontFamily: 'monospace',
-          fontFamilyFallback: const ['LXGW WenKai'],
-          fontSize: 13,
-          height: 1.5,
-          color: const Color(0xFF293025),
-        );
+        // Code blocks must use the Cascadia Code token, not the body token.
+        return richTextCodeTextStyle();
       case BlockType.list:
         return base;
       default:

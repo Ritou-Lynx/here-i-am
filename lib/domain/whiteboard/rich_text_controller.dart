@@ -10,6 +10,8 @@ library;
 
 import 'package:flutter/widgets.dart';
 
+import 'package:memex/ui/whiteboard/fonts.dart';
+
 import 'rich_text_document.dart';
 import 'rich_text_history.dart';
 import 'rich_text_marks.dart';
@@ -92,7 +94,11 @@ class RichTextBlockController extends TextEditingController {
             decoration: TextDecoration.lineThrough,
             decorationColor: s.color);
       case MarkType.code:
-        s = s.copyWith(fontFamily: 'monospace');
+        // Inline code uses the Cascadia Code token (see lib/ui/whiteboard/fonts.dart).
+        s = s.copyWith(
+          fontFamily: richTextCodeFamily,
+          fontFamilyFallback: richTextCodeFallback,
+        );
       case MarkType.link:
         s = s.copyWith(
           color: linkColor,

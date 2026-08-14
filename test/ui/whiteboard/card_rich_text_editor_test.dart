@@ -7,6 +7,7 @@ import 'package:memex/domain/whiteboard/rich_text_controller.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 void main() {
   late Directory tempDir;
@@ -313,4 +314,128 @@ void main() {
       expect(saved!.blocks.first.text, equals('快捷键保存'));
     });
   });
+
+  group('Rich text mixed-font typography', () {
+    Future<RichTextEditingController> pumpMixed(
+      WidgetTester tester, {
+      required List<RichTextBlock> blocks,
+    }) async {
+      final controller = RichTextEditingController(
+        RichTextDocument(blocks: blocks),
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CardRichTextEditor(
+            controller: controller,
+            cardId: 'card_fonts',
+          ),
+        ),
+      ));
+      return controller;
+    }
+
+    testWidgets('body block uses code-first + CJK-fallback token', (tester) async {
+      await pumpMixed(tester, blocks: const [
+        RichTextBlock(
+          type: BlockType.paragraph,
+          text: '中文 English 123，标点。mixed code: let x = 1',
+        ),
+      ]);
+
+      final field = tester.widget<TextField>(find.byType(TextField).first);
+      final style = field.style!;
+      // Latin / digits / code resolve to Cascadia Code first.
+      expect(style.fontFamily, equals(richTextCodeFamily));
+      // CJK falls back to 汇文明朝体 then system serif.
+      expect(style.fontFamilyFallback, contains(richTextCjkFamily));
+      for (final f in richTextCjkFallback) {
+        expect(style.fontFamilyFallback, contains(f));
+      }
+      // The LXGW WenKai (霞鹜文楷) family must never appear.
+      expect(style.fontFamily, isNot(equals('LXGW WenKai')));
+      expect(style.fontFamilyFallback, isNot(contains('LXGW WenKai')));
+    });
+
+    testWidgets('code block uses the Cascadia Code token', (tester) async {
+      await pumpMixed(tester, blocks: const [
+        RichTextBlock(
+          type: BlockType.code,
+          text: 'var x = 1;\nprint("hi");',
+          attrs: {'language': 'dart'},
+        ),
+      ]);
+
+      final field = tester.widget<TextField>(find.byType(TextField).first);
+      final style = field.style!;
+      // Code blocks lead with the Cascadia Code family.
+      expect(style.fontFamily, equals(richTextCodeFamily));
+      // System monospace fallbacks are configured.
+      for (final f in richTextCodeFallback) {
+        expect(style.fontFamilyFallback, contains(f));
+      }
+      // CJK inside code comments still falls back through the serif chain.
+      expect(style.fontFamilyFallback, contains(richTextCjkFamily));
+    });
+
+    testWidgets('inline code mark uses the Cascadia Code token', (tester) async {
+      final controller = await pumpMixed(tester, blocks: const [
+        RichTextBlock(
+          type: BlockType.paragraph,
+          text: '运行 flutter test 即可',
+          marks: [
+            RichTextMark(type: MarkType.code, start: 3, end: 15),
+          ],
+        ),
+      ]);
+
+      final blockController =
+          controller.controllerFor(0) as RichTextBlockController;
+      // Build the text span the field renders and inspect the code segment.
+      final span = blockController.buildTextSpan(
+        context: tester.element(find.byType(TextField).first),
+        style: richTextBodyTextStyle(),
+        withComposing: false,
+      );
+      // The code-marked segment is a leaf span whose exact text is
+      // "flutter test" (start 3, end 15 of "运行 flutter test 即可").
+      final codeSpan = _exactLeafSpan(span, 'flutter test');
+      expect(codeSpan, isNotNull);
+      expect(codeSpan!.style!.fontFamily, equals(richTextCodeFamily));
+    });
+
+    testWidgets('mixed CJK + Latin + digits renders without error',
+        (tester) async {
+      await pumpMixed(tester, blocks: const [
+        RichTextBlock(
+          type: BlockType.heading,
+          text: '标题 Heading 2026 — 混排测试',
+          attrs: {'level': 2},
+        ),
+        RichTextBlock(
+          type: BlockType.paragraph,
+          text: '中文，English. 数字 123 与标点「，。」mixed!',
+        ),
+      ]);
+      // Both fields rendered (no layout exception).
+      expect(find.byType(TextField), findsNWidgets(2));
+      expect(find.textContaining('混排测试'), findsOneWidget);
+    });
+  });
+}
+
+/// Depth-first search for a **leaf** [TextSpan] whose exact text equals
+/// [needle]. Returns the first matching leaf span, or null.
+TextSpan? _exactLeafSpan(TextSpan span, String needle) {
+  final own = span.toPlainText();
+  if ((span.children == null || span.children!.isEmpty) &&
+      own == needle) {
+    return span;
+  }
+  for (final child in span.children ?? const <InlineSpan>[]) {
+    if (child is TextSpan) {
+      final hit = _exactLeafSpan(child, needle);
+      if (hit != null) return hit;
+    }
+  }
+  return null;
 }
