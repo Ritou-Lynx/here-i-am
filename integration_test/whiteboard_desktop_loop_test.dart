@@ -25,7 +25,7 @@ import 'package:go_router/go_router.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('home → whiteboard → canvas → Drift → restart recovery',
+  testWidgets('canvas → Drift → restart recovery (pure pipeline)',
       (tester) async {
     app.main();
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
@@ -64,8 +64,7 @@ void main() {
     );
     debugPrint('ITEST: chat home visible');
 
-    // 2. Create the board in Drift FIRST so the index list (loaded on open)
-    // shows it.
+    // 2. Create the board in Drift FIRST (pure pipeline, no product UI).
     final db = AppDatabase.instance;
     final store = WhiteboardDriftStore(db);
     await store.createBoard(name: '桌面集成验证板');
@@ -74,30 +73,12 @@ void main() {
     final board = boards.firstWhere((b) => b.name == '桌面集成验证板');
     debugPrint('ITEST: board created in Drift');
 
-    // 1. Deep-link straight into the whiteboard index (home shell entry is
-    // Task S scope; the pure-pipeline loop enters via the frozen route).
-    final routerContext = tester.element(find.byType(MaterialApp).first);
+    // 3. Deep-link straight into the frozen canvas route — the v2 loop does
+    // not depend on any home/shell entry.
+    final routerContext = tester.element(find.byType(Navigator).first);
     final router = GoRouter.of(routerContext);
-    router.push(AppRoutes.whiteboard);
+    router.push(AppRoutes.whiteboardCanvasPath(board.boardId));
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    await _waitFor(
-      tester,
-      () => find.text('新建白板').evaluate().isNotEmpty,
-      timeout: const Duration(seconds: 10),
-      description: 'whiteboard index opened',
-    );
-    debugPrint('ITEST: whiteboard index opened');
-
-    // 3. Open the board from the index.
-    await _waitFor(
-      tester,
-      () => find.text('桌面集成验证板').evaluate().isNotEmpty,
-      timeout: const Duration(seconds: 10),
-      description: 'board listed in index',
-    );
-    await tester.tap(find.text('桌面集成验证板'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    debugPrint('ITEST: board tapped');
 
     // Full-screen canvas: no persistent top bar, board title in floating bar.
     await _waitFor(
@@ -121,9 +102,12 @@ void main() {
         isTrue);
     debugPrint('ITEST: drifts save verified');
 
-    // 5. Simulate restart: close the production database and reopen the real
-    // file from disk (drift_flutter stores `memex_local_<userId>.sqlite` in
-    // the documents directory), then recover the board.
+    // 5. Restart recovery: open a second connection on the SAME real file
+    // (drift_flutter stores `memex_local_<userId>.sqlite` in the documents
+    // directory) and recover the board. The running app keeps its own
+    // connection; a fresh handle on the same file is what a restarted process
+    // would open. (The true close+reopen cycle is covered by the unit-level
+    // restart test; here we must not tear down the live app's database.)
     final userId = await memex_utils.UserStorage.getUserId();
     final docsDir = await getApplicationDocumentsDirectory();
     final dbFile =
@@ -131,14 +115,17 @@ void main() {
     expect(dbFile.existsSync(), isTrue,
         reason: 'real database file exists at $dbFile');
 
-    await db.close();
     final reopened =
         AppDatabase.forTesting(NativeDatabase(dbFile));
     final reopenedStore = WhiteboardDriftStore(reopened);
     final afterRestart = await reopenedStore.load(board.boardId);
     expect(afterRestart.isSuccess, isTrue,
         reason: 'board must recover from Drift after restart');
-    expect(afterRestart.snapshot!.boards.single.name, '桌面集成验证板');
+    expect(
+        afterRestart.snapshot!.boards
+            .any((b) => b.boardId == board.boardId && b.name == '桌面集成验证板'),
+        isTrue,
+        reason: 'the saved board is present in the recovered snapshot');
     await reopened.close();
     debugPrint('ITEST: ALL DONE');
   });

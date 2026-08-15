@@ -52,7 +52,7 @@ void main() {
   });
 
   testWidgets('canvas route resolves with boardId and renders full-screen '
-      'canvas for an existing board', (tester) async {
+      'canvas for an existing board (direct route entry)', (tester) async {
     final boardId = await store.createBoard(name: '路由测试板');
     await pumpRoute(tester, AppRoutes.whiteboardCanvasPath(boardId));
 
@@ -67,6 +67,24 @@ void main() {
     await pumpRoute(tester, AppRoutes.whiteboardCanvasPath('board_missing'));
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
     expect(find.text('返回'), findsOneWidget);
+  });
+
+  testWidgets('canvas route saves to Drift when the save button is tapped',
+      (tester) async {
+    final boardId = await store.createBoard(name: '保存测试板');
+    await pumpRoute(tester, AppRoutes.whiteboardCanvasPath(boardId));
+
+    // Give the loader time to finish (real Drift store, async initState).
+    await tester.pumpAndSettle(const Duration(seconds: 3));
+    expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
+    expect(find.text('保存测试板'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.save_outlined));
+    await tester.pumpAndSettle();
+
+    final saved = await store.load(boardId);
+    expect(saved.isSuccess, isTrue);
+    expect(saved.snapshot!.boards.single.name, '保存测试板');
   });
 
   testWidgets('card library route resolves', (tester) async {
