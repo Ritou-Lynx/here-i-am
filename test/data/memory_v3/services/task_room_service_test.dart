@@ -206,6 +206,77 @@ void main() {
       );
     });
 
+    test('terminal states cannot be updated with same-state updates', () async {
+      final id = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+
+      // Transition to completed (terminal state)
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+      await service.updateTaskStatus(id: id, status: TaskStatus.completed);
+
+      // Attempting to update progress on completed task should fail
+      expect(
+        () => service.updateTaskStatus(
+          id: id,
+          status: TaskStatus.completed,
+          progressPercent: 100,
+        ),
+        throwsStateError,
+      );
+
+      // Same for other terminal states
+      final id2 = await service.createTaskRoom(
+        title: 'Test task 2',
+        goal: 'Test goal 2',
+        taskType: TaskType.coding,
+      );
+      await service.updateTaskStatus(id: id2, status: TaskStatus.cancelled);
+
+      expect(
+        () => service.updateTaskStatus(
+          id: id2,
+          status: TaskStatus.cancelled,
+          currentStep: 'Should not work',
+        ),
+        throwsStateError,
+      );
+    });
+
+    test('non-terminal states allow same-state progress updates', () async {
+      final id = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+
+      // Should succeed: running -> running with progress update
+      await service.updateTaskStatus(
+        id: id,
+        status: TaskStatus.running,
+        progressPercent: 50,
+      );
+
+      final room = await service.getTaskRoom(id);
+      expect(room!.progressPercent, 50);
+
+      // Another same-state update
+      await service.updateTaskStatus(
+        id: id,
+        status: TaskStatus.running,
+        progressPercent: 75,
+        currentStep: 'Running tests',
+      );
+
+      final updated = await service.getTaskRoom(id);
+      expect(updated!.progressPercent, 75);
+      expect(updated.currentStep, 'Running tests');
+    });
+
     test('updateTaskContext updates context and permissions', () async {
       final id = await service.createTaskRoom(
         title: 'Test task',
@@ -519,19 +590,29 @@ void main() {
       expect(decisions[0].decidedBy, isNull);
       expect(decisions[0].decidedAt, isNull);
 
-      // Resolve the decision
-      await service.resolveDecision(
+      // Resolve the decision (creates a new record)
+      final resolvedId = await service.resolveDecision(
         decisionId: decisionId,
         selectedOption: 'GraphQL',
         decidedBy: 'user',
         reasoning: 'Better for complex queries',
       );
 
+      // After resolving, getTaskDecisions returns only the resolved version (pending is superseded)
       final resolved = await service.getTaskDecisions(taskId);
+      expect(resolved.length, 1);
+      expect(resolved[0].id, resolvedId);
       expect(resolved[0].status, 'resolved');
       expect(resolved[0].selectedOption, 'GraphQL');
       expect(resolved[0].decidedBy, 'user');
       expect(resolved[0].decidedAt, isNotNull);
+      expect(resolved[0].supersedesDecisionId, decisionId);
+
+      // includeSuperseded=true shows both records
+      final allDecisions = await service.getTaskDecisions(taskId, includeSuperseded: true);
+      expect(allDecisions.length, 2);
+      final pending = allDecisions.firstWhere((d) => d.id == decisionId);
+      expect(pending.status, 'pending'); // Original pending record unchanged
     });
 
     test('getPendingDecisions filters by pending status', () async {

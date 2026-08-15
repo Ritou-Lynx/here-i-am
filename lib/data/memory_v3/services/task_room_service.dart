@@ -150,12 +150,24 @@ class TaskRoomService {
 
     final currentStatus = TaskStatus.fromString(currentTask.status);
 
-    // Allow same-state updates when only updating progress or currentStep
-    if (currentStatus != status && !currentStatus.canTransitionTo(status)) {
-      throw StateError(
-        'Invalid status transition: ${currentStatus.value} -> ${status.value}. '
-        'Valid transitions: ${TaskStatus.validTransitions[currentStatus]?.map((s) => s.value).join(", ")}',
-      );
+    // Allow same-state updates only for non-terminal states (to update progress/currentStep)
+    // Terminal states (completed/failed/cancelled/archived) cannot be modified
+    if (currentStatus != status) {
+      // Different state: validate transition
+      if (!currentStatus.canTransitionTo(status)) {
+        throw StateError(
+          'Invalid status transition: ${currentStatus.value} -> ${status.value}. '
+          'Valid transitions: ${TaskStatus.validTransitions[currentStatus]?.map((s) => s.value).join(", ")}',
+        );
+      }
+    } else {
+      // Same state: only allow for non-terminal states
+      if (currentStatus.isTerminal) {
+        throw StateError(
+          'Cannot update terminal state ${currentStatus.value}. '
+          'Terminal states (completed/failed/cancelled/archived) are immutable.',
+        );
+      }
     }
 
     var updates = TaskRoomsCompanion(
@@ -277,19 +289,13 @@ class TaskRoomService {
     final contentBytes = utf8.encode(contentJson).length;
     const maxInlineSize = 100 * 1024; // 100KB
 
-    // 验证内联存储大小限制
+    // 验证内联存储大小限制（无论是否有 storageRef，contentJson 都不得超过 100KB）
     if (contentBytes > maxInlineSize) {
-      if (storageRef == null) {
-        throw ArgumentError(
-          'Artifact content size ($contentBytes bytes) exceeds 100KB limit. '
-          'Large artifacts must provide a storageRef for external storage. '
-          'Store the full content externally and use contentJson for metadata only.',
-        );
-      }
-      // 如果有 storageRef 但 contentJson 仍然很大，说明调用者传了完整 payload
-      _log.warning(
-        'Large artifact ($contentBytes bytes) with storageRef provided. '
-        'Ensure contentJson contains only metadata, not the full payload.',
+      throw ArgumentError(
+        'Artifact contentJson size ($contentBytes bytes) exceeds 100KB limit. '
+        '${storageRef != null ? 'When using external storage (storageRef), ' : ''}'
+        'contentJson must contain only metadata (file path, size, hash, etc.), not the full payload. '
+        'Store large content externally first, then record only metadata here.',
       );
     }
 
@@ -444,35 +450,77 @@ class TaskRoomService {
     return id;
   }
 
-  /// 解决待决策
-  Future<void> resolveDecision({
+  /// 解决待决策（append-only 模式）
+  ///
+  /// 不修改原 pending 记录，而是追加一条新的 resolved 记录，
+  /// 通过 supersedesDecisionId 指向原记录，保留完整决策历史。
+  Future<String> resolveDecision({
     required String decisionId,
     required String selectedOption,
     required String decidedBy,
     String? reasoning,
   }) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    // 读取原决策
+    final originalDecision = await (_db.select(_db.taskDecisions)
+          ..where((t) => t.id.equals(decisionId)))
+        .getSingleOrNull();
 
-    await (_db.update(_db.taskDecisions)..where((t) => t.id.equals(decisionId)))
-        .write(
-      TaskDecisionsCompanion(
-        status: Value(DecisionStatus.resolved.value),
-        selectedOption: Value(selectedOption),
-        decidedBy: Value(decidedBy),
-        reasoning: Value(reasoning),
-        decidedAt: Value(now),
+    if (originalDecision == null) {
+      throw ArgumentError('Decision not found: $decisionId');
+    }
+
+    if (originalDecision.status != DecisionStatus.pending.value) {
+      throw StateError(
+        'Decision $decisionId is already ${originalDecision.status}, cannot resolve again',
+      );
+    }
+
+    // 追加新的 resolved 记录
+    final resolvedId = await recordDecision(
+      taskId: originalDecision.taskId,
+      decisionType: DecisionType.values.firstWhere(
+        (e) => e.value == originalDecision.decisionType,
       ),
+      question: originalDecision.question,
+      options: (jsonDecode(originalDecision.optionsJson) as List).cast<String>(),
+      selectedOption: selectedOption,
+      reasoning: reasoning,
+      decidedBy: decidedBy,
+      status: DecisionStatus.resolved,
+      supersedesDecisionId: decisionId,
     );
 
-    _log.info('Resolved decision: $decisionId choice=$selectedOption by=$decidedBy');
+    _log.info('Resolved decision: $decisionId → $resolvedId choice=$selectedOption by=$decidedBy');
+    return resolvedId;
   }
 
-  /// 获取任务的所有决策
-  Future<List<TaskDecision>> getTaskDecisions(String taskId) async {
-    final query = _db.select(_db.taskDecisions)
-      ..where((t) => t.taskId.equals(taskId))
-      ..orderBy([(t) => OrderingTerm.desc(t.requestedAt)]);
-    return query.get();
+  /// 获取任务的所有决策（默认折叠，只返回最新版本）
+  ///
+  /// 通过 supersedesDecisionId 关系折叠决策历史，只返回当前有效的决策。
+  /// 设置 includeSuperseded=true 可查看完整历史。
+  Future<List<TaskDecision>> getTaskDecisions(
+    String taskId, {
+    bool includeSuperseded = false,
+  }) async {
+    final allDecisions = await (_db.select(_db.taskDecisions)
+          ..where((t) => t.taskId.equals(taskId))
+          ..orderBy([(t) => OrderingTerm.desc(t.requestedAt)]))
+        .get();
+
+    if (includeSuperseded) {
+      return allDecisions;
+    }
+
+    // 收集所有被 supersede 的决策 ID
+    final supersededIds = <String>{};
+    for (final decision in allDecisions) {
+      if (decision.supersedesDecisionId != null) {
+        supersededIds.add(decision.supersedesDecisionId!);
+      }
+    }
+
+    // 只返回未被 supersede 的决策
+    return allDecisions.where((d) => !supersededIds.contains(d.id)).toList();
   }
 
   /// 获取特定类型的决策

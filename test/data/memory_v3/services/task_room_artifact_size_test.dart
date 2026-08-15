@@ -65,17 +65,39 @@ void main() {
       );
     });
 
-    test('large artifact with storageRef is allowed', () async {
-      // Create content > 100KB but provide storageRef
+    test('large artifact with storageRef also requires metadata-only content', () async {
+      // Even with storageRef, contentJson must be small (metadata only)
       final largeContent = {
         'data': List.generate(5000, (i) => 'This is a long line of text $i' * 10),
+      };
+
+      expect(
+        () => service.recordArtifact(
+          taskId: taskId,
+          artifactType: ArtifactType.codeDiff,
+          title: 'Large artifact with ref',
+          content: largeContent,
+          storageRef: 's3://bucket/large-diff.json',
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('large artifact with storageRef succeeds when content is metadata', () async {
+      // Correct usage: small metadata + storageRef + explicit sizeBytes
+      final metadata = {
+        'file_path': 's3://bucket/large-diff.json',
+        'original_size_bytes': 500000,
+        'sha256': 'abc123...',
+        'mime_type': 'application/json',
       };
 
       final artifactId = await service.recordArtifact(
         taskId: taskId,
         artifactType: ArtifactType.codeDiff,
-        title: 'Large artifact with ref',
-        content: largeContent,
+        title: 'Large artifact with metadata',
+        content: metadata,
+        sizeBytes: 500000, // Original file size
         storageRef: 's3://bucket/large-diff.json',
       );
 
@@ -84,7 +106,7 @@ void main() {
       final artifacts = await service.getTaskArtifacts(taskId);
       expect(artifacts.length, 1);
       expect(artifacts[0].storageRef, 's3://bucket/large-diff.json');
-      expect(artifacts[0].sizeBytes! > 100 * 1024, isTrue);
+      expect(artifacts[0].sizeBytes, 500000);
     });
 
     test('sizeBytes defaults to content size when not provided', () async {
