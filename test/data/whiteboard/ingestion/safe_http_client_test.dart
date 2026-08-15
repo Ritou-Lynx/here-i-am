@@ -509,6 +509,65 @@ void main() {
     });
   });
 
+  group('SafeHttpClient auth rejection (needsAuth state)', () {
+    test('HTTP 403 produces an auth failure, not a generic network error',
+        () async {
+      final dio = _createDio({
+        'https://example.com/blocked': _CannedResponse('', 403, 'text/html'),
+      });
+      final client = SafeHttpClient(
+        dio: dio,
+        config: const SafeHttpConfig(enforceDnsCheck: false),
+      );
+      final r = await client.fetch('https://example.com/blocked');
+      expect(r.success, isFalse);
+      expect(r.authRequired, isTrue);
+      expect(r.errorMessage, contains('HTTP 403'));
+    });
+
+    test('HTTP 401 produces an auth failure', () async {
+      final dio = _createDio({
+        'https://example.com/login': _CannedResponse('', 401, 'text/html'),
+      });
+      final client = SafeHttpClient(
+        dio: dio,
+        config: const SafeHttpConfig(enforceDnsCheck: false),
+      );
+      final r = await client.fetch('https://example.com/login');
+      expect(r.success, isFalse);
+      expect(r.authRequired, isTrue);
+      expect(r.errorMessage, contains('HTTP 401'));
+    });
+
+    test('auth rejections are policy errors (never retried)', () async {
+      final dio = _createDio({
+        'https://example.com/blocked': _CannedResponse('', 403, 'text/html'),
+      });
+      final adapter = dio.httpClientAdapter as _FakeAdapter;
+      final client = SafeHttpClient(
+        dio: dio,
+        config: const SafeHttpConfig(maxRetries: 2, enforceDnsCheck: false),
+      );
+      final r = await client.fetch('https://example.com/blocked');
+      expect(r.authRequired, isTrue);
+      expect(adapter.callCounts['https://example.com/blocked'], 1);
+    });
+
+    test('other HTTP errors stay generic failures', () async {
+      final dio = _createDio({
+        'https://example.com/500': _CannedResponse('', 500, 'text/html'),
+      });
+      final client = SafeHttpClient(
+        dio: dio,
+        config: const SafeHttpConfig(enforceDnsCheck: false),
+      );
+      final r = await client.fetch('https://example.com/500');
+      expect(r.success, isFalse);
+      expect(r.authRequired, isFalse);
+      expect(r.errorMessage, contains('HTTP 500'));
+    });
+  });
+
   group('SafeHttpClient streaming byte cap', () {
     const maxBodyBytes = 2 * 1024 * 1024; // 2 MB
 

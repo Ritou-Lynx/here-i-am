@@ -7,6 +7,13 @@
 ///     against loopback / private / link-local / unspecified / multicast /
 ///     reserved / cloud-metadata blocklists for both IPv4 and IPv6. If ANY
 ///     resolved address is dangerous the request fails.
+///   - **DNS rebinding defense (connection pinning)**: the transport
+///     connects directly to one verified `InternetAddress`, so DNS is
+///     never consulted again at connect time. A rebinding DNS that changes
+///     its answers after validation cannot redirect the connection to an
+///     unvalidated target. HTTPS keeps SNI + hostname + certificate
+///     verification (`SecureSocket.secure(host:)`) — only the TCP endpoint
+///     is pinned.
 ///   - Redirect host re-checked against the same allowlist on every hop;
 ///   - Connect / receive timeouts;
 ///   - True streaming max response body: `Content-Length` pre-check rejects
@@ -17,14 +24,6 @@
 ///   - MIME type validation (must be HTML or XML-ish for web ingestion);
 ///   - Max redirect count;
 ///   - Retry with backoff (limited); policy errors are never retried.
-///
-/// ## DNS rebinding
-///
-/// This client validates DNS at request time and before each redirect hop,
-/// but it does NOT pin the connection to a validated address. There is a
-/// time-of-check/time-of-use window between resolution+validation and the
-/// actual TCP/TLS connection (DNS can be re-answered differently). See
-/// `_checkDns` and the W3 handoff for the honest statement of this limit.
 library;
 
 import 'dart:async';
@@ -60,6 +59,12 @@ class SafeHttpResult {
   final int? statusCode;
   final String? redirectLocation;
   final String? errorMessage;
+
+  /// True when the failure is an auth / anti-crawler rejection
+  /// (HTTP 401 / 403). The application layer maps this to the `needsAuth`
+  /// ingestion state.
+  final bool authRequired;
+
   final bool success;
 
   const SafeHttpResult({
@@ -69,7 +74,8 @@ class SafeHttpResult {
     this.statusCode,
     this.redirectLocation,
     this.errorMessage,
-  }) : success = false;
+  })  : authRequired = false,
+        success = false;
 
   const SafeHttpResult.ok({
     required this.body,
@@ -78,6 +84,7 @@ class SafeHttpResult {
     required this.statusCode,
     this.redirectLocation,
   })  : errorMessage = null,
+        authRequired = false,
         success = true;
 
   const SafeHttpResult.failure(String message)
@@ -87,6 +94,17 @@ class SafeHttpResult {
         statusCode = null,
         redirectLocation = null,
         errorMessage = message,
+        authRequired = false,
+        success = false;
+
+  const SafeHttpResult.authFailure(String message)
+      : body = null,
+        finalUrl = null,
+        mimeType = null,
+        statusCode = null,
+        redirectLocation = null,
+        errorMessage = message,
+        authRequired = true,
         success = false;
 
   bool get isRedirect =>
@@ -148,41 +166,325 @@ class SafeHttpConfig {
   static const SafeHttpConfig defaultConfig = SafeHttpConfig();
 }
 
+/// Connect hook: replaces the real TCP (+TLS for https) connect so tests can
+/// observe the exact pinned target without touching the network. Production
+/// uses the default implementation backed by `Socket` / `SecureSocket`.
+typedef SocketConnectFn = Future<Socket> Function({
+  required InternetAddress address,
+  required int port,
+  required String host,
+  required bool isSecure,
+});
+
+/// The default production connector: TCP to the pinned address, and for
+/// https a TLS handshake **over that same socket** with the original
+/// hostname (SNI + certificate verification against [host]).
+///
+/// [host] is the request host; connecting to a validated `InternetAddress`
+/// never triggers a second DNS resolution.
+Future<Socket> _defaultSocketConnect({
+  required InternetAddress address,
+  required int port,
+  required String host,
+  required bool isSecure,
+  Duration connectTimeout = const Duration(seconds: 10),
+  Duration receiveTimeout = const Duration(seconds: 15),
+}) async {
+  final task = await Socket.startConnect(address, port);
+  final Socket socket;
+  try {
+    socket = await task.socket.timeout(
+      connectTimeout,
+      onTimeout: () {
+        task.cancel();
+        throw SocketException('HTTP connection timed out after $connectTimeout');
+      },
+    );
+  } on SocketException {
+    rethrow;
+  }
+  if (!isSecure) return socket;
+  try {
+    return await SecureSocket.secure(
+      socket,
+      host: host,
+      onBadCertificate: (_) => false, // Strict: never accept bad certs.
+    ).timeout(receiveTimeout);
+  } catch (_) {
+    socket.destroy();
+    rethrow;
+  }
+}
+
+/// A dio [HttpClientAdapter] whose TCP + TLS endpoint is **pinned** to a
+/// pre-validated `InternetAddress`.
+///
+/// - Every connection is established directly to the verified address — no
+///   DNS resolution happens at connect time.
+/// - https performs the TLS handshake on the pinned socket with the original
+///   hostname, preserving SNI and hostname certificate checks.
+/// - `Connection: close` semantics: one request per connection, so every hop
+///   (initial URL or redirect target) always uses the pin validated for that
+///   exact hop.
+/// - Direct connections only (no proxies): proxying would move the endpoint
+///   decision out of the pinning layer.
+class PinnedHttpAdapter implements HttpClientAdapter {
+  PinnedHttpAdapter({
+    required this.config,
+    required SocketConnectFn connectFn,
+    required InternetAddress? Function(String host) pinProvider,
+  })  : _connectFn = connectFn,
+        _pinProvider = pinProvider;
+
+  final SafeHttpConfig config;
+  final SocketConnectFn _connectFn;
+  final InternetAddress? Function(String host) _pinProvider;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<dynamic>? cancelFuture,
+  ) async {
+    final uri = options.uri;
+    final isSecure = uri.scheme == 'https';
+    final host = uri.host;
+    final port = uri.hasPort ? uri.port : (isSecure ? 443 : 80);
+
+    final pin = _pinProvider(host);
+    if (pin == null) {
+      // Fail closed: with DNS enforcement every host is validated and pinned
+      // before any fetch; reaching the socket layer without a pin is a bug
+      // and must never fall back to an unvalidated resolution.
+      throw DioException.connectionError(
+        requestOptions: options,
+        reason: 'SSRF guard: no validated IP pin for host $host',
+      );
+    }
+
+    final Socket socket;
+    try {
+      socket = await _connectFn(
+        address: pin,
+        port: port,
+        host: host,
+        isSecure: isSecure,
+      );
+    } on DioException {
+      rethrow;
+    } catch (e) {
+      throw DioException.connectionError(
+        requestOptions: options,
+        reason: 'Connect failed: $e',
+      );
+    }
+
+    cancelFuture?.then((_) {
+      socket.destroy();
+    }, onError: (_) {});
+
+    try {
+      await _writeRequest(socket, options, requestStream);
+      return await _readResponse(socket, options);
+    } catch (e) {
+      socket.destroy();
+      if (e is DioException) rethrow;
+      throw DioException.connectionError(
+        requestOptions: options,
+        reason: 'Request failed: $e',
+      );
+    }
+  }
+
+  @override
+  void close({bool force = false}) {}
+
+  // -----------------------------------------------------------------------
+  // Request over the pinned socket
+  // -----------------------------------------------------------------------
+
+  Future<void> _writeRequest(
+    Socket socket,
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+  ) async {
+    final uri = options.uri;
+    final path = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+    final requestTarget = path.isEmpty ? '/' : path;
+
+    final buffer = StringBuffer()
+      ..write('${options.method} $requestTarget HTTP/1.1\r\n')
+      ..write('Host: ${uri.host}${uri.hasPort ? ':${uri.port}' : ''}\r\n');
+    options.headers.forEach((key, value) {
+      final lower = key.toLowerCase();
+      if (lower == 'host' ||
+          lower == 'content-length' ||
+          lower == 'accept-encoding') {
+        return;
+      }
+      if (value is List) {
+        for (final v in value) {
+          buffer.write('$key: $v\r\n');
+        }
+      } else if (value != null) {
+        buffer.write('$key: $value\r\n');
+      }
+    });
+    // Raw bytes, no transparent decompression in the adapter.
+    buffer.write('Accept-Encoding: identity\r\n');
+    buffer.write('Connection: close\r\n\r\n');
+    socket.add(utf8.encode(buffer.toString()));
+    if (requestStream != null) {
+      await for (final chunk in requestStream) {
+        socket.add(chunk);
+      }
+    }
+    await socket.flush();
+  }
+
+  // -----------------------------------------------------------------------
+  // Response over the pinned socket
+  // -----------------------------------------------------------------------
+
+  Future<ResponseBody> _readResponse(
+    Socket socket,
+    RequestOptions options,
+  ) async {
+    final conn = _PinnedConnection(socket, config.receiveTimeout);
+    final statusCode = await conn.readStatusLine();
+    final headers = await conn.readHeaders();
+
+    if (statusCode >= 300 && statusCode < 400) {
+      // Redirect: no body needed. Drop the connection immediately so the
+      // next hop always gets a fresh, freshly-pinned connection.
+      socket.destroy();
+      return ResponseBody(
+        const Stream<Uint8List>.empty(),
+        statusCode,
+        statusMessage: conn.statusMessage,
+        isRedirect: true,
+        headers: headers,
+      );
+    }
+
+    final chunked =
+        (headers['transfer-encoding']?.first ?? '').toLowerCase().contains(
+              'chunked',
+            );
+    final contentLength =
+        int.tryParse(headers['content-length']?.first ?? '') ?? -1;
+
+    Stream<Uint8List> body;
+    if (chunked) {
+      body = conn.bodyChunked();
+    } else if (contentLength >= 0) {
+      body = conn.bodyByLength(contentLength);
+    } else {
+      body = conn.bodyToEof();
+    }
+
+    return ResponseBody(
+      // Release the pinned socket once the body is fully read, errored, or
+      // the consumer cancels (dio calls body.close() on cancel/timeout too).
+      _withSocketCleanup(body, socket),
+      statusCode,
+      statusMessage: conn.statusMessage,
+      isRedirect: false,
+      headers: headers,
+    );
+  }
+
+  /// Wraps [body] so the pinned socket is destroyed when the stream is done,
+  /// errored, or cancelled.
+  Stream<Uint8List> _withSocketCleanup(
+    Stream<Uint8List> body,
+    Socket socket,
+  ) async* {
+    try {
+      yield* body;
+    } finally {
+      socket.destroy();
+    }
+  }
+}
+
 /// A safe HTTP client that enforces SSRF protection and size / time limits.
 ///
-/// Wraps a [Dio] instance. Tests inject a mock dio and (optionally) a mock
-/// [DnsResolver]; production callers use the default constructor, which
-/// enables DNS check with [SystemDnsResolver].
+/// The production client uses [PinnedHttpAdapter]: every host is validated
+/// (literal blocklist + DNS) in [_validateHost], then the connection is
+/// pinned to one verified `InternetAddress` so the DNS result used for the
+/// check is the one used for the connection — rebinding between check and
+/// connect cannot redirect the request to an unvalidated address.
+///
+/// Tests inject a fake dio (and optionally a fake [DnsResolver]); the fake
+/// transport never touches the socket layer, so pinning is inert there.
 class SafeHttpClient {
   SafeHttpClient({
     Dio? dio,
     SafeHttpConfig config = SafeHttpConfig.defaultConfig,
     DnsResolver? resolver,
-  })  : _dio = dio ??
-            Dio(BaseOptions(
-              connectTimeout: config.connectTimeout,
-              receiveTimeout: config.receiveTimeout,
-              followRedirects: false, // We handle redirects manually.
-              headers: {
-                'User-Agent': config.userAgent,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.7',
-              },
-              validateStatus: (s) => s != null && s >= 200 && s < 400,
-            )),
-        _config = config,
-        _resolver = resolver ?? const SystemDnsResolver();
+    SocketConnectFn? connectFn,
+  })  : _config = config,
+        _resolver = resolver ?? const SystemDnsResolver() {
+    final baseOptions = BaseOptions(
+      connectTimeout: config.connectTimeout,
+      receiveTimeout: config.receiveTimeout,
+      followRedirects: false, // We handle redirects manually.
+      headers: {
+        'User-Agent': config.userAgent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.7',
+      },
+      validateStatus: (s) => s != null && s >= 200 && s < 400,
+    );
+    if (dio != null) {
+      _dio = dio;
+    } else if (config.enforceDnsCheck) {
+      _dio = Dio(baseOptions)
+        ..httpClientAdapter = PinnedHttpAdapter(
+          config: config,
+          connectFn: connectFn ?? _defaultConnect(config),
+          pinProvider: (host) => _pins[host],
+        );
+    } else {
+      _dio = Dio(baseOptions);
+    }
+  }
 
-  final Dio _dio;
+  late final Dio _dio;
   final SafeHttpConfig _config;
   final DnsResolver _resolver;
+
+  /// host → validated `InternetAddress`. Written by [_validateHost] after the
+  /// DNS check passes; consumed by [PinnedHttpAdapter] at connect time.
+  final Map<String, InternetAddress> _pins = {};
+
+  /// Production connect implementation (TCP to the pin; TLS over it with the
+  /// original hostname for https).
+  static SocketConnectFn _defaultConnect(SafeHttpConfig config) {
+    return ({
+      required InternetAddress address,
+      required int port,
+      required String host,
+      required bool isSecure,
+    }) =>
+        _defaultSocketConnect(
+          address: address,
+          port: port,
+          host: host,
+          isSecure: isSecure,
+          connectTimeout: config.connectTimeout,
+          receiveTimeout: config.receiveTimeout,
+        );
+  }
 
   /// Fetches [url], following redirects up to [_config.maxRedirects].
   ///
   /// Every hop (initial URL and each redirect target) is passed through
-  /// [validateHost] before connecting. Returns [SafeHttpResult.failure] for
-  /// any policy violation (SSRF via literal or DNS, oversized body, wrong
-  /// MIME, too many redirects, timeout). Never throws.
+  /// [_validateHost] before connecting. Returns [SafeHttpResult.failure] /
+  /// [SafeHttpResult.authFailure] for any policy violation (SSRF via literal
+  /// or DNS, oversized body, wrong MIME, too many redirects, timeout, auth
+  /// rejection). Never throws.
   Future<SafeHttpResult> fetch(String url) async {
     String currentUrl = url;
     int redirects = 0;
@@ -218,8 +520,8 @@ class SafeHttpClient {
         if (location == null || location.isEmpty) {
           return SafeHttpResult.failure('Redirect $status without Location header');
         }
-        // The next loop iteration re-runs _validateHost (literal + DNS) on
-        // the redirect target before any connection is attempted.
+        // The next loop iteration re-runs _validateHost (literal + DNS +
+        // re-pin) on the redirect target before any connection is attempted.
         currentUrl = location;
         continue;
       }
@@ -235,7 +537,7 @@ class SafeHttpClient {
   }
 
   // -----------------------------------------------------------------------
-  // Host validation (literal blocklist + DNS check)
+  // Host validation (literal blocklist + DNS check + connection pin)
   // -----------------------------------------------------------------------
 
   /// Returns an error string if [url] violates the SSRF policy, else null.
@@ -245,30 +547,56 @@ class SafeHttpClient {
   ///      private/loopback/metadata hosts.
   ///   2. DNS resolution (when [SafeHttpConfig.enforceDnsCheck] is true) —
   ///      every resolved address must be public; any dangerous address
-  ///      fails the whole request.
+  ///      fails the whole request. On success the connection for this host
+  ///      is pinned to one verified address.
   Future<String?> _validateHost(String url) async {
     final literalViolation = _validateUrlLiteral(url);
     if (literalViolation != null) return literalViolation;
     if (_config.enforceDnsCheck) {
       final host = Uri.parse(url).host;
-      return _checkDns(host);
+      final check = await _checkDns(host);
+      if (check.$1 != null) return check.$1;
+      final addresses = check.$2;
+      if (addresses.isEmpty) {
+        return 'DNS resolution failed for host $host';
+      }
+      // Pin the connection to a validated address: the transport connects to
+      // exactly this InternetAddress (no re-resolution at connect time), so
+      // a rebinding DNS that answers differently after this check cannot
+      // redirect the connection to an unvalidated target.
+      _pins[host] = _preferredAddress(addresses);
     }
     return null;
   }
 
-  Future<String?> _checkDns(String host) async {
+  /// Prefer IPv4 (most servers) over IPv6 when both are available.
+  InternetAddress _preferredAddress(List<InternetAddress> addresses) {
+    for (final a in addresses) {
+      if (a.type == InternetAddressType.IPv4) return a;
+    }
+    return addresses.first;
+  }
+
+  /// Resolves and blocklist-checks [host]. Returns
+  /// `(violationOrNull, addresses)`; the address list is only meaningful
+  /// when the violation is null. The returned list is the **same** list the
+  /// pin is chosen from — no second lookup happens after validation.
+  Future<(String?, List<InternetAddress>)> _checkDns(String host) async {
     final List<InternetAddress> addresses;
     try {
       addresses = await _resolver.lookup(host);
     } catch (e) {
-      return 'DNS resolution failed for host $host';
+      return ('DNS resolution failed for host $host', const <InternetAddress>[]);
     }
     for (final addr in addresses) {
       if (_isBlockedAddress(addr)) {
-        return 'SSRF blocked: host $host resolves to dangerous address ${addr.address}';
+        return (
+          'SSRF blocked: host $host resolves to dangerous address ${addr.address}',
+          const <InternetAddress>[],
+        );
       }
     }
-    return null;
+    return (null, addresses);
   }
 
   String? _validateUrlLiteral(String url) {
@@ -491,6 +819,12 @@ class SafeHttpClient {
             redirectLocation: resolved,
           );
         }
+        // 401 / 403: auth or anti-crawler rejection — surfaced honestly as
+        // an auth-required failure instead of a generic network error.
+        if (status == 401 || status == 403) {
+          return SafeHttpResult.authFailure(
+              'HTTP $status — 站点要求登录或拒绝了抓取（可能被反爬拦截）');
+        }
         return SafeHttpResult.failure('HTTP $status');
       }
       return SafeHttpResult.failure('Network error: ${e.message}');
@@ -506,11 +840,153 @@ class SafeHttpClient {
   bool _isPolicyError(String? message) {
     if (message == null) return false;
     return message.startsWith('SSRF blocked:') ||
+        message.startsWith('SSRF guard:') ||
         message.startsWith('DNS resolution failed') ||
         message.startsWith('Disallowed scheme:') ||
         message.startsWith('Unsupported MIME type:') ||
         message.startsWith('Response body exceeds max size') ||
         message.startsWith('Too many redirects') ||
+        message.startsWith('HTTP 401') ||
+        message.startsWith('HTTP 403') ||
         message.startsWith('Redirect') && message.contains('without Location');
+  }
+}
+
+/// Low-level reader over the pinned socket: status line, headers, and the
+/// three body modes (content-length / chunked / until EOF). Every socket read
+/// is bounded by the receive timeout.
+///
+/// Bytes are buffered across socket chunks: a single TCP segment can carry
+/// the status line, headers and body together, and each reader consumes only
+/// what it needs from the buffer.
+class _PinnedConnection {
+  _PinnedConnection(Socket socket, this.receiveTimeout)
+      : _iterator = StreamIterator(socket);
+
+  final Duration receiveTimeout;
+  final StreamIterator<Uint8List> _iterator;
+
+  /// Unconsumed bytes received from the socket (may span multiple events).
+  final List<int> _pending = [];
+  bool _eof = false;
+
+  String? statusMessage;
+
+  Future<bool> _moveNext() => _iterator.moveNext().timeout(
+        receiveTimeout,
+        onTimeout: () => throw const SocketException('receive timeout'),
+      );
+
+  Future<bool> _ensureBytes() async {
+    if (_pending.isNotEmpty) return true;
+    if (_eof) return false;
+    if (!await _moveNext()) {
+      _eof = true;
+      return false;
+    }
+    _pending.addAll(_iterator.current);
+    return true;
+  }
+
+  /// Reads one line (without trailing CRLF), or null at EOF.
+  Future<String?> _readLine() async {
+    final line = <int>[];
+    while (true) {
+      if (!await _ensureBytes()) {
+        if (line.isEmpty) return null;
+        return utf8.decode(line, allowMalformed: true).trim();
+      }
+      final idx = _pending.indexOf(0x0A);
+      if (idx < 0) {
+        line.addAll(_pending);
+        _pending.clear();
+        if (line.length > 65536) {
+          throw const SocketException('response header line too long');
+        }
+        continue;
+      }
+      line.addAll(_pending.sublist(0, idx));
+      _pending.removeRange(0, idx + 1);
+      return utf8.decode(line, allowMalformed: true).trim();
+    }
+  }
+
+  /// Reads up to [max] bytes; returns null at EOF.
+  Future<Uint8List?> _readBytes(int max) async {
+    if (!await _ensureBytes()) return null;
+    if (_pending.length <= max) {
+      final out = Uint8List.fromList(_pending);
+      _pending.clear();
+      return out;
+    }
+    final out = Uint8List.fromList(_pending.sublist(0, max));
+    _pending.removeRange(0, max);
+    return out;
+  }
+
+  Future<int> readStatusLine() async {
+    final line = await _readLine();
+    if (line == null) {
+      throw const SocketException('connection closed before response');
+    }
+    final parts = line.split(' ');
+    if (parts.length > 2) {
+      statusMessage = parts.sublist(2).join(' ');
+    }
+    return int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
+  }
+
+  Future<Map<String, List<String>>> readHeaders() async {
+    final headers = <String, List<String>>{};
+    while (true) {
+      final line = await _readLine();
+      if (line == null || line.isEmpty) break;
+      final idx = line.indexOf(':');
+      if (idx <= 0) continue;
+      final name = line.substring(0, idx).trim().toLowerCase();
+      final value = line.substring(idx + 1).trim();
+      (headers[name] ??= []).add(value);
+    }
+    return headers;
+  }
+
+  /// Body of exactly [length] raw bytes.
+  Stream<Uint8List> bodyByLength(int length) async* {
+    var remaining = length;
+    while (remaining > 0) {
+      final chunk = await _readBytes(remaining);
+      if (chunk == null) break;
+      remaining -= chunk.length;
+      yield chunk;
+    }
+  }
+
+  /// Chunked-transfer body (size lines are hex; trailers are discarded).
+  Stream<Uint8List> bodyChunked() async* {
+    while (true) {
+      final sizeLine = await _readLine();
+      if (sizeLine == null) break;
+      final sizeStr = sizeLine.split(';').first.trim();
+      final size = int.tryParse(sizeStr, radix: 16);
+      if (size == null) break;
+      if (size == 0) {
+        while (true) {
+          final trailer = await _readLine();
+          if (trailer == null || trailer.isEmpty) break;
+        }
+        break;
+      }
+      yield* bodyByLength(size);
+      await _readLine(); // trailing CRLF after chunk data
+    }
+  }
+
+  /// Body until the server closes the connection.
+  Stream<Uint8List> bodyToEof() async* {
+    while (true) {
+      final chunk = await _readBytes(64 * 1024);
+      if (chunk == null) break;
+      yield chunk;
+    }
   }
 }

@@ -46,6 +46,20 @@ class LinkIngestor {
       );
     }
 
+    // Video platforms are W4 (研读模块) scope — say so honestly instead of
+    // pretending ordinary HTML ingestion supports them.
+    if (canonical.provider == 'bilibili' || canonical.provider == 'youtube') {
+      return IngestionResult(
+        canonicalUrl: canonical.normalized,
+        provider: canonical.provider,
+        originalUrl: canonical.original,
+        status: IngestionStatus.unsupported,
+        errorMessage: '视频平台链接（${canonical.provider}）由研读模块处理，'
+            '普通链接抓取不支持',
+        resolvedAt: resolvedAt,
+      );
+    }
+
     // 2. Fetch safely.
     final httpResult = await _httpClient.fetch(canonical.normalized);
     if (!httpResult.success) {
@@ -53,7 +67,9 @@ class LinkIngestor {
         canonicalUrl: canonical.normalized,
         provider: canonical.provider,
         originalUrl: canonical.original,
-        status: IngestionStatus.failed,
+        status: httpResult.authRequired
+            ? IngestionStatus.needsAuth
+            : IngestionStatus.failed,
         errorMessage: httpResult.errorMessage,
         resolvedAt: resolvedAt,
       );
