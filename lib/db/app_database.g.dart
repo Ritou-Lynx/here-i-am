@@ -3299,6 +3299,12 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
   late final GeneratedColumn<String> attachmentsJson = GeneratedColumn<String>(
       'attachments_json', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _taskRoomIdMeta =
+      const VerificationMeta('taskRoomId');
+  @override
+  late final GeneratedColumn<String> taskRoomId = GeneratedColumn<String>(
+      'task_room_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -3311,7 +3317,8 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
         isRead,
         timestamp,
         messageType,
-        attachmentsJson
+        attachmentsJson,
+        taskRoomId
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3384,6 +3391,12 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
           attachmentsJson.isAcceptableOrUnknown(
               data['attachments_json']!, _attachmentsJsonMeta));
     }
+    if (data.containsKey('task_room_id')) {
+      context.handle(
+          _taskRoomIdMeta,
+          taskRoomId.isAcceptableOrUnknown(
+              data['task_room_id']!, _taskRoomIdMeta));
+    }
     return context;
   }
 
@@ -3415,6 +3428,8 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
           .read(DriftSqlType.string, data['${effectivePrefix}message_type'])!,
       attachmentsJson: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}attachments_json']),
+      taskRoomId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}task_room_id']),
     );
   }
 
@@ -3450,6 +3465,10 @@ class PersonaChatMessage extends DataClass
   /// [{"mimeType": "image/webp", "base64": "..."}]
   /// Null for text-only messages.
   final String? attachmentsJson;
+
+  /// Optional task room association (W5 AI Orchestration).
+  /// Soft reference to task_rooms.id in Memory V3.
+  final String? taskRoomId;
   const PersonaChatMessage(
       {required this.id,
       this.syncId,
@@ -3461,7 +3480,8 @@ class PersonaChatMessage extends DataClass
       required this.isRead,
       required this.timestamp,
       required this.messageType,
-      this.attachmentsJson});
+      this.attachmentsJson,
+      this.taskRoomId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3483,6 +3503,9 @@ class PersonaChatMessage extends DataClass
     map['message_type'] = Variable<String>(messageType);
     if (!nullToAbsent || attachmentsJson != null) {
       map['attachments_json'] = Variable<String>(attachmentsJson);
+    }
+    if (!nullToAbsent || taskRoomId != null) {
+      map['task_room_id'] = Variable<String>(taskRoomId);
     }
     return map;
   }
@@ -3506,6 +3529,9 @@ class PersonaChatMessage extends DataClass
       attachmentsJson: attachmentsJson == null && nullToAbsent
           ? const Value.absent()
           : Value(attachmentsJson),
+      taskRoomId: taskRoomId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taskRoomId),
     );
   }
 
@@ -3524,6 +3550,7 @@ class PersonaChatMessage extends DataClass
       timestamp: serializer.fromJson<DateTime>(json['timestamp']),
       messageType: serializer.fromJson<String>(json['messageType']),
       attachmentsJson: serializer.fromJson<String?>(json['attachmentsJson']),
+      taskRoomId: serializer.fromJson<String?>(json['taskRoomId']),
     );
   }
   @override
@@ -3541,6 +3568,7 @@ class PersonaChatMessage extends DataClass
       'timestamp': serializer.toJson<DateTime>(timestamp),
       'messageType': serializer.toJson<String>(messageType),
       'attachmentsJson': serializer.toJson<String?>(attachmentsJson),
+      'taskRoomId': serializer.toJson<String?>(taskRoomId),
     };
   }
 
@@ -3555,7 +3583,8 @@ class PersonaChatMessage extends DataClass
           bool? isRead,
           DateTime? timestamp,
           String? messageType,
-          Value<String?> attachmentsJson = const Value.absent()}) =>
+          Value<String?> attachmentsJson = const Value.absent(),
+          Value<String?> taskRoomId = const Value.absent()}) =>
       PersonaChatMessage(
         id: id ?? this.id,
         syncId: syncId.present ? syncId.value : this.syncId,
@@ -3571,6 +3600,7 @@ class PersonaChatMessage extends DataClass
         attachmentsJson: attachmentsJson.present
             ? attachmentsJson.value
             : this.attachmentsJson,
+        taskRoomId: taskRoomId.present ? taskRoomId.value : this.taskRoomId,
       );
   PersonaChatMessage copyWithCompanion(PersonaChatMessagesCompanion data) {
     return PersonaChatMessage(
@@ -3593,6 +3623,8 @@ class PersonaChatMessage extends DataClass
       attachmentsJson: data.attachmentsJson.present
           ? data.attachmentsJson.value
           : this.attachmentsJson,
+      taskRoomId:
+          data.taskRoomId.present ? data.taskRoomId.value : this.taskRoomId,
     );
   }
 
@@ -3609,7 +3641,8 @@ class PersonaChatMessage extends DataClass
           ..write('isRead: $isRead, ')
           ..write('timestamp: $timestamp, ')
           ..write('messageType: $messageType, ')
-          ..write('attachmentsJson: $attachmentsJson')
+          ..write('attachmentsJson: $attachmentsJson, ')
+          ..write('taskRoomId: $taskRoomId')
           ..write(')'))
         .toString();
   }
@@ -3626,7 +3659,8 @@ class PersonaChatMessage extends DataClass
       isRead,
       timestamp,
       messageType,
-      attachmentsJson);
+      attachmentsJson,
+      taskRoomId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3641,7 +3675,8 @@ class PersonaChatMessage extends DataClass
           other.isRead == this.isRead &&
           other.timestamp == this.timestamp &&
           other.messageType == this.messageType &&
-          other.attachmentsJson == this.attachmentsJson);
+          other.attachmentsJson == this.attachmentsJson &&
+          other.taskRoomId == this.taskRoomId);
 }
 
 class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
@@ -3656,6 +3691,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
   final Value<DateTime> timestamp;
   final Value<String> messageType;
   final Value<String?> attachmentsJson;
+  final Value<String?> taskRoomId;
   const PersonaChatMessagesCompanion({
     this.id = const Value.absent(),
     this.syncId = const Value.absent(),
@@ -3668,6 +3704,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     this.timestamp = const Value.absent(),
     this.messageType = const Value.absent(),
     this.attachmentsJson = const Value.absent(),
+    this.taskRoomId = const Value.absent(),
   });
   PersonaChatMessagesCompanion.insert({
     this.id = const Value.absent(),
@@ -3681,6 +3718,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     required DateTime timestamp,
     this.messageType = const Value.absent(),
     this.attachmentsJson = const Value.absent(),
+    this.taskRoomId = const Value.absent(),
   })  : characterId = Value(characterId),
         isFromCharacter = Value(isFromCharacter),
         content = Value(content),
@@ -3697,6 +3735,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     Expression<DateTime>? timestamp,
     Expression<String>? messageType,
     Expression<String>? attachmentsJson,
+    Expression<String>? taskRoomId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3710,6 +3749,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
       if (timestamp != null) 'timestamp': timestamp,
       if (messageType != null) 'message_type': messageType,
       if (attachmentsJson != null) 'attachments_json': attachmentsJson,
+      if (taskRoomId != null) 'task_room_id': taskRoomId,
     });
   }
 
@@ -3724,7 +3764,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
       Value<bool>? isRead,
       Value<DateTime>? timestamp,
       Value<String>? messageType,
-      Value<String?>? attachmentsJson}) {
+      Value<String?>? attachmentsJson,
+      Value<String?>? taskRoomId}) {
     return PersonaChatMessagesCompanion(
       id: id ?? this.id,
       syncId: syncId ?? this.syncId,
@@ -3737,6 +3778,7 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
       timestamp: timestamp ?? this.timestamp,
       messageType: messageType ?? this.messageType,
       attachmentsJson: attachmentsJson ?? this.attachmentsJson,
+      taskRoomId: taskRoomId ?? this.taskRoomId,
     );
   }
 
@@ -3776,6 +3818,9 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     if (attachmentsJson.present) {
       map['attachments_json'] = Variable<String>(attachmentsJson.value);
     }
+    if (taskRoomId.present) {
+      map['task_room_id'] = Variable<String>(taskRoomId.value);
+    }
     return map;
   }
 
@@ -3792,7 +3837,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
           ..write('isRead: $isRead, ')
           ..write('timestamp: $timestamp, ')
           ..write('messageType: $messageType, ')
-          ..write('attachmentsJson: $attachmentsJson')
+          ..write('attachmentsJson: $attachmentsJson, ')
+          ..write('taskRoomId: $taskRoomId')
           ..write(')'))
         .toString();
   }
@@ -27725,6 +27771,1929 @@ class GrowthPactChecksCompanion extends UpdateCompanion<GrowthPactCheck> {
   }
 }
 
+class $TaskRoomsTable extends memory_v3.TaskRooms
+    with TableInfo<$TaskRoomsTable, TaskRoom> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TaskRoomsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _goalMeta = const VerificationMeta('goal');
+  @override
+  late final GeneratedColumn<String> goal = GeneratedColumn<String>(
+      'goal', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _taskTypeMeta =
+      const VerificationMeta('taskType');
+  @override
+  late final GeneratedColumn<String> taskType = GeneratedColumn<String>(
+      'task_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _executorMeta =
+      const VerificationMeta('executor');
+  @override
+  late final GeneratedColumn<String> executor = GeneratedColumn<String>(
+      'executor', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _permissionsJsonMeta =
+      const VerificationMeta('permissionsJson');
+  @override
+  late final GeneratedColumn<String> permissionsJson = GeneratedColumn<String>(
+      'permissions_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('{}'));
+  static const VerificationMeta _contextJsonMeta =
+      const VerificationMeta('contextJson');
+  @override
+  late final GeneratedColumn<String> contextJson = GeneratedColumn<String>(
+      'context_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('{}'));
+  static const VerificationMeta _progressPercentMeta =
+      const VerificationMeta('progressPercent');
+  @override
+  late final GeneratedColumn<int> progressPercent = GeneratedColumn<int>(
+      'progress_percent', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _currentStepMeta =
+      const VerificationMeta('currentStep');
+  @override
+  late final GeneratedColumn<String> currentStep = GeneratedColumn<String>(
+      'current_step', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _conversationIdMeta =
+      const VerificationMeta('conversationId');
+  @override
+  late final GeneratedColumn<String> conversationId = GeneratedColumn<String>(
+      'conversation_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _parentTaskIdMeta =
+      const VerificationMeta('parentTaskId');
+  @override
+  late final GeneratedColumn<String> parentTaskId = GeneratedColumn<String>(
+      'parent_task_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _boardIdMeta =
+      const VerificationMeta('boardId');
+  @override
+  late final GeneratedColumn<String> boardId = GeneratedColumn<String>(
+      'board_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _completedAtMeta =
+      const VerificationMeta('completedAt');
+  @override
+  late final GeneratedColumn<int> completedAt = GeneratedColumn<int>(
+      'completed_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _archivedAtMeta =
+      const VerificationMeta('archivedAt');
+  @override
+  late final GeneratedColumn<int> archivedAt = GeneratedColumn<int>(
+      'archived_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        title,
+        goal,
+        taskType,
+        status,
+        executor,
+        permissionsJson,
+        contextJson,
+        progressPercent,
+        currentStep,
+        conversationId,
+        parentTaskId,
+        boardId,
+        createdAt,
+        updatedAt,
+        completedAt,
+        archivedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'task_rooms';
+  @override
+  VerificationContext validateIntegrity(Insertable<TaskRoom> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('goal')) {
+      context.handle(
+          _goalMeta, goal.isAcceptableOrUnknown(data['goal']!, _goalMeta));
+    } else if (isInserting) {
+      context.missing(_goalMeta);
+    }
+    if (data.containsKey('task_type')) {
+      context.handle(_taskTypeMeta,
+          taskType.isAcceptableOrUnknown(data['task_type']!, _taskTypeMeta));
+    } else if (isInserting) {
+      context.missing(_taskTypeMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('executor')) {
+      context.handle(_executorMeta,
+          executor.isAcceptableOrUnknown(data['executor']!, _executorMeta));
+    }
+    if (data.containsKey('permissions_json')) {
+      context.handle(
+          _permissionsJsonMeta,
+          permissionsJson.isAcceptableOrUnknown(
+              data['permissions_json']!, _permissionsJsonMeta));
+    }
+    if (data.containsKey('context_json')) {
+      context.handle(
+          _contextJsonMeta,
+          contextJson.isAcceptableOrUnknown(
+              data['context_json']!, _contextJsonMeta));
+    }
+    if (data.containsKey('progress_percent')) {
+      context.handle(
+          _progressPercentMeta,
+          progressPercent.isAcceptableOrUnknown(
+              data['progress_percent']!, _progressPercentMeta));
+    }
+    if (data.containsKey('current_step')) {
+      context.handle(
+          _currentStepMeta,
+          currentStep.isAcceptableOrUnknown(
+              data['current_step']!, _currentStepMeta));
+    }
+    if (data.containsKey('conversation_id')) {
+      context.handle(
+          _conversationIdMeta,
+          conversationId.isAcceptableOrUnknown(
+              data['conversation_id']!, _conversationIdMeta));
+    }
+    if (data.containsKey('parent_task_id')) {
+      context.handle(
+          _parentTaskIdMeta,
+          parentTaskId.isAcceptableOrUnknown(
+              data['parent_task_id']!, _parentTaskIdMeta));
+    }
+    if (data.containsKey('board_id')) {
+      context.handle(_boardIdMeta,
+          boardId.isAcceptableOrUnknown(data['board_id']!, _boardIdMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+          _completedAtMeta,
+          completedAt.isAcceptableOrUnknown(
+              data['completed_at']!, _completedAtMeta));
+    }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+          _archivedAtMeta,
+          archivedAt.isAcceptableOrUnknown(
+              data['archived_at']!, _archivedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TaskRoom map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TaskRoom(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      goal: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}goal'])!,
+      taskType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}task_type'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      executor: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}executor']),
+      permissionsJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}permissions_json'])!,
+      contextJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}context_json'])!,
+      progressPercent: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}progress_percent'])!,
+      currentStep: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}current_step']),
+      conversationId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}conversation_id']),
+      parentTaskId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}parent_task_id']),
+      boardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}board_id']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+      completedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}completed_at']),
+      archivedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}archived_at']),
+    );
+  }
+
+  @override
+  $TaskRoomsTable createAlias(String alias) {
+    return $TaskRoomsTable(attachedDatabase, alias);
+  }
+}
+
+class TaskRoom extends DataClass implements Insertable<TaskRoom> {
+  final String id;
+  final String title;
+  final String goal;
+  final String taskType;
+  final String status;
+  final String? executor;
+  final String permissionsJson;
+  final String contextJson;
+  final int progressPercent;
+  final String? currentStep;
+  final String? conversationId;
+  final String? parentTaskId;
+  final String? boardId;
+  final int createdAt;
+  final int updatedAt;
+  final int? completedAt;
+  final int? archivedAt;
+  const TaskRoom(
+      {required this.id,
+      required this.title,
+      required this.goal,
+      required this.taskType,
+      required this.status,
+      this.executor,
+      required this.permissionsJson,
+      required this.contextJson,
+      required this.progressPercent,
+      this.currentStep,
+      this.conversationId,
+      this.parentTaskId,
+      this.boardId,
+      required this.createdAt,
+      required this.updatedAt,
+      this.completedAt,
+      this.archivedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    map['goal'] = Variable<String>(goal);
+    map['task_type'] = Variable<String>(taskType);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || executor != null) {
+      map['executor'] = Variable<String>(executor);
+    }
+    map['permissions_json'] = Variable<String>(permissionsJson);
+    map['context_json'] = Variable<String>(contextJson);
+    map['progress_percent'] = Variable<int>(progressPercent);
+    if (!nullToAbsent || currentStep != null) {
+      map['current_step'] = Variable<String>(currentStep);
+    }
+    if (!nullToAbsent || conversationId != null) {
+      map['conversation_id'] = Variable<String>(conversationId);
+    }
+    if (!nullToAbsent || parentTaskId != null) {
+      map['parent_task_id'] = Variable<String>(parentTaskId);
+    }
+    if (!nullToAbsent || boardId != null) {
+      map['board_id'] = Variable<String>(boardId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<int>(completedAt);
+    }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<int>(archivedAt);
+    }
+    return map;
+  }
+
+  TaskRoomsCompanion toCompanion(bool nullToAbsent) {
+    return TaskRoomsCompanion(
+      id: Value(id),
+      title: Value(title),
+      goal: Value(goal),
+      taskType: Value(taskType),
+      status: Value(status),
+      executor: executor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(executor),
+      permissionsJson: Value(permissionsJson),
+      contextJson: Value(contextJson),
+      progressPercent: Value(progressPercent),
+      currentStep: currentStep == null && nullToAbsent
+          ? const Value.absent()
+          : Value(currentStep),
+      conversationId: conversationId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(conversationId),
+      parentTaskId: parentTaskId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentTaskId),
+      boardId: boardId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(boardId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
+    );
+  }
+
+  factory TaskRoom.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TaskRoom(
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      goal: serializer.fromJson<String>(json['goal']),
+      taskType: serializer.fromJson<String>(json['taskType']),
+      status: serializer.fromJson<String>(json['status']),
+      executor: serializer.fromJson<String?>(json['executor']),
+      permissionsJson: serializer.fromJson<String>(json['permissionsJson']),
+      contextJson: serializer.fromJson<String>(json['contextJson']),
+      progressPercent: serializer.fromJson<int>(json['progressPercent']),
+      currentStep: serializer.fromJson<String?>(json['currentStep']),
+      conversationId: serializer.fromJson<String?>(json['conversationId']),
+      parentTaskId: serializer.fromJson<String?>(json['parentTaskId']),
+      boardId: serializer.fromJson<String?>(json['boardId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      completedAt: serializer.fromJson<int?>(json['completedAt']),
+      archivedAt: serializer.fromJson<int?>(json['archivedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'goal': serializer.toJson<String>(goal),
+      'taskType': serializer.toJson<String>(taskType),
+      'status': serializer.toJson<String>(status),
+      'executor': serializer.toJson<String?>(executor),
+      'permissionsJson': serializer.toJson<String>(permissionsJson),
+      'contextJson': serializer.toJson<String>(contextJson),
+      'progressPercent': serializer.toJson<int>(progressPercent),
+      'currentStep': serializer.toJson<String?>(currentStep),
+      'conversationId': serializer.toJson<String?>(conversationId),
+      'parentTaskId': serializer.toJson<String?>(parentTaskId),
+      'boardId': serializer.toJson<String?>(boardId),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'completedAt': serializer.toJson<int?>(completedAt),
+      'archivedAt': serializer.toJson<int?>(archivedAt),
+    };
+  }
+
+  TaskRoom copyWith(
+          {String? id,
+          String? title,
+          String? goal,
+          String? taskType,
+          String? status,
+          Value<String?> executor = const Value.absent(),
+          String? permissionsJson,
+          String? contextJson,
+          int? progressPercent,
+          Value<String?> currentStep = const Value.absent(),
+          Value<String?> conversationId = const Value.absent(),
+          Value<String?> parentTaskId = const Value.absent(),
+          Value<String?> boardId = const Value.absent(),
+          int? createdAt,
+          int? updatedAt,
+          Value<int?> completedAt = const Value.absent(),
+          Value<int?> archivedAt = const Value.absent()}) =>
+      TaskRoom(
+        id: id ?? this.id,
+        title: title ?? this.title,
+        goal: goal ?? this.goal,
+        taskType: taskType ?? this.taskType,
+        status: status ?? this.status,
+        executor: executor.present ? executor.value : this.executor,
+        permissionsJson: permissionsJson ?? this.permissionsJson,
+        contextJson: contextJson ?? this.contextJson,
+        progressPercent: progressPercent ?? this.progressPercent,
+        currentStep: currentStep.present ? currentStep.value : this.currentStep,
+        conversationId:
+            conversationId.present ? conversationId.value : this.conversationId,
+        parentTaskId:
+            parentTaskId.present ? parentTaskId.value : this.parentTaskId,
+        boardId: boardId.present ? boardId.value : this.boardId,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        completedAt: completedAt.present ? completedAt.value : this.completedAt,
+        archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
+      );
+  TaskRoom copyWithCompanion(TaskRoomsCompanion data) {
+    return TaskRoom(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      goal: data.goal.present ? data.goal.value : this.goal,
+      taskType: data.taskType.present ? data.taskType.value : this.taskType,
+      status: data.status.present ? data.status.value : this.status,
+      executor: data.executor.present ? data.executor.value : this.executor,
+      permissionsJson: data.permissionsJson.present
+          ? data.permissionsJson.value
+          : this.permissionsJson,
+      contextJson:
+          data.contextJson.present ? data.contextJson.value : this.contextJson,
+      progressPercent: data.progressPercent.present
+          ? data.progressPercent.value
+          : this.progressPercent,
+      currentStep:
+          data.currentStep.present ? data.currentStep.value : this.currentStep,
+      conversationId: data.conversationId.present
+          ? data.conversationId.value
+          : this.conversationId,
+      parentTaskId: data.parentTaskId.present
+          ? data.parentTaskId.value
+          : this.parentTaskId,
+      boardId: data.boardId.present ? data.boardId.value : this.boardId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      completedAt:
+          data.completedAt.present ? data.completedAt.value : this.completedAt,
+      archivedAt:
+          data.archivedAt.present ? data.archivedAt.value : this.archivedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskRoom(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('goal: $goal, ')
+          ..write('taskType: $taskType, ')
+          ..write('status: $status, ')
+          ..write('executor: $executor, ')
+          ..write('permissionsJson: $permissionsJson, ')
+          ..write('contextJson: $contextJson, ')
+          ..write('progressPercent: $progressPercent, ')
+          ..write('currentStep: $currentStep, ')
+          ..write('conversationId: $conversationId, ')
+          ..write('parentTaskId: $parentTaskId, ')
+          ..write('boardId: $boardId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('archivedAt: $archivedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      title,
+      goal,
+      taskType,
+      status,
+      executor,
+      permissionsJson,
+      contextJson,
+      progressPercent,
+      currentStep,
+      conversationId,
+      parentTaskId,
+      boardId,
+      createdAt,
+      updatedAt,
+      completedAt,
+      archivedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TaskRoom &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.goal == this.goal &&
+          other.taskType == this.taskType &&
+          other.status == this.status &&
+          other.executor == this.executor &&
+          other.permissionsJson == this.permissionsJson &&
+          other.contextJson == this.contextJson &&
+          other.progressPercent == this.progressPercent &&
+          other.currentStep == this.currentStep &&
+          other.conversationId == this.conversationId &&
+          other.parentTaskId == this.parentTaskId &&
+          other.boardId == this.boardId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.completedAt == this.completedAt &&
+          other.archivedAt == this.archivedAt);
+}
+
+class TaskRoomsCompanion extends UpdateCompanion<TaskRoom> {
+  final Value<String> id;
+  final Value<String> title;
+  final Value<String> goal;
+  final Value<String> taskType;
+  final Value<String> status;
+  final Value<String?> executor;
+  final Value<String> permissionsJson;
+  final Value<String> contextJson;
+  final Value<int> progressPercent;
+  final Value<String?> currentStep;
+  final Value<String?> conversationId;
+  final Value<String?> parentTaskId;
+  final Value<String?> boardId;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int?> completedAt;
+  final Value<int?> archivedAt;
+  final Value<int> rowid;
+  const TaskRoomsCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.goal = const Value.absent(),
+    this.taskType = const Value.absent(),
+    this.status = const Value.absent(),
+    this.executor = const Value.absent(),
+    this.permissionsJson = const Value.absent(),
+    this.contextJson = const Value.absent(),
+    this.progressPercent = const Value.absent(),
+    this.currentStep = const Value.absent(),
+    this.conversationId = const Value.absent(),
+    this.parentTaskId = const Value.absent(),
+    this.boardId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TaskRoomsCompanion.insert({
+    required String id,
+    required String title,
+    required String goal,
+    required String taskType,
+    required String status,
+    this.executor = const Value.absent(),
+    this.permissionsJson = const Value.absent(),
+    this.contextJson = const Value.absent(),
+    this.progressPercent = const Value.absent(),
+    this.currentStep = const Value.absent(),
+    this.conversationId = const Value.absent(),
+    this.parentTaskId = const Value.absent(),
+    this.boardId = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.completedAt = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        title = Value(title),
+        goal = Value(goal),
+        taskType = Value(taskType),
+        status = Value(status),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<TaskRoom> custom({
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<String>? goal,
+    Expression<String>? taskType,
+    Expression<String>? status,
+    Expression<String>? executor,
+    Expression<String>? permissionsJson,
+    Expression<String>? contextJson,
+    Expression<int>? progressPercent,
+    Expression<String>? currentStep,
+    Expression<String>? conversationId,
+    Expression<String>? parentTaskId,
+    Expression<String>? boardId,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? completedAt,
+    Expression<int>? archivedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (goal != null) 'goal': goal,
+      if (taskType != null) 'task_type': taskType,
+      if (status != null) 'status': status,
+      if (executor != null) 'executor': executor,
+      if (permissionsJson != null) 'permissions_json': permissionsJson,
+      if (contextJson != null) 'context_json': contextJson,
+      if (progressPercent != null) 'progress_percent': progressPercent,
+      if (currentStep != null) 'current_step': currentStep,
+      if (conversationId != null) 'conversation_id': conversationId,
+      if (parentTaskId != null) 'parent_task_id': parentTaskId,
+      if (boardId != null) 'board_id': boardId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (archivedAt != null) 'archived_at': archivedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TaskRoomsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? title,
+      Value<String>? goal,
+      Value<String>? taskType,
+      Value<String>? status,
+      Value<String?>? executor,
+      Value<String>? permissionsJson,
+      Value<String>? contextJson,
+      Value<int>? progressPercent,
+      Value<String?>? currentStep,
+      Value<String?>? conversationId,
+      Value<String?>? parentTaskId,
+      Value<String?>? boardId,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int?>? completedAt,
+      Value<int?>? archivedAt,
+      Value<int>? rowid}) {
+    return TaskRoomsCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      goal: goal ?? this.goal,
+      taskType: taskType ?? this.taskType,
+      status: status ?? this.status,
+      executor: executor ?? this.executor,
+      permissionsJson: permissionsJson ?? this.permissionsJson,
+      contextJson: contextJson ?? this.contextJson,
+      progressPercent: progressPercent ?? this.progressPercent,
+      currentStep: currentStep ?? this.currentStep,
+      conversationId: conversationId ?? this.conversationId,
+      parentTaskId: parentTaskId ?? this.parentTaskId,
+      boardId: boardId ?? this.boardId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      completedAt: completedAt ?? this.completedAt,
+      archivedAt: archivedAt ?? this.archivedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (goal.present) {
+      map['goal'] = Variable<String>(goal.value);
+    }
+    if (taskType.present) {
+      map['task_type'] = Variable<String>(taskType.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (executor.present) {
+      map['executor'] = Variable<String>(executor.value);
+    }
+    if (permissionsJson.present) {
+      map['permissions_json'] = Variable<String>(permissionsJson.value);
+    }
+    if (contextJson.present) {
+      map['context_json'] = Variable<String>(contextJson.value);
+    }
+    if (progressPercent.present) {
+      map['progress_percent'] = Variable<int>(progressPercent.value);
+    }
+    if (currentStep.present) {
+      map['current_step'] = Variable<String>(currentStep.value);
+    }
+    if (conversationId.present) {
+      map['conversation_id'] = Variable<String>(conversationId.value);
+    }
+    if (parentTaskId.present) {
+      map['parent_task_id'] = Variable<String>(parentTaskId.value);
+    }
+    if (boardId.present) {
+      map['board_id'] = Variable<String>(boardId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<int>(completedAt.value);
+    }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<int>(archivedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskRoomsCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('goal: $goal, ')
+          ..write('taskType: $taskType, ')
+          ..write('status: $status, ')
+          ..write('executor: $executor, ')
+          ..write('permissionsJson: $permissionsJson, ')
+          ..write('contextJson: $contextJson, ')
+          ..write('progressPercent: $progressPercent, ')
+          ..write('currentStep: $currentStep, ')
+          ..write('conversationId: $conversationId, ')
+          ..write('parentTaskId: $parentTaskId, ')
+          ..write('boardId: $boardId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TaskArtifactsTable extends memory_v3.TaskArtifacts
+    with TableInfo<$TaskArtifactsTable, TaskArtifact> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TaskArtifactsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _taskIdMeta = const VerificationMeta('taskId');
+  @override
+  late final GeneratedColumn<String> taskId = GeneratedColumn<String>(
+      'task_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _artifactTypeMeta =
+      const VerificationMeta('artifactType');
+  @override
+  late final GeneratedColumn<String> artifactType = GeneratedColumn<String>(
+      'artifact_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentJsonMeta =
+      const VerificationMeta('contentJson');
+  @override
+  late final GeneratedColumn<String> contentJson = GeneratedColumn<String>(
+      'content_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sizeBytesMeta =
+      const VerificationMeta('sizeBytes');
+  @override
+  late final GeneratedColumn<int> sizeBytes = GeneratedColumn<int>(
+      'size_bytes', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _mimeTypeMeta =
+      const VerificationMeta('mimeType');
+  @override
+  late final GeneratedColumn<String> mimeType = GeneratedColumn<String>(
+      'mime_type', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _storageRefMeta =
+      const VerificationMeta('storageRef');
+  @override
+  late final GeneratedColumn<String> storageRef = GeneratedColumn<String>(
+      'storage_ref', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        taskId,
+        artifactType,
+        title,
+        contentJson,
+        sizeBytes,
+        mimeType,
+        storageRef,
+        createdAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'task_artifacts';
+  @override
+  VerificationContext validateIntegrity(Insertable<TaskArtifact> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('task_id')) {
+      context.handle(_taskIdMeta,
+          taskId.isAcceptableOrUnknown(data['task_id']!, _taskIdMeta));
+    } else if (isInserting) {
+      context.missing(_taskIdMeta);
+    }
+    if (data.containsKey('artifact_type')) {
+      context.handle(
+          _artifactTypeMeta,
+          artifactType.isAcceptableOrUnknown(
+              data['artifact_type']!, _artifactTypeMeta));
+    } else if (isInserting) {
+      context.missing(_artifactTypeMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('content_json')) {
+      context.handle(
+          _contentJsonMeta,
+          contentJson.isAcceptableOrUnknown(
+              data['content_json']!, _contentJsonMeta));
+    } else if (isInserting) {
+      context.missing(_contentJsonMeta);
+    }
+    if (data.containsKey('size_bytes')) {
+      context.handle(_sizeBytesMeta,
+          sizeBytes.isAcceptableOrUnknown(data['size_bytes']!, _sizeBytesMeta));
+    }
+    if (data.containsKey('mime_type')) {
+      context.handle(_mimeTypeMeta,
+          mimeType.isAcceptableOrUnknown(data['mime_type']!, _mimeTypeMeta));
+    }
+    if (data.containsKey('storage_ref')) {
+      context.handle(
+          _storageRefMeta,
+          storageRef.isAcceptableOrUnknown(
+              data['storage_ref']!, _storageRefMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TaskArtifact map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TaskArtifact(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      taskId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}task_id'])!,
+      artifactType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}artifact_type'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      contentJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content_json'])!,
+      sizeBytes: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}size_bytes']),
+      mimeType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}mime_type']),
+      storageRef: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}storage_ref']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $TaskArtifactsTable createAlias(String alias) {
+    return $TaskArtifactsTable(attachedDatabase, alias);
+  }
+}
+
+class TaskArtifact extends DataClass implements Insertable<TaskArtifact> {
+  final String id;
+  final String taskId;
+  final String artifactType;
+  final String title;
+  final String contentJson;
+  final int? sizeBytes;
+  final String? mimeType;
+  final String? storageRef;
+  final int createdAt;
+  const TaskArtifact(
+      {required this.id,
+      required this.taskId,
+      required this.artifactType,
+      required this.title,
+      required this.contentJson,
+      this.sizeBytes,
+      this.mimeType,
+      this.storageRef,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['task_id'] = Variable<String>(taskId);
+    map['artifact_type'] = Variable<String>(artifactType);
+    map['title'] = Variable<String>(title);
+    map['content_json'] = Variable<String>(contentJson);
+    if (!nullToAbsent || sizeBytes != null) {
+      map['size_bytes'] = Variable<int>(sizeBytes);
+    }
+    if (!nullToAbsent || mimeType != null) {
+      map['mime_type'] = Variable<String>(mimeType);
+    }
+    if (!nullToAbsent || storageRef != null) {
+      map['storage_ref'] = Variable<String>(storageRef);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  TaskArtifactsCompanion toCompanion(bool nullToAbsent) {
+    return TaskArtifactsCompanion(
+      id: Value(id),
+      taskId: Value(taskId),
+      artifactType: Value(artifactType),
+      title: Value(title),
+      contentJson: Value(contentJson),
+      sizeBytes: sizeBytes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sizeBytes),
+      mimeType: mimeType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mimeType),
+      storageRef: storageRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(storageRef),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory TaskArtifact.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TaskArtifact(
+      id: serializer.fromJson<String>(json['id']),
+      taskId: serializer.fromJson<String>(json['taskId']),
+      artifactType: serializer.fromJson<String>(json['artifactType']),
+      title: serializer.fromJson<String>(json['title']),
+      contentJson: serializer.fromJson<String>(json['contentJson']),
+      sizeBytes: serializer.fromJson<int?>(json['sizeBytes']),
+      mimeType: serializer.fromJson<String?>(json['mimeType']),
+      storageRef: serializer.fromJson<String?>(json['storageRef']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'taskId': serializer.toJson<String>(taskId),
+      'artifactType': serializer.toJson<String>(artifactType),
+      'title': serializer.toJson<String>(title),
+      'contentJson': serializer.toJson<String>(contentJson),
+      'sizeBytes': serializer.toJson<int?>(sizeBytes),
+      'mimeType': serializer.toJson<String?>(mimeType),
+      'storageRef': serializer.toJson<String?>(storageRef),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  TaskArtifact copyWith(
+          {String? id,
+          String? taskId,
+          String? artifactType,
+          String? title,
+          String? contentJson,
+          Value<int?> sizeBytes = const Value.absent(),
+          Value<String?> mimeType = const Value.absent(),
+          Value<String?> storageRef = const Value.absent(),
+          int? createdAt}) =>
+      TaskArtifact(
+        id: id ?? this.id,
+        taskId: taskId ?? this.taskId,
+        artifactType: artifactType ?? this.artifactType,
+        title: title ?? this.title,
+        contentJson: contentJson ?? this.contentJson,
+        sizeBytes: sizeBytes.present ? sizeBytes.value : this.sizeBytes,
+        mimeType: mimeType.present ? mimeType.value : this.mimeType,
+        storageRef: storageRef.present ? storageRef.value : this.storageRef,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  TaskArtifact copyWithCompanion(TaskArtifactsCompanion data) {
+    return TaskArtifact(
+      id: data.id.present ? data.id.value : this.id,
+      taskId: data.taskId.present ? data.taskId.value : this.taskId,
+      artifactType: data.artifactType.present
+          ? data.artifactType.value
+          : this.artifactType,
+      title: data.title.present ? data.title.value : this.title,
+      contentJson:
+          data.contentJson.present ? data.contentJson.value : this.contentJson,
+      sizeBytes: data.sizeBytes.present ? data.sizeBytes.value : this.sizeBytes,
+      mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
+      storageRef:
+          data.storageRef.present ? data.storageRef.value : this.storageRef,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskArtifact(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('artifactType: $artifactType, ')
+          ..write('title: $title, ')
+          ..write('contentJson: $contentJson, ')
+          ..write('sizeBytes: $sizeBytes, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('storageRef: $storageRef, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, taskId, artifactType, title, contentJson,
+      sizeBytes, mimeType, storageRef, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TaskArtifact &&
+          other.id == this.id &&
+          other.taskId == this.taskId &&
+          other.artifactType == this.artifactType &&
+          other.title == this.title &&
+          other.contentJson == this.contentJson &&
+          other.sizeBytes == this.sizeBytes &&
+          other.mimeType == this.mimeType &&
+          other.storageRef == this.storageRef &&
+          other.createdAt == this.createdAt);
+}
+
+class TaskArtifactsCompanion extends UpdateCompanion<TaskArtifact> {
+  final Value<String> id;
+  final Value<String> taskId;
+  final Value<String> artifactType;
+  final Value<String> title;
+  final Value<String> contentJson;
+  final Value<int?> sizeBytes;
+  final Value<String?> mimeType;
+  final Value<String?> storageRef;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const TaskArtifactsCompanion({
+    this.id = const Value.absent(),
+    this.taskId = const Value.absent(),
+    this.artifactType = const Value.absent(),
+    this.title = const Value.absent(),
+    this.contentJson = const Value.absent(),
+    this.sizeBytes = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.storageRef = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TaskArtifactsCompanion.insert({
+    required String id,
+    required String taskId,
+    required String artifactType,
+    required String title,
+    required String contentJson,
+    this.sizeBytes = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.storageRef = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        taskId = Value(taskId),
+        artifactType = Value(artifactType),
+        title = Value(title),
+        contentJson = Value(contentJson),
+        createdAt = Value(createdAt);
+  static Insertable<TaskArtifact> custom({
+    Expression<String>? id,
+    Expression<String>? taskId,
+    Expression<String>? artifactType,
+    Expression<String>? title,
+    Expression<String>? contentJson,
+    Expression<int>? sizeBytes,
+    Expression<String>? mimeType,
+    Expression<String>? storageRef,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (taskId != null) 'task_id': taskId,
+      if (artifactType != null) 'artifact_type': artifactType,
+      if (title != null) 'title': title,
+      if (contentJson != null) 'content_json': contentJson,
+      if (sizeBytes != null) 'size_bytes': sizeBytes,
+      if (mimeType != null) 'mime_type': mimeType,
+      if (storageRef != null) 'storage_ref': storageRef,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TaskArtifactsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? taskId,
+      Value<String>? artifactType,
+      Value<String>? title,
+      Value<String>? contentJson,
+      Value<int?>? sizeBytes,
+      Value<String?>? mimeType,
+      Value<String?>? storageRef,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return TaskArtifactsCompanion(
+      id: id ?? this.id,
+      taskId: taskId ?? this.taskId,
+      artifactType: artifactType ?? this.artifactType,
+      title: title ?? this.title,
+      contentJson: contentJson ?? this.contentJson,
+      sizeBytes: sizeBytes ?? this.sizeBytes,
+      mimeType: mimeType ?? this.mimeType,
+      storageRef: storageRef ?? this.storageRef,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (taskId.present) {
+      map['task_id'] = Variable<String>(taskId.value);
+    }
+    if (artifactType.present) {
+      map['artifact_type'] = Variable<String>(artifactType.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (contentJson.present) {
+      map['content_json'] = Variable<String>(contentJson.value);
+    }
+    if (sizeBytes.present) {
+      map['size_bytes'] = Variable<int>(sizeBytes.value);
+    }
+    if (mimeType.present) {
+      map['mime_type'] = Variable<String>(mimeType.value);
+    }
+    if (storageRef.present) {
+      map['storage_ref'] = Variable<String>(storageRef.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskArtifactsCompanion(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('artifactType: $artifactType, ')
+          ..write('title: $title, ')
+          ..write('contentJson: $contentJson, ')
+          ..write('sizeBytes: $sizeBytes, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('storageRef: $storageRef, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TaskDecisionsTable extends memory_v3.TaskDecisions
+    with TableInfo<$TaskDecisionsTable, TaskDecision> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TaskDecisionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _taskIdMeta = const VerificationMeta('taskId');
+  @override
+  late final GeneratedColumn<String> taskId = GeneratedColumn<String>(
+      'task_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _decisionTypeMeta =
+      const VerificationMeta('decisionType');
+  @override
+  late final GeneratedColumn<String> decisionType = GeneratedColumn<String>(
+      'decision_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('pending'));
+  static const VerificationMeta _questionMeta =
+      const VerificationMeta('question');
+  @override
+  late final GeneratedColumn<String> question = GeneratedColumn<String>(
+      'question', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _optionsJsonMeta =
+      const VerificationMeta('optionsJson');
+  @override
+  late final GeneratedColumn<String> optionsJson = GeneratedColumn<String>(
+      'options_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _selectedOptionMeta =
+      const VerificationMeta('selectedOption');
+  @override
+  late final GeneratedColumn<String> selectedOption = GeneratedColumn<String>(
+      'selected_option', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _reasoningMeta =
+      const VerificationMeta('reasoning');
+  @override
+  late final GeneratedColumn<String> reasoning = GeneratedColumn<String>(
+      'reasoning', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _decidedByMeta =
+      const VerificationMeta('decidedBy');
+  @override
+  late final GeneratedColumn<String> decidedBy = GeneratedColumn<String>(
+      'decided_by', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _supersedesDecisionIdMeta =
+      const VerificationMeta('supersedesDecisionId');
+  @override
+  late final GeneratedColumn<String> supersedesDecisionId =
+      GeneratedColumn<String>('supersedes_decision_id', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _requestedAtMeta =
+      const VerificationMeta('requestedAt');
+  @override
+  late final GeneratedColumn<int> requestedAt = GeneratedColumn<int>(
+      'requested_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _decidedAtMeta =
+      const VerificationMeta('decidedAt');
+  @override
+  late final GeneratedColumn<int> decidedAt = GeneratedColumn<int>(
+      'decided_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        taskId,
+        decisionType,
+        status,
+        question,
+        optionsJson,
+        selectedOption,
+        reasoning,
+        decidedBy,
+        supersedesDecisionId,
+        requestedAt,
+        decidedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'task_decisions';
+  @override
+  VerificationContext validateIntegrity(Insertable<TaskDecision> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('task_id')) {
+      context.handle(_taskIdMeta,
+          taskId.isAcceptableOrUnknown(data['task_id']!, _taskIdMeta));
+    } else if (isInserting) {
+      context.missing(_taskIdMeta);
+    }
+    if (data.containsKey('decision_type')) {
+      context.handle(
+          _decisionTypeMeta,
+          decisionType.isAcceptableOrUnknown(
+              data['decision_type']!, _decisionTypeMeta));
+    } else if (isInserting) {
+      context.missing(_decisionTypeMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('question')) {
+      context.handle(_questionMeta,
+          question.isAcceptableOrUnknown(data['question']!, _questionMeta));
+    } else if (isInserting) {
+      context.missing(_questionMeta);
+    }
+    if (data.containsKey('options_json')) {
+      context.handle(
+          _optionsJsonMeta,
+          optionsJson.isAcceptableOrUnknown(
+              data['options_json']!, _optionsJsonMeta));
+    } else if (isInserting) {
+      context.missing(_optionsJsonMeta);
+    }
+    if (data.containsKey('selected_option')) {
+      context.handle(
+          _selectedOptionMeta,
+          selectedOption.isAcceptableOrUnknown(
+              data['selected_option']!, _selectedOptionMeta));
+    }
+    if (data.containsKey('reasoning')) {
+      context.handle(_reasoningMeta,
+          reasoning.isAcceptableOrUnknown(data['reasoning']!, _reasoningMeta));
+    }
+    if (data.containsKey('decided_by')) {
+      context.handle(_decidedByMeta,
+          decidedBy.isAcceptableOrUnknown(data['decided_by']!, _decidedByMeta));
+    }
+    if (data.containsKey('supersedes_decision_id')) {
+      context.handle(
+          _supersedesDecisionIdMeta,
+          supersedesDecisionId.isAcceptableOrUnknown(
+              data['supersedes_decision_id']!, _supersedesDecisionIdMeta));
+    }
+    if (data.containsKey('requested_at')) {
+      context.handle(
+          _requestedAtMeta,
+          requestedAt.isAcceptableOrUnknown(
+              data['requested_at']!, _requestedAtMeta));
+    } else if (isInserting) {
+      context.missing(_requestedAtMeta);
+    }
+    if (data.containsKey('decided_at')) {
+      context.handle(_decidedAtMeta,
+          decidedAt.isAcceptableOrUnknown(data['decided_at']!, _decidedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TaskDecision map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TaskDecision(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      taskId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}task_id'])!,
+      decisionType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}decision_type'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      question: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}question'])!,
+      optionsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}options_json'])!,
+      selectedOption: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}selected_option']),
+      reasoning: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}reasoning']),
+      decidedBy: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}decided_by']),
+      supersedesDecisionId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}supersedes_decision_id']),
+      requestedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}requested_at'])!,
+      decidedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}decided_at']),
+    );
+  }
+
+  @override
+  $TaskDecisionsTable createAlias(String alias) {
+    return $TaskDecisionsTable(attachedDatabase, alias);
+  }
+}
+
+class TaskDecision extends DataClass implements Insertable<TaskDecision> {
+  final String id;
+  final String taskId;
+  final String decisionType;
+
+  /// pending | resolved | cancelled | superseded
+  final String status;
+  final String question;
+  final String optionsJson;
+
+  /// 用户选择的选项（nullable，pending 状态时为 null）
+  final String? selectedOption;
+  final String? reasoning;
+
+  /// user | lin_ai | system
+  final String? decidedBy;
+
+  /// 如果这个决策替代了之前的决策
+  final String? supersedesDecisionId;
+  final int requestedAt;
+  final int? decidedAt;
+  const TaskDecision(
+      {required this.id,
+      required this.taskId,
+      required this.decisionType,
+      required this.status,
+      required this.question,
+      required this.optionsJson,
+      this.selectedOption,
+      this.reasoning,
+      this.decidedBy,
+      this.supersedesDecisionId,
+      required this.requestedAt,
+      this.decidedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['task_id'] = Variable<String>(taskId);
+    map['decision_type'] = Variable<String>(decisionType);
+    map['status'] = Variable<String>(status);
+    map['question'] = Variable<String>(question);
+    map['options_json'] = Variable<String>(optionsJson);
+    if (!nullToAbsent || selectedOption != null) {
+      map['selected_option'] = Variable<String>(selectedOption);
+    }
+    if (!nullToAbsent || reasoning != null) {
+      map['reasoning'] = Variable<String>(reasoning);
+    }
+    if (!nullToAbsent || decidedBy != null) {
+      map['decided_by'] = Variable<String>(decidedBy);
+    }
+    if (!nullToAbsent || supersedesDecisionId != null) {
+      map['supersedes_decision_id'] = Variable<String>(supersedesDecisionId);
+    }
+    map['requested_at'] = Variable<int>(requestedAt);
+    if (!nullToAbsent || decidedAt != null) {
+      map['decided_at'] = Variable<int>(decidedAt);
+    }
+    return map;
+  }
+
+  TaskDecisionsCompanion toCompanion(bool nullToAbsent) {
+    return TaskDecisionsCompanion(
+      id: Value(id),
+      taskId: Value(taskId),
+      decisionType: Value(decisionType),
+      status: Value(status),
+      question: Value(question),
+      optionsJson: Value(optionsJson),
+      selectedOption: selectedOption == null && nullToAbsent
+          ? const Value.absent()
+          : Value(selectedOption),
+      reasoning: reasoning == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reasoning),
+      decidedBy: decidedBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(decidedBy),
+      supersedesDecisionId: supersedesDecisionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supersedesDecisionId),
+      requestedAt: Value(requestedAt),
+      decidedAt: decidedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(decidedAt),
+    );
+  }
+
+  factory TaskDecision.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TaskDecision(
+      id: serializer.fromJson<String>(json['id']),
+      taskId: serializer.fromJson<String>(json['taskId']),
+      decisionType: serializer.fromJson<String>(json['decisionType']),
+      status: serializer.fromJson<String>(json['status']),
+      question: serializer.fromJson<String>(json['question']),
+      optionsJson: serializer.fromJson<String>(json['optionsJson']),
+      selectedOption: serializer.fromJson<String?>(json['selectedOption']),
+      reasoning: serializer.fromJson<String?>(json['reasoning']),
+      decidedBy: serializer.fromJson<String?>(json['decidedBy']),
+      supersedesDecisionId:
+          serializer.fromJson<String?>(json['supersedesDecisionId']),
+      requestedAt: serializer.fromJson<int>(json['requestedAt']),
+      decidedAt: serializer.fromJson<int?>(json['decidedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'taskId': serializer.toJson<String>(taskId),
+      'decisionType': serializer.toJson<String>(decisionType),
+      'status': serializer.toJson<String>(status),
+      'question': serializer.toJson<String>(question),
+      'optionsJson': serializer.toJson<String>(optionsJson),
+      'selectedOption': serializer.toJson<String?>(selectedOption),
+      'reasoning': serializer.toJson<String?>(reasoning),
+      'decidedBy': serializer.toJson<String?>(decidedBy),
+      'supersedesDecisionId': serializer.toJson<String?>(supersedesDecisionId),
+      'requestedAt': serializer.toJson<int>(requestedAt),
+      'decidedAt': serializer.toJson<int?>(decidedAt),
+    };
+  }
+
+  TaskDecision copyWith(
+          {String? id,
+          String? taskId,
+          String? decisionType,
+          String? status,
+          String? question,
+          String? optionsJson,
+          Value<String?> selectedOption = const Value.absent(),
+          Value<String?> reasoning = const Value.absent(),
+          Value<String?> decidedBy = const Value.absent(),
+          Value<String?> supersedesDecisionId = const Value.absent(),
+          int? requestedAt,
+          Value<int?> decidedAt = const Value.absent()}) =>
+      TaskDecision(
+        id: id ?? this.id,
+        taskId: taskId ?? this.taskId,
+        decisionType: decisionType ?? this.decisionType,
+        status: status ?? this.status,
+        question: question ?? this.question,
+        optionsJson: optionsJson ?? this.optionsJson,
+        selectedOption:
+            selectedOption.present ? selectedOption.value : this.selectedOption,
+        reasoning: reasoning.present ? reasoning.value : this.reasoning,
+        decidedBy: decidedBy.present ? decidedBy.value : this.decidedBy,
+        supersedesDecisionId: supersedesDecisionId.present
+            ? supersedesDecisionId.value
+            : this.supersedesDecisionId,
+        requestedAt: requestedAt ?? this.requestedAt,
+        decidedAt: decidedAt.present ? decidedAt.value : this.decidedAt,
+      );
+  TaskDecision copyWithCompanion(TaskDecisionsCompanion data) {
+    return TaskDecision(
+      id: data.id.present ? data.id.value : this.id,
+      taskId: data.taskId.present ? data.taskId.value : this.taskId,
+      decisionType: data.decisionType.present
+          ? data.decisionType.value
+          : this.decisionType,
+      status: data.status.present ? data.status.value : this.status,
+      question: data.question.present ? data.question.value : this.question,
+      optionsJson:
+          data.optionsJson.present ? data.optionsJson.value : this.optionsJson,
+      selectedOption: data.selectedOption.present
+          ? data.selectedOption.value
+          : this.selectedOption,
+      reasoning: data.reasoning.present ? data.reasoning.value : this.reasoning,
+      decidedBy: data.decidedBy.present ? data.decidedBy.value : this.decidedBy,
+      supersedesDecisionId: data.supersedesDecisionId.present
+          ? data.supersedesDecisionId.value
+          : this.supersedesDecisionId,
+      requestedAt:
+          data.requestedAt.present ? data.requestedAt.value : this.requestedAt,
+      decidedAt: data.decidedAt.present ? data.decidedAt.value : this.decidedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskDecision(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('decisionType: $decisionType, ')
+          ..write('status: $status, ')
+          ..write('question: $question, ')
+          ..write('optionsJson: $optionsJson, ')
+          ..write('selectedOption: $selectedOption, ')
+          ..write('reasoning: $reasoning, ')
+          ..write('decidedBy: $decidedBy, ')
+          ..write('supersedesDecisionId: $supersedesDecisionId, ')
+          ..write('requestedAt: $requestedAt, ')
+          ..write('decidedAt: $decidedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      taskId,
+      decisionType,
+      status,
+      question,
+      optionsJson,
+      selectedOption,
+      reasoning,
+      decidedBy,
+      supersedesDecisionId,
+      requestedAt,
+      decidedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TaskDecision &&
+          other.id == this.id &&
+          other.taskId == this.taskId &&
+          other.decisionType == this.decisionType &&
+          other.status == this.status &&
+          other.question == this.question &&
+          other.optionsJson == this.optionsJson &&
+          other.selectedOption == this.selectedOption &&
+          other.reasoning == this.reasoning &&
+          other.decidedBy == this.decidedBy &&
+          other.supersedesDecisionId == this.supersedesDecisionId &&
+          other.requestedAt == this.requestedAt &&
+          other.decidedAt == this.decidedAt);
+}
+
+class TaskDecisionsCompanion extends UpdateCompanion<TaskDecision> {
+  final Value<String> id;
+  final Value<String> taskId;
+  final Value<String> decisionType;
+  final Value<String> status;
+  final Value<String> question;
+  final Value<String> optionsJson;
+  final Value<String?> selectedOption;
+  final Value<String?> reasoning;
+  final Value<String?> decidedBy;
+  final Value<String?> supersedesDecisionId;
+  final Value<int> requestedAt;
+  final Value<int?> decidedAt;
+  final Value<int> rowid;
+  const TaskDecisionsCompanion({
+    this.id = const Value.absent(),
+    this.taskId = const Value.absent(),
+    this.decisionType = const Value.absent(),
+    this.status = const Value.absent(),
+    this.question = const Value.absent(),
+    this.optionsJson = const Value.absent(),
+    this.selectedOption = const Value.absent(),
+    this.reasoning = const Value.absent(),
+    this.decidedBy = const Value.absent(),
+    this.supersedesDecisionId = const Value.absent(),
+    this.requestedAt = const Value.absent(),
+    this.decidedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TaskDecisionsCompanion.insert({
+    required String id,
+    required String taskId,
+    required String decisionType,
+    this.status = const Value.absent(),
+    required String question,
+    required String optionsJson,
+    this.selectedOption = const Value.absent(),
+    this.reasoning = const Value.absent(),
+    this.decidedBy = const Value.absent(),
+    this.supersedesDecisionId = const Value.absent(),
+    required int requestedAt,
+    this.decidedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        taskId = Value(taskId),
+        decisionType = Value(decisionType),
+        question = Value(question),
+        optionsJson = Value(optionsJson),
+        requestedAt = Value(requestedAt);
+  static Insertable<TaskDecision> custom({
+    Expression<String>? id,
+    Expression<String>? taskId,
+    Expression<String>? decisionType,
+    Expression<String>? status,
+    Expression<String>? question,
+    Expression<String>? optionsJson,
+    Expression<String>? selectedOption,
+    Expression<String>? reasoning,
+    Expression<String>? decidedBy,
+    Expression<String>? supersedesDecisionId,
+    Expression<int>? requestedAt,
+    Expression<int>? decidedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (taskId != null) 'task_id': taskId,
+      if (decisionType != null) 'decision_type': decisionType,
+      if (status != null) 'status': status,
+      if (question != null) 'question': question,
+      if (optionsJson != null) 'options_json': optionsJson,
+      if (selectedOption != null) 'selected_option': selectedOption,
+      if (reasoning != null) 'reasoning': reasoning,
+      if (decidedBy != null) 'decided_by': decidedBy,
+      if (supersedesDecisionId != null)
+        'supersedes_decision_id': supersedesDecisionId,
+      if (requestedAt != null) 'requested_at': requestedAt,
+      if (decidedAt != null) 'decided_at': decidedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TaskDecisionsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? taskId,
+      Value<String>? decisionType,
+      Value<String>? status,
+      Value<String>? question,
+      Value<String>? optionsJson,
+      Value<String?>? selectedOption,
+      Value<String?>? reasoning,
+      Value<String?>? decidedBy,
+      Value<String?>? supersedesDecisionId,
+      Value<int>? requestedAt,
+      Value<int?>? decidedAt,
+      Value<int>? rowid}) {
+    return TaskDecisionsCompanion(
+      id: id ?? this.id,
+      taskId: taskId ?? this.taskId,
+      decisionType: decisionType ?? this.decisionType,
+      status: status ?? this.status,
+      question: question ?? this.question,
+      optionsJson: optionsJson ?? this.optionsJson,
+      selectedOption: selectedOption ?? this.selectedOption,
+      reasoning: reasoning ?? this.reasoning,
+      decidedBy: decidedBy ?? this.decidedBy,
+      supersedesDecisionId: supersedesDecisionId ?? this.supersedesDecisionId,
+      requestedAt: requestedAt ?? this.requestedAt,
+      decidedAt: decidedAt ?? this.decidedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (taskId.present) {
+      map['task_id'] = Variable<String>(taskId.value);
+    }
+    if (decisionType.present) {
+      map['decision_type'] = Variable<String>(decisionType.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (question.present) {
+      map['question'] = Variable<String>(question.value);
+    }
+    if (optionsJson.present) {
+      map['options_json'] = Variable<String>(optionsJson.value);
+    }
+    if (selectedOption.present) {
+      map['selected_option'] = Variable<String>(selectedOption.value);
+    }
+    if (reasoning.present) {
+      map['reasoning'] = Variable<String>(reasoning.value);
+    }
+    if (decidedBy.present) {
+      map['decided_by'] = Variable<String>(decidedBy.value);
+    }
+    if (supersedesDecisionId.present) {
+      map['supersedes_decision_id'] =
+          Variable<String>(supersedesDecisionId.value);
+    }
+    if (requestedAt.present) {
+      map['requested_at'] = Variable<int>(requestedAt.value);
+    }
+    if (decidedAt.present) {
+      map['decided_at'] = Variable<int>(decidedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskDecisionsCompanion(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('decisionType: $decisionType, ')
+          ..write('status: $status, ')
+          ..write('question: $question, ')
+          ..write('optionsJson: $optionsJson, ')
+          ..write('selectedOption: $selectedOption, ')
+          ..write('reasoning: $reasoning, ')
+          ..write('decidedBy: $decidedBy, ')
+          ..write('supersedesDecisionId: $supersedesDecisionId, ')
+          ..write('requestedAt: $requestedAt, ')
+          ..write('decidedAt: $decidedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ComicMangasTable extends ComicMangas
     with TableInfo<$ComicMangasTable, ComicManga> {
   @override
@@ -34785,6 +36754,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $GrowthPactsTable growthPacts = $GrowthPactsTable(this);
   late final $GrowthPactChecksTable growthPactChecks =
       $GrowthPactChecksTable(this);
+  late final $TaskRoomsTable taskRooms = $TaskRoomsTable(this);
+  late final $TaskArtifactsTable taskArtifacts = $TaskArtifactsTable(this);
+  late final $TaskDecisionsTable taskDecisions = $TaskDecisionsTable(this);
   late final $ComicMangasTable comicMangas = $ComicMangasTable(this);
   late final $ComicChaptersTable comicChapters = $ComicChaptersTable(this);
   late final $ComicPageScreenplaysTable comicPageScreenplays =
@@ -34870,6 +36842,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         userRhythms,
         growthPacts,
         growthPactChecks,
+        taskRooms,
+        taskArtifacts,
+        taskDecisions,
         comicMangas,
         comicChapters,
         comicPageScreenplays,
@@ -36431,6 +38406,7 @@ typedef $$PersonaChatMessagesTableCreateCompanionBuilder
   required DateTime timestamp,
   Value<String> messageType,
   Value<String?> attachmentsJson,
+  Value<String?> taskRoomId,
 });
 typedef $$PersonaChatMessagesTableUpdateCompanionBuilder
     = PersonaChatMessagesCompanion Function({
@@ -36445,6 +38421,7 @@ typedef $$PersonaChatMessagesTableUpdateCompanionBuilder
   Value<DateTime> timestamp,
   Value<String> messageType,
   Value<String?> attachmentsJson,
+  Value<String?> taskRoomId,
 });
 
 class $$PersonaChatMessagesTableFilterComposer
@@ -36491,6 +38468,9 @@ class $$PersonaChatMessagesTableFilterComposer
   ColumnFilters<String> get attachmentsJson => $composableBuilder(
       column: $table.attachmentsJson,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get taskRoomId => $composableBuilder(
+      column: $table.taskRoomId, builder: (column) => ColumnFilters(column));
 }
 
 class $$PersonaChatMessagesTableOrderingComposer
@@ -36537,6 +38517,9 @@ class $$PersonaChatMessagesTableOrderingComposer
   ColumnOrderings<String> get attachmentsJson => $composableBuilder(
       column: $table.attachmentsJson,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get taskRoomId => $composableBuilder(
+      column: $table.taskRoomId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PersonaChatMessagesTableAnnotationComposer
@@ -36580,6 +38563,9 @@ class $$PersonaChatMessagesTableAnnotationComposer
 
   GeneratedColumn<String> get attachmentsJson => $composableBuilder(
       column: $table.attachmentsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get taskRoomId => $composableBuilder(
+      column: $table.taskRoomId, builder: (column) => column);
 }
 
 class $$PersonaChatMessagesTableTableManager extends RootTableManager<
@@ -36623,6 +38609,7 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             Value<DateTime> timestamp = const Value.absent(),
             Value<String> messageType = const Value.absent(),
             Value<String?> attachmentsJson = const Value.absent(),
+            Value<String?> taskRoomId = const Value.absent(),
           }) =>
               PersonaChatMessagesCompanion(
             id: id,
@@ -36636,6 +38623,7 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             timestamp: timestamp,
             messageType: messageType,
             attachmentsJson: attachmentsJson,
+            taskRoomId: taskRoomId,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -36649,6 +38637,7 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             required DateTime timestamp,
             Value<String> messageType = const Value.absent(),
             Value<String?> attachmentsJson = const Value.absent(),
+            Value<String?> taskRoomId = const Value.absent(),
           }) =>
               PersonaChatMessagesCompanion.insert(
             id: id,
@@ -36662,6 +38651,7 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             timestamp: timestamp,
             messageType: messageType,
             attachmentsJson: attachmentsJson,
+            taskRoomId: taskRoomId,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -49328,6 +51318,875 @@ typedef $$GrowthPactChecksTableProcessedTableManager = ProcessedTableManager<
     ),
     GrowthPactCheck,
     PrefetchHooks Function()>;
+typedef $$TaskRoomsTableCreateCompanionBuilder = TaskRoomsCompanion Function({
+  required String id,
+  required String title,
+  required String goal,
+  required String taskType,
+  required String status,
+  Value<String?> executor,
+  Value<String> permissionsJson,
+  Value<String> contextJson,
+  Value<int> progressPercent,
+  Value<String?> currentStep,
+  Value<String?> conversationId,
+  Value<String?> parentTaskId,
+  Value<String?> boardId,
+  required int createdAt,
+  required int updatedAt,
+  Value<int?> completedAt,
+  Value<int?> archivedAt,
+  Value<int> rowid,
+});
+typedef $$TaskRoomsTableUpdateCompanionBuilder = TaskRoomsCompanion Function({
+  Value<String> id,
+  Value<String> title,
+  Value<String> goal,
+  Value<String> taskType,
+  Value<String> status,
+  Value<String?> executor,
+  Value<String> permissionsJson,
+  Value<String> contextJson,
+  Value<int> progressPercent,
+  Value<String?> currentStep,
+  Value<String?> conversationId,
+  Value<String?> parentTaskId,
+  Value<String?> boardId,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int?> completedAt,
+  Value<int?> archivedAt,
+  Value<int> rowid,
+});
+
+class $$TaskRoomsTableFilterComposer
+    extends Composer<_$AppDatabase, $TaskRoomsTable> {
+  $$TaskRoomsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get goal => $composableBuilder(
+      column: $table.goal, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get taskType => $composableBuilder(
+      column: $table.taskType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get executor => $composableBuilder(
+      column: $table.executor, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get permissionsJson => $composableBuilder(
+      column: $table.permissionsJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get contextJson => $composableBuilder(
+      column: $table.contextJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get progressPercent => $composableBuilder(
+      column: $table.progressPercent,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get currentStep => $composableBuilder(
+      column: $table.currentStep, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get conversationId => $composableBuilder(
+      column: $table.conversationId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get parentTaskId => $composableBuilder(
+      column: $table.parentTaskId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get boardId => $composableBuilder(
+      column: $table.boardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get completedAt => $composableBuilder(
+      column: $table.completedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get archivedAt => $composableBuilder(
+      column: $table.archivedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$TaskRoomsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TaskRoomsTable> {
+  $$TaskRoomsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get goal => $composableBuilder(
+      column: $table.goal, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get taskType => $composableBuilder(
+      column: $table.taskType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get executor => $composableBuilder(
+      column: $table.executor, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get permissionsJson => $composableBuilder(
+      column: $table.permissionsJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get contextJson => $composableBuilder(
+      column: $table.contextJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get progressPercent => $composableBuilder(
+      column: $table.progressPercent,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get currentStep => $composableBuilder(
+      column: $table.currentStep, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get conversationId => $composableBuilder(
+      column: $table.conversationId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get parentTaskId => $composableBuilder(
+      column: $table.parentTaskId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get boardId => $composableBuilder(
+      column: $table.boardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get completedAt => $composableBuilder(
+      column: $table.completedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get archivedAt => $composableBuilder(
+      column: $table.archivedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$TaskRoomsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TaskRoomsTable> {
+  $$TaskRoomsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get goal =>
+      $composableBuilder(column: $table.goal, builder: (column) => column);
+
+  GeneratedColumn<String> get taskType =>
+      $composableBuilder(column: $table.taskType, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get executor =>
+      $composableBuilder(column: $table.executor, builder: (column) => column);
+
+  GeneratedColumn<String> get permissionsJson => $composableBuilder(
+      column: $table.permissionsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get contextJson => $composableBuilder(
+      column: $table.contextJson, builder: (column) => column);
+
+  GeneratedColumn<int> get progressPercent => $composableBuilder(
+      column: $table.progressPercent, builder: (column) => column);
+
+  GeneratedColumn<String> get currentStep => $composableBuilder(
+      column: $table.currentStep, builder: (column) => column);
+
+  GeneratedColumn<String> get conversationId => $composableBuilder(
+      column: $table.conversationId, builder: (column) => column);
+
+  GeneratedColumn<String> get parentTaskId => $composableBuilder(
+      column: $table.parentTaskId, builder: (column) => column);
+
+  GeneratedColumn<String> get boardId =>
+      $composableBuilder(column: $table.boardId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get completedAt => $composableBuilder(
+      column: $table.completedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get archivedAt => $composableBuilder(
+      column: $table.archivedAt, builder: (column) => column);
+}
+
+class $$TaskRoomsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $TaskRoomsTable,
+    TaskRoom,
+    $$TaskRoomsTableFilterComposer,
+    $$TaskRoomsTableOrderingComposer,
+    $$TaskRoomsTableAnnotationComposer,
+    $$TaskRoomsTableCreateCompanionBuilder,
+    $$TaskRoomsTableUpdateCompanionBuilder,
+    (TaskRoom, BaseReferences<_$AppDatabase, $TaskRoomsTable, TaskRoom>),
+    TaskRoom,
+    PrefetchHooks Function()> {
+  $$TaskRoomsTableTableManager(_$AppDatabase db, $TaskRoomsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TaskRoomsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TaskRoomsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TaskRoomsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> goal = const Value.absent(),
+            Value<String> taskType = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String?> executor = const Value.absent(),
+            Value<String> permissionsJson = const Value.absent(),
+            Value<String> contextJson = const Value.absent(),
+            Value<int> progressPercent = const Value.absent(),
+            Value<String?> currentStep = const Value.absent(),
+            Value<String?> conversationId = const Value.absent(),
+            Value<String?> parentTaskId = const Value.absent(),
+            Value<String?> boardId = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int?> completedAt = const Value.absent(),
+            Value<int?> archivedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TaskRoomsCompanion(
+            id: id,
+            title: title,
+            goal: goal,
+            taskType: taskType,
+            status: status,
+            executor: executor,
+            permissionsJson: permissionsJson,
+            contextJson: contextJson,
+            progressPercent: progressPercent,
+            currentStep: currentStep,
+            conversationId: conversationId,
+            parentTaskId: parentTaskId,
+            boardId: boardId,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            completedAt: completedAt,
+            archivedAt: archivedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String title,
+            required String goal,
+            required String taskType,
+            required String status,
+            Value<String?> executor = const Value.absent(),
+            Value<String> permissionsJson = const Value.absent(),
+            Value<String> contextJson = const Value.absent(),
+            Value<int> progressPercent = const Value.absent(),
+            Value<String?> currentStep = const Value.absent(),
+            Value<String?> conversationId = const Value.absent(),
+            Value<String?> parentTaskId = const Value.absent(),
+            Value<String?> boardId = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int?> completedAt = const Value.absent(),
+            Value<int?> archivedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TaskRoomsCompanion.insert(
+            id: id,
+            title: title,
+            goal: goal,
+            taskType: taskType,
+            status: status,
+            executor: executor,
+            permissionsJson: permissionsJson,
+            contextJson: contextJson,
+            progressPercent: progressPercent,
+            currentStep: currentStep,
+            conversationId: conversationId,
+            parentTaskId: parentTaskId,
+            boardId: boardId,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            completedAt: completedAt,
+            archivedAt: archivedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$TaskRoomsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $TaskRoomsTable,
+    TaskRoom,
+    $$TaskRoomsTableFilterComposer,
+    $$TaskRoomsTableOrderingComposer,
+    $$TaskRoomsTableAnnotationComposer,
+    $$TaskRoomsTableCreateCompanionBuilder,
+    $$TaskRoomsTableUpdateCompanionBuilder,
+    (TaskRoom, BaseReferences<_$AppDatabase, $TaskRoomsTable, TaskRoom>),
+    TaskRoom,
+    PrefetchHooks Function()>;
+typedef $$TaskArtifactsTableCreateCompanionBuilder = TaskArtifactsCompanion
+    Function({
+  required String id,
+  required String taskId,
+  required String artifactType,
+  required String title,
+  required String contentJson,
+  Value<int?> sizeBytes,
+  Value<String?> mimeType,
+  Value<String?> storageRef,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$TaskArtifactsTableUpdateCompanionBuilder = TaskArtifactsCompanion
+    Function({
+  Value<String> id,
+  Value<String> taskId,
+  Value<String> artifactType,
+  Value<String> title,
+  Value<String> contentJson,
+  Value<int?> sizeBytes,
+  Value<String?> mimeType,
+  Value<String?> storageRef,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$TaskArtifactsTableFilterComposer
+    extends Composer<_$AppDatabase, $TaskArtifactsTable> {
+  $$TaskArtifactsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get taskId => $composableBuilder(
+      column: $table.taskId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get artifactType => $composableBuilder(
+      column: $table.artifactType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get contentJson => $composableBuilder(
+      column: $table.contentJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get sizeBytes => $composableBuilder(
+      column: $table.sizeBytes, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mimeType => $composableBuilder(
+      column: $table.mimeType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get storageRef => $composableBuilder(
+      column: $table.storageRef, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$TaskArtifactsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TaskArtifactsTable> {
+  $$TaskArtifactsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get taskId => $composableBuilder(
+      column: $table.taskId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get artifactType => $composableBuilder(
+      column: $table.artifactType,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get contentJson => $composableBuilder(
+      column: $table.contentJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get sizeBytes => $composableBuilder(
+      column: $table.sizeBytes, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mimeType => $composableBuilder(
+      column: $table.mimeType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get storageRef => $composableBuilder(
+      column: $table.storageRef, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$TaskArtifactsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TaskArtifactsTable> {
+  $$TaskArtifactsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get taskId =>
+      $composableBuilder(column: $table.taskId, builder: (column) => column);
+
+  GeneratedColumn<String> get artifactType => $composableBuilder(
+      column: $table.artifactType, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get contentJson => $composableBuilder(
+      column: $table.contentJson, builder: (column) => column);
+
+  GeneratedColumn<int> get sizeBytes =>
+      $composableBuilder(column: $table.sizeBytes, builder: (column) => column);
+
+  GeneratedColumn<String> get mimeType =>
+      $composableBuilder(column: $table.mimeType, builder: (column) => column);
+
+  GeneratedColumn<String> get storageRef => $composableBuilder(
+      column: $table.storageRef, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$TaskArtifactsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $TaskArtifactsTable,
+    TaskArtifact,
+    $$TaskArtifactsTableFilterComposer,
+    $$TaskArtifactsTableOrderingComposer,
+    $$TaskArtifactsTableAnnotationComposer,
+    $$TaskArtifactsTableCreateCompanionBuilder,
+    $$TaskArtifactsTableUpdateCompanionBuilder,
+    (
+      TaskArtifact,
+      BaseReferences<_$AppDatabase, $TaskArtifactsTable, TaskArtifact>
+    ),
+    TaskArtifact,
+    PrefetchHooks Function()> {
+  $$TaskArtifactsTableTableManager(_$AppDatabase db, $TaskArtifactsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TaskArtifactsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TaskArtifactsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TaskArtifactsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> taskId = const Value.absent(),
+            Value<String> artifactType = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> contentJson = const Value.absent(),
+            Value<int?> sizeBytes = const Value.absent(),
+            Value<String?> mimeType = const Value.absent(),
+            Value<String?> storageRef = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TaskArtifactsCompanion(
+            id: id,
+            taskId: taskId,
+            artifactType: artifactType,
+            title: title,
+            contentJson: contentJson,
+            sizeBytes: sizeBytes,
+            mimeType: mimeType,
+            storageRef: storageRef,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String taskId,
+            required String artifactType,
+            required String title,
+            required String contentJson,
+            Value<int?> sizeBytes = const Value.absent(),
+            Value<String?> mimeType = const Value.absent(),
+            Value<String?> storageRef = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TaskArtifactsCompanion.insert(
+            id: id,
+            taskId: taskId,
+            artifactType: artifactType,
+            title: title,
+            contentJson: contentJson,
+            sizeBytes: sizeBytes,
+            mimeType: mimeType,
+            storageRef: storageRef,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$TaskArtifactsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $TaskArtifactsTable,
+    TaskArtifact,
+    $$TaskArtifactsTableFilterComposer,
+    $$TaskArtifactsTableOrderingComposer,
+    $$TaskArtifactsTableAnnotationComposer,
+    $$TaskArtifactsTableCreateCompanionBuilder,
+    $$TaskArtifactsTableUpdateCompanionBuilder,
+    (
+      TaskArtifact,
+      BaseReferences<_$AppDatabase, $TaskArtifactsTable, TaskArtifact>
+    ),
+    TaskArtifact,
+    PrefetchHooks Function()>;
+typedef $$TaskDecisionsTableCreateCompanionBuilder = TaskDecisionsCompanion
+    Function({
+  required String id,
+  required String taskId,
+  required String decisionType,
+  Value<String> status,
+  required String question,
+  required String optionsJson,
+  Value<String?> selectedOption,
+  Value<String?> reasoning,
+  Value<String?> decidedBy,
+  Value<String?> supersedesDecisionId,
+  required int requestedAt,
+  Value<int?> decidedAt,
+  Value<int> rowid,
+});
+typedef $$TaskDecisionsTableUpdateCompanionBuilder = TaskDecisionsCompanion
+    Function({
+  Value<String> id,
+  Value<String> taskId,
+  Value<String> decisionType,
+  Value<String> status,
+  Value<String> question,
+  Value<String> optionsJson,
+  Value<String?> selectedOption,
+  Value<String?> reasoning,
+  Value<String?> decidedBy,
+  Value<String?> supersedesDecisionId,
+  Value<int> requestedAt,
+  Value<int?> decidedAt,
+  Value<int> rowid,
+});
+
+class $$TaskDecisionsTableFilterComposer
+    extends Composer<_$AppDatabase, $TaskDecisionsTable> {
+  $$TaskDecisionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get taskId => $composableBuilder(
+      column: $table.taskId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get decisionType => $composableBuilder(
+      column: $table.decisionType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get question => $composableBuilder(
+      column: $table.question, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get optionsJson => $composableBuilder(
+      column: $table.optionsJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get selectedOption => $composableBuilder(
+      column: $table.selectedOption,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get reasoning => $composableBuilder(
+      column: $table.reasoning, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get decidedBy => $composableBuilder(
+      column: $table.decidedBy, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get supersedesDecisionId => $composableBuilder(
+      column: $table.supersedesDecisionId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get requestedAt => $composableBuilder(
+      column: $table.requestedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get decidedAt => $composableBuilder(
+      column: $table.decidedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$TaskDecisionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TaskDecisionsTable> {
+  $$TaskDecisionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get taskId => $composableBuilder(
+      column: $table.taskId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get decisionType => $composableBuilder(
+      column: $table.decisionType,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get question => $composableBuilder(
+      column: $table.question, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get optionsJson => $composableBuilder(
+      column: $table.optionsJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get selectedOption => $composableBuilder(
+      column: $table.selectedOption,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get reasoning => $composableBuilder(
+      column: $table.reasoning, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get decidedBy => $composableBuilder(
+      column: $table.decidedBy, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get supersedesDecisionId => $composableBuilder(
+      column: $table.supersedesDecisionId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get requestedAt => $composableBuilder(
+      column: $table.requestedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get decidedAt => $composableBuilder(
+      column: $table.decidedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$TaskDecisionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TaskDecisionsTable> {
+  $$TaskDecisionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get taskId =>
+      $composableBuilder(column: $table.taskId, builder: (column) => column);
+
+  GeneratedColumn<String> get decisionType => $composableBuilder(
+      column: $table.decisionType, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get question =>
+      $composableBuilder(column: $table.question, builder: (column) => column);
+
+  GeneratedColumn<String> get optionsJson => $composableBuilder(
+      column: $table.optionsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get selectedOption => $composableBuilder(
+      column: $table.selectedOption, builder: (column) => column);
+
+  GeneratedColumn<String> get reasoning =>
+      $composableBuilder(column: $table.reasoning, builder: (column) => column);
+
+  GeneratedColumn<String> get decidedBy =>
+      $composableBuilder(column: $table.decidedBy, builder: (column) => column);
+
+  GeneratedColumn<String> get supersedesDecisionId => $composableBuilder(
+      column: $table.supersedesDecisionId, builder: (column) => column);
+
+  GeneratedColumn<int> get requestedAt => $composableBuilder(
+      column: $table.requestedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get decidedAt =>
+      $composableBuilder(column: $table.decidedAt, builder: (column) => column);
+}
+
+class $$TaskDecisionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $TaskDecisionsTable,
+    TaskDecision,
+    $$TaskDecisionsTableFilterComposer,
+    $$TaskDecisionsTableOrderingComposer,
+    $$TaskDecisionsTableAnnotationComposer,
+    $$TaskDecisionsTableCreateCompanionBuilder,
+    $$TaskDecisionsTableUpdateCompanionBuilder,
+    (
+      TaskDecision,
+      BaseReferences<_$AppDatabase, $TaskDecisionsTable, TaskDecision>
+    ),
+    TaskDecision,
+    PrefetchHooks Function()> {
+  $$TaskDecisionsTableTableManager(_$AppDatabase db, $TaskDecisionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TaskDecisionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TaskDecisionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TaskDecisionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> taskId = const Value.absent(),
+            Value<String> decisionType = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<String> question = const Value.absent(),
+            Value<String> optionsJson = const Value.absent(),
+            Value<String?> selectedOption = const Value.absent(),
+            Value<String?> reasoning = const Value.absent(),
+            Value<String?> decidedBy = const Value.absent(),
+            Value<String?> supersedesDecisionId = const Value.absent(),
+            Value<int> requestedAt = const Value.absent(),
+            Value<int?> decidedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TaskDecisionsCompanion(
+            id: id,
+            taskId: taskId,
+            decisionType: decisionType,
+            status: status,
+            question: question,
+            optionsJson: optionsJson,
+            selectedOption: selectedOption,
+            reasoning: reasoning,
+            decidedBy: decidedBy,
+            supersedesDecisionId: supersedesDecisionId,
+            requestedAt: requestedAt,
+            decidedAt: decidedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String taskId,
+            required String decisionType,
+            Value<String> status = const Value.absent(),
+            required String question,
+            required String optionsJson,
+            Value<String?> selectedOption = const Value.absent(),
+            Value<String?> reasoning = const Value.absent(),
+            Value<String?> decidedBy = const Value.absent(),
+            Value<String?> supersedesDecisionId = const Value.absent(),
+            required int requestedAt,
+            Value<int?> decidedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TaskDecisionsCompanion.insert(
+            id: id,
+            taskId: taskId,
+            decisionType: decisionType,
+            status: status,
+            question: question,
+            optionsJson: optionsJson,
+            selectedOption: selectedOption,
+            reasoning: reasoning,
+            decidedBy: decidedBy,
+            supersedesDecisionId: supersedesDecisionId,
+            requestedAt: requestedAt,
+            decidedAt: decidedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$TaskDecisionsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $TaskDecisionsTable,
+    TaskDecision,
+    $$TaskDecisionsTableFilterComposer,
+    $$TaskDecisionsTableOrderingComposer,
+    $$TaskDecisionsTableAnnotationComposer,
+    $$TaskDecisionsTableCreateCompanionBuilder,
+    $$TaskDecisionsTableUpdateCompanionBuilder,
+    (
+      TaskDecision,
+      BaseReferences<_$AppDatabase, $TaskDecisionsTable, TaskDecision>
+    ),
+    TaskDecision,
+    PrefetchHooks Function()>;
 typedef $$ComicMangasTableCreateCompanionBuilder = ComicMangasCompanion
     Function({
   required String id,
@@ -52871,6 +55730,12 @@ class $AppDatabaseManager {
       $$GrowthPactsTableTableManager(_db, _db.growthPacts);
   $$GrowthPactChecksTableTableManager get growthPactChecks =>
       $$GrowthPactChecksTableTableManager(_db, _db.growthPactChecks);
+  $$TaskRoomsTableTableManager get taskRooms =>
+      $$TaskRoomsTableTableManager(_db, _db.taskRooms);
+  $$TaskArtifactsTableTableManager get taskArtifacts =>
+      $$TaskArtifactsTableTableManager(_db, _db.taskArtifacts);
+  $$TaskDecisionsTableTableManager get taskDecisions =>
+      $$TaskDecisionsTableTableManager(_db, _db.taskDecisions);
   $$ComicMangasTableTableManager get comicMangas =>
       $$ComicMangasTableTableManager(_db, _db.comicMangas);
   $$ComicChaptersTableTableManager get comicChapters =>

@@ -193,6 +193,10 @@ class PersonaChatMessages extends Table {
   /// [{"mimeType": "image/webp", "base64": "..."}]
   /// Null for text-only messages.
   TextColumn get attachmentsJson => text().nullable()();
+
+  /// Optional task room association (W5 AI Orchestration).
+  /// Soft reference to task_rooms.id in Memory V3.
+  TextColumn get taskRoomId => text().nullable()();
 }
 
 /// Outbox for the cross-device i core chat sync (CORE_API_V0).

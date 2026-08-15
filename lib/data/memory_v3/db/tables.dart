@@ -835,3 +835,113 @@ class TopicThreadSessions extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+// ============================================================================
+// Task Rooms (W5 AI Orchestration)
+// ============================================================================
+
+/// 任务房间：用户与林埃的复杂任务协作空间
+///
+/// 与 Project Memory 的区别：
+/// - TaskRooms 是白板内的原生任务，属于 Memory V3
+/// - ProjectMemoryItems 是外部工具的 closeout 投影，来自 iGateway
+class TaskRooms extends Table {
+  TextColumn get id => text()(); // UUID v4
+  TextColumn get title => text()();
+  TextColumn get goal => text()();
+
+  // 任务分类
+  TextColumn get taskType => text()(); // coding / content_generation / media / research / whiteboard / link_ingestion / debugging / planning / other
+  TextColumn get status => text()(); // pending / running / blocked / waiting_for_user / completed / failed / cancelled / archived
+
+  // 执行者
+  TextColumn get executor => text().nullable()(); // claude-code / gpt-4v / self / manual
+
+  // 权限（JSON）
+  TextColumn get permissionsJson => text().withDefault(const Constant('{}'))();
+
+  // 上下文（JSON）
+  TextColumn get contextJson => text().withDefault(const Constant('{}'))();
+
+  // 进度
+  IntColumn get progressPercent => integer().withDefault(const Constant(0))();
+  TextColumn get currentStep => text().nullable()();
+
+  // 关联（软引用）
+  TextColumn get conversationId => text().nullable()(); // 关联到对话 ID（如果有）
+  TextColumn get parentTaskId => text().nullable()(); // 子任务可以关联父任务
+  TextColumn get boardId => text().nullable()(); // 关联的白板 ID
+
+  // 时间戳
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+  IntColumn get completedAt => integer().nullable()(); // 真正完成时间（status=completed时填充）
+  IntColumn get archivedAt => integer().nullable()(); // 归档时间（status=archived时填充）
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 任务产物：记录任务执行过程中产生的各种输出
+///
+/// 产物类型：
+/// - code_diff: 代码变更
+/// - generated_card: 生成的卡片
+/// - analysis_result: 分析结果
+/// - decision_record: 决策记录
+/// - error_log: 错误日志
+class TaskArtifacts extends Table {
+  TextColumn get id => text()(); // UUID v4
+  TextColumn get taskId => text()(); // → task_rooms.id (soft ref)
+
+  TextColumn get artifactType => text()(); // code_diff / generated_card / analysis_result / decision_record / error_log
+  TextColumn get title => text()();
+  TextColumn get contentJson => text()(); // JSON，存储产物内容
+
+  // 元数据
+  IntColumn get sizeBytes => integer().nullable()();
+  TextColumn get mimeType => text().nullable()();
+  TextColumn get storageRef => text().nullable()(); // 外部存储引用（如文件路径）
+
+  // 时间戳
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 任务决策：记录需要用户决策的分支点和用户选择
+///
+/// 支持"等待用户决定"模式：
+/// - Agent 提出多个方案 → status='pending', selectedOption=null
+/// - 用户做出选择 → status='resolved', selectedOption=用户选择
+/// - 支持任务历史回溯和决策链
+class TaskDecisions extends Table {
+  TextColumn get id => text()(); // UUID v4
+  TextColumn get taskId => text()(); // → task_rooms.id (soft ref)
+
+  TextColumn get decisionType => text()(); // approach_choice / parameter_value / approval / prioritization / other
+
+  /// pending | resolved | cancelled | superseded
+  TextColumn get status => text().withDefault(const Constant('pending'))();
+
+  TextColumn get question => text()(); // 决策问题
+  TextColumn get optionsJson => text()(); // JSON array，可选项列表
+
+  /// 用户选择的选项（nullable，pending 状态时为 null）
+  TextColumn get selectedOption => text().nullable()();
+  TextColumn get reasoning => text().nullable()(); // 决策理由
+
+  /// user | lin_ai | system
+  TextColumn get decidedBy => text().nullable()();
+
+  /// 如果这个决策替代了之前的决策
+  TextColumn get supersedesDecisionId => text().nullable()();
+
+  // 时间戳
+  IntColumn get requestedAt => integer()(); // 决策请求时间
+  IntColumn get decidedAt => integer().nullable()(); // 实际决定时间（resolved 时填充）
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

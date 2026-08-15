@@ -79,6 +79,10 @@ part 'app_database.g.dart';
     memory_v3.UserRhythms,
     memory_v3.GrowthPacts,
     memory_v3.GrowthPactChecks,
+    // Task Rooms (W5 AI Orchestration) — see docs/companion-first/W5_AI_ORCHESTRATION.md
+    memory_v3.TaskRooms,
+    memory_v3.TaskArtifacts,
+    memory_v3.TaskDecisions,
     // Comic co-reading tables — see docs/companion-first/COMIC_CO_READING_PLAN.md
     ComicMangas,
     ComicChapters,
@@ -142,7 +146,9 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Private constructor
-  AppDatabase._(String userId) : super(_openConnection(userId));
+  AppDatabase._(String userId)
+      : _testSchemaVersion = null,
+        super(_openConnection(userId));
 
   @visibleForTesting
   static void setTestInstance(AppDatabase database) {
@@ -150,10 +156,17 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @visibleForTesting
-  AppDatabase.forTesting(super.executor);
+  AppDatabase.forTesting(super.executor) : _testSchemaVersion = null;
+
+  /// Private constructor for testing with custom schema version
+  @visibleForTesting
+  AppDatabase.private(super.executor, {int? schemaVersion})
+      : _testSchemaVersion = schemaVersion;
+
+  final int? _testSchemaVersion;
 
   @override
-  int get schemaVersion => 57;
+  int get schemaVersion => _testSchemaVersion ?? 58;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -184,6 +197,8 @@ class AppDatabase extends _$AppDatabase {
           await _createDevAgentSessionIndices();
           // Memory V3 indices (tables already created by createAll above)
           await _createMemoryV3Indices();
+          // Task Room indices (W5 AI Orchestration)
+          await _createTaskRoomIndices();
           // Comic co-reading indices
           await _createComicIndices();
           await _createCoReadingContinuityIndices();
@@ -820,6 +835,21 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(syncOutboxMessages);
             await _createSyncOutboxIndices();
           }
+          if (from < 58) {
+            // W5 AI Orchestration: Task Rooms + Artifacts + Decisions
+            // See docs/companion-first/W5_AI_ORCHESTRATION.md
+            await m.createTable(taskRooms);
+            await m.createTable(taskArtifacts);
+            await m.createTable(taskDecisions);
+
+            // Add taskRoomId to PersonaChatMessages BEFORE creating index
+            await _addColumnIfMissing(
+              'persona_chat_messages ADD COLUMN task_room_id TEXT',
+            );
+
+            // Now create indices (after column exists)
+            await _createTaskRoomIndices();
+          }
         },
         beforeOpen: (OpeningDetails details) async {
           // Defensive backfill: some devices upgraded to v43 via the earlier
@@ -1268,6 +1298,28 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_game_messages_type '
         'ON game_messages(session_id, message_type)');
+  }
+
+  Future<void> _createTaskRoomIndices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_task_rooms_status '
+        'ON task_rooms(status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_task_rooms_type '
+        'ON task_rooms(task_type, status)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_task_rooms_updated '
+        'ON task_rooms(updated_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_task_artifacts_task '
+        'ON task_artifacts(task_id, created_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_task_decisions_task '
+        'ON task_decisions(task_id, decided_at)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_persona_chat_messages_task_room '
+        'ON persona_chat_messages(task_room_id) '
+        'WHERE task_room_id IS NOT NULL');
   }
 
   Future<void> _createTableIfMissing(

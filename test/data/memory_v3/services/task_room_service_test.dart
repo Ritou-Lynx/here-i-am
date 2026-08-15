@@ -1,0 +1,603 @@
+import 'package:drift/native.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/db/app_database.dart';
+import 'package:memex/data/memory_v3/services/task_room_service.dart';
+import 'package:memex/data/memory_v3/models/task_room_enums.dart';
+
+void main() {
+  late AppDatabase db;
+  late TaskRoomService service;
+
+  setUp(() async {
+    db = AppDatabase.forTesting(NativeDatabase.memory());
+    TaskRoomService.init(db);
+    service = TaskRoomService.instance;
+  });
+
+  tearDown(() async {
+    await db.close();
+  });
+
+  group('TaskRoomService - CRUD', () {
+    test('createTaskRoom creates a new task room with all fields', () async {
+      final id = await service.createTaskRoom(
+        title: 'Build user dashboard',
+        goal: 'Create a responsive dashboard showing user metrics',
+        taskType: TaskType.coding,
+        executor: 'claude-code',
+        permissions: {'write_code': true, 'run_tests': true},
+        context: {'repo': 'memex', 'branch': 'feature/dashboard'},
+        conversationId: 'conv-123',
+      );
+
+      expect(id, isNotEmpty);
+
+      final room = await service.getTaskRoom(id);
+      expect(room, isNotNull);
+      expect(room!.title, 'Build user dashboard');
+      expect(room.goal, 'Create a responsive dashboard showing user metrics');
+      expect(room.taskType, 'coding');
+      expect(room.status, 'pending');
+      expect(room.executor, 'claude-code');
+      expect(room.progressPercent, 0);
+      expect(room.conversationId, 'conv-123');
+    });
+
+    test('getTaskRoom returns null for non-existent id', () async {
+      final room = await service.getTaskRoom('non-existent-id');
+      expect(room, isNull);
+    });
+
+    test('listTaskRooms filters by status', () async {
+      await service.createTaskRoom(
+        title: 'Task 1',
+        goal: 'Goal 1',
+        taskType: TaskType.coding,
+      );
+      final id2 = await service.createTaskRoom(
+        title: 'Task 2',
+        goal: 'Goal 2',
+        taskType: TaskType.research,
+      );
+      await service.updateTaskStatus(id: id2, status: TaskStatus.running);
+
+      final planningRooms = await service.listTaskRooms(status: TaskStatus.pending);
+      expect(planningRooms.length, 1);
+      expect(planningRooms[0].title, 'Task 1');
+
+      final runningRooms = await service.listTaskRooms(status: TaskStatus.running);
+      expect(runningRooms.length, 1);
+      expect(runningRooms[0].title, 'Task 2');
+    });
+
+    test('listTaskRooms filters by taskType', () async {
+      await service.createTaskRoom(
+        title: 'Coding task',
+        goal: 'Write code',
+        taskType: TaskType.coding,
+      );
+      await service.createTaskRoom(
+        title: 'Research task',
+        goal: 'Research topic',
+        taskType: TaskType.research,
+      );
+
+      final codingRooms = await service.listTaskRooms(taskType: TaskType.coding);
+      expect(codingRooms.length, 1);
+      expect(codingRooms[0].title, 'Coding task');
+    });
+
+    test('listTaskRooms excludes archived by default', () async {
+      final id1 = await service.createTaskRoom(
+        title: 'Active task',
+        goal: 'Active goal',
+        taskType: TaskType.coding,
+      );
+      final id2 = await service.createTaskRoom(
+        title: 'Archived task',
+        goal: 'Archived goal',
+        taskType: TaskType.coding,
+      );
+
+      await service.archiveTaskRoom(id2);
+
+      final activeRooms = await service.listTaskRooms();
+      expect(activeRooms.length, 1);
+      expect(activeRooms[0].id, id1);
+
+      final allRooms = await service.listTaskRooms(includeArchived: true);
+      expect(allRooms.length, 2);
+    });
+
+    test('listTaskRooms respects limit and offset', () async {
+      for (int i = 0; i < 5; i++) {
+        await service.createTaskRoom(
+          title: 'Task $i',
+          goal: 'Goal $i',
+          taskType: TaskType.coding,
+        );
+      }
+
+      final firstPage = await service.listTaskRooms(limit: 2, offset: 0);
+      expect(firstPage.length, 2);
+
+      final secondPage = await service.listTaskRooms(limit: 2, offset: 2);
+      expect(secondPage.length, 2);
+
+      final thirdPage = await service.listTaskRooms(limit: 2, offset: 4);
+      expect(thirdPage.length, 1);
+    });
+
+    test('updateTaskStatus updates status and progress', () async {
+      final id = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+
+      await service.updateTaskStatus(
+        id: id,
+        status: TaskStatus.running,
+        progressPercent: 50,
+        currentStep: 'Writing tests',
+      );
+
+      final room = await service.getTaskRoom(id);
+      expect(room!.status, 'running');
+      expect(room.progressPercent, 50);
+      expect(room.currentStep, 'Writing tests');
+      expect(room.completedAt, isNull);
+    });
+
+    test('updateTaskStatus sets completedAt for completed status', () async {
+      final id = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+
+      // Must transition through running first
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+      await service.updateTaskStatus(id: id, status: TaskStatus.completed);
+
+      final room = await service.getTaskRoom(id);
+      expect(room!.status, 'completed');
+      expect(room.completedAt, isNotNull);
+      expect(room.archivedAt, isNull);
+    });
+
+    test('archiveTaskRoom sets archivedAt, not completedAt', () async {
+      final id = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+
+      await service.archiveTaskRoom(id);
+
+      final room = await service.getTaskRoom(id);
+      expect(room!.status, 'archived');
+      expect(room.archivedAt, isNotNull);
+      expect(room.completedAt, isNull);
+    });
+
+    test('updateTaskStatus validates progressPercent range', () async {
+      final id = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+
+      // Valid range
+      await service.updateTaskStatus(id: id, status: TaskStatus.running, progressPercent: 0);
+      await service.updateTaskStatus(id: id, status: TaskStatus.running, progressPercent: 50);
+      await service.updateTaskStatus(id: id, status: TaskStatus.running, progressPercent: 100);
+
+      // Invalid range
+      expect(
+        () => service.updateTaskStatus(id: id, status: TaskStatus.running, progressPercent: -1),
+        throwsArgumentError,
+      );
+      expect(
+        () => service.updateTaskStatus(id: id, status: TaskStatus.running, progressPercent: 101),
+        throwsArgumentError,
+      );
+    });
+
+    test('updateTaskContext updates context and permissions', () async {
+      final id = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+
+      await service.updateTaskContext(
+        id: id,
+        context: {'new_key': 'new_value'},
+        permissions: {'admin': true},
+      );
+
+      final room = await service.getTaskRoom(id);
+      expect(room!.contextJson, contains('new_key'));
+      expect(room.permissionsJson, contains('admin'));
+    });
+
+    test('archiveTaskRoom marks room as archived', () async {
+      final taskId = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+
+      await service.recordArtifact(
+        taskId: taskId,
+        artifactType: ArtifactType.codeDiff,
+        title: 'Test artifact',
+        content: {'diff': 'some changes'},
+      );
+
+      await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approachChoice,
+        question: 'Which approach?',
+        options: ['A', 'B'],
+        selectedOption: 'A',
+      );
+
+      // Test soft delete (archive)
+      await service.archiveTaskRoom(taskId);
+
+      final room = await service.getTaskRoom(taskId);
+      expect(room, isNotNull);
+      expect(room!.status, 'archived');
+
+      // Artifacts and decisions should still exist
+      final artifacts = await service.getTaskArtifacts(taskId);
+      expect(artifacts, isNotEmpty);
+
+      final decisions = await service.getTaskDecisions(taskId);
+      expect(decisions, isNotEmpty);
+    });
+
+    test('permanentlyDeleteTaskRoom removes room and cascades (deprecated)',
+        () async {
+      final taskId = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+
+      await service.recordArtifact(
+        taskId: taskId,
+        artifactType: ArtifactType.codeDiff,
+        title: 'Test artifact',
+        content: {'diff': 'some changes'},
+      );
+
+      await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approachChoice,
+        question: 'Which approach?',
+        options: ['A', 'B'],
+        selectedOption: 'A',
+      );
+
+      // ignore: deprecated_member_use
+      await service.permanentlyDeleteTaskRoom(taskId);
+
+      final room = await service.getTaskRoom(taskId);
+      expect(room, isNull);
+
+      final artifacts = await service.getTaskArtifacts(taskId);
+      expect(artifacts, isEmpty);
+
+      final decisions = await service.getTaskDecisions(taskId);
+      expect(decisions, isEmpty);
+    });
+  });
+
+  group('TaskRoomService - Artifacts', () {
+    late String taskId;
+
+    setUp(() async {
+      taskId = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+    });
+
+    test('recordArtifact creates artifact with all fields', () async {
+      final artifactId = await service.recordArtifact(
+        taskId: taskId,
+        artifactType: ArtifactType.codeDiff,
+        title: 'Added new feature',
+        content: {'files': ['file1.dart', 'file2.dart'], 'lines': 150},
+        sizeBytes: 4096,
+        mimeType: 'application/json',
+        storageRef: 's3://bucket/artifact',
+      );
+
+      expect(artifactId, isNotEmpty);
+
+      final artifacts = await service.getTaskArtifacts(taskId);
+      expect(artifacts.length, 1);
+      expect(artifacts[0].artifactType, 'code_diff');
+      expect(artifacts[0].title, 'Added new feature');
+      expect(artifacts[0].sizeBytes, 4096);
+      expect(artifacts[0].mimeType, 'application/json');
+    });
+
+    test('getTaskArtifacts returns artifacts in reverse chronological order',
+        () async {
+      await service.recordArtifact(
+        taskId: taskId,
+        artifactType: ArtifactType.codeDiff,
+        title: 'First',
+        content: {},
+      );
+
+      await Future.delayed(Duration(milliseconds: 10));
+
+      await service.recordArtifact(
+        taskId: taskId,
+        artifactType: ArtifactType.analysisResult,
+        title: 'Second',
+        content: {},
+      );
+
+      final artifacts = await service.getTaskArtifacts(taskId);
+      expect(artifacts.length, 2);
+      expect(artifacts[0].title, 'Second');
+      expect(artifacts[1].title, 'First');
+    });
+
+    test('getArtifactsByType filters by artifact type', () async {
+      await service.recordArtifact(
+        taskId: taskId,
+        artifactType: ArtifactType.codeDiff,
+        title: 'Code change',
+        content: {},
+      );
+
+      await service.recordArtifact(
+        taskId: taskId,
+        artifactType: ArtifactType.errorLog,
+        title: 'Error occurred',
+        content: {},
+      );
+
+      final codeDiffs =
+          await service.getArtifactsByType(taskId: taskId, artifactType: ArtifactType.codeDiff);
+      expect(codeDiffs.length, 1);
+      expect(codeDiffs[0].title, 'Code change');
+
+      final errorLogs =
+          await service.getArtifactsByType(taskId: taskId, artifactType: ArtifactType.errorLog);
+      expect(errorLogs.length, 1);
+      expect(errorLogs[0].title, 'Error occurred');
+    });
+
+    test('retractArtifact filters out retracted artifacts', () async {
+      final artifactId = await service.recordArtifact(
+        taskId: taskId,
+        artifactType: ArtifactType.codeDiff,
+        title: 'Original',
+        content: {'data': 'original'},
+      );
+
+      await service.retractArtifact(
+        originalArtifactId: artifactId,
+        reason: 'Found a better approach',
+      );
+
+      final artifacts = await service.getTaskArtifacts(taskId);
+      // Should return empty because original is retracted and retraction marker is filtered
+      expect(artifacts, isEmpty);
+    });
+
+    test('permanentlyDeleteArtifact removes artifact (deprecated)', () async {
+      final artifactId = await service.recordArtifact(
+        taskId: taskId,
+        artifactType: ArtifactType.codeDiff,
+        title: 'Test',
+        content: {},
+      );
+
+      // ignore: deprecated_member_use
+      await service.permanentlyDeleteArtifact(artifactId);
+
+      final artifacts = await service.getTaskArtifacts(taskId);
+      expect(artifacts, isEmpty);
+    });
+  });
+
+  group('TaskRoomService - Decisions', () {
+    late String taskId;
+
+    setUp(() async {
+      taskId = await service.createTaskRoom(
+        title: 'Test task',
+        goal: 'Test goal',
+        taskType: TaskType.coding,
+      );
+    });
+
+    test('recordDecision creates decision with all fields', () async {
+      final decisionId = await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approachChoice,
+        question: 'Use REST or GraphQL?',
+        options: ['REST', 'GraphQL'],
+        selectedOption: 'GraphQL',
+        reasoning: 'Better for complex queries',
+      );
+
+      expect(decisionId, isNotEmpty);
+
+      final decisions = await service.getTaskDecisions(taskId);
+      expect(decisions.length, 1);
+      expect(decisions[0].decisionType, 'approach_choice');
+      expect(decisions[0].question, 'Use REST or GraphQL?');
+      expect(decisions[0].selectedOption, 'GraphQL');
+      expect(decisions[0].reasoning, 'Better for complex queries');
+    });
+
+    test('getTaskDecisions returns decisions in reverse chronological order',
+        () async {
+      await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.parameterValue,
+        question: 'First decision',
+        options: ['A', 'B'],
+        selectedOption: 'A',
+      );
+
+      await Future.delayed(Duration(milliseconds: 10));
+
+      await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approval,
+        question: 'Second decision',
+        options: ['Yes', 'No'],
+        selectedOption: 'Yes',
+      );
+
+      final decisions = await service.getTaskDecisions(taskId);
+      expect(decisions.length, 2);
+      expect(decisions[0].question, 'Second decision');
+      expect(decisions[1].question, 'First decision');
+    });
+
+    test('getDecisionsByType filters by decision type', () async {
+      await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approachChoice,
+        question: 'Approach',
+        options: ['A', 'B'],
+        selectedOption: 'A',
+        decidedBy: 'user',
+        status: DecisionStatus.resolved,
+      );
+
+      await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approval,
+        question: 'Approve?',
+        options: ['Yes', 'No'],
+        selectedOption: 'Yes',
+        decidedBy: 'user',
+        status: DecisionStatus.resolved,
+      );
+
+      final approaches = await service.getDecisionsByType(
+          taskId: taskId, decisionType: DecisionType.approachChoice);
+      expect(approaches.length, 1);
+      expect(approaches[0].question, 'Approach');
+
+      final approvals = await service.getDecisionsByType(
+          taskId: taskId, decisionType: DecisionType.approval);
+      expect(approvals.length, 1);
+      expect(approvals[0].question, 'Approve?');
+    });
+
+    test('recordDecision supports pending decisions', () async {
+      final decisionId = await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approachChoice,
+        question: 'Which approach?',
+        options: ['REST', 'GraphQL'],
+        status: DecisionStatus.pending,
+      );
+
+      final decisions = await service.getTaskDecisions(taskId);
+      expect(decisions.length, 1);
+      expect(decisions[0].status, 'pending');
+      expect(decisions[0].selectedOption, isNull);
+      expect(decisions[0].decidedBy, isNull);
+      expect(decisions[0].decidedAt, isNull);
+
+      // Resolve the decision
+      await service.resolveDecision(
+        decisionId: decisionId,
+        selectedOption: 'GraphQL',
+        decidedBy: 'user',
+        reasoning: 'Better for complex queries',
+      );
+
+      final resolved = await service.getTaskDecisions(taskId);
+      expect(resolved[0].status, 'resolved');
+      expect(resolved[0].selectedOption, 'GraphQL');
+      expect(resolved[0].decidedBy, 'user');
+      expect(resolved[0].decidedAt, isNotNull);
+    });
+
+    test('getPendingDecisions filters by pending status', () async {
+      await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approachChoice,
+        question: 'Pending 1',
+        options: ['A', 'B'],
+        status: DecisionStatus.pending,
+      );
+
+      await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approval,
+        question: 'Resolved',
+        options: ['Yes', 'No'],
+        selectedOption: 'Yes',
+        decidedBy: 'user',
+        status: DecisionStatus.resolved,
+      );
+
+      final pending = await service.getPendingDecisions(taskId);
+      expect(pending.length, 1);
+      expect(pending[0].question, 'Pending 1');
+    });
+  });
+
+  group('TaskRoomService - Integration', () {
+    test('getTaskRoomFullContext returns complete context', () async {
+      final taskId = await service.createTaskRoom(
+        title: 'Full context test',
+        goal: 'Test full context',
+        taskType: TaskType.coding,
+      );
+
+      await service.recordArtifact(
+        taskId: taskId,
+        artifactType: ArtifactType.codeDiff,
+        title: 'Artifact 1',
+        content: {},
+      );
+
+      await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approval,
+        question: 'Decision 1',
+        options: ['Yes', 'No'],
+        selectedOption: 'Yes',
+      );
+
+      // Note: messages would need to be added through PersonaChatService
+      // with taskRoomId set, which is outside the scope of this service test
+
+      final context = await service.getTaskRoomFullContext(taskId);
+
+      expect(context['room'], isNotNull);
+      expect(context['artifacts'], hasLength(1));
+      expect(context['decisions'], hasLength(1));
+      expect(context['messages'], isNotNull);
+    });
+
+    test('getTaskRoomFullContext throws for non-existent task', () async {
+      expect(
+        () => service.getTaskRoomFullContext('non-existent'),
+        throwsStateError,
+      );
+    });
+  });
+}

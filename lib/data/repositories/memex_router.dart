@@ -23,6 +23,7 @@ import 'package:memex/data/memory_v3/services/life_insight_scheduler.dart';
 import 'package:memex/data/memory_v3/services/user_rhythm_service.dart';
 import 'package:memex/data/memory_v3/services/growth_pact_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/services/task_room_service.dart';
 import 'package:memex/data/services/reading/fetchers/web_fetcher.dart';
 import 'package:memex/data/services/reading/fetchers/xiaohongshu_fetcher.dart';
 import 'package:memex/data/services/reading/reading_capture_service.dart';
@@ -160,6 +161,7 @@ class MemexRouter {
           }),
         );
         GrowthPactService.init(AppDatabase.instance);
+        TaskRoomService.init(AppDatabase.instance);
         unawaited(
           DreamingSchedulerService.scheduleExistingBacklog(
             AppDatabase.instance,
