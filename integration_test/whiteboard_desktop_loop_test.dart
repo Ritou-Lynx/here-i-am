@@ -18,7 +18,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/main.dart' as app;
+import 'package:memex/routing/routes.dart';
 import 'package:memex/utils/user_storage.dart' as memex_utils;
+import 'package:go_router/go_router.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +62,7 @@ void main() {
       timeout: const Duration(seconds: 60),
       description: 'chat header actions trigger visible',
     );
-    debugPrint('ITEST: chat header visible');
+    debugPrint('ITEST: chat home visible');
 
     // 2. Create the board in Drift FIRST so the index list (loaded on open)
     // shows it.
@@ -72,19 +74,18 @@ void main() {
     final board = boards.firstWhere((b) => b.name == '桌面集成验证板');
     debugPrint('ITEST: board created in Drift');
 
-    // 1. Home entry → whiteboard index (header actions panel).
-    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+    // 1. Deep-link straight into the whiteboard index (home shell entry is
+    // Task S scope; the pure-pipeline loop enters via the frozen route).
+    final routerContext = tester.element(find.byType(MaterialApp).first);
+    final router = GoRouter.of(routerContext);
+    router.push(AppRoutes.whiteboard);
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await _waitFor(
       tester,
-      () => find.byIcon(Icons.space_dashboard_outlined).evaluate().isNotEmpty,
+      () => find.text('新建白板').evaluate().isNotEmpty,
       timeout: const Duration(seconds: 10),
-      description: '白板 entry visible in header actions',
+      description: 'whiteboard index opened',
     );
-    debugPrint('ITEST: 白板 entry visible');
-    await tester.tap(find.byIcon(Icons.space_dashboard_outlined));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    expect(find.text('白板'), findsWidgets);
     debugPrint('ITEST: whiteboard index opened');
 
     // 3. Open the board from the index.

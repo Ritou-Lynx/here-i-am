@@ -341,7 +341,6 @@ class PersonaChatScreen extends StatefulWidget {
   final bool enableRichCapture;
   final bool initialVoiceMode;
   final VoidCallback? onOpenSpaces;
-  final VoidCallback? onOpenWhiteboard;
   final VoidCallback? onReady;
 
   const PersonaChatScreen({
@@ -351,7 +350,6 @@ class PersonaChatScreen extends StatefulWidget {
     this.enableRichCapture = false,
     this.initialVoiceMode = false,
     this.onOpenSpaces,
-    this.onOpenWhiteboard,
     this.onReady,
   });
 
@@ -5488,15 +5486,6 @@ only after you have written the goodbye you want the user to hear.''',
           onTap: () {
             setState(() => _isHeaderActionsOpen = false);
             widget.onOpenSpaces?.call();
-          },
-        ),
-      if (widget.onOpenWhiteboard != null)
-        _HeaderActionButton(
-          icon: Icons.space_dashboard_outlined,
-          label: _chatUiText(zh: '白板', en: 'Boards'),
-          onTap: () {
-            setState(() => _isHeaderActionsOpen = false);
-            widget.onOpenWhiteboard?.call();
           },
         ),
       _HeaderActionButton(

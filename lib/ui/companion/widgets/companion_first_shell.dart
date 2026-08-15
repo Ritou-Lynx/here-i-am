@@ -1,14 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/db/app_database.dart';
-import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/core/app_startup_visibility.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
@@ -187,10 +185,6 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
     );
   }
 
-  void _openWhiteboard() {
-    context.push(AppRoutes.whiteboard);
-  }
-
   void _handleChatReady() {
     if (!mounted || _isLoading || _characterId == null) return;
     AppStartupVisibilityController.markInteractive();
@@ -219,7 +213,6 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
       enableRichCapture: true,
       initialVoiceMode: _startVoiceMode,
       onOpenSpaces: _openLifeSpace,
-      onOpenWhiteboard: _openWhiteboard,
       onReady: _handleChatReady,
     );
   }
