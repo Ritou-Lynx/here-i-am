@@ -205,4 +205,90 @@ void main() {
 
     await migratedDb.close();
   });
+
+  test(
+      'v57→v58 migration repairs a partial state (tables exist, column missing)',
+      () async {
+    // Reproduces a real-device failure: an interrupted/concurrent upgrade
+    // left user_version=57 with the three task_* tables already created but
+    // persona_chat_messages.task_room_id missing. Every launch then re-ran
+    // the migration and failed (createTable "already exists" / index "no such
+    // column"), leaving the app stuck on "正在初始化".
+    rawDb = sqlite3.open(tempDbFile.path);
+
+    rawDb.execute('''
+      CREATE TABLE persona_chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        sync_id TEXT,
+        origin_device_id TEXT,
+        character_id TEXT NOT NULL,
+        is_from_character INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        fact_id TEXT,
+        is_read INTEGER NOT NULL DEFAULT 0,
+        timestamp INTEGER NOT NULL,
+        message_type TEXT NOT NULL DEFAULT 'chat',
+        attachments_json TEXT
+      )
+    ''');
+    // Only the columns referenced by _createTaskRoomIndices are required to
+    // make the index step succeed after the missing column is backfilled.
+    rawDb.execute('''
+      CREATE TABLE task_rooms (
+        id TEXT PRIMARY KEY NOT NULL,
+        status TEXT NOT NULL,
+        task_type TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+    rawDb.execute('''
+      CREATE TABLE task_artifacts (
+        task_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+    rawDb.execute('''
+      CREATE TABLE task_decisions (
+        task_id TEXT NOT NULL,
+        decided_at INTEGER NOT NULL
+      )
+    ''');
+
+    rawDb.execute('PRAGMA user_version = 57');
+    rawDb.execute('''
+      INSERT INTO persona_chat_messages
+      (character_id, is_from_character, content, timestamp)
+      VALUES ('char-1', 0, 'Hello', 1000000)
+    ''');
+
+    rawDb.dispose();
+
+    final migratedDb = AppDatabase.forTesting(NativeDatabase(tempDbFile));
+
+    final version = await migratedDb.customSelect('PRAGMA user_version').getSingle();
+    expect(version.data['user_version'], 58);
+
+    final columnsResult = await migratedDb.customSelect(
+      'PRAGMA table_info(persona_chat_messages)',
+    ).get();
+    final columnNames =
+        columnsResult.map((row) => row.data['name'] as String).toList();
+    expect(columnNames, contains('task_room_id'));
+
+    final indices = await migratedDb.customSelect(
+      "SELECT name FROM sqlite_master WHERE type='index' AND name IN "
+      "('idx_task_rooms_status','idx_task_rooms_type','idx_task_rooms_updated',"
+      "'idx_task_artifacts_task','idx_task_decisions_task',"
+      "'idx_persona_chat_messages_task_room')",
+    ).get();
+    expect(indices.length, 6);
+
+    final oldMessage = await migratedDb.customSelect(
+      'SELECT * FROM persona_chat_messages WHERE id = 1',
+    ).getSingleOrNull();
+    expect(oldMessage, matcher.isNotNull);
+    expect(oldMessage!.data['content'], 'Hello');
+
+    await migratedDb.close();
+  });
 }

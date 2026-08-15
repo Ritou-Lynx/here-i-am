@@ -9,12 +9,11 @@ import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/core/app_startup_visibility.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
-import 'package:memex/ui/core/widgets/agent_logo_loading.dart';
+import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/widgets/app_opening_splash.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/result.dart';
 import 'package:memex/utils/user_storage.dart';
-import 'package:provider/provider.dart';
 
 import 'companion_life_space_screen.dart';
 
@@ -237,31 +236,60 @@ class _NoCompanionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.hereIamTheme;
     final hasError = error != null;
     return Scaffold(
+      backgroundColor: tokens.background,
       body: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const AgentLogoLoading(),
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: tokens.accent,
+                ),
+              ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 '正在初始化 I...',
                 textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: tokens.textPrimary,
+                    ),
               ),
               if (hasError) ...[
                 const SizedBox(height: 12),
                 Text(
                   '初始化暂时没有完成，点一下重试即可继续。',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: tokens.textSecondary,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  error.toString(),
+                  textAlign: TextAlign.center,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: tokens.textMuted,
+                        fontSize: 11,
+                      ),
                 ),
               ],
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: onRetry,
+                style: FilledButton.styleFrom(
+                  backgroundColor: tokens.accent,
+                  foregroundColor: tokens.background,
+                ),
                 child: const Text('重试'),
               ),
             ],

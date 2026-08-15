@@ -136,6 +136,30 @@ class AppDatabase extends _$AppDatabase {
 
   /// Initialize the database for a specific user
   static Future<void> init(String userId) async {
+    // Serialize concurrent inits for the same user. Startup calls this from
+    // both MemexRouter._init and MainScreen's deferred block; without this
+    // guard the two would close each other's half-open database mid-migration
+    // and can leave the schema in a partial state (see v58 idempotent fix).
+    if (_initInFlightUserId == userId && _initInFlight != null) {
+      return _initInFlight!;
+    }
+    final future = _openForUser(userId);
+    _initInFlightUserId = userId;
+    _initInFlight = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_initInFlight, future)) {
+        _initInFlight = null;
+        _initInFlightUserId = null;
+      }
+    }
+  }
+
+  static Future<void>? _initInFlight;
+  static String? _initInFlightUserId;
+
+  static Future<void> _openForUser(String userId) async {
     if (_instance != null) {
       await _instance!.close();
       _instance = null;
@@ -838,9 +862,14 @@ class AppDatabase extends _$AppDatabase {
           if (from < 58) {
             // W5 AI Orchestration: Task Rooms + Artifacts + Decisions
             // See docs/companion-first/W5_AI_ORCHESTRATION.md
-            await m.createTable(taskRooms);
-            await m.createTable(taskArtifacts);
-            await m.createTable(taskDecisions);
+            //
+            // Idempotent upgrade: a concurrent/interrupted v57→v58 upgrade can
+            // leave the three tables created but the column or indices missing
+            // while user_version still reports 57. Tolerate that by skipping
+            // existing tables instead of failing on "already exists".
+            await _createTableIfMissing(m, taskRooms, 'task_rooms');
+            await _createTableIfMissing(m, taskArtifacts, 'task_artifacts');
+            await _createTableIfMissing(m, taskDecisions, 'task_decisions');
 
             // Add taskRoomId to PersonaChatMessages BEFORE creating index
             await _addColumnIfMissing(

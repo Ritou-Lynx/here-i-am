@@ -143,15 +143,34 @@ class CharacterService extends ChangeNotifier {
 
     try {
       if (await file.exists()) {
-        final doc = loadYaml(await file.readAsString());
-        final existing = jsonDecode(jsonEncode(doc)) as Map<String, dynamic>;
-        existing['name'] = 'I';
-        existing['tags'] ??= const <String>[];
-        existing['persona'] ??= '';
-        existing['avatar'] ??= 'i';
-        existing['enabled'] = true;
-        existing['is_primary_companion'] = true;
-        await _fileSystem.writeYamlFile(charFile, existing);
+        final raw = await file.readAsString();
+        Map<String, dynamic>? existing;
+        try {
+          final doc = loadYaml(raw);
+          final decoded = jsonDecode(jsonEncode(doc));
+          if (decoded is Map<String, dynamic>) {
+            existing = decoded;
+          }
+        } catch (e) {
+          _logger.warning(
+            'Existing i.yaml is unreadable ($e); reseeding fresh for user $userId',
+          );
+        }
+        if (existing != null) {
+          existing['name'] = 'I';
+          existing['tags'] ??= const <String>[];
+          existing['persona'] ??= '';
+          existing['avatar'] ??= 'i';
+          existing['enabled'] = true;
+          existing['is_primary_companion'] = true;
+          await _fileSystem.writeYamlFile(charFile, existing);
+          return;
+        }
+        // Unreadable or non-map i.yaml must not leave the roster empty
+        // forever: overwrite it with the canonical seed so startup can
+        // resolve the singleton I.
+        await _fileSystem.writeYamlFile(charFile, yaml);
+        _logger.info('Re-seeded singleton I for user $userId');
         return;
       }
 
