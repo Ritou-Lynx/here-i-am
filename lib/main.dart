@@ -151,11 +151,18 @@ void main() async {
   // Initialize l10n
   await UserStorage.initL10n();
 
+  // Desktop (whiteboard workbench) has no background-task / notification /
+  // call-kit plugins — gate the mobile-only startup wiring behind this flag.
+  final isDesktop =
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
   // Initialize Workmanager (for background tasks)
-  await Workmanager().initialize(
-    callbackDispatcher,
-    isInDebugMode: false,
-  );
+  if (!isDesktop) {
+    await Workmanager().initialize(
+      callbackDispatcher,
+      isInDebugMode: false,
+    );
+  }
 
   // Initialize AndroidAlarmManager (exact-time wakeups that bypass Doze)
   if (Platform.isAndroid) {
@@ -177,10 +184,14 @@ void main() async {
   // Route media-button (headset) events to the background voice session when
   // no chat screen owns them — enables half-duplex voice with the app
   // backgrounded. No-op when the media-key setting is off.
-  await VoiceSessionRouter.instance.init();
+  if (!isDesktop) {
+    await VoiceSessionRouter.instance.init();
+  }
 
   // Initialize notification service for agent checkins
-  await NotificationService.instance.initialize();
+  if (!isDesktop) {
+    await NotificationService.instance.initialize();
+  }
 
   // Route notification taps into the character's chat screen. Call payloads
   // enter inline voice mode inside chat instead of opening a separate call UI.
@@ -209,63 +220,67 @@ void main() async {
     }
   }
 
-  NotificationService.instance.setTapHandler((String? payload) {
-    if (payload == null || payload.isEmpty) return;
-    handleNotificationPayload(payload);
-  });
+  if (!isDesktop) {
+    NotificationService.instance.setTapHandler((String? payload) {
+      if (payload == null || payload.isEmpty) return;
+      handleNotificationPayload(payload);
+    });
 
-  // Cold-start recovery: if the notification tap bypassed
-  // onDidReceiveNotificationResponse entirely (some plugin/platform
-  // combinations don't fire it on cold start), use
-  // getNotificationAppLaunchDetails() to recover the payload.
-  // Skip if setTapHandler already replayed a buffered payload.
-  if (!NotificationService.instance.consumedPendingPayload) {
-    final launchPayload = await NotificationService.instance.getLaunchPayload();
-    if (launchPayload != null && launchPayload.isNotEmpty) {
-      handleNotificationPayload(launchPayload);
+    // Cold-start recovery: if the notification tap bypassed
+    // onDidReceiveNotificationResponse entirely (some plugin/platform
+    // combinations don't fire it on cold start), use
+    // getNotificationAppLaunchDetails() to recover the payload.
+    // Skip if setTapHandler already replayed a buffered payload.
+    if (!NotificationService.instance.consumedPendingPayload) {
+      final launchPayload = await NotificationService.instance.getLaunchPayload();
+      if (launchPayload != null && launchPayload.isNotEmpty) {
+        handleNotificationPayload(launchPayload);
+      }
     }
+
+    // Always register a post-frame hook: the notification callback may fire
+    // before OR after runApp() creates the navigator. This catches both cases.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final payload = pendingNotificationPayload;
+      if (payload != null) {
+        pendingNotificationPayload = null;
+        handleNotificationPayload(payload);
+      }
+    });
   }
 
-  // Always register a post-frame hook: the notification callback may fire
-  // before OR after runApp() creates the navigator. This catches both cases.
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    final payload = pendingNotificationPayload;
-    if (payload != null) {
-      pendingNotificationPayload = null;
-      handleNotificationPayload(payload);
-    }
-  });
-
   // System-level incoming-call (CallKit) wiring.
-  CallkitService.instance.init();
-  CallkitService.instance.onAccept = (String characterId) async {
-    // CallKit holds the call audio session while a call is "ongoing", which
-    // mutes our own TTS. Once the user accepts, immediately end the CallKit
-    // session so audio focus returns to the app, then open chat voice mode.
-    await CallkitService.instance.endAll();
-    // Give Android ~300 ms to return audio focus before chat voice mode
-    // starts TTS. Without this delay the first spoken reply can be muted.
-    await Future.delayed(const Duration(milliseconds: 300));
-    _openPersonaChatVoiceModeFromRoot(characterId);
-  };
-  CallkitService.instance.onDecline = (String characterId) {
-    // The CallKit service fires onDecline for BOTH explicit rejection
-    // and timeout (missed).  Record it so the companion notices next turn.
-    PersonaChatService.instance.addCharacterMessage(
-      characterId,
-      '📵 用户没有接你的电话。下次聊天时可以提一下。',
-      timestamp: DateTime.now(),
-      isRead: false,
-    );
-  };
+  if (!isDesktop) {
+    CallkitService.instance.init();
+    CallkitService.instance.onAccept = (String characterId) async {
+      // CallKit holds the call audio session while a call is "ongoing", which
+      // mutes our own TTS. Once the user accepts, immediately end the CallKit
+      // session so audio focus returns to the app, then open chat voice mode.
+      await CallkitService.instance.endAll();
+      // Give Android ~300 ms to return audio focus before chat voice mode
+      // starts TTS. Without this delay the first spoken reply can be muted.
+      await Future.delayed(const Duration(milliseconds: 300));
+      _openPersonaChatVoiceModeFromRoot(characterId);
+    };
+    CallkitService.instance.onDecline = (String characterId) {
+      // The CallKit service fires onDecline for BOTH explicit rejection
+      // and timeout (missed).  Record it so the companion notices next turn.
+      PersonaChatService.instance.addCharacterMessage(
+        characterId,
+        '📵 用户没有接你的电话。下次聊天时可以提一下。',
+        timestamp: DateTime.now(),
+        isRead: false,
+      );
+    };
 
-  // Cold-start recovery: if the user accepted a call while the Flutter
-  // engine was not yet attached (app was killed), the accept event was
-  // silently dropped.  Check activeCalls() for an accepted-but-unhandled
-  // call and trigger voice mode.
-  final recoveredCall = await CallkitService.instance.recoverAcceptedCall();
-  if (recoveredCall != null) {
-    _openPersonaChatVoiceModeFromRoot(recoveredCall);
+    // Cold-start recovery: if the user accepted a call while the Flutter
+    // engine was not yet attached (app was killed), the accept event was
+    // silently dropped.  Check activeCalls() for an accepted-but-unhandled
+    // call and trigger voice mode.
+    final recoveredCall = await CallkitService.instance.recoverAcceptedCall();
+    if (recoveredCall != null) {
+      _openPersonaChatVoiceModeFromRoot(recoveredCall);
+    }
   }
 
   // Cancel any previously registered pedometer background tasks on iOS
@@ -299,11 +314,13 @@ void main() async {
     ),
   );
 
-  // Initialize quick actions (app icon long-press shortcuts).
-  const QuickActions quickActions = QuickActions();
-  quickActions.initialize((String shortcutType) {
-    QuickActionService.instance.handleAction(shortcutType);
-  });
+  // Initialize quick actions (app icon long-press shortcuts). Android/iOS only.
+  if (!isDesktop) {
+    const QuickActions quickActions = QuickActions();
+    quickActions.initialize((String shortcutType) {
+      QuickActionService.instance.handleAction(shortcutType);
+    });
+  }
 
   runApp(MultiProvider(
     providers: dependencyProviders,
@@ -768,6 +785,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     DemoService.instance.addListener(_onDemoChanged);
+    // Desktop (whiteboard workbench) has no WorkManager / foreground-service
+    // plugins; keep those registrations mobile-only.
+    final isDesktop =
+        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
     // Init event bus connection and local DB (delay to ensure token is loaded)
     Future.delayed(const Duration(seconds: 1), () async {
       final userId = await UserStorage.getUserId();
@@ -803,30 +824,33 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     });
 
     // Register stochastic checkin pulse task (WorkManager, best-effort)
-    CheckinService.instance.ensureCheckinTaskRegistered().catchError((e) {
-      _logger.severe('Failed to register checkin task: $e');
-    });
+    // and dreaming daily batch fallback — Android/iOS only.
+    if (!isDesktop) {
+      CheckinService.instance.ensureCheckinTaskRegistered().catchError((e) {
+        _logger.severe('Failed to register checkin task: $e');
+      });
 
-    // Register dreaming daily batch task (WorkManager, battery not low).
-    Workmanager()
-        .registerPeriodicTask(
-      DreamingSchedulerService.dailyBatchTaskName,
-      DreamingSchedulerService.dailyBatchTaskName,
-      constraints: Constraints(
-        networkType: NetworkType.notRequired,
-        requiresBatteryNotLow: true,
-        requiresCharging: false,
-        requiresDeviceIdle: false,
-        requiresStorageNotLow: false,
-      ),
-      frequency: const Duration(hours: 4),
-      backoffPolicy: BackoffPolicy.linear,
-      backoffPolicyDelay: const Duration(hours: 2),
-      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
-    )
-        .catchError((e) {
-      _logger.warning('Failed to register dreaming daily batch task: $e');
-    });
+      // Register dreaming daily batch task (WorkManager, battery not low).
+      Workmanager()
+          .registerPeriodicTask(
+        DreamingSchedulerService.dailyBatchTaskName,
+        DreamingSchedulerService.dailyBatchTaskName,
+        constraints: Constraints(
+          networkType: NetworkType.notRequired,
+          requiresBatteryNotLow: true,
+          requiresCharging: false,
+          requiresDeviceIdle: false,
+          requiresStorageNotLow: false,
+        ),
+        frequency: const Duration(hours: 4),
+        backoffPolicy: BackoffPolicy.linear,
+        backoffPolicyDelay: const Duration(hours: 2),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+      )
+          .catchError((e) {
+        _logger.warning('Failed to register dreaming daily batch task: $e');
+      });
+    }
     // Schedule reliable AlarmManager alarm (bypasses Doze + Samsung Freecess).
     // This self-reschedules after each fire so it survives without WorkManager.
     // NOTE: on Android 14+/Samsung this alarm fires but often fails to spawn its
@@ -865,7 +889,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         });
       },
       onBackupFileShared: _handleExternalBackupFile,
-    )..init();
+    );
+    // share_handler has no desktop implementation.
+    if (!isDesktop) {
+      _shareIntentHandler!.init();
+    }
 
     // Listen for direct share pushes from the accessibility service
     // (screenshot / copied link). This bypasses share_handler entirely,

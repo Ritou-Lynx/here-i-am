@@ -83,6 +83,16 @@ part 'app_database.g.dart';
     memory_v3.TaskRooms,
     memory_v3.TaskArtifacts,
     memory_v3.TaskDecisions,
+    // Whiteboard production tables (W6 integration base) — see
+    // WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md §2.3
+    memory_v3.WhiteboardBoards,
+    memory_v3.WhiteboardBoardItems,
+    memory_v3.WhiteboardGroups,
+    memory_v3.WhiteboardGroupMembers,
+    memory_v3.WhiteboardEdges,
+    memory_v3.WhiteboardSources,
+    memory_v3.WhiteboardSourceVersions,
+    memory_v3.WhiteboardCardExtras,
     // Comic co-reading tables — see docs/companion-first/COMIC_CO_READING_PLAN.md
     ComicMangas,
     ComicChapters,
@@ -190,7 +200,7 @@ class AppDatabase extends _$AppDatabase {
   final int? _testSchemaVersion;
 
   @override
-  int get schemaVersion => _testSchemaVersion ?? 58;
+  int get schemaVersion => _testSchemaVersion ?? 59;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -223,6 +233,8 @@ class AppDatabase extends _$AppDatabase {
           await _createMemoryV3Indices();
           // Task Room indices (W5 AI Orchestration)
           await _createTaskRoomIndices();
+          // Whiteboard indices (W6 integration base)
+          await _createWhiteboardIndices();
           // Comic co-reading indices
           await _createComicIndices();
           await _createCoReadingContinuityIndices();
@@ -879,6 +891,29 @@ class AppDatabase extends _$AppDatabase {
             // Now create indices (after column exists)
             await _createTaskRoomIndices();
           }
+          if (from < 59) {
+            // W6 integration base: whiteboard production table family.
+            // See WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md §2.3 and
+            // lib/data/memory_v3/db/tables.dart section 十.
+            //
+            // Idempotent like v58: an interrupted upgrade must not leave the
+            // DB half-migrated. Fields first, indices after.
+            await _createTableIfMissing(m, whiteboardBoards, 'whiteboard_boards');
+            await _createTableIfMissing(
+                m, whiteboardBoardItems, 'whiteboard_board_items');
+            await _createTableIfMissing(
+                m, whiteboardGroups, 'whiteboard_groups');
+            await _createTableIfMissing(
+                m, whiteboardGroupMembers, 'whiteboard_group_members');
+            await _createTableIfMissing(m, whiteboardEdges, 'whiteboard_edges');
+            await _createTableIfMissing(
+                m, whiteboardSources, 'whiteboard_sources');
+            await _createTableIfMissing(
+                m, whiteboardSourceVersions, 'whiteboard_source_versions');
+            await _createTableIfMissing(
+                m, whiteboardCardExtras, 'whiteboard_card_extras');
+            await _createWhiteboardIndices();
+          }
         },
         beforeOpen: (OpeningDetails details) async {
           // Defensive backfill: some devices upgraded to v43 via the earlier
@@ -1349,6 +1384,32 @@ class AppDatabase extends _$AppDatabase {
         'CREATE INDEX IF NOT EXISTS idx_persona_chat_messages_task_room '
         'ON persona_chat_messages(task_room_id) '
         'WHERE task_room_id IS NOT NULL');
+  }
+
+  Future<void> _createWhiteboardIndices() async {
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_whiteboard_items_board '
+        'ON whiteboard_board_items(board_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_whiteboard_groups_board '
+        'ON whiteboard_groups(board_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_whiteboard_group_members_item '
+        'ON whiteboard_group_members(item_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_whiteboard_edges_board '
+        'ON whiteboard_edges(board_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_whiteboard_sources_canonical '
+        'ON whiteboard_sources(provider, canonical_id) '
+        'WHERE canonical_id IS NOT NULL');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_whiteboard_source_versions_source '
+        'ON whiteboard_source_versions(source_id)');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_whiteboard_card_extras_source '
+        'ON whiteboard_card_extras(source_id) '
+        'WHERE source_id IS NOT NULL');
   }
 
   Future<void> _createTableIfMissing(

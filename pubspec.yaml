@@ -52,6 +52,12 @@ dependencies:
   # WebView (for future HTML card rendering)
   webview_flutter: ^4.4.4
 
+  # ── W6 白板依赖占位（唯一一次 pubspec 评审；后续窗口禁止再改 pubspec）──
+  # 桌面视频播放（W4）：桌面播放器 ADR 尚未定案（Web IFrame /
+  # webview_windows / 外部降级三选一）。ADR 落定并写进
+  # WHITEBOARD_ENGINE_ADAPTER_ADR.md 后，由 W0 在此取消注释并锁定：
+  # webview_windows: ^0.3.3   # Windows WebView2 宿主（W4 桌面播放候选）
+
   # HTML parsing (Reading Companion fetch pipeline)
   html: ^0.15.4
 
@@ -112,6 +118,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   flutter_lints: ^3.0.0
   test: ^1.26.3
   drift_dev: ^2.30.0
@@ -153,3 +161,11 @@ flutter:
           weight: 600
         - asset: assets/fonts/Inter/Inter-Bold.ttf
           weight: 700
+    # 白板生产字体（W6 占位声明 —— 目录与子集化说明见
+    # assets/fonts/whiteboard/README.md；TTF 由 W2 落地后取消注释，不再改本文件）：
+    # - family: HuiwenMingchao
+    #   fonts:
+    #     - asset: assets/fonts/whiteboard/HuiwenMingChao-Regular.ttf
+    # - family: CascadiaCode
+    #   fonts:
+    #     - asset: assets/fonts/whiteboard/CascadiaCode-Regular.ttf

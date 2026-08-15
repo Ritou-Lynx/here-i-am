@@ -25,6 +25,14 @@ import 'package:memex/ui/memory/widgets/lab/query_log_page.dart';
 import 'package:memex/ui/memory/widgets/lab/recall_log_page.dart';
 import 'package:memex/ui/memory/widgets/lab/skip_retry_page.dart';
 import 'package:memex/ui/memory/widgets/lab/dreaming_debug_page.dart';
+// Whiteboard production routes (W6 integration base — signatures frozen).
+// Parallel windows fill the placeholder screens; they do NOT edit router.dart.
+import 'package:memex/ui/whiteboard/card_library_screen.dart';
+import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
+import 'package:memex/ui/whiteboard/link_import_screen.dart';
+import 'package:memex/ui/whiteboard/source_study_screen.dart';
+import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
+import 'package:memex/ui/whiteboard/whiteboard_index_screen.dart';
 import 'package:memex/routing/routes.dart';
 
 /// Creates the app [GoRouter]. Root content is built by [rootBuilder].
@@ -116,6 +124,40 @@ GoRouter createAppRouter(
       GoRoute(
         path: AppRoutes.devRoom,
         builder: (_, __) => const DevRoomScreen(),
+      ),
+      // ── Whiteboard production routes (W6 integration base) ──────────────
+      // Route paths and parameter signatures are frozen once here; parallel
+      // windows (W1 interactions / W2 rich text / W3 link ingestion / W4
+      // video) only replace placeholder screen bodies, never these entries.
+      GoRoute(
+        path: AppRoutes.whiteboard,
+        builder: (_, __) => const WhiteboardIndexScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.whiteboardCanvas,
+        builder: (context, state) => WhiteboardCanvasRouteScreen(
+          boardId: state.pathParameters['boardId']!,
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.cardLibrary,
+        builder: (_, __) => const CardLibraryScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.cardEdit,
+        builder: (context, state) => CardRichTextEditorScreen(
+          cardId: state.pathParameters['cardId']!,
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.sourceStudy,
+        builder: (context, state) => SourceStudyScreen(
+          sourceId: state.pathParameters['sourceId']!,
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.linkImport,
+        builder: (_, __) => const LinkImportScreen(),
       ),
     ],
   );
