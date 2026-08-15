@@ -22,10 +22,14 @@ import 'package:workmanager/workmanager.dart';
 final _logger = getLogger('memory_v3.DreamingSchedulerService');
 
 class DreamingSchedulerService {
-  DreamingSchedulerService({required AppDatabase db})
-      : _orchestrator = DreamingOrchestratorServiceV3.instance;
+  DreamingSchedulerService({required AppDatabase db});
 
-  final DreamingOrchestratorServiceV3 _orchestrator;
+  /// Resolved lazily: on desktop the scheduler can be constructed before
+  /// [DreamingOrchestratorServiceV3.init] has run (shell constructs it as
+  /// soon as the DB is open, while MemexRouter init is still in flight).
+  DreamingOrchestratorServiceV3? _orchestrator;
+  DreamingOrchestratorServiceV3 get _orch =>
+      _orchestrator ??= DreamingOrchestratorServiceV3.instance;
 
   Timer? _foregroundTickTimer;
 
@@ -351,14 +355,14 @@ class DreamingSchedulerService {
 
   Future<void> _doLightweightTick() async {
     try {
-      await _orchestrator.resolveStaleFragments('i');
+      await _orch.resolveStaleFragments('i');
     } catch (e, stack) {
       _logger.warning(
           'Lightweight tick: resolveStaleFragments failed', e, stack);
     }
 
     try {
-      await _orchestrator.syncEntityFragmentCounts();
+      await _orch.syncEntityFragmentCounts();
     } catch (e, stack) {
       _logger.warning(
           'Lightweight tick: syncEntityFragmentCounts failed', e, stack);

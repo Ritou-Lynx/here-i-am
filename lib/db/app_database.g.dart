@@ -29694,6 +29694,3750 @@ class TaskDecisionsCompanion extends UpdateCompanion<TaskDecision> {
   }
 }
 
+class $WhiteboardBoardsTable extends memory_v3.WhiteboardBoards
+    with TableInfo<$WhiteboardBoardsTable, WhiteboardBoard> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WhiteboardBoardsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _ownerSpaceMeta =
+      const VerificationMeta('ownerSpace');
+  @override
+  late final GeneratedColumn<String> ownerSpace = GeneratedColumn<String>(
+      'owner_space', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('user'));
+  static const VerificationMeta _createdByMeta =
+      const VerificationMeta('createdBy');
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+      'created_by', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('user'));
+  static const VerificationMeta _viewportCenterXMeta =
+      const VerificationMeta('viewportCenterX');
+  @override
+  late final GeneratedColumn<double> viewportCenterX = GeneratedColumn<double>(
+      'viewport_center_x', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _viewportCenterYMeta =
+      const VerificationMeta('viewportCenterY');
+  @override
+  late final GeneratedColumn<double> viewportCenterY = GeneratedColumn<double>(
+      'viewport_center_y', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _viewportZoomMeta =
+      const VerificationMeta('viewportZoom');
+  @override
+  late final GeneratedColumn<double> viewportZoom = GeneratedColumn<double>(
+      'viewport_zoom', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _deletedAtMeta =
+      const VerificationMeta('deletedAt');
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+      'deleted_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        name,
+        ownerSpace,
+        createdBy,
+        viewportCenterX,
+        viewportCenterY,
+        viewportZoom,
+        createdAt,
+        updatedAt,
+        deletedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'whiteboard_boards';
+  @override
+  VerificationContext validateIntegrity(Insertable<WhiteboardBoard> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('owner_space')) {
+      context.handle(
+          _ownerSpaceMeta,
+          ownerSpace.isAcceptableOrUnknown(
+              data['owner_space']!, _ownerSpaceMeta));
+    }
+    if (data.containsKey('created_by')) {
+      context.handle(_createdByMeta,
+          createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta));
+    }
+    if (data.containsKey('viewport_center_x')) {
+      context.handle(
+          _viewportCenterXMeta,
+          viewportCenterX.isAcceptableOrUnknown(
+              data['viewport_center_x']!, _viewportCenterXMeta));
+    }
+    if (data.containsKey('viewport_center_y')) {
+      context.handle(
+          _viewportCenterYMeta,
+          viewportCenterY.isAcceptableOrUnknown(
+              data['viewport_center_y']!, _viewportCenterYMeta));
+    }
+    if (data.containsKey('viewport_zoom')) {
+      context.handle(
+          _viewportZoomMeta,
+          viewportZoom.isAcceptableOrUnknown(
+              data['viewport_zoom']!, _viewportZoomMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(_deletedAtMeta,
+          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WhiteboardBoard map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WhiteboardBoard(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      ownerSpace: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}owner_space'])!,
+      createdBy: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}created_by'])!,
+      viewportCenterX: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}viewport_center_x'])!,
+      viewportCenterY: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}viewport_center_y'])!,
+      viewportZoom: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}viewport_zoom'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at']),
+      deletedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}deleted_at']),
+    );
+  }
+
+  @override
+  $WhiteboardBoardsTable createAlias(String alias) {
+    return $WhiteboardBoardsTable(attachedDatabase, alias);
+  }
+}
+
+class WhiteboardBoard extends DataClass implements Insertable<WhiteboardBoard> {
+  final String id;
+  final String name;
+  final String ownerSpace;
+  final String createdBy;
+  final double viewportCenterX;
+  final double viewportCenterY;
+  final double viewportZoom;
+  final int createdAt;
+  final int? updatedAt;
+  final int? deletedAt;
+  const WhiteboardBoard(
+      {required this.id,
+      required this.name,
+      required this.ownerSpace,
+      required this.createdBy,
+      required this.viewportCenterX,
+      required this.viewportCenterY,
+      required this.viewportZoom,
+      required this.createdAt,
+      this.updatedAt,
+      this.deletedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['owner_space'] = Variable<String>(ownerSpace);
+    map['created_by'] = Variable<String>(createdBy);
+    map['viewport_center_x'] = Variable<double>(viewportCenterX);
+    map['viewport_center_y'] = Variable<double>(viewportCenterY);
+    map['viewport_zoom'] = Variable<double>(viewportZoom);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<int>(updatedAt);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  WhiteboardBoardsCompanion toCompanion(bool nullToAbsent) {
+    return WhiteboardBoardsCompanion(
+      id: Value(id),
+      name: Value(name),
+      ownerSpace: Value(ownerSpace),
+      createdBy: Value(createdBy),
+      viewportCenterX: Value(viewportCenterX),
+      viewportCenterY: Value(viewportCenterY),
+      viewportZoom: Value(viewportZoom),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory WhiteboardBoard.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WhiteboardBoard(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      ownerSpace: serializer.fromJson<String>(json['ownerSpace']),
+      createdBy: serializer.fromJson<String>(json['createdBy']),
+      viewportCenterX: serializer.fromJson<double>(json['viewportCenterX']),
+      viewportCenterY: serializer.fromJson<double>(json['viewportCenterY']),
+      viewportZoom: serializer.fromJson<double>(json['viewportZoom']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int?>(json['updatedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'ownerSpace': serializer.toJson<String>(ownerSpace),
+      'createdBy': serializer.toJson<String>(createdBy),
+      'viewportCenterX': serializer.toJson<double>(viewportCenterX),
+      'viewportCenterY': serializer.toJson<double>(viewportCenterY),
+      'viewportZoom': serializer.toJson<double>(viewportZoom),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int?>(updatedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  WhiteboardBoard copyWith(
+          {String? id,
+          String? name,
+          String? ownerSpace,
+          String? createdBy,
+          double? viewportCenterX,
+          double? viewportCenterY,
+          double? viewportZoom,
+          int? createdAt,
+          Value<int?> updatedAt = const Value.absent(),
+          Value<int?> deletedAt = const Value.absent()}) =>
+      WhiteboardBoard(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        ownerSpace: ownerSpace ?? this.ownerSpace,
+        createdBy: createdBy ?? this.createdBy,
+        viewportCenterX: viewportCenterX ?? this.viewportCenterX,
+        viewportCenterY: viewportCenterY ?? this.viewportCenterY,
+        viewportZoom: viewportZoom ?? this.viewportZoom,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+      );
+  WhiteboardBoard copyWithCompanion(WhiteboardBoardsCompanion data) {
+    return WhiteboardBoard(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      ownerSpace:
+          data.ownerSpace.present ? data.ownerSpace.value : this.ownerSpace,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
+      viewportCenterX: data.viewportCenterX.present
+          ? data.viewportCenterX.value
+          : this.viewportCenterX,
+      viewportCenterY: data.viewportCenterY.present
+          ? data.viewportCenterY.value
+          : this.viewportCenterY,
+      viewportZoom: data.viewportZoom.present
+          ? data.viewportZoom.value
+          : this.viewportZoom,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardBoard(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('ownerSpace: $ownerSpace, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('viewportCenterX: $viewportCenterX, ')
+          ..write('viewportCenterY: $viewportCenterY, ')
+          ..write('viewportZoom: $viewportZoom, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      name,
+      ownerSpace,
+      createdBy,
+      viewportCenterX,
+      viewportCenterY,
+      viewportZoom,
+      createdAt,
+      updatedAt,
+      deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WhiteboardBoard &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.ownerSpace == this.ownerSpace &&
+          other.createdBy == this.createdBy &&
+          other.viewportCenterX == this.viewportCenterX &&
+          other.viewportCenterY == this.viewportCenterY &&
+          other.viewportZoom == this.viewportZoom &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class WhiteboardBoardsCompanion extends UpdateCompanion<WhiteboardBoard> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> ownerSpace;
+  final Value<String> createdBy;
+  final Value<double> viewportCenterX;
+  final Value<double> viewportCenterY;
+  final Value<double> viewportZoom;
+  final Value<int> createdAt;
+  final Value<int?> updatedAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const WhiteboardBoardsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.ownerSpace = const Value.absent(),
+    this.createdBy = const Value.absent(),
+    this.viewportCenterX = const Value.absent(),
+    this.viewportCenterY = const Value.absent(),
+    this.viewportZoom = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WhiteboardBoardsCompanion.insert({
+    required String id,
+    required String name,
+    this.ownerSpace = const Value.absent(),
+    this.createdBy = const Value.absent(),
+    this.viewportCenterX = const Value.absent(),
+    this.viewportCenterY = const Value.absent(),
+    this.viewportZoom = const Value.absent(),
+    required int createdAt,
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        createdAt = Value(createdAt);
+  static Insertable<WhiteboardBoard> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? ownerSpace,
+    Expression<String>? createdBy,
+    Expression<double>? viewportCenterX,
+    Expression<double>? viewportCenterY,
+    Expression<double>? viewportZoom,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (ownerSpace != null) 'owner_space': ownerSpace,
+      if (createdBy != null) 'created_by': createdBy,
+      if (viewportCenterX != null) 'viewport_center_x': viewportCenterX,
+      if (viewportCenterY != null) 'viewport_center_y': viewportCenterY,
+      if (viewportZoom != null) 'viewport_zoom': viewportZoom,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WhiteboardBoardsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<String>? ownerSpace,
+      Value<String>? createdBy,
+      Value<double>? viewportCenterX,
+      Value<double>? viewportCenterY,
+      Value<double>? viewportZoom,
+      Value<int>? createdAt,
+      Value<int?>? updatedAt,
+      Value<int?>? deletedAt,
+      Value<int>? rowid}) {
+    return WhiteboardBoardsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      ownerSpace: ownerSpace ?? this.ownerSpace,
+      createdBy: createdBy ?? this.createdBy,
+      viewportCenterX: viewportCenterX ?? this.viewportCenterX,
+      viewportCenterY: viewportCenterY ?? this.viewportCenterY,
+      viewportZoom: viewportZoom ?? this.viewportZoom,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (ownerSpace.present) {
+      map['owner_space'] = Variable<String>(ownerSpace.value);
+    }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
+    if (viewportCenterX.present) {
+      map['viewport_center_x'] = Variable<double>(viewportCenterX.value);
+    }
+    if (viewportCenterY.present) {
+      map['viewport_center_y'] = Variable<double>(viewportCenterY.value);
+    }
+    if (viewportZoom.present) {
+      map['viewport_zoom'] = Variable<double>(viewportZoom.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardBoardsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('ownerSpace: $ownerSpace, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('viewportCenterX: $viewportCenterX, ')
+          ..write('viewportCenterY: $viewportCenterY, ')
+          ..write('viewportZoom: $viewportZoom, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WhiteboardBoardItemsTable extends memory_v3.WhiteboardBoardItems
+    with TableInfo<$WhiteboardBoardItemsTable, WhiteboardBoardItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WhiteboardBoardItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _boardIdMeta =
+      const VerificationMeta('boardId');
+  @override
+  late final GeneratedColumn<String> boardId = GeneratedColumn<String>(
+      'board_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _cardIdMeta = const VerificationMeta('cardId');
+  @override
+  late final GeneratedColumn<String> cardId = GeneratedColumn<String>(
+      'card_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _xMeta = const VerificationMeta('x');
+  @override
+  late final GeneratedColumn<double> x = GeneratedColumn<double>(
+      'x', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _yMeta = const VerificationMeta('y');
+  @override
+  late final GeneratedColumn<double> y = GeneratedColumn<double>(
+      'y', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _widthMeta = const VerificationMeta('width');
+  @override
+  late final GeneratedColumn<double> width = GeneratedColumn<double>(
+      'width', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(260));
+  static const VerificationMeta _heightMeta = const VerificationMeta('height');
+  @override
+  late final GeneratedColumn<double> height = GeneratedColumn<double>(
+      'height', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(200));
+  static const VerificationMeta _rotationMeta =
+      const VerificationMeta('rotation');
+  @override
+  late final GeneratedColumn<double> rotation = GeneratedColumn<double>(
+      'rotation', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _zIndexMeta = const VerificationMeta('zIndex');
+  @override
+  late final GeneratedColumn<int> zIndex = GeneratedColumn<int>(
+      'z_index', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _viewStateJsonMeta =
+      const VerificationMeta('viewStateJson');
+  @override
+  late final GeneratedColumn<String> viewStateJson = GeneratedColumn<String>(
+      'view_state_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        boardId,
+        cardId,
+        x,
+        y,
+        width,
+        height,
+        rotation,
+        zIndex,
+        viewStateJson
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'whiteboard_board_items';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<WhiteboardBoardItem> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('board_id')) {
+      context.handle(_boardIdMeta,
+          boardId.isAcceptableOrUnknown(data['board_id']!, _boardIdMeta));
+    } else if (isInserting) {
+      context.missing(_boardIdMeta);
+    }
+    if (data.containsKey('card_id')) {
+      context.handle(_cardIdMeta,
+          cardId.isAcceptableOrUnknown(data['card_id']!, _cardIdMeta));
+    } else if (isInserting) {
+      context.missing(_cardIdMeta);
+    }
+    if (data.containsKey('x')) {
+      context.handle(_xMeta, x.isAcceptableOrUnknown(data['x']!, _xMeta));
+    }
+    if (data.containsKey('y')) {
+      context.handle(_yMeta, y.isAcceptableOrUnknown(data['y']!, _yMeta));
+    }
+    if (data.containsKey('width')) {
+      context.handle(
+          _widthMeta, width.isAcceptableOrUnknown(data['width']!, _widthMeta));
+    }
+    if (data.containsKey('height')) {
+      context.handle(_heightMeta,
+          height.isAcceptableOrUnknown(data['height']!, _heightMeta));
+    }
+    if (data.containsKey('rotation')) {
+      context.handle(_rotationMeta,
+          rotation.isAcceptableOrUnknown(data['rotation']!, _rotationMeta));
+    }
+    if (data.containsKey('z_index')) {
+      context.handle(_zIndexMeta,
+          zIndex.isAcceptableOrUnknown(data['z_index']!, _zIndexMeta));
+    }
+    if (data.containsKey('view_state_json')) {
+      context.handle(
+          _viewStateJsonMeta,
+          viewStateJson.isAcceptableOrUnknown(
+              data['view_state_json']!, _viewStateJsonMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WhiteboardBoardItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WhiteboardBoardItem(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      boardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}board_id'])!,
+      cardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}card_id'])!,
+      x: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}x'])!,
+      y: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}y'])!,
+      width: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}width'])!,
+      height: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}height'])!,
+      rotation: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}rotation'])!,
+      zIndex: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}z_index'])!,
+      viewStateJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}view_state_json']),
+    );
+  }
+
+  @override
+  $WhiteboardBoardItemsTable createAlias(String alias) {
+    return $WhiteboardBoardItemsTable(attachedDatabase, alias);
+  }
+}
+
+class WhiteboardBoardItem extends DataClass
+    implements Insertable<WhiteboardBoardItem> {
+  final String id;
+  final String boardId;
+  final String cardId;
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double rotation;
+  final int zIndex;
+
+  /// BoardItem.viewState（Map）的 JSON；null = 无局部视图态。
+  final String? viewStateJson;
+  const WhiteboardBoardItem(
+      {required this.id,
+      required this.boardId,
+      required this.cardId,
+      required this.x,
+      required this.y,
+      required this.width,
+      required this.height,
+      required this.rotation,
+      required this.zIndex,
+      this.viewStateJson});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['board_id'] = Variable<String>(boardId);
+    map['card_id'] = Variable<String>(cardId);
+    map['x'] = Variable<double>(x);
+    map['y'] = Variable<double>(y);
+    map['width'] = Variable<double>(width);
+    map['height'] = Variable<double>(height);
+    map['rotation'] = Variable<double>(rotation);
+    map['z_index'] = Variable<int>(zIndex);
+    if (!nullToAbsent || viewStateJson != null) {
+      map['view_state_json'] = Variable<String>(viewStateJson);
+    }
+    return map;
+  }
+
+  WhiteboardBoardItemsCompanion toCompanion(bool nullToAbsent) {
+    return WhiteboardBoardItemsCompanion(
+      id: Value(id),
+      boardId: Value(boardId),
+      cardId: Value(cardId),
+      x: Value(x),
+      y: Value(y),
+      width: Value(width),
+      height: Value(height),
+      rotation: Value(rotation),
+      zIndex: Value(zIndex),
+      viewStateJson: viewStateJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(viewStateJson),
+    );
+  }
+
+  factory WhiteboardBoardItem.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WhiteboardBoardItem(
+      id: serializer.fromJson<String>(json['id']),
+      boardId: serializer.fromJson<String>(json['boardId']),
+      cardId: serializer.fromJson<String>(json['cardId']),
+      x: serializer.fromJson<double>(json['x']),
+      y: serializer.fromJson<double>(json['y']),
+      width: serializer.fromJson<double>(json['width']),
+      height: serializer.fromJson<double>(json['height']),
+      rotation: serializer.fromJson<double>(json['rotation']),
+      zIndex: serializer.fromJson<int>(json['zIndex']),
+      viewStateJson: serializer.fromJson<String?>(json['viewStateJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'boardId': serializer.toJson<String>(boardId),
+      'cardId': serializer.toJson<String>(cardId),
+      'x': serializer.toJson<double>(x),
+      'y': serializer.toJson<double>(y),
+      'width': serializer.toJson<double>(width),
+      'height': serializer.toJson<double>(height),
+      'rotation': serializer.toJson<double>(rotation),
+      'zIndex': serializer.toJson<int>(zIndex),
+      'viewStateJson': serializer.toJson<String?>(viewStateJson),
+    };
+  }
+
+  WhiteboardBoardItem copyWith(
+          {String? id,
+          String? boardId,
+          String? cardId,
+          double? x,
+          double? y,
+          double? width,
+          double? height,
+          double? rotation,
+          int? zIndex,
+          Value<String?> viewStateJson = const Value.absent()}) =>
+      WhiteboardBoardItem(
+        id: id ?? this.id,
+        boardId: boardId ?? this.boardId,
+        cardId: cardId ?? this.cardId,
+        x: x ?? this.x,
+        y: y ?? this.y,
+        width: width ?? this.width,
+        height: height ?? this.height,
+        rotation: rotation ?? this.rotation,
+        zIndex: zIndex ?? this.zIndex,
+        viewStateJson:
+            viewStateJson.present ? viewStateJson.value : this.viewStateJson,
+      );
+  WhiteboardBoardItem copyWithCompanion(WhiteboardBoardItemsCompanion data) {
+    return WhiteboardBoardItem(
+      id: data.id.present ? data.id.value : this.id,
+      boardId: data.boardId.present ? data.boardId.value : this.boardId,
+      cardId: data.cardId.present ? data.cardId.value : this.cardId,
+      x: data.x.present ? data.x.value : this.x,
+      y: data.y.present ? data.y.value : this.y,
+      width: data.width.present ? data.width.value : this.width,
+      height: data.height.present ? data.height.value : this.height,
+      rotation: data.rotation.present ? data.rotation.value : this.rotation,
+      zIndex: data.zIndex.present ? data.zIndex.value : this.zIndex,
+      viewStateJson: data.viewStateJson.present
+          ? data.viewStateJson.value
+          : this.viewStateJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardBoardItem(')
+          ..write('id: $id, ')
+          ..write('boardId: $boardId, ')
+          ..write('cardId: $cardId, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('width: $width, ')
+          ..write('height: $height, ')
+          ..write('rotation: $rotation, ')
+          ..write('zIndex: $zIndex, ')
+          ..write('viewStateJson: $viewStateJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, boardId, cardId, x, y, width, height,
+      rotation, zIndex, viewStateJson);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WhiteboardBoardItem &&
+          other.id == this.id &&
+          other.boardId == this.boardId &&
+          other.cardId == this.cardId &&
+          other.x == this.x &&
+          other.y == this.y &&
+          other.width == this.width &&
+          other.height == this.height &&
+          other.rotation == this.rotation &&
+          other.zIndex == this.zIndex &&
+          other.viewStateJson == this.viewStateJson);
+}
+
+class WhiteboardBoardItemsCompanion
+    extends UpdateCompanion<WhiteboardBoardItem> {
+  final Value<String> id;
+  final Value<String> boardId;
+  final Value<String> cardId;
+  final Value<double> x;
+  final Value<double> y;
+  final Value<double> width;
+  final Value<double> height;
+  final Value<double> rotation;
+  final Value<int> zIndex;
+  final Value<String?> viewStateJson;
+  final Value<int> rowid;
+  const WhiteboardBoardItemsCompanion({
+    this.id = const Value.absent(),
+    this.boardId = const Value.absent(),
+    this.cardId = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.width = const Value.absent(),
+    this.height = const Value.absent(),
+    this.rotation = const Value.absent(),
+    this.zIndex = const Value.absent(),
+    this.viewStateJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WhiteboardBoardItemsCompanion.insert({
+    required String id,
+    required String boardId,
+    required String cardId,
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.width = const Value.absent(),
+    this.height = const Value.absent(),
+    this.rotation = const Value.absent(),
+    this.zIndex = const Value.absent(),
+    this.viewStateJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        boardId = Value(boardId),
+        cardId = Value(cardId);
+  static Insertable<WhiteboardBoardItem> custom({
+    Expression<String>? id,
+    Expression<String>? boardId,
+    Expression<String>? cardId,
+    Expression<double>? x,
+    Expression<double>? y,
+    Expression<double>? width,
+    Expression<double>? height,
+    Expression<double>? rotation,
+    Expression<int>? zIndex,
+    Expression<String>? viewStateJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (boardId != null) 'board_id': boardId,
+      if (cardId != null) 'card_id': cardId,
+      if (x != null) 'x': x,
+      if (y != null) 'y': y,
+      if (width != null) 'width': width,
+      if (height != null) 'height': height,
+      if (rotation != null) 'rotation': rotation,
+      if (zIndex != null) 'z_index': zIndex,
+      if (viewStateJson != null) 'view_state_json': viewStateJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WhiteboardBoardItemsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? boardId,
+      Value<String>? cardId,
+      Value<double>? x,
+      Value<double>? y,
+      Value<double>? width,
+      Value<double>? height,
+      Value<double>? rotation,
+      Value<int>? zIndex,
+      Value<String?>? viewStateJson,
+      Value<int>? rowid}) {
+    return WhiteboardBoardItemsCompanion(
+      id: id ?? this.id,
+      boardId: boardId ?? this.boardId,
+      cardId: cardId ?? this.cardId,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      rotation: rotation ?? this.rotation,
+      zIndex: zIndex ?? this.zIndex,
+      viewStateJson: viewStateJson ?? this.viewStateJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (boardId.present) {
+      map['board_id'] = Variable<String>(boardId.value);
+    }
+    if (cardId.present) {
+      map['card_id'] = Variable<String>(cardId.value);
+    }
+    if (x.present) {
+      map['x'] = Variable<double>(x.value);
+    }
+    if (y.present) {
+      map['y'] = Variable<double>(y.value);
+    }
+    if (width.present) {
+      map['width'] = Variable<double>(width.value);
+    }
+    if (height.present) {
+      map['height'] = Variable<double>(height.value);
+    }
+    if (rotation.present) {
+      map['rotation'] = Variable<double>(rotation.value);
+    }
+    if (zIndex.present) {
+      map['z_index'] = Variable<int>(zIndex.value);
+    }
+    if (viewStateJson.present) {
+      map['view_state_json'] = Variable<String>(viewStateJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardBoardItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('boardId: $boardId, ')
+          ..write('cardId: $cardId, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('width: $width, ')
+          ..write('height: $height, ')
+          ..write('rotation: $rotation, ')
+          ..write('zIndex: $zIndex, ')
+          ..write('viewStateJson: $viewStateJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WhiteboardGroupsTable extends memory_v3.WhiteboardGroups
+    with TableInfo<$WhiteboardGroupsTable, WhiteboardGroup> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WhiteboardGroupsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _boardIdMeta =
+      const VerificationMeta('boardId');
+  @override
+  late final GeneratedColumn<String> boardId = GeneratedColumn<String>(
+      'board_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _styleJsonMeta =
+      const VerificationMeta('styleJson');
+  @override
+  late final GeneratedColumn<String> styleJson = GeneratedColumn<String>(
+      'style_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _collapsedMeta =
+      const VerificationMeta('collapsed');
+  @override
+  late final GeneratedColumn<bool> collapsed = GeneratedColumn<bool>(
+      'collapsed', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("collapsed" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, boardId, name, styleJson, collapsed];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'whiteboard_groups';
+  @override
+  VerificationContext validateIntegrity(Insertable<WhiteboardGroup> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('board_id')) {
+      context.handle(_boardIdMeta,
+          boardId.isAcceptableOrUnknown(data['board_id']!, _boardIdMeta));
+    } else if (isInserting) {
+      context.missing(_boardIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    }
+    if (data.containsKey('style_json')) {
+      context.handle(_styleJsonMeta,
+          styleJson.isAcceptableOrUnknown(data['style_json']!, _styleJsonMeta));
+    }
+    if (data.containsKey('collapsed')) {
+      context.handle(_collapsedMeta,
+          collapsed.isAcceptableOrUnknown(data['collapsed']!, _collapsedMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WhiteboardGroup map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WhiteboardGroup(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      boardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}board_id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      styleJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}style_json']),
+      collapsed: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}collapsed'])!,
+    );
+  }
+
+  @override
+  $WhiteboardGroupsTable createAlias(String alias) {
+    return $WhiteboardGroupsTable(attachedDatabase, alias);
+  }
+}
+
+class WhiteboardGroup extends DataClass implements Insertable<WhiteboardGroup> {
+  final String id;
+  final String boardId;
+  final String name;
+
+  /// BoardGroup.style（Map）的 JSON；null = 默认样式。
+  final String? styleJson;
+  final bool collapsed;
+  const WhiteboardGroup(
+      {required this.id,
+      required this.boardId,
+      required this.name,
+      this.styleJson,
+      required this.collapsed});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['board_id'] = Variable<String>(boardId);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || styleJson != null) {
+      map['style_json'] = Variable<String>(styleJson);
+    }
+    map['collapsed'] = Variable<bool>(collapsed);
+    return map;
+  }
+
+  WhiteboardGroupsCompanion toCompanion(bool nullToAbsent) {
+    return WhiteboardGroupsCompanion(
+      id: Value(id),
+      boardId: Value(boardId),
+      name: Value(name),
+      styleJson: styleJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(styleJson),
+      collapsed: Value(collapsed),
+    );
+  }
+
+  factory WhiteboardGroup.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WhiteboardGroup(
+      id: serializer.fromJson<String>(json['id']),
+      boardId: serializer.fromJson<String>(json['boardId']),
+      name: serializer.fromJson<String>(json['name']),
+      styleJson: serializer.fromJson<String?>(json['styleJson']),
+      collapsed: serializer.fromJson<bool>(json['collapsed']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'boardId': serializer.toJson<String>(boardId),
+      'name': serializer.toJson<String>(name),
+      'styleJson': serializer.toJson<String?>(styleJson),
+      'collapsed': serializer.toJson<bool>(collapsed),
+    };
+  }
+
+  WhiteboardGroup copyWith(
+          {String? id,
+          String? boardId,
+          String? name,
+          Value<String?> styleJson = const Value.absent(),
+          bool? collapsed}) =>
+      WhiteboardGroup(
+        id: id ?? this.id,
+        boardId: boardId ?? this.boardId,
+        name: name ?? this.name,
+        styleJson: styleJson.present ? styleJson.value : this.styleJson,
+        collapsed: collapsed ?? this.collapsed,
+      );
+  WhiteboardGroup copyWithCompanion(WhiteboardGroupsCompanion data) {
+    return WhiteboardGroup(
+      id: data.id.present ? data.id.value : this.id,
+      boardId: data.boardId.present ? data.boardId.value : this.boardId,
+      name: data.name.present ? data.name.value : this.name,
+      styleJson: data.styleJson.present ? data.styleJson.value : this.styleJson,
+      collapsed: data.collapsed.present ? data.collapsed.value : this.collapsed,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardGroup(')
+          ..write('id: $id, ')
+          ..write('boardId: $boardId, ')
+          ..write('name: $name, ')
+          ..write('styleJson: $styleJson, ')
+          ..write('collapsed: $collapsed')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, boardId, name, styleJson, collapsed);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WhiteboardGroup &&
+          other.id == this.id &&
+          other.boardId == this.boardId &&
+          other.name == this.name &&
+          other.styleJson == this.styleJson &&
+          other.collapsed == this.collapsed);
+}
+
+class WhiteboardGroupsCompanion extends UpdateCompanion<WhiteboardGroup> {
+  final Value<String> id;
+  final Value<String> boardId;
+  final Value<String> name;
+  final Value<String?> styleJson;
+  final Value<bool> collapsed;
+  final Value<int> rowid;
+  const WhiteboardGroupsCompanion({
+    this.id = const Value.absent(),
+    this.boardId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.styleJson = const Value.absent(),
+    this.collapsed = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WhiteboardGroupsCompanion.insert({
+    required String id,
+    required String boardId,
+    this.name = const Value.absent(),
+    this.styleJson = const Value.absent(),
+    this.collapsed = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        boardId = Value(boardId);
+  static Insertable<WhiteboardGroup> custom({
+    Expression<String>? id,
+    Expression<String>? boardId,
+    Expression<String>? name,
+    Expression<String>? styleJson,
+    Expression<bool>? collapsed,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (boardId != null) 'board_id': boardId,
+      if (name != null) 'name': name,
+      if (styleJson != null) 'style_json': styleJson,
+      if (collapsed != null) 'collapsed': collapsed,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WhiteboardGroupsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? boardId,
+      Value<String>? name,
+      Value<String?>? styleJson,
+      Value<bool>? collapsed,
+      Value<int>? rowid}) {
+    return WhiteboardGroupsCompanion(
+      id: id ?? this.id,
+      boardId: boardId ?? this.boardId,
+      name: name ?? this.name,
+      styleJson: styleJson ?? this.styleJson,
+      collapsed: collapsed ?? this.collapsed,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (boardId.present) {
+      map['board_id'] = Variable<String>(boardId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (styleJson.present) {
+      map['style_json'] = Variable<String>(styleJson.value);
+    }
+    if (collapsed.present) {
+      map['collapsed'] = Variable<bool>(collapsed.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardGroupsCompanion(')
+          ..write('id: $id, ')
+          ..write('boardId: $boardId, ')
+          ..write('name: $name, ')
+          ..write('styleJson: $styleJson, ')
+          ..write('collapsed: $collapsed, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WhiteboardGroupMembersTable extends memory_v3.WhiteboardGroupMembers
+    with TableInfo<$WhiteboardGroupMembersTable, WhiteboardGroupMember> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WhiteboardGroupMembersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _groupIdMeta =
+      const VerificationMeta('groupId');
+  @override
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+      'group_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _itemIdMeta = const VerificationMeta('itemId');
+  @override
+  late final GeneratedColumn<String> itemId = GeneratedColumn<String>(
+      'item_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sortOrderMeta =
+      const VerificationMeta('sortOrder');
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+      'sort_order', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  @override
+  List<GeneratedColumn> get $columns => [groupId, itemId, sortOrder];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'whiteboard_group_members';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<WhiteboardGroupMember> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('group_id')) {
+      context.handle(_groupIdMeta,
+          groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta));
+    } else if (isInserting) {
+      context.missing(_groupIdMeta);
+    }
+    if (data.containsKey('item_id')) {
+      context.handle(_itemIdMeta,
+          itemId.isAcceptableOrUnknown(data['item_id']!, _itemIdMeta));
+    } else if (isInserting) {
+      context.missing(_itemIdMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(_sortOrderMeta,
+          sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {groupId, itemId};
+  @override
+  WhiteboardGroupMember map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WhiteboardGroupMember(
+      groupId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}group_id'])!,
+      itemId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}item_id'])!,
+      sortOrder: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+    );
+  }
+
+  @override
+  $WhiteboardGroupMembersTable createAlias(String alias) {
+    return $WhiteboardGroupMembersTable(attachedDatabase, alias);
+  }
+}
+
+class WhiteboardGroupMember extends DataClass
+    implements Insertable<WhiteboardGroupMember> {
+  final String groupId;
+  final String itemId;
+  final int sortOrder;
+  const WhiteboardGroupMember(
+      {required this.groupId, required this.itemId, required this.sortOrder});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['group_id'] = Variable<String>(groupId);
+    map['item_id'] = Variable<String>(itemId);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  WhiteboardGroupMembersCompanion toCompanion(bool nullToAbsent) {
+    return WhiteboardGroupMembersCompanion(
+      groupId: Value(groupId),
+      itemId: Value(itemId),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory WhiteboardGroupMember.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WhiteboardGroupMember(
+      groupId: serializer.fromJson<String>(json['groupId']),
+      itemId: serializer.fromJson<String>(json['itemId']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'groupId': serializer.toJson<String>(groupId),
+      'itemId': serializer.toJson<String>(itemId),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  WhiteboardGroupMember copyWith(
+          {String? groupId, String? itemId, int? sortOrder}) =>
+      WhiteboardGroupMember(
+        groupId: groupId ?? this.groupId,
+        itemId: itemId ?? this.itemId,
+        sortOrder: sortOrder ?? this.sortOrder,
+      );
+  WhiteboardGroupMember copyWithCompanion(
+      WhiteboardGroupMembersCompanion data) {
+    return WhiteboardGroupMember(
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
+      itemId: data.itemId.present ? data.itemId.value : this.itemId,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardGroupMember(')
+          ..write('groupId: $groupId, ')
+          ..write('itemId: $itemId, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(groupId, itemId, sortOrder);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WhiteboardGroupMember &&
+          other.groupId == this.groupId &&
+          other.itemId == this.itemId &&
+          other.sortOrder == this.sortOrder);
+}
+
+class WhiteboardGroupMembersCompanion
+    extends UpdateCompanion<WhiteboardGroupMember> {
+  final Value<String> groupId;
+  final Value<String> itemId;
+  final Value<int> sortOrder;
+  final Value<int> rowid;
+  const WhiteboardGroupMembersCompanion({
+    this.groupId = const Value.absent(),
+    this.itemId = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WhiteboardGroupMembersCompanion.insert({
+    required String groupId,
+    required String itemId,
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : groupId = Value(groupId),
+        itemId = Value(itemId);
+  static Insertable<WhiteboardGroupMember> custom({
+    Expression<String>? groupId,
+    Expression<String>? itemId,
+    Expression<int>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (groupId != null) 'group_id': groupId,
+      if (itemId != null) 'item_id': itemId,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WhiteboardGroupMembersCompanion copyWith(
+      {Value<String>? groupId,
+      Value<String>? itemId,
+      Value<int>? sortOrder,
+      Value<int>? rowid}) {
+    return WhiteboardGroupMembersCompanion(
+      groupId: groupId ?? this.groupId,
+      itemId: itemId ?? this.itemId,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
+    }
+    if (itemId.present) {
+      map['item_id'] = Variable<String>(itemId.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardGroupMembersCompanion(')
+          ..write('groupId: $groupId, ')
+          ..write('itemId: $itemId, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WhiteboardEdgesTable extends memory_v3.WhiteboardEdges
+    with TableInfo<$WhiteboardEdgesTable, WhiteboardEdge> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WhiteboardEdgesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _boardIdMeta =
+      const VerificationMeta('boardId');
+  @override
+  late final GeneratedColumn<String> boardId = GeneratedColumn<String>(
+      'board_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _fromItemIdMeta =
+      const VerificationMeta('fromItemId');
+  @override
+  late final GeneratedColumn<String> fromItemId = GeneratedColumn<String>(
+      'from_item_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _toItemIdMeta =
+      const VerificationMeta('toItemId');
+  @override
+  late final GeneratedColumn<String> toItemId = GeneratedColumn<String>(
+      'to_item_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _directionMeta =
+      const VerificationMeta('direction');
+  @override
+  late final GeneratedColumn<String> direction = GeneratedColumn<String>(
+      'direction', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('undirected'));
+  static const VerificationMeta _semanticTypeMeta =
+      const VerificationMeta('semanticType');
+  @override
+  late final GeneratedColumn<String> semanticType = GeneratedColumn<String>(
+      'semantic_type', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+      'label', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _styleJsonMeta =
+      const VerificationMeta('styleJson');
+  @override
+  late final GeneratedColumn<String> styleJson = GeneratedColumn<String>(
+      'style_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdByMeta =
+      const VerificationMeta('createdBy');
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+      'created_by', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('user'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _deletedAtMeta =
+      const VerificationMeta('deletedAt');
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+      'deleted_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        boardId,
+        fromItemId,
+        toItemId,
+        direction,
+        semanticType,
+        label,
+        styleJson,
+        createdBy,
+        createdAt,
+        deletedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'whiteboard_edges';
+  @override
+  VerificationContext validateIntegrity(Insertable<WhiteboardEdge> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('board_id')) {
+      context.handle(_boardIdMeta,
+          boardId.isAcceptableOrUnknown(data['board_id']!, _boardIdMeta));
+    } else if (isInserting) {
+      context.missing(_boardIdMeta);
+    }
+    if (data.containsKey('from_item_id')) {
+      context.handle(
+          _fromItemIdMeta,
+          fromItemId.isAcceptableOrUnknown(
+              data['from_item_id']!, _fromItemIdMeta));
+    } else if (isInserting) {
+      context.missing(_fromItemIdMeta);
+    }
+    if (data.containsKey('to_item_id')) {
+      context.handle(_toItemIdMeta,
+          toItemId.isAcceptableOrUnknown(data['to_item_id']!, _toItemIdMeta));
+    } else if (isInserting) {
+      context.missing(_toItemIdMeta);
+    }
+    if (data.containsKey('direction')) {
+      context.handle(_directionMeta,
+          direction.isAcceptableOrUnknown(data['direction']!, _directionMeta));
+    }
+    if (data.containsKey('semantic_type')) {
+      context.handle(
+          _semanticTypeMeta,
+          semanticType.isAcceptableOrUnknown(
+              data['semantic_type']!, _semanticTypeMeta));
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+          _labelMeta, label.isAcceptableOrUnknown(data['label']!, _labelMeta));
+    }
+    if (data.containsKey('style_json')) {
+      context.handle(_styleJsonMeta,
+          styleJson.isAcceptableOrUnknown(data['style_json']!, _styleJsonMeta));
+    }
+    if (data.containsKey('created_by')) {
+      context.handle(_createdByMeta,
+          createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(_deletedAtMeta,
+          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WhiteboardEdge map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WhiteboardEdge(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      boardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}board_id'])!,
+      fromItemId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}from_item_id'])!,
+      toItemId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}to_item_id'])!,
+      direction: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}direction'])!,
+      semanticType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}semantic_type']),
+      label: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}label']),
+      styleJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}style_json']),
+      createdBy: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}created_by'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      deletedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}deleted_at']),
+    );
+  }
+
+  @override
+  $WhiteboardEdgesTable createAlias(String alias) {
+    return $WhiteboardEdgesTable(attachedDatabase, alias);
+  }
+}
+
+class WhiteboardEdge extends DataClass implements Insertable<WhiteboardEdge> {
+  final String id;
+  final String boardId;
+  final String fromItemId;
+  final String toItemId;
+  final String direction;
+  final String? semanticType;
+  final String? label;
+
+  /// BoardEdge.style（Map）的 JSON；null = 默认样式。
+  final String? styleJson;
+  final String createdBy;
+  final int createdAt;
+  final int? deletedAt;
+  const WhiteboardEdge(
+      {required this.id,
+      required this.boardId,
+      required this.fromItemId,
+      required this.toItemId,
+      required this.direction,
+      this.semanticType,
+      this.label,
+      this.styleJson,
+      required this.createdBy,
+      required this.createdAt,
+      this.deletedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['board_id'] = Variable<String>(boardId);
+    map['from_item_id'] = Variable<String>(fromItemId);
+    map['to_item_id'] = Variable<String>(toItemId);
+    map['direction'] = Variable<String>(direction);
+    if (!nullToAbsent || semanticType != null) {
+      map['semantic_type'] = Variable<String>(semanticType);
+    }
+    if (!nullToAbsent || label != null) {
+      map['label'] = Variable<String>(label);
+    }
+    if (!nullToAbsent || styleJson != null) {
+      map['style_json'] = Variable<String>(styleJson);
+    }
+    map['created_by'] = Variable<String>(createdBy);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  WhiteboardEdgesCompanion toCompanion(bool nullToAbsent) {
+    return WhiteboardEdgesCompanion(
+      id: Value(id),
+      boardId: Value(boardId),
+      fromItemId: Value(fromItemId),
+      toItemId: Value(toItemId),
+      direction: Value(direction),
+      semanticType: semanticType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(semanticType),
+      label:
+          label == null && nullToAbsent ? const Value.absent() : Value(label),
+      styleJson: styleJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(styleJson),
+      createdBy: Value(createdBy),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory WhiteboardEdge.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WhiteboardEdge(
+      id: serializer.fromJson<String>(json['id']),
+      boardId: serializer.fromJson<String>(json['boardId']),
+      fromItemId: serializer.fromJson<String>(json['fromItemId']),
+      toItemId: serializer.fromJson<String>(json['toItemId']),
+      direction: serializer.fromJson<String>(json['direction']),
+      semanticType: serializer.fromJson<String?>(json['semanticType']),
+      label: serializer.fromJson<String?>(json['label']),
+      styleJson: serializer.fromJson<String?>(json['styleJson']),
+      createdBy: serializer.fromJson<String>(json['createdBy']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'boardId': serializer.toJson<String>(boardId),
+      'fromItemId': serializer.toJson<String>(fromItemId),
+      'toItemId': serializer.toJson<String>(toItemId),
+      'direction': serializer.toJson<String>(direction),
+      'semanticType': serializer.toJson<String?>(semanticType),
+      'label': serializer.toJson<String?>(label),
+      'styleJson': serializer.toJson<String?>(styleJson),
+      'createdBy': serializer.toJson<String>(createdBy),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  WhiteboardEdge copyWith(
+          {String? id,
+          String? boardId,
+          String? fromItemId,
+          String? toItemId,
+          String? direction,
+          Value<String?> semanticType = const Value.absent(),
+          Value<String?> label = const Value.absent(),
+          Value<String?> styleJson = const Value.absent(),
+          String? createdBy,
+          int? createdAt,
+          Value<int?> deletedAt = const Value.absent()}) =>
+      WhiteboardEdge(
+        id: id ?? this.id,
+        boardId: boardId ?? this.boardId,
+        fromItemId: fromItemId ?? this.fromItemId,
+        toItemId: toItemId ?? this.toItemId,
+        direction: direction ?? this.direction,
+        semanticType:
+            semanticType.present ? semanticType.value : this.semanticType,
+        label: label.present ? label.value : this.label,
+        styleJson: styleJson.present ? styleJson.value : this.styleJson,
+        createdBy: createdBy ?? this.createdBy,
+        createdAt: createdAt ?? this.createdAt,
+        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+      );
+  WhiteboardEdge copyWithCompanion(WhiteboardEdgesCompanion data) {
+    return WhiteboardEdge(
+      id: data.id.present ? data.id.value : this.id,
+      boardId: data.boardId.present ? data.boardId.value : this.boardId,
+      fromItemId:
+          data.fromItemId.present ? data.fromItemId.value : this.fromItemId,
+      toItemId: data.toItemId.present ? data.toItemId.value : this.toItemId,
+      direction: data.direction.present ? data.direction.value : this.direction,
+      semanticType: data.semanticType.present
+          ? data.semanticType.value
+          : this.semanticType,
+      label: data.label.present ? data.label.value : this.label,
+      styleJson: data.styleJson.present ? data.styleJson.value : this.styleJson,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardEdge(')
+          ..write('id: $id, ')
+          ..write('boardId: $boardId, ')
+          ..write('fromItemId: $fromItemId, ')
+          ..write('toItemId: $toItemId, ')
+          ..write('direction: $direction, ')
+          ..write('semanticType: $semanticType, ')
+          ..write('label: $label, ')
+          ..write('styleJson: $styleJson, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, boardId, fromItemId, toItemId, direction,
+      semanticType, label, styleJson, createdBy, createdAt, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WhiteboardEdge &&
+          other.id == this.id &&
+          other.boardId == this.boardId &&
+          other.fromItemId == this.fromItemId &&
+          other.toItemId == this.toItemId &&
+          other.direction == this.direction &&
+          other.semanticType == this.semanticType &&
+          other.label == this.label &&
+          other.styleJson == this.styleJson &&
+          other.createdBy == this.createdBy &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class WhiteboardEdgesCompanion extends UpdateCompanion<WhiteboardEdge> {
+  final Value<String> id;
+  final Value<String> boardId;
+  final Value<String> fromItemId;
+  final Value<String> toItemId;
+  final Value<String> direction;
+  final Value<String?> semanticType;
+  final Value<String?> label;
+  final Value<String?> styleJson;
+  final Value<String> createdBy;
+  final Value<int> createdAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const WhiteboardEdgesCompanion({
+    this.id = const Value.absent(),
+    this.boardId = const Value.absent(),
+    this.fromItemId = const Value.absent(),
+    this.toItemId = const Value.absent(),
+    this.direction = const Value.absent(),
+    this.semanticType = const Value.absent(),
+    this.label = const Value.absent(),
+    this.styleJson = const Value.absent(),
+    this.createdBy = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WhiteboardEdgesCompanion.insert({
+    required String id,
+    required String boardId,
+    required String fromItemId,
+    required String toItemId,
+    this.direction = const Value.absent(),
+    this.semanticType = const Value.absent(),
+    this.label = const Value.absent(),
+    this.styleJson = const Value.absent(),
+    this.createdBy = const Value.absent(),
+    required int createdAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        boardId = Value(boardId),
+        fromItemId = Value(fromItemId),
+        toItemId = Value(toItemId),
+        createdAt = Value(createdAt);
+  static Insertable<WhiteboardEdge> custom({
+    Expression<String>? id,
+    Expression<String>? boardId,
+    Expression<String>? fromItemId,
+    Expression<String>? toItemId,
+    Expression<String>? direction,
+    Expression<String>? semanticType,
+    Expression<String>? label,
+    Expression<String>? styleJson,
+    Expression<String>? createdBy,
+    Expression<int>? createdAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (boardId != null) 'board_id': boardId,
+      if (fromItemId != null) 'from_item_id': fromItemId,
+      if (toItemId != null) 'to_item_id': toItemId,
+      if (direction != null) 'direction': direction,
+      if (semanticType != null) 'semantic_type': semanticType,
+      if (label != null) 'label': label,
+      if (styleJson != null) 'style_json': styleJson,
+      if (createdBy != null) 'created_by': createdBy,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WhiteboardEdgesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? boardId,
+      Value<String>? fromItemId,
+      Value<String>? toItemId,
+      Value<String>? direction,
+      Value<String?>? semanticType,
+      Value<String?>? label,
+      Value<String?>? styleJson,
+      Value<String>? createdBy,
+      Value<int>? createdAt,
+      Value<int?>? deletedAt,
+      Value<int>? rowid}) {
+    return WhiteboardEdgesCompanion(
+      id: id ?? this.id,
+      boardId: boardId ?? this.boardId,
+      fromItemId: fromItemId ?? this.fromItemId,
+      toItemId: toItemId ?? this.toItemId,
+      direction: direction ?? this.direction,
+      semanticType: semanticType ?? this.semanticType,
+      label: label ?? this.label,
+      styleJson: styleJson ?? this.styleJson,
+      createdBy: createdBy ?? this.createdBy,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (boardId.present) {
+      map['board_id'] = Variable<String>(boardId.value);
+    }
+    if (fromItemId.present) {
+      map['from_item_id'] = Variable<String>(fromItemId.value);
+    }
+    if (toItemId.present) {
+      map['to_item_id'] = Variable<String>(toItemId.value);
+    }
+    if (direction.present) {
+      map['direction'] = Variable<String>(direction.value);
+    }
+    if (semanticType.present) {
+      map['semantic_type'] = Variable<String>(semanticType.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (styleJson.present) {
+      map['style_json'] = Variable<String>(styleJson.value);
+    }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardEdgesCompanion(')
+          ..write('id: $id, ')
+          ..write('boardId: $boardId, ')
+          ..write('fromItemId: $fromItemId, ')
+          ..write('toItemId: $toItemId, ')
+          ..write('direction: $direction, ')
+          ..write('semanticType: $semanticType, ')
+          ..write('label: $label, ')
+          ..write('styleJson: $styleJson, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WhiteboardSourcesTable extends memory_v3.WhiteboardSources
+    with TableInfo<$WhiteboardSourcesTable, WhiteboardSource> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WhiteboardSourcesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _mediaTypeMeta =
+      const VerificationMeta('mediaType');
+  @override
+  late final GeneratedColumn<String> mediaType = GeneratedColumn<String>(
+      'media_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+      'title', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _ownerSpaceMeta =
+      const VerificationMeta('ownerSpace');
+  @override
+  late final GeneratedColumn<String> ownerSpace = GeneratedColumn<String>(
+      'owner_space', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('user'));
+  static const VerificationMeta _originMeta = const VerificationMeta('origin');
+  @override
+  late final GeneratedColumn<String> origin = GeneratedColumn<String>(
+      'origin', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('unknown'));
+  static const VerificationMeta _providerMeta =
+      const VerificationMeta('provider');
+  @override
+  late final GeneratedColumn<String> provider = GeneratedColumn<String>(
+      'provider', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _canonicalIdMeta =
+      const VerificationMeta('canonicalId');
+  @override
+  late final GeneratedColumn<String> canonicalId = GeneratedColumn<String>(
+      'canonical_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _mimeTypeMeta =
+      const VerificationMeta('mimeType');
+  @override
+  late final GeneratedColumn<String> mimeType = GeneratedColumn<String>(
+      'mime_type', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _currentVersionIdMeta =
+      const VerificationMeta('currentVersionId');
+  @override
+  late final GeneratedColumn<String> currentVersionId = GeneratedColumn<String>(
+      'current_version_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _contentHashMeta =
+      const VerificationMeta('contentHash');
+  @override
+  late final GeneratedColumn<String> contentHash = GeneratedColumn<String>(
+      'content_hash', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _objectRefMeta =
+      const VerificationMeta('objectRef');
+  @override
+  late final GeneratedColumn<String> objectRef = GeneratedColumn<String>(
+      'object_ref', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _metadataJsonMeta =
+      const VerificationMeta('metadataJson');
+  @override
+  late final GeneratedColumn<String> metadataJson = GeneratedColumn<String>(
+      'metadata_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _deletedAtMeta =
+      const VerificationMeta('deletedAt');
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+      'deleted_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        mediaType,
+        title,
+        ownerSpace,
+        origin,
+        provider,
+        canonicalId,
+        mimeType,
+        currentVersionId,
+        contentHash,
+        objectRef,
+        metadataJson,
+        createdAt,
+        updatedAt,
+        deletedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'whiteboard_sources';
+  @override
+  VerificationContext validateIntegrity(Insertable<WhiteboardSource> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('media_type')) {
+      context.handle(_mediaTypeMeta,
+          mediaType.isAcceptableOrUnknown(data['media_type']!, _mediaTypeMeta));
+    } else if (isInserting) {
+      context.missing(_mediaTypeMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+          _titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('owner_space')) {
+      context.handle(
+          _ownerSpaceMeta,
+          ownerSpace.isAcceptableOrUnknown(
+              data['owner_space']!, _ownerSpaceMeta));
+    }
+    if (data.containsKey('origin')) {
+      context.handle(_originMeta,
+          origin.isAcceptableOrUnknown(data['origin']!, _originMeta));
+    }
+    if (data.containsKey('provider')) {
+      context.handle(_providerMeta,
+          provider.isAcceptableOrUnknown(data['provider']!, _providerMeta));
+    }
+    if (data.containsKey('canonical_id')) {
+      context.handle(
+          _canonicalIdMeta,
+          canonicalId.isAcceptableOrUnknown(
+              data['canonical_id']!, _canonicalIdMeta));
+    }
+    if (data.containsKey('mime_type')) {
+      context.handle(_mimeTypeMeta,
+          mimeType.isAcceptableOrUnknown(data['mime_type']!, _mimeTypeMeta));
+    }
+    if (data.containsKey('current_version_id')) {
+      context.handle(
+          _currentVersionIdMeta,
+          currentVersionId.isAcceptableOrUnknown(
+              data['current_version_id']!, _currentVersionIdMeta));
+    }
+    if (data.containsKey('content_hash')) {
+      context.handle(
+          _contentHashMeta,
+          contentHash.isAcceptableOrUnknown(
+              data['content_hash']!, _contentHashMeta));
+    }
+    if (data.containsKey('object_ref')) {
+      context.handle(_objectRefMeta,
+          objectRef.isAcceptableOrUnknown(data['object_ref']!, _objectRefMeta));
+    }
+    if (data.containsKey('metadata_json')) {
+      context.handle(
+          _metadataJsonMeta,
+          metadataJson.isAcceptableOrUnknown(
+              data['metadata_json']!, _metadataJsonMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(_deletedAtMeta,
+          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WhiteboardSource map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WhiteboardSource(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      mediaType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}media_type'])!,
+      title: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      ownerSpace: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}owner_space'])!,
+      origin: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}origin'])!,
+      provider: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}provider']),
+      canonicalId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}canonical_id']),
+      mimeType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}mime_type']),
+      currentVersionId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}current_version_id']),
+      contentHash: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content_hash']),
+      objectRef: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}object_ref']),
+      metadataJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}metadata_json']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at']),
+      deletedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}deleted_at']),
+    );
+  }
+
+  @override
+  $WhiteboardSourcesTable createAlias(String alias) {
+    return $WhiteboardSourcesTable(attachedDatabase, alias);
+  }
+}
+
+class WhiteboardSource extends DataClass
+    implements Insertable<WhiteboardSource> {
+  final String id;
+  final String mediaType;
+  final String title;
+  final String ownerSpace;
+  final String origin;
+  final String? provider;
+  final String? canonicalId;
+  final String? mimeType;
+  final String? currentVersionId;
+  final String? contentHash;
+  final String? objectRef;
+
+  /// SourceContent.metadata（Map）的 JSON；null = 无元数据。
+  final String? metadataJson;
+  final int createdAt;
+  final int? updatedAt;
+  final int? deletedAt;
+  const WhiteboardSource(
+      {required this.id,
+      required this.mediaType,
+      required this.title,
+      required this.ownerSpace,
+      required this.origin,
+      this.provider,
+      this.canonicalId,
+      this.mimeType,
+      this.currentVersionId,
+      this.contentHash,
+      this.objectRef,
+      this.metadataJson,
+      required this.createdAt,
+      this.updatedAt,
+      this.deletedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['media_type'] = Variable<String>(mediaType);
+    map['title'] = Variable<String>(title);
+    map['owner_space'] = Variable<String>(ownerSpace);
+    map['origin'] = Variable<String>(origin);
+    if (!nullToAbsent || provider != null) {
+      map['provider'] = Variable<String>(provider);
+    }
+    if (!nullToAbsent || canonicalId != null) {
+      map['canonical_id'] = Variable<String>(canonicalId);
+    }
+    if (!nullToAbsent || mimeType != null) {
+      map['mime_type'] = Variable<String>(mimeType);
+    }
+    if (!nullToAbsent || currentVersionId != null) {
+      map['current_version_id'] = Variable<String>(currentVersionId);
+    }
+    if (!nullToAbsent || contentHash != null) {
+      map['content_hash'] = Variable<String>(contentHash);
+    }
+    if (!nullToAbsent || objectRef != null) {
+      map['object_ref'] = Variable<String>(objectRef);
+    }
+    if (!nullToAbsent || metadataJson != null) {
+      map['metadata_json'] = Variable<String>(metadataJson);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<int>(updatedAt);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  WhiteboardSourcesCompanion toCompanion(bool nullToAbsent) {
+    return WhiteboardSourcesCompanion(
+      id: Value(id),
+      mediaType: Value(mediaType),
+      title: Value(title),
+      ownerSpace: Value(ownerSpace),
+      origin: Value(origin),
+      provider: provider == null && nullToAbsent
+          ? const Value.absent()
+          : Value(provider),
+      canonicalId: canonicalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(canonicalId),
+      mimeType: mimeType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mimeType),
+      currentVersionId: currentVersionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(currentVersionId),
+      contentHash: contentHash == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contentHash),
+      objectRef: objectRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(objectRef),
+      metadataJson: metadataJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(metadataJson),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory WhiteboardSource.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WhiteboardSource(
+      id: serializer.fromJson<String>(json['id']),
+      mediaType: serializer.fromJson<String>(json['mediaType']),
+      title: serializer.fromJson<String>(json['title']),
+      ownerSpace: serializer.fromJson<String>(json['ownerSpace']),
+      origin: serializer.fromJson<String>(json['origin']),
+      provider: serializer.fromJson<String?>(json['provider']),
+      canonicalId: serializer.fromJson<String?>(json['canonicalId']),
+      mimeType: serializer.fromJson<String?>(json['mimeType']),
+      currentVersionId: serializer.fromJson<String?>(json['currentVersionId']),
+      contentHash: serializer.fromJson<String?>(json['contentHash']),
+      objectRef: serializer.fromJson<String?>(json['objectRef']),
+      metadataJson: serializer.fromJson<String?>(json['metadataJson']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int?>(json['updatedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'mediaType': serializer.toJson<String>(mediaType),
+      'title': serializer.toJson<String>(title),
+      'ownerSpace': serializer.toJson<String>(ownerSpace),
+      'origin': serializer.toJson<String>(origin),
+      'provider': serializer.toJson<String?>(provider),
+      'canonicalId': serializer.toJson<String?>(canonicalId),
+      'mimeType': serializer.toJson<String?>(mimeType),
+      'currentVersionId': serializer.toJson<String?>(currentVersionId),
+      'contentHash': serializer.toJson<String?>(contentHash),
+      'objectRef': serializer.toJson<String?>(objectRef),
+      'metadataJson': serializer.toJson<String?>(metadataJson),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int?>(updatedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  WhiteboardSource copyWith(
+          {String? id,
+          String? mediaType,
+          String? title,
+          String? ownerSpace,
+          String? origin,
+          Value<String?> provider = const Value.absent(),
+          Value<String?> canonicalId = const Value.absent(),
+          Value<String?> mimeType = const Value.absent(),
+          Value<String?> currentVersionId = const Value.absent(),
+          Value<String?> contentHash = const Value.absent(),
+          Value<String?> objectRef = const Value.absent(),
+          Value<String?> metadataJson = const Value.absent(),
+          int? createdAt,
+          Value<int?> updatedAt = const Value.absent(),
+          Value<int?> deletedAt = const Value.absent()}) =>
+      WhiteboardSource(
+        id: id ?? this.id,
+        mediaType: mediaType ?? this.mediaType,
+        title: title ?? this.title,
+        ownerSpace: ownerSpace ?? this.ownerSpace,
+        origin: origin ?? this.origin,
+        provider: provider.present ? provider.value : this.provider,
+        canonicalId: canonicalId.present ? canonicalId.value : this.canonicalId,
+        mimeType: mimeType.present ? mimeType.value : this.mimeType,
+        currentVersionId: currentVersionId.present
+            ? currentVersionId.value
+            : this.currentVersionId,
+        contentHash: contentHash.present ? contentHash.value : this.contentHash,
+        objectRef: objectRef.present ? objectRef.value : this.objectRef,
+        metadataJson:
+            metadataJson.present ? metadataJson.value : this.metadataJson,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+      );
+  WhiteboardSource copyWithCompanion(WhiteboardSourcesCompanion data) {
+    return WhiteboardSource(
+      id: data.id.present ? data.id.value : this.id,
+      mediaType: data.mediaType.present ? data.mediaType.value : this.mediaType,
+      title: data.title.present ? data.title.value : this.title,
+      ownerSpace:
+          data.ownerSpace.present ? data.ownerSpace.value : this.ownerSpace,
+      origin: data.origin.present ? data.origin.value : this.origin,
+      provider: data.provider.present ? data.provider.value : this.provider,
+      canonicalId:
+          data.canonicalId.present ? data.canonicalId.value : this.canonicalId,
+      mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
+      currentVersionId: data.currentVersionId.present
+          ? data.currentVersionId.value
+          : this.currentVersionId,
+      contentHash:
+          data.contentHash.present ? data.contentHash.value : this.contentHash,
+      objectRef: data.objectRef.present ? data.objectRef.value : this.objectRef,
+      metadataJson: data.metadataJson.present
+          ? data.metadataJson.value
+          : this.metadataJson,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardSource(')
+          ..write('id: $id, ')
+          ..write('mediaType: $mediaType, ')
+          ..write('title: $title, ')
+          ..write('ownerSpace: $ownerSpace, ')
+          ..write('origin: $origin, ')
+          ..write('provider: $provider, ')
+          ..write('canonicalId: $canonicalId, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('currentVersionId: $currentVersionId, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('objectRef: $objectRef, ')
+          ..write('metadataJson: $metadataJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      mediaType,
+      title,
+      ownerSpace,
+      origin,
+      provider,
+      canonicalId,
+      mimeType,
+      currentVersionId,
+      contentHash,
+      objectRef,
+      metadataJson,
+      createdAt,
+      updatedAt,
+      deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WhiteboardSource &&
+          other.id == this.id &&
+          other.mediaType == this.mediaType &&
+          other.title == this.title &&
+          other.ownerSpace == this.ownerSpace &&
+          other.origin == this.origin &&
+          other.provider == this.provider &&
+          other.canonicalId == this.canonicalId &&
+          other.mimeType == this.mimeType &&
+          other.currentVersionId == this.currentVersionId &&
+          other.contentHash == this.contentHash &&
+          other.objectRef == this.objectRef &&
+          other.metadataJson == this.metadataJson &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class WhiteboardSourcesCompanion extends UpdateCompanion<WhiteboardSource> {
+  final Value<String> id;
+  final Value<String> mediaType;
+  final Value<String> title;
+  final Value<String> ownerSpace;
+  final Value<String> origin;
+  final Value<String?> provider;
+  final Value<String?> canonicalId;
+  final Value<String?> mimeType;
+  final Value<String?> currentVersionId;
+  final Value<String?> contentHash;
+  final Value<String?> objectRef;
+  final Value<String?> metadataJson;
+  final Value<int> createdAt;
+  final Value<int?> updatedAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const WhiteboardSourcesCompanion({
+    this.id = const Value.absent(),
+    this.mediaType = const Value.absent(),
+    this.title = const Value.absent(),
+    this.ownerSpace = const Value.absent(),
+    this.origin = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.canonicalId = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.currentVersionId = const Value.absent(),
+    this.contentHash = const Value.absent(),
+    this.objectRef = const Value.absent(),
+    this.metadataJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WhiteboardSourcesCompanion.insert({
+    required String id,
+    required String mediaType,
+    required String title,
+    this.ownerSpace = const Value.absent(),
+    this.origin = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.canonicalId = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.currentVersionId = const Value.absent(),
+    this.contentHash = const Value.absent(),
+    this.objectRef = const Value.absent(),
+    this.metadataJson = const Value.absent(),
+    required int createdAt,
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        mediaType = Value(mediaType),
+        title = Value(title),
+        createdAt = Value(createdAt);
+  static Insertable<WhiteboardSource> custom({
+    Expression<String>? id,
+    Expression<String>? mediaType,
+    Expression<String>? title,
+    Expression<String>? ownerSpace,
+    Expression<String>? origin,
+    Expression<String>? provider,
+    Expression<String>? canonicalId,
+    Expression<String>? mimeType,
+    Expression<String>? currentVersionId,
+    Expression<String>? contentHash,
+    Expression<String>? objectRef,
+    Expression<String>? metadataJson,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (mediaType != null) 'media_type': mediaType,
+      if (title != null) 'title': title,
+      if (ownerSpace != null) 'owner_space': ownerSpace,
+      if (origin != null) 'origin': origin,
+      if (provider != null) 'provider': provider,
+      if (canonicalId != null) 'canonical_id': canonicalId,
+      if (mimeType != null) 'mime_type': mimeType,
+      if (currentVersionId != null) 'current_version_id': currentVersionId,
+      if (contentHash != null) 'content_hash': contentHash,
+      if (objectRef != null) 'object_ref': objectRef,
+      if (metadataJson != null) 'metadata_json': metadataJson,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WhiteboardSourcesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? mediaType,
+      Value<String>? title,
+      Value<String>? ownerSpace,
+      Value<String>? origin,
+      Value<String?>? provider,
+      Value<String?>? canonicalId,
+      Value<String?>? mimeType,
+      Value<String?>? currentVersionId,
+      Value<String?>? contentHash,
+      Value<String?>? objectRef,
+      Value<String?>? metadataJson,
+      Value<int>? createdAt,
+      Value<int?>? updatedAt,
+      Value<int?>? deletedAt,
+      Value<int>? rowid}) {
+    return WhiteboardSourcesCompanion(
+      id: id ?? this.id,
+      mediaType: mediaType ?? this.mediaType,
+      title: title ?? this.title,
+      ownerSpace: ownerSpace ?? this.ownerSpace,
+      origin: origin ?? this.origin,
+      provider: provider ?? this.provider,
+      canonicalId: canonicalId ?? this.canonicalId,
+      mimeType: mimeType ?? this.mimeType,
+      currentVersionId: currentVersionId ?? this.currentVersionId,
+      contentHash: contentHash ?? this.contentHash,
+      objectRef: objectRef ?? this.objectRef,
+      metadataJson: metadataJson ?? this.metadataJson,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (mediaType.present) {
+      map['media_type'] = Variable<String>(mediaType.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (ownerSpace.present) {
+      map['owner_space'] = Variable<String>(ownerSpace.value);
+    }
+    if (origin.present) {
+      map['origin'] = Variable<String>(origin.value);
+    }
+    if (provider.present) {
+      map['provider'] = Variable<String>(provider.value);
+    }
+    if (canonicalId.present) {
+      map['canonical_id'] = Variable<String>(canonicalId.value);
+    }
+    if (mimeType.present) {
+      map['mime_type'] = Variable<String>(mimeType.value);
+    }
+    if (currentVersionId.present) {
+      map['current_version_id'] = Variable<String>(currentVersionId.value);
+    }
+    if (contentHash.present) {
+      map['content_hash'] = Variable<String>(contentHash.value);
+    }
+    if (objectRef.present) {
+      map['object_ref'] = Variable<String>(objectRef.value);
+    }
+    if (metadataJson.present) {
+      map['metadata_json'] = Variable<String>(metadataJson.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardSourcesCompanion(')
+          ..write('id: $id, ')
+          ..write('mediaType: $mediaType, ')
+          ..write('title: $title, ')
+          ..write('ownerSpace: $ownerSpace, ')
+          ..write('origin: $origin, ')
+          ..write('provider: $provider, ')
+          ..write('canonicalId: $canonicalId, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('currentVersionId: $currentVersionId, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('objectRef: $objectRef, ')
+          ..write('metadataJson: $metadataJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WhiteboardSourceVersionsTable extends memory_v3.WhiteboardSourceVersions
+    with TableInfo<$WhiteboardSourceVersionsTable, WhiteboardSourceVersion> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WhiteboardSourceVersionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceIdMeta =
+      const VerificationMeta('sourceId');
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+      'source_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentHashMeta =
+      const VerificationMeta('contentHash');
+  @override
+  late final GeneratedColumn<String> contentHash = GeneratedColumn<String>(
+      'content_hash', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _objectRefMeta =
+      const VerificationMeta('objectRef');
+  @override
+  late final GeneratedColumn<String> objectRef = GeneratedColumn<String>(
+      'object_ref', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _parserVersionMeta =
+      const VerificationMeta('parserVersion');
+  @override
+  late final GeneratedColumn<String> parserVersion = GeneratedColumn<String>(
+      'parser_version', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, sourceId, contentHash, objectRef, parserVersion, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'whiteboard_source_versions';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<WhiteboardSourceVersion> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(_sourceIdMeta,
+          sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta));
+    } else if (isInserting) {
+      context.missing(_sourceIdMeta);
+    }
+    if (data.containsKey('content_hash')) {
+      context.handle(
+          _contentHashMeta,
+          contentHash.isAcceptableOrUnknown(
+              data['content_hash']!, _contentHashMeta));
+    } else if (isInserting) {
+      context.missing(_contentHashMeta);
+    }
+    if (data.containsKey('object_ref')) {
+      context.handle(_objectRefMeta,
+          objectRef.isAcceptableOrUnknown(data['object_ref']!, _objectRefMeta));
+    } else if (isInserting) {
+      context.missing(_objectRefMeta);
+    }
+    if (data.containsKey('parser_version')) {
+      context.handle(
+          _parserVersionMeta,
+          parserVersion.isAcceptableOrUnknown(
+              data['parser_version']!, _parserVersionMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WhiteboardSourceVersion map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WhiteboardSourceVersion(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      sourceId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_id'])!,
+      contentHash: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content_hash'])!,
+      objectRef: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}object_ref'])!,
+      parserVersion: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}parser_version']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $WhiteboardSourceVersionsTable createAlias(String alias) {
+    return $WhiteboardSourceVersionsTable(attachedDatabase, alias);
+  }
+}
+
+class WhiteboardSourceVersion extends DataClass
+    implements Insertable<WhiteboardSourceVersion> {
+  final String id;
+  final String sourceId;
+  final String contentHash;
+  final String objectRef;
+  final String? parserVersion;
+  final int createdAt;
+  const WhiteboardSourceVersion(
+      {required this.id,
+      required this.sourceId,
+      required this.contentHash,
+      required this.objectRef,
+      this.parserVersion,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['source_id'] = Variable<String>(sourceId);
+    map['content_hash'] = Variable<String>(contentHash);
+    map['object_ref'] = Variable<String>(objectRef);
+    if (!nullToAbsent || parserVersion != null) {
+      map['parser_version'] = Variable<String>(parserVersion);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  WhiteboardSourceVersionsCompanion toCompanion(bool nullToAbsent) {
+    return WhiteboardSourceVersionsCompanion(
+      id: Value(id),
+      sourceId: Value(sourceId),
+      contentHash: Value(contentHash),
+      objectRef: Value(objectRef),
+      parserVersion: parserVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parserVersion),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory WhiteboardSourceVersion.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WhiteboardSourceVersion(
+      id: serializer.fromJson<String>(json['id']),
+      sourceId: serializer.fromJson<String>(json['sourceId']),
+      contentHash: serializer.fromJson<String>(json['contentHash']),
+      objectRef: serializer.fromJson<String>(json['objectRef']),
+      parserVersion: serializer.fromJson<String?>(json['parserVersion']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'sourceId': serializer.toJson<String>(sourceId),
+      'contentHash': serializer.toJson<String>(contentHash),
+      'objectRef': serializer.toJson<String>(objectRef),
+      'parserVersion': serializer.toJson<String?>(parserVersion),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  WhiteboardSourceVersion copyWith(
+          {String? id,
+          String? sourceId,
+          String? contentHash,
+          String? objectRef,
+          Value<String?> parserVersion = const Value.absent(),
+          int? createdAt}) =>
+      WhiteboardSourceVersion(
+        id: id ?? this.id,
+        sourceId: sourceId ?? this.sourceId,
+        contentHash: contentHash ?? this.contentHash,
+        objectRef: objectRef ?? this.objectRef,
+        parserVersion:
+            parserVersion.present ? parserVersion.value : this.parserVersion,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  WhiteboardSourceVersion copyWithCompanion(
+      WhiteboardSourceVersionsCompanion data) {
+    return WhiteboardSourceVersion(
+      id: data.id.present ? data.id.value : this.id,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      contentHash:
+          data.contentHash.present ? data.contentHash.value : this.contentHash,
+      objectRef: data.objectRef.present ? data.objectRef.value : this.objectRef,
+      parserVersion: data.parserVersion.present
+          ? data.parserVersion.value
+          : this.parserVersion,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardSourceVersion(')
+          ..write('id: $id, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('objectRef: $objectRef, ')
+          ..write('parserVersion: $parserVersion, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, sourceId, contentHash, objectRef, parserVersion, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WhiteboardSourceVersion &&
+          other.id == this.id &&
+          other.sourceId == this.sourceId &&
+          other.contentHash == this.contentHash &&
+          other.objectRef == this.objectRef &&
+          other.parserVersion == this.parserVersion &&
+          other.createdAt == this.createdAt);
+}
+
+class WhiteboardSourceVersionsCompanion
+    extends UpdateCompanion<WhiteboardSourceVersion> {
+  final Value<String> id;
+  final Value<String> sourceId;
+  final Value<String> contentHash;
+  final Value<String> objectRef;
+  final Value<String?> parserVersion;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const WhiteboardSourceVersionsCompanion({
+    this.id = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.contentHash = const Value.absent(),
+    this.objectRef = const Value.absent(),
+    this.parserVersion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WhiteboardSourceVersionsCompanion.insert({
+    required String id,
+    required String sourceId,
+    required String contentHash,
+    required String objectRef,
+    this.parserVersion = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        sourceId = Value(sourceId),
+        contentHash = Value(contentHash),
+        objectRef = Value(objectRef),
+        createdAt = Value(createdAt);
+  static Insertable<WhiteboardSourceVersion> custom({
+    Expression<String>? id,
+    Expression<String>? sourceId,
+    Expression<String>? contentHash,
+    Expression<String>? objectRef,
+    Expression<String>? parserVersion,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sourceId != null) 'source_id': sourceId,
+      if (contentHash != null) 'content_hash': contentHash,
+      if (objectRef != null) 'object_ref': objectRef,
+      if (parserVersion != null) 'parser_version': parserVersion,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WhiteboardSourceVersionsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? sourceId,
+      Value<String>? contentHash,
+      Value<String>? objectRef,
+      Value<String?>? parserVersion,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return WhiteboardSourceVersionsCompanion(
+      id: id ?? this.id,
+      sourceId: sourceId ?? this.sourceId,
+      contentHash: contentHash ?? this.contentHash,
+      objectRef: objectRef ?? this.objectRef,
+      parserVersion: parserVersion ?? this.parserVersion,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (contentHash.present) {
+      map['content_hash'] = Variable<String>(contentHash.value);
+    }
+    if (objectRef.present) {
+      map['object_ref'] = Variable<String>(objectRef.value);
+    }
+    if (parserVersion.present) {
+      map['parser_version'] = Variable<String>(parserVersion.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardSourceVersionsCompanion(')
+          ..write('id: $id, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('objectRef: $objectRef, ')
+          ..write('parserVersion: $parserVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WhiteboardCardExtrasTable extends memory_v3.WhiteboardCardExtras
+    with TableInfo<$WhiteboardCardExtrasTable, WhiteboardCardExtra> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WhiteboardCardExtrasTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _cardIdMeta = const VerificationMeta('cardId');
+  @override
+  late final GeneratedColumn<String> cardId = GeneratedColumn<String>(
+      'card_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _cardKindMeta =
+      const VerificationMeta('cardKind');
+  @override
+  late final GeneratedColumn<String> cardKind = GeneratedColumn<String>(
+      'card_kind', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sourceIdMeta =
+      const VerificationMeta('sourceId');
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+      'source_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _ownerSpaceMeta =
+      const VerificationMeta('ownerSpace');
+  @override
+  late final GeneratedColumn<String> ownerSpace = GeneratedColumn<String>(
+      'owner_space', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('user'));
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+      'body', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
+  static const VerificationMeta _tagsJsonMeta =
+      const VerificationMeta('tagsJson');
+  @override
+  late final GeneratedColumn<String> tagsJson = GeneratedColumn<String>(
+      'tags_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
+  static const VerificationMeta _presentationJsonMeta =
+      const VerificationMeta('presentationJson');
+  @override
+  late final GeneratedColumn<String> presentationJson = GeneratedColumn<String>(
+      'presentation_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdByMeta =
+      const VerificationMeta('createdBy');
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+      'created_by', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('user'));
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _deletedAtMeta =
+      const VerificationMeta('deletedAt');
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+      'deleted_at', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        cardId,
+        cardKind,
+        sourceId,
+        ownerSpace,
+        body,
+        tagsJson,
+        presentationJson,
+        createdBy,
+        updatedAt,
+        deletedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'whiteboard_card_extras';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<WhiteboardCardExtra> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('card_id')) {
+      context.handle(_cardIdMeta,
+          cardId.isAcceptableOrUnknown(data['card_id']!, _cardIdMeta));
+    } else if (isInserting) {
+      context.missing(_cardIdMeta);
+    }
+    if (data.containsKey('card_kind')) {
+      context.handle(_cardKindMeta,
+          cardKind.isAcceptableOrUnknown(data['card_kind']!, _cardKindMeta));
+    } else if (isInserting) {
+      context.missing(_cardKindMeta);
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(_sourceIdMeta,
+          sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta));
+    }
+    if (data.containsKey('owner_space')) {
+      context.handle(
+          _ownerSpaceMeta,
+          ownerSpace.isAcceptableOrUnknown(
+              data['owner_space']!, _ownerSpaceMeta));
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+          _bodyMeta, body.isAcceptableOrUnknown(data['body']!, _bodyMeta));
+    }
+    if (data.containsKey('tags_json')) {
+      context.handle(_tagsJsonMeta,
+          tagsJson.isAcceptableOrUnknown(data['tags_json']!, _tagsJsonMeta));
+    }
+    if (data.containsKey('presentation_json')) {
+      context.handle(
+          _presentationJsonMeta,
+          presentationJson.isAcceptableOrUnknown(
+              data['presentation_json']!, _presentationJsonMeta));
+    }
+    if (data.containsKey('created_by')) {
+      context.handle(_createdByMeta,
+          createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta));
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(_deletedAtMeta,
+          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {cardId};
+  @override
+  WhiteboardCardExtra map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WhiteboardCardExtra(
+      cardId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}card_id'])!,
+      cardKind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}card_kind'])!,
+      sourceId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source_id']),
+      ownerSpace: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}owner_space'])!,
+      body: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}body'])!,
+      tagsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}tags_json'])!,
+      presentationJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}presentation_json']),
+      createdBy: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}created_by'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at']),
+      deletedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}deleted_at']),
+    );
+  }
+
+  @override
+  $WhiteboardCardExtrasTable createAlias(String alias) {
+    return $WhiteboardCardExtrasTable(attachedDatabase, alias);
+  }
+}
+
+class WhiteboardCardExtra extends DataClass
+    implements Insertable<WhiteboardCardExtra> {
+  final String cardId;
+  final String cardKind;
+  final String? sourceId;
+  final String ownerSpace;
+  final String body;
+
+  /// tags（List<String>）的 JSON，默认 '[]'。
+  final String tagsJson;
+
+  /// CardContract.presentation（Map）的 JSON；null = 无。
+  final String? presentationJson;
+  final String createdBy;
+  final int? updatedAt;
+  final int? deletedAt;
+  const WhiteboardCardExtra(
+      {required this.cardId,
+      required this.cardKind,
+      this.sourceId,
+      required this.ownerSpace,
+      required this.body,
+      required this.tagsJson,
+      this.presentationJson,
+      required this.createdBy,
+      this.updatedAt,
+      this.deletedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['card_id'] = Variable<String>(cardId);
+    map['card_kind'] = Variable<String>(cardKind);
+    if (!nullToAbsent || sourceId != null) {
+      map['source_id'] = Variable<String>(sourceId);
+    }
+    map['owner_space'] = Variable<String>(ownerSpace);
+    map['body'] = Variable<String>(body);
+    map['tags_json'] = Variable<String>(tagsJson);
+    if (!nullToAbsent || presentationJson != null) {
+      map['presentation_json'] = Variable<String>(presentationJson);
+    }
+    map['created_by'] = Variable<String>(createdBy);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<int>(updatedAt);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    return map;
+  }
+
+  WhiteboardCardExtrasCompanion toCompanion(bool nullToAbsent) {
+    return WhiteboardCardExtrasCompanion(
+      cardId: Value(cardId),
+      cardKind: Value(cardKind),
+      sourceId: sourceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceId),
+      ownerSpace: Value(ownerSpace),
+      body: Value(body),
+      tagsJson: Value(tagsJson),
+      presentationJson: presentationJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(presentationJson),
+      createdBy: Value(createdBy),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory WhiteboardCardExtra.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WhiteboardCardExtra(
+      cardId: serializer.fromJson<String>(json['cardId']),
+      cardKind: serializer.fromJson<String>(json['cardKind']),
+      sourceId: serializer.fromJson<String?>(json['sourceId']),
+      ownerSpace: serializer.fromJson<String>(json['ownerSpace']),
+      body: serializer.fromJson<String>(json['body']),
+      tagsJson: serializer.fromJson<String>(json['tagsJson']),
+      presentationJson: serializer.fromJson<String?>(json['presentationJson']),
+      createdBy: serializer.fromJson<String>(json['createdBy']),
+      updatedAt: serializer.fromJson<int?>(json['updatedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'cardId': serializer.toJson<String>(cardId),
+      'cardKind': serializer.toJson<String>(cardKind),
+      'sourceId': serializer.toJson<String?>(sourceId),
+      'ownerSpace': serializer.toJson<String>(ownerSpace),
+      'body': serializer.toJson<String>(body),
+      'tagsJson': serializer.toJson<String>(tagsJson),
+      'presentationJson': serializer.toJson<String?>(presentationJson),
+      'createdBy': serializer.toJson<String>(createdBy),
+      'updatedAt': serializer.toJson<int?>(updatedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+    };
+  }
+
+  WhiteboardCardExtra copyWith(
+          {String? cardId,
+          String? cardKind,
+          Value<String?> sourceId = const Value.absent(),
+          String? ownerSpace,
+          String? body,
+          String? tagsJson,
+          Value<String?> presentationJson = const Value.absent(),
+          String? createdBy,
+          Value<int?> updatedAt = const Value.absent(),
+          Value<int?> deletedAt = const Value.absent()}) =>
+      WhiteboardCardExtra(
+        cardId: cardId ?? this.cardId,
+        cardKind: cardKind ?? this.cardKind,
+        sourceId: sourceId.present ? sourceId.value : this.sourceId,
+        ownerSpace: ownerSpace ?? this.ownerSpace,
+        body: body ?? this.body,
+        tagsJson: tagsJson ?? this.tagsJson,
+        presentationJson: presentationJson.present
+            ? presentationJson.value
+            : this.presentationJson,
+        createdBy: createdBy ?? this.createdBy,
+        updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+      );
+  WhiteboardCardExtra copyWithCompanion(WhiteboardCardExtrasCompanion data) {
+    return WhiteboardCardExtra(
+      cardId: data.cardId.present ? data.cardId.value : this.cardId,
+      cardKind: data.cardKind.present ? data.cardKind.value : this.cardKind,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      ownerSpace:
+          data.ownerSpace.present ? data.ownerSpace.value : this.ownerSpace,
+      body: data.body.present ? data.body.value : this.body,
+      tagsJson: data.tagsJson.present ? data.tagsJson.value : this.tagsJson,
+      presentationJson: data.presentationJson.present
+          ? data.presentationJson.value
+          : this.presentationJson,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardCardExtra(')
+          ..write('cardId: $cardId, ')
+          ..write('cardKind: $cardKind, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('ownerSpace: $ownerSpace, ')
+          ..write('body: $body, ')
+          ..write('tagsJson: $tagsJson, ')
+          ..write('presentationJson: $presentationJson, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(cardId, cardKind, sourceId, ownerSpace, body,
+      tagsJson, presentationJson, createdBy, updatedAt, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WhiteboardCardExtra &&
+          other.cardId == this.cardId &&
+          other.cardKind == this.cardKind &&
+          other.sourceId == this.sourceId &&
+          other.ownerSpace == this.ownerSpace &&
+          other.body == this.body &&
+          other.tagsJson == this.tagsJson &&
+          other.presentationJson == this.presentationJson &&
+          other.createdBy == this.createdBy &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class WhiteboardCardExtrasCompanion
+    extends UpdateCompanion<WhiteboardCardExtra> {
+  final Value<String> cardId;
+  final Value<String> cardKind;
+  final Value<String?> sourceId;
+  final Value<String> ownerSpace;
+  final Value<String> body;
+  final Value<String> tagsJson;
+  final Value<String?> presentationJson;
+  final Value<String> createdBy;
+  final Value<int?> updatedAt;
+  final Value<int?> deletedAt;
+  final Value<int> rowid;
+  const WhiteboardCardExtrasCompanion({
+    this.cardId = const Value.absent(),
+    this.cardKind = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.ownerSpace = const Value.absent(),
+    this.body = const Value.absent(),
+    this.tagsJson = const Value.absent(),
+    this.presentationJson = const Value.absent(),
+    this.createdBy = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WhiteboardCardExtrasCompanion.insert({
+    required String cardId,
+    required String cardKind,
+    this.sourceId = const Value.absent(),
+    this.ownerSpace = const Value.absent(),
+    this.body = const Value.absent(),
+    this.tagsJson = const Value.absent(),
+    this.presentationJson = const Value.absent(),
+    this.createdBy = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : cardId = Value(cardId),
+        cardKind = Value(cardKind);
+  static Insertable<WhiteboardCardExtra> custom({
+    Expression<String>? cardId,
+    Expression<String>? cardKind,
+    Expression<String>? sourceId,
+    Expression<String>? ownerSpace,
+    Expression<String>? body,
+    Expression<String>? tagsJson,
+    Expression<String>? presentationJson,
+    Expression<String>? createdBy,
+    Expression<int>? updatedAt,
+    Expression<int>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (cardId != null) 'card_id': cardId,
+      if (cardKind != null) 'card_kind': cardKind,
+      if (sourceId != null) 'source_id': sourceId,
+      if (ownerSpace != null) 'owner_space': ownerSpace,
+      if (body != null) 'body': body,
+      if (tagsJson != null) 'tags_json': tagsJson,
+      if (presentationJson != null) 'presentation_json': presentationJson,
+      if (createdBy != null) 'created_by': createdBy,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WhiteboardCardExtrasCompanion copyWith(
+      {Value<String>? cardId,
+      Value<String>? cardKind,
+      Value<String?>? sourceId,
+      Value<String>? ownerSpace,
+      Value<String>? body,
+      Value<String>? tagsJson,
+      Value<String?>? presentationJson,
+      Value<String>? createdBy,
+      Value<int?>? updatedAt,
+      Value<int?>? deletedAt,
+      Value<int>? rowid}) {
+    return WhiteboardCardExtrasCompanion(
+      cardId: cardId ?? this.cardId,
+      cardKind: cardKind ?? this.cardKind,
+      sourceId: sourceId ?? this.sourceId,
+      ownerSpace: ownerSpace ?? this.ownerSpace,
+      body: body ?? this.body,
+      tagsJson: tagsJson ?? this.tagsJson,
+      presentationJson: presentationJson ?? this.presentationJson,
+      createdBy: createdBy ?? this.createdBy,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (cardId.present) {
+      map['card_id'] = Variable<String>(cardId.value);
+    }
+    if (cardKind.present) {
+      map['card_kind'] = Variable<String>(cardKind.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (ownerSpace.present) {
+      map['owner_space'] = Variable<String>(ownerSpace.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (tagsJson.present) {
+      map['tags_json'] = Variable<String>(tagsJson.value);
+    }
+    if (presentationJson.present) {
+      map['presentation_json'] = Variable<String>(presentationJson.value);
+    }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WhiteboardCardExtrasCompanion(')
+          ..write('cardId: $cardId, ')
+          ..write('cardKind: $cardKind, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('ownerSpace: $ownerSpace, ')
+          ..write('body: $body, ')
+          ..write('tagsJson: $tagsJson, ')
+          ..write('presentationJson: $presentationJson, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ComicMangasTable extends ComicMangas
     with TableInfo<$ComicMangasTable, ComicManga> {
   @override
@@ -36757,6 +40501,22 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TaskRoomsTable taskRooms = $TaskRoomsTable(this);
   late final $TaskArtifactsTable taskArtifacts = $TaskArtifactsTable(this);
   late final $TaskDecisionsTable taskDecisions = $TaskDecisionsTable(this);
+  late final $WhiteboardBoardsTable whiteboardBoards =
+      $WhiteboardBoardsTable(this);
+  late final $WhiteboardBoardItemsTable whiteboardBoardItems =
+      $WhiteboardBoardItemsTable(this);
+  late final $WhiteboardGroupsTable whiteboardGroups =
+      $WhiteboardGroupsTable(this);
+  late final $WhiteboardGroupMembersTable whiteboardGroupMembers =
+      $WhiteboardGroupMembersTable(this);
+  late final $WhiteboardEdgesTable whiteboardEdges =
+      $WhiteboardEdgesTable(this);
+  late final $WhiteboardSourcesTable whiteboardSources =
+      $WhiteboardSourcesTable(this);
+  late final $WhiteboardSourceVersionsTable whiteboardSourceVersions =
+      $WhiteboardSourceVersionsTable(this);
+  late final $WhiteboardCardExtrasTable whiteboardCardExtras =
+      $WhiteboardCardExtrasTable(this);
   late final $ComicMangasTable comicMangas = $ComicMangasTable(this);
   late final $ComicChaptersTable comicChapters = $ComicChaptersTable(this);
   late final $ComicPageScreenplaysTable comicPageScreenplays =
@@ -36845,6 +40605,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         taskRooms,
         taskArtifacts,
         taskDecisions,
+        whiteboardBoards,
+        whiteboardBoardItems,
+        whiteboardGroups,
+        whiteboardGroupMembers,
+        whiteboardEdges,
+        whiteboardSources,
+        whiteboardSourceVersions,
+        whiteboardCardExtras,
         comicMangas,
         comicChapters,
         comicPageScreenplays,
@@ -52187,6 +55955,1884 @@ typedef $$TaskDecisionsTableProcessedTableManager = ProcessedTableManager<
     ),
     TaskDecision,
     PrefetchHooks Function()>;
+typedef $$WhiteboardBoardsTableCreateCompanionBuilder
+    = WhiteboardBoardsCompanion Function({
+  required String id,
+  required String name,
+  Value<String> ownerSpace,
+  Value<String> createdBy,
+  Value<double> viewportCenterX,
+  Value<double> viewportCenterY,
+  Value<double> viewportZoom,
+  required int createdAt,
+  Value<int?> updatedAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+typedef $$WhiteboardBoardsTableUpdateCompanionBuilder
+    = WhiteboardBoardsCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String> ownerSpace,
+  Value<String> createdBy,
+  Value<double> viewportCenterX,
+  Value<double> viewportCenterY,
+  Value<double> viewportZoom,
+  Value<int> createdAt,
+  Value<int?> updatedAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+
+class $$WhiteboardBoardsTableFilterComposer
+    extends Composer<_$AppDatabase, $WhiteboardBoardsTable> {
+  $$WhiteboardBoardsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get ownerSpace => $composableBuilder(
+      column: $table.ownerSpace, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get createdBy => $composableBuilder(
+      column: $table.createdBy, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get viewportCenterX => $composableBuilder(
+      column: $table.viewportCenterX,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get viewportCenterY => $composableBuilder(
+      column: $table.viewportCenterY,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get viewportZoom => $composableBuilder(
+      column: $table.viewportZoom, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$WhiteboardBoardsTableOrderingComposer
+    extends Composer<_$AppDatabase, $WhiteboardBoardsTable> {
+  $$WhiteboardBoardsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get ownerSpace => $composableBuilder(
+      column: $table.ownerSpace, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get createdBy => $composableBuilder(
+      column: $table.createdBy, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get viewportCenterX => $composableBuilder(
+      column: $table.viewportCenterX,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get viewportCenterY => $composableBuilder(
+      column: $table.viewportCenterY,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get viewportZoom => $composableBuilder(
+      column: $table.viewportZoom,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$WhiteboardBoardsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WhiteboardBoardsTable> {
+  $$WhiteboardBoardsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerSpace => $composableBuilder(
+      column: $table.ownerSpace, builder: (column) => column);
+
+  GeneratedColumn<String> get createdBy =>
+      $composableBuilder(column: $table.createdBy, builder: (column) => column);
+
+  GeneratedColumn<double> get viewportCenterX => $composableBuilder(
+      column: $table.viewportCenterX, builder: (column) => column);
+
+  GeneratedColumn<double> get viewportCenterY => $composableBuilder(
+      column: $table.viewportCenterY, builder: (column) => column);
+
+  GeneratedColumn<double> get viewportZoom => $composableBuilder(
+      column: $table.viewportZoom, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$WhiteboardBoardsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WhiteboardBoardsTable,
+    WhiteboardBoard,
+    $$WhiteboardBoardsTableFilterComposer,
+    $$WhiteboardBoardsTableOrderingComposer,
+    $$WhiteboardBoardsTableAnnotationComposer,
+    $$WhiteboardBoardsTableCreateCompanionBuilder,
+    $$WhiteboardBoardsTableUpdateCompanionBuilder,
+    (
+      WhiteboardBoard,
+      BaseReferences<_$AppDatabase, $WhiteboardBoardsTable, WhiteboardBoard>
+    ),
+    WhiteboardBoard,
+    PrefetchHooks Function()> {
+  $$WhiteboardBoardsTableTableManager(
+      _$AppDatabase db, $WhiteboardBoardsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WhiteboardBoardsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WhiteboardBoardsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WhiteboardBoardsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String> ownerSpace = const Value.absent(),
+            Value<String> createdBy = const Value.absent(),
+            Value<double> viewportCenterX = const Value.absent(),
+            Value<double> viewportCenterY = const Value.absent(),
+            Value<double> viewportZoom = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int?> updatedAt = const Value.absent(),
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardBoardsCompanion(
+            id: id,
+            name: name,
+            ownerSpace: ownerSpace,
+            createdBy: createdBy,
+            viewportCenterX: viewportCenterX,
+            viewportCenterY: viewportCenterY,
+            viewportZoom: viewportZoom,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            Value<String> ownerSpace = const Value.absent(),
+            Value<String> createdBy = const Value.absent(),
+            Value<double> viewportCenterX = const Value.absent(),
+            Value<double> viewportCenterY = const Value.absent(),
+            Value<double> viewportZoom = const Value.absent(),
+            required int createdAt,
+            Value<int?> updatedAt = const Value.absent(),
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardBoardsCompanion.insert(
+            id: id,
+            name: name,
+            ownerSpace: ownerSpace,
+            createdBy: createdBy,
+            viewportCenterX: viewportCenterX,
+            viewportCenterY: viewportCenterY,
+            viewportZoom: viewportZoom,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WhiteboardBoardsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $WhiteboardBoardsTable,
+    WhiteboardBoard,
+    $$WhiteboardBoardsTableFilterComposer,
+    $$WhiteboardBoardsTableOrderingComposer,
+    $$WhiteboardBoardsTableAnnotationComposer,
+    $$WhiteboardBoardsTableCreateCompanionBuilder,
+    $$WhiteboardBoardsTableUpdateCompanionBuilder,
+    (
+      WhiteboardBoard,
+      BaseReferences<_$AppDatabase, $WhiteboardBoardsTable, WhiteboardBoard>
+    ),
+    WhiteboardBoard,
+    PrefetchHooks Function()>;
+typedef $$WhiteboardBoardItemsTableCreateCompanionBuilder
+    = WhiteboardBoardItemsCompanion Function({
+  required String id,
+  required String boardId,
+  required String cardId,
+  Value<double> x,
+  Value<double> y,
+  Value<double> width,
+  Value<double> height,
+  Value<double> rotation,
+  Value<int> zIndex,
+  Value<String?> viewStateJson,
+  Value<int> rowid,
+});
+typedef $$WhiteboardBoardItemsTableUpdateCompanionBuilder
+    = WhiteboardBoardItemsCompanion Function({
+  Value<String> id,
+  Value<String> boardId,
+  Value<String> cardId,
+  Value<double> x,
+  Value<double> y,
+  Value<double> width,
+  Value<double> height,
+  Value<double> rotation,
+  Value<int> zIndex,
+  Value<String?> viewStateJson,
+  Value<int> rowid,
+});
+
+class $$WhiteboardBoardItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $WhiteboardBoardItemsTable> {
+  $$WhiteboardBoardItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get boardId => $composableBuilder(
+      column: $table.boardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get x => $composableBuilder(
+      column: $table.x, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get y => $composableBuilder(
+      column: $table.y, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get width => $composableBuilder(
+      column: $table.width, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get height => $composableBuilder(
+      column: $table.height, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get rotation => $composableBuilder(
+      column: $table.rotation, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get zIndex => $composableBuilder(
+      column: $table.zIndex, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get viewStateJson => $composableBuilder(
+      column: $table.viewStateJson, builder: (column) => ColumnFilters(column));
+}
+
+class $$WhiteboardBoardItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $WhiteboardBoardItemsTable> {
+  $$WhiteboardBoardItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get boardId => $composableBuilder(
+      column: $table.boardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get x => $composableBuilder(
+      column: $table.x, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get y => $composableBuilder(
+      column: $table.y, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get width => $composableBuilder(
+      column: $table.width, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get height => $composableBuilder(
+      column: $table.height, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get rotation => $composableBuilder(
+      column: $table.rotation, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get zIndex => $composableBuilder(
+      column: $table.zIndex, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get viewStateJson => $composableBuilder(
+      column: $table.viewStateJson,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$WhiteboardBoardItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WhiteboardBoardItemsTable> {
+  $$WhiteboardBoardItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get boardId =>
+      $composableBuilder(column: $table.boardId, builder: (column) => column);
+
+  GeneratedColumn<String> get cardId =>
+      $composableBuilder(column: $table.cardId, builder: (column) => column);
+
+  GeneratedColumn<double> get x =>
+      $composableBuilder(column: $table.x, builder: (column) => column);
+
+  GeneratedColumn<double> get y =>
+      $composableBuilder(column: $table.y, builder: (column) => column);
+
+  GeneratedColumn<double> get width =>
+      $composableBuilder(column: $table.width, builder: (column) => column);
+
+  GeneratedColumn<double> get height =>
+      $composableBuilder(column: $table.height, builder: (column) => column);
+
+  GeneratedColumn<double> get rotation =>
+      $composableBuilder(column: $table.rotation, builder: (column) => column);
+
+  GeneratedColumn<int> get zIndex =>
+      $composableBuilder(column: $table.zIndex, builder: (column) => column);
+
+  GeneratedColumn<String> get viewStateJson => $composableBuilder(
+      column: $table.viewStateJson, builder: (column) => column);
+}
+
+class $$WhiteboardBoardItemsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WhiteboardBoardItemsTable,
+    WhiteboardBoardItem,
+    $$WhiteboardBoardItemsTableFilterComposer,
+    $$WhiteboardBoardItemsTableOrderingComposer,
+    $$WhiteboardBoardItemsTableAnnotationComposer,
+    $$WhiteboardBoardItemsTableCreateCompanionBuilder,
+    $$WhiteboardBoardItemsTableUpdateCompanionBuilder,
+    (
+      WhiteboardBoardItem,
+      BaseReferences<_$AppDatabase, $WhiteboardBoardItemsTable,
+          WhiteboardBoardItem>
+    ),
+    WhiteboardBoardItem,
+    PrefetchHooks Function()> {
+  $$WhiteboardBoardItemsTableTableManager(
+      _$AppDatabase db, $WhiteboardBoardItemsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WhiteboardBoardItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WhiteboardBoardItemsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WhiteboardBoardItemsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> boardId = const Value.absent(),
+            Value<String> cardId = const Value.absent(),
+            Value<double> x = const Value.absent(),
+            Value<double> y = const Value.absent(),
+            Value<double> width = const Value.absent(),
+            Value<double> height = const Value.absent(),
+            Value<double> rotation = const Value.absent(),
+            Value<int> zIndex = const Value.absent(),
+            Value<String?> viewStateJson = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardBoardItemsCompanion(
+            id: id,
+            boardId: boardId,
+            cardId: cardId,
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            rotation: rotation,
+            zIndex: zIndex,
+            viewStateJson: viewStateJson,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String boardId,
+            required String cardId,
+            Value<double> x = const Value.absent(),
+            Value<double> y = const Value.absent(),
+            Value<double> width = const Value.absent(),
+            Value<double> height = const Value.absent(),
+            Value<double> rotation = const Value.absent(),
+            Value<int> zIndex = const Value.absent(),
+            Value<String?> viewStateJson = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardBoardItemsCompanion.insert(
+            id: id,
+            boardId: boardId,
+            cardId: cardId,
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            rotation: rotation,
+            zIndex: zIndex,
+            viewStateJson: viewStateJson,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WhiteboardBoardItemsTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $WhiteboardBoardItemsTable,
+        WhiteboardBoardItem,
+        $$WhiteboardBoardItemsTableFilterComposer,
+        $$WhiteboardBoardItemsTableOrderingComposer,
+        $$WhiteboardBoardItemsTableAnnotationComposer,
+        $$WhiteboardBoardItemsTableCreateCompanionBuilder,
+        $$WhiteboardBoardItemsTableUpdateCompanionBuilder,
+        (
+          WhiteboardBoardItem,
+          BaseReferences<_$AppDatabase, $WhiteboardBoardItemsTable,
+              WhiteboardBoardItem>
+        ),
+        WhiteboardBoardItem,
+        PrefetchHooks Function()>;
+typedef $$WhiteboardGroupsTableCreateCompanionBuilder
+    = WhiteboardGroupsCompanion Function({
+  required String id,
+  required String boardId,
+  Value<String> name,
+  Value<String?> styleJson,
+  Value<bool> collapsed,
+  Value<int> rowid,
+});
+typedef $$WhiteboardGroupsTableUpdateCompanionBuilder
+    = WhiteboardGroupsCompanion Function({
+  Value<String> id,
+  Value<String> boardId,
+  Value<String> name,
+  Value<String?> styleJson,
+  Value<bool> collapsed,
+  Value<int> rowid,
+});
+
+class $$WhiteboardGroupsTableFilterComposer
+    extends Composer<_$AppDatabase, $WhiteboardGroupsTable> {
+  $$WhiteboardGroupsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get boardId => $composableBuilder(
+      column: $table.boardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get styleJson => $composableBuilder(
+      column: $table.styleJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get collapsed => $composableBuilder(
+      column: $table.collapsed, builder: (column) => ColumnFilters(column));
+}
+
+class $$WhiteboardGroupsTableOrderingComposer
+    extends Composer<_$AppDatabase, $WhiteboardGroupsTable> {
+  $$WhiteboardGroupsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get boardId => $composableBuilder(
+      column: $table.boardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get styleJson => $composableBuilder(
+      column: $table.styleJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get collapsed => $composableBuilder(
+      column: $table.collapsed, builder: (column) => ColumnOrderings(column));
+}
+
+class $$WhiteboardGroupsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WhiteboardGroupsTable> {
+  $$WhiteboardGroupsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get boardId =>
+      $composableBuilder(column: $table.boardId, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get styleJson =>
+      $composableBuilder(column: $table.styleJson, builder: (column) => column);
+
+  GeneratedColumn<bool> get collapsed =>
+      $composableBuilder(column: $table.collapsed, builder: (column) => column);
+}
+
+class $$WhiteboardGroupsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WhiteboardGroupsTable,
+    WhiteboardGroup,
+    $$WhiteboardGroupsTableFilterComposer,
+    $$WhiteboardGroupsTableOrderingComposer,
+    $$WhiteboardGroupsTableAnnotationComposer,
+    $$WhiteboardGroupsTableCreateCompanionBuilder,
+    $$WhiteboardGroupsTableUpdateCompanionBuilder,
+    (
+      WhiteboardGroup,
+      BaseReferences<_$AppDatabase, $WhiteboardGroupsTable, WhiteboardGroup>
+    ),
+    WhiteboardGroup,
+    PrefetchHooks Function()> {
+  $$WhiteboardGroupsTableTableManager(
+      _$AppDatabase db, $WhiteboardGroupsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WhiteboardGroupsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WhiteboardGroupsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WhiteboardGroupsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> boardId = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String?> styleJson = const Value.absent(),
+            Value<bool> collapsed = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardGroupsCompanion(
+            id: id,
+            boardId: boardId,
+            name: name,
+            styleJson: styleJson,
+            collapsed: collapsed,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String boardId,
+            Value<String> name = const Value.absent(),
+            Value<String?> styleJson = const Value.absent(),
+            Value<bool> collapsed = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardGroupsCompanion.insert(
+            id: id,
+            boardId: boardId,
+            name: name,
+            styleJson: styleJson,
+            collapsed: collapsed,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WhiteboardGroupsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $WhiteboardGroupsTable,
+    WhiteboardGroup,
+    $$WhiteboardGroupsTableFilterComposer,
+    $$WhiteboardGroupsTableOrderingComposer,
+    $$WhiteboardGroupsTableAnnotationComposer,
+    $$WhiteboardGroupsTableCreateCompanionBuilder,
+    $$WhiteboardGroupsTableUpdateCompanionBuilder,
+    (
+      WhiteboardGroup,
+      BaseReferences<_$AppDatabase, $WhiteboardGroupsTable, WhiteboardGroup>
+    ),
+    WhiteboardGroup,
+    PrefetchHooks Function()>;
+typedef $$WhiteboardGroupMembersTableCreateCompanionBuilder
+    = WhiteboardGroupMembersCompanion Function({
+  required String groupId,
+  required String itemId,
+  Value<int> sortOrder,
+  Value<int> rowid,
+});
+typedef $$WhiteboardGroupMembersTableUpdateCompanionBuilder
+    = WhiteboardGroupMembersCompanion Function({
+  Value<String> groupId,
+  Value<String> itemId,
+  Value<int> sortOrder,
+  Value<int> rowid,
+});
+
+class $$WhiteboardGroupMembersTableFilterComposer
+    extends Composer<_$AppDatabase, $WhiteboardGroupMembersTable> {
+  $$WhiteboardGroupMembersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get groupId => $composableBuilder(
+      column: $table.groupId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get itemId => $composableBuilder(
+      column: $table.itemId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+      column: $table.sortOrder, builder: (column) => ColumnFilters(column));
+}
+
+class $$WhiteboardGroupMembersTableOrderingComposer
+    extends Composer<_$AppDatabase, $WhiteboardGroupMembersTable> {
+  $$WhiteboardGroupMembersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get groupId => $composableBuilder(
+      column: $table.groupId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get itemId => $composableBuilder(
+      column: $table.itemId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+      column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
+}
+
+class $$WhiteboardGroupMembersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WhiteboardGroupMembersTable> {
+  $$WhiteboardGroupMembersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get groupId =>
+      $composableBuilder(column: $table.groupId, builder: (column) => column);
+
+  GeneratedColumn<String> get itemId =>
+      $composableBuilder(column: $table.itemId, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+}
+
+class $$WhiteboardGroupMembersTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WhiteboardGroupMembersTable,
+    WhiteboardGroupMember,
+    $$WhiteboardGroupMembersTableFilterComposer,
+    $$WhiteboardGroupMembersTableOrderingComposer,
+    $$WhiteboardGroupMembersTableAnnotationComposer,
+    $$WhiteboardGroupMembersTableCreateCompanionBuilder,
+    $$WhiteboardGroupMembersTableUpdateCompanionBuilder,
+    (
+      WhiteboardGroupMember,
+      BaseReferences<_$AppDatabase, $WhiteboardGroupMembersTable,
+          WhiteboardGroupMember>
+    ),
+    WhiteboardGroupMember,
+    PrefetchHooks Function()> {
+  $$WhiteboardGroupMembersTableTableManager(
+      _$AppDatabase db, $WhiteboardGroupMembersTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WhiteboardGroupMembersTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WhiteboardGroupMembersTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WhiteboardGroupMembersTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> groupId = const Value.absent(),
+            Value<String> itemId = const Value.absent(),
+            Value<int> sortOrder = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardGroupMembersCompanion(
+            groupId: groupId,
+            itemId: itemId,
+            sortOrder: sortOrder,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String groupId,
+            required String itemId,
+            Value<int> sortOrder = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardGroupMembersCompanion.insert(
+            groupId: groupId,
+            itemId: itemId,
+            sortOrder: sortOrder,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WhiteboardGroupMembersTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $WhiteboardGroupMembersTable,
+        WhiteboardGroupMember,
+        $$WhiteboardGroupMembersTableFilterComposer,
+        $$WhiteboardGroupMembersTableOrderingComposer,
+        $$WhiteboardGroupMembersTableAnnotationComposer,
+        $$WhiteboardGroupMembersTableCreateCompanionBuilder,
+        $$WhiteboardGroupMembersTableUpdateCompanionBuilder,
+        (
+          WhiteboardGroupMember,
+          BaseReferences<_$AppDatabase, $WhiteboardGroupMembersTable,
+              WhiteboardGroupMember>
+        ),
+        WhiteboardGroupMember,
+        PrefetchHooks Function()>;
+typedef $$WhiteboardEdgesTableCreateCompanionBuilder = WhiteboardEdgesCompanion
+    Function({
+  required String id,
+  required String boardId,
+  required String fromItemId,
+  required String toItemId,
+  Value<String> direction,
+  Value<String?> semanticType,
+  Value<String?> label,
+  Value<String?> styleJson,
+  Value<String> createdBy,
+  required int createdAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+typedef $$WhiteboardEdgesTableUpdateCompanionBuilder = WhiteboardEdgesCompanion
+    Function({
+  Value<String> id,
+  Value<String> boardId,
+  Value<String> fromItemId,
+  Value<String> toItemId,
+  Value<String> direction,
+  Value<String?> semanticType,
+  Value<String?> label,
+  Value<String?> styleJson,
+  Value<String> createdBy,
+  Value<int> createdAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+
+class $$WhiteboardEdgesTableFilterComposer
+    extends Composer<_$AppDatabase, $WhiteboardEdgesTable> {
+  $$WhiteboardEdgesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get boardId => $composableBuilder(
+      column: $table.boardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get fromItemId => $composableBuilder(
+      column: $table.fromItemId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get toItemId => $composableBuilder(
+      column: $table.toItemId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get direction => $composableBuilder(
+      column: $table.direction, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get semanticType => $composableBuilder(
+      column: $table.semanticType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get label => $composableBuilder(
+      column: $table.label, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get styleJson => $composableBuilder(
+      column: $table.styleJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get createdBy => $composableBuilder(
+      column: $table.createdBy, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$WhiteboardEdgesTableOrderingComposer
+    extends Composer<_$AppDatabase, $WhiteboardEdgesTable> {
+  $$WhiteboardEdgesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get boardId => $composableBuilder(
+      column: $table.boardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get fromItemId => $composableBuilder(
+      column: $table.fromItemId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get toItemId => $composableBuilder(
+      column: $table.toItemId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get direction => $composableBuilder(
+      column: $table.direction, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get semanticType => $composableBuilder(
+      column: $table.semanticType,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get label => $composableBuilder(
+      column: $table.label, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get styleJson => $composableBuilder(
+      column: $table.styleJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get createdBy => $composableBuilder(
+      column: $table.createdBy, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$WhiteboardEdgesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WhiteboardEdgesTable> {
+  $$WhiteboardEdgesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get boardId =>
+      $composableBuilder(column: $table.boardId, builder: (column) => column);
+
+  GeneratedColumn<String> get fromItemId => $composableBuilder(
+      column: $table.fromItemId, builder: (column) => column);
+
+  GeneratedColumn<String> get toItemId =>
+      $composableBuilder(column: $table.toItemId, builder: (column) => column);
+
+  GeneratedColumn<String> get direction =>
+      $composableBuilder(column: $table.direction, builder: (column) => column);
+
+  GeneratedColumn<String> get semanticType => $composableBuilder(
+      column: $table.semanticType, builder: (column) => column);
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<String> get styleJson =>
+      $composableBuilder(column: $table.styleJson, builder: (column) => column);
+
+  GeneratedColumn<String> get createdBy =>
+      $composableBuilder(column: $table.createdBy, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$WhiteboardEdgesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WhiteboardEdgesTable,
+    WhiteboardEdge,
+    $$WhiteboardEdgesTableFilterComposer,
+    $$WhiteboardEdgesTableOrderingComposer,
+    $$WhiteboardEdgesTableAnnotationComposer,
+    $$WhiteboardEdgesTableCreateCompanionBuilder,
+    $$WhiteboardEdgesTableUpdateCompanionBuilder,
+    (
+      WhiteboardEdge,
+      BaseReferences<_$AppDatabase, $WhiteboardEdgesTable, WhiteboardEdge>
+    ),
+    WhiteboardEdge,
+    PrefetchHooks Function()> {
+  $$WhiteboardEdgesTableTableManager(
+      _$AppDatabase db, $WhiteboardEdgesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WhiteboardEdgesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WhiteboardEdgesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WhiteboardEdgesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> boardId = const Value.absent(),
+            Value<String> fromItemId = const Value.absent(),
+            Value<String> toItemId = const Value.absent(),
+            Value<String> direction = const Value.absent(),
+            Value<String?> semanticType = const Value.absent(),
+            Value<String?> label = const Value.absent(),
+            Value<String?> styleJson = const Value.absent(),
+            Value<String> createdBy = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardEdgesCompanion(
+            id: id,
+            boardId: boardId,
+            fromItemId: fromItemId,
+            toItemId: toItemId,
+            direction: direction,
+            semanticType: semanticType,
+            label: label,
+            styleJson: styleJson,
+            createdBy: createdBy,
+            createdAt: createdAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String boardId,
+            required String fromItemId,
+            required String toItemId,
+            Value<String> direction = const Value.absent(),
+            Value<String?> semanticType = const Value.absent(),
+            Value<String?> label = const Value.absent(),
+            Value<String?> styleJson = const Value.absent(),
+            Value<String> createdBy = const Value.absent(),
+            required int createdAt,
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardEdgesCompanion.insert(
+            id: id,
+            boardId: boardId,
+            fromItemId: fromItemId,
+            toItemId: toItemId,
+            direction: direction,
+            semanticType: semanticType,
+            label: label,
+            styleJson: styleJson,
+            createdBy: createdBy,
+            createdAt: createdAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WhiteboardEdgesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $WhiteboardEdgesTable,
+    WhiteboardEdge,
+    $$WhiteboardEdgesTableFilterComposer,
+    $$WhiteboardEdgesTableOrderingComposer,
+    $$WhiteboardEdgesTableAnnotationComposer,
+    $$WhiteboardEdgesTableCreateCompanionBuilder,
+    $$WhiteboardEdgesTableUpdateCompanionBuilder,
+    (
+      WhiteboardEdge,
+      BaseReferences<_$AppDatabase, $WhiteboardEdgesTable, WhiteboardEdge>
+    ),
+    WhiteboardEdge,
+    PrefetchHooks Function()>;
+typedef $$WhiteboardSourcesTableCreateCompanionBuilder
+    = WhiteboardSourcesCompanion Function({
+  required String id,
+  required String mediaType,
+  required String title,
+  Value<String> ownerSpace,
+  Value<String> origin,
+  Value<String?> provider,
+  Value<String?> canonicalId,
+  Value<String?> mimeType,
+  Value<String?> currentVersionId,
+  Value<String?> contentHash,
+  Value<String?> objectRef,
+  Value<String?> metadataJson,
+  required int createdAt,
+  Value<int?> updatedAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+typedef $$WhiteboardSourcesTableUpdateCompanionBuilder
+    = WhiteboardSourcesCompanion Function({
+  Value<String> id,
+  Value<String> mediaType,
+  Value<String> title,
+  Value<String> ownerSpace,
+  Value<String> origin,
+  Value<String?> provider,
+  Value<String?> canonicalId,
+  Value<String?> mimeType,
+  Value<String?> currentVersionId,
+  Value<String?> contentHash,
+  Value<String?> objectRef,
+  Value<String?> metadataJson,
+  Value<int> createdAt,
+  Value<int?> updatedAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+
+class $$WhiteboardSourcesTableFilterComposer
+    extends Composer<_$AppDatabase, $WhiteboardSourcesTable> {
+  $$WhiteboardSourcesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mediaType => $composableBuilder(
+      column: $table.mediaType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get ownerSpace => $composableBuilder(
+      column: $table.ownerSpace, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get origin => $composableBuilder(
+      column: $table.origin, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get provider => $composableBuilder(
+      column: $table.provider, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get canonicalId => $composableBuilder(
+      column: $table.canonicalId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mimeType => $composableBuilder(
+      column: $table.mimeType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get currentVersionId => $composableBuilder(
+      column: $table.currentVersionId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get objectRef => $composableBuilder(
+      column: $table.objectRef, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get metadataJson => $composableBuilder(
+      column: $table.metadataJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$WhiteboardSourcesTableOrderingComposer
+    extends Composer<_$AppDatabase, $WhiteboardSourcesTable> {
+  $$WhiteboardSourcesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mediaType => $composableBuilder(
+      column: $table.mediaType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(
+      column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get ownerSpace => $composableBuilder(
+      column: $table.ownerSpace, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get origin => $composableBuilder(
+      column: $table.origin, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get provider => $composableBuilder(
+      column: $table.provider, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get canonicalId => $composableBuilder(
+      column: $table.canonicalId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mimeType => $composableBuilder(
+      column: $table.mimeType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get currentVersionId => $composableBuilder(
+      column: $table.currentVersionId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get objectRef => $composableBuilder(
+      column: $table.objectRef, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get metadataJson => $composableBuilder(
+      column: $table.metadataJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$WhiteboardSourcesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WhiteboardSourcesTable> {
+  $$WhiteboardSourcesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get mediaType =>
+      $composableBuilder(column: $table.mediaType, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerSpace => $composableBuilder(
+      column: $table.ownerSpace, builder: (column) => column);
+
+  GeneratedColumn<String> get origin =>
+      $composableBuilder(column: $table.origin, builder: (column) => column);
+
+  GeneratedColumn<String> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
+  GeneratedColumn<String> get canonicalId => $composableBuilder(
+      column: $table.canonicalId, builder: (column) => column);
+
+  GeneratedColumn<String> get mimeType =>
+      $composableBuilder(column: $table.mimeType, builder: (column) => column);
+
+  GeneratedColumn<String> get currentVersionId => $composableBuilder(
+      column: $table.currentVersionId, builder: (column) => column);
+
+  GeneratedColumn<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => column);
+
+  GeneratedColumn<String> get objectRef =>
+      $composableBuilder(column: $table.objectRef, builder: (column) => column);
+
+  GeneratedColumn<String> get metadataJson => $composableBuilder(
+      column: $table.metadataJson, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$WhiteboardSourcesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WhiteboardSourcesTable,
+    WhiteboardSource,
+    $$WhiteboardSourcesTableFilterComposer,
+    $$WhiteboardSourcesTableOrderingComposer,
+    $$WhiteboardSourcesTableAnnotationComposer,
+    $$WhiteboardSourcesTableCreateCompanionBuilder,
+    $$WhiteboardSourcesTableUpdateCompanionBuilder,
+    (
+      WhiteboardSource,
+      BaseReferences<_$AppDatabase, $WhiteboardSourcesTable, WhiteboardSource>
+    ),
+    WhiteboardSource,
+    PrefetchHooks Function()> {
+  $$WhiteboardSourcesTableTableManager(
+      _$AppDatabase db, $WhiteboardSourcesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WhiteboardSourcesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WhiteboardSourcesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WhiteboardSourcesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> mediaType = const Value.absent(),
+            Value<String> title = const Value.absent(),
+            Value<String> ownerSpace = const Value.absent(),
+            Value<String> origin = const Value.absent(),
+            Value<String?> provider = const Value.absent(),
+            Value<String?> canonicalId = const Value.absent(),
+            Value<String?> mimeType = const Value.absent(),
+            Value<String?> currentVersionId = const Value.absent(),
+            Value<String?> contentHash = const Value.absent(),
+            Value<String?> objectRef = const Value.absent(),
+            Value<String?> metadataJson = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int?> updatedAt = const Value.absent(),
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardSourcesCompanion(
+            id: id,
+            mediaType: mediaType,
+            title: title,
+            ownerSpace: ownerSpace,
+            origin: origin,
+            provider: provider,
+            canonicalId: canonicalId,
+            mimeType: mimeType,
+            currentVersionId: currentVersionId,
+            contentHash: contentHash,
+            objectRef: objectRef,
+            metadataJson: metadataJson,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String mediaType,
+            required String title,
+            Value<String> ownerSpace = const Value.absent(),
+            Value<String> origin = const Value.absent(),
+            Value<String?> provider = const Value.absent(),
+            Value<String?> canonicalId = const Value.absent(),
+            Value<String?> mimeType = const Value.absent(),
+            Value<String?> currentVersionId = const Value.absent(),
+            Value<String?> contentHash = const Value.absent(),
+            Value<String?> objectRef = const Value.absent(),
+            Value<String?> metadataJson = const Value.absent(),
+            required int createdAt,
+            Value<int?> updatedAt = const Value.absent(),
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardSourcesCompanion.insert(
+            id: id,
+            mediaType: mediaType,
+            title: title,
+            ownerSpace: ownerSpace,
+            origin: origin,
+            provider: provider,
+            canonicalId: canonicalId,
+            mimeType: mimeType,
+            currentVersionId: currentVersionId,
+            contentHash: contentHash,
+            objectRef: objectRef,
+            metadataJson: metadataJson,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WhiteboardSourcesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $WhiteboardSourcesTable,
+    WhiteboardSource,
+    $$WhiteboardSourcesTableFilterComposer,
+    $$WhiteboardSourcesTableOrderingComposer,
+    $$WhiteboardSourcesTableAnnotationComposer,
+    $$WhiteboardSourcesTableCreateCompanionBuilder,
+    $$WhiteboardSourcesTableUpdateCompanionBuilder,
+    (
+      WhiteboardSource,
+      BaseReferences<_$AppDatabase, $WhiteboardSourcesTable, WhiteboardSource>
+    ),
+    WhiteboardSource,
+    PrefetchHooks Function()>;
+typedef $$WhiteboardSourceVersionsTableCreateCompanionBuilder
+    = WhiteboardSourceVersionsCompanion Function({
+  required String id,
+  required String sourceId,
+  required String contentHash,
+  required String objectRef,
+  Value<String?> parserVersion,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$WhiteboardSourceVersionsTableUpdateCompanionBuilder
+    = WhiteboardSourceVersionsCompanion Function({
+  Value<String> id,
+  Value<String> sourceId,
+  Value<String> contentHash,
+  Value<String> objectRef,
+  Value<String?> parserVersion,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$WhiteboardSourceVersionsTableFilterComposer
+    extends Composer<_$AppDatabase, $WhiteboardSourceVersionsTable> {
+  $$WhiteboardSourceVersionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+      column: $table.sourceId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get objectRef => $composableBuilder(
+      column: $table.objectRef, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get parserVersion => $composableBuilder(
+      column: $table.parserVersion, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$WhiteboardSourceVersionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $WhiteboardSourceVersionsTable> {
+  $$WhiteboardSourceVersionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+      column: $table.sourceId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get objectRef => $composableBuilder(
+      column: $table.objectRef, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get parserVersion => $composableBuilder(
+      column: $table.parserVersion,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$WhiteboardSourceVersionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WhiteboardSourceVersionsTable> {
+  $$WhiteboardSourceVersionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get contentHash => $composableBuilder(
+      column: $table.contentHash, builder: (column) => column);
+
+  GeneratedColumn<String> get objectRef =>
+      $composableBuilder(column: $table.objectRef, builder: (column) => column);
+
+  GeneratedColumn<String> get parserVersion => $composableBuilder(
+      column: $table.parserVersion, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$WhiteboardSourceVersionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WhiteboardSourceVersionsTable,
+    WhiteboardSourceVersion,
+    $$WhiteboardSourceVersionsTableFilterComposer,
+    $$WhiteboardSourceVersionsTableOrderingComposer,
+    $$WhiteboardSourceVersionsTableAnnotationComposer,
+    $$WhiteboardSourceVersionsTableCreateCompanionBuilder,
+    $$WhiteboardSourceVersionsTableUpdateCompanionBuilder,
+    (
+      WhiteboardSourceVersion,
+      BaseReferences<_$AppDatabase, $WhiteboardSourceVersionsTable,
+          WhiteboardSourceVersion>
+    ),
+    WhiteboardSourceVersion,
+    PrefetchHooks Function()> {
+  $$WhiteboardSourceVersionsTableTableManager(
+      _$AppDatabase db, $WhiteboardSourceVersionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WhiteboardSourceVersionsTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WhiteboardSourceVersionsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WhiteboardSourceVersionsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> sourceId = const Value.absent(),
+            Value<String> contentHash = const Value.absent(),
+            Value<String> objectRef = const Value.absent(),
+            Value<String?> parserVersion = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardSourceVersionsCompanion(
+            id: id,
+            sourceId: sourceId,
+            contentHash: contentHash,
+            objectRef: objectRef,
+            parserVersion: parserVersion,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String sourceId,
+            required String contentHash,
+            required String objectRef,
+            Value<String?> parserVersion = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardSourceVersionsCompanion.insert(
+            id: id,
+            sourceId: sourceId,
+            contentHash: contentHash,
+            objectRef: objectRef,
+            parserVersion: parserVersion,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WhiteboardSourceVersionsTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $WhiteboardSourceVersionsTable,
+        WhiteboardSourceVersion,
+        $$WhiteboardSourceVersionsTableFilterComposer,
+        $$WhiteboardSourceVersionsTableOrderingComposer,
+        $$WhiteboardSourceVersionsTableAnnotationComposer,
+        $$WhiteboardSourceVersionsTableCreateCompanionBuilder,
+        $$WhiteboardSourceVersionsTableUpdateCompanionBuilder,
+        (
+          WhiteboardSourceVersion,
+          BaseReferences<_$AppDatabase, $WhiteboardSourceVersionsTable,
+              WhiteboardSourceVersion>
+        ),
+        WhiteboardSourceVersion,
+        PrefetchHooks Function()>;
+typedef $$WhiteboardCardExtrasTableCreateCompanionBuilder
+    = WhiteboardCardExtrasCompanion Function({
+  required String cardId,
+  required String cardKind,
+  Value<String?> sourceId,
+  Value<String> ownerSpace,
+  Value<String> body,
+  Value<String> tagsJson,
+  Value<String?> presentationJson,
+  Value<String> createdBy,
+  Value<int?> updatedAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+typedef $$WhiteboardCardExtrasTableUpdateCompanionBuilder
+    = WhiteboardCardExtrasCompanion Function({
+  Value<String> cardId,
+  Value<String> cardKind,
+  Value<String?> sourceId,
+  Value<String> ownerSpace,
+  Value<String> body,
+  Value<String> tagsJson,
+  Value<String?> presentationJson,
+  Value<String> createdBy,
+  Value<int?> updatedAt,
+  Value<int?> deletedAt,
+  Value<int> rowid,
+});
+
+class $$WhiteboardCardExtrasTableFilterComposer
+    extends Composer<_$AppDatabase, $WhiteboardCardExtrasTable> {
+  $$WhiteboardCardExtrasTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cardKind => $composableBuilder(
+      column: $table.cardKind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+      column: $table.sourceId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get ownerSpace => $composableBuilder(
+      column: $table.ownerSpace, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get body => $composableBuilder(
+      column: $table.body, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get tagsJson => $composableBuilder(
+      column: $table.tagsJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get presentationJson => $composableBuilder(
+      column: $table.presentationJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get createdBy => $composableBuilder(
+      column: $table.createdBy, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$WhiteboardCardExtrasTableOrderingComposer
+    extends Composer<_$AppDatabase, $WhiteboardCardExtrasTable> {
+  $$WhiteboardCardExtrasTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get cardId => $composableBuilder(
+      column: $table.cardId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cardKind => $composableBuilder(
+      column: $table.cardKind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+      column: $table.sourceId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get ownerSpace => $composableBuilder(
+      column: $table.ownerSpace, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get body => $composableBuilder(
+      column: $table.body, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get tagsJson => $composableBuilder(
+      column: $table.tagsJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get presentationJson => $composableBuilder(
+      column: $table.presentationJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get createdBy => $composableBuilder(
+      column: $table.createdBy, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$WhiteboardCardExtrasTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WhiteboardCardExtrasTable> {
+  $$WhiteboardCardExtrasTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get cardId =>
+      $composableBuilder(column: $table.cardId, builder: (column) => column);
+
+  GeneratedColumn<String> get cardKind =>
+      $composableBuilder(column: $table.cardKind, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerSpace => $composableBuilder(
+      column: $table.ownerSpace, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get tagsJson =>
+      $composableBuilder(column: $table.tagsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get presentationJson => $composableBuilder(
+      column: $table.presentationJson, builder: (column) => column);
+
+  GeneratedColumn<String> get createdBy =>
+      $composableBuilder(column: $table.createdBy, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$WhiteboardCardExtrasTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WhiteboardCardExtrasTable,
+    WhiteboardCardExtra,
+    $$WhiteboardCardExtrasTableFilterComposer,
+    $$WhiteboardCardExtrasTableOrderingComposer,
+    $$WhiteboardCardExtrasTableAnnotationComposer,
+    $$WhiteboardCardExtrasTableCreateCompanionBuilder,
+    $$WhiteboardCardExtrasTableUpdateCompanionBuilder,
+    (
+      WhiteboardCardExtra,
+      BaseReferences<_$AppDatabase, $WhiteboardCardExtrasTable,
+          WhiteboardCardExtra>
+    ),
+    WhiteboardCardExtra,
+    PrefetchHooks Function()> {
+  $$WhiteboardCardExtrasTableTableManager(
+      _$AppDatabase db, $WhiteboardCardExtrasTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WhiteboardCardExtrasTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WhiteboardCardExtrasTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WhiteboardCardExtrasTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> cardId = const Value.absent(),
+            Value<String> cardKind = const Value.absent(),
+            Value<String?> sourceId = const Value.absent(),
+            Value<String> ownerSpace = const Value.absent(),
+            Value<String> body = const Value.absent(),
+            Value<String> tagsJson = const Value.absent(),
+            Value<String?> presentationJson = const Value.absent(),
+            Value<String> createdBy = const Value.absent(),
+            Value<int?> updatedAt = const Value.absent(),
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardCardExtrasCompanion(
+            cardId: cardId,
+            cardKind: cardKind,
+            sourceId: sourceId,
+            ownerSpace: ownerSpace,
+            body: body,
+            tagsJson: tagsJson,
+            presentationJson: presentationJson,
+            createdBy: createdBy,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String cardId,
+            required String cardKind,
+            Value<String?> sourceId = const Value.absent(),
+            Value<String> ownerSpace = const Value.absent(),
+            Value<String> body = const Value.absent(),
+            Value<String> tagsJson = const Value.absent(),
+            Value<String?> presentationJson = const Value.absent(),
+            Value<String> createdBy = const Value.absent(),
+            Value<int?> updatedAt = const Value.absent(),
+            Value<int?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WhiteboardCardExtrasCompanion.insert(
+            cardId: cardId,
+            cardKind: cardKind,
+            sourceId: sourceId,
+            ownerSpace: ownerSpace,
+            body: body,
+            tagsJson: tagsJson,
+            presentationJson: presentationJson,
+            createdBy: createdBy,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WhiteboardCardExtrasTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $WhiteboardCardExtrasTable,
+        WhiteboardCardExtra,
+        $$WhiteboardCardExtrasTableFilterComposer,
+        $$WhiteboardCardExtrasTableOrderingComposer,
+        $$WhiteboardCardExtrasTableAnnotationComposer,
+        $$WhiteboardCardExtrasTableCreateCompanionBuilder,
+        $$WhiteboardCardExtrasTableUpdateCompanionBuilder,
+        (
+          WhiteboardCardExtra,
+          BaseReferences<_$AppDatabase, $WhiteboardCardExtrasTable,
+              WhiteboardCardExtra>
+        ),
+        WhiteboardCardExtra,
+        PrefetchHooks Function()>;
 typedef $$ComicMangasTableCreateCompanionBuilder = ComicMangasCompanion
     Function({
   required String id,
@@ -55736,6 +61382,24 @@ class $AppDatabaseManager {
       $$TaskArtifactsTableTableManager(_db, _db.taskArtifacts);
   $$TaskDecisionsTableTableManager get taskDecisions =>
       $$TaskDecisionsTableTableManager(_db, _db.taskDecisions);
+  $$WhiteboardBoardsTableTableManager get whiteboardBoards =>
+      $$WhiteboardBoardsTableTableManager(_db, _db.whiteboardBoards);
+  $$WhiteboardBoardItemsTableTableManager get whiteboardBoardItems =>
+      $$WhiteboardBoardItemsTableTableManager(_db, _db.whiteboardBoardItems);
+  $$WhiteboardGroupsTableTableManager get whiteboardGroups =>
+      $$WhiteboardGroupsTableTableManager(_db, _db.whiteboardGroups);
+  $$WhiteboardGroupMembersTableTableManager get whiteboardGroupMembers =>
+      $$WhiteboardGroupMembersTableTableManager(
+          _db, _db.whiteboardGroupMembers);
+  $$WhiteboardEdgesTableTableManager get whiteboardEdges =>
+      $$WhiteboardEdgesTableTableManager(_db, _db.whiteboardEdges);
+  $$WhiteboardSourcesTableTableManager get whiteboardSources =>
+      $$WhiteboardSourcesTableTableManager(_db, _db.whiteboardSources);
+  $$WhiteboardSourceVersionsTableTableManager get whiteboardSourceVersions =>
+      $$WhiteboardSourceVersionsTableTableManager(
+          _db, _db.whiteboardSourceVersions);
+  $$WhiteboardCardExtrasTableTableManager get whiteboardCardExtras =>
+      $$WhiteboardCardExtrasTableTableManager(_db, _db.whiteboardCardExtras);
   $$ComicMangasTableTableManager get comicMangas =>
       $$ComicMangasTableTableManager(_db, _db.comicMangas);
   $$ComicChaptersTableTableManager get comicChapters =>

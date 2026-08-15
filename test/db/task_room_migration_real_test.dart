@@ -70,9 +70,9 @@ void main() {
     // ========================================================================
     final migratedDb = AppDatabase.forTesting(NativeDatabase(tempDbFile));
 
-    // 验证 user_version 已升级到 58
+    // 验证 user_version 已升级到 59（W6 集成基座将 schemaVersion bump 到 59）
     final version = await migratedDb.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 58);
+    expect(version.data['user_version'], 59);
 
     // ========================================================================
     // 3. 验证新表已创建
@@ -266,7 +266,7 @@ void main() {
     final migratedDb = AppDatabase.forTesting(NativeDatabase(tempDbFile));
 
     final version = await migratedDb.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 58);
+    expect(version.data['user_version'], 59);
 
     final columnsResult = await migratedDb.customSelect(
       'PRAGMA table_info(persona_chat_messages)',

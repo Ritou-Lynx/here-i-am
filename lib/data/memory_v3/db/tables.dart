@@ -945,3 +945,178 @@ class TaskDecisions extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+// ============================================================================
+// 十、白板生产表族（W6 生产集成基座）— WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md §2.3
+// ============================================================================
+//
+// 数据身份映射（W0 共享契约 → 生产表）：
+//   Board        → WhiteboardBoards
+//   BoardItem    → WhiteboardBoardItems（只存布局与局部视图态，不含卡内容）
+//   BoardGroup   → WhiteboardGroups
+//   GroupMember  → WhiteboardGroupMembers
+//   BoardEdge    → WhiteboardEdges
+//   SourceContent / SourceVersion → WhiteboardSources / WhiteboardSourceVersions
+//     （MemoryCardSources 是"每张卡一条原始输入上下文"，按 card_id 主键，
+//       无法承载 source 身份与版本化，故新增独立表族）
+//   CardContract → 身份复用 MemoryCards（memoryScope='user_truth'、type='note'），
+//     白板专属字段（cardKind / sourceId / ownerSpace / body / tags /
+//     presentation / createdBy / deletedAt）由 WhiteboardCardExtras 关联表承载。
+//     白板卡片只由用户显式创建（显式建 Card / 记录按钮 / 导入确认），不自动写入。
+//
+// 约定：所有跨设备实体使用稳定字符串 ID；本机整数只作缓存索引（总纲 §2.3）。
+// 时间戳一律 INTEGER ms since epoch（UTC）。
+
+/// 白板：空间组织面。视口是设备体验态而非内容真相，故落在板上而不参与撤销。
+class WhiteboardBoards extends Table {
+  TextColumn get id => text()(); // stable board id（board_xxx）
+  TextColumn get name => text()();
+  TextColumn get ownerSpace =>
+      text().withDefault(const Constant('user'))(); // user / i / shared
+  TextColumn get createdBy =>
+      text().withDefault(const Constant('user'))(); // user / i / system
+  // 每板视口（中心 + 缩放），与 WhiteboardSnapshot.viewport 双向映射
+  RealColumn get viewportCenterX => real().withDefault(const Constant(0))();
+  RealColumn get viewportCenterY => real().withDefault(const Constant(0))();
+  RealColumn get viewportZoom => real().withDefault(const Constant(1))();
+
+  IntColumn get createdAt => integer()(); // ms since epoch
+  IntColumn get updatedAt => integer().nullable()();
+  IntColumn get deletedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 某张 Card 在某张 Board 上的一次出现：只保存布局与局部视图状态。
+/// 同一 cardId 可有多行（同一白板出现多次也允许）；删除本行不删除 Card。
+class WhiteboardBoardItems extends Table {
+  TextColumn get id => text()(); // stable item id（item_xxx）
+  TextColumn get boardId => text()(); // soft ref → whiteboard_boards.id
+  TextColumn get cardId => text()(); // soft ref → memory_cards.id
+  RealColumn get x => real().withDefault(const Constant(0))();
+  RealColumn get y => real().withDefault(const Constant(0))();
+  RealColumn get width => real().withDefault(const Constant(260))();
+  RealColumn get height => real().withDefault(const Constant(200))();
+  RealColumn get rotation => real().withDefault(const Constant(0))();
+  IntColumn get zIndex => integer().withDefault(const Constant(0))();
+  /// BoardItem.viewState（Map）的 JSON；null = 无局部视图态。
+  TextColumn get viewStateJson => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 白板上的显式分组。成员由 WhiteboardGroupMembers 显式维护，不从坐标推断。
+class WhiteboardGroups extends Table {
+  TextColumn get id => text()(); // stable group id（group_xxx）
+  TextColumn get boardId => text()(); // soft ref
+  TextColumn get name => text().withDefault(const Constant(''))();
+  /// BoardGroup.style（Map）的 JSON；null = 默认样式。
+  TextColumn get styleJson => text().nullable()();
+  BoolColumn get collapsed =>
+      boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 显式成员关系：item 属于 group。主键 (groupId, itemId)。
+class WhiteboardGroupMembers extends Table {
+  TextColumn get groupId => text()(); // soft ref → whiteboard_groups.id
+  TextColumn get itemId => text()(); // soft ref → whiteboard_board_items.id
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {groupId, itemId};
+}
+
+/// BoardItem 之间的连线。跨板引用不直接连接画布坐标。
+class WhiteboardEdges extends Table {
+  TextColumn get id => text()(); // stable edge id（edge_xxx）
+  TextColumn get boardId => text()(); // soft ref
+  TextColumn get fromItemId => text()(); // soft ref → items.id
+  TextColumn get toItemId => text()(); // soft ref → items.id
+  TextColumn get direction =>
+      text().withDefault(const Constant('undirected'))(); // directed / undirected
+  TextColumn get semanticType => text().nullable()();
+  TextColumn get label => text().nullable()();
+  /// BoardEdge.style（Map）的 JSON；null = 默认样式。
+  TextColumn get styleJson => text().nullable()();
+  TextColumn get createdBy =>
+      text().withDefault(const Constant('user'))(); // user / i / system
+  IntColumn get createdAt => integer()(); // ms since epoch
+  IntColumn get deletedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 原件身份（SourceContent）。二进制 / 正文本体在对象存储，DB 只存元数据与引用。
+class WhiteboardSources extends Table {
+  TextColumn get id => text()(); // stable source id（src_xxx）
+  TextColumn get mediaType =>
+      text()(); // text / book / pdf / image / web / video / audio / file
+  TextColumn get title => text()();
+  TextColumn get ownerSpace =>
+      text().withDefault(const Constant('user'))(); // user / i / shared
+  TextColumn get origin => text().withDefault(
+      const Constant('unknown'))(); // import / share / crawl / generate / external_link / unknown
+  TextColumn get provider => text().nullable()(); // bilibili / youtube / web / ...
+  TextColumn get canonicalId => text().nullable()(); // 同 canonical URL → 同 source
+  TextColumn get mimeType => text().nullable()();
+  TextColumn get currentVersionId => text().nullable()(); // → source_versions.id
+  TextColumn get contentHash => text().nullable()();
+  TextColumn get objectRef => text().nullable()();
+  /// SourceContent.metadata（Map）的 JSON；null = 无元数据。
+  TextColumn get metadataJson => text().nullable()();
+  IntColumn get createdAt => integer()(); // ms since epoch
+  IntColumn get updatedAt => integer().nullable()();
+  IntColumn get deletedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 可锚定版本（SourceVersion），不可变快照。Anchor 必须指向具体版本。
+class WhiteboardSourceVersions extends Table {
+  TextColumn get id => text()(); // stable version id（ver_xxx）
+  TextColumn get sourceId => text()(); // soft ref → whiteboard_sources.id
+  TextColumn get contentHash => text()();
+  TextColumn get objectRef => text()();
+  TextColumn get parserVersion => text().nullable()();
+  IntColumn get createdAt => integer()(); // ms since epoch
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// CardContract 的白板专属字段关联表：身份复用 memory_cards.id。
+///
+/// MemoryCards 承载 id / title / retrievalText / 时间戳；本表承载
+/// card_kind / source_id / owner_space / body / tags / presentation /
+/// created_by / deleted_at / updated_at。删除本表行不应删除 memory_cards 行；
+/// 删除 memory_cards 行后本表行即失效引用（画布以 orphaned 态渲染）。
+///
+/// [updatedAt] 是 CardContract.updatedAt 的精确镜像（nullable）：memory_cards
+/// 的 updated_at 列 NOT NULL 无法表达"从未更新"，故此处保留契约原值。
+class WhiteboardCardExtras extends Table {
+  TextColumn get cardId => text()(); // soft ref → memory_cards.id（PK）
+  TextColumn get cardKind => text()(); // source / note / annotation / task_artifact / reference
+  TextColumn get sourceId => text().nullable()(); // soft ref → whiteboard_sources.id
+  TextColumn get ownerSpace =>
+      text().withDefault(const Constant('user'))(); // user / i / shared
+  TextColumn get body => text().withDefault(const Constant(''))();
+  /// tags（List<String>）的 JSON，默认 '[]'。
+  TextColumn get tagsJson =>
+      text().withDefault(const Constant('[]'))();
+  /// CardContract.presentation（Map）的 JSON；null = 无。
+  TextColumn get presentationJson => text().nullable()();
+  TextColumn get createdBy =>
+      text().withDefault(const Constant('user'))(); // user / i / system
+  IntColumn get updatedAt => integer().nullable()(); // CardContract.updatedAt 精确镜像
+  IntColumn get deletedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {cardId};
+}

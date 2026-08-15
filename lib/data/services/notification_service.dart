@@ -209,6 +209,11 @@ class NotificationService {
   }
 
   Future<void> cancelAgentNotification() async {
+    // Agent notifications are Android-only; on desktop the generic
+    // flutter_local_notifications platform interface is never registered
+    // (the Windows implementation is Dart/FFI-registered), so `cancel`
+    // would dereference an unset late instance.
+    if (!Platform.isAndroid) return;
     if (!_initialized) {
       await initialize();
     }
