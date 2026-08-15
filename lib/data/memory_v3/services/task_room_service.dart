@@ -454,44 +454,70 @@ class TaskRoomService {
   ///
   /// 不修改原 pending 记录，而是追加一条新的 resolved 记录，
   /// 通过 supersedesDecisionId 指向原记录，保留完整决策历史。
+  ///
+  /// 验证：
+  /// - 原决策必须存在且状态为 pending
+  /// - selectedOption 必须在原始 options 列表中
+  /// - 同一决策不能被重复解决（通过唯一约束防止并发）
   Future<String> resolveDecision({
     required String decisionId,
     required String selectedOption,
     required String decidedBy,
     String? reasoning,
   }) async {
-    // 读取原决策
-    final originalDecision = await (_db.select(_db.taskDecisions)
-          ..where((t) => t.id.equals(decisionId)))
-        .getSingleOrNull();
+    return _db.transaction(() async {
+      // 读取原决策
+      final originalDecision = await (_db.select(_db.taskDecisions)
+            ..where((t) => t.id.equals(decisionId)))
+          .getSingleOrNull();
 
-    if (originalDecision == null) {
-      throw ArgumentError('Decision not found: $decisionId');
-    }
+      if (originalDecision == null) {
+        throw ArgumentError('Decision not found: $decisionId');
+      }
 
-    if (originalDecision.status != DecisionStatus.pending.value) {
-      throw StateError(
-        'Decision $decisionId is already ${originalDecision.status}, cannot resolve again',
+      if (originalDecision.status != DecisionStatus.pending.value) {
+        throw StateError(
+          'Decision $decisionId is already ${originalDecision.status}, cannot resolve again',
+        );
+      }
+
+      // 验证是否已被其他事务解决（检查是否存在 supersedes 该决策的记录）
+      final existingResolution = await (_db.select(_db.taskDecisions)
+            ..where((t) => t.supersedesDecisionId.equals(decisionId)))
+          .getSingleOrNull();
+
+      if (existingResolution != null) {
+        throw StateError(
+          'Decision $decisionId has already been resolved by ${existingResolution.id}',
+        );
+      }
+
+      // 验证 selectedOption 是否在原始选项列表中
+      final options = (jsonDecode(originalDecision.optionsJson) as List).cast<String>();
+      if (!options.contains(selectedOption)) {
+        throw ArgumentError(
+          'Selected option "$selectedOption" is not in the original options: ${options.join(", ")}',
+        );
+      }
+
+      // 追加新的 resolved 记录
+      final resolvedId = await recordDecision(
+        taskId: originalDecision.taskId,
+        decisionType: DecisionType.values.firstWhere(
+          (e) => e.value == originalDecision.decisionType,
+        ),
+        question: originalDecision.question,
+        options: options,
+        selectedOption: selectedOption,
+        reasoning: reasoning,
+        decidedBy: decidedBy,
+        status: DecisionStatus.resolved,
+        supersedesDecisionId: decisionId,
       );
-    }
 
-    // 追加新的 resolved 记录
-    final resolvedId = await recordDecision(
-      taskId: originalDecision.taskId,
-      decisionType: DecisionType.values.firstWhere(
-        (e) => e.value == originalDecision.decisionType,
-      ),
-      question: originalDecision.question,
-      options: (jsonDecode(originalDecision.optionsJson) as List).cast<String>(),
-      selectedOption: selectedOption,
-      reasoning: reasoning,
-      decidedBy: decidedBy,
-      status: DecisionStatus.resolved,
-      supersedesDecisionId: decisionId,
-    );
-
-    _log.info('Resolved decision: $decisionId → $resolvedId choice=$selectedOption by=$decidedBy');
-    return resolvedId;
+      _log.info('Resolved decision: $decisionId → $resolvedId choice=$selectedOption by=$decidedBy');
+      return resolvedId;
+    });
   }
 
   /// 获取任务的所有决策（默认折叠，只返回最新版本）
@@ -536,12 +562,30 @@ class TaskRoomService {
   }
 
   /// 获取待决策列表
+  ///
+  /// 只返回尚未被解决的 pending 决策。
+  /// 已被 supersede 的决策（有 resolved 记录指向它）不会出现在结果中。
   Future<List<TaskDecision>> getPendingDecisions(String taskId) async {
-    final query = _db.select(_db.taskDecisions)
-      ..where((t) => t.taskId.equals(taskId))
-      ..where((t) => t.status.equals(DecisionStatus.pending.value))
-      ..orderBy([(t) => OrderingTerm.asc(t.requestedAt)]);
-    return query.get();
+    final allPending = await (_db.select(_db.taskDecisions)
+          ..where((t) => t.taskId.equals(taskId))
+          ..where((t) => t.status.equals(DecisionStatus.pending.value))
+          ..orderBy([(t) => OrderingTerm.asc(t.requestedAt)]))
+        .get();
+
+    // 收集所有被 supersede 的决策 ID
+    final supersededIds = <String>{};
+    final allDecisions = await (_db.select(_db.taskDecisions)
+          ..where((t) => t.taskId.equals(taskId)))
+        .get();
+
+    for (final decision in allDecisions) {
+      if (decision.supersedesDecisionId != null) {
+        supersededIds.add(decision.supersedesDecisionId!);
+      }
+    }
+
+    // 只返回未被 supersede 的 pending 决策
+    return allPending.where((d) => !supersededIds.contains(d.id)).toList();
   }
 
   // ========================================================================

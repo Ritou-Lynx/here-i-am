@@ -638,6 +638,78 @@ void main() {
       expect(pending.length, 1);
       expect(pending[0].question, 'Pending 1');
     });
+
+    test('getPendingDecisions excludes resolved decisions', () async {
+      final decisionId = await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approachChoice,
+        question: 'Which approach?',
+        options: ['REST', 'GraphQL'],
+        status: DecisionStatus.pending,
+      );
+
+      // Initially pending
+      var pending = await service.getPendingDecisions(taskId);
+      expect(pending.length, 1);
+      expect(pending[0].id, decisionId);
+
+      // Resolve the decision
+      await service.resolveDecision(
+        decisionId: decisionId,
+        selectedOption: 'GraphQL',
+        decidedBy: 'user',
+      );
+
+      // After resolution, getPendingDecisions should not return the original pending record
+      pending = await service.getPendingDecisions(taskId);
+      expect(pending.length, 0);
+    });
+
+    test('resolveDecision fails when resolving same decision twice', () async {
+      final decisionId = await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approachChoice,
+        question: 'Which approach?',
+        options: ['REST', 'GraphQL'],
+        status: DecisionStatus.pending,
+      );
+
+      // First resolution succeeds
+      await service.resolveDecision(
+        decisionId: decisionId,
+        selectedOption: 'GraphQL',
+        decidedBy: 'user',
+      );
+
+      // Second resolution should fail
+      expect(
+        () => service.resolveDecision(
+          decisionId: decisionId,
+          selectedOption: 'REST',
+          decidedBy: 'user',
+        ),
+        throwsStateError,
+      );
+    });
+
+    test('resolveDecision fails when selectedOption not in original options', () async {
+      final decisionId = await service.recordDecision(
+        taskId: taskId,
+        decisionType: DecisionType.approachChoice,
+        question: 'Which approach?',
+        options: ['REST', 'GraphQL'],
+        status: DecisionStatus.pending,
+      );
+
+      expect(
+        () => service.resolveDecision(
+          decisionId: decisionId,
+          selectedOption: 'gRPC', // Not in original options
+          decidedBy: 'user',
+        ),
+        throwsArgumentError,
+      );
+    });
   });
 
   group('TaskRoomService - Integration', () {
