@@ -14,7 +14,7 @@ library;
 import 'package:flutter/material.dart';
 
 /// 中文目标字体族名（汇文明朝体）。生产资产接入后对应 pubspec 注册名。
-const String richTextCjkFamily = 'HuiwenMingchao';
+const String richTextCjkFamily = 'Huiwen-mincho';
 
 /// 中文回退链：系统宋体 / 明朝体。目标字体缺字形时逐项尝试。
 const List<String> richTextCjkFallback = [
@@ -77,6 +77,25 @@ TextStyle richTextCodeTextStyle({
     TextStyle(
       fontFamily: richTextCodeFamily,
       fontFamilyFallback: _bodyFallbackChain,
+      fontSize: fontSize,
+      height: height,
+      color: color,
+      fontWeight: fontWeight,
+      fontStyle: fontStyle,
+    );
+
+/// 白板 UI 文字样式（标题、按钮、状态）：中文使用汇文明朝体，拉丁/数字回退
+/// Cascadia Code。这是白板相关 UI（索引、库、导入、研读）的统一入口。
+TextStyle whiteboardUiTextStyle({
+  double fontSize = 14,
+  double? height,
+  Color? color,
+  FontWeight? fontWeight,
+  FontStyle? fontStyle,
+}) =>
+    TextStyle(
+      fontFamily: richTextCjkFamily,
+      fontFamilyFallback: richTextCjkFallback,
       fontSize: fontSize,
       height: height,
       color: color,

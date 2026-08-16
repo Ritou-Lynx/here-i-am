@@ -97,9 +97,19 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, size: 20),
           tooltip: '返回首页',
-          onPressed: () => context.go('/'),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go('/');
+            }
+          },
         ),
         title: const Text('卡片库'),
+        titleTextStyle: whiteboardUiTextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,19 +155,19 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
 
   Widget _buildResults() {
     if (_queryController.text.trim().isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            const Icon(
               Icons.collections_bookmark_outlined,
               color: WhiteboardCanvasTokens.textFaint,
               size: 40,
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text(
               '输入关键词搜索卡片内容',
-              style: TextStyle(
+              style: whiteboardUiTextStyle(
                 color: WhiteboardCanvasTokens.textFaint,
                 fontSize: 13,
                 height: 1.6,
@@ -168,10 +178,10 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
       );
     }
     if (_hits.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           '没有匹配的卡片',
-          style: TextStyle(
+          style: whiteboardUiTextStyle(
             color: WhiteboardCanvasTokens.textFaint,
             fontSize: 13,
           ),

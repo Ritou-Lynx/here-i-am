@@ -162,7 +162,7 @@ flutter:
         - asset: assets/fonts/Inter/Inter-Bold.ttf
           weight: 700
     # 白板生产字体——汇文明朝体（CC0，已接入；子集化待优化）：
-    - family: HuiwenMingchao
+    - family: Huiwen-mincho
       fonts:
         - asset: assets/fonts/whiteboard/HuiwenMingChao-Regular.ttf
     # Cascadia Code（SIL OFL，待放入 TTF 后取消注释）：

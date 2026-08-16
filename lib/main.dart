@@ -535,7 +535,11 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
       setState(() {
         // If lock is strictly required only when enabled, we update _isLocked.
         // Default _isLocked is true. If disabled, we unlock immediately.
-        if (!isLockEnabled) {
+        // Desktop platforms default to unlocked for development/testing.
+        if (!isLockEnabled ||
+            Platform.isWindows ||
+            Platform.isLinux ||
+            Platform.isMacOS) {
           _isLocked = false;
         }
       });
@@ -751,7 +755,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
             // (spine-contract §3.5). Mobile uses the embedded PersonaChatScreen.
             if (shouldShowGlobalDesktopChatOverlay() &&
                 AppFlavor.isHereIAm &&
-                !(_isLocked && _hasUser))
+                !_isLocked)
               const GlobalDesktopChatOverlay(),
           ],
         );

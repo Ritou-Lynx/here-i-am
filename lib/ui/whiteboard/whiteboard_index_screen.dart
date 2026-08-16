@@ -12,6 +12,7 @@ import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 /// Board index — real list backed by [WhiteboardDriftStore].
 class WhiteboardIndexScreen extends StatefulWidget {
@@ -61,9 +62,9 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: SpringRainUiTokens.daylightSurfaceRaised,
-        title: const Text(
+        title: Text(
           '新建白板',
-          style: TextStyle(
+          style: whiteboardUiTextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
             color: SpringRainUiTokens.daylightTextPrimary,
@@ -79,6 +80,7 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
               color: SpringRainUiTokens.daylightTextTertiary,
             ),
           ),
+          style: whiteboardUiTextStyle(fontSize: 14),
           onSubmitted: (value) {
             if (value.trim().isNotEmpty) {
               Navigator.of(dialogContext).pop(value.trim());
@@ -88,9 +90,9 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text(
+            child: Text(
               '取消',
-              style: TextStyle(
+              style: whiteboardUiTextStyle(
                 fontSize: 14,
                 color: SpringRainUiTokens.daylightTextSecondary,
               ),
@@ -106,7 +108,10 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
               foregroundColor: SpringRainUiTokens.daylightTextOnAccent,
               minimumSize: const Size(0, 36),
             ),
-            child: const Text('创建', style: TextStyle(fontSize: 14)),
+            child: Text(
+              '创建',
+              style: whiteboardUiTextStyle(fontSize: 14),
+            ),
           ),
         ],
       ),
@@ -136,18 +141,24 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, size: 20),
           tooltip: '返回首页',
-          onPressed: () => context.go('/'),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go('/');
+            }
+          },
         ),
-        title: const Text(
+        title: Text(
           '白板',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          style: whiteboardUiTextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
         actions: [
           TextButton.icon(
             key: const ValueKey('whiteboard_create_button'),
             onPressed: _createBoard,
             icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('新建', style: TextStyle(fontSize: 14)),
+            label: Text('新建', style: whiteboardUiTextStyle(fontSize: 14)),
             style: TextButton.styleFrom(
               foregroundColor: tokens.accent,
             ),
@@ -177,9 +188,9 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               '白板列表没有读出来，重试即可继续。',
-              style: TextStyle(
+              style: whiteboardUiTextStyle(
                 fontSize: 14,
                 color: SpringRainUiTokens.daylightTextSecondary,
               ),
@@ -191,29 +202,29 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
                 foregroundColor: tokens.accent,
                 minimumSize: const Size(0, 36),
               ),
-              child: const Text('重试', style: TextStyle(fontSize: 14)),
+              child: Text('重试', style: whiteboardUiTextStyle(fontSize: 14)),
             ),
           ],
         ),
       );
     }
     if (_boards.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               '还没有白板',
-              style: TextStyle(
+              style: whiteboardUiTextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: SpringRainUiTokens.daylightTextPrimary,
               ),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               '点右上角「新建」创建第一张白板。',
-              style: TextStyle(
+              style: whiteboardUiTextStyle(
                 fontSize: 12,
                 color: SpringRainUiTokens.daylightTextTertiary,
               ),
@@ -253,7 +264,7 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
                         board.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: whiteboardUiTextStyle(
                           fontSize: 14,
                           color: SpringRainUiTokens.daylightTextPrimary,
                           height: 1.4,
@@ -262,7 +273,7 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
                       const SizedBox(height: 2),
                       Text(
                         '最近更新 ${_relativeDay(updatedAt)}',
-                        style: const TextStyle(
+                        style: whiteboardUiTextStyle(
                           fontSize: 12,
                           color: SpringRainUiTokens.daylightTextTertiary,
                           height: 1.4,

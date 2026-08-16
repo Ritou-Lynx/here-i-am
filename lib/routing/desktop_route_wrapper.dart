@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 class DesktopRouteWrapper extends StatelessWidget {
   const DesktopRouteWrapper({
@@ -40,11 +41,18 @@ class DesktopRouteWrapper extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, size: 20),
           tooltip: '返回首页',
-          onPressed: () => context.go('/'),
+          onPressed: () {
+            // Use pop if we can, otherwise go to home.
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go('/');
+            }
+          },
         ),
         title: Text(
           title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          style: whiteboardUiTextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
       body: child,

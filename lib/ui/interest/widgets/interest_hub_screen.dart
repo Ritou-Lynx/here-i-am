@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:memex/data/services/comic/comic_library_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/book/book_reader_screen.dart';
@@ -136,7 +137,13 @@ class _InterestHubScreenState extends State<InterestHubScreen> {
             children: [
               Row(children: [
                 IconButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/');
+                    }
+                  },
                   icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
                   style: IconButton.styleFrom(
                       backgroundColor: const Color(0xA8F5F1E7),
