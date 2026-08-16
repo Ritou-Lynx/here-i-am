@@ -302,7 +302,28 @@ void main() {
       expect(entries.single['total_amount'], 167.5);
     });
 
-    // Companion guard: income must NOT amount-dedupe - two 1000-元 income
+    // Companion guard: expense must NOT dedupe by amount alone - two real
+    // spending events with the same amount but different entries ("闪送" and
+    // "外卖", both 30 元) are distinct and must both stay. 2026-08-16 feedback.
+    test('expense does NOT dedupe same amount when the entry differs', () async {
+      await service.recordEntry(
+        characterId: 'char-a',
+        entryType: 'expense',
+        totalAmount: 30,
+        aiAmount: 0,
+        purpose: '闪送',
+      );
+      await service.recordEntry(
+        characterId: 'char-a',
+        entryType: 'expense',
+        totalAmount: 30,
+        aiAmount: 0,
+        purpose: '外卖',
+      );
+
+      final entries = await service.getRecentEntries(limit: 10);
+      expect(entries, hasLength(2));
+    });
     // events for different projects within 36h are real and distinct.
     test('income does NOT dedupe by amount when purpose differs', () async {
       await service.recordEntry(
@@ -328,47 +349,46 @@ void main() {
 
     // Regression: 2026-08-14 real-device bug - three identical 30 CNY penalties
     // were recorded in ~10 min because the companion agent re-fired the penalty
-    // on each checkin tick. The primary fix is Growth Pact settlement, but the
-    // ledger must also dedupe same-amount penalties within a short window.
-    test('penalty dedupes by amount within 30min when purpose differs', () async {
-      await service.recordEntry(
-        characterId: 'i',
-        entryType: 'penalty',
-        totalAmount: 30,
-        aiAmount: 30,
-        purpose: '⚠️ 惩罚: 又没早睡',
-      );
-      await service.recordEntry(
-        characterId: 'i',
-        entryType: 'penalty',
-        totalAmount: 30,
-        aiAmount: 30,
-        purpose: '⚠️ 惩罚: 说了要早睡的',
-      );
-
-      final entries = await service.getRecentEntries(limit: 10);
-      expect(entries, hasLength(1));
-      expect(entries.single['total_amount'], 30);
-    });
-
-    // Guard: two penalties for the same amount but hours apart are real and
-    // distinct - must NOT dedupe.
-    test('penalty does NOT dedupe when outside the 30min window', () async {
-      final oldTime = DateTime.now().subtract(const Duration(hours: 2));
+    // on each checkin tick. The primary fix is Growth Pact settlement; the
+    // ledger dedupes the same penalty (amount + matching entry) as backstop.
+    test('penalty dedupes same amount when the entry matches', () async {
       await service.recordEntry(
         characterId: 'i',
         entryType: 'penalty',
         totalAmount: 30,
         aiAmount: 30,
         purpose: '⚠️ 惩罚: 没早睡',
-        occurredAt: oldTime,
       );
       await service.recordEntry(
         characterId: 'i',
         entryType: 'penalty',
         totalAmount: 30,
         aiAmount: 30,
+        purpose: '⚠️ 惩罚: 没早睡 30元',
+      );
+
+      // "没早睡" vs "没早睡 30元" — 剥掉金额后完全相同，视为同一违规去重。
+      final entries = await service.getRecentEntries(limit: 10);
+      expect(entries, hasLength(1));
+      expect(entries.single['total_amount'], 30);
+    });
+
+    // Guard: same amount but different reasons must NOT dedupe - two legitimate
+    // 30 CNY penalties for different violations are real and distinct.
+    test('penalty does NOT dedupe same amount when the entry differs', () async {
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'penalty',
+        totalAmount: 30,
+        aiAmount: 30,
         purpose: '⚠️ 惩罚: 又没早睡',
+      );
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'penalty',
+        totalAmount: 30,
+        aiAmount: 30,
+        purpose: '⚠️ 惩罚: 连续三天没运动',
       );
 
       final entries = await service.getRecentEntries(limit: 10);

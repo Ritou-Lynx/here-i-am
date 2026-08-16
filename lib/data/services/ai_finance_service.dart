@@ -26,7 +26,6 @@ class AiFinanceService {
   static final Lock _recordLock = Lock();
   static const _duplicateWindow = Duration(hours: 36);
   static const _bareAmountDuplicateWindow = Duration(minutes: 1);
-  static const _penaltyDuplicateWindow = Duration(minutes: 30);
 
   Future<String> recordEntry({
     required String characterId,
@@ -416,39 +415,26 @@ class AiFinanceService {
       sinceEpoch: sinceEpoch,
       limit: 200,
     );
-    // expense uses amount as the business key within the 36h window - the same
-    // real spending is often written via two paths (card bridge with
-    // linked_fact_id set + agent AiFinanceRecord with linked_fact_id null)
-    // whose purpose text differs ("西塔老太太烤肉 335元AA" vs "西塔老太太烤肉
-    // AA"), so context-based dedupe misses them (2026-08-04 real-device case
-    // produced 3 ledger rows for one dinner). income keeps the context gate:
-    // two 1000-元 income events for different projects in the same window are
-    // common and must not merge. Other types (transfer/cost/loan/repayment/
-    // reward/penalty) likewise keep the context gate.
-    final amountOnlyDedupe = entryType == 'expense';
-    // penalty uses amount + a short window (30 min): three identical 30 CNY
-    // penalties fired by repeated checkins within ~10 min are duplicates, but
-    // two legitimate 30 CNY penalties for different reasons hours apart are
-    // not. The primary fix is Growth Pact settlement (penaltyLedgerId write-
-    // back); this is the backstop.
-    final penaltyAmountDedupe = entryType == 'penalty';
+    // expense/penalty 走「金额 + 条目匹配」去重：同一笔消费常被两条路径写入
+    //（card bridge 带金额 vs agent 不带金额），purpose 文本不同但剥掉金额后
+    // 相同（"西塔老太太烤肉 335元AA" vs "西塔老太太烤肉 AA"，2026-08-04 真机
+    // 三行重复）。反过来，不同条目的同金额记录（"闪送" vs "外卖" 各 30 元，
+    // 或两条不同原因的 30 元罚款）必须保留——只看金额会误合并（2026-08-16
+    // 用户反馈）。income 与其他类型保持严格 context gate：不同项目同金额
+    // 收入很常见，绝不能合并。
+    final moneyDedupe = entryType == 'expense' || entryType == 'penalty';
     for (final row in recentRows) {
       if (!_sameMoney(row.totalAmount, totalAmount) ||
           !_sameMoney(row.aiAmount, aiAmount) ||
           !_sameRatio(row.contributionRatio, contributionRatio)) {
         continue;
       }
-      if (amountOnlyDedupe) {
-        return row;
-      }
-
-      // penalty: amount match within 30 min window is enough to dedupe.
-      // Purpose text differs each time ("又没早睡" vs "说了要早睡的"),
-      // so context-based dedupe is useless. Primary fix is Growth Pact
-      // settlement; this is the last-resort backstop.
-      if (penaltyAmountDedupe &&
-          nowEpoch - row.recordedAt <= _penaltyDuplicateWindow.inSeconds) {
-        return row;
+      if (moneyDedupe) {
+        // 金额相同还不够，条目（剥金额后）必须匹配才算重复。
+        if (_sameBusinessEntry(row.purpose, purpose)) {
+          return row;
+        }
+        continue;
       }
 
       final existingContext = _normalizedContext(
@@ -516,6 +502,32 @@ String? _normalizeText(String? value) {
   return normalized == null || normalized.isEmpty ? null : normalized;
 }
 
+/// 条目相似判断用的归一化：小写、合并空白、剥掉金额数字与货币符号。
+///
+/// 目的：同一笔消费经常被两条路径写入（card bridge 带金额 "西塔老太太烤肉
+/// 335元AA" vs agent 不带 "西塔老太太烤肉 AA"），直接文本比较会漏判；
+/// 但反过来，不同条目的同金额消费（"闪送" vs "外卖"，各 30 元）绝不能
+/// 因为金额相同就被合并。剥掉金额数字后比较，能同时满足这两个约束。
+String? _normalizePurposeForMatch(String? value) {
+  final normalized = _normalizeText(value);
+  if (normalized == null) return null;
+  return normalized
+      .replaceAll(RegExp(r'[¥$€£]\s*\d+(\.\d+)?'), '')
+      .replaceAll(RegExp(r'\d+(\.\d+)?\s*(元|块|rmb|cny)'), '')
+      .replaceAll(RegExp(r'\d+(\.\d+)?'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
+
+/// 两条账目条目是否属于同一件事：归一化（去金额）后相等或互相包含。
+bool _sameBusinessEntry(String? a, String? b) {
+  final na = _normalizePurposeForMatch(a);
+  final nb = _normalizePurposeForMatch(b);
+  if (na == null || nb == null) return false;
+  if (na == nb) return true;
+  return na.contains(nb) || nb.contains(na);
+}
+
 String? _cleanNullableText(String? value) {
   final trimmed = value?.trim();
   return trimmed == null || trimmed.isEmpty ? null : trimmed;
@@ -564,12 +576,12 @@ bool _isDuplicateLedgerRow(
   }
 
   final deltaSeconds = (candidate.recordedAt - existing.recordedAt).abs();
-  // expense: amount is the business key - merge within 36h regardless of
-  // purpose/notes text (two write paths produce different purpose strings for
-  // the same spending, 2026-08-04 西塔老太太 case). income and other types
-  // keep the context gate so same-amount different-reason entries stay distinct.
-  if (existing.entryType == 'expense') {
-    return deltaSeconds <= AiFinanceService._duplicateWindow.inSeconds;
+  // expense/penalty 用「金额 + 条目匹配」合并：同一笔消费两条写入路径的
+  // purpose 文本可能不同但剥金额后相同（西塔老太太 case）；不同条目的同
+  // 金额记录（闪送 vs 外卖）必须保留，不能只看金额（2026-08-16 用户反馈）。
+  if (existing.entryType == 'expense' || existing.entryType == 'penalty') {
+    return _sameBusinessEntry(existing.purpose, candidate.purpose) &&
+        deltaSeconds <= AiFinanceService._duplicateWindow.inSeconds;
   }
   final existingContext = _normalizedContext(
     existing.purpose,
