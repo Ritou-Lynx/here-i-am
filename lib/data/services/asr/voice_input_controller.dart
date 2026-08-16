@@ -549,14 +549,15 @@ class VoiceInputController extends ChangeNotifier {
   /// forwarding is paused are fed to [BargeInDetector].
   void startBargeInDetection() {
     if (_bargeInDetector != null) return;
+    // Very high thresholds: on loudspeaker the mic picks up our own TTS echo
+    // (no hardware AEC on the default mic source). Only a loud, sustained
+    // voice (interrupt 1.5s @ RMS 0.05 ≈ -26dB) counts as a real interruption
+    // — anything quieter/longer-than-a-blip is treated as echo and ignored.
     _bargeInDetector = BargeInDetector(
-      // Higher thresholds than the defaults: on loudspeaker the platform AEC
-      // is imperfect and TTS echo can reach the mic; only a sustained, loud
-      // voice should count as an interruption (a "duck" from echo shouldn't
-      // chop our own reply).
-      duckMs: 360,
-      interruptMs: 900,
-      speechThresholdRms: 0.02,
+      duckMs: 500,
+      interruptMs: 1500,
+      restoreMs: 300,
+      speechThresholdRms: 0.05,
     );
     _bargeInDetector!.onEvent = (event, prerollSnapshot) {
       switch (event) {
@@ -573,8 +574,11 @@ class VoiceInputController extends ChangeNotifier {
       }
     };
     _bargeInDetector!.start(16000);
-    _logger.info('Barge-in detector started (duck=${BargeInDetector().duckMs}ms, '
-        'interrupt=${BargeInDetector().interruptMs}ms)');
+    final detector = _bargeInDetector;
+    if (detector != null) {
+      _logger.info('Barge-in detector started (duck=${detector.duckMs}ms, '
+          'interrupt=${detector.interruptMs}ms, rms=${detector.speechThresholdRms})');
+    }
   }
 
   void stopBargeInDetection() {

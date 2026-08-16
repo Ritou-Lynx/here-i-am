@@ -83,6 +83,7 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
   bool _isReply = false;
   bool _muted = false;
   bool _speakerOn = true;
+  DateTime _lastToggleAt = DateTime.fromMillisecondsSinceEpoch(0);
   late DateTime _startedAt;
   Timer? _ticker;
 
@@ -111,18 +112,17 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
     if (!mounted) return;
     // Only setState on an actual change — otherwise every isolate status
     // echo re-renders the buttons and they appear to flash / double-tap.
+    // NOTE: muted/speaker are NOT taken from isolate echoes: the isolate may
+    // report a stale value (its status pushes race our optimistic flip),
+    // which would bounce the button state back and forth. The local button
+    // state (updated in _toggleMute/_toggleSpeaker) is the source of truth.
     final transcriptChanged = status.transcript.isNotEmpty &&
         status.transcript != _transcript;
-    if (status.status == _status &&
-        status.muted == _muted &&
-        status.speaker == _speakerOn &&
-        !transcriptChanged) {
+    if (status.status == _status && !transcriptChanged) {
       return;
     }
     setState(() {
       _status = status.status;
-      _muted = status.muted;
-      _speakerOn = status.speaker;
       if (transcriptChanged) {
         _transcript = status.transcript;
         _isReply = status.isReply;
@@ -131,14 +131,24 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
   }
 
   void _toggleMute() {
+    // Debounce: repeated taps in quick succession would toggle many times
+    // and fight the isolate's in-flight echo. 500ms window.
+    final now = DateTime.now();
+    if (now.difference(_lastToggleAt) < const Duration(milliseconds: 500)) {
+      return;
+    }
+    _lastToggleAt = now;
     final muted = !_muted;
-    // Optimistic local flip for instant feedback; the isolate confirms via
-    // _onStatus. Guarded against re-entry by the change check above.
     setState(() => _muted = muted);
     unawaited(widget.router.setMuted(muted));
   }
 
   void _toggleSpeaker() {
+    final now = DateTime.now();
+    if (now.difference(_lastToggleAt) < const Duration(milliseconds: 500)) {
+      return;
+    }
+    _lastToggleAt = now;
     final speakerOn = !_speakerOn;
     setState(() => _speakerOn = speakerOn);
     unawaited(widget.router.setSpeakerphone(speakerOn));
