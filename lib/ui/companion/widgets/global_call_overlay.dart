@@ -1,0 +1,262 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:memex/data/services/call_voice_router.dart';
+import 'package:memex/ui/core/widgets/local_image.dart';
+import 'package:memex/utils/logger.dart';
+
+/// Global in-call overlay shown while a companion call is active.
+///
+/// A real system-level call page is provided by CallKit (incoming ring +
+/// ongoing notification); this overlay is the in-app mirror: avatar, name,
+/// status, live transcript, call duration and a hang-up button. It lives in
+/// the root navigator overlay so it sits above every screen, and it is driven
+/// entirely by [CallVoiceRouter] state (the audio runs in the foreground-task
+/// isolate, so this UI can even be re-shown after the engine comes back).
+class GlobalCallOverlay {
+  GlobalCallOverlay._();
+
+  static final GlobalCallOverlay instance = GlobalCallOverlay._();
+
+  static final _log = getLogger('GlobalCallOverlay');
+
+  /// Provided by the app shell (main.dart) so this overlay can reach the root
+  /// navigator without a circular import.
+  NavigatorState? Function()? navigatorProvider;
+
+  OverlayEntry? _entry;
+
+  bool get isShowing => _entry != null;
+
+  /// Show the overlay for the current active call (see [CallVoiceRouter]).
+  void show() {
+    if (_entry != null) return;
+    final router = CallVoiceRouter.instance;
+    if (!router.isActive()) {
+      _log.warning('show ignored: no active call');
+      return;
+    }
+    final overlay = _rootOverlay();
+    if (overlay == null) return;
+    _entry = OverlayEntry(
+      builder: (_) => _CallOverlayContent(router: router),
+    );
+    overlay.insert(_entry!);
+    _log.info('overlay shown');
+  }
+
+  /// Hide the overlay (call ended or app navigated away).
+  void hide() {
+    _entry?.remove();
+    _entry = null;
+    _log.info('overlay hidden');
+  }
+
+  /// Re-show the overlay when the app returns to the foreground if a call is
+  /// still active (the engine was suspended while backgrounded).
+  void resumeCheck() {
+    if (_entry != null) return;
+    if (CallVoiceRouter.instance.isActive()) {
+      show();
+    }
+  }
+
+  OverlayState? _rootOverlay() {
+    final navigator = navigatorProvider?.call();
+    return navigator?.overlay;
+  }
+}
+
+class _CallOverlayContent extends StatefulWidget {
+  const _CallOverlayContent({required this.router});
+
+  final CallVoiceRouter router;
+
+  @override
+  State<_CallOverlayContent> createState() => _CallOverlayContentState();
+}
+
+class _CallOverlayContentState extends State<_CallOverlayContent> {
+  String _status = 'starting';
+  String _transcript = '';
+  bool _isReply = false;
+  late DateTime _startedAt;
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _startedAt = DateTime.now();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+    widget.router.onStatusChanged = _onStatus;
+    widget.router.onCallEnded = (_) {
+      if (mounted) GlobalCallOverlay.instance.hide();
+    };
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  void _onStatus(CallVoiceStatus status) {
+    if (!mounted) return;
+    setState(() {
+      _status = status.status;
+      if (status.transcript.isNotEmpty) {
+        _transcript = status.transcript;
+        _isReply = status.isReply;
+      }
+    });
+  }
+
+  String get _statusLabel {
+    switch (_status) {
+      case 'speaking':
+        return '正在说话…';
+      case 'listening':
+        return '聆听中…';
+      default:
+        return '通话中…';
+    }
+  }
+
+  String get _elapsed {
+    final d = DateTime.now().difference(_startedAt);
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final router = widget.router;
+    final name = router.activeCharacterName ?? '林埃';
+    final avatar = router.activeCharacterAvatar;
+
+    return Positioned.fill(
+      child: Material(
+        color: const Color(0xE60A0C10),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const Spacer(flex: 3),
+              _Avatar(avatar: avatar, name: name),
+              const SizedBox(height: 20),
+              Text(
+                name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _statusLabel,
+                style: const TextStyle(color: Colors.white70, fontSize: 15),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _elapsed,
+                style: const TextStyle(
+                  color: Colors.white38,
+                  fontSize: 13,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (_transcript.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  child: Text(
+                    _transcript,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _isReply ? Colors.white70 : Colors.white,
+                      fontSize: 14,
+                      fontStyle: _isReply ? FontStyle.italic : FontStyle.normal,
+                    ),
+                  ),
+                ),
+              const Spacer(flex: 4),
+              _HangUpButton(
+                onPressed: () {
+                  router.hangUp();
+                },
+              ),
+              const SizedBox(height: 48),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.avatar, required this.name});
+
+  final String? avatar;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = CircleAvatar(
+      radius: 44,
+      backgroundColor: Colors.white12,
+      child: Text(
+        name.isEmpty ? 'i' : name.substring(0, 1),
+        style: const TextStyle(color: Colors.white, fontSize: 32),
+      ),
+    );
+    if (avatar == null || avatar!.isEmpty) return fallback;
+    return ClipOval(
+      child: SizedBox(
+        width: 88,
+        height: 88,
+        child: LocalImage(
+          url: avatar!,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => fallback,
+        ),
+      ),
+    );
+  }
+}
+
+class _HangUpButton extends StatelessWidget {
+  const _HangUpButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(36),
+      child: Ink(
+        width: 72,
+        height: 72,
+        decoration: const BoxDecoration(
+          color: Color(0xFFE53935),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x66E53935),
+              blurRadius: 16,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: const Icon(Icons.call_end, color: Colors.white, size: 32),
+      ),
+    );
+  }
+}

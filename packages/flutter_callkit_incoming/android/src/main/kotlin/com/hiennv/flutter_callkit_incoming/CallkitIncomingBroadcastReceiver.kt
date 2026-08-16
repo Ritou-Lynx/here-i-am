@@ -248,6 +248,7 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
                     CallkitNotificationService.stopService(context)
                     sendEventFlutter(CallkitConstants.ACTION_CALL_ENDED, data)
                     removeCall(context, Data.fromBundle(data))
+                    notifyBackgroundCallEnded(context)
                 } catch (error: Exception) {
                     Log.e(TAG, null, error)
                 }
@@ -289,6 +290,25 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
                     Log.e(TAG, null, error)
                 }
             }
+        }
+    }
+
+    /**
+     * Notify the host app's foreground-task isolate that a call ended.
+     *
+     * [sendEventFlutter] only reaches the main isolate; when the app is
+     * backgrounded the Flutter engine is suspended and the Dart call session
+     * would never learn about the hang-up. The host app registers a receiver
+     * for this explicit broadcast and forwards it into the foreground-task
+     * isolate via ForegroundService.sendData.
+     */
+    private fun notifyBackgroundCallEnded(context: Context) {
+        try {
+            val bridge = Intent("${context.packageName}.ACTION_CALL_ENDED_TO_BACKGROUND")
+                .setPackage(context.packageName)
+            context.sendBroadcast(bridge)
+        } catch (error: Exception) {
+            Log.w(TAG, "notifyBackgroundCallEnded failed: ${error.message}")
         }
     }
 

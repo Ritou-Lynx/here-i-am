@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/services/background_voice_session.dart';
+import 'package:memex/data/services/call_voice_session.dart';
 import 'package:memex/data/services/callkit_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
@@ -61,7 +62,9 @@ class CompanionTaskHandler extends TaskHandler {
   }
 
   /// Receives media-button events forwarded from the main isolate by
-  /// VoiceSessionRouter. Drives the half-duplex background voice session.
+  /// VoiceSessionRouter, and call lifecycle events from CallVoiceRouter /
+  /// the CallKit hang-up bridge. Drives the half-duplex background voice
+  /// session and the continuous global call session.
   @override
   Future<void> onReceiveData(Object data) async {
     debugPrint('[ForegroundTask] onReceiveData: $data');
@@ -69,9 +72,23 @@ class CompanionTaskHandler extends TaskHandler {
     final type = data['type'];
     switch (type) {
       case 'voice_toggle':
-        await BackgroundVoiceSession.instance.handleToggle();
       case 'voice_cancel':
-        await BackgroundVoiceSession.instance.handleCancel();
+        // While a global call is active the media keys are inert — the call
+        // owns the mic. Pressing the headset key mid-call must not start a
+        // second background voice session.
+        if (CallVoiceSession.instance.isActive) return;
+        if (type == 'voice_toggle') {
+          await BackgroundVoiceSession.instance.handleToggle();
+        } else {
+          await BackgroundVoiceSession.instance.handleCancel();
+        }
+      case 'call_start':
+        final characterId = data['characterId'] as String?;
+        if (characterId == null) return;
+        await CallVoiceSession.instance.start(characterId);
+      case 'call_end':
+      case 'call_ended':
+        await CallVoiceSession.instance.end();
     }
   }
 
@@ -103,6 +120,27 @@ class CompanionTaskHandler extends TaskHandler {
       // blocks both hasDueReminders() and hasPendingWork(), which gate the
       // entire tick — a deadlock that can last hours.
       await CheckinService.instance.recoverStuckProcessing();
+
+      // ── Global-call watchdog (runs every tick) ──
+      //
+      // A call that went silent (user walked away / fell asleep / app was
+      // killed while the isolate survived) must not ring forever in the
+      // notification shade. After 30 minutes without any speech or reply the
+      // call is hung up and the CallKit session cleared.
+      try {
+        final callSession = CallVoiceSession.instance;
+        if (callSession.isActive) {
+          final lastActivity = callSession.lastActivityAt;
+          if (lastActivity != null &&
+              DateTime.now().difference(lastActivity) >
+                  const Duration(minutes: 30)) {
+            debugPrint('[ForegroundTask] call silent for 30min — auto hang-up');
+            await callSession.end();
+          }
+        }
+      } catch (e) {
+        debugPrint('[ForegroundTask] call watchdog error: $e');
+      }
 
       // ── Pending-call check (runs every tick, before any early return) ──
       //

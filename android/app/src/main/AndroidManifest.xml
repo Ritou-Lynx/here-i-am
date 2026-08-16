@@ -131,6 +131,13 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </receiver>
+        <!-- Bridges the CallKit plugin's hang-up broadcast into the
+             foreground-task isolate (call_ended), so a hang-up from the
+             system notification tears down the call audio even when the main
+             Flutter engine is suspended. -->
+        <receiver
+            android:name=".CallToForegroundBridgeReceiver"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

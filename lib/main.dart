@@ -49,6 +49,7 @@ import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/data/services/callkit_service.dart';
+import 'package:memex/data/services/call_voice_router.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
@@ -81,6 +82,7 @@ import 'package:memex/data/services/background_task_drain_service.dart';
 import 'package:memex/data/services/sync/core_sync_runtime_service.dart';
 import 'package:memex/ui/companion/widgets/companion_first_shell.dart';
 import 'package:memex/ui/companion/widgets/floating_record_ball.dart';
+import 'package:memex/ui/companion/widgets/global_call_overlay.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
@@ -252,15 +254,20 @@ void main() async {
   // System-level incoming-call (CallKit) wiring.
   if (!isDesktop) {
     CallkitService.instance.init();
+    await CallVoiceRouter.instance.init();
+    GlobalCallOverlay.instance.navigatorProvider = () {
+      final state = rootNavigatorKey.currentState;
+      if (state == null || !state.mounted) return null;
+      return state;
+    };
     CallkitService.instance.onAccept = (String characterId) async {
-      // CallKit holds the call audio session while a call is "ongoing", which
-      // mutes our own TTS. Once the user accepts, immediately end the CallKit
-      // session so audio focus returns to the app, then open chat voice mode.
-      await CallkitService.instance.endAll();
-      // Give Android ~300 ms to return audio focus before chat voice mode
-      // starts TTS. Without this delay the first spoken reply can be muted.
-      await Future.delayed(const Duration(milliseconds: 300));
-      _openPersonaChatVoiceModeFromRoot(characterId);
+      // Global call: keep the CallKit session alive (ongoing notification +
+      // hang-up button), move the audio pipeline into the foreground-task
+      // isolate so the call survives backgrounding, and show the in-app
+      // call overlay. Previously we ended CallKit immediately and ran the
+      // voice mode in the main isolate, which died on backgrounding.
+      await CallVoiceRouter.instance.startCall(characterId);
+      GlobalCallOverlay.instance.show();
     };
     CallkitService.instance.onDecline = (String characterId) {
       // The CallKit service fires onDecline for BOTH explicit rejection
@@ -276,10 +283,11 @@ void main() async {
     // Cold-start recovery: if the user accepted a call while the Flutter
     // engine was not yet attached (app was killed), the accept event was
     // silently dropped.  Check activeCalls() for an accepted-but-unhandled
-    // call and trigger voice mode.
+    // call and start the global call.
     final recoveredCall = await CallkitService.instance.recoverAcceptedCall();
     if (recoveredCall != null) {
-      _openPersonaChatVoiceModeFromRoot(recoveredCall);
+      await CallVoiceRouter.instance.startCall(recoveredCall);
+      GlobalCallOverlay.instance.show();
     }
   }
 
@@ -545,6 +553,9 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
       _checkGracePeriod();
       _startForegroundHeartbeat();
       _checkPendingCallOnResume();
+      // Re-show the in-call overlay if a global call survived the background
+      // (the audio runs in the foreground-task isolate, not the main engine).
+      GlobalCallOverlay.instance.resumeCheck();
       // Ensure the persistent foreground service is running. If Android killed
       // it while the app was backgrounded, this restarts it (idempotent).
       if (Platform.isAndroid) {
