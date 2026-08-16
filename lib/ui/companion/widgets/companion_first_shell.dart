@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:memex/data/repositories/memex_router.dart';
@@ -11,6 +12,7 @@ import 'package:memex/ui/core/app_startup_visibility.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/widgets/app_opening_splash.dart';
+import 'package:memex/ui/desktop/desktop_workbench_shell.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/result.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -206,6 +208,17 @@ class CompanionFirstShellState extends State<CompanionFirstShell> {
         onRetry: () => unawaited(_loadInitialCharacter()),
       );
     }
+
+    // 桌面（白板工作台）：首页 = spine-contract §3.2 模块网格工作台，
+    // 不再是手机聊天页套壳；林埃对话按需悬浮、可收起（spine-contract §3.5）。
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      return DesktopWorkbenchShell(
+        key: ValueKey('desktop-workbench-$characterId'),
+        characterId: characterId,
+        initialVoiceMode: _startVoiceMode,
+      );
+    }
+
     return PersonaChatScreen(
       key: ValueKey('companion-chat-$characterId'),
       characterId: characterId,
