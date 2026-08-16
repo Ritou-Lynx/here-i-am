@@ -111,6 +111,7 @@ class FlutterCanvasAdapter {
   /// Creates a new snapshot with the specified fields replaced.
   /// This avoids modifying the shared contract types.
   WhiteboardSnapshot _cloneSnapshot({
+    List<Board>? boards,
     List<BoardItem>? boardItems,
     List<BoardGroup>? groups,
     List<GroupMember>? groupMembers,
@@ -122,7 +123,7 @@ class FlutterCanvasAdapter {
       sources: _snapshot.sources,
       sourceVersions: _snapshot.sourceVersions,
       cards: _snapshot.cards,
-      boards: _snapshot.boards,
+      boards: boards ?? _snapshot.boards,
       boardItems: boardItems ?? _snapshot.boardItems,
       groups: groups ?? _snapshot.groups,
       groupMembers: groupMembers ?? _snapshot.groupMembers,
@@ -438,6 +439,178 @@ class FlutterCanvasAdapter {
       },
       authorizationId: authorizationId,
     );
+  }
+
+  /// Adds a board to the snapshot (used by the BoardTargetPicker "新建白板"
+  /// flow). Creating an empty board is not a content operation, so no audit
+  /// operation is emitted — the subsequent placement on that board is.
+  void addBoard(Board board) {
+    if (_readonly) return;
+    _snapshot = _cloneSnapshot(
+      boards: [..._snapshot.boards, board],
+    );
+  }
+
+  /// Rotates an item to an absolute [rotationDegrees] (0–360, clockwise).
+  ///
+  /// Emits a `resize` operation (geometry change) with the rotation in the
+  /// payload/inverse.
+  void rotateItem({
+    required String boardId,
+    required String itemId,
+    required double rotationDegrees,
+    OperationActor actor = OperationActor.user,
+    String? authorizationId,
+  }) {
+    if (_readonly) return;
+    final item = _snapshot.boardItems
+        .cast<BoardItem?>()
+        .firstWhere((i) => i?.itemId == itemId, orElse: () => null);
+    if (item == null || item.boardId != boardId) return;
+    if (item.rotation == rotationDegrees) return;
+
+    final oldRotation = item.rotation;
+    final newItem = BoardItem(
+      itemId: item.itemId,
+      boardId: item.boardId,
+      cardId: item.cardId,
+      x: item.x,
+      y: item.y,
+      width: item.width,
+      height: item.height,
+      rotation: rotationDegrees,
+      zIndex: item.zIndex,
+      viewState: item.viewState,
+    );
+
+    _snapshot = _cloneSnapshot(
+      boardItems: _snapshot.boardItems
+          .map((i) => i.itemId == itemId ? newItem : i)
+          .toList(),
+    );
+
+    _emitOperation(
+      boardId: boardId,
+      actor: actor,
+      kind: OperationKind.resize,
+      targetIds: [itemId],
+      payload: {'rotation': rotationDegrees},
+      inverse: {'kind': 'resize', 'rotation': oldRotation},
+      authorizationId: authorizationId,
+    );
+  }
+
+  /// Sets a group's collapsed state.
+  ///
+  /// Emits a `group` operation carrying the new collapsed flag.
+  void setGroupCollapsed({
+    required String boardId,
+    required String groupId,
+    required bool collapsed,
+    OperationActor actor = OperationActor.user,
+    String? authorizationId,
+  }) {
+    if (_readonly) return;
+    final group = _snapshot.groups
+        .cast<BoardGroup?>()
+        .firstWhere((g) => g?.groupId == groupId, orElse: () => null);
+    if (group == null || group.boardId != boardId) return;
+    if (group.collapsed == collapsed) return;
+
+    final newGroup = BoardGroup(
+      groupId: group.groupId,
+      boardId: group.boardId,
+      name: group.name,
+      style: group.style,
+      collapsed: collapsed,
+    );
+
+    _snapshot = _cloneSnapshot(
+      groups: _snapshot.groups
+          .map((g) => g.groupId == groupId ? newGroup : g)
+          .toList(),
+    );
+
+    _emitOperation(
+      boardId: boardId,
+      actor: actor,
+      kind: OperationKind.group,
+      targetIds: [groupId],
+      payload: {'collapsed': collapsed},
+      inverse: {'kind': 'group', 'collapsed': !collapsed},
+      authorizationId: authorizationId,
+    );
+  }
+
+  /// Retargets one endpoint of an existing edge to another item.
+  ///
+  /// Exactly one of [fromItemId] / [toItemId] should differ from the current
+  /// value; passing the same item for both endpoints is rejected (no
+  /// self-loops). Returns false when the retarget is invalid — the snapshot
+  /// is left untouched (no side effects).
+  bool retargetEdge({
+    required String boardId,
+    required String edgeId,
+    String? fromItemId,
+    String? toItemId,
+    OperationActor actor = OperationActor.user,
+    String? authorizationId,
+  }) {
+    if (_readonly) return false;
+    final edge = _snapshot.edges
+        .cast<BoardEdge?>()
+        .firstWhere((e) => e?.edgeId == edgeId, orElse: () => null);
+    if (edge == null || edge.boardId != boardId) return false;
+
+    final newFrom = fromItemId ?? edge.fromItemId;
+    final newTo = toItemId ?? edge.toItemId;
+    if (newFrom == newTo) return false;
+    if (newFrom == edge.fromItemId && newTo == edge.toItemId) return false;
+
+    final itemIds = _snapshot.boardItems
+        .where((i) => i.boardId == boardId)
+        .map((i) => i.itemId)
+        .toSet();
+    if (!itemIds.contains(newFrom) || !itemIds.contains(newTo)) return false;
+
+    final newEdge = BoardEdge(
+      edgeId: edge.edgeId,
+      boardId: edge.boardId,
+      fromItemId: newFrom,
+      toItemId: newTo,
+      direction: edge.direction,
+      semanticType: edge.semanticType,
+      label: edge.label,
+      style: edge.style,
+      createdBy: edge.createdBy,
+      createdAt: edge.createdAt,
+      deletedAt: edge.deletedAt,
+    );
+
+    _snapshot = _cloneSnapshot(
+      edges: _snapshot.edges
+          .map((e) => e.edgeId == edgeId ? newEdge : e)
+          .toList(),
+    );
+
+    _emitOperation(
+      boardId: boardId,
+      actor: actor,
+      kind: OperationKind.edge,
+      targetIds: [edgeId],
+      payload: {
+        'from_item_id': newFrom,
+        'to_item_id': newTo,
+        'direction': edge.direction.name,
+      },
+      inverse: {
+        'kind': 'edge',
+        'from_item_id': edge.fromItemId,
+        'to_item_id': edge.toItemId,
+      },
+      authorizationId: authorizationId,
+    );
+    return true;
   }
 
   /// Brings an item to the front (max zIndex + 1).

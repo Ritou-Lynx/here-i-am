@@ -21,6 +21,11 @@ class WhiteboardCanvasTokens {
   static const Color cardBorder = Color(0x21B5B2A8);
   static const Color cardBorderSelected = Color(0xFF6E7541);
 
+  /// Raised floating panel (popover / picker / snackbar) — near-opaque so
+  /// content stays readable over the canvas (visual-rules §7.3 allows
+  /// glass for temporary canvas tools; panels must keep text contrast).
+  static const Color panelSurface = Color(0xF4FFFDF7);
+
   // Text
   static const Color textPrimary = Color(0xFF34332F);
   static const Color textSecondary = Color(0xFF74726C);

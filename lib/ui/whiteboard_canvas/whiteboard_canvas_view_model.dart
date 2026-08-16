@@ -10,9 +10,11 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import 'package:memex/domain/whiteboard/board.dart';
+import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 
 import 'engine/flutter_canvas_adapter.dart';
+import 'interactions/ui_intent.dart';
 
 /// A snapshot of the undo/redo state, capturing both the [WhiteboardSnapshot]
 /// and the operation that produced it (for audit display).
@@ -96,8 +98,19 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   BoardViewport _viewport;
   bool _readonly = false;
 
+  String? _selectedEdgeId;
+
   /// Operations log for audit display (all operations since load).
   final List<WhiteboardOperation> _operationLog = [];
+
+  /// Logical-action grouping: while a gesture runs (drag / resize / rotate /
+  /// edge retarget), the adapter operations it produces are buffered and
+  /// committed as ONE undo step on [endLogicalAction]. This is the
+  /// Huabu-style "one logical action → one undo step" rule; a failed or
+  /// cancelled action restores the baseline snapshot with no side effects.
+  int _logicalActionDepth = 0;
+  WhiteboardSnapshot? _logicalActionBaseline;
+  final List<WhiteboardOperation> _bufferedOperations = [];
 
   /// Invoked when the user requests to save the snapshot.
   VoidCallback? onSaveRequested;
@@ -121,6 +134,8 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   bool get isReadonly => _readonly;
   bool get canUndo => _undoStack.length > 1;
   bool get canRedo => _redoStack.isNotEmpty;
+  String? get selectedEdgeId => _selectedEdgeId;
+  bool get isInLogicalAction => _logicalActionDepth > 0;
   List<WhiteboardOperation> get operationLog =>
       List.unmodifiable(_operationLog);
 
@@ -174,9 +189,11 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   void selectInRect(math.Rectangle<double> canvasRect) {
-    final items = _adapter.getBoardState(boardId).nodes;
+    final state = _adapter.getBoardState(boardId);
+    final hidden = _hiddenItemIds(state);
     final ids = <String>[];
-    for (final node in items) {
+    for (final node in state.nodes) {
+      if (hidden.contains(node.itemId)) continue;
       final itemRect = math.Rectangle(
         node.item.x,
         node.item.y,
@@ -196,13 +213,127 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void selectAll() {
+  void selectAll([Set<String> exclude = const {}]) {
     final ids = _adapter
         .getBoardState(boardId)
         .nodes
+        .where((n) => !exclude.contains(n.itemId))
         .map((n) => n.itemId);
     _selection.selectAll(ids);
     notifyListeners();
+  }
+
+  // ── Logical-action grouping ───────────────────────────────────────────
+
+  /// Starts a logical action: subsequent adapter operations are buffered
+  /// instead of each becoming an undo step.
+  void beginLogicalAction() {
+    _logicalActionDepth++;
+    if (_logicalActionDepth == 1) {
+      _logicalActionBaseline = _adapter.exportSnapshot();
+      _bufferedOperations.clear();
+    }
+  }
+
+  /// Ends a logical action, committing all buffered operations as a single
+  /// undo step.
+  void endLogicalAction() {
+    if (_logicalActionDepth == 0) return;
+    _logicalActionDepth--;
+    if (_logicalActionDepth == 0) {
+      _commitUndoStep();
+      _bufferedOperations.clear();
+      _logicalActionBaseline = null;
+    }
+  }
+
+  /// Cancels a logical action: restores the snapshot captured at
+  /// [beginLogicalAction], discards buffered operations from both the undo
+  /// pipeline and the audit log — no state change, no side effects, no undo
+  /// entry. Used when a gesture fails or is aborted.
+  void cancelLogicalAction() {
+    if (_logicalActionDepth == 0) return;
+    _logicalActionDepth = 0;
+    final baseline = _logicalActionBaseline;
+    if (baseline != null) {
+      _adapter.load(baseline);
+      _pruneEdgeSelection();
+    }
+    for (final op in _bufferedOperations) {
+      _operationLog.remove(op);
+    }
+    _bufferedOperations.clear();
+    _logicalActionBaseline = null;
+    notifyListeners();
+  }
+
+  // ── UiIntent routing ──────────────────────────────────────────────────
+
+  /// Resolves a user [UiIntent] into adapter operations — the only entry
+  /// point for UI gestures. Returns false when the intent could not be
+  /// applied (readonly / nothing to do / invalid target); in that case the
+  /// state is unchanged.
+  bool handleIntent(UiIntent intent) {
+    if (_readonly) return false;
+    switch (intent) {
+      case SelectItemIntent(:final itemId):
+        _selection.select(itemId);
+        notifyListeners();
+        return true;
+      case ToggleItemSelectionIntent(:final itemId):
+        _selection.toggleSelection(itemId);
+        notifyListeners();
+        return true;
+      case MarqueeSelectIntent(:final canvasRect):
+        selectInRect(canvasRect);
+        return true;
+      case SelectAllIntent(:final exclude):
+        selectAll(exclude);
+        return true;
+      case ClearSelectionIntent():
+        clearSelection();
+        return true;
+      case MoveSelectionIntent(:final dx, :final dy):
+        moveSelectedItems(dx, dy);
+        return true;
+      case NudgeSelectionIntent(:final dx, :final dy):
+        if (_selection.isEmpty) return false;
+        beginLogicalAction();
+        moveSelectedItems(dx, dy);
+        endLogicalAction();
+        return true;
+      case DeleteSelectionIntent():
+        if (_selectedEdgeId != null) {
+          removeEdge(_selectedEdgeId!);
+          return true;
+        }
+        if (_selection.isEmpty) return false;
+        removeSelectedItems();
+        return true;
+      case RotateItemIntent(:final itemId, :final rotationDegrees):
+        rotateItem(itemId: itemId, rotationDegrees: rotationDegrees);
+        return true;
+      case ResizeItemIntent(:final itemId, :final width, :final height):
+        resizeItem(itemId: itemId, width: width, height: height);
+        return true;
+      case ToggleGroupCollapsedIntent(:final groupId):
+        toggleGroupCollapsed(groupId);
+        return true;
+      case RetargetEdgeIntent(:final edgeId, :final fromItemId, :final toItemId):
+        return retargetEdge(
+          edgeId: edgeId,
+          fromItemId: fromItemId,
+          toItemId: toItemId,
+        );
+      case SelectEdgeIntent(:final edgeId):
+        _selectedEdgeId = edgeId;
+        notifyListeners();
+        return true;
+      case ClearEdgeSelectionIntent():
+        _selectedEdgeId = null;
+        notifyListeners();
+        return true;
+    }
   }
 
   // ── Operations ─────────────────────────────────────────────────────
@@ -324,29 +455,129 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
 
   void removeEdge(String edgeId) {
     _adapter.removeEdge(boardId: boardId, edgeId: edgeId);
+    if (_selectedEdgeId == edgeId) _selectedEdgeId = null;
     notifyListeners();
+  }
+
+  /// Rotates an item to an absolute rotation (degrees).
+  void rotateItem({
+    required String itemId,
+    required double rotationDegrees,
+  }) {
+    _adapter.rotateItem(
+      boardId: boardId,
+      itemId: itemId,
+      rotationDegrees: rotationDegrees,
+    );
+    notifyListeners();
+  }
+
+  void toggleGroupCollapsed(String groupId) {
+    final group = _adapter
+        .getBoardState(boardId)
+        .groups
+        .cast<CanvasGroupNode?>()
+        .firstWhere((g) => g?.groupId == groupId, orElse: () => null);
+    if (group == null) return;
+    setGroupCollapsed(groupId, !group.group.collapsed);
+  }
+
+  void setGroupCollapsed(String groupId, bool collapsed) {
+    _adapter.setGroupCollapsed(
+      boardId: boardId,
+      groupId: groupId,
+      collapsed: collapsed,
+    );
+    if (collapsed) {
+      final members = _adapter
+          .getBoardState(boardId)
+          .groups
+          .where((g) => g.groupId == groupId)
+          .expand((g) => g.members)
+          .map((m) => m.itemId)
+          .toSet();
+      for (final id in members) {
+        _selection.removeId(id);
+      }
+    }
+    notifyListeners();
+  }
+
+  /// Retargets an edge endpoint. Returns false when invalid (self-loop,
+  /// unknown target, unchanged) — the snapshot is untouched.
+  bool retargetEdge({
+    required String edgeId,
+    String? fromItemId,
+    String? toItemId,
+  }) {
+    final ok = _adapter.retargetEdge(
+      boardId: boardId,
+      edgeId: edgeId,
+      fromItemId: fromItemId,
+      toItemId: toItemId,
+    );
+    if (ok) notifyListeners();
+    return ok;
+  }
+
+  /// Creates a new board in the snapshot (BoardTargetPicker "新建白板").
+  /// Returns the created board.
+  Board createBoard(String name) {
+    final board = Board(
+      boardId: StableId.generate('board').value,
+      name: name,
+      createdAt: DateTime.now(),
+    );
+    _adapter.addBoard(board);
+    notifyListeners();
+    return board;
+  }
+
+  /// Places a card onto [boardId] at the given canvas position. The board
+  /// must already exist in the snapshot.
+  BoardItem? placeCardOnBoard({
+    required String cardId,
+    required String boardId,
+    required double x,
+    required double y,
+  }) {
+    final item = _adapter.placeCard(
+      boardId: boardId,
+      cardId: cardId,
+      x: x,
+      y: y,
+    );
+    if (item != null && boardId == this.boardId) {
+      _selection.select(item.itemId);
+    }
+    notifyListeners();
+    return item;
   }
 
   // ── Undo / Redo ────────────────────────────────────────────────────
 
   void undo() {
     if (!canUndo) return;
+    cancelLogicalAction();
     final current = _undoStack.removeLast();
     _redoStack.add(current);
     final previous = _undoStack.last;
     _adapter.load(previous.snapshot);
     _viewport = previous.snapshot.viewport;
     _selection.clear();
+    _selectedEdgeId = null;
     notifyListeners();
   }
 
   void redo() {
     if (!canRedo) return;
+    cancelLogicalAction();
     final next = _redoStack.removeLast();
     _undoStack.add(next);
     _adapter.load(next.snapshot);
     _viewport = next.snapshot.viewport;
     _selection.clear();
+    _selectedEdgeId = null;
     notifyListeners();
   }
 
@@ -381,11 +612,77 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
 
   void _handleOperation(WhiteboardOperation operation) {
     _operationLog.add(operation);
+    _pruneEdgeSelection();
+    _bufferedOperations.add(operation);
+    if (_logicalActionDepth > 0) {
+      // A gesture is in flight: buffer, commit as one undo step on end.
+      return;
+    }
+    _commitUndoStep();
+    _bufferedOperations.clear();
+  }
+
+  /// Commits the current snapshot as one undo step. When called at the end
+  /// of a logical action, the buffered operations are merged into a single
+  /// undo entry; otherwise the single operation produced it.
+  void _commitUndoStep() {
     final currentSnapshot = _adapter.exportSnapshot();
+    final op = _bufferedOperations.isEmpty
+        ? null
+        : _bufferedOperations.length == 1
+            ? _bufferedOperations.first
+            : _mergeOperations(_bufferedOperations);
     _undoStack.add(UndoRedoEntry(
       snapshot: currentSnapshot,
-      operation: operation,
+      operation: op,
     ));
     _redoStack.clear();
+  }
+
+  /// Merges the operations of one logical action into a single audit entry.
+  /// The merged entry keeps the action's kind, actor and target scope and
+  /// records the operation count in the payload for audit display.
+  WhiteboardOperation _mergeOperations(List<WhiteboardOperation> ops) {
+    final first = ops.first;
+    final boardIds = ops.map((o) => o.boardId).toSet();
+    return WhiteboardOperation(
+      operationId: first.operationId,
+      boardId: boardIds.length == 1 ? first.boardId : boardId,
+      actor: first.actor,
+      operationKind: first.operationKind,
+      targetIds: {
+        for (final op in ops)
+          ...op.targetIds,
+      }.toList(),
+      payload: {
+        'merged_count': ops.length,
+        'kinds': [for (final op in ops) op.operationKind.name],
+      },
+      createdAt: first.createdAt,
+    );
+  }
+
+  /// Drops the edge selection when the selected edge no longer exists
+  /// (e.g. its endpoints were removed).
+  void _pruneEdgeSelection() {
+    final id = _selectedEdgeId;
+    if (id == null) return;
+    final stillExists = _adapter
+        .exportSnapshot()
+        .edges
+        .any((e) => e.edgeId == id);
+    if (!stillExists) _selectedEdgeId = null;
+  }
+
+  /// Item ids hidden by collapsed groups (not rendered, not selectable).
+  Set<String> _hiddenItemIds(CanvasBoardState state) {
+    final hidden = <String>{};
+    for (final group in state.groups) {
+      if (!group.group.collapsed) continue;
+      for (final member in group.members) {
+        hidden.add(member.itemId);
+      }
+    }
+    return hidden;
   }
 }
