@@ -33,6 +33,7 @@ import 'package:memex/ui/whiteboard/link_import_screen.dart';
 import 'package:memex/ui/whiteboard/source_study_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_index_screen.dart';
+import 'package:memex/routing/desktop_route_wrapper.dart';
 import 'package:memex/routing/routes.dart';
 
 /// Creates the app [GoRouter]. Root content is built by [rootBuilder].
@@ -63,23 +64,38 @@ GoRouter createAppRouter(
       ),
       GoRoute(
         path: AppRoutes.memoryCenter,
-        builder: (_, __) => const MemoryCenterScreen(),
+        builder: (_, __) => const DesktopRouteWrapper(
+          title: '记忆',
+          child: MemoryCenterScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.memoryCenterCards,
-        builder: (_, __) => const MemoryCardListPage(),
+        builder: (_, __) => const DesktopRouteWrapper(
+          title: '记忆卡片',
+          child: MemoryCardListPage(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.memoryCenterFragments,
-        builder: (_, __) => const LabFragmentsPage(),
+        builder: (_, __) => const DesktopRouteWrapper(
+          title: '片段',
+          child: LabFragmentsPage(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.memoryCenterEpisodes,
-        builder: (_, __) => const LabEpisodesPage(),
+        builder: (_, __) => const DesktopRouteWrapper(
+          title: '情节',
+          child: LabEpisodesPage(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.memoryCenterSagas,
-        builder: (_, __) => const LabSagasPage(),
+        builder: (_, __) => const DesktopRouteWrapper(
+          title: '故事',
+          child: LabSagasPage(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.memoryCenterQueryLog,
@@ -106,7 +122,10 @@ GoRouter createAppRouter(
             initialDate: initialDate,
           );
           vm.fetchMonthData(DateTime(initialDate.year, initialDate.month));
-          return CalendarScreen(initialDate: initialDate, viewModel: vm);
+          return DesktopRouteWrapper(
+            title: '日程',
+            child: CalendarScreen(initialDate: initialDate, viewModel: vm),
+          );
         },
       ),
       GoRoute(
@@ -123,7 +142,10 @@ GoRouter createAppRouter(
       ),
       GoRoute(
         path: AppRoutes.devRoom,
-        builder: (_, __) => const DevRoomScreen(),
+        builder: (_, __) => const DesktopRouteWrapper(
+          title: '任务中心',
+          child: DevRoomScreen(),
+        ),
       ),
       // ── Whiteboard production routes (W6 integration base) ──────────────
       // Route paths and parameter signatures are frozen once here; parallel

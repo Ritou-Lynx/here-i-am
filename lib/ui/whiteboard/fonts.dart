@@ -14,7 +14,7 @@ library;
 import 'package:flutter/material.dart';
 
 /// 中文目标字体族名（汇文明朝体）。生产资产接入后对应 pubspec 注册名。
-const String richTextCjkFamily = 'HuiwenMincho';
+const String richTextCjkFamily = 'HuiwenMingchao';
 
 /// 中文回退链：系统宋体 / 明朝体。目标字体缺字形时逐项尝试。
 const List<String> richTextCjkFallback = [

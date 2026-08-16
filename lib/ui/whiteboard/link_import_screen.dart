@@ -220,6 +220,11 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
         backgroundColor: WhiteboardCanvasTokens.canvas,
         foregroundColor: WhiteboardCanvasTokens.textPrimary,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, size: 20),
+          tooltip: '返回首页',
+          onPressed: () => context.go('/'),
+        ),
         title: const Text('导入链接'),
       ),
       body: ListView(

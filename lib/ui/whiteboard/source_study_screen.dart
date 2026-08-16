@@ -6,6 +6,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
 
@@ -23,6 +24,11 @@ class SourceStudyScreen extends StatelessWidget {
         backgroundColor: WhiteboardCanvasTokens.canvas,
         foregroundColor: WhiteboardCanvasTokens.textPrimary,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, size: 20),
+          tooltip: '返回首页',
+          onPressed: () => context.go('/'),
+        ),
         title: const Text('研读'),
       ),
       body: Center(

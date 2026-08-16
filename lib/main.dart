@@ -81,6 +81,7 @@ import 'package:memex/data/services/speech_transcription_service.dart';
 import 'package:memex/data/services/background_task_drain_service.dart';
 import 'package:memex/data/services/sync/core_sync_runtime_service.dart';
 import 'package:memex/ui/companion/widgets/companion_first_shell.dart';
+import 'package:memex/ui/desktop/widgets/global_desktop_chat_overlay.dart';
 import 'package:memex/ui/companion/widgets/floating_record_ball.dart';
 import 'package:memex/ui/companion/widgets/global_call_overlay.dart';
 
@@ -267,13 +268,18 @@ void main() async {
       return state;
     };
     CallkitService.instance.onAccept = (String characterId) async {
-      // Global call: keep the CallKit session alive (ongoing notification +
-      // hang-up button), move the audio pipeline into the foreground-task
-      // isolate so the call survives backgrounding, and show the in-app
-      // call overlay. Previously we ended CallKit immediately and ran the
-      // voice mode in the main isolate, which died on backgrounding.
-      await CallVoiceRouter.instance.startCall(characterId);
-      GlobalCallOverlay.instance.show();
+      // Global call: audio runs in the foreground-task isolate (survives
+      // backgrounding). End the CallKit/Telecom session immediately on
+      // accept — the self-managed Telecom Connection fights our own
+      // audio_session for the voice route and bounces between earpiece and
+      // speaker. We don't need Telecom after ringing; the in-call control
+      // notification (call_control channel) provides hang-up/mute/speaker.
+      await CallkitService.instance.endAll();
+      await Future.delayed(const Duration(milliseconds: 300));
+      unawaited(() async {
+        await CallVoiceRouter.instance.startCall(characterId);
+        GlobalCallOverlay.instance.show();
+      }());
     };
     CallkitService.instance.onDecline = (String characterId) {
       // The CallKit service fires onDecline for BOTH explicit rejection
@@ -292,8 +298,11 @@ void main() async {
     // call and start the global call.
     final recoveredCall = await CallkitService.instance.recoverAcceptedCall();
     if (recoveredCall != null) {
-      await CallVoiceRouter.instance.startCall(recoveredCall);
-      GlobalCallOverlay.instance.show();
+      await CallkitService.instance.endAll();
+      unawaited(() async {
+        await CallVoiceRouter.instance.startCall(recoveredCall);
+        GlobalCallOverlay.instance.show();
+      }());
     }
   }
 
@@ -738,6 +747,12 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
                   return FloatingRecordBall(navigatorKey: rootNavigatorKey);
                 },
               ),
+            // Desktop global floating chat ball — persists across all routes
+            // (spine-contract §3.5). Mobile uses the embedded PersonaChatScreen.
+            if (shouldShowGlobalDesktopChatOverlay() &&
+                AppFlavor.isHereIAm &&
+                !(_isLocked && _hasUser))
+              const GlobalDesktopChatOverlay(),
           ],
         );
       },

@@ -10,6 +10,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
@@ -98,7 +99,7 @@ class _WhiteboardCanvasRouteScreenState
     if (vm != null) {
       unawaited(_save(vm));
     }
-    Navigator.of(context).maybePop();
+    context.go('/');
   }
 
   @override

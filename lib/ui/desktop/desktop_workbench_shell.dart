@@ -40,7 +40,6 @@ class DesktopWorkbenchShell extends StatefulWidget {
 class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
   late final DesktopHomeViewModel _viewModel;
   bool _sidebarCollapsed = false;
-  bool _chatOpen = false;
 
   @override
   void initState() {
@@ -67,7 +66,7 @@ class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
       onOpenTaskCenter: () => context.go(AppRoutes.devRoom),
       onOpenCardLibrary: () => context.go(AppRoutes.cardLibrary),
       onOpenMemoryCenter: () => context.go(AppRoutes.memoryCenter),
-      onContinueChat: () => setState(() => _chatOpen = true),
+      onContinueChat: () {}, // Global overlay handles chat; no-op here.
     );
   }
 
@@ -87,30 +86,16 @@ class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
       backgroundColor: tokens.canvas,
       body: ChangeNotifierProvider.value(
         value: _viewModel,
-        child: Stack(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                DesktopSidebar(collapsed: _sidebarCollapsed),
-                _SidebarHandle(
-                  collapsed: _sidebarCollapsed,
-                  onToggle: () =>
-                      setState(() => _sidebarCollapsed = !_sidebarCollapsed),
-                ),
-                Expanded(child: _buildContent(tokens)),
-              ],
+            DesktopSidebar(collapsed: _sidebarCollapsed),
+            _SidebarHandle(
+              collapsed: _sidebarCollapsed,
+              onToggle: () =>
+                  setState(() => _sidebarCollapsed = !_sidebarCollapsed),
             ),
-            // 林埃悬浮对话：球 ↔ 面板，覆盖在首页之上，可完全收起。
-            Positioned.fill(
-              child: DesktopChatOverlay(
-                open: _chatOpen,
-                characterId: widget.characterId,
-                initialVoiceMode: widget.initialVoiceMode,
-                onOpen: () => setState(() => _chatOpen = true),
-                onClose: () => setState(() => _chatOpen = false),
-              ),
-            ),
+            Expanded(child: _buildContent(tokens)),
           ],
         ),
       ),
