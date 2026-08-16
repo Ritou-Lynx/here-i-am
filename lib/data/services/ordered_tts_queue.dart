@@ -190,11 +190,20 @@ class OrderedTtsQueue {
       nonce: DateTime.now().microsecondsSinceEpoch,
     );
 
-    final player = AudioPlayer();
+    // handleAudioSessionActivation: false + androidApplyAudioAttributes: false
+    // keep just_audio from re-configuring the (process-wide) audio session on
+    // every segment — the VoIP call session (VoiceCallAudioSession.enter)
+    // owns the session; a just_audio re-configure would bounce the route
+    // between loudspeaker (media stream) and earpiece (voice-call stream),
+    // producing the "earpiece once, loudspeaker again" alternating playback.
+    final player = AudioPlayer(
+      handleAudioSessionActivation: false,
+      androidApplyAudioAttributes: false,
+    );
     if (voiceMode) {
       try {
         await player.setAndroidAudioAttributes(
-          AndroidAudioAttributes(
+          const AndroidAudioAttributes(
             contentType: AndroidAudioContentType.speech,
             usage: AndroidAudioUsage.voiceCommunication,
           ),

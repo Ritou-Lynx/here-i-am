@@ -72,10 +72,6 @@ class CallVoiceRouter {
   bool _micMuted = false;
   bool _speakerOn = true;
 
-  /// Messages queued until the foreground-task isolate handshakes. FIFO so a
-  /// rapid call_start → call_end sequence keeps its order.
-  final List<Map<String, dynamic>> _pendingMessages = [];
-
   String? _activeCharacterId;
   String? _activeCharacterName;
   String? _activeCharacterAvatar;
@@ -209,30 +205,45 @@ class CallVoiceRouter {
   /// re-show the overlay after the engine comes back.
   bool isActive() => _activeCharacterId != null;
 
-  /// Queue a task message until the foreground-task isolate is ready
-  /// (task_ready handshake), then forward it. Messages are sent in FIFO order
-  /// so a call_start followed quickly by call_end cannot be reordered. Drops
-  /// everything after ~10s without the handshake.
+  /// Queue a task message until the foreground-task isolate exists, then
+  /// forward it.
+  ///
+  /// IMPORTANT: does NOT rely on the task_ready handshake message. That
+  /// message travels task→main via IsolateNameServer, whose port map is
+  /// per-isolate — the background isolate cannot resolve a port registered
+  /// by the main isolate, so the handshake is unreliable. Instead we poll
+  /// [FlutterForegroundTask.isRunningService] (Kotlin state, main→task
+  /// direction works) and then send. The isolate-side handlers are idempotent
+  /// (start/end/mute/speaker all no-op when already in that state), so the
+  /// small re-send window is harmless insurance against a task engine that is
+  /// still warming up.
   Future<void> _queueOrSend(Map<String, dynamic> data) async {
     if (!_taskReady) {
-      _pendingMessages.add(data);
+      // Wait until the service isolate is running (up to ~10s).
       for (var i = 0; i < 40; i++) {
-        if (_taskReady) break;
+        try {
+          if (await FlutterForegroundTask.isRunningService) break;
+        } catch (_) {}
         await Future.delayed(const Duration(milliseconds: 250));
       }
-      // Once the handshake is seen, wait until this message reaches the head
-      // of the queue (older messages are sent first).
-      while (_pendingMessages.isNotEmpty && !identical(_pendingMessages.first, data)) {
-        await Future.delayed(const Duration(milliseconds: 50));
-      }
-      if (_pendingMessages.isNotEmpty) {
-        _pendingMessages.removeAt(0);
-      }
     }
-    if (_taskReady) {
-      FlutterForegroundTask.sendDataToTask(data);
-    } else {
-      _log.warning('task not ready within 10s; drop $data');
+    // Send repeatedly (idempotent on the isolate side) so a message cannot be
+    // lost to a task engine that is still warming up.
+    var sent = false;
+    for (var i = 0; i < 3; i++) {
+      try {
+        if (await FlutterForegroundTask.isRunningService) {
+          FlutterForegroundTask.sendDataToTask(data);
+          sent = true;
+          _log.fine('sent ${data['type']} to task isolate (try ${i + 1})');
+        }
+      } catch (e) {
+        _log.warning('sendDataToTask failed: $e');
+      }
+      await Future.delayed(const Duration(milliseconds: 1500));
+    }
+    if (!sent) {
+      _log.warning('task not running within 10s; drop $data');
     }
   }
 

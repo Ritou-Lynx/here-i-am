@@ -127,9 +127,6 @@ class CallVoiceSession {
 
       final controller = VoiceInputController();
       controller.onStreamingEvent = _onStreamingEvent;
-      controller.onBargeInDuck = _onBargeInDuck;
-      controller.onBargeInDetected = _onBargeInDetected;
-      controller.onBargeInRestore = _onBargeInRestore;
       controller.onStreamingSessionLost = _onStreamingSessionLost;
 
       _controller = controller;
@@ -150,7 +147,10 @@ class CallVoiceSession {
   }
 
   /// Start a continuous call for [characterId]. Idempotent.
-  Future<void> start(String characterId, {bool speakerOn = true}) async {
+  Future<void> start(String characterId, {bool speakerOn = true}) =>
+      _startInternal(characterId, speakerOn: speakerOn);
+
+  Future<void> _startInternal(String characterId, {required bool speakerOn}) async {
     if (_phase != CallVoicePhase.idle) {
       _log.info('start ignored: already active (phase=$_phase)');
       return;
@@ -185,6 +185,13 @@ class CallVoiceSession {
     } catch (e) {
       _log.warning('setSpeakerphone failed: $e');
     }
+    // Tell the media-button bridge a call is active so it stops claiming
+    // USAGE_MEDIA audio focus (route bouncing between earpiece and speaker).
+    try {
+      await _audioRouteChannel.invokeMethod('setCallActive', {'active': true});
+    } catch (e) {
+      _log.warning('setCallActive failed: $e');
+    }
 
     final ok = await _armMic();
     if (!ok) {
@@ -206,12 +213,17 @@ class CallVoiceSession {
 
     // Opening line: read the queued opening message (agent-composed) or fall
     // back to a default greeting. Spoken through TTS while the mic listens.
+    // IMPORTANT: fired outside the mutex — _speakAndPersist can take a long
+    // time (TTS synthesis + playback) and must not hold the lifecycle lock,
+    // otherwise a hang-up (end) queues behind it and feels dead.
     final opening = await _resolveOpening();
-    await _speakAndPersist(opening, isOpening: true);
+    unawaited(_speakAndPersist(opening, isOpening: true));
   }
 
   /// Mute / unmute the call mic (the companion stops hearing the user).
-  Future<void> setMuted(bool muted) async {
+  Future<void> setMuted(bool muted) => _setMutedInternal(muted);
+
+  Future<void> _setMutedInternal(bool muted) async {
     if (_phase == CallVoicePhase.idle) return;
     if (_micMuted == muted) return;
     _micMuted = muted;
@@ -240,7 +252,9 @@ class CallVoiceSession {
   }
 
   /// Switch the audio route between earpiece and loudspeaker.
-  Future<void> setSpeakerphone(bool enabled) async {
+  Future<void> setSpeakerphone(bool enabled) => _setSpeakerphoneInternal(enabled);
+
+  Future<void> _setSpeakerphoneInternal(bool enabled) async {
     if (_phase == CallVoicePhase.idle) return;
     if (_speakerOn == enabled) return;
     _speakerOn = enabled;
@@ -262,7 +276,9 @@ class CallVoiceSession {
   }
 
   /// Handle a hang-up request (from the app UI or the CallKit notification).
-  Future<void> end() async {
+  Future<void> end() => _endInternal();
+
+  Future<void> _endInternal() async {
     if (_phase == CallVoicePhase.idle) return;
     _log.info('end (phase=$_phase)');
     _runSerial++;
@@ -297,6 +313,11 @@ class CallVoiceSession {
     }
 
     await VoiceCallAudioSession.instance.exit();
+    try {
+      await _audioRouteChannel.invokeMethod('setCallActive', {'active': false});
+    } catch (e) {
+      _log.warning('setCallActive(false) failed: $e');
+    }
     await _updateNotification('📞 通话已结束');
     // Clear the CallKit ongoing session + notification so no stale "in call"
     // notification survives the hang-up. Safe to call even if already ended.
@@ -321,7 +342,11 @@ class CallVoiceSession {
       _log.warning('startStreaming failed: $e');
       return false;
     }
-    return controller.isStreaming;
+    if (!controller.isStreaming) {
+      _log.warning('startStreaming silent fail: ${controller.lastError}');
+      return false;
+    }
+    return true;
   }
 
   Future<void> _onStreamingSessionLost() async {
@@ -335,13 +360,14 @@ class CallVoiceSession {
     await _scheduleMicReconnect();
   }
 
-  /// Re-arm the mic with exponential backoff. Runs forever (a long companion
-  /// call like sleep-over may idle the NLS session many times) until the call
-  /// ends or the user mutes.
+  /// Re-arm the mic with backoff. Runs forever (a long companion call like
+  /// sleep-over may idle the NLS session many times) until the call ends or
+  /// the user mutes. First attempt is quick (600ms) so a sentence spoken right
+  /// after an NLS idle-drop isn't lost to a long retry window.
   Future<void> _scheduleMicReconnect() async {
     _micRestartAttempts++;
-    final delayMs =
-        math.min(2000 * _micRestartAttempts, 30000).toInt();
+    final baseMs = _micRestartAttempts == 1 ? 600 : 2000;
+    final delayMs = math.min(baseMs * _micRestartAttempts, 30000).toInt();
     _log.info('mic session lost — re-arming in ${delayMs}ms '
         '(attempt $_micRestartAttempts)');
     await Future.delayed(Duration(milliseconds: delayMs));
@@ -359,9 +385,9 @@ class CallVoiceSession {
   void _onStreamingEvent(StreamingAsrEvent event) {
     switch (event) {
       case SentenceBeginEvent():
-        // NLS detected speech start. If the companion is speaking, treat it
-        // as a barge-in (the platform AEC should cancel TTS echo; anything
-        // that reaches NLS VAD is real user speech).
+        // NLS detected real speech. If the companion is speaking, treat it
+        // as a barge-in (the platform AEC cancels TTS echo; anything that
+        // reaches NLS VAD while TTS plays is real user speech).
         if (_phase == CallVoicePhase.speaking) {
           _log.info('SentenceBegin during TTS — barge-in');
           unawaited(_interruptReply());
@@ -389,20 +415,9 @@ class CallVoiceSession {
     }
   }
 
-  void _onBargeInDuck() {
-    // Lower TTS volume is handled by the UI side in the main isolate; in the
-    // background we simply keep playing (the NLS VAD + AEC do the work).
-  }
-
-  void _onBargeInDetected() {
-    _log.info('barge-in detected');
-    unawaited(_interruptReply());
-  }
-
-  void _onBargeInRestore() {}
-
   /// Stop the in-flight reply and return the mic to listening so the user's
-  /// follow-up sentence can start a fresh turn.
+  /// follow-up sentence can start a fresh turn. The mic/NLS session stays
+  /// open throughout (no pause/restore dance).
   Future<void> _interruptReply() async {
     _runSerial++;
     _activeIdentity = null;
@@ -419,7 +434,6 @@ class CallVoiceSession {
       _phase = CallVoicePhase.listening;
       await _updateNotification('📞 通话中…（随时可以说话）');
     }
-    await _restoreMicAfterTts();
   }
 
   // ── Turn dispatch ────────────────────────────────────────────────────────
@@ -475,12 +489,12 @@ class CallVoiceSession {
         await tts.start();
         _ttsSession = tts;
         await _updateNotification('🔊 正在回复…');
-        // While TTS plays, mic audio feeds the barge-in detector (echo loop
-        // defense-in-depth on top of the platform AEC).
-        final controller = _controller;
-        if (controller != null && controller.isStreaming) {
-          controller.pauseAudioForwarding();
-        }
+        // NLS keeps receiving mic audio during TTS — the platform AEC
+        // (voiceCommunication source + MODE_IN_COMMUNICATION) cancels the
+        // speaker echo. Pausing forwarding would starve NLS and make it
+        // timeout (40000004); the local barge-in detector would also false-
+        // trigger on TTS echo. Barge-in is driven by NLS SentenceBegin
+        // instead (see _onStreamingEvent).
       } else {
         await _updateNotification('💬 正在回复…');
       }
@@ -532,34 +546,15 @@ class CallVoiceSession {
       if (serial == _runSerial && turnIdentity.isCurrent(_activeIdentity)) {
         _ttsSession = null;
         _activeIdentity = null;
-        // Back to listening only if the call is still alive.
+        // Back to listening only if the call is still alive. The mic/NLS
+        // session never stopped (no pauseAudioForwarding), so nothing to
+        // restore here.
         if (_phase != CallVoicePhase.idle) {
           _phase = CallVoicePhase.listening;
-          await _restoreMicAfterTts();
           await _updateNotification('📞 通话中…（随时可以说话）');
           _notifyMain({'type': 'call_status', 'status': 'listening'});
         }
       }
-    }
-  }
-
-  /// After TTS finishes, hand the mic back to the NLS session. If the NLS
-  /// session was closed while TTS played (idle-close — no audio was forwarded
-  /// during playback, and the controller tears the client down), re-arm a
-  /// fresh streaming session. This was the bug that killed multi-turn calls:
-  /// the mic stayed "open" but nothing re-created the dead ASR connection.
-  Future<void> _restoreMicAfterTts() async {
-    final controller = _controller;
-    if (controller == null || _phase == CallVoicePhase.idle) return;
-    if (controller.isStreaming) {
-      controller.resumeAudioForwarding();
-      return;
-    }
-    _log.info('NLS session gone after TTS — re-arming mic');
-    final ok = await _armMic();
-    if (!ok && _phase != CallVoicePhase.idle) {
-      _log.warning('mic re-arm after TTS failed — scheduling retry');
-      await _scheduleMicReconnect();
     }
   }
 
@@ -602,10 +597,8 @@ class CallVoiceSession {
     _ttsSession = tts;
     try {
       await tts.start();
-      final controller = _controller;
-      if (controller != null && controller.isStreaming) {
-        controller.pauseAudioForwarding();
-      }
+      // NLS keeps receiving mic audio during the opening TTS (no pausing —
+      // see _runTurn comment). Barge-in arrives via NLS SentenceBegin.
       tts.feedText(text);
       await tts.finishAndWait();
     } catch (e, st) {
@@ -614,7 +607,6 @@ class CallVoiceSession {
       if (serial == _runSerial && turnIdentity.isCurrent(_activeIdentity)) {
         _ttsSession = null;
         _activeIdentity = null;
-        await _restoreMicAfterTts();
         if (_phase != CallVoicePhase.idle) {
           await _updateNotification('📞 通话中…（随时可以说话）');
           _notifyMain({'type': 'call_status', 'status': 'listening'});
@@ -633,6 +625,11 @@ class CallVoiceSession {
       await FlutterCallkitIncoming.endAllCalls();
     } catch (e) {
       _log.warning('endAllCalls on fail: $e');
+    }
+    try {
+      await _audioRouteChannel.invokeMethod('setCallActive', {'active': false});
+    } catch (e) {
+      _log.warning('setCallActive(false) on fail: $e');
     }
     await _hideControlNotification();
     _notifyMain({'type': 'call_ended', 'reason': text});

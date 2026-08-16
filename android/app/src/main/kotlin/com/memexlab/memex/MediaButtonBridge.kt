@@ -43,6 +43,24 @@ object MediaButtonBridge {
     private var receiverComponent: ComponentName? = null
     private var isBackground = false
 
+    /**
+     * True while a global companion call is active (set by the call session
+     * via the audio_route channel). While in a call the media-button bridge
+     * must NOT request USAGE_MEDIA focus — it would steal focus from the
+     * voice-communication session and bounce the audio route between
+     * loudspeaker and earpiece.
+     */
+    @Volatile
+    var isCallActive: Boolean = false
+        private set
+
+    fun setCallActive(active: Boolean) {
+        if (isCallActive == active) return
+        isCallActive = active
+        Log.d(TAG, "setCallActive=$active")
+        reapplyAudioFocus()
+    }
+
     private val focusChangeListener =
         AudioManager.OnAudioFocusChangeListener { change ->
             Log.d(TAG, "audio focus changed: $change")
@@ -65,7 +83,7 @@ object MediaButtonBridge {
         }
         val manager = audioManager
         if (manager != null) {
-            val focusType = if (isBackground) {
+            val focusType = if (isBackground && !isCallActive) {
                 AudioManager.AUDIOFOCUS_GAIN
             } else {
                 AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK

@@ -9,6 +9,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.memexlab.memex.CallToForegroundBridgeReceiver
+import com.memexlab.memex.MediaButtonBridge
 import com.memexlab.memex.R
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -52,6 +53,14 @@ class AudioRouteChannelHandler(private val context: Context) {
                             result.success(true)
                         }
                         "getSpeakerphone" -> result.success(handler.isSpeakerphoneOn())
+                        // While a call is active the media-button bridge must not
+                        // claim USAGE_MEDIA audio focus (route bouncing).
+                        "setCallActive" -> {
+                            val active = (call.arguments as? Map<*, *>)?.get("active") as? Boolean
+                                ?: false
+                            MediaButtonBridge.setCallActive(active)
+                            result.success(true)
+                        }
                         else -> result.notImplemented()
                     }
                 }
