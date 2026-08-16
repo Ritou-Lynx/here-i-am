@@ -43,6 +43,9 @@ class _SubtitleListViewState extends State<SubtitleListView> {
     if (vm.needsSubtitle || track == null || track.cues.isEmpty) {
       return _NeedsSubtitleView(
         hasImportCapability: true,
+        reason: vm.subtitleFetchStatus == SubtitleAutoFetchStatus.failed
+            ? vm.subtitleFetchMessage
+            : null,
         onImport: () => _showImportDialog(context),
       );
     }
@@ -202,10 +205,12 @@ class _CueItem extends StatelessWidget {
 class _NeedsSubtitleView extends StatelessWidget {
   final bool hasImportCapability;
   final VoidCallback onImport;
+  final String? reason;
 
   const _NeedsSubtitleView({
     required this.hasImportCapability,
     required this.onImport,
+    this.reason,
   });
 
   @override
@@ -232,7 +237,9 @@ class _NeedsSubtitleView extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '平台未提供可靠字幕\n导入 SRT 或 VTT 文件开始研读',
+              reason != null && reason!.isNotEmpty
+                  ? reason!
+                  : '平台未提供可靠字幕\n导入 SRT 或 VTT 文件开始研读',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: SpringRainUiTokens.daylightTextTertiary,

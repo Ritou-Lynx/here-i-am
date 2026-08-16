@@ -4,13 +4,14 @@
 ///   flutter run -d chrome -t lib/ui/whiteboard/video/video_study_demo.dart
 ///
 /// On Flutter Web: uses [WebYouTubePlayerAdapter] (YouTube IFrame via
-/// `dart:js_interop`) — the MVP desktop playback path. Loads a real YouTube
-/// video so the playback → seek → subtitle → annotation loop is real.
+/// `dart:js_interop`) — the ADR desktop playback route. Loads a real YouTube
+/// video; platform subtitles are auto-fetched (timedtext) and, when that
+/// fails honestly, the UI shows "需要字幕" with the reason and offers
+/// SRT/VTT import. Sessions persist to localStorage (web) or a temp JSON
+/// file (native) for restart recovery.
 /// On Android: uses [YouTubePlayerAdapter] (webview_flutter).
-/// On other desktop platforms: uses [FixturePlayerAdapter] (simulated).
-///
-/// Web fallback: session file persistence is skipped on web since dart:io is
-/// unavailable there.
+/// On other desktop platforms: uses [FixturePlayerAdapter] (simulated, with
+/// the bundled sample SRT as demo subtitles).
 library;
 
 import 'package:flutter/foundation.dart';
@@ -21,8 +22,7 @@ import 'package:memex/domain/whiteboard/video/youtube_adapter_factory.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 
-import 'session_path_stub.dart'
-    if (dart.library.io) 'session_path_io.dart' as session_path;
+import 'session_store.dart';
 
 const _sampleSrt = '''
 1
@@ -87,7 +87,7 @@ class _VideoStudyDemoScreenState extends State<VideoStudyDemoScreen> {
   PlayerAdapter? _adapter;
   String? _embedUrl;
   String _providerId = 'fixture';
-  final String? _sessionPath = session_path.resolveSessionPath();
+  final VideoSessionStore? _sessionStore = createVideoSessionStore();
 
   @override
   void initState() {
@@ -162,15 +162,15 @@ class _VideoStudyDemoScreenState extends State<VideoStudyDemoScreen> {
       sourceId: 'src_demo_concert',
       sourceVersionId: 'ver_demo_concert_v1',
       embedUrl: _embedUrl,
-      initialTrack: _demoTrack,
-      sessionPath: _sessionPath,
+      initialTrack: _providerId == 'youtube' ? null : _demoTrack,
+      sessionStore: _sessionStore,
       providerId: _providerId,
     );
   }
 
   String _platformHint() {
     if (kIsWeb) {
-      return 'Flutter Web → YouTube IFrame Player（MVP 桌面路线）';
+      return 'Flutter Web → YouTube IFrame Player（桌面播放器 ADR 路线 B）';
     }
     if (defaultTargetPlatform == TargetPlatform.android) {
       return 'Android → webview_flutter YouTube IFrame';

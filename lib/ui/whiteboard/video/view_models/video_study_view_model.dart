@@ -5,16 +5,17 @@
 /// persistence. Uses [ChangeNotifier] following the project's MVVM pattern.
 library;
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
+import '../session_store.dart';
 
 /// Dock orientation for the ContextDock (subtitle/annotation panel).
 enum DockOrientation { right, bottom }
+
+/// Status of the platform-subtitle auto-fetch (YouTube timedtext).
+enum SubtitleAutoFetchStatus { idle, fetching, loaded, failed, skipped }
 
 /// The state of a single video annotation in the UI.
 class UIAnnotation {
@@ -35,6 +36,10 @@ class VideoStudyViewModel extends ChangeNotifier {
   final String sourceVersionId;
   final String providerId;
 
+  /// Optional session persistence for restart recovery. When null, session
+  /// save/restore is skipped (in-memory only).
+  final VideoSessionStore? sessionStore;
+
   PlayerSyncController? _syncController;
   final VideoAnnotationService _annotationService = VideoAnnotationService();
 
@@ -46,6 +51,11 @@ class VideoStudyViewModel extends ChangeNotifier {
   bool _isLoaded = false;
   bool _needsSubtitle = false;
   String? _errorMessage;
+
+  SubtitleAutoFetchStatus _subtitleFetchStatus = SubtitleAutoFetchStatus.idle;
+  String? _subtitleFetchMessage;
+  late YouTubeTimedTextService _timedTextService;
+  late bool _ownsTimedTextService;
 
   final List<UIAnnotation> _annotations = [];
   final Map<String, String> _anchorToCard = {};
@@ -64,11 +74,18 @@ class VideoStudyViewModel extends ChangeNotifier {
     required this.sourceVersionId,
     required this.providerId,
     TimedTextTrack? initialTrack,
+    this.sessionStore,
+    YouTubeTimedTextService? timedTextService,
   }) {
     _track = initialTrack;
     _needsSubtitle = initialTrack == null ||
         initialTrack.reliability == TimedTextReliability.unavailable ||
         initialTrack.cues.isEmpty;
+    _ownsTimedTextService = timedTextService == null;
+    _timedTextService = timedTextService ?? YouTubeTimedTextService();
+    _subtitleFetchStatus = _track?.cues.isNotEmpty == true
+        ? SubtitleAutoFetchStatus.loaded
+        : SubtitleAutoFetchStatus.idle;
     _updateAvailability();
   }
 
@@ -77,6 +94,12 @@ class VideoStudyViewModel extends ChangeNotifier {
   TimedTextTrack? get track => _track;
   bool get needsSubtitle => _needsSubtitle;
   String? get errorMessage => _errorMessage;
+
+  /// Status of the platform-subtitle auto-fetch (YouTube timedtext).
+  SubtitleAutoFetchStatus get subtitleFetchStatus => _subtitleFetchStatus;
+
+  /// Honest reason when auto-fetch failed, or a note when it loaded.
+  String? get subtitleFetchMessage => _subtitleFetchMessage;
 
   // ─── Playback ───
 
@@ -202,10 +225,50 @@ class VideoStudyViewModel extends ChangeNotifier {
       }
 
       notifyListeners();
+
+      // Auto-fetch platform subtitles (YouTube timedtext) when the provider
+      // supports it on this platform and no usable track is loaded yet. The
+      // static capability declaration stays conservative; study readiness is
+      // decided at runtime after this attempt.
+      _maybeAutoFetchSubtitles(embedUrl);
     } catch (e) {
       _errorMessage = '加载失败：$e';
       notifyListeners();
     }
+  }
+
+  /// Whether platform-subtitle auto-fetch should run for the current setup.
+  bool get _canAutoFetchSubtitles =>
+      providerId == 'youtube' &&
+      (kIsWeb || defaultTargetPlatform == TargetPlatform.android) &&
+      (_track?.cues.isEmpty != false);
+
+  void _maybeAutoFetchSubtitles(String? embedUrl) {
+    if (!_canAutoFetchSubtitles) {
+      _subtitleFetchStatus = SubtitleAutoFetchStatus.skipped;
+      return;
+    }
+    _subtitleFetchStatus = SubtitleAutoFetchStatus.fetching;
+    notifyListeners();
+    // Fire and forget — the UI observes subtitleFetchStatus.
+    _fetchPlatformSubtitles(embedUrl);
+  }
+
+  Future<void> _fetchPlatformSubtitles(String? embedUrl) async {
+    final videoRef = embedUrl ?? sourceId;
+    final result =
+        await _timedTextService.fetchForVideo(videoRef, sourceId: sourceId,
+            sourceVersionId: sourceVersionId);
+    if (result.isSuccess && result.track != null) {
+      _setTrack(result.track!);
+      _subtitleFetchStatus = SubtitleAutoFetchStatus.loaded;
+      _subtitleFetchMessage = '已自动获取平台字幕（${result.track!.language}）';
+    } else {
+      _subtitleFetchStatus = SubtitleAutoFetchStatus.failed;
+      _subtitleFetchMessage = result.error ?? '自动获取字幕失败';
+      _needsSubtitle = true;
+    }
+    notifyListeners();
   }
 
   /// Loads a subtitle track from raw SRT/VTT content.
@@ -235,6 +298,11 @@ class VideoStudyViewModel extends ChangeNotifier {
     _needsSubtitle = track.reliability == TimedTextReliability.unavailable ||
         track.cues.isEmpty;
     _errorMessage = null;
+    if (track.sourceKind == TimedTextSourceKind.platform &&
+        !_needsSubtitle &&
+        _subtitleFetchStatus != SubtitleAutoFetchStatus.loaded) {
+      _subtitleFetchStatus = SubtitleAutoFetchStatus.loaded;
+    }
     _updateAvailability();
 
     _syncController?.dispose();
@@ -274,6 +342,8 @@ class VideoStudyViewModel extends ChangeNotifier {
     await adapter.pause();
     _isPlaying = false;
     notifyListeners();
+    // Persist position for restart recovery (best-effort).
+    saveSession();
   }
 
   Future<void> togglePlayPause() async {
@@ -343,6 +413,9 @@ class VideoStudyViewModel extends ChangeNotifier {
     _showSaveConfirmation = true;
     notifyListeners();
 
+    // Persist the session immediately so the annotation survives a restart.
+    saveSession();
+
     // Auto-dismiss the confirmation after a short delay.
     Future.delayed(const Duration(milliseconds: 900), () {
       if (_showSaveConfirmation) {
@@ -374,54 +447,36 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   // ─── Session persistence ───
 
-  /// Saves the current session to a JSON file at [path].
-  Future<void> saveSession(String path) async {
-    final session = _annotationService.saveSession(
-      sourceId: sourceId,
-      sourceVersionId: sourceVersionId,
-      lastPositionMs: _positionMs,
-      anchors: _annotations.map((a) => a.anchor).toList(),
-      annotationCards: _annotations.map((a) => a.card).toList(),
-      anchorToCard: _anchorToCard,
-    );
-    final file = File(path);
-    await file.writeAsString(jsonEncode(session.toJson()));
+  /// Saves the current session via [sessionStore] (best-effort, never throws).
+  ///
+  /// Skipped when no store is configured (in-memory demo).
+  Future<void> saveSession() async {
+    final store = sessionStore;
+    if (store == null) return;
+    try {
+      final session = _annotationService.saveSession(
+        sourceId: sourceId,
+        sourceVersionId: sourceVersionId,
+        lastPositionMs: _positionMs,
+        anchors: _annotations.map((a) => a.anchor).toList(),
+        annotationCards: _annotations.map((a) => a.card).toList(),
+        anchorToCard: _anchorToCard,
+      );
+      await store.save(session);
+    } catch (_) {
+      // Persistence is best-effort for the study workflow.
+    }
   }
 
-  /// Restores a session from a JSON file at [path].
-  Future<void> restoreSession(String path, {String? currentVersionId}) async {
+  /// Restores the session from [sessionStore] (if any), re-resolving anchors
+  /// against [currentVersionId] when it differs from the saved version.
+  Future<void> restoreSession({String? currentVersionId}) async {
+    final store = sessionStore;
+    if (store == null) return;
     try {
-      final file = File(path);
-      final raw = await file.readAsString();
-      final json = jsonDecode(raw) as Map<String, dynamic>;
-      var session = VideoAnnotationSession.fromJson(json);
-
-      if (currentVersionId != null && currentVersionId != session.sourceVersionId) {
-        session = _annotationService.restoreSession(
-          saved: session,
-          currentVersionId: currentVersionId,
-        );
-      }
-
-      _annotations.clear();
-      _anchorToCard.clear();
-      for (var i = 0; i < session.anchors.length; i++) {
-        final anchor = session.anchors[i];
-        final card = session.annotationCards.length > i
-            ? session.annotationCards[i]
-            : null;
-        if (card != null) {
-          _annotations.add(UIAnnotation(anchor: anchor, card: card));
-          _anchorToCard[anchor.anchorId] = card.cardId;
-        }
-      }
-
-      // Restore playback position
-      if (canSeek && session.lastPositionMs > 0) {
-        await seekTo(session.lastPositionMs);
-      }
-
-      notifyListeners();
+      final saved = await store.load();
+      if (saved == null) return;
+      restoreFromSession(saved, currentVersionId: currentVersionId);
     } catch (e) {
       _errorMessage = '恢复失败：$e';
       notifyListeners();
@@ -429,19 +484,36 @@ class VideoStudyViewModel extends ChangeNotifier {
   }
 
   /// Restores from an in-memory [VideoAnnotationSession].
-  void restoreFromSession(VideoAnnotationSession session) {
+  void restoreFromSession(VideoAnnotationSession session,
+      {String? currentVersionId}) {
+    var effective = session;
+    if (currentVersionId != null &&
+        currentVersionId != session.sourceVersionId) {
+      effective = _annotationService.restoreSession(
+        saved: session,
+        currentVersionId: currentVersionId,
+      );
+    }
+
     _annotations.clear();
     _anchorToCard.clear();
-    for (var i = 0; i < session.anchors.length; i++) {
-      final anchor = session.anchors[i];
-      final card = session.annotationCards.length > i
-          ? session.annotationCards[i]
+    for (var i = 0; i < effective.anchors.length; i++) {
+      final anchor = effective.anchors[i];
+      final card = effective.annotationCards.length > i
+          ? effective.annotationCards[i]
           : null;
       if (card != null) {
         _annotations.add(UIAnnotation(anchor: anchor, card: card));
         _anchorToCard[anchor.anchorId] = card.cardId;
       }
     }
+
+    // Restore playback position
+    if (canSeek && effective.lastPositionMs > 0) {
+      // Fire-and-forget: seek settles as the player finishes loading.
+      seekTo(effective.lastPositionMs);
+    }
+
     notifyListeners();
   }
 
@@ -465,6 +537,9 @@ class VideoStudyViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _syncController?.dispose();
+    if (_ownsTimedTextService) {
+      _timedTextService.dispose();
+    }
     // Dispose the adapter if it exposes a dispose() method (FixturePlayerAdapter,
     // YouTubePlayerAdapter, and WebYouTubePlayerAdapter all do). Using dynamic
     // avoids importing the Web adapter (which depends on dart:js_interop and

@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
+import 'package:memex/domain/whiteboard/video/youtube_adapter_factory.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
 
 /// Builds a FixturePlayerAdapter + track for widget testing.
@@ -38,6 +40,24 @@ TimedTextTrack _buildTrack() {
       ),
     ],
   );
+}
+
+/// Fake timedtext service with a scripted result (no network in tests).
+class _FakeTimedTextService extends YouTubeTimedTextService {
+  final YouTubeTimedTextResult result;
+  int calls = 0;
+
+  _FakeTimedTextService(this.result);
+
+  @override
+  Future<YouTubeTimedTextResult> fetchForVideo(
+    String videoIdOrUrl, {
+    required String sourceId,
+    String? sourceVersionId,
+  }) async {
+    calls++;
+    return result;
+  }
 }
 
 void main() {
@@ -171,5 +191,114 @@ void main() {
     expect(find.text('标注已保存'), findsNothing);
 
     adapter.dispose();
+  });
+
+  group('YouTube platform subtitle auto-fetch', () {
+    TimedTextTrack platformTrack() {
+      return const TimedTextTrack(
+        trackId: 'yt_en_test',
+        sourceId: 'src_video_test',
+        sourceVersionId: 'ver_video_test_v1',
+        sourceKind: TimedTextSourceKind.platform,
+        language: 'en',
+        reliability: TimedTextReliability.reliable,
+        cues: [
+          TimedTextCue(
+            cueId: 'cue_1',
+            startMs: 2000,
+            endMs: 5000,
+            text: 'Light switch, night begins',
+          ),
+          TimedTextCue(
+            cueId: 'cue_2',
+            startMs: 6000,
+            endMs: 9500,
+            text: 'Smoke rises on stage',
+          ),
+        ],
+      );
+    }
+
+    Widget buildYoutubeScreen({
+      required YouTubeTimedTextService service,
+    }) {
+      // Build the adapter under the windows override so the VM-test stub is
+      // created (no WebViewController in unit tests), then restore the test
+      // default (android) so the VM's auto-fetch platform gate sees android.
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      final adapter = createYouTubeAdapter();
+      debugDefaultTargetPlatformOverride = null;
+      return MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_yt_test',
+          sourceVersionId: 'ver_yt_v1',
+          providerId: 'youtube',
+          embedUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          timedTextService: service,
+        ),
+      );
+    }
+
+    testWidgets('auto-fetch success loads the platform track and study is ready',
+        (tester) async {
+      final service = _FakeTimedTextService(
+        YouTubeTimedTextResult(track: platformTrack()),
+      );
+
+      await tester.pumpWidget(buildYoutubeScreen(service: service));
+      await tester.pumpAndSettle();
+
+      expect(service.calls, equals(1), reason: 'auto-fetch ran for youtube');
+      expect(find.text('需要字幕'), findsNothing);
+      expect(find.text('Light switch, night begins'), findsOneWidget);
+      expect(find.text('Smoke rises on stage'), findsOneWidget);
+      expect(find.textContaining('平台字幕'), findsOneWidget);
+    });
+
+    testWidgets('auto-fetch failure shows honest "需要字幕" with reason',
+        (tester) async {
+      final service = _FakeTimedTextService(
+        const YouTubeTimedTextResult(
+          error: 'YouTube 未返回可用字幕轨（该视频可能没有字幕，或自动获取被网络/跨域限制）',
+        ),
+      );
+
+      await tester.pumpWidget(buildYoutubeScreen(service: service));
+      await tester.pumpAndSettle();
+
+      expect(service.calls, equals(1));
+      expect(find.text('需要字幕'), findsWidgets);
+      expect(find.text('导入字幕'), findsOneWidget);
+      expect(
+        find.text('YouTube 未返回可用字幕轨（该视频可能没有字幕，或自动获取被网络/跨域限制）'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('fixture provider does not trigger auto-fetch', (tester) async {
+      final service = _FakeTimedTextService(
+        YouTubeTimedTextResult(track: platformTrack()),
+      );
+      final adapter = _buildFixture();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoStudyScreen(
+            adapter: adapter,
+            sourceId: 'src_video_test',
+            sourceVersionId: 'ver_video_test_v1',
+            providerId: 'fixture',
+            timedTextService: service,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(service.calls, equals(0));
+      expect(find.text('需要字幕'), findsWidgets);
+
+      adapter.dispose();
+    });
   });
 }

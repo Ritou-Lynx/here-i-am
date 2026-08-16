@@ -294,6 +294,16 @@ class WebYouTubePlayerAdapter implements PlayerAdapter {
     _stopPolling();
   }
 
+  /// Mutes / unmutes the player (standard player control).
+  ///
+  /// Browser autoplay policies may block unmuted playback without a user
+  /// gesture; muting first allows programmatic playback to start. The
+  /// player's default is unmuted.
+  Future<void> setMuted(bool muted) async {
+    if (!_isPlayerReady || _player == null) return;
+    _player!.callMethod(muted ? 'mute'.toJS : 'unMute'.toJS);
+  }
+
   @override
   Future<int> currentPositionMs() async {
     if (!_isPlayerReady || _player == null) return _positionMs;
